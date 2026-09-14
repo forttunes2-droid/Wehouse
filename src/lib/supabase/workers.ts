@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, BlueBadgeSubscription, Wallet, WalletTransaction, PaymentProtectionTransaction, Withdrawal, FinancialAuditLog } from '@/types';
+import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, LegacyWorkerSubscription, Wallet, WalletTransaction, PaymentProtectionTransaction, Withdrawal, FinancialAuditLog } from '@/types';
 
 // ═══════════════════════════════════════════════════════════════
 // WORKER DISCOVERY — Find workers by filters
@@ -41,10 +41,9 @@ export async function updateWorkerStatus(userId: string, status: string) {
   const cleanBio = bio.replace(/🛠️STATUS:\w+🛠️/g, '').trim();
   const newBio = `🛠️STATUS:${status}🛠️ ${cleanBio}`.trim();
 
-  // worker_verified = true if worker has completed verification process
-  // (verification_paid, profile_under_review, verified) — they get golden tick
-  // Only 'verified' workers go public in Explore
-  const hasCompletedVerification = status === 'verification_paid' || status === 'profile_under_review' || status === 'verified' || status === 'rejected';
+  // WeHouse approval is the only state that grants the reviewed flag. Payment,
+  // queue entry and rejection are never substitutes for an approval decision.
+  const hasCompletedVerification = status === 'verified';
 
   const { data: updated, error } = await supabase
     .from('profiles')
@@ -299,18 +298,18 @@ export async function reviewWorkerVerification(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// RETIRED BLUE-BADGE HISTORY
+// RETIRED WORKER SUBSCRIPTION HISTORY
 // ═══════════════════════════════════════════════════════════════
 
 // Read compatibility only. Historical rows remain financial records, but they
 // never grant Reviewed, Trusted or the gold PRO entitlement.
-export async function getBlueBadgeSubscription(workerId: string) {
+export async function getLegacyWorkerSubscription(workerId: string) {
   const { data, error } = await supabase
     .from('blue_badge_subscriptions')
     .select('*')
     .eq('worker_id', workerId)
     .maybeSingle();
-  return { subscription: data as BlueBadgeSubscription | null, error };
+  return { subscription: data as LegacyWorkerSubscription | null, error };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -465,7 +464,7 @@ export async function getWorkerDashboardData(workerId: string) {
   const { verification } = await getWorkerVerification(workerId);
 
   // Historical compatibility only; current Pro comes from get_my_worker_pro.
-  const { subscription: blueBadge } = await getBlueBadgeSubscription(workerId);
+  const { subscription: legacySubscription } = await getLegacyWorkerSubscription(workerId);
 
   // Get recent transactions
   const transactionsPromise = wallet
@@ -485,7 +484,7 @@ export async function getWorkerDashboardData(workerId: string) {
   return {
     wallet: wallet || null,
     verification: verification || null,
-    blueBadge: blueBadge || null,
+    legacySubscription: legacySubscription || null,
     transactions: transactions || [],
     withdrawals: withdrawals || [],
   };
@@ -505,7 +504,7 @@ export async function getWorkerSystemStats() {
     .from('worker_verifications')
     .select('status');
 
-  const { data: badges } = await supabase
+  const { data: legacySubscriptions } = await supabase
     .from('blue_badge_subscriptions')
     .select('status');
 
@@ -521,7 +520,7 @@ export async function getWorkerSystemStats() {
     workers: {
       total: workers?.length || 0,
       pending: workers?.filter(w => w.worker_status === 'pending').length || 0,
-      paid: workers?.filter(w => w.worker_status === 'verification_paid' || w.worker_status === 'profile_under_review').length || 0,
+      reviewQueue: workers?.filter(w => w.worker_status === 'verification_paid' || w.worker_status === 'profile_under_review').length || 0,
       suspended: workers?.filter(w => w.worker_status === 'suspended').length || 0,
     },
     verifications: {
@@ -530,9 +529,9 @@ export async function getWorkerSystemStats() {
       approved: verifications?.filter(v => v.status === 'approved').length || 0,
       rejected: verifications?.filter(v => v.status === 'rejected').length || 0,
     },
-    blueBadges: {
-      active: badges?.filter(b => b.status === 'active').length || 0,
-      total: badges?.length || 0,
+    legacySubscriptions: {
+      active: legacySubscriptions?.filter(subscription => subscription.status === 'active').length || 0,
+      total: legacySubscriptions?.length || 0,
     },
     wallets: {
       totalBalance: walletsData?.reduce((sum, w) => sum + (w.available_balance || 0), 0) || 0,

@@ -229,6 +229,7 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   assert.doesNotMatch(discovery,/WorkerProBadge/);
   assert.doesNotMatch(workers,/export async function createBlueBadgeSubscription/);
   assert.doesNotMatch(workers,/export async function cancelBlueBadgeSubscription/);
+  assert.match(workers,/const hasCompletedVerification = status === 'verified'/);
   assert.doesNotMatch(exports,/createBlueBadgeSubscription|cancelBlueBadgeSubscription/);
 });
 

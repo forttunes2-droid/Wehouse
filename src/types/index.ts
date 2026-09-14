@@ -1468,14 +1468,15 @@ export const WORKER_VERIFICATION_STATUS_COLORS: Record<
   rejected: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
-// ─── BLUE BADGE SUBSCRIPTION ────────────────────────────────
+// ─── LEGACY WORKER SUBSCRIPTION RECORD ──────────────
 
-export type BlueBadgeStatus = "active" | "inactive" | "expired" | "cancelled";
+// Legacy subscription type names are retained only for database compatibility.
+export type LegacyWorkerSubscriptionStatus = "active" | "inactive" | "expired" | "cancelled";
 
-export interface BlueBadgeSubscription {
+export interface LegacyWorkerSubscription {
   id: string;
   worker_id: string;
-  status: BlueBadgeStatus;
+  status: LegacyWorkerSubscriptionStatus;
   started_at: string | null;
   expires_at: string | null;
   paystack_reference: string | null;
@@ -1485,14 +1486,14 @@ export interface BlueBadgeSubscription {
   updated_at: string;
 }
 
-export const BLUE_BADGE_STATUS_LABELS: Record<BlueBadgeStatus, string> = {
+export const LEGACY_WORKER_SUBSCRIPTION_STATUS_LABELS: Record<LegacyWorkerSubscriptionStatus, string> = {
   active: "Active",
   inactive: "Inactive",
   expired: "Expired",
   cancelled: "Cancelled",
 };
 
-export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
+export const LEGACY_WORKER_SUBSCRIPTION_STATUS_COLORS: Record<LegacyWorkerSubscriptionStatus, string> = {
   active: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   inactive: "bg-gray-500/10 text-gray-400 border-gray-500/20",
   expired: "bg-amber-500/10 text-amber-400 border-amber-500/20",

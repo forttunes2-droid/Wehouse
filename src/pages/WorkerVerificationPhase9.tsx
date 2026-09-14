@@ -309,16 +309,7 @@ export default function WorkerVerificationPhase9({
                 text={a.rejection_reason}
               />
             )}{" "}
-            {reviewing ? (
-              <Card
-                eyebrow="3 · WEHOUSE REVIEW"
-                title="Review in progress"
-                text="WeHouse is reviewing your real professional work evidence."
-              >
-                <Status text="Your profile stays private until approval" />
-                <Button label="Back to dashboard" onClick={onBack} secondary />
-              </Card>
-            ) : !a.profile_complete ? (
+            {!a.profile_complete ? (
               <Card
                 eyebrow="1 · WORKER PROFILE"
                 title="Complete your work profile"
@@ -332,9 +323,18 @@ export default function WorkerVerificationPhase9({
             ) : !identityComplete ? (
               <WorkerIdentityCheck
                 profile={profile}
-                status={identityComplete ? "passed" : a.identity_status}
+                status={a.identity_status}
                 onSaved={refresh}
               />
+            ) : reviewing ? (
+              <Card
+                eyebrow="3 · WEHOUSE REVIEW"
+                title="Review in progress"
+                text="WeHouse is reviewing your real work evidence."
+              >
+                <Status text="Your profile stays private until approval" />
+                <Button label="Back to dashboard" onClick={onBack} secondary />
+              </Card>
             ) : !a.evidence_saved ? (
               <Card
                 eyebrow="2 · WORKER VERIFICATION"

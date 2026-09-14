@@ -123,7 +123,7 @@ export default function WorkerDiscovery({
         if (!live) return;
         if (error)
           toast.error(
-            error.message || "Unable to load home-service professionals",
+            error.message || "Unable to load Workers",
           );
         setWorkers(rows || []);
         setCategories((cats || []) as Category[]);
@@ -453,7 +453,7 @@ export default function WorkerDiscovery({
                   WORK STATUS
                 </p>
                 <h2 className="mt-1 text-sm font-bold">
-                  Recent work from professionals
+                  Recent work from Workers
                 </h2>
               </div>
               <span className="text-[9px] text-[#666D7E]">24-hour updates</span>
@@ -525,8 +525,8 @@ export default function WorkerDiscovery({
           <div>
             <p className="text-[11px] font-semibold">
               {loading
-                ? "Finding professionals…"
-                : `${shown.length} ${shown.length === 1 ? "professional" : "professionals"}`}
+                ? "Finding Workers…"
+                : `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`}
             </p>
             <p className="mt-1 text-[9px] text-[#666D7E]">
               {state
@@ -550,7 +550,7 @@ export default function WorkerDiscovery({
           </div>
         ) : shown.length === 0 ? (
           <DiscoveryEmpty
-            title="No professional matches this search"
+            title="No Worker matches this search"
             text="Try a broader service or location."
           />
         ) : (
@@ -566,7 +566,7 @@ export default function WorkerDiscovery({
                 onBook={() =>
                   profile
                     ? setBookingWorker(worker)
-                    : toast.info("Please sign in to request a professional")
+                    : toast.info("Please sign in to request a Worker")
                 }
                 onOpen={() => onNavigate("my_reservations")}
               />
@@ -685,7 +685,7 @@ export default function WorkerDiscovery({
               }}
               className="mt-3 h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold"
             >
-              View professional profile
+              View Worker profile
             </button>
           </div>
         </div>

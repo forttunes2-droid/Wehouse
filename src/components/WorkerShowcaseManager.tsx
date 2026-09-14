@@ -135,7 +135,7 @@ export default function WorkerShowcaseManager({
     if (!file) return toast.error("Choose a photo or video first");
     if (profile.worker_status !== "verified" || !profile.worker_verified) {
       return toast.error(
-        "Finish WeHouse professional verification before publishing work",
+        "Finish WeHouse review before publishing work",
       );
     }
 
@@ -366,7 +366,7 @@ export default function WorkerShowcaseManager({
                 {post.hidden_at && <span className="absolute right-2 top-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-bold text-white">HIDDEN</span>}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent px-2.5 pb-2.5 pt-10">
                   <p className="line-clamp-2 text-[9px] leading-4 text-white">
-                    {post.caption || "Professional work"}
+                    {post.caption || "Worker showcase"}
                   </p>
                 </div>
               </button>
@@ -375,7 +375,7 @@ export default function WorkerShowcaseManager({
         ) : (
           <EmptyWork
             title="No work posted yet"
-            text="Add a photo or video to build your professional work feed."
+            text="Add a photo or video to build your Worker showcase."
           />
         )}
       </div>

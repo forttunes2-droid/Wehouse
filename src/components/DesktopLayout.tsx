@@ -201,7 +201,7 @@ export default function DesktopLayout({
       direct = ['Overview', 'Operations', 'Inbox', 'Issues'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'worker') {
       direct = ['Overview', 'Jobs', 'Schedule', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
-      extra = ['Professional Profile'].map(by).filter(Boolean) as MirroredTab[];
+      extra = ['Worker profile'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'property_partner') {
       direct = ['Properties', 'Inbox', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'staff') {
@@ -381,7 +381,7 @@ export default function DesktopLayout({
                         ? 'Requests'
                         : tab.label === 'My Properties'
                           ? 'Properties'
-                          : tab.label === 'Professional Profile'
+                          : tab.label === 'Worker profile'
                             ? 'Profile'
                             : tab.label;
                 return (

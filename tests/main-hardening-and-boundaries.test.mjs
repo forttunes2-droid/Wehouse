@@ -217,12 +217,15 @@ test("Worker paid tools live under Account and load only when opened", async () 
 });
 
 test("creating a Worker workspace opens Worker setup and continues to verification", async () => {
-  const [app, account, setup, activation, verification] = await Promise.all([
+  const [app, account, setup, activation, verification, workspace, migration, sqlContract] = await Promise.all([
     read("src/App.tsx"),
     read("src/pages/AccountCenter.tsx"),
     read("src/pages/WorkerSetupProfessional.tsx"),
     read("src/components/WorkerActivationHome.tsx"),
     read("src/pages/WorkerVerificationPhase9.tsx"),
+    read("src/pages/WorkerWorkspaceModern.tsx"),
+    read("supabase/migrations/20260914113621_enforce_worker_face_check_before_review.sql"),
+    read("supabase/tests/worker_face_review_contract.sql"),
   ]);
   assert.match(account, /onWorkspaceActivated\?\.\(workspace\)/);
   assert.match(app, /workspace === "worker" \? "worker_setup" : "property_partner"/);
@@ -233,8 +236,34 @@ test("creating a Worker workspace opens Worker setup and continues to verificati
   assert.match(verification, /Worker verification/);
   assert.match(verification, /identity_captured === true && a\.identity_passed === true/);
   assert.match(verification, /!identityComplete[\s\S]*<WorkerIdentityCheck/);
+  assert.match(workspace, /const ACTIVATION_NAV[\s\S]*id: "account"/);
+  assert.match(migration, /'identity_required',true/);
+  assert.match(
+    migration,
+    /create or replace function public\.submit_my_worker_verification\(\)[\s\S]*if not public\.worker_identity_is_current\(v_profile\.user_id\)/,
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.save_my_worker_professional_evidence[\s\S]*if not public\.worker_identity_is_current\(v_profile\.user_id\)/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /coalesce\(v_identity_required,false\) and not public\.worker_identity_is_current/,
+  );
+  assert.match(
+    migration,
+    /get_public_workers[\s\S]*and public\.worker_identity_is_current\(profile\.user_id\)/,
+  );
+  assert.match(
+    migration,
+    /coalesce\(profile\.worker_status,'pending'\)<>'verified'[\s\S]*coalesce\(profile\.worker_verified,false\)/,
+  );
+  assert.match(sqlContract, /Worker review submission bypassed the live-face check/);
+  assert.match(sqlContract, /Valid Worker review submission did not enter review/);
   assert.doesNotMatch(account, /title="Professional profile"/);
   assert.doesNotMatch(account, /managed only from Professional Profile/);
+  assert.doesNotMatch(account, /Add a professional workspace/);
+  assert.doesNotMatch(activation, /professional work evidence/i);
 });
 
 test("Worker chat does not repeat the full request card in the message timeline", async () => {

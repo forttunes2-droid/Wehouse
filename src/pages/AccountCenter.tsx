@@ -263,7 +263,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       )}
 
       {canAddProfessionalWorkspace && (
-        <AccountSection title="Add a professional workspace">
+        <AccountSection title="Add a workspace">
           <AccountRow title="Offer services" detail="Review what is added before creating a free Worker workspace" onClick={() => setWorkspaceToAdd('worker')} disabled={activatingWorkspace!==null} icon={<PersonIcon />} />
           <AccountRow title="List or manage property" detail="Review what is added before creating a Property Partner workspace" onClick={() => setWorkspaceToAdd('property_partner')} disabled={activatingWorkspace!==null} icon={<HomeIcon />} />
         </AccountSection>
