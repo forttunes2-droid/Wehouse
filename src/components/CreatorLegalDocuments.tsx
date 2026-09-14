@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { getCurrentLegalDocuments } from "@/lib/supabase/legal";
+import { legalLaunchChecklist, legalReviewDrafts } from "@/content/legalReviewDrafts";
 
 type DocumentKind = "privacy" | "terms";
 type Draft = {
@@ -73,6 +74,13 @@ export default function CreatorLegalDocuments() {
       ...current,
       [kind]: { ...current[kind], ...change },
     }));
+  }
+
+  function loadLawyerDraft(kind: DocumentKind) {
+    const current = editors[kind].body.trim();
+    if (current && current !== legalReviewDrafts[kind].trim() && !window.confirm("Replace the unsaved editor text with the WeHouse lawyer-review draft?")) return;
+    update(kind, { body: legalReviewDrafts[kind], draft: null });
+    toast.success("Lawyer-review draft loaded. It is not public.");
   }
 
   async function saveDraft(kind: DocumentKind) {
@@ -163,6 +171,7 @@ export default function CreatorLegalDocuments() {
                   {editor.draft ? "DRAFT" : "NOT READY"}
                 </span>
               </div>
+              <button type="button" onClick={() => loadLawyerDraft(kind)} className="mt-4 min-h-10 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.05] px-3 text-[10px] font-semibold text-violet-200">Load lawyer-review draft</button>
               <label className="mt-4 block text-[9px] text-[#777E8E]">
                 Title
                 <input value={editor.title} onChange={(event) => update(kind, { title: event.target.value, draft: null })} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white outline-none" />
@@ -190,6 +199,13 @@ export default function CreatorLegalDocuments() {
           );
         })}
       </div>
+      <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 sm:p-5">
+        <h3 className="text-sm font-semibold">Internal launch documents still required</h3>
+        <p className="mt-1 text-[9px] leading-4 text-[#707687]">These are working records for WeHouse and the lawyer. They are not user terms.</p>
+        <div className="mt-3 divide-y divide-white/[.05] border-y border-white/[.05]">
+          {legalLaunchChecklist.map((item) => <p key={item} className="py-3 text-[10px] leading-5 text-[#A2A7B5]">{item}</p>)}
+        </div>
+      </section>
     </section>
   );
 }

@@ -525,3 +525,81 @@ test("password recovery requires a one-use attempt bound to the linked OAuth ses
   assert.match(useAuth, /googlePasswordRecoveryRequested/);
   assert.doesNotMatch(useAuth, /PASSWORD_RECOVERY_AUTH_KEY/);
 });
+
+test("password recovery browser state is tab-scoped and expires with the server attempt", async () => {
+  const transaction = await read("src/lib/googleVerification.ts");
+  assert.match(transaction, /PASSWORD_RECOVERY_MAX_AGE_MS = 10 \* 60 \* 1000/);
+  assert.match(transaction, /sessionStorage\.setItem\(TRANSACTION_KEY/);
+  assert.match(transaction, /sessionStorage\.getItem\(TRANSACTION_KEY/);
+  assert.match(transaction, /maximumAge\(parsed\.context\)/);
+  assert.doesNotMatch(transaction, /localStorage\.setItem\(TRANSACTION_KEY/);
+});
+
+test("private-message PIN controls live inside Personal and Worker Inbox", async () => {
+  const [accountSecurity, personalInbox, workerInbox] = await Promise.all([
+    read("src/pages/PrivacySecuritySettings.tsx"),
+    read("src/pages/ChatCore.tsx"),
+    read("src/components/WorkerJobsPanelV2.tsx"),
+  ]);
+  assert.doesNotMatch(accountSecurity, /Encrypted chats/);
+  assert.doesNotMatch(accountSecurity, /SecureMessagesPanel/);
+  assert.match(personalInbox, /Inbox PIN/);
+  assert.match(personalInbox, /<SecureMessagesPanel/);
+  assert.match(workerInbox, /Inbox PIN/);
+  assert.match(workerInbox, /<SecureMessagesPanel/);
+});
+
+test("Worker self-discovery never renders a booking action", async () => {
+  const discovery = await read("src/pages/WorkerDiscovery.tsx");
+  assert.match(discovery, /viewWorker\.user_id === profile\.user_id/);
+  assert.match(discovery, /showBookingAction=\{!viewingOwnWorker\}/);
+  assert.match(discovery, /bookable=\{worker\.user_id !== profile\?\.user_id\}/);
+  assert.match(discovery, /active && bookable/);
+});
+
+test("browser face scores cannot approve Worker or Partner identity", async () => {
+  const [migration, workerUi, reviewUi] = await Promise.all([
+    read("supabase/migrations/20260914210626_harden_account_identity_review.sql"),
+    read("src/components/WorkerIdentityCheck.tsx"),
+    read("src/components/AccountIdentityReviewQueue.tsx"),
+  ]);
+  assert.match(migration, /status='pending_review'/);
+  assert.match(migration, /v_actor\.user_id=v_target\.user_id then return false/);
+  assert.match(migration, /review_account_identity_check/);
+  assert.match(migration, /p_decision not in\('approved','rejected'\)/);
+  assert.match(migration, /identity_reviewer_read_private_reference/);
+  assert.match(migration, /pending_reference_photo_path/);
+  assert.match(migration, /latest_reference_photo_path=case when p_decision='approved'/);
+  assert.match(workerUi, /awaiting WeHouse review/);
+  assert.match(workerUi, /anchorSimilarity/);
+  assert.match(workerUi, /recentSimilarity/);
+  assert.match(reviewUi, /Browser scores help screening but cannot approve/);
+});
+
+test("private calls obtain relay details only through an authenticated call participant function", async () => {
+  const [client, center, edge, config] = await Promise.all([
+    read("src/lib/private-calls.ts"),
+    read("src/components/PrivateCallCenter.tsx"),
+    read("supabase/functions/private-call-ice/index.ts"),
+    read("supabase/config.toml"),
+  ]);
+  assert.match(client, /functions\.invoke\('private-call-ice'/);
+  assert.match(center, /getPrivateCallIceServers\(call\.id\)/);
+  assert.match(edge, /admin\.auth\.getUser\(token\)/);
+  assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
+  assert.match(edge, /WEBRTC_TURN_URLS/);
+  assert.match(config, /\[functions\.private-call-ice\][\s\S]*verify_jwt = true/);
+});
+
+test("Creator legal area contains lawyer-review drafts without inventing a Long Let deposit", async () => {
+  const [editor, drafts] = await Promise.all([
+    read("src/components/CreatorLegalDocuments.tsx"),
+    read("src/content/legalReviewDrafts.ts"),
+  ]);
+  assert.match(editor, /Load lawyer-review draft/);
+  assert.match(editor, /Internal launch documents still required/);
+  assert.match(drafts, /PRIVACY AND COOKIE NOTICE/);
+  assert.match(drafts, /There is no Long Let security deposit/);
+  assert.match(drafts, /Paid Worker subscription/);
+  assert.match(drafts, /Biometric\/liveness DPIA/);
+});

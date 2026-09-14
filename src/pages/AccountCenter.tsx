@@ -64,10 +64,12 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
   const isWorker = role === 'worker';
   const isStaff = role === 'staff';
   const canEditGenericProfile = !isStaff && !isWorker;
-  const roleLabel = role === 'property_partner' ? 'Property Partner' : role === 'staff' ? 'Team member' : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ');
+  const roleLabel = role === 'property_partner' ? 'Property Partner' : role === 'staff' || role === 'admin' ? 'WeHouse Team' : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ');
   const initials = (profile.full_name || profile.username || profile.email || 'U')[0].toUpperCase();
   const privilegedWorkspaces = workspaceAccess?.privileged_workspaces || [];
-  const canSwitchWorkspace = Boolean(onSwitchWorkspace && workspaceAccess?.personal_workspace && privilegedWorkspaces.length);
+  const marketplaceWorkspaces = privilegedWorkspaces.filter((workspace) => workspace.role === 'worker' || workspace.role === 'property_partner');
+  const assignedWorkspaces = privilegedWorkspaces.filter((workspace) => ['hotel','staff','admin','creator'].includes(workspace.role));
+  const canSwitchWorkspace = Boolean(onSwitchWorkspace && workspaceAccess?.personal_workspace && marketplaceWorkspaces.length);
   const hasWorkerWorkspace = privilegedWorkspaces.some(workspace => workspace.role === 'worker');
   const hasPartnerWorkspace = privilegedWorkspaces.some(workspace => workspace.role === 'property_partner');
   const identityRole = workspaceAccess?.identity?.compatibility_role || role;
@@ -254,11 +256,25 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
             <p className="mt-1 text-[9px] leading-relaxed text-[#6F7585]">Your personal bookings and conversations remain separate from WeHouse team activity.</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <WorkspaceButton label="Personal" detail="Bookings, roommate matches and personal messages" active={activeWorkspace === 'personal'} onClick={() => onSwitchWorkspace?.('personal')} />
-              {privilegedWorkspaces.map((workspace) => (
+              {marketplaceWorkspaces.map((workspace) => (
                 <WorkspaceButton key={workspace.role} label={workspaceLabel(workspace.role)} detail={workspace.lga || workspace.state || (workspace.role === 'hotel' ? 'Assigned hotel access' : undefined)} active={activeWorkspace === workspace.role} onClick={() => onSwitchWorkspace?.(workspace.role)} />
               ))}
             </div>
           </div>
+        </AccountSection>
+      )}
+
+      {assignedWorkspaces.length > 0 && onSwitchWorkspace && (
+        <AccountSection title="Assigned work">
+          {assignedWorkspaces.map((workspace) => (
+            <AccountRow
+              key={`${workspace.role}:${workspace.scope_type || ''}:${workspace.lga || ''}`}
+              title={workspaceLabel(workspace.role)}
+              detail={workspace.role === 'hotel' ? 'Open the hotel you are assigned to manage' : workspace.lga ? `${workspace.lga}${workspace.state ? `, ${workspace.state}` : ''}` : 'Open your assigned WeHouse work area'}
+              onClick={() => onSwitchWorkspace(workspace.role)}
+              icon={<ToolsIcon />}
+            />
+          ))}
         </AccountSection>
       )}
 

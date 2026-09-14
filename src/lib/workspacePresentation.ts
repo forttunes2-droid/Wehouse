@@ -12,7 +12,7 @@ const WORKSPACE_LABELS: Record<WorkspaceName, string> = {
   worker: "Worker",
   property_partner: "Property Partner",
   staff: "WeHouse Team",
-  admin: "Admin",
+  admin: "WeHouse Team",
   creator: "Creator",
   hotel: "Hotel Team",
 };
