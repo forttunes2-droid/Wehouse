@@ -87,6 +87,9 @@ type Booking = {
   blocked_by_me?: boolean | null;
   blocked_me?: boolean | null;
   payment_status?: string | null;
+  payment_released_at?: string | null;
+  job_support_until?: string | null;
+  job_support_open?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -629,6 +632,9 @@ export default function BookingNegotiationChat({
       "completed_pending_approval",
       "disputed",
     ].includes(booking?.status || ""),
+    jobSupportOpen =
+      booking?.job_support_open === true ||
+      (booking?.job_support_open == null && openConversation),
     peerName = isWorker
       ? booking?.customer_username
         ? `@${booking.customer_username}`
@@ -701,13 +707,15 @@ export default function BookingNegotiationChat({
         </div>
         {menuOpen && (
           <div className="absolute right-3 top-[3.65rem] z-30 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[#171B24] p-1.5 shadow-2xl">
-            <button
-              onClick={openSupport}
-              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-violet-300 hover:bg-violet-500/[.06]"
-            >
-              <span>?</span>
-              <span>Message WeHouse</span>
-            </button>
+            {jobSupportOpen && (
+              <button
+                onClick={openSupport}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-violet-300 hover:bg-violet-500/[.06]"
+              >
+                <span>?</span>
+                <span>Message WeHouse</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setMenuOpen(false);
@@ -1220,12 +1228,12 @@ export default function BookingNegotiationChat({
                     : "This person blocked contact. The conversation history remains available."}
                 </p>
               </div>
-              {paymentReview && (
+              {jobSupportOpen && (
                 <button
                   onClick={openSupport}
                   className="shrink-0 text-[9px] font-semibold text-violet-300"
                 >
-                  Open review
+                  {paymentReview ? "Open review" : "Message WeHouse"}
                 </button>
               )}
             </div>
@@ -1236,12 +1244,14 @@ export default function BookingNegotiationChat({
               <p className="text-[10px] text-[#656A7A]">
                 This job conversation is closed.
               </p>
-              <button
-                onClick={openSupport}
-                className="text-[10px] font-semibold text-violet-300"
-              >
-                Message WeHouse
-              </button>
+              {jobSupportOpen && (
+                <button
+                  onClick={openSupport}
+                  className="text-[10px] font-semibold text-violet-300"
+                >
+                  Message WeHouse
+                </button>
+              )}
             </div>
             {!isWorker && booking?.status === "approved_released" && (
               <section className="mt-3 border-t border-white/[.06] pt-3">

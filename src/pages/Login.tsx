@@ -29,7 +29,6 @@ type Mode =
   | "recover";
 type PendingMethod = "authenticated" | "email" | null;
 type VerificationContext = "signup" | "password_recovery" | "new_device";
-const GOOGLE_RECOVERY_RETRY_KEY = "wh_google_recovery_callback_retry";
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: PublicRole) => void;
   serverError: string;
@@ -39,8 +38,12 @@ interface LoginProps {
 
 function legacyRecoveryRequested() {
   try {
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     return (
-      new URLSearchParams(window.location.search).get("auth") === "recovery"
+      query.get("auth") === "recovery" ||
+      query.get("type") === "recovery" ||
+      hash.get("type") === "recovery"
     );
   } catch {
     return false;
@@ -216,31 +219,37 @@ export default function Login({
   useEffect(() => {
     if (mode !== "recover") return;
     let alive = true;
+    let checking = false;
+    let verified = false;
     async function check() {
+      if (checking || verified) return;
+      checking = true;
       setRecoveryReady(false);
       const transaction = readGoogleVerification();
-      const expectedEmail = transaction?.email || "";
-      const expectedIdentifier = transaction?.identifier || expectedEmail;
+      const attemptId = transaction?.recoveryAttemptId || "";
+      const expectedIdentifier = transaction?.identifier || transaction?.email || "";
+      if (transaction?.context !== "password_recovery" || !attemptId) {
+        checking = false;
+        clearGoogleVerification();
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        if (!alive) return;
+        setMode("forgot");
+        setError("That recovery attempt is incomplete. Start again.");
+        return;
+      }
+
       let sessionResult;
       try {
         sessionResult = await supabase.auth.getSession();
       } catch {
+        checking = false;
         if (!alive) return;
         setMode("forgot");
-        setError(
-          "Google confirmation took too long. Tap Confirm with Google to try again.",
-        );
+        setError("Google confirmation took too long. Confirm the account again.");
         return;
       }
       let { data, error: sessionError } = sessionResult;
       if (!alive) return;
-      if (sessionError) {
-        setMode("forgot");
-        setError(
-          "Google confirmation could not be completed in this browser. Please confirm the account again.",
-        );
-        return;
-      }
       if (!data.session?.user) {
         const callbackCode = oauthCallbackCode();
         if (callbackCode) {
@@ -251,33 +260,32 @@ export default function Login({
             sessionError = exchanged.error;
           } catch {
             clearOauthCallbackCode();
+            checking = false;
+            if (!alive) return;
             setMode("forgot");
-            setError(
-              "Google confirmation expired before it could finish. Confirm the account again.",
-            );
+            setError("Google confirmation expired. Start recovery again.");
             return;
           }
         }
-        if (sessionError || !data.session?.user) {
-          sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
-          clearOauthCallbackCode();
-          setMode("forgot");
-          setError(
-            "Google returned without a usable confirmation session. Tap Confirm with Google to try again.",
-          );
-          return;
-        }
       }
-      sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
+      if (sessionError || !data.session?.user) {
+        clearOauthCallbackCode();
+        checking = false;
+        if (!alive) return;
+        setMode("forgot");
+        setError("Google returned without a usable confirmation. Try again.");
+        return;
+      }
+
       const returnedEmail = data.session.user.email?.trim().toLowerCase() || "";
-      let identityMatches = Boolean(expectedEmail && returnedEmail === expectedEmail);
-      if (!expectedEmail && expectedIdentifier) {
-        const { profile } = await getProfileByAuthId(data.session.user.id);
-        identityMatches =
-          profile?.username?.trim().toLowerCase() === expectedIdentifier;
-      }
-      if (!expectedIdentifier || !identityMatches) {
-        setEmail(expectedEmail);
+      const { data: result, error: verifyError } = await supabase.rpc(
+        "verify_identity_provider_password_recovery",
+        { p_attempt_id: attemptId, p_provider: "google" },
+      );
+      checking = false;
+      if (!alive) return;
+      if (verifyError || !(result as { success?: boolean } | null)?.success) {
+        setEmail(transaction.email || "");
         setLoginIdentifier(expectedIdentifier);
         setGoogleMismatchEmail(returnedEmail);
         await supabase.auth.signOut({ scope: "local" }).catch(() => {});
@@ -285,47 +293,25 @@ export default function Login({
         setMode("google_mismatch");
         return;
       }
-      let verified: unknown = null;
-      let verifyError: { message?: string } | null = null;
-      try {
-        const verification = await supabase.rpc("verify_google_password_recovery");
-        verified = verification.data;
-        verifyError = verification.error;
-      } catch {
-        setMode("forgot");
-        setError(
-          "WeHouse could not finish the Google confirmation. Please try again.",
-        );
-        return;
-      }
-      if (!alive) return;
-      if (verifyError || !(verified as { success?: boolean } | null)?.success) {
-        clearGoogleVerification();
-        await supabase.auth.signOut({ scope: "local" });
-        if (!alive) return;
-        setMode("forgot");
-        setError(
-          "That Google account is not connected to an existing WeHouse account.",
-        );
-        return;
-      }
+
+      verified = true;
       setEmail(returnedEmail);
       setLoginIdentifier(expectedIdentifier || returnedEmail);
       setRecoveryReady(true);
+      setError("");
+      setInfo("");
     }
     void check();
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!alive) return;
-        if (
-          (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
-          session?.user
-        )
-          window.setTimeout(() => {
-            if (alive) void check();
-          }, 0);
-      },
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (
+        alive &&
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        session?.user
+      )
+        window.setTimeout(() => {
+          if (alive) void check();
+        }, 0);
+    });
     return () => {
       alive = false;
       listener.subscription.unsubscribe();
@@ -341,7 +327,7 @@ export default function Login({
       window.history.replaceState({}, "", window.location.pathname);
       setMode("forgot");
       setInfo(
-        "Password recovery now uses your matching Google account instead of an emailed code or link.",
+        "Password recovery uses the Google identity linked to your WeHouse account. No reset link is sent.",
       );
     })();
     return () => {
@@ -605,25 +591,33 @@ export default function Login({
       return setError("Enter your WeHouse username or email address");
     setWorking(true);
     try {
+      clearGoogleVerification();
+      const { data: attemptId, error: beginError } = await supabase.rpc(
+        "begin_identity_provider_password_recovery",
+        { p_identifier: clean, p_provider: "google" },
+      );
+      if (beginError || !attemptId)
+        return setError("Password recovery could not start. Try again.");
       saveGoogleVerification({
         context: "password_recovery",
         email: isEmail ? clean : "",
         identifier: clean,
+        recoveryAttemptId: String(attemptId),
       });
       sessionStorage.removeItem("wh_login_method");
-      const { error: err } = await signInWithGoogle(
+      const { error: googleError } = await signInWithGoogle(
         isEmail ? clean : undefined,
         "password_recovery",
       );
-      if (err) {
+      if (googleError) {
         clearGoogleVerification();
-        setError(friendlyError(err.message));
+        setError(friendlyError(googleError.message));
       }
     } catch (recoveryError: unknown) {
       clearGoogleVerification();
       setError(
         friendlyError(
-          errorMessage(recoveryError, "Google verification could not start"),
+          errorMessage(recoveryError, "Google confirmation could not start"),
         ),
       );
     } finally {
@@ -642,52 +636,36 @@ export default function Login({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session?.user)
-        return setError(
-          "Google verification is not ready. Start password recovery again.",
-        );
       const transaction = readGoogleVerification();
-      const expectedEmail = transaction?.email || "";
-      const expectedIdentifier = transaction?.identifier || expectedEmail;
-      let identityMatches = Boolean(
-        expectedEmail && session.user.email?.trim().toLowerCase() === expectedEmail,
-      );
-      if (!expectedEmail && expectedIdentifier) {
-        const { profile } = await getProfileByAuthId(session.user.id);
-        identityMatches =
-          profile?.username?.trim().toLowerCase() === expectedIdentifier;
-      }
-      if (!expectedIdentifier || !identityMatches)
+      const attemptId = transaction?.recoveryAttemptId || "";
+      if (!recoveryReady || !session?.user || !attemptId)
         return setError(
-          "The selected Google account does not belong to that WeHouse username or email.",
+          "Google confirmation is not ready or has expired. Start recovery again.",
         );
-      const { data: verified, error: verifyError } = await supabase.rpc(
-        "verify_google_password_recovery",
-      );
-      if (verifyError || !(verified as { success?: boolean } | null)?.success)
-        return setError(
-          "Google could not verify this WeHouse account. Start recovery again.",
-        );
-      const { error: err } = await supabase.auth.updateUser({ password });
-      if (err) {
-        console.error("[password-recovery] password update failed", {
-          code: (err as { code?: string }).code,
-          status: err.status,
-          message: err.message,
+      const { data: recovery, error: recoveryError } =
+        await supabase.functions.invoke("provider-password-recovery", {
+          body: { attempt_id: attemptId, new_password: password },
         });
-        return setError(friendlyError(err.message));
-      }
+      if (recoveryError || !recovery?.success)
+        return setError(
+          friendlyError(
+            String(
+              recovery?.error ||
+                recoveryError?.message ||
+                "Password reset failed",
+            ),
+          ),
+        );
       clearGoogleVerification();
-      sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
       window.history.replaceState({}, "", window.location.pathname);
       setPassword("");
       setConfirmPassword("");
-      setLoginIdentifier(expectedIdentifier);
+      setLoginIdentifier(transaction?.identifier || session.user.email || "");
       setRecoveryReady(false);
       setMode("signin");
       setInfo("Password changed. Sign in with your new password.");
-      // Password success must not be turned into a failure when local session
-      // cleanup is interrupted by a slow mobile connection.
+      // The server already revoked refresh sessions globally. This removes any
+      // remaining local browser state without changing the successful result.
       void supabase.auth.signOut({ scope: "local" }).catch(() => {});
     } catch (error: unknown) {
       setError(friendlyError(errorMessage(error, "Password reset failed")));
@@ -698,7 +676,6 @@ export default function Login({
   async function cancelRecovery() {
     await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     clearGoogleVerification();
-    sessionStorage.removeItem(GOOGLE_RECOVERY_RETRY_KEY);
     window.history.replaceState({}, "", window.location.pathname);
     setPassword("");
     setConfirmPassword("");
@@ -1061,8 +1038,8 @@ export default function Login({
             <div className="mb-5">
               <p className="text-lg font-semibold">Create a new password</p>
               <p className="mt-1 text-xs text-[#73788A]">
-                Enter your username or email. Google will confirm that the
-                account belongs to you before a password can be changed.
+                Enter your username or email. Confirm with the Google identity
+                already linked to that WeHouse account. No reset link is sent.
               </p>
             </div>
             <Field label="Username or email">

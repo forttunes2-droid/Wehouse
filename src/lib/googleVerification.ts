@@ -5,6 +5,7 @@ export type GoogleVerificationTransaction = {
   context: GoogleVerificationContext;
   email: string;
   identifier?: string;
+  recoveryAttemptId?: string;
   role?: GoogleVerificationRole;
   pendingDeviceSessionId?: string;
   device?: string;
