@@ -216,6 +216,26 @@ test("Worker paid tools live under Account and load only when opened", async () 
   assert.match(account, /Paid Worker tools/);
 });
 
+test("creating a Worker workspace opens Worker setup and continues to verification", async () => {
+  const [app, account, setup, activation, verification] = await Promise.all([
+    read("src/App.tsx"),
+    read("src/pages/AccountCenter.tsx"),
+    read("src/pages/WorkerSetupProfessional.tsx"),
+    read("src/components/WorkerActivationHome.tsx"),
+    read("src/pages/WorkerVerificationPhase9.tsx"),
+  ]);
+  assert.match(account, /onWorkspaceActivated\?\.\(workspace\)/);
+  assert.match(app, /workspace === "worker" \? "worker_setup" : "property_partner"/);
+  assert.match(setup, /if \(!profile\.worker_verified\)[\s\S]*onContinueVerification\(\)/);
+  assert.doesNotMatch(setup, /wh_worker_setup_return/);
+  assert.match(activation, /Continue Worker setup/);
+  assert.match(activation, /identity_captured === true && data\.identity_passed === true/);
+  assert.match(verification, /Worker verification/);
+  assert.match(verification, /identity_captured === true && a\.identity_passed === true/);
+  assert.match(verification, /!identityComplete[\s\S]*<WorkerIdentityCheck/);
+  assert.doesNotMatch(account, /title="Professional profile"/);
+});
+
 test("Worker chat does not repeat the full request card in the message timeline", async () => {
   const chat = await read("src/components/BookingNegotiationChat.tsx");
   const timeline = chat.slice(

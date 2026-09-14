@@ -19,6 +19,7 @@ type Props = {
   workspaceAccess?: WorkspaceAccess | null;
   activeWorkspace?: WorkspaceChoice;
   onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
+  onWorkspaceActivated?: (workspace: 'worker' | 'property_partner') => void;
 };
 
 export type WorkspaceChoice = 'personal' | 'worker' | 'property_partner' | 'staff' | 'admin' | 'creator' | 'hotel';
@@ -39,7 +40,7 @@ type Published = { privacy: boolean; terms: boolean };
 type Panel = 'notifications' | 'legal' | 'privacy_security' | null;
 type ProfilePreferences = { pref_email_notif?: boolean | null; pref_push_notif?: boolean | null };
 
-export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onGoToWorkerPaidTools, onNavigate, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace }: Props) {
+export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPrivacy, onGoToSecurity, onGoToProfileEdit, onGoToWorkerPaidTools, onNavigate, onLogout, workspaceAccess, activeWorkspace = 'personal', onSwitchWorkspace, onWorkspaceActivated }: Props) {
   void onGoToPrivacy;
   void onGoToSecurity;
   const p = profile as Profile & ProfilePreferences;
@@ -158,6 +159,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
     if(error)return toast.error(error.message||'That workspace could not be added');
     toast.success(workspace==='worker'?'Free Worker workspace added':'Property Partner workspace added');
     window.dispatchEvent(new Event('wehouse:workspace-access-changed'));
+    onWorkspaceActivated?.(workspace);
   }
 
   if (panel === 'privacy_security') return <PrivacySecuritySettings profile={profile} onUpdate={() => window.location.reload()} onBack={() => setPanel(null)} />;
@@ -230,7 +232,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
               {isWorker && <span className="rounded-full border border-violet-500/15 bg-violet-500/[.06] px-2 py-1 text-[8px] font-semibold text-violet-300">PRIVATE</span>}
             </div>
             <p className="mt-1 truncate text-[10px] text-[#777E8E]">{profile.email || 'No email'}</p>
-            {isWorker && <p className="mt-2 text-[9px] leading-relaxed text-[#62697A]">Professional identity, service details and work media are managed only from Professional Profile.</p>}
+            {isWorker && <p className="mt-2 text-[9px] leading-relaxed text-[#62697A]">Your service details, coverage and work media are managed from your Worker profile.</p>}
           </div>
         </div>
       </section>
@@ -268,7 +270,7 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
       )}
 
       <AccountSection title="Account">
-        {isWorker && <AccountRow title="Professional profile" detail="Public identity, services, coverage and pricing" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
+        {isWorker && <AccountRow title="Worker profile" detail="Services, coverage, pricing and the public details customers see" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {onGoToWorkerPaidTools && <AccountRow title="Paid Worker tools" detail="View tools, billing period and subscription management" onClick={onGoToWorkerPaidTools} icon={<ToolsIcon />} />}
         {canEditGenericProfile && <AccountRow title="Personal details" detail="Photo, name, username and contact details" onClick={onGoToProfileEdit} icon={<PersonIcon />} />}
         {isUser && <AccountRow title="Saved" detail="Saved apartments and search alerts" onClick={onGoToSaved} icon={<HeartIcon />} />}
@@ -308,12 +310,12 @@ export default function AccountCenter({ profile, onBack, onGoToSaved, onGoToPriv
             </div>
             <div className="mt-4 space-y-3 rounded-2xl border border-white/[.07] bg-black/10 p-4 text-[10px] leading-5 text-[#A8ADBA]">
               <p>Your Personal identity, bookings and conversations remain unchanged.</p>
-              <p>{workspaceToAdd === 'worker' ? 'Worker onboarding is free. Reviewed and Trusted are earned through WeHouse checks and completed work; they cannot be bought.' : 'This adds tools to submit and manage properties. Publishing still follows WeHouse review and authority checks.'}</p>
+              <p>{workspaceToAdd === 'worker' ? 'Worker onboarding is free. Next you will add your work details, complete the private live-face check and add work evidence, then send them to WeHouse for review. Reviewed and Trusted cannot be bought.' : 'This adds tools to submit and manage properties. Publishing still follows WeHouse review and authority checks.'}</p>
               <p>You can cancel now and return without changing your account.</p>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setWorkspaceToAdd(null)} className="h-12 rounded-2xl border border-white/[.08] text-[11px] font-semibold">Back</button>
-              <button type="button" disabled={activatingWorkspace!==null} onClick={() => { const workspace=workspaceToAdd; setWorkspaceToAdd(null); void activateProfessionalWorkspace(workspace); }} className="h-12 rounded-2xl bg-violet-500 text-[11px] font-semibold disabled:opacity-45">{activatingWorkspace ? 'Adding…' : 'Add workspace'}</button>
+              <button type="button" disabled={activatingWorkspace!==null} onClick={() => { const workspace=workspaceToAdd; setWorkspaceToAdd(null); void activateProfessionalWorkspace(workspace); }} className="h-12 rounded-2xl bg-violet-500 text-[11px] font-semibold disabled:opacity-45">{activatingWorkspace ? 'Adding…' : workspaceToAdd === 'worker' ? 'Create Worker workspace' : 'Create Property Partner workspace'}</button>
             </div>
           </section>
         </div>

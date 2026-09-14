@@ -437,6 +437,28 @@ export default function App() {
     [baseProfile, workspaceAccess],
   );
 
+  const openActivatedWorkspace = useCallback(
+    (workspace: "worker" | "property_partner") => {
+      if (!baseProfile) return;
+      const destination: NavPage =
+        workspace === "worker" ? "worker_setup" : "property_partner";
+      setActiveWorkspace(workspace);
+      setNavPage(destination);
+      navHistoryRef.current = [destination];
+      window.dispatchEvent(new Event("wehouse:navigation"));
+      try {
+        localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
+        localStorage.setItem(NAV_STORAGE_KEY, destination);
+        window.history.replaceState(
+          { page: destination },
+          "",
+          `#${destination}`,
+        );
+      } catch {}
+    },
+    [baseProfile],
+  );
+
   useEffect(() => {
     if (auth.isLoading || restoredRef.current) return;
     restoredRef.current = true;
@@ -1006,6 +1028,17 @@ export default function App() {
       <WorkerSetup
         profile={profile}
         onComplete={() => auth.handleSetupComplete(profile)}
+        onContinueVerification={() => {
+          try {
+            localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");
+            window.history.replaceState(
+              { page: "worker_verification" },
+              "",
+              "#worker_verification",
+            );
+          } catch {}
+          window.location.reload();
+        }}
       />
     );
   if (error)
@@ -1174,6 +1207,7 @@ export default function App() {
             workspaceAccess={workspaceAccess}
             activeWorkspace={activeWorkspace}
             onSwitchWorkspace={switchWorkspace}
+            onWorkspaceActivated={openActivatedWorkspace}
           />
         );
       case "privacy":
@@ -1208,6 +1242,7 @@ export default function App() {
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onContinueVerification={() => goTo("worker_verification")}
             onBack={subpageBack}
           />
         ) : (
@@ -1277,6 +1312,7 @@ export default function App() {
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onContinueVerification={() => goTo("worker_verification")}
             onBack={subpageBack}
           />
         ) : (

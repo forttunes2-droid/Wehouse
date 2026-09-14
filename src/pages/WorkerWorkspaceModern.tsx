@@ -78,7 +78,7 @@ export default function WorkerWorkspaceModern({
   }
 
   if (safeTab === "account") {
-    if (accountView === "profile") return <AccountShell profile={profile} title="Professional Profile" description="This is the professional profile customers see." onBack={() => setAccountView("account")}><WorkerProfilePanelV3 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/></AccountShell>;
+    if (accountView === "profile") return <AccountShell profile={profile} title="Worker profile" description="Services, coverage and the public details customers see." onBack={() => setAccountView("account")}><WorkerProfilePanelV3 profile={profile} onEdit={onGoToSetup} onVerification={() => onNavigate?.("worker_verification")}/></AccountShell>;
     if (accountView === "paid_tools") return <WorkerPaidToolsAccount profile={profile} onBack={() => setAccountView("account")} />;
     return <AccountCenter profile={profile} onBack={() => setTab(live ? "jobs" : "home")} onGoToPrivacy={() => {}} onGoToSaved={() => onNavigate?.("saved")} onGoToSecurity={() => {}} onGoToProfileEdit={() => setAccountView("profile")} onGoToWorkerPaidTools={live ? () => setAccountView("paid_tools") : undefined} onNavigate={(page) => onNavigate?.(page)} onLogout={onLogout} workspaceAccess={workspaceAccess} activeWorkspace={activeWorkspace} onSwitchWorkspace={onSwitchWorkspace}/>;
   }
