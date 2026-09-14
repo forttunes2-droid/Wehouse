@@ -40,7 +40,7 @@ Deno.serve(async (request) => {
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         attemptId,
       ) ||
-      newPassword.length < 8 ||
+      newPassword.length < 15 ||
       newPassword.length > 128
     ) {
       return json({ success: false, error: "Invalid recovery request" }, 400);

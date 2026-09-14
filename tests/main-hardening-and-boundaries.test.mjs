@@ -86,6 +86,21 @@ test("browser security headers and recovery function verification are explicit",
   );
 });
 
+test("new passwords use the single-factor minimum and legacy payment is not a badge", async () => {
+  const [login, security, recovery, types] = await Promise.all([
+    read("src/pages/Login.tsx"),
+    read("src/pages/SecuritySettings.tsx"),
+    read("supabase/functions/provider-password-recovery/index.ts"),
+    read("src/types/index.ts"),
+  ]);
+  assert.match(login, /New password must be at least 15 characters/);
+  assert.match(security, /newPassword\.length<15/);
+  assert.match(recovery, /newPassword\.length < 15/);
+  assert.match(types, /verification_paid: "Legacy payment — Finance review"/);
+  assert.doesNotMatch(types, /verification_paid: "Verification Paid"/);
+  assert.doesNotMatch(types, /verification_paid: "bg-blue/);
+});
+
 test("Activity owns one deterministic mobile back treatment", async () => {
   const layout = await read("src/components/DesktopLayout.tsx");
   assert.match(layout, /OWN_MOBILE_BACK[\s\S]*'activity'/);

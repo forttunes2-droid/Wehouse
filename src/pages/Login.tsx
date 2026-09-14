@@ -112,7 +112,7 @@ function friendlyError(raw: string) {
     msg.includes("password") &&
     (msg.includes("weak") || msg.includes("short"))
   )
-    return "Password is too weak. Use at least 8 characters.";
+    return "Password is too weak. Use at least 15 characters.";
   if (msg.includes("same password") || msg.includes("different from the old"))
     return "Choose a new password you have not used for this account.";
   if (msg.includes("session") && (msg.includes("missing") || msg.includes("expired")))
@@ -403,8 +403,10 @@ export default function Login({
       return setError("Enter a valid email address");
     if (!isSignup && !clean)
       return setError("Enter your username or email address");
-    if (password.length < 8)
-      return setError("Password must be at least 8 characters");
+    if (isSignup && password.length < 15)
+      return setError("Password must be at least 15 characters");
+    if (!isSignup && password.length < 8)
+      return setError("Enter your password");
     setWorking(true);
     try {
       if (isSignup) {
@@ -627,8 +629,8 @@ export default function Login({
   async function handleRecovery(e: React.FormEvent) {
     e.preventDefault();
     clearMessages();
-    if (password.length < 8)
-      return setError("New password must be at least 8 characters");
+    if (password.length < 15)
+      return setError("New password must be at least 15 characters");
     if (password !== confirmPassword)
       return setError("The two passwords do not match");
     setWorking(true);
@@ -746,7 +748,7 @@ export default function Login({
               disabled={
                 working ||
                 !recoveryReady ||
-                password.length < 8 ||
+                password.length < 15 ||
                 password !== confirmPassword
               }
               className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40"
@@ -1001,7 +1003,7 @@ export default function Login({
                 working ||
                 !(mode === "signup" ? email : loginIdentifier).trim() ||
                 (mode === "signup" && !email.includes("@")) ||
-                password.length < 8
+                password.length < (mode === "signup" ? 15 : 8)
               }
               className={`h-12 w-full rounded-xl text-sm font-semibold disabled:opacity-50 ${mode === "signup" ? "bg-violet-500" : "border border-white/[.08] bg-[#171A23]"}`}
             >
