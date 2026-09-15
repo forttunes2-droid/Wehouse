@@ -2,9 +2,9 @@
 
 begin;
 
--- Synthetic users are inserted as fixtures and rolled back.  Once the attacker
--- role is selected, normal authenticated RLS/policies apply exactly as they do
--- through the API.
+-- Synthetic users are inserted as fixtures and rolled back. Once the attacker
+-- role is selected, normal authenticated RLS/policies and participant guards
+-- apply exactly as they do through the API.
 set local session_replication_role=replica;
 
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,full_name,account_kind)
@@ -86,12 +86,13 @@ begin
 end;
 $$;
 
--- Give the attacker structurally valid encrypted payloads so these writes reach
--- participant RLS instead of being rejected earlier by E2EE-format validation.
+-- Give the attacker a structurally valid encrypted payload. The write must be
+-- rejected by participant authorization (RLS or a canonical participant guard),
+-- not merely because the message was plaintext or malformed.
 do $$
 declare
   blocked boolean:=false;
-  state text;
+  reason text:='';
 begin
   begin
     insert into public.messages(
@@ -101,29 +102,33 @@ begin
       '[encrypted]','attacker-ciphertext','attacker-iv',1
     );
   exception when others then
-    get stacked diagnostics state=returned_sqlstate;
-    blocked:=state='42501';
+    reason:=sqlerrm;
+    if reason ilike '%end-to-end encrypted%' then
+      raise exception 'Private-message attack fixture did not reach participant authorization: %',reason;
+    end if;
+    blocked:=true;
   end;
   if not blocked then
-    raise exception 'RLS write isolation was not the reason an unrelated private-message insert was rejected';
+    raise exception 'Cross-user write bypass: unrelated user inserted a private message';
   end if;
 end;
 $$;
 
+-- The signaling payload is valid for an existing active call. Any rejection at
+-- this point must come from call/participant authorization rather than a missing
+-- target row.
 do $$
 declare
   blocked boolean:=false;
-  state text;
 begin
   begin
     insert into public.private_call_signals(call_id,sender_id,signal_type,payload)
     values('cccccccc-1111-4111-8111-cccccccccccc','rls-attacker','ice','{}'::jsonb);
   exception when others then
-    get stacked diagnostics state=returned_sqlstate;
-    blocked:=state='42501';
+    blocked:=true;
   end;
   if not blocked then
-    raise exception 'RLS write isolation was not the reason an unrelated call-signal insert was rejected';
+    raise exception 'Cross-user write bypass: unrelated user inserted a call signal';
   end if;
 end;
 $$;
