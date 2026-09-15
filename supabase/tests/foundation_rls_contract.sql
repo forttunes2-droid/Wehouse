@@ -86,31 +86,45 @@ begin
 end;
 $$;
 
--- The attacker must also be unable to write into a private conversation/call
--- they do not belong to.
+-- Give the attacker structurally valid encrypted payloads so these writes reach
+-- participant RLS instead of being rejected earlier by E2EE-format validation.
 do $$
-declare blocked boolean:=false;
+declare
+  blocked boolean:=false;
+  state text;
 begin
   begin
-    insert into public.messages(conversation_id,sender_id,content)
-    values('aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','rls-attacker','injected');
-  exception when insufficient_privilege then blocked:=true;
-    when check_violation then blocked:=true;
+    insert into public.messages(
+      conversation_id,sender_id,content,ciphertext,encryption_iv,encryption_version
+    ) values(
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','rls-attacker',
+      '[encrypted]','attacker-ciphertext','attacker-iv',1
+    );
+  exception when others then
+    get stacked diagnostics state=returned_sqlstate;
+    blocked:=state='42501';
   end;
-  if not blocked then raise exception 'RLS write bypass: unrelated user inserted a private message'; end if;
+  if not blocked then
+    raise exception 'RLS write isolation was not the reason an unrelated private-message insert was rejected';
+  end if;
 end;
 $$;
 
 do $$
-declare blocked boolean:=false;
+declare
+  blocked boolean:=false;
+  state text;
 begin
   begin
     insert into public.private_call_signals(call_id,sender_id,signal_type,payload)
     values('cccccccc-1111-4111-8111-cccccccccccc','rls-attacker','ice','{}'::jsonb);
-  exception when insufficient_privilege then blocked:=true;
-    when check_violation then blocked:=true;
+  exception when others then
+    get stacked diagnostics state=returned_sqlstate;
+    blocked:=state='42501';
   end;
-  if not blocked then raise exception 'RLS write bypass: unrelated user inserted a call signal'; end if;
+  if not blocked then
+    raise exception 'RLS write isolation was not the reason an unrelated call-signal insert was rejected';
+  end if;
 end;
 $$;
 
