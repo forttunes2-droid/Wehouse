@@ -9,7 +9,7 @@ export type WorkspaceName =
 
 const WORKSPACE_LABELS: Record<WorkspaceName, string> = {
   personal: "Personal",
-  worker: "Worker",
+  worker: "Service Provider",
   property_partner: "Property Partner",
   staff: "WeHouse Team",
   admin: "WeHouse Team",
