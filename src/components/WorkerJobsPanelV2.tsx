@@ -10,7 +10,6 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
-import SecureMessagesPanel from "@/components/SecureMessagesPanel";
 
 export type WorkerBookingConversation = {
   conversation_id: string;
@@ -87,7 +86,6 @@ export function WorkerInboxPanel({
   const [activityUnread, setActivityUnread] = useState(0);
   const [supportUnread, setSupportUnread] = useState(0);
   const [supportAvailable, setSupportAvailable] = useState(false);
-  const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
   const {
     status: inboxSecurityStatus,
     refresh: refreshInboxSecurity,
@@ -149,7 +147,7 @@ export function WorkerInboxPanel({
     <div>
       <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
         <button type="button" onClick={() => setShowActivity(false)} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
-        <div><h2 className="text-sm font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Job, payment, security and official updates.</p></div>
+        <div><p className="text-[8px] font-semibold uppercase tracking-[.14em] text-violet-300">Inbox</p><h2 className="mt-1 text-sm font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Job, payment, security and official updates.</p></div>
       </header>
       <Notifications profile={profile} scope="worker" embedded onNavigate={openActivitySource} onUnreadChange={reportActivityUnread} />
     </div>
@@ -157,16 +155,10 @@ export function WorkerInboxPanel({
 
   return (
     <div className="min-h-[60dvh]">
-      <div className="mb-3 flex justify-end">
-        <button type="button" aria-expanded={pinSettingsOpen} onClick={() => setPinSettingsOpen((value) => !value)} className="min-h-9 rounded-full border border-white/[.07] px-3 text-[9px] font-semibold text-violet-200">
-          Inbox PIN
-        </button>
-      </div>
-      {pinSettingsOpen ? <div className="mb-4"><SecureMessagesPanel /></div> : null}
       <InboxActivityEntry unread={displayedActivityUnread} detail="Job, payment, security and official updates" onOpen={() => setShowActivity(true)} />
       <section className="pt-4">
         <div className="mb-3 flex items-center justify-between">
-          <div><h2 className="text-sm font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Customers and WeHouse support.</p></div>
+          <div><h2 className="text-sm font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Customers and WeHouse conversations.</p></div>
           {displayedChatUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{displayedChatUnread > 99 ? "99+" : displayedChatUnread} new</span> : null}
         </div>
         {loading ? <Empty text="Loading conversations…" /> : rows.length > 0 ? (
@@ -177,7 +169,7 @@ export function WorkerInboxPanel({
         <section className="overflow-hidden border-b border-white/[.06]">
           <SupportEntryCard profile={profile} compact hideWhenEmpty onAvailabilityChange={setSupportAvailable} />
         </section>
-        {!loading && rows.length === 0 && !supportAvailable ? <div className="grid min-h-48 place-items-center text-center"><div><p className="text-sm font-semibold">No conversations yet</p><p className="mt-2 text-[10px] text-[#686F7F]">New job conversations will appear here.</p></div></div> : null}
+        {!loading && rows.length === 0 && !supportAvailable ? <div className="grid min-h-48 place-items-center text-center"><div><p className="text-sm font-semibold">No conversations yet</p><p className="mt-2 text-[10px] text-[#686F7F]">New WeHouse Services conversations will appear here.</p></div></div> : null}
       </section>
     </div>
   );
@@ -196,7 +188,7 @@ function ConversationRow({ row, onOpen }: { row: WorkerBookingConversation; onOp
   const unread = Number(row.unread_count || 0), time = row.last_message_time || row.updated_at;
   return <button onClick={onOpen} className="flex w-full items-center gap-3 py-4 text-left">
     <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-sm font-bold text-violet-300">{row.other_person_avatar ? <img src={row.other_person_avatar} alt="" className="h-full w-full object-cover" /> : (row.other_person_name || "C")[0].toUpperCase()}</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{row.other_person_name || "Customer"}</p><span className="shrink-0 text-[8px] text-violet-300">{BOOKING_STATUS_LABELS[row.booking_status]?.label || row.booking_status.replace(/_/g, " ")}</span></div><p className={`mt-1 truncate text-[10px] ${unread ? "font-semibold text-[#DDE0E8]" : "text-[#6B7181]"}`}>{row.last_message || "Booking request started"}</p></div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold">{row.other_person_name || "Customer"}</p><span className="shrink-0 text-[8px] text-violet-300">{BOOKING_STATUS_LABELS[row.booking_status]?.label || row.booking_status.replace(/_/g, " ")}</span></div><p className={`mt-1 truncate text-[10px] ${unread ? "font-semibold text-[#DDE0E8]" : "text-[#6B7181]"}`}>{row.last_message || "Service request started"}</p></div>
     <div className="shrink-0 text-right">{time ? <p className="text-[8px] text-[#5F6676]">{formatConversationTime(time)}</p> : null}{unread ? <span className="mt-2 inline-grid min-h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold">{unread}</span> : null}</div>
   </button>;
 }
