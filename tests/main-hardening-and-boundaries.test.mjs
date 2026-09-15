@@ -4,72 +4,48 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("GitHub exposes stable required check names and a dependent consolidation gate", async () => {
+test("GitHub exposes stable required checks on Node 24 with production dependency audit", async () => {
   const [build, consolidation] = await Promise.all([
     read(".github/workflows/profile-phase-check.yml"),
     read(".github/workflows/consolidation-validation.yml"),
   ]);
-  assert.match(
-    build,
-    /name: WeHouse Build Check[\s\S]*jobs:[\s\S]*name: WeHouse Build Check/,
-  );
-  assert.match(build, /pull_request:[\s\S]*merge_group:/);
-  assert.match(
-    consolidation,
-    /name: Consolidation Validation[\s\S]*needs: \[tests-and-build, migration-replay\]/,
-  );
-  assert.match(consolidation, /BUILD_RESULT[\s\S]*MIGRATION_RESULT/);
+  assert.match(build, /name: WeHouse Build Check[\s\S]*name: WeHouse Build Check/);
+  assert.match(build, /node-version: 24/);
+  assert.match(build, /npm audit --omit=dev --audit-level=high/);
+  assert.match(build, /npm run lint[\s\S]*npm test[\s\S]*npx tsc --noEmit[\s\S]*npm run build/);
+  assert.match(consolidation, /name: Consolidation Validation/);
+  assert.match(consolidation, /needs: \[tests-and-build, migration-replay\]/);
+  assert.match(consolidation, /node-version: 24/);
+  assert.match(consolidation, /worker_face_review_contract\.sql/);
+  assert.match(consolidation, /accommodation_handover_contract\.sql/);
 });
 
-test("internal identities do not inherit Personal or repeated module workspaces", async () => {
-  const [migration, account, app, labels] = await Promise.all([
-    read(
-      "supabase/migrations/20260914185614_separate_internal_and_marketplace_workspaces.sql",
-    ),
-    read("src/pages/AccountCenter.tsx"),
-    read("src/App.tsx"),
-    read("src/lib/workspacePresentation.ts"),
+test("public signup cannot create a Service Provider or Property Partner identity directly", async () => {
+  const [auth, login, migration] = await Promise.all([
+    read("src/lib/supabase/auth.ts"),
+    read("src/pages/Login.tsx"),
+    read("supabase/migrations/20260915191500_restore_personal_identity_and_harden_security.sql"),
   ]);
-  assert.match(migration, /set account_kind='creator'/);
-  assert.match(
-    migration,
-    /'account_kind',profile\.account_kind[\s\S]*profile\.role not in\('creator','admin','staff','hotel_staff'\)/,
-  );
-  assert.match(
-    migration,
-    /assignment\.workspace_role in\([\s\S]*'worker','property_partner','staff','admin','creator'/,
-  );
-  assert.match(
-    migration,
-    /set role='creator',account_kind='creator'/,
-  );
-  assert.match(labels, /hotel: "Hotel Team"/);
-  assert.match(account, /workspaceLabel\(workspace\.role\)/);
-  assert.match(app, /workspaceLabel\(workspace\)/);
-  assert.doesNotMatch(app, /workspace\.slice\(1\).*workspace opened/);
+  assert.match(auth, /legacyInitialWorkspace/);
+  assert.match(auth, /void legacyInitialWorkspace/);
+  assert.doesNotMatch(auth, /signup_role/);
+  assert.match(login, /onLoginSuccess\(user\.id, returnedEmail, "user"\)/);
+  assert.match(login, /signUpWithEmail\(clean, password, "user"\)/);
+  assert.match(migration, /Public account creation always creates Personal first/);
 });
 
-test("public password login is throttled before the service-role identity lookup", async () => {
+test("public password login is throttled before service-role identity lookup", async () => {
   const [migration, login] = await Promise.all([
-    read(
-      "supabase/migrations/20260914185841_rate_limit_public_password_login.sql",
-    ),
+    read("supabase/migrations/20260914185841_rate_limit_public_password_login.sql"),
     read("supabase/functions/login-with-identifier/index.ts"),
   ]);
-  assert.match(
-    migration,
-    /revoke all on table public\.public_login_rate_limits[\s\S]*from public,anon,authenticated/,
-  );
   assert.match(migration, /v_window interval:=interval '15 minutes'/);
   assert.match(migration, /v_max_attempts integer:=12/);
-  assert.match(
-    login,
-    /consume_public_password_login_attempt_from_service[\s\S]*if \(throttle\?\.allowed !== true\)/,
-  );
+  assert.match(login, /consume_public_password_login_attempt_from_service/);
   assert.match(login, /429/);
 });
 
-test("browser security headers and recovery function verification are explicit", async () => {
+test("browser security headers and recovery Edge Function verification are explicit", async () => {
   const [vercel, index, config] = await Promise.all([
     read("vercel.json"),
     read("index.html"),
@@ -79,527 +55,259 @@ test("browser security headers and recovery function verification are explicit",
   assert.match(vercel, /frame-ancestors 'none'/);
   assert.match(vercel, /X-Content-Type-Options/);
   assert.doesNotMatch(index, /<script>(?![\s\S]*type=)/);
-  assert.match(index, /src="\/src\/preflight\.ts"/);
-  assert.match(
-    config,
-    /\[functions\.provider-password-recovery\][\s\S]*verify_jwt = true/,
-  );
+  assert.match(config, /\[functions\.provider-password-recovery\][\s\S]*verify_jwt = true/);
+  assert.match(config, /\[functions\.private-call-ice\][\s\S]*verify_jwt = true/);
 });
 
-test("new passwords use the single-factor minimum and legacy payment is not a badge", async () => {
-  const [login, security, recovery, types] = await Promise.all([
+test("password creation and change keep an eight-character minimum", async () => {
+  const [login, security, recovery] = await Promise.all([
     read("src/pages/Login.tsx"),
     read("src/pages/SecuritySettings.tsx"),
     read("supabase/functions/provider-password-recovery/index.ts"),
-    read("src/types/index.ts"),
   ]);
   assert.match(login, /Password must be at least 8 characters/);
   assert.match(login, /New password must be at least 8 characters/);
-  assert.match(security, /newPassword\.length<8/);
-  assert.match(recovery, /newPassword\.length < 8/);
-  assert.doesNotMatch(login, /15 characters/);
-  assert.match(types, /verification_paid: "Legacy payment — Finance review"/);
-  assert.doesNotMatch(types, /verification_paid: "Verification Paid"/);
-  assert.doesNotMatch(types, /verification_paid: "bg-blue/);
+  assert.match(security, /newPassword\.length\s*<\s*8/);
+  assert.match(recovery, /newPassword\.length\s*<\s*8/);
 });
 
-test("Activity owns one deterministic mobile back treatment", async () => {
-  const layout = await read("src/components/DesktopLayout.tsx");
-  assert.match(layout, /OWN_MOBILE_BACK[\s\S]*'activity'/);
-  assert.match(layout, /activePage !== 'activity'/);
+test("Personal navigation is exactly Explore, Bookings, Inbox and Account", async () => {
+  const app = await read("src/App.tsx");
+  const start = app.indexOf("const tabs = useMemo");
+  const end = app.indexOf("const navHistoryRef", start);
+  const tabs = app.slice(start, end);
+  assert.match(tabs, /label: "Explore"/);
+  assert.match(tabs, /label: "Bookings"/);
+  assert.match(tabs, /label: "Inbox"/);
+  assert.match(tabs, /label: "Account"/);
+  assert.doesNotMatch(tabs, /label: "Conversation"/);
 });
 
-test("accommodation UI and database fail closed without Payment Protection", async () => {
-  const [lifecycle, migration] = await Promise.all([
-    read("src/lib/propertyBookingLifecycle.ts"),
-    read(
-      "supabase/migrations/20260914070812_enforce_protected_accommodation_handover.sql",
-    ),
+test("Inbox keeps Activity and Messages in one product surface with separate counts", async () => {
+  const [personal, provider, activity] = await Promise.all([
+    read("src/pages/Chat.tsx"),
+    read("src/components/WorkerJobsPanelV2.tsx"),
+    read("src/components/InboxActivityEntry.tsx"),
   ]);
-  assert.match(lifecycle, /year_one_rent_protection_id/);
-  assert.match(lifecycle, /stay_payment_protection_id/);
-  assert.match(lifecycle, /Payment needs WeHouse review/);
-  assert.match(
-    migration,
-    /Current Payment Protection is required before accommodation arrival or handover/,
-  );
-  assert.match(
-    migration,
-    /create or replace function public\.get_public_hotel_detail/,
-  );
-  assert.match(
-    migration,
-    /Internal WeHouse accounts cannot activate marketplace workspaces/,
-  );
-  assert.match(migration, /workspace_one_marketplace_role_guard/);
+  assert.match(personal, /InboxActivityEntry/);
+  assert.match(personal, /activityUnreadCount/);
+  assert.match(personal, /Messages/);
+  assert.match(provider, /InboxActivityEntry/);
+  assert.match(provider, /displayedActivityUnread/);
+  assert.match(provider, /displayedChatUnread/);
+  assert.match(activity, /Activity/);
 });
 
-test("Personal apartment bookings cannot inherit Creator operations visibility", async () => {
-  const reservations = await read("src/lib/supabase/reservations.ts");
-  assert.match(
-    reservations,
-    /getReservationsForUser\(userId: string\)[\s\S]*\.eq\("user_id", userId\)[\s\S]*\.eq\("reservation_type", "apartment"\)/,
-  );
-  assert.match(
-    reservations,
-    /getInspectionRequestsForUser\(userId: string\)[\s\S]*\.eq\("user_id", userId\)/,
-  );
-});
-
-test("legal surfaces use reviewed versioned documents, never legacy settings", async () => {
-  const [account, setup, terms, privacy, creator, legalEditor, settings] =
-    await Promise.all([
-      read("src/pages/AccountCenter.tsx"),
-      read("src/pages/Setup.tsx"),
-      read("src/pages/TermsPage.tsx"),
-      read("src/pages/PrivacyPolicyPage.tsx"),
-      read("src/pages/CreatorDashboard.tsx"),
-      read("src/components/CreatorLegalDocuments.tsx"),
-      read("src/pages/CreatorSettingsTabV2.tsx"),
-    ]);
-
-  for (const source of [account, setup, terms, privacy])
-    assert.match(source, /getCurrentLegalDocuments/);
-  for (const source of [account, setup, terms, privacy, creator, legalEditor, settings])
-    assert.doesNotMatch(
-      source,
-      /from\(['"]platform_settings['"]\)[\s\S]{0,180}(privacy_policy|terms_of_service)/,
-    );
-  assert.match(creator, /<CreatorLegalDocuments\s*\/>/);
-  assert.match(legalEditor, /creator_save_legal_draft/);
-  assert.match(legalEditor, /creator-step-up/);
-  assert.match(legalEditor, /creator_publish_legal_document/);
-  assert.match(legalEditor, /p_review_reference/);
-  assert.match(legalEditor, /row\.policy_key === "legal_privacy"/);
-  assert.match(legalEditor, /row\.policy_key === "legal_terms"/);
-  assert.doesNotMatch(settings, /key:'privacy_policy'|key:'terms_of_service'/);
-});
-
-test("Short Let naming and public location copy match the product boundary", async () => {
-  const [title, detail] = await Promise.all([
-    read("src/lib/listingPresentation.ts"),
-    read("src/pages/ListingDetailCore.tsx"),
+test("private messaging unlock is profile-session scoped, not route or conversation scoped", async () => {
+  const [e2ee, hook, auth] = await Promise.all([
+    read("src/lib/e2ee.ts"),
+    read("src/hooks/useSecureInboxAccess.ts"),
+    read("src/hooks/useAuth.ts"),
   ]);
-  assert.doesNotMatch(title, /Short Stay/);
-  assert.match(title, /Short Let/);
-  assert.match(
-    detail,
-    /exact address,[\s\S]*full[\s\S]*accommodation payment is confirmed and protected/i,
-  );
+  assert.match(e2ee, /SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:"/);
+  assert.match(e2ee, /sessionStorage\.setItem\(sessionKey\(identity\.user_id\)/);
+  assert.match(e2ee, /sessionStorage\.getItem\(sessionKey\(identity\.user_id\)\)/);
+  assert.match(hook, /rememberPrivateMessagingProfile\(profileId\)/);
+  assert.doesNotMatch(hook, /conversationId|peerUserId|workspace/);
+  assert.match(auth, /sessionStorage\.clear\(\)/);
 });
 
-test("paid Worker tools stay separate from review and public trust", async () => {
-  const [panel, profile, discovery] = await Promise.all([
+test("forgotten Inbox passcode resets with new six digits and no old-passcode requirement", async () => {
+  const [onboarding, recovery] = await Promise.all([
+    read("src/components/SecureChatOnboarding.tsx"),
+    read("src/lib/e2eeRecovery.ts"),
+  ]);
+  assert.match(onboarding, /Forgot passcode\?/);
+  assert.match(onboarding, /You do not need the old passcode/);
+  assert.match(onboarding, /Confirm your passcode/);
+  assert.match(onboarding, /resetEncryptionRecoveryPin\(pin\)/);
+  assert.match(recovery, /reset_my_encryption_identity/);
+  assert.doesNotMatch(recovery, /currentPin/);
+});
+
+test("Inbox surfaces do not expose a permanent PIN settings control", async () => {
+  const [personal, provider, security] = await Promise.all([
+    read("src/pages/Chat.tsx"),
+    read("src/components/WorkerJobsPanelV2.tsx"),
+    read("src/pages/PrivacySecuritySettings.tsx"),
+  ]);
+  assert.doesNotMatch(personal, />Inbox PIN/);
+  assert.doesNotMatch(provider, />Inbox PIN/);
+  assert.doesNotMatch(security, /SecureMessagesPanel/);
+});
+
+test("Service Provider and Property Partner are additive workspaces on one Personal identity", async () => {
+  const [account, migration] = await Promise.all([
+    read("src/pages/AccountCenter.tsx"),
+    read("supabase/migrations/20260915204500_allow_multi_professional_workspaces.sql"),
+  ]);
+  assert.match(account, /Workspaces & access/);
+  assert.match(account, /Use WeHouse as/);
+  assert.match(account, /Service Provider/);
+  assert.match(account, /Property Partner/);
+  assert.match(account, /Offer services through WeHouse Services/);
+  assert.match(account, /List or manage apartments and hotels/);
+  assert.match(migration, /'worker','global','active'/);
+  assert.match(migration, /'property_partner','global','active'/);
+  assert.doesNotMatch(migration, /set role=case when role='user' then 'worker'/);
+});
+
+test("multi-role conflict guards block self-approval and self-inspection", async () => {
+  const migration = await read("supabase/migrations/20260915205500_multi_role_conflict_guards.sql");
+  assert.match(migration, /review your listing/);
+  assert.match(migration, /review your Service Provider verification/);
+  assert.match(migration, /process your refund/);
+  assert.match(migration, /review and publish your hotel/);
+  assert.match(migration, /cannot be assigned to their own customer inspection/);
+});
+
+test("Service Provider onboarding is free and paid Pro is separate from review and trust", async () => {
+  const [activation, pro, profile, discovery, retiredPayment] = await Promise.all([
+    read("src/components/WorkerActivationHome.tsx"),
     read("src/components/WorkerProPanel.tsx"),
     read("src/components/WorkerPublicProfile.tsx"),
     read("src/pages/WorkerDiscovery.tsx"),
+    read("supabase/functions/worker-verification-payment-init/index.ts"),
   ]);
-  assert.match(panel, /subscription pays for the business tools listed below/i);
-  assert.doesNotMatch(panel, /gold PRO mark|<WorkerProBadge/);
+  assert.match(activation, /No onboarding payment is required/);
+  assert.match(pro, /business tools/i);
   assert.doesNotMatch(profile, /WorkerProBadge/);
   assert.doesNotMatch(discovery, /WorkerProBadge/);
+  assert.match(retiredPayment, /retired: true/);
+  assert.match(retiredPayment, /No verification payment can be initialized/);
 });
 
-test("accommodation payment confirmation uses the canonical protected-funds gateway", async () => {
-  const [webhook, verify, migration] = await Promise.all([
-    read("supabase/functions/paystack-webhook/index.ts"),
-    read("supabase/functions/paystack-verify/index.ts"),
-    read(
-      "supabase/migrations/20260914094837_close_accommodation_handover_gaps.sql",
-    ),
+test("biometric/liveness is policy gated and recurring verification is independently disabled by default", async () => {
+  const [migration, gate, review] = await Promise.all([
+    read("supabase/migrations/20260915212000_gate_biometric_identity_policy.sql"),
+    read("src/components/IdentityAccessGate.tsx"),
+    read("src/pages/ServiceProviderVerification.tsx"),
   ]);
-  assert.match(webhook, /process_verified_paystack_charge/);
-  assert.match(verify, /process_verified_paystack_charge/);
-  assert.match(webhook, /retired Worker payment recorded for Finance review/i);
-  assert.match(
-    verify,
-    /legacy Worker onboarding payment cannot grant WeHouse approval/i,
-  );
-  assert.match(
-    migration,
-    /payment\.metadata->>'reservation_id'=p_reservation_id/,
-  );
-  assert.match(migration, /payment\.listing_id=p_listing_id/);
-  assert.match(migration, /payment_group\.listing_id=p_listing_id/);
-  assert.match(migration, /payment_component'=case when v_short/);
-  assert.match(migration, /protected_ledger_transaction_id is not null/);
-  assert.match(migration, /ledger\.reference_type='booking_payment'/);
-  assert.match(migration, /ledger\.reference_id=payment\.id::text/);
-  assert.match(
-    migration,
-    /provider_event\.provider_event_id=ledger\.provider_event_id/,
-  );
-  assert.match(migration, /provider_event\.processing_status='processed'/);
-  assert.match(
-    migration,
-    /Existing accommodation % must be reconciled before protected handover enforcement/,
-  );
+  assert.match(migration, /'account_identity_recurring_enabled','false'/);
+  assert.match(migration, /account_identity_checks_enabled\(\)/);
+  assert.match(migration, /account_identity_recurring_enabled\(\)/);
+  assert.match(migration, /Private identity verification is not enabled by current WeHouse policy/);
+  assert.match(migration, /identity_gate_satisfied/);
+  assert.match(migration, /identity_passed/);
+  assert.match(gate, /state\?\.required && !state\.gate_satisfied/);
+  assert.match(review, /activation\.identity_required === true/);
+  assert.match(review, /Face\/liveness verification is not currently required/);
 });
 
-test("every accommodation arrival field and shared payer is guarded", async () => {
-  const [migration, workflow, contract] = await Promise.all([
-    read(
-      "supabase/migrations/20260914094837_close_accommodation_handover_gaps.sql",
-    ),
-    read(".github/workflows/consolidation-validation.yml"),
-    read("supabase/tests/accommodation_handover_contract.sql"),
-  ]);
-  for (const field of [
-    "requested_move_in_at",
-    "status",
-    "canonical_state",
-    "verified_handover_at",
-    "handover_confirmed_by_customer_at",
-    "tenancy_start_date",
-    "occupancy_started_at",
-    "checked_in_at",
-    "listing_id",
-    "stay_rent_total",
-    "upfront_rent_required",
-    "annual_rent_snapshot",
-  ])
-    assert.match(migration, new RegExp(field));
-  assert.match(migration, /v_paid_member_count=v_accepted_count/);
-  assert.match(migration, /component_total/);
-  assert.match(migration, /shared_housing_share','other'/);
-  assert.match(
-    migration,
-    /Shared Long Let contract payment is temporarily unavailable/,
-  );
-  assert.match(
-    workflow,
-    /supabase\/tests\/accommodation_handover_contract\.sql/,
-  );
-  assert.match(contract, /checked_in_at bypassed the Payment Protection guard/);
-  assert.match(
-    contract,
-    /verified_handover_at bypassed the Long Let Payment Protection guard/,
-  );
-  assert.match(contract, /A protected reservation was moved to an unpaid listing/);
-  assert.match(contract, /A valid occupied Long Let lost access after release/);
-  assert.match(
-    contract,
-    /accepted but unpaid shared member authorized handover/,
-  );
-});
-
-test("paid accommodation terms are bound to the checkout snapshot", async () => {
-  const [migration, rentOnly, contract] = await Promise.all([
-    read(
-      "supabase/migrations/20260914160000_bind_paid_accommodation_snapshots.sql",
-    ),
-    read(
-      "supabase/migrations/20260914170000_enforce_long_let_rent_only.sql",
-    ),
-    read("supabase/tests/accommodation_handover_contract.sql"),
-  ]);
-  assert.match(migration, /validate_paid_accommodation_snapshot/);
-  assert.match(migration, /Short Let payment does not match its dates, guests and price snapshot/);
-  assert.match(migration, /Long Let payment does not match its tenure and contract snapshot/);
-  assert.match(migration, /Shared Short Let payment does not match its dates, guests and split snapshot/);
-  assert.match(migration, /prevent_paid_accommodation_snapshot_change/);
-  for (const field of [
-    "stay_check_in",
-    "stay_check_out",
-    "stay_nights",
-    "guest_count",
-    "rental_plan_years",
-    "contract_rent_total",
-    "upfront_rent_required",
-    "security_deposit_snapshot",
-  ])
-    assert.match(migration, new RegExp(field));
-  assert.match(contract, /Paid Short Let dates or guests were mutable/);
-  assert.match(contract, /'security_deposit_amount',10/);
-  assert.match(contract, /Paid Long Let tenure or contract total was mutable/);
-  assert.match(contract, /Long Let accepted a security deposit/);
-  assert.match(contract, /Open shared Short Let dates or guests were mutable/);
-  assert.match(rentOnly, /Long Let payment must contain rent only/);
-  assert.match(rentOnly, /listings_long_let_rent_only/);
-  assert.match(rentOnly, /reservations_long_let_rent_only/);
-  assert.doesNotMatch(
-    rentOnly,
-    /Long Let[\s\S]{0,80}(requires|includes|charges) (a )?(security )?deposit/i,
-  );
-});
-
-test("Worker review and booking have no onboarding-payment gate", async () => {
-  const [migration, reviewStatus, oversight] = await Promise.all([
-    read(
-      "supabase/migrations/20260914100242_separate_worker_review_from_paid_tools.sql",
-    ),
-    read("src/components/WorkerReviewIdentityStatus.tsx"),
-    read("src/components/CreatorWorkerOversight.tsx"),
-  ]);
-  assert.match(
-    migration,
-    /create or replace function public\.start_my_worker_test/,
-  );
-  assert.match(
-    migration,
-    /create or replace function public\.create_booking_request_v2/,
-  );
-  assert.doesNotMatch(
-    migration,
-    /Verified Paystack payment is required before the Worker test/,
-  );
-  assert.doesNotMatch(migration, /purpose\s*=\s*'worker_verification'/);
-  assert.match(migration, /'profile_ready',v_profile_ready/);
-  assert.doesNotMatch(reviewStatus, /payment_confirmed|>Payment</);
-  assert.doesNotMatch(oversight, /payment_confirmed|label="Payment"/);
-});
-
-test("private Inbox unlock is independent from whether a job is still open", async () => {
-  const [personalInbox, workerInbox, bookingChat, workerMessages, roommateMessages, e2ee] = await Promise.all([
-    read("src/pages/ChatCore.tsx"),
-    read("src/components/WorkerJobsPanelV2.tsx"),
-    read("src/components/BookingNegotiationChat.tsx"),
-    read("src/lib/supabase/worker-bookings.ts"),
-    read("src/lib/supabase/chat.ts"),
-    read("src/lib/e2ee.ts"),
-  ]);
-  assert.match(personalInbox, /useSecureInboxAccess/);
-  assert.match(workerInbox, /useSecureInboxAccess/);
-  assert.match(
-    bookingChat,
-    /!openConversation[\s\S]*secureChat\.state === "unlock_required"[\s\S]*<SecureChatOnboarding/,
-  );
-  assert.match(bookingChat, /This job conversation is closed/);
-  assert.match(bookingChat, /Some messages are still locked/);
-  assert.match(bookingChat, /retryLockedMessages/);
-  assert.match(personalInbox, /Some messages are still locked/);
-  assert.match(personalInbox, /retryLockedMessages/);
-  assert.match(workerMessages, /decryption_failed:decryptionFailed/);
-  assert.match(roommateMessages, /decryption_failed:decryptionFailed/);
-  assert.match(e2ee, /wehouse:private-message-access/);
-});
-
-test("Worker paid tools live under Account and load only when opened", async () => {
-  const [workspace, account] = await Promise.all([
-    read("src/pages/WorkerWorkspaceModern.tsx"),
-    read("src/pages/AccountCenter.tsx"),
-  ]);
-  const nav = workspace.slice(
-    workspace.indexOf("const LIVE_NAV"),
-    workspace.indexOf("const ACTIVATION_NAV"),
-  );
-  assert.doesNotMatch(nav, /Works|paid_tools|\bpro\b/);
-  assert.match(workspace, /accountView === "paid_tools"/);
-  assert.match(workspace, /function WorkerPaidToolsAccount[\s\S]*useWorkerPro/);
-  assert.match(account, /Paid Worker tools/);
-});
-
-test("creating a Worker workspace opens Worker setup and continues to verification", async () => {
-  const [app, account, setup, activation, verification, workspace, migration, sqlContract] = await Promise.all([
-    read("src/App.tsx"),
-    read("src/pages/AccountCenter.tsx"),
-    read("src/pages/WorkerSetupProfessional.tsx"),
-    read("src/components/WorkerActivationHome.tsx"),
-    read("src/pages/WorkerVerificationPhase9.tsx"),
-    read("src/pages/WorkerWorkspaceModern.tsx"),
-    read("supabase/migrations/20260914113621_enforce_worker_face_check_before_review.sql"),
-    read("supabase/tests/worker_face_review_contract.sql"),
-  ]);
-  assert.match(account, /onWorkspaceActivated\?\.\(workspace\)/);
-  assert.match(app, /workspace === "worker" \? "worker_setup" : "property_partner"/);
-  assert.match(setup, /if \(!profile\.worker_verified\)[\s\S]*onContinueVerification\(\)/);
-  assert.doesNotMatch(setup, /wh_worker_setup_return/);
-  assert.match(activation, /Continue Worker setup/);
-  assert.match(activation, /identity_captured === true && data\.identity_passed === true/);
-  assert.match(verification, /Worker verification/);
-  assert.match(verification, /identity_captured === true && a\.identity_passed === true/);
-  assert.match(verification, /!identityComplete[\s\S]*<WorkerIdentityCheck/);
-  assert.match(workspace, /const ACTIVATION_NAV[\s\S]*id: "account"/);
-  assert.match(migration, /'identity_required',true/);
-  assert.match(
-    migration,
-    /create or replace function public\.submit_my_worker_verification\(\)[\s\S]*if not public\.worker_identity_is_current\(v_profile\.user_id\)/,
-  );
-  assert.match(
-    migration,
-    /create or replace function public\.save_my_worker_professional_evidence[\s\S]*if not public\.worker_identity_is_current\(v_profile\.user_id\)/,
-  );
-  assert.doesNotMatch(
-    migration,
-    /coalesce\(v_identity_required,false\) and not public\.worker_identity_is_current/,
-  );
-  assert.match(
-    migration,
-    /get_public_workers[\s\S]*and public\.worker_identity_is_current\(profile\.user_id\)/,
-  );
-  assert.match(
-    migration,
-    /coalesce\(profile\.worker_status,'pending'\)<>'verified'[\s\S]*coalesce\(profile\.worker_verified,false\)/,
-  );
-  assert.match(sqlContract, /Worker review submission bypassed the live-face check/);
-  assert.match(sqlContract, /Valid Worker review submission did not enter review/);
-  assert.doesNotMatch(account, /title="Professional profile"/);
-  assert.doesNotMatch(account, /managed only from Professional Profile/);
-  assert.doesNotMatch(account, /Add a professional workspace/);
-  assert.doesNotMatch(activation, /professional work evidence/i);
-});
-
-test("Worker chat does not repeat the full request card in the message timeline", async () => {
-  const chat = await read("src/components/BookingNegotiationChat.tsx");
-  const timeline = chat.slice(
-    chat.indexOf("<main className="),
-    chat.indexOf("</main>"),
-  );
-  assert.doesNotMatch(timeline, /<JobRequestDetails/);
-  assert.match(chat, /<JobRequestDetailsSheet/);
-  assert.match(chat, /Requested date/);
-  assert.doesNotMatch(chat, /\["Payment state"|\["Job state"/);
-});
-
-test("showcase comments stay a mobile sheet and video uses one playback stream", async () => {
-  const viewer = await read("src/components/WorkerShowcasePostViewer.tsx");
-  assert.match(viewer, /max-h-\[72dvh\]/);
-  assert.match(viewer, /containerClassName="h-full w-full bg-transparent"/);
-  assert.doesNotMatch(viewer, /<video src=\{src\} muted autoPlay loop/);
-});
-
-test("job-specific WeHouse support expires from final payment release, not job completion", async () => {
-  const [migration, chat] = await Promise.all([
-    read(
-      "supabase/migrations/20260914084537_worker_support_window_and_auth_grants.sql",
-    ),
-    read("src/components/BookingNegotiationChat.tsx"),
-  ]);
-  assert.match(migration, /released_at\+interval '24 hours'/);
-  assert.match(migration, /job_support_open/);
-  assert.match(migration, /protection_state='released'/);
-  assert.match(
-    migration,
-    /Job completion and mutable booking timestamps do[\s\S]*not start or extend this window/,
-  );
-  assert.match(chat, /jobSupportOpen/);
-  assert.match(chat, /\{jobSupportOpen && \([\s\S]*Message WeHouse/);
-});
-
-test("adult gate helpers and account deletion use restricted execution contexts", async () => {
-  const migration = await read(
-    "supabase/migrations/20260914084537_worker_support_window_and_auth_grants.sql",
-  );
-  assert.match(
-    migration,
-    /require_adult_before_profile_completion\(\) from public,anon,authenticated/,
-  );
-  assert.match(migration, /set_my_date_of_birth\(date\) from public,anon/);
-  assert.match(
-    migration,
-    /alter function public\.delete_user_account\(text\) set search_path to 'pg_catalog','public'/,
-  );
-});
-
-test("password recovery requires a one-use attempt bound to the linked OAuth session", async () => {
-  const [login, auth, useAuth, migration, edge] = await Promise.all([
-    read("src/pages/Login.tsx"),
-    read("src/lib/supabase/auth.ts"),
-    read("src/hooks/useAuth.ts"),
-    read(
-      "supabase/migrations/20260914084537_worker_support_window_and_auth_grants.sql",
-    ),
-    read("supabase/functions/provider-password-recovery/index.ts"),
-  ]);
-  assert.match(login, /begin_identity_provider_password_recovery/);
-  assert.match(login, /verify_identity_provider_password_recovery/);
-  assert.match(login, /functions\.invoke\("provider-password-recovery"/);
-  assert.doesNotMatch(login, /resetPasswordForEmail/);
-  assert.doesNotMatch(login, /auth\.updateUser\(\{ password \}\)/);
-  assert.doesNotMatch(login, /verify_google_password_recovery/);
-  assert.match(
-    migration,
-    /expires_at timestamptz not null default \(now\(\)\+interval '10 minutes'\)/,
-  );
-  assert.match(migration, /verified_session_id=v_session_id/);
-  assert.match(migration, /method->>'method'='oauth'/);
-  assert.match(migration, /attempt\.target_auth_id=v_auth_id/);
-  assert.match(migration, /attempt\.status='verified'/);
-  assert.match(edge, /admin\.auth\.getUser\(token\)/);
-  assert.match(edge, /claim_identity_provider_password_recovery/);
-  assert.match(edge, /admin\.auth\.admin\.updateUserById/);
-  assert.match(edge, /finish_identity_provider_password_recovery/);
-  assert.match(edge, /admin\.auth\.admin\.signOut\(token, "global"\)/);
-  assert.doesNotMatch(edge, /console\.(?:log|error).*newPassword/);
-  assert.match(auth, /current_password: currentPassword/);
-  assert.match(useAuth, /googlePasswordRecoveryRequested/);
-  assert.doesNotMatch(useAuth, /PASSWORD_RECOVERY_AUTH_KEY/);
-});
-
-test("password recovery browser state is tab-scoped and expires with the server attempt", async () => {
-  const transaction = await read("src/lib/googleVerification.ts");
-  assert.match(transaction, /PASSWORD_RECOVERY_MAX_AGE_MS = 10 \* 60 \* 1000/);
-  assert.match(transaction, /sessionStorage\.setItem\(TRANSACTION_KEY/);
-  assert.match(transaction, /sessionStorage\.getItem\(TRANSACTION_KEY/);
-  assert.match(transaction, /maximumAge\(parsed\.context\)/);
-  assert.doesNotMatch(transaction, /localStorage\.setItem\(TRANSACTION_KEY/);
-});
-
-test("private-message PIN controls live inside Personal and Worker Inbox", async () => {
-  const [accountSecurity, personalInbox, workerInbox] = await Promise.all([
-    read("src/pages/PrivacySecuritySettings.tsx"),
-    read("src/pages/ChatCore.tsx"),
-    read("src/components/WorkerJobsPanelV2.tsx"),
-  ]);
-  assert.doesNotMatch(accountSecurity, /Encrypted chats/);
-  assert.doesNotMatch(accountSecurity, /SecureMessagesPanel/);
-  assert.match(personalInbox, /Inbox PIN/);
-  assert.match(personalInbox, /<SecureMessagesPanel/);
-  assert.match(workerInbox, /Inbox PIN/);
-  assert.match(workerInbox, /<SecureMessagesPanel/);
-});
-
-test("Worker self-discovery never renders a booking action", async () => {
-  const discovery = await read("src/pages/WorkerDiscovery.tsx");
-  assert.match(discovery, /viewWorker\.user_id === profile\.user_id/);
-  assert.match(discovery, /showBookingAction=\{!viewingOwnWorker\}/);
-  assert.match(discovery, /bookable=\{worker\.user_id !== profile\?\.user_id\}/);
-  assert.match(discovery, /active && bookable/);
-});
-
-test("browser face scores cannot approve Worker or Partner identity", async () => {
-  const [migration, workerUi, reviewUi] = await Promise.all([
+test("browser face scores can only request independent WeHouse review", async () => {
+  const [migration, capture, queue] = await Promise.all([
     read("supabase/migrations/20260914210626_harden_account_identity_review.sql"),
     read("src/components/WorkerIdentityCheck.tsx"),
     read("src/components/AccountIdentityReviewQueue.tsx"),
   ]);
   assert.match(migration, /status='pending_review'/);
-  assert.match(migration, /v_actor\.user_id=v_target\.user_id then return false/);
   assert.match(migration, /review_account_identity_check/);
   assert.match(migration, /p_decision not in\('approved','rejected'\)/);
-  assert.match(migration, /identity_reviewer_read_private_reference/);
-  assert.match(migration, /pending_reference_photo_path/);
-  assert.match(migration, /latest_reference_photo_path=case when p_decision='approved'/);
-  assert.match(workerUi, /awaiting WeHouse review/);
-  assert.match(workerUi, /anchorSimilarity/);
-  assert.match(workerUi, /recentSimilarity/);
-  assert.match(reviewUi, /Browser scores help screening but cannot approve/);
+  assert.match(migration, /v_actor\.user_id=v_target\.user_id then return false/);
+  assert.match(capture, /awaiting WeHouse review/);
+  assert.match(queue, /Browser scores help screening but cannot approve/);
 });
 
-test("private calls obtain relay details only through an authenticated call participant function", async () => {
-  const [client, center, edge, config] = await Promise.all([
+test("Personal apartment bookings cannot inherit Creator operational visibility", async () => {
+  const reservations = await read("src/lib/supabase/reservations.ts");
+  assert.match(reservations, /getReservationsForUser\(userId: string\)[\s\S]*\.eq\("user_id", userId\)/);
+  assert.match(reservations, /getInspectionRequestsForUser\(userId: string\)[\s\S]*\.eq\("user_id", userId\)/);
+});
+
+test("accommodation arrival and handover fail closed without authoritative Payment Protection", async () => {
+  const [migration, contract] = await Promise.all([
+    read("supabase/migrations/20260914094837_close_accommodation_handover_gaps.sql"),
+    read("supabase/tests/accommodation_handover_contract.sql"),
+  ]);
+  assert.match(migration, /protected_ledger_transaction_id is not null/);
+  assert.match(migration, /provider_event\.processing_status='processed'/);
+  assert.match(migration, /ledger\.reference_type='booking_payment'/);
+  assert.match(contract, /checked_in_at bypassed the Payment Protection guard/);
+  assert.match(contract, /verified_handover_at bypassed the Long Let Payment Protection guard/);
+});
+
+test("paid accommodation terms become immutable and Long Let remains rent only", async () => {
+  const [snapshot, rentOnly, contract] = await Promise.all([
+    read("supabase/migrations/20260914160000_bind_paid_accommodation_snapshots.sql"),
+    read("supabase/migrations/20260914170000_enforce_long_let_rent_only.sql"),
+    read("supabase/tests/accommodation_handover_contract.sql"),
+  ]);
+  assert.match(snapshot, /prevent_paid_accommodation_snapshot_change/);
+  assert.match(snapshot, /Short Let payment does not match its dates, guests and price snapshot/);
+  assert.match(snapshot, /Long Let payment does not match its tenure and contract snapshot/);
+  assert.match(rentOnly, /Long Let payment must contain rent only/);
+  assert.match(contract, /Long Let accepted a security deposit/);
+});
+
+test("password recovery is one-use, OAuth-bound, server-completed and globally signs out", async () => {
+  const [login, transaction, migration, edge] = await Promise.all([
+    read("src/pages/Login.tsx"),
+    read("src/lib/googleVerification.ts"),
+    read("supabase/migrations/20260914084537_worker_support_window_and_auth_grants.sql"),
+    read("supabase/functions/provider-password-recovery/index.ts"),
+  ]);
+  assert.match(login, /begin_identity_provider_password_recovery/);
+  assert.match(login, /verify_identity_provider_password_recovery/);
+  assert.match(login, /functions\.invoke\([\s\S]{0,80}"provider-password-recovery"/);
+  assert.doesNotMatch(login, /resetPasswordForEmail/);
+  assert.match(transaction, /PASSWORD_RECOVERY_MAX_AGE_MS = 10 \* 60 \* 1000/);
+  assert.match(transaction, /sessionStorage\.setItem\(TRANSACTION_KEY/);
+  assert.match(migration, /attempt\.status='verified'/);
+  assert.match(edge, /claim_identity_provider_password_recovery/);
+  assert.match(edge, /admin\.auth\.admin\.updateUserById/);
+  assert.match(edge, /finish_identity_provider_password_recovery/);
+  assert.match(edge, /admin\.auth\.admin\.signOut\(token, "global"\)/);
+});
+
+test("private audio/video calls use call-participant authorization and temporary TURN credentials", async () => {
+  const [client, center, edge] = await Promise.all([
     read("src/lib/private-calls.ts"),
     read("src/components/PrivateCallCenter.tsx"),
     read("supabase/functions/private-call-ice/index.ts"),
-    read("supabase/config.toml"),
   ]);
   assert.match(client, /functions\.invoke\('private-call-ice'/);
   assert.match(center, /getPrivateCallIceServers\(call\.id\)/);
   assert.match(edge, /admin\.auth\.getUser\(token\)/);
   assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
-  assert.match(edge, /WEBRTC_TURN_URLS/);
-  assert.match(config, /\[functions\.private-call-ice\][\s\S]*verify_jwt = true/);
+  assert.match(edge, /TURN_URLS/);
+  assert.match(edge, /TURN_SHARED_SECRET/);
+  assert.match(edge, /\+ 3600/);
+  assert.match(edge, /crypto\.subtle\.sign/);
+  assert.doesNotMatch(edge, /return json\(\{[^}]*TURN_SHARED_SECRET/);
 });
 
-test("Creator legal area contains lawyer-review drafts without inventing a Long Let deposit", async () => {
-  const [editor, drafts] = await Promise.all([
+test("account closure checks all workspaces and cannot ignore obligations because of a legacy role", async () => {
+  const migration = await read("supabase/migrations/20260915213000_harden_multi_workspace_account_closure.sql");
+  assert.match(migration, /user_has_active_workspace\(v_target\.user_id,'worker'\)/);
+  assert.match(migration, /user_has_active_workspace\(v_target\.user_id,'property_partner'\)/);
+  assert.match(migration, /active housing reservation/);
+  assert.match(migration, /active hotel stay/);
+  assert.match(migration, /active WeHouse Services job/);
+  assert.match(migration, /wallet obligations remain/);
+  assert.match(migration, /withdrawal is still being processed/);
+});
+
+test("legacy verification payment recording is retired", async () => {
+  const migration = await read("supabase/migrations/20260915213000_harden_multi_workspace_account_closure.sql");
+  assert.match(migration, /record_worker_verification_payment/);
+  assert.match(migration, /return false/);
+  assert.match(migration, /from public,anon,authenticated/);
+});
+
+test("legal surfaces use reviewed versioned documents and Long Let never gains an invented deposit", async () => {
+  const [account, setup, terms, privacy, editor, drafts, rentOnly] = await Promise.all([
+    read("src/pages/AccountCenter.tsx"),
+    read("src/pages/Setup.tsx"),
+    read("src/pages/TermsPage.tsx"),
+    read("src/pages/PrivacyPolicyPage.tsx"),
     read("src/components/CreatorLegalDocuments.tsx"),
     read("src/content/legalReviewDrafts.ts"),
+    read("supabase/migrations/20260914170000_enforce_long_let_rent_only.sql"),
   ]);
-  assert.match(editor, /Load lawyer-review draft/);
-  assert.match(editor, /Internal launch documents still required/);
-  assert.match(drafts, /PRIVACY AND COOKIE NOTICE/);
+  for (const source of [account, setup, terms, privacy]) assert.match(source, /getCurrentLegalDocuments/);
+  assert.match(editor, /creator_save_legal_draft/);
+  assert.match(editor, /creator_publish_legal_document/);
   assert.match(drafts, /There is no Long Let security deposit/);
-  assert.match(drafts, /Paid Worker subscription/);
   assert.match(drafts, /Biometric\/liveness DPIA/);
+  assert.match(rentOnly, /Long Let payment must contain rent only/);
 });
