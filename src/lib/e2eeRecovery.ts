@@ -20,7 +20,12 @@ async function derivePinKey(pin: string, salt: Uint8Array) {
     ["deriveKey"],
   );
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 600_000 },
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: salt as BufferSource,
+      iterations: 600_000,
+    },
     material,
     { name: "AES-GCM", length: 256 },
     false,
@@ -58,7 +63,7 @@ export async function resetEncryptionRecoveryPin(nextPin: string) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await derivePinKey(nextPin, salt);
   const encryptedPrivateKey = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv as BufferSource },
     key,
     encoder.encode(JSON.stringify(privateJwk)),
   );
