@@ -18,6 +18,7 @@ function icon(path: string) {
 
 const DASHBOARD = icon('M4 5h6v6H4z M14 5h6v6h-6z M4 15h6v4H4z M14 15h6v4h-6z');
 const SEARCH = icon('M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M20 20l-4-4');
+const CONVERSATION = icon('M4 5h16v12H8l-4 3z');
 const INBOX = icon('M4 4h16v12H4z M4 13h4l2 3h4l2-3h4');
 const ACCOUNT = icon('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 0 1 0 8 4 4 0 0 1 0-8z');
 const RESERVATIONS = icon('M3 5h18v16H3z M8 3v4 M16 3v4 M3 10h18 M8 15l2 2 5-5');
@@ -31,11 +32,11 @@ export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_part
 export function getHotelTeamNav(): DesktopNavItem[] { return [{ id: 'hotel_operations', label: 'Hotel Operations', icon: DASHBOARD }, account()]; }
 
 export function getUserNav(conversationUnread = 0, inboxUnread = 0): DesktopNavItem[] {
-  const totalInboxUnread = conversationUnread + inboxUnread;
   return [
     { id: 'search', label: 'Explore', icon: SEARCH },
     { id: 'my_reservations', label: 'Bookings', icon: RESERVATIONS },
-    { id: 'conversation', label: 'Inbox', icon: INBOX, badge: totalInboxUnread > 0 ? totalInboxUnread : undefined },
+    { id: 'conversation', label: 'Conversation', icon: CONVERSATION, badge: conversationUnread > 0 ? conversationUnread : undefined },
+    { id: 'notifications', label: 'Inbox', icon: INBOX, badge: inboxUnread > 0 ? inboxUnread : undefined },
     account(),
   ];
 }
