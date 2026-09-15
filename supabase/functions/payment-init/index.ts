@@ -9,8 +9,10 @@ const cors={
 };
 const PAYMENT_RETURN_URL='https://www.wehouse.com.ng/#payment-return';
 const SUPPORTED_PURPOSES=new Set(['apartment_reservation','apartment_rent','rent_plan_contribution','hotel_booking','worker_booking','shared_housing_share']);
+const LIVE_MARKETPLACE_PAYMENT_GATE='payments_protection_payouts';
 function json(body:Record<string,unknown>,status=200){return new Response(JSON.stringify(body),{status,headers:cors})}
 function sameMoney(a:unknown,b:unknown){const left=Number(a??0),right=Number(b??0);return Number.isFinite(left)&&Number.isFinite(right)&&Math.round(left*100)===Math.round(right*100)}
+function isLivePaystackKey(secret:string){return /^sk_live_/i.test(secret)}
 
 serve(async(req)=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
@@ -31,6 +33,20 @@ serve(async(req)=>{
   if(payment.status!=='pending')return json({success:false,error:'This payment can no longer be initialized'},409);
   const amount=Number(payment.amount_total??payment.amount??0);if(!Number.isFinite(amount)||amount<=0)return json({success:false,error:'Invalid payment amount'},409);if((payment.currency||'NGN')!=='NGN')return json({success:false,error:'Payment must be in NGN'},409);
   const meta=payment.metadata&&typeof payment.metadata==='object'?payment.metadata as Record<string,unknown>:{};const returnPage='my_reservations';
+
+  // Real marketplace money stays fail-closed until WeHouse has a current written
+  // PSP/legal approval for the exact Payment Protection, custody, settlement and
+  // payout model. Test-mode Paystack remains available for end-to-end QA.
+  if(isLivePaystackKey(paystackSecret)){
+   const{data:approved,error:approvalError}=await db.rpc('_legal_launch_gate_is_approved',{p_gate_key:LIVE_MARKETPLACE_PAYMENT_GATE});
+   if(approvalError){
+    console.error('[payment-init] live marketplace payment gate could not be verified',{gate:LIVE_MARKETPLACE_PAYMENT_GATE,error:approvalError.message});
+    return json({success:false,error:'Live marketplace payments are unavailable until payment compliance approval can be verified.'},503);
+   }
+   if(approved!==true){
+    return json({success:false,error:'Live marketplace payments are awaiting Payment Protection and payout approval.'},503);
+   }
+  }
 
   if(payment.purpose==='apartment_reservation'||payment.purpose==='apartment_rent'){
    const reservationId=String(meta.reservation_id||'').trim();if(!reservationId)return json({success:false,error:'Reservation link is missing'},409);
