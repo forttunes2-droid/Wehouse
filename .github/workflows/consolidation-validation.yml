@@ -4,14 +4,26 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: consolidation-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  tests-and-build:
+    name: Consolidation Tests and Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm test
@@ -19,13 +31,14 @@ jobs:
       - run: npm run build
 
   migration-replay:
+    name: Consolidation Migration Replay
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Reject duplicate migration versions
         shell: bash
         run: |
@@ -44,6 +57,25 @@ jobs:
         run: |
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';")" -ge 90
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
+      - name: Exercise accommodation handover contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
+      - name: Exercise identity policy and Service Provider review contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_face_review_contract.sql
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
+
+  consolidation-gate:
+    name: Consolidation Validation
+    if: always()
+    needs: [tests-and-build, migration-replay]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require build and migration replay
+        env:
+          BUILD_RESULT: ${{ needs.tests-and-build.result }}
+          MIGRATION_RESULT: ${{ needs.migration-replay.result }}
+        run: |
+          test "$BUILD_RESULT" = "success"
+          test "$MIGRATION_RESULT" = "success"

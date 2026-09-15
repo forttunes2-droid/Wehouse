@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import SearchableSelect from '@/components/SearchableSelect';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
+import { getCurrentLegalDocuments } from '@/lib/supabase/legal';
 
 interface Props { profile: Profile; onSetupComplete: (profile: Profile) => void }
 type LegalDoc = 'privacy' | 'terms' | null;
@@ -39,11 +40,9 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
   useEffect(() => {
     void (async () => {
-      const { data } = await supabase.from('platform_settings').select('key,value').in('key', ['privacy_policy', 'terms_of_service']);
-      for (const row of data || []) {
-        if (row.key === 'privacy_policy') setPrivacy(row.value?.trim() || '');
-        if (row.key === 'terms_of_service') setTerms(row.value?.trim() || '');
-      }
+      const { documents } = await getCurrentLegalDocuments();
+      setPrivacy(documents.privacy?.body?.trim() || '');
+      setTerms(documents.terms?.body?.trim() || '');
     })();
   }, []);
 

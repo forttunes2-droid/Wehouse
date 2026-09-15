@@ -54,8 +54,8 @@ type StaffModule =
   | "field_officer";
 const STAFF_MODULES: Array<[StaffModule, string]> = [
   ["operations", "Property Operations"],
-  ["finance", "Finance"],
-  ["support", "Communications"],
+  ["finance", "Finance Operations"],
+  ["support", "Support Operations"],
   ["security", "Security Operations"],
   ["verification", "Worker Operations"],
   ["field_officer", "Field Operations"],

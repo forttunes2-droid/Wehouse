@@ -1,1 +1,1 @@
-export { default } from './WorkerVerificationPhase9';
+export { default } from './ServiceProviderVerification';

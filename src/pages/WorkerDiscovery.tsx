@@ -12,7 +12,6 @@ import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
-import WorkerProBadge from "@/components/WorkerProBadge";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -124,7 +123,7 @@ export default function WorkerDiscovery({
         if (!live) return;
         if (error)
           toast.error(
-            error.message || "Unable to load home-service professionals",
+            error.message || "Unable to load Workers",
           );
         setWorkers(rows || []);
         setCategories((cats || []) as Category[]);
@@ -393,19 +392,22 @@ export default function WorkerDiscovery({
       />
     );
   if (viewWorker)
+    {
+    const viewingOwnWorker = Boolean(profile?.user_id && viewWorker.user_id === profile.user_id);
     return (
       <>
         <WorkerPublicProfile
           worker={viewWorker}
           onBack={() => setViewWorker(null)}
           bookingActive={active.has(viewWorker.user_id)}
+          showBookingAction={!viewingOwnWorker}
           onOpenBooking={() => onNavigate("my_reservations")}
           onBook={() =>
             profile
               ? setBookingWorker(viewWorker)
               : toast.info("Please sign in to request this service worker")
           }
-          safetyAction={active.has(viewWorker.user_id) ? (
+          safetyAction={!viewingOwnWorker && active.has(viewWorker.user_id) ? (
             <div>
               {profileBlock.blockedMe && (
                 <p className="mb-3 text-[9px] leading-4 text-amber-200">
@@ -439,6 +441,7 @@ export default function WorkerDiscovery({
         )}
       </>
     );
+    }
   return (
     <DiscoveryShell
       active="services"
@@ -454,7 +457,7 @@ export default function WorkerDiscovery({
                   WORK STATUS
                 </p>
                 <h2 className="mt-1 text-sm font-bold">
-                  Recent work from professionals
+                  Recent work from Workers
                 </h2>
               </div>
               <span className="text-[9px] text-[#666D7E]">24-hour updates</span>
@@ -512,6 +515,7 @@ export default function WorkerDiscovery({
                   key={worker.featured_placement_id || worker.user_id}
                   worker={worker}
                   active={active.has(worker.user_id)}
+                  bookable={worker.user_id !== profile?.user_id}
                   sponsored
                   onStatus={() => openWorker(worker)}
                   onProfile={() => openWorker(worker)}
@@ -526,8 +530,8 @@ export default function WorkerDiscovery({
           <div>
             <p className="text-[11px] font-semibold">
               {loading
-                ? "Finding professionals…"
-                : `${shown.length} ${shown.length === 1 ? "professional" : "professionals"}`}
+                ? "Finding Workers…"
+                : `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`}
             </p>
             <p className="mt-1 text-[9px] text-[#666D7E]">
               {state
@@ -551,7 +555,7 @@ export default function WorkerDiscovery({
           </div>
         ) : shown.length === 0 ? (
           <DiscoveryEmpty
-            title="No professional matches this search"
+            title="No Worker matches this search"
             text="Try a broader service or location."
           />
         ) : (
@@ -562,12 +566,13 @@ export default function WorkerDiscovery({
                 worker={worker}
                 status={latestStatusByWorker.get(worker.user_id)}
                 active={active.has(worker.user_id)}
+                bookable={worker.user_id !== profile?.user_id}
                 onStatus={(status) => setStory({ worker, status })}
                 onProfile={() => openWorker(worker)}
                 onBook={() =>
                   profile
                     ? setBookingWorker(worker)
-                    : toast.info("Please sign in to request a professional")
+                    : toast.info("Please sign in to request a Worker")
                 }
                 onOpen={() => onNavigate("my_reservations")}
               />
@@ -686,7 +691,7 @@ export default function WorkerDiscovery({
               }}
               className="mt-3 h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold"
             >
-              View professional profile
+              View Worker profile
             </button>
           </div>
         </div>
@@ -709,6 +714,7 @@ function WorkerCard({
   worker,
   status,
   active,
+  bookable,
   onStatus,
   onProfile,
   onBook,
@@ -718,6 +724,7 @@ function WorkerCard({
   worker: Profile;
   status?: WorkStatus;
   active: boolean;
+  bookable: boolean;
   onStatus: (status: WorkStatus) => void;
   onProfile: () => void;
   onBook: () => void;
@@ -757,7 +764,6 @@ function WorkerCard({
             <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
               {displayName}
             </h2>
-            {worker.pro_active ? <WorkerProBadge compact /> : null}
             <WorkerTrustBadge />
           </div>
           <p className="mt-1 truncate text-[10px] text-[#8A8F9E]">
@@ -799,21 +805,21 @@ function WorkerCard({
             ? `From ₦${Number(worker.worker_price).toLocaleString()}`
             : "Discuss price"}
         </p>
-        {active ? (
+        {active && bookable ? (
           <button
             onClick={onOpen}
             className="rounded-xl border border-amber-500/20 bg-amber-500/[.06] px-3 py-2 text-[9px] font-semibold text-amber-300"
           >
             Open booking
           </button>
-        ) : (
+        ) : bookable ? (
           <button
             onClick={onBook}
             className="rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold text-white"
           >
             Request
           </button>
-        )}
+        ) : null}
       </div>
     </article>
   );

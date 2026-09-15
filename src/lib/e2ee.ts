@@ -27,6 +27,7 @@ type EnvelopeRow = {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
+const PRIVATE_MESSAGE_ACCESS_EVENT = "wehouse:private-message-access";
 const readinessTimeoutMs = 10_000;
 const conversationKeyCache = new Map<string, Promise<CryptoKey>>();
 let activeProfileId: string | null = null;
@@ -37,6 +38,17 @@ export function rememberPrivateMessagingProfile(profileId: string) {
   activeProfileId = profileId;
   activeProfileIdRequest = null;
   conversationKeyCache.clear();
+}
+
+function announcePrivateMessageAccessChange() {
+  if (typeof window !== "undefined")
+    window.dispatchEvent(new Event(PRIVATE_MESSAGE_ACCESS_EVENT));
+}
+
+export function onPrivateMessageAccessChange(listener: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  window.addEventListener(PRIVATE_MESSAGE_ACCESS_EVENT, listener);
+  return () => window.removeEventListener(PRIVATE_MESSAGE_ACCESS_EVENT, listener);
 }
 
 async function currentProfileId() {
@@ -127,6 +139,7 @@ export async function createEncryptionIdentity(pin: string) {
   });
   if (error) throw error;
   sessionStorage.setItem(sessionKey(profileId), JSON.stringify(privateJwk));
+  announcePrivateMessageAccessChange();
 }
 
 export async function unlockEncryptionIdentity(pin: string) {
@@ -142,6 +155,7 @@ export async function unlockEncryptionIdentity(pin: string) {
     );
     const jwk = JSON.parse(decoder.decode(clear)) as JsonWebKey;
     sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(jwk));
+    announcePrivateMessageAccessChange();
   } catch {
     throw new Error("Incorrect recovery passcode");
   }
@@ -191,11 +205,13 @@ export async function changeEncryptionRecoveryPin(currentPin: string, nextPin: s
   // The identity key itself is unchanged, so existing conversation envelopes
   // and old messages remain decryptable. Only its encrypted recovery backup changes.
   sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(privateJwk));
+  announcePrivateMessageAccessChange();
 }
 
 export async function lockEncryptionIdentity() {
   sessionStorage.removeItem(sessionKey(await currentProfileId()));
   conversationKeyCache.clear();
+  announcePrivateMessageAccessChange();
 }
 
 export async function encryptionIdentityStatus() {

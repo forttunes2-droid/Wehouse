@@ -43,6 +43,32 @@ const STOPPED_STATUSES = new Set([
   "payment_conflict",
 ]);
 
+export function hasProtectedAccommodationPayment(row: Record<string, any>) {
+  const shortStay =
+    String(row.stay_type || row._stayKind || "long_stay") === "short_let";
+  const protectionId = shortStay
+    ? row.stay_payment_protection_id
+    : row.year_one_rent_protection_id;
+  return (
+    RENT_PAID_STATUSES.has(
+      String(row.rent_payment_status || row.payment_status || "not_started"),
+    ) &&
+    Boolean(row.rent_paid_at) &&
+    Boolean(protectionId)
+  );
+}
+
+export function hasUnprotectedPaidAccommodation(row: Record<string, any>) {
+  const rentStatus = String(
+    row.rent_payment_status || row.payment_status || "not_started",
+  );
+  return (
+    RENT_PAID_STATUSES.has(rentStatus) &&
+    Boolean(row.rent_paid_at) &&
+    !hasProtectedAccommodationPayment(row)
+  );
+}
+
 function complete(label: string, detail: string, optional = false): PropertyJourneyStep {
   return { id: label, label, detail, state: "complete", optional };
 }
@@ -70,7 +96,7 @@ export function getPropertyBookingJourney(
   const feePaid = Boolean(row.paid_at || row.reservation_fee_paid) &&
     COMPLETE_STATUSES.has(String(row.manual_payment_status || "paid"));
   const rentStatus = String(row.rent_payment_status || row.payment_status || "not_started");
-  const rentPaid = RENT_PAID_STATUSES.has(rentStatus);
+  const rentPaid = hasProtectedAccommodationPayment(row);
   const inspectionStatus = inspection?.status
     ? String(inspection.status)
     : status === "inspection_pending"
@@ -86,6 +112,27 @@ export function getPropertyBookingJourney(
     : status === "payment_pending"
       ? current("Reservation fee", "Complete the fee to reserve this property.")
       : upcoming("Reservation fee", "Payment confirmation is unavailable.");
+
+  if (hasUnprotectedPaidAccommodation(row)) {
+    return {
+      action: "stopped",
+      title: "Payment needs WeHouse review",
+      detail:
+        "This booking has a paid status without its required Payment Protection record. Move-in and check-in stay blocked while WeHouse reconciles the payment evidence.",
+      steps: [
+        reservationStep,
+        {
+          id: "payment-protection-review",
+          label: "Payment Protection review",
+          detail: "The paid status and protected-funds record do not match.",
+          state: "stopped",
+        },
+      ],
+      feePaid,
+      rentPaid: false,
+      inspectionStatus,
+    };
+  }
 
   if (stopped) {
     return {
@@ -229,9 +276,9 @@ export function propertyBookingStatusLabel(
 ) {
   const status = String(row.status || row.reservation_status || "payment_pending");
   const shortStay = String(row.stay_type || row._stayKind || "long_stay") === "short_let";
-  const rentPaid = RENT_PAID_STATUSES.has(
-    String(row.rent_payment_status || row.payment_status || "not_started"),
-  );
+  const rentPaid = hasProtectedAccommodationPayment(row);
+
+  if (hasUnprotectedPaidAccommodation(row)) return "Payment needs review";
 
   if (status === "ready_for_move_in") {
     if (shortStay) return rentPaid ? "Ready for check-in" : "Stay payment required";

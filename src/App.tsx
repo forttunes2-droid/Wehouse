@@ -27,6 +27,7 @@ import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import { workspaceLabel } from "@/lib/workspacePresentation";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -431,10 +432,32 @@ export default function App() {
       toast.success(
         workspace === "personal"
           ? "Personal WeHouse opened"
-          : `${workspace[0].toUpperCase()}${workspace.slice(1)} workspace opened`,
+          : `${workspaceLabel(workspace)} opened`,
       );
     },
     [baseProfile, workspaceAccess],
+  );
+
+  const openActivatedWorkspace = useCallback(
+    (workspace: "worker" | "property_partner") => {
+      if (!baseProfile) return;
+      const destination: NavPage =
+        workspace === "worker" ? "worker_setup" : "property_partner";
+      setActiveWorkspace(workspace);
+      setNavPage(destination);
+      navHistoryRef.current = [destination];
+      window.dispatchEvent(new Event("wehouse:navigation"));
+      try {
+        localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
+        localStorage.setItem(NAV_STORAGE_KEY, destination);
+        window.history.replaceState(
+          { page: destination },
+          "",
+          `#${destination}`,
+        );
+      } catch {}
+    },
+    [baseProfile],
   );
 
   useEffect(() => {
@@ -1006,6 +1029,17 @@ export default function App() {
       <WorkerSetup
         profile={profile}
         onComplete={() => auth.handleSetupComplete(profile)}
+        onContinueVerification={() => {
+          try {
+            localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");
+            window.history.replaceState(
+              { page: "worker_verification" },
+              "",
+              "#worker_verification",
+            );
+          } catch {}
+          window.location.reload();
+        }}
       />
     );
   if (error)
@@ -1063,6 +1097,9 @@ export default function App() {
           onGoToSetup={() => goTo("worker_setup")}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isPropertyPartner)
@@ -1171,6 +1208,7 @@ export default function App() {
             workspaceAccess={workspaceAccess}
             activeWorkspace={activeWorkspace}
             onSwitchWorkspace={switchWorkspace}
+            onWorkspaceActivated={openActivatedWorkspace}
           />
         );
       case "privacy":
@@ -1191,20 +1229,12 @@ export default function App() {
             initialSection="devices"
           />
         );
-      case "encryption":
-        return (
-          <PrivacySecuritySettings
-            profile={profile}
-            onUpdate={(u) => auth.handleSetupComplete(u)}
-            onBack={subpageBack}
-            initialSection="encryption"
-          />
-        );
       case "profile_edit":
         return isWorkerRole ? (
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onContinueVerification={() => goTo("worker_verification")}
             onBack={subpageBack}
           />
         ) : (
@@ -1274,6 +1304,7 @@ export default function App() {
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onContinueVerification={() => goTo("worker_verification")}
             onBack={subpageBack}
           />
         ) : (

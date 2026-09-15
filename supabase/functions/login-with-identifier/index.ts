@@ -8,6 +8,16 @@ const responseHeaders = {
   "Cache-Control": "no-store",
 };
 
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: responseHeaders });
 }
@@ -36,11 +46,34 @@ Deno.serve(async (request) => {
     if (!url || !anonKey || !serviceKey)
       return json({ error: "Authentication is temporarily unavailable" }, 503);
 
+    const admin = createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const forwardedFor =
+      request.headers.get("cf-connecting-ip") ||
+      request.headers.get("x-real-ip") ||
+      request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ||
+      "unavailable";
+    const fingerprint = await sha256Hex(
+      `${forwardedFor}|${request.headers.get("user-agent") || "unknown"}`,
+    );
+    const { data: throttle, error: throttleError } = await admin.rpc(
+      "consume_public_password_login_attempt_from_service",
+      { p_fingerprint_hash: fingerprint },
+    );
+    if (throttleError)
+      return json({ error: "Authentication is temporarily unavailable" }, 503);
+    if (throttle?.allowed !== true)
+      return json(
+        {
+          error: "Too many sign-in attempts. Wait briefly and try again.",
+          retry_after_seconds: Number(throttle?.retry_after_seconds || 60),
+        },
+        429,
+      );
+
     let email = identifier;
     if (!isEmail) {
-      const admin = createClient(url, serviceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
       const { data: profile } = await admin
         .from("profiles")
         .select("email")

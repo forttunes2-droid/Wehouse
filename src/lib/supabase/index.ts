@@ -160,7 +160,7 @@ export {
   getWorkerVerification,
   getVerificationsByStatus,
   reviewWorkerVerification,
-  getBlueBadgeSubscription,
+  getLegacyWorkerSubscription,
   getOrCreateWallet,
   getWallet,
   getWalletTransactions,

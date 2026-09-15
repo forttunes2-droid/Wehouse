@@ -25,6 +25,7 @@ import {
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
+import { locationLabel } from "@/lib/locationPresentation";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -120,6 +121,7 @@ export default function HotelDetailExperience({
             (booking) =>
               Number(booking.hotel_id) === Number(hotelId) &&
               booking.payment_status === "paid" &&
+              Boolean(booking.payment_protection_id) &&
               ["confirmed", "checked_in"].includes(String(booking.status)),
           ),
         ),
@@ -315,7 +317,7 @@ export default function HotelDetailExperience({
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
                 <p className="mt-1 text-[10px] text-[#747B8B]">
-                  {[hotel.area, hotel.city, hotel.state].filter(Boolean).join(", ")}
+                  {locationLabel(hotel.area, hotel.city, hotel.state)}
                   {distance != null
                     ? ` · about ${
                         distance < 1
@@ -618,7 +620,9 @@ export default function HotelDetailExperience({
           <h2 className="text-sm font-semibold">Location</h2>
           {exactDestination && hotel.address ? (
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[10px] text-[#858B9A]">{hotel.address}</p>
+              <p className="text-[10px] text-[#858B9A]">
+                {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
+              </p>
               <a
                 href={directionsUrl(exactDestination.lat, exactDestination.lng)}
                 target="_blank"

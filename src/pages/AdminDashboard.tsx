@@ -17,6 +17,7 @@ import HousingOperationsWorkspace from "@/components/HousingOperationsWorkspace"
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 import WeHouseSelect from "@/components/WeHouseSelect";
+import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 
 type AdminTab = "overview" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings";
@@ -120,7 +121,7 @@ export default function AdminDashboard({
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
-        label={`WEHOUSE · ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
+        label={`WEHOUSE TEAM · BRANCH ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
         title={workspaceTitle}
         description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : " · Branch assignment required"}`}
         items={nav}
@@ -331,10 +332,13 @@ function Operations({
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
-        <PropertyPipelineWorkspace
-          profile={profile}
-          initialRecordId={target?.operation === "properties" ? target.id : undefined}
-        />
+        <div className="space-y-5">
+          <AccountIdentityReviewQueue accountRole="property_partner" />
+          <PropertyPipelineWorkspace
+            profile={profile}
+            initialRecordId={target?.operation === "properties" ? target.id : undefined}
+          />
+        </div>
       )}{" "}
       {active === "workers" && <Workers onChanged={onRefreshStats} />}{" "}
       {active === "bookings" && (
@@ -553,6 +557,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
       title="Workers"
       note="Worker lifecycle review lives here. Availability is controlled only by the Worker and is not part of this filter."
     >
+      <AccountIdentityReviewQueue accountRole="worker" />
       <InlineFilterChips
         value={filter}
         options={statusOptions}

@@ -41,6 +41,7 @@ import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import {
+  lockEncryptionIdentity,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
@@ -61,6 +62,7 @@ type ChatMessage = {
   attachments?: string[] | null;
   is_read?: boolean | null;
   reactions?: Record<string, string>;
+  decryption_failed?: boolean;
   reply_to_id?: string | null;
   created_at: string;
 };
@@ -87,6 +89,9 @@ type Booking = {
   blocked_by_me?: boolean | null;
   blocked_me?: boolean | null;
   payment_status?: string | null;
+  payment_released_at?: string | null;
+  job_support_until?: string | null;
+  job_support_open?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -162,6 +167,22 @@ export default function BookingNegotiationChat({
       await privateConversationReadiness("worker", conversationId, peerId),
     );
   }, [conversationId, peerId]);
+  const loadMessages = useCallback(
+    async (loadedPeerId: string | null, quiet = false) => {
+      const msgRes = await getBookingMessages(conversationId, loadedPeerId);
+      if (!msgRes.error) {
+        setMessages((msgRes.messages || []) as ChatMessage[]);
+        setMessageError(null);
+        void markBookingMessagesRead(conversationId);
+      } else if (!quiet) {
+        setMessageError(
+          msgRes.error.message || "Conversation could not be loaded",
+        );
+        toast.error("Conversation could not be loaded");
+      }
+    },
+    [conversationId],
+  );
   const loadAll = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
@@ -177,18 +198,8 @@ export default function BookingNegotiationChat({
           ? loadedBooking.user_id
           : loadedBooking.worker_id
         : null;
-      const msgRes = await getBookingMessages(conversationId, loadedPeerId);
-      if (!msgRes.error) {
-        setMessages((msgRes.messages || []) as ChatMessage[]);
-        setMessageError(null);
-      } else if (!quiet) {
-        setMessageError(
-          msgRes.error.message || "Conversation could not be loaded",
-        );
-        toast.error("Conversation could not be loaded");
-      }
+      await loadMessages(loadedPeerId, quiet);
       if (!quiet) setLoading(false);
-      void markBookingMessagesRead(conversationId);
       if (loadedBooking?.status === "approved_released" && !isWorker)
         void getMyWorkerBookingReview(bookingId).then((reviewResult) => {
           if (!reviewResult.error && reviewResult.review) {
@@ -198,8 +209,24 @@ export default function BookingNegotiationChat({
           }
         });
     },
-    [conversationId, bookingId, isWorker],
+    [bookingId, isWorker, loadMessages],
   );
+  const finishSecureUnlock = useCallback(async () => {
+    if (!peerId) return;
+    setSecureChat(null);
+    const result = await privateConversationReadiness(
+      "worker",
+      conversationId,
+      peerId,
+    );
+    setSecureChat(result);
+    if (result.state === "ready") await loadMessages(peerId, true);
+  }, [conversationId, loadMessages, peerId]);
+  const retryLockedMessages = useCallback(async () => {
+    setSecureChat(null);
+    await lockEncryptionIdentity();
+    await refreshSecureChat();
+  }, [refreshSecureChat]);
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
@@ -234,7 +261,10 @@ export default function BookingNegotiationChat({
           table: "booking_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => void loadAll(true),
+        () =>
+          void (peerId
+            ? loadMessages(peerId, true)
+            : loadAll(true)),
       )
       .on(
         "postgres_changes",
@@ -244,7 +274,10 @@ export default function BookingNegotiationChat({
           table: "booking_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => void loadAll(true),
+        () =>
+          void (peerId
+            ? loadMessages(peerId, true)
+            : loadAll(true)),
       )
       .on(
         "postgres_changes",
@@ -267,7 +300,7 @@ export default function BookingNegotiationChat({
       document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
     };
-  }, [bookingId, conversationId, loadAll]);
+  }, [bookingId, conversationId, loadAll, loadMessages, peerId]);
   function openSupport() {
     setMenuOpen(false);
     window.dispatchEvent(
@@ -606,6 +639,9 @@ export default function BookingNegotiationChat({
       "completed_pending_approval",
       "disputed",
     ].includes(booking?.status || ""),
+    jobSupportOpen =
+      booking?.job_support_open === true ||
+      (booking?.job_support_open == null && openConversation),
     peerName = isWorker
       ? booking?.customer_username
         ? `@${booking.customer_username}`
@@ -678,13 +714,15 @@ export default function BookingNegotiationChat({
         </div>
         {menuOpen && (
           <div className="absolute right-3 top-[3.65rem] z-30 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[#171B24] p-1.5 shadow-2xl">
-            <button
-              onClick={openSupport}
-              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-violet-300 hover:bg-violet-500/[.06]"
-            >
-              <span>?</span>
-              <span>Message WeHouse</span>
-            </button>
+            {jobSupportOpen && (
+              <button
+                onClick={openSupport}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-violet-300 hover:bg-violet-500/[.06]"
+              >
+                <span>?</span>
+                <span>Message WeHouse</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setMenuOpen(false);
@@ -929,6 +967,25 @@ export default function BookingNegotiationChat({
       </header>
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
+          {messages.some((message) => message.decryption_failed) ? (
+            <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+              <div>
+                <p className="text-[10px] font-semibold text-violet-100">
+                  Some messages are still locked
+                </p>
+                <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                  Re-enter your Inbox PIN to unlock this conversation on this device.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void retryLockedMessages()}
+                className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+              >
+                Enter PIN
+              </button>
+            </section>
+          ) : null}
           {messageError ? (
             <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center">
               <p className="text-xs font-semibold text-red-200">
@@ -956,12 +1013,6 @@ export default function BookingNegotiationChat({
             contextType="worker_booking"
             contextId={conversationId}
           />
-          {booking ? (
-            <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-3">
-              <JobRequestDetails booking={booking} />
-              <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
-            </div>
-          ) : null}
           {messages.map((msg, index) => {
             const mine = msg.sender_id === profile.user_id,
               reactions = Object.values(msg.reactions || {}).reduce<
@@ -1075,17 +1126,7 @@ export default function BookingNegotiationChat({
               <SecureChatOnboarding
                 status={secureChat}
                 personName={peerName}
-                onReady={() => {
-                  setSecureChat(null);
-                  void privateConversationReadiness(
-                    "worker",
-                    conversationId,
-                    peerId || "",
-                  ).then((result) => {
-                    setSecureChat(result);
-                    if (result.state === "ready") void loadAll(true);
-                  });
-                }}
+                onReady={() => void finishSecureUnlock()}
               />
             ) : (
               <>
@@ -1213,12 +1254,12 @@ export default function BookingNegotiationChat({
                     : "This person blocked contact. The conversation history remains available."}
                 </p>
               </div>
-              {paymentReview && (
+              {jobSupportOpen && (
                 <button
                   onClick={openSupport}
                   className="shrink-0 text-[9px] font-semibold text-violet-300"
                 >
-                  Open review
+                  {paymentReview ? "Open review" : "Message WeHouse"}
                 </button>
               )}
             </div>
@@ -1229,12 +1270,14 @@ export default function BookingNegotiationChat({
               <p className="text-[10px] text-[#656A7A]">
                 This job conversation is closed.
               </p>
-              <button
-                onClick={openSupport}
-                className="text-[10px] font-semibold text-violet-300"
-              >
-                Message WeHouse
-              </button>
+              {jobSupportOpen && (
+                <button
+                  onClick={openSupport}
+                  className="text-[10px] font-semibold text-violet-300"
+                >
+                  Message WeHouse
+                </button>
+              )}
             </div>
             {!isWorker && booking?.status === "approved_released" && (
               <section className="mt-3 border-t border-white/[.06] pt-3">
@@ -1319,6 +1362,16 @@ export default function BookingNegotiationChat({
           </div>
         )}
       </footer>
+      {(!openConversation || contactBlocked) &&
+      secureChat &&
+      (secureChat.state === "setup_required" ||
+        secureChat.state === "unlock_required") ? (
+        <SecureChatOnboarding
+          status={secureChat}
+          personName={peerName}
+          onReady={() => void finishSecureUnlock()}
+        />
+      ) : null}
       {profileOpen ? (
         <ConversationIdentitySheet
           profile={peerProfile}
@@ -1348,6 +1401,8 @@ export default function BookingNegotiationChat({
       {detailsOpen && booking ? (
         <JobRequestDetailsSheet
           booking={booking}
+          bookingId={bookingId}
+          isWorker={isWorker}
           onClose={() => setDetailsOpen(false)}
         />
       ) : null}
@@ -1783,49 +1838,22 @@ function TrashIcon() {
   );
 }
 function JobRequestDetails({ booking }: { booking: Booking }) {
-  const amount = Number(
-    booking.negotiated_amount || booking.agreed_amount || 0,
-  );
   const facts = [
-    ["Service", booking.service_type || "Service request"],
     [
-      "Schedule",
+      "Requested date",
       booking.scheduled_date
         ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString()
         : "To be agreed",
     ],
-    ["Job state", BOOKING_STATUS_LABELS[booking.status]?.label || booking.status.replaceAll("_", " ")],
-    [
-      "Payment state",
-      booking.payment_status && booking.payment_status !== "not_started"
-        ? booking.payment_status.replace(/_/g, " ")
-        : booking.status === "waiting_payment"
-          ? "Action needed"
-          : [
-                "confirmed",
-                "in_progress",
-                "completed_pending_approval",
-                "approved_released",
-              ].includes(booking.status)
-            ? "Secured"
-            : "Not started",
-    ],
-    [
-      "Price",
-      amount > 0
-        ? `₦${amount.toLocaleString("en-NG")}`
-        : "Worker has not supplied a price",
-    ],
-    ["Location", booking.address || "Not supplied"],
+    ["Service location", booking.address || "Not supplied"],
   ];
   return (
     <div className="space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
-      <div className="flex items-start justify-between gap-3 border-b border-white/[.055] pb-3">
+      <div className="border-b border-white/[.055] pb-3">
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">Original service request</p>
           <p className="mt-1 text-[10px] font-semibold text-[#E2E4EA]">#{booking.booking_code || "—"} · {booking.service_type || "Service request"}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-white/[.055] px-2 py-1 text-[8px] font-semibold text-[#B6BAC5]">{BOOKING_STATUS_LABELS[booking.status]?.label || "Booking"}</span>
       </div>
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {facts.map(([label, value]) => (
@@ -1841,7 +1869,7 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
       </div>
       <div className="border-t border-white/[.055] pt-3">
         <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">
-          Original description
+          What the customer requested
         </p>
         <p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">
           {booking.description ||
@@ -1866,9 +1894,13 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
 }
 function JobRequestDetailsSheet({
   booking,
+  bookingId,
+  isWorker,
   onClose,
 }: {
   booking: Booking;
+  bookingId: string;
+  isWorker: boolean;
   onClose: () => void;
 }) {
   return (
@@ -1890,8 +1922,9 @@ function JobRequestDetailsSheet({
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
-        <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-xl space-y-4">
           <JobRequestDetails booking={booking} />
+          <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
         </div>
       </main>
     </div>

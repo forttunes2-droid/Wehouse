@@ -39,6 +39,7 @@ import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import {
+  lockEncryptionIdentity,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
@@ -57,6 +58,9 @@ import {
   type HotelConversation,
 } from "@/lib/supabase/hotel-chat";
 import BackButton from "@/components/BackButton";
+import SecureInboxLock from "@/components/SecureInboxLock";
+import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import SecureMessagesPanel from "@/components/SecureMessagesPanel";
 
 type Props = {
   profile: Profile;
@@ -188,6 +192,11 @@ export default function Chat({
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
+  const {
+    status: inboxSecurityStatus,
+    refresh: refreshInboxSecurity,
+  } = useSecureInboxAccess(profile.user_id);
   const activeRef = useRef<Conversation | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -352,10 +361,11 @@ export default function Chat({
   );
 
   useEffect(() => {
+    if (inboxSecurityStatus?.state !== "ready") return;
     if (!conversationId) void loadInbox(Boolean(inboxCache.get(profile.user_id)));
-  }, [conversationId, loadInbox, profile.user_id]);
+  }, [conversationId, inboxSecurityStatus?.state, loadInbox, profile.user_id]);
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || inboxSecurityStatus?.state !== "ready") return;
     void (async () => {
       if (peerUserId) {
         const now = new Date().toISOString();
@@ -418,7 +428,7 @@ export default function Chat({
         );
       }
     })();
-  }, [conversationId, loadInbox, peerUserId, profile.user_id]);
+  }, [conversationId, inboxSecurityStatus?.state, loadInbox, peerUserId, profile.user_id]);
   useEffect(() => {
     if (!active) {
       setMessages([]);
@@ -500,7 +510,13 @@ export default function Chat({
     };
   }, [active, otherId]);
   useEffect(() => {
-    if (active || activeBooking || activeHotel) return;
+    if (
+      inboxSecurityStatus?.state !== "ready" ||
+      active ||
+      activeBooking ||
+      activeHotel
+    )
+      return;
     const channel = supabase
       .channel(`message-inbox:${profile.user_id}`)
       .on(
@@ -524,7 +540,7 @@ export default function Chat({
       window.clearInterval(timer);
       void supabase.removeChannel(channel);
     };
-  }, [active, activeBooking, activeHotel, profile.user_id, loadInbox]);
+  }, [active, activeBooking, activeHotel, inboxSecurityStatus?.state, profile.user_id, loadInbox]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
@@ -861,6 +877,23 @@ export default function Chat({
     });
   }, [inboxItems, inboxQuery, otherId, people]);
 
+  const finishInboxUnlock = useCallback(async () => {
+    const result = await refreshInboxSecurity();
+    const current = activeRef.current;
+    if (result.state === "ready" && current) {
+      await loadRoommateMessages(current.id, true);
+    }
+  }, [loadRoommateMessages, refreshInboxSecurity]);
+
+  if (inboxSecurityStatus?.state !== "ready") {
+    return (
+      <SecureInboxLock
+        status={inboxSecurityStatus}
+        onReady={() => void finishInboxUnlock()}
+      />
+    );
+  }
+
   if (activeBooking)
     return (
       <BookingNegotiationChat
@@ -897,6 +930,9 @@ export default function Chat({
   if (active) {
     const person = people[otherId(active)];
     const canCompose = secureChat?.state === "ready";
+    const lockedMessages = messages.some(
+      (message) => message.decryption_failed === true,
+    );
     const refreshSecurity = () => {
       setSecureChat(null);
       void privateConversationReadiness(
@@ -908,6 +944,11 @@ export default function Chat({
         if (result.state === "ready" || result.state === "peer_setup_required")
           void loadRoommateMessages(active.id, true);
       });
+    };
+    const retryLockedMessages = async () => {
+      setSecureChat(null);
+      await lockEncryptionIdentity();
+      await refreshInboxSecurity();
     };
     const timeline = [
       ...messages.map((message) => ({
@@ -1017,6 +1058,25 @@ export default function Chat({
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
+            {lockedMessages ? (
+              <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+                <div>
+                  <p className="text-[10px] font-semibold text-violet-100">
+                    Some messages are still locked
+                  </p>
+                  <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                    Re-enter your Inbox PIN to unlock this conversation on this device.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void retryLockedMessages()}
+                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+                >
+                  Enter PIN
+                </button>
+              </section>
+            ) : null}
             {loadingMessages && messages.length === 0 ? (
               <MessageSkeleton />
             ) : messages.length === 0 ? (
@@ -1373,7 +1433,16 @@ export default function Chat({
             >
               ×
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              aria-expanded={pinSettingsOpen}
+              onClick={() => setPinSettingsOpen((value) => !value)}
+              className="mt-0.5 min-h-9 rounded-full border border-white/[.07] px-3 text-[9px] font-semibold text-violet-200"
+            >
+              Inbox PIN
+            </button>
+          )}
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold sm:text-xl">
               {selected.size
@@ -1393,6 +1462,11 @@ export default function Chat({
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
+        {pinSettingsOpen ? (
+          <div className="mb-4">
+            <SecureMessagesPanel />
+          </div>
+        ) : null}
         <section className="border-b border-white/[.06] pb-4">
           <div className="flex items-center justify-between gap-3 py-2">
             <div className="min-w-0">

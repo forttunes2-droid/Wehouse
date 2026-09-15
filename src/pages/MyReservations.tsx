@@ -31,8 +31,11 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
   getPropertyBookingJourney,
+  hasProtectedAccommodationPayment,
+  hasUnprotectedPaidAccommodation,
   propertyBookingStatusLabel,
 } from "@/lib/propertyBookingLifecycle";
+import { locationLabel } from "@/lib/locationPresentation";
 import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
 import {
   getMyAccommodationProtection,
@@ -888,9 +891,7 @@ export default function MyReservations({
 function bookingGroup(item: BookingItem): BookingGroup {
   if (item.kind === "housing") {
     const status = String(item.row.status || "");
-    const rentPaid = ["paid", "upfront_paid"].includes(
-      String(item.row.rent_payment_status || ""),
-    );
+    const rentPaid = hasProtectedAccommodationPayment(item.row);
     if (
       status === "payment_pending" ||
       status === "payment_conflict" ||
@@ -1000,9 +1001,7 @@ function serviceNextAction(status: string) {
 
 function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const short = row.stay_type === "short_let";
-  const rentPaid = ["paid", "upfront_paid"].includes(
-    String(row.rent_payment_status || ""),
-  );
+  const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
   const visibleStatus = propertyBookingStatusLabel(row);
   const nextSummary =
@@ -1204,6 +1203,7 @@ function PropertyBookingDetail({
         ? "Short Let"
         : "Long Let";
   const journey = getPropertyBookingJourney(row, inspection);
+  const paymentNeedsReview = hasUnprotectedPaidAccommodation(row);
   const recordCode =
     Boolean(row.booking_code) &&
     journey.rentPaid &&
@@ -1231,6 +1231,7 @@ function PropertyBookingDetail({
   const helpRelevant =
     row.status === "payment_conflict" ||
     row.rent_payment_status === "payment_conflict" ||
+    hasUnprotectedPaidAccommodation(row) ||
     (journey.rentPaid && ["handover", "tenancy"].includes(journey.action));
 
   return (
@@ -1255,9 +1256,12 @@ function PropertyBookingDetail({
                 {row.listing_title || "Apartment booking"}
               </h1>
               <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
-                {row.listing_location ||
-                  row.listing_address ||
-                  [row.listing_city, row.listing_state].filter(Boolean).join(", ") ||
+                {locationLabel(
+                  row.listing_location,
+                  row.listing_address,
+                  row.listing_city,
+                  row.listing_state,
+                ) ||
                   "Area unavailable"}
               </p>
             </div>
@@ -1283,7 +1287,9 @@ function PropertyBookingDetail({
             <Info
               label={short ? "Stay payment" : "Year 1 rent"}
               value={
-                journey.rentPaid
+                paymentNeedsReview
+                  ? "Needs WeHouse review"
+                  : journey.rentPaid
                   ? "Paid"
                   : row.rent_payment_status === "payment_pending"
                     ? "Payment started"

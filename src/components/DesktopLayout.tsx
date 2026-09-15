@@ -33,6 +33,7 @@ const ROOT_PAGES = new Set<NavPage>([
 ]);
 
 const OWN_MOBILE_BACK = new Set<NavPage>([
+  'activity',
   'roommate',
   'hotels',
   'worker_discovery',
@@ -91,7 +92,7 @@ export default function DesktopLayout({
 
   const role = userRole || '';
   const initials = (userName || 'U').charAt(0).toUpperCase();
-  const showBack = !ROOT_PAGES.has(activePage) && !nestedScreen;
+  const showBack = activePage !== 'activity' && !ROOT_PAGES.has(activePage) && !nestedScreen;
   const showMobileBack = showBack && !OWN_MOBILE_BACK.has(activePage);
   const operational = OPERATIONAL_ROLES.has(role);
   const workspaceRoot = operational && isWorkspaceRoot(role, activePage);
@@ -200,7 +201,7 @@ export default function DesktopLayout({
       direct = ['Overview', 'Operations', 'Inbox', 'Issues'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'worker') {
       direct = ['Overview', 'Jobs', 'Schedule', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
-      extra = ['Professional Profile'].map(by).filter(Boolean) as MirroredTab[];
+      extra = ['Worker profile'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'property_partner') {
       direct = ['Properties', 'Inbox', 'Finance'].map(by).filter(Boolean) as MirroredTab[];
     } else if (role === 'staff') {
@@ -380,7 +381,7 @@ export default function DesktopLayout({
                         ? 'Requests'
                         : tab.label === 'My Properties'
                           ? 'Properties'
-                          : tab.label === 'Professional Profile'
+                          : tab.label === 'Worker profile'
                             ? 'Profile'
                             : tab.label;
                 return (

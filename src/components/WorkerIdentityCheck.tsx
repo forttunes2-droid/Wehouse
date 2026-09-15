@@ -13,7 +13,7 @@ type Props = {
 
 type Stage = 'intro' | 'loading' | 'checking' | 'failed';
 type ChallengeStep = 'center_start' | 'side_one' | 'side_two' | 'center_end';
-type FaceSample = { similarity: number; live: number; real: number; yaw: number };
+type FaceSample = { similarity: number; anchorSimilarity: number; recentSimilarity: number; live: number; real: number; yaw: number };
 
 const HUMAN_MODULE_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/dist/human.esm.js';
 const HUMAN_MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/human@3.3.6/models/';
@@ -37,9 +37,9 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const humanRef = useRef<any>(null);
-  const referenceEmbeddingRef = useRef<number[] | null>(null);
-  const referencePhotoRef = useRef<Blob | null>(null);
-  const referencePathRef = useRef('');
+  const anchorEmbeddingRef = useRef<number[] | null>(null);
+  const recentEmbeddingRef = useRef<number[] | null>(null);
+  const submissionPhotoRef = useRef<Blob | null>(null);
   const renewalRef = useRef(false);
   const cancelledRef = useRef(false);
   const attemptRef = useRef(0);
@@ -53,6 +53,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
   const [busy, setBusy] = useState(false);
 
   const passed = status === 'passed';
+  const awaitingReview = status === 'pending_review';
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -131,16 +132,15 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       await ensureHuman();
       const { data, error } = await supabase.rpc('get_my_account_identity_reference');
       if (error) throw error;
-      const reference = data as { has_reference?: boolean; anchor_photo_path?: string } | null;
+      const reference = data as { has_reference?: boolean; anchor_photo_path?: string; recent_photo_path?: string } | null;
       if (!reference?.has_reference || !reference.anchor_photo_path) throw new Error('Your original private selfie could not be found');
-      const signed = await supabase.storage.from('worker-identity-private').createSignedUrl(reference.anchor_photo_path, 90);
-      if (signed.error || !signed.data?.signedUrl) throw signed.error || new Error('Private selfie could not be opened');
-      const response = await fetch(signed.data.signedUrl);
-      if (!response.ok) throw new Error('Private selfie could not be opened');
-      const blob = await response.blob();
-      const canvas = await canvasFromImageFile(new File([blob], 'identity-reference.jpg', { type: blob.type || 'image/jpeg' }));
-      await acceptReferenceSelfie(canvas);
-      referencePathRef.current = reference.anchor_photo_path;
+      const anchor = await loadPrivateReference(reference.anchor_photo_path);
+      anchorEmbeddingRef.current = (await inspectReferenceSelfie(anchor)).embedding;
+      recentEmbeddingRef.current = anchorEmbeddingRef.current;
+      if (reference.recent_photo_path && reference.recent_photo_path !== reference.anchor_photo_path) {
+        const recent = await loadPrivateReference(reference.recent_photo_path);
+        recentEmbeddingRef.current = (await inspectReferenceSelfie(recent)).embedding;
+      }
       renewalRef.current = true;
       await openFrontCamera('checking');
       setStepIndex(0);
@@ -171,7 +171,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     return canvas;
   }
 
-  async function acceptReferenceSelfie(canvas: HTMLCanvasElement) {
+  async function inspectReferenceSelfie(canvas: HTMLCanvasElement) {
     const human = humanRef.current;
     if (!human) throw new Error('Face-check engine is not ready');
     const result = await human.detect(canvas);
@@ -186,10 +186,9 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
     if (!blob) throw new Error('Could not prepare the selfie');
 
-    referencePhotoRef.current = blob;
-    referenceEmbeddingRef.current = [...face.embedding];
     setFailure('');
     setPrompt('');
+    return { blob, embedding: [...face.embedding] as number[] };
   }
 
   async function startEnrollmentCheck() {
@@ -202,13 +201,16 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       setPrompt('Centre your face');
       speakPrompt('Centre your face and look straight at the camera');
       const started = Date.now();
-      while (!cancelledRef.current && !referenceEmbeddingRef.current) {
+      while (!cancelledRef.current && !anchorEmbeddingRef.current) {
         if (Date.now() - started > 15000)
           throw new Error('Keep your face centred in clear light');
         const canvas = canvasFromVideo();
         if (canvas) {
           try {
-            await acceptReferenceSelfie(canvas);
+            const reference = await inspectReferenceSelfie(canvas);
+            anchorEmbeddingRef.current = reference.embedding;
+            recentEmbeddingRef.current = reference.embedding;
+            submissionPhotoRef.current = reference.blob;
           } catch {
             await sleep(250);
             continue;
@@ -228,7 +230,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
   }
 
   async function startLiveCheck() {
-    if (!referencePhotoRef.current || !referenceEmbeddingRef.current) return toast.error('Choose your private selfie first');
+    if (!anchorEmbeddingRef.current) return toast.error('Your private identity reference is missing');
     setBusy(true);
     setFailure('');
     try {
@@ -249,19 +251,22 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
   async function readLiveSample(): Promise<FaceSample> {
     const human = humanRef.current;
     const video = videoRef.current;
-    const reference = referenceEmbeddingRef.current;
-    if (!human || !video || !reference) throw new Error('Reference selfie is missing');
+    const anchor = anchorEmbeddingRef.current;
+    const recent = recentEmbeddingRef.current || anchor;
+    if (!human || !video || !anchor) throw new Error('Reference selfie is missing');
     const result = await human.detect(video);
     if (result.face?.length !== 1) throw new Error('Keep only your face in the frame');
     const face = result.face[0];
     if (!face.embedding?.length || !face.rotation) throw new Error('Keep your full face visible');
-    const similarity = Number(human.match.similarity(reference, face.embedding));
+    const anchorSimilarity = Number(human.match.similarity(anchor, face.embedding));
+    const recentSimilarity = Number(human.match.similarity(recent, face.embedding));
+    const similarity = Math.max(anchorSimilarity, recentSimilarity);
     const live = Number(face.live ?? 0);
     const real = Number(face.real ?? 0);
     const yaw = Number(face.rotation.angle.yaw ?? 0);
     if (similarity < MATCH_MIN) throw new Error('This face does not match your private selfie');
     if (live < LIVE_MIN || real < REAL_MIN) throw new Error('We could not confirm a live face');
-    return { similarity, live, real, yaw };
+    return { similarity, anchorSimilarity, recentSimilarity, live, real, yaw };
   }
 
   async function runAutomaticCheck(attempt: number) {
@@ -305,6 +310,11 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
           samples.push(sample);
           if (stable >= STABLE_FRAMES) {
             if (step === 'side_one') sideSign = Math.sign(sample.yaw) || 1;
+            if (step === 'center_end') {
+              const currentFrame = canvasFromVideo();
+              if (!currentFrame) throw new Error('The final live face could not be captured');
+              submissionPhotoRef.current = await canvasBlob(currentFrame);
+            }
             current += 1;
             stable = 0;
             await sleep(280);
@@ -318,8 +328,8 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
 
       if (cancelledRef.current || attempt !== attemptRef.current) return;
       if (!samples.length) throw new Error('Live face check could not complete');
-      const minimum = (key: 'similarity' | 'live' | 'real') => Math.min(...samples.map((sample) => sample[key]));
-      await savePassedCheck(minimum('similarity'), minimum('live'), minimum('real'));
+      const minimum = (key: 'similarity' | 'anchorSimilarity' | 'recentSimilarity' | 'live' | 'real') => Math.min(...samples.map((sample) => sample[key]));
+      await savePassedCheck(minimum('similarity'), minimum('anchorSimilarity'), minimum('recentSimilarity'), minimum('live'), minimum('real'));
     } catch (error: any) {
       stopCamera();
       setFailure(identityFailureMessage(error));
@@ -338,19 +348,16 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     setBusy(false);
   }
 
-  async function savePassedCheck(faceMatchScore: number, livenessScore: number, antiSpoofScore: number) {
-    const photo = referencePhotoRef.current;
+  async function savePassedCheck(faceMatchScore: number, anchorSimilarity: number, recentSimilarity: number, livenessScore: number, antiSpoofScore: number) {
+    const photo = submissionPhotoRef.current;
     if (!photo) throw new Error('Private selfie is missing');
 
-    const path = renewalRef.current ? referencePathRef.current : `${profile.user_id}/identity-selfie-${Date.now()}.jpg`;
-    if (!path) throw new Error('Private identity reference is missing');
-    if (!renewalRef.current) {
-      const upload = await supabase.storage.from('worker-identity-private').upload(path, photo, {
-        contentType: 'image/jpeg',
-        upsert: false,
-      });
-      if (upload.error) throw upload.error;
-    }
+    const path = `${profile.user_id}/identity-${renewalRef.current ? 'recheck' : 'enrollment'}-${Date.now()}.jpg`;
+    const upload = await supabase.storage.from('worker-identity-private').upload(path, photo, {
+      contentType: 'image/jpeg',
+      upsert: false,
+    });
+    if (upload.error) throw upload.error;
 
     const challengeResult = {
       center_start: true,
@@ -359,8 +366,8 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       center_end: true,
       automatic: true,
       recorded_video: false,
-      anchor_similarity: faceMatchScore,
-      recent_similarity: faceMatchScore,
+      anchor_similarity: anchorSimilarity,
+      recent_similarity: recentSimilarity,
     };
 
     const { error } = await supabase.rpc('complete_my_account_identity_check', {
@@ -373,13 +380,22 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
     });
 
     if (error) {
-      if (!renewalRef.current) await supabase.storage.from('worker-identity-private').remove([path]);
+      await supabase.storage.from('worker-identity-private').remove([path]);
       throw error;
     }
 
     stopCamera();
-    toast.success('Private face check complete');
+    toast.success('Live check sent to WeHouse for review');
     await onSaved();
+  }
+
+  if (awaitingReview) {
+    return (
+      <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.05] p-4">
+        <p className="text-xs font-semibold text-violet-200">Live check awaiting WeHouse review</p>
+        <p className="mt-1 text-[9px] leading-relaxed text-[#858B9A]">Your private reference is saved. A different authorised WeHouse Team member must review it before this {identityLabel} workspace can go live. You do not need to submit it again.</p>
+      </section>
+    );
   }
 
   if (passed) {
@@ -408,12 +424,12 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
         <div className="space-y-4 p-4 sm:p-5">
           <div className="border-b border-white/[.06] pb-4">
             <p className="text-xs font-semibold text-white">One guided live check</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">{status === 'due' ? 'WeHouse securely reuses your original private reference, then checks your live face and movements.' : <>The camera captures the private reference from the live session, then asks you to turn naturally. There is no separate selfie upload and no liveness video is saved.</>}</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">{status === 'due' ? 'WeHouse compares this live check with your original anchor and latest approved reference. A fresh still becomes the latest reference only after WeHouse review.' : <>The camera captures the private reference from the live session, then asks you to turn naturally. There is no separate selfie upload and no liveness video is saved.</>}</p>
           </div>
 
           <label className="flex items-start gap-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
             <input type="checkbox" checked={consent} disabled={stage === 'loading'} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-violet-500" />
-            <span className="text-[9px] leading-relaxed text-[#808796]">I understand that my reference selfie is stored privately for {identityLabel} identity checks. The live camera check is analyzed in real time and is not recorded as a video.</span>
+            <span className="text-[9px] leading-relaxed text-[#808796]">I understand that my reference selfie is stored privately for {identityLabel} identity checks. The live camera check is analyzed in real time, a still may update my latest reference only after review, and no liveness video is saved.</span>
           </label>
 
           {status === 'due' ? <button onClick={() => void loadStoredReference()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Opening securely…' : 'Start live face check'}</button> : <button onClick={() => void startEnrollmentCheck()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Preparing live check…' : 'Start live face check'}</button>}
@@ -431,7 +447,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
             <p className="text-xs font-semibold text-red-200">We couldn’t complete the live check</p>
             <p className="mt-1 text-[9px] leading-relaxed text-red-100/70">{failure}</p>
           </div>
-          <button onClick={() => void (referenceEmbeddingRef.current ? startLiveCheck() : renewalRef.current ? loadStoredReference() : startEnrollmentCheck())} disabled={busy} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">Try live check again</button>
+          <button onClick={() => void (anchorEmbeddingRef.current ? startLiveCheck() : renewalRef.current ? loadStoredReference() : startEnrollmentCheck())} disabled={busy} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">Try live check again</button>
         </div>
       )}
     </section>
@@ -507,6 +523,21 @@ async function canvasFromImageFile(file: File) {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+async function loadPrivateReference(path: string) {
+  const signed = await supabase.storage.from('worker-identity-private').createSignedUrl(path, 90);
+  if (signed.error || !signed.data?.signedUrl) throw signed.error || new Error('Private selfie could not be opened');
+  const response = await fetch(signed.data.signedUrl);
+  if (!response.ok) throw new Error('Private selfie could not be opened');
+  const blob = await response.blob();
+  return canvasFromImageFile(new File([blob], 'identity-reference.jpg', { type: blob.type || 'image/jpeg' }));
+}
+
+function canvasBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('The live face still could not be prepared')), 'image/jpeg', 0.9);
+  });
 }
 
 async function waitForVideo(video: HTMLVideoElement) {

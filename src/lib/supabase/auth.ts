@@ -4,16 +4,23 @@ import type { GoogleVerificationContext } from '@/lib/googleVerification';
 import { verificationRedirectUrl } from '@/lib/googleVerification';
 
 // ─── AUTH HELPERS ──────────────────────────────────
-// Public signup always creates one Personal identity. This value requests the
-// first additive workspace; it never changes what kind of person/account exists.
-export async function signUpWithEmail(email: string, password: string, initialWorkspace: 'user' | 'worker' | 'property_partner' = 'user') {
-  const requestedWorkspace=['worker','property_partner'].includes(initialWorkspace)?initialWorkspace:'user';
+// Public signup always creates one Personal identity. Service Provider and
+// Property Partner are additive workspaces requested only after the Personal
+// account exists; auth metadata is never an authority source for a workspace/role.
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  legacyInitialWorkspace: 'user' | 'worker' | 'property_partner' = 'user',
+) {
+  // Keep the old call signature so stale clients compile, but deliberately do
+  // not persist or trust their requested workspace during public signup.
+  void legacyInitialWorkspace;
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/`,
-      data: { source: 'wehouse', signup_role: requestedWorkspace, initial_workspace: requestedWorkspace },
+      data: { source: 'wehouse' },
     },
   });
   return { data, error };
@@ -90,6 +97,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 
   const { error: updateError } = await supabase.auth.updateUser({
     password: newPassword,
+    current_password: currentPassword,
   });
   if (updateError) {
     return { error: { message: updateError.message || 'Failed to update password' } };
