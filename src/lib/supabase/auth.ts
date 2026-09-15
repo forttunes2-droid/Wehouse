@@ -4,14 +4,17 @@ import type { GoogleVerificationContext } from '@/lib/googleVerification';
 import { verificationRedirectUrl } from '@/lib/googleVerification';
 
 // ─── AUTH HELPERS ──────────────────────────────────
-// Public signup always creates one Personal identity. Worker and Property
-// Partner are additive workspaces requested only after the Personal account
-// exists; auth metadata is never an authority source for a workspace/role.
+// Public signup always creates one Personal identity. Service Provider and
+// Property Partner are additive workspaces requested only after the Personal
+// account exists; auth metadata is never an authority source for a workspace/role.
 export async function signUpWithEmail(
   email: string,
   password: string,
-  _legacyInitialWorkspace: 'user' | 'worker' | 'property_partner' = 'user',
+  legacyInitialWorkspace: 'user' | 'worker' | 'property_partner' = 'user',
 ) {
+  // Keep the old call signature so stale clients compile, but deliberately do
+  // not persist or trust their requested workspace during public signup.
+  void legacyInitialWorkspace;
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
