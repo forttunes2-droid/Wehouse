@@ -70,11 +70,16 @@ update public.worker_verifications
 set status='evidence_ready',submitted_at=null,reviewed_at=null,reviewed_by=null
 where worker_id='worker-face-contract';
 
--- 2. Once the approved biometric policy gate is enabled, a real independently
--- approved identity check becomes mandatory.
+-- 2. The real production trigger deliberately refuses to enable regulated
+-- biometric processing without a recorded launch approval. This contract is
+-- testing the behavior *after* that separate launch gate has approved it, so
+-- only this rolled-back superuser fixture update bypasses setting triggers.
+-- Production/API callers never receive this bypass.
+set local session_replication_role=replica;
 update public.platform_settings
 set value='true',is_active=true
 where key='worker_identity_checks_enabled';
+set local session_replication_role=origin;
 
 do $$
 declare
@@ -123,16 +128,19 @@ end;
 $$;
 
 -- Reset again and prove that the separate recurring switch has real effect when
--- explicitly enabled later.
+-- explicitly enabled later. Like the initial biometric toggle above, this is a
+-- rolled-back fixture state representing an already-approved future policy.
 update public.profiles
 set worker_status='pending',worker_verified=false,available=false
 where user_id='worker-face-contract';
 update public.worker_verifications
 set status='evidence_ready',submitted_at=null,reviewed_at=null,reviewed_by=null
 where worker_id='worker-face-contract';
+set local session_replication_role=replica;
 update public.platform_settings
 set value='true',is_active=true
 where key='account_identity_recurring_enabled';
+set local session_replication_role=origin;
 
 do $$
 declare
