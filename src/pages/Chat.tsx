@@ -16,6 +16,10 @@ import {
 } from "@/lib/supabase/hotel-chat";
 import type { Conversation, Profile } from "@/types";
 import ChatCore from "@/pages/ChatCore";
+import Notifications from "@/pages/Notifications";
+import InboxActivityEntry from "@/components/InboxActivityEntry";
+import SecureInboxLock from "@/components/SecureInboxLock";
+import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
 
 type Props = {
   profile: Profile;
@@ -53,7 +57,10 @@ type Thread =
   | { kind: "hotel"; id: string; time: string; row: HotelConversation }
   | { kind: "support"; id: string; time: string; row: SupportThread };
 
-type ActiveTarget = { conversationId: string; peerUserId?: string | null } | null;
+type ActiveTarget = {
+  conversationId: string;
+  peerUserId?: string | null;
+} | null;
 
 type ThreadView = {
   title: string;
@@ -75,33 +82,50 @@ export default function Chat({
   peerUserId,
   onConversationClose,
   activityUnreadCount = 0,
+  onActivityUnreadChange,
 }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [bookingConversations, setBookingConversations] = useState<BookingConversation[]>([]);
-  const [hotelConversations, setHotelConversations] = useState<HotelConversation[]>([]);
+  const [bookingConversations, setBookingConversations] = useState<
+    BookingConversation[]
+  >([]);
+  const [hotelConversations, setHotelConversations] = useState<
+    HotelConversation[]
+  >([]);
   const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [loading, setLoading] = useState(!conversationId);
   const [query, setQuery] = useState("");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
+  const [view, setView] = useState<"messages" | "activity">("messages");
+  const {
+    status: inboxSecurityStatus,
+    refresh: refreshInboxSecurity,
+  } = useSecureInboxAccess(profile.user_id);
 
   const otherId = useCallback(
     (row: Conversation) =>
-      row.participant_a === profile.user_id ? row.participant_b : row.participant_a,
+      row.participant_a === profile.user_id
+        ? row.participant_b
+        : row.participant_a,
     [profile.user_id],
   );
 
   const load = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const [roommateResult, peopleResult, bookingResult, hotelResult, supportResult] =
-        await Promise.all([
-          getConversations(profile.user_id),
-          getRoommateConversationPeople(),
-          getCommunicationBookingConversations(profile.user_id),
-          getMyHotelConversations(),
-          getMySupportConversations(),
-        ]);
+      const [
+        roommateResult,
+        peopleResult,
+        bookingResult,
+        hotelResult,
+        supportResult,
+      ] = await Promise.all([
+        getConversations(profile.user_id),
+        getRoommateConversationPeople(),
+        getCommunicationBookingConversations(profile.user_id),
+        getMyHotelConversations(),
+        getMySupportConversations(),
+      ]);
       setConversations(
         (roommateResult.conversations || []).filter(
           (row) => row.conversation_type === "roommate",
@@ -119,7 +143,13 @@ export default function Chat({
   );
 
   useEffect(() => {
-    if (conversationId || activeTarget) return;
+    if (
+      inboxSecurityStatus?.state !== "ready" ||
+      conversationId ||
+      activeTarget ||
+      view !== "messages"
+    )
+      return;
     void load();
     const channel = supabase
       .channel(`inbox-list:${profile.user_id}`)
@@ -149,7 +179,14 @@ export default function Chat({
       window.clearInterval(timer);
       void supabase.removeChannel(channel);
     };
-  }, [activeTarget, conversationId, load, profile.user_id]);
+  }, [
+    activeTarget,
+    conversationId,
+    inboxSecurityStatus?.state,
+    load,
+    profile.user_id,
+    view,
+  ]);
 
   const threads = useMemo<Thread[]>(() => {
     const next: Thread[] = [
@@ -179,9 +216,15 @@ export default function Chat({
       })),
     ];
     return next.sort(
-      (a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
+      (a, b) =>
+        new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
     );
-  }, [bookingConversations, conversations, hotelConversations, supportThreads]);
+  }, [
+    bookingConversations,
+    conversations,
+    hotelConversations,
+    supportThreads,
+  ]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -191,8 +234,31 @@ export default function Chat({
     );
   }, [otherId, people, query, threads]);
 
-  const target = activeTarget ||
-    (conversationId ? { conversationId, peerUserId } : null);
+  const messageUnreadCount = useMemo(
+    () =>
+      threads.reduce(
+        (sum, thread) =>
+          sum +
+          (threadPresentation(thread, people, profile.user_id).unread > 0
+            ? 1
+            : 0),
+        0,
+      ),
+    [people, profile.user_id, threads],
+  );
+
+  const target =
+    activeTarget || (conversationId ? { conversationId, peerUserId } : null);
+
+  if (inboxSecurityStatus?.state !== "ready") {
+    return (
+      <SecureInboxLock
+        status={inboxSecurityStatus}
+        onReady={() => void refreshInboxSecurity()}
+      />
+    );
+  }
+
   if (target) {
     return (
       <ChatCore
@@ -212,6 +278,103 @@ export default function Chat({
     );
   }
 
+  function openThreadByDestination(id?: string) {
+    if (!id) return false;
+    const value = String(id);
+    const support = supportThreads.find(
+      (thread) =>
+        String(thread.conversation_id) === value ||
+        String(thread.context_id || "") === value,
+    );
+    if (support) {
+      setView("messages");
+      window.dispatchEvent(
+        new CustomEvent("openSupportChat", {
+          detail: {
+            conversationId: support.conversation_id,
+            contextType: support.context_type,
+            contextId: support.context_id,
+          },
+        }),
+      );
+      return true;
+    }
+    const roommate = conversations.find((row) => String(row.id) === value);
+    if (roommate) {
+      setView("messages");
+      setActiveTarget({
+        conversationId: roommate.id,
+        peerUserId: otherId(roommate),
+      });
+      return true;
+    }
+    const booking = bookingConversations.find(
+      (row) =>
+        String(row.conversation_id) === value || String(row.booking_id) === value,
+    );
+    if (booking) {
+      setView("messages");
+      setActiveTarget({ conversationId: booking.conversation_id });
+      return true;
+    }
+    const hotel = hotelConversations.find(
+      (row) =>
+        String(row.conversation_id) === value || String(row.booking_id) === value,
+    );
+    if (hotel) {
+      setView("messages");
+      setActiveTarget({ conversationId: hotel.conversation_id });
+      return true;
+    }
+    return false;
+  }
+
+  function openActivityDestination(page: string, id?: string) {
+    const route = page.toLowerCase().replace(/-/g, "_");
+    if (
+      ["conversation", "conversations", "message", "messages", "chat"].includes(
+        route,
+      ) &&
+      openThreadByDestination(id)
+    )
+      return;
+    onNavigate(page, id);
+  }
+
+  if (view === "activity") {
+    return (
+      <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
+        <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
+          <div className="mx-auto flex max-w-5xl items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setView("messages")}
+              aria-label="Back to Inbox messages"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg text-[#A1A6B5] active:bg-white/[.05]"
+            >
+              ←
+            </button>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
+                Inbox
+              </p>
+              <h1 className="text-xl font-bold">Activity</h1>
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+          <Notifications
+            profile={profile}
+            scope="personal"
+            embedded
+            onNavigate={openActivityDestination}
+            onUnreadChange={onActivityUnreadChange}
+          />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
@@ -221,95 +384,90 @@ export default function Chat({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <button
-          type="button"
-          onClick={() => onNavigate("activity")}
-          className="mb-2 flex w-full items-center gap-3 border-b border-white/[.06] py-3.5 text-left active:bg-white/[.025]"
-          aria-label="Open Activity"
-        >
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 text-violet-200">
-            <ActivityIcon />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[14px] font-semibold">Activity</span>
-            <span className="mt-1 block truncate text-[10px] text-[#777C8D]">
-              Updates, followed-search matches and actions for you
-            </span>
-          </span>
-          {activityUnreadCount > 0 ? (
-            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">
-              {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
-            </span>
+        <InboxActivityEntry
+          unread={activityUnreadCount}
+          detail="Updates and actions that affect you"
+          onOpen={() => setView("activity")}
+        />
+
+        <section className="pt-4">
+          <div className="flex items-end justify-between gap-4 pb-3">
+            <div>
+              <h2 className="text-[15px] font-bold">Messages</h2>
+              <p className="mt-1 text-[9px] text-[#6D7383]">
+                Roommates, stays, services and WeHouse conversations — most recent
+                first.
+              </p>
+            </div>
+            {messageUnreadCount > 0 ? (
+              <span className="shrink-0 rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">
+                {messageUnreadCount > 99 ? "99+" : messageUnreadCount} new
+              </span>
+            ) : null}
+          </div>
+
+          <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
+            <SearchIcon />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search messages"
+              className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
+            />
+          </label>
+
+          {loading ? (
+            <div
+              className="min-h-48"
+              role="status"
+              aria-label="Loading messages"
+            />
+          ) : visible.length === 0 ? (
+            <div className="border-b border-dashed border-white/[.08] py-14 text-center">
+              <p className="text-sm font-semibold">
+                {query.trim() ? "No matching messages" : "No messages yet"}
+              </p>
+              <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
+                {query.trim()
+                  ? "Try a person, hotel, service or WeHouse conversation name."
+                  : "Messages appear after a roommate match, service booking, paid hotel stay or WeHouse conversation."}
+              </p>
+            </div>
           ) : (
-            <span className="text-lg text-[#666C7A]">›</span>
+            <div className="mt-3 divide-y divide-white/[.055] border-y border-white/[.06]">
+              {visible.map((thread) => (
+                <ThreadRow
+                  key={thread.id}
+                  thread={thread}
+                  people={people}
+                  me={profile.user_id}
+                  onOpen={() => {
+                    if (thread.kind === "support") {
+                      window.dispatchEvent(
+                        new CustomEvent("openSupportChat", {
+                          detail: {
+                            conversationId: thread.row.conversation_id,
+                            contextType: thread.row.context_type,
+                            contextId: thread.row.context_id,
+                          },
+                        }),
+                      );
+                      return;
+                    }
+                    setActiveTarget({
+                      conversationId:
+                        thread.kind === "roommate"
+                          ? thread.row.id
+                          : thread.row.conversation_id,
+                      peerUserId:
+                        thread.kind === "roommate" ? otherId(thread.row) : null,
+                    });
+                  }}
+                />
+              ))}
+            </div>
           )}
-        </button>
-
-        <div className="flex items-end justify-between gap-4 pb-2 pt-4">
-          <div>
-            <h2 className="text-[15px] font-bold">Messages</h2>
-            <p className="mt-1 text-[9px] text-[#6D7383]">Every conversation, ordered by the latest message.</p>
-          </div>
-          <span className="text-[9px] font-semibold text-[#767C8C]">{visible.length}</span>
-        </div>
-
-        <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
-          <SearchIcon />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search messages"
-            className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
-          />
-        </label>
-
-        {loading ? (
-          <div className="min-h-48" role="status" aria-label="Loading messages" />
-        ) : visible.length === 0 ? (
-          <div className="border-b border-dashed border-white/[.08] py-14 text-center">
-            <p className="text-sm font-semibold">
-              {query.trim() ? "No matching messages" : "No messages yet"}
-            </p>
-            <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
-              {query.trim()
-                ? "Try a person, hotel, service or WeHouse case name."
-                : "Messages appear after a roommate match, service booking, paid hotel stay or WeHouse help request."}
-            </p>
-          </div>
-        ) : (
-          <div className="mt-3 divide-y divide-white/[.055] border-y border-white/[.06]">
-            {visible.map((thread) => (
-              <ThreadRow
-                key={thread.id}
-                thread={thread}
-                people={people}
-                me={profile.user_id}
-                onOpen={() => {
-                  if (thread.kind === "support") {
-                    window.dispatchEvent(
-                      new CustomEvent("openSupportChat", {
-                        detail: {
-                          conversationId: thread.row.conversation_id,
-                          contextType: thread.row.context_type,
-                          contextId: thread.row.context_id,
-                        },
-                      }),
-                    );
-                    return;
-                  }
-                  setActiveTarget({
-                    conversationId:
-                      thread.kind === "roommate"
-                        ? thread.row.id
-                        : thread.row.conversation_id,
-                    peerUserId:
-                      thread.kind === "roommate" ? otherId(thread.row) : null,
-                  });
-                }}
-              />
-            ))}
-          </div>
-        )}
+        </section>
       </main>
     </div>
   );
@@ -338,7 +496,7 @@ function ThreadRow({
     <button
       type="button"
       onClick={onOpen}
-      className="flex min-h-[5.35rem] w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
+      className="flex min-h-[5.1rem] w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
     >
       <Avatar
         src={view.avatar}
@@ -347,42 +505,51 @@ function ThreadRow({
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <p className={`min-w-0 flex-1 truncate text-[14px] ${view.unread ? "font-bold text-white" : "font-semibold text-[#E6E8ED]"}`}>
+          <p
+            className={`min-w-0 flex-1 truncate text-[14px] ${
+              view.unread
+                ? "font-bold text-white"
+                : "font-semibold text-[#E6E8ED]"
+            }`}
+          >
             {view.title}
           </p>
           {view.time ? (
-            <span className={`shrink-0 text-[8px] ${view.unread ? "text-violet-300" : "text-[#5D6373]"}`}>
+            <span
+              className={`shrink-0 text-[8px] ${
+                view.unread ? "text-violet-300" : "text-[#5D6373]"
+              }`}
+            >
               {view.time}
             </span>
           ) : null}
         </div>
-        <p className={`mt-1 truncate text-[11px] ${view.unread ? "font-medium text-[#DADDE5]" : "text-[#777D8D]"}`}>
+        <p
+          className={`mt-1 truncate text-[11px] ${
+            view.unread
+              ? "font-medium text-[#DADDE5]"
+              : "text-[#777D8D]"
+          }`}
+        >
           {view.preview}
         </p>
-        <div className="mt-1.5 flex min-w-0 items-center gap-2">
-          <span className={`shrink-0 text-[7px] font-bold uppercase tracking-[.12em] ${
-            view.tone === "amber"
-              ? "text-amber-300"
-              : view.tone === "emerald"
-                ? "text-emerald-300"
-                : view.tone === "blue"
-                  ? "text-cyan-300"
-                  : "text-violet-300"
-          }`}>
+        <p className="mt-1 truncate text-[8px] text-[#626879]">
+          <span
+            className={`font-semibold ${
+              view.tone === "amber"
+                ? "text-amber-300"
+                : view.tone === "emerald"
+                  ? "text-emerald-300"
+                  : view.tone === "blue"
+                    ? "text-cyan-300"
+                    : "text-violet-300"
+            }`}
+          >
             {view.kind}
           </span>
-          <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.025] px-2 py-0.5 text-[7px] font-semibold text-[#9298A7]">
-            {view.status}
-          </span>
-          {view.context ? (
-            <>
-              <span className="text-[7px] text-[#3F4553]">·</span>
-              <span className="min-w-0 truncate text-[8px] text-[#5F6575]">
-                {view.context}
-              </span>
-            </>
-          ) : null}
-        </div>
+          {view.context ? ` · ${view.context}` : ""}
+          {view.status ? ` · ${view.status}` : ""}
+        </p>
       </div>
       {view.unread > 0 ? (
         <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold">
@@ -414,10 +581,12 @@ function threadPresentation(
       title: peer?.name || peer?.username || "Roommate",
       avatar: peer?.avatar || null,
       fallback: (peer?.name || peer?.username || "R").slice(0, 1),
-      kind: "Roommate match",
-      preview: cleanEncryptedPreview(thread.row.last_message || "Start the conversation"),
-      context: "Matched roommate",
-      status: "Matched",
+      kind: "Roommate",
+      preview: cleanEncryptedPreview(
+        thread.row.last_message || "Start the conversation",
+      ),
+      context: "Matched",
+      status: "",
       time: formatListTime(thread.time),
       unread,
       tone: "violet",
@@ -425,18 +594,20 @@ function threadPresentation(
   }
   if (thread.kind === "worker") {
     return {
-      title: thread.row.other_person_name || "WeHouse service worker",
+      title: thread.row.other_person_name || "Service Provider",
       avatar: thread.row.other_person_avatar,
       fallback: (thread.row.other_person_name || "S").slice(0, 1),
-      kind: "Service booking",
+      kind: "Service",
       preview: cleanEncryptedPreview(
-        thread.row.last_message || thread.row.service_type || "Service conversation",
+        thread.row.last_message ||
+          thread.row.service_type ||
+          "Service conversation",
       ),
-      context: [thread.row.service_type, statusLabel(thread.row.booking_status)]
-        .filter(Boolean)
-        .join(" · "),
+      context: thread.row.service_type || "WeHouse Services",
       status: statusLabel(thread.row.booking_status) || "Requested",
-      time: formatListTime(thread.row.last_message_time || thread.row.updated_at),
+      time: formatListTime(
+        thread.row.last_message_time || thread.row.updated_at,
+      ),
       unread: Number(thread.row.unread_count || 0),
       tone: "emerald",
     };
@@ -446,8 +617,8 @@ function threadPresentation(
       title: thread.row.other_party_label || thread.row.hotel_name || "Hotel",
       avatar: thread.row.hotel_image,
       fallback: "H",
-      kind: "Hotel stay",
-      preview: thread.row.last_message || "Stay conversation ready",
+      kind: "Stay",
+      preview: thread.row.last_message || "Stay conversation",
       context: [
         thread.row.room_name,
         stayDates(thread.row.check_in, thread.row.check_out),
@@ -455,7 +626,9 @@ function threadPresentation(
         .filter(Boolean)
         .join(" · "),
       status: statusLabel(thread.row.booking_status) || "Stay",
-      time: formatListTime(thread.row.last_message_time || thread.row.updated_at),
+      time: formatListTime(
+        thread.row.last_message_time || thread.row.updated_at,
+      ),
       unread: Number(thread.row.unread_count || 0),
       tone: "amber",
     };
@@ -465,11 +638,13 @@ function threadPresentation(
     title: presentation.title,
     avatar: null,
     fallback: "W",
-    kind: "WeHouse help",
+    kind: "WeHouse",
     preview: thread.row.last_message || presentation.operator,
-    context: presentation.meta || "Support case",
+    context: presentation.meta || "WeHouse conversation",
     status: statusLabel(thread.row.status) || "Open",
-    time: formatListTime(thread.row.last_message_time || thread.row.created_at),
+    time: formatListTime(
+      thread.row.last_message_time || thread.row.created_at,
+    ),
     unread: Number(thread.row.unread_count || 0),
     tone: "blue",
   };
@@ -541,7 +716,12 @@ function Avatar({
       className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full text-xs font-bold ${className}`}
     >
       {src ? (
-        <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover"
+        />
       ) : (
         fallback.toUpperCase()
       )}
@@ -568,7 +748,10 @@ function formatListTime(value?: string | null) {
   if (Number.isNaN(date.getTime())) return "";
   const now = new Date();
   if (date.toDateString() === now.toDateString())
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
@@ -600,10 +783,12 @@ function statusLabel(value?: string | null) {
     resolved: "Resolved",
     closed: "Closed",
   };
-  return labels[String(value || "")] ||
+  return (
+    labels[String(value || "")] ||
     String(value || "")
       .replace(/_/g, " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
 }
 
 function SearchIcon() {
@@ -619,24 +804,6 @@ function SearchIcon() {
     >
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />
-    </svg>
-  );
-}
-
-function ActivityIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-      <path d="M10 21h4" />
     </svg>
   );
 }
