@@ -1,12 +1,15 @@
 begin;
 
 -- The old launch experiment that limited a Personal identity to one marketplace
--- workspace is no longer part of the product contract.  It has no live trigger,
--- so remove the dead function rather than leaving misleading authority behind.
+-- workspace is no longer part of the product contract. Retire the enforcing
+-- trigger first, then remove its helper function. This ordering is required on a
+-- fresh migration replay where the historical trigger is still present.
+drop trigger if exists workspace_one_marketplace_role_guard
+on public.workspace_role_assignments;
 drop function if exists public.enforce_one_marketplace_workspace();
 
 -- One person may legitimately be a Service Provider, Property Partner, hotel
--- team member and WeHouse team member.  That does not permit the WeHouse-team
+-- team member and WeHouse team member. That does not permit the WeHouse-team
 -- side of the identity to review or approve records that benefit the same person.
 create or replace function public.prevent_privileged_self_review()
 returns trigger
