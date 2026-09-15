@@ -6,6 +6,7 @@ import {
   unlockEncryptionIdentity,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
+import { resetEncryptionRecoveryPin } from "@/lib/e2eeRecovery";
 
 type Props = {
   status: PrivateConversationReadiness;
@@ -21,30 +22,58 @@ export default function SecureChatOnboarding({
   const [pin, setPin] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [resettingPasscode, setResettingPasscode] = useState(false);
   const [busy, setBusy] = useState(false);
   const mine =
     status.state === "setup_required" || status.state === "unlock_required";
   const creating = status.state === "setup_required";
+  const makingNewPasscode = creating || resettingPasscode;
 
   useEffect(() => {
     setPin("");
     setConfirmation("");
     setConfirming(false);
+    setResettingPasscode(false);
   }, [status.state]);
+
+  function startForgottenPasscodeReset() {
+    setPin("");
+    setConfirmation("");
+    setConfirming(false);
+    setResettingPasscode(true);
+  }
+
+  function cancelForgottenPasscodeReset() {
+    setPin("");
+    setConfirmation("");
+    setConfirming(false);
+    setResettingPasscode(false);
+  }
 
   async function continueToChat() {
     if (!/^\d{6}$/.test(pin))
       return toast.error("Enter your 6-digit recovery passcode");
-    if (creating && !confirming) {
+    if (makingNewPasscode && !confirming) {
       setConfirming(true);
       return;
     }
-    if (creating && !/^\d{6}$/.test(confirmation))
+    if (makingNewPasscode && !/^\d{6}$/.test(confirmation))
       return toast.error("Confirm your 6-digit recovery passcode");
-    if (creating && pin !== confirmation)
+    if (makingNewPasscode && pin !== confirmation)
       return toast.error("Those passcodes do not match");
+
     setBusy(true);
     try {
+      if (resettingPasscode) {
+        await resetEncryptionRecoveryPin(pin);
+        setPin("");
+        setConfirmation("");
+        toast.success("Private-message passcode reset");
+        // Reset rotates the private identity and conversation envelopes. Reload
+        // clears any in-memory conversation-key cache from the previous identity.
+        window.location.reload();
+        return;
+      }
       if (creating) await createEncryptionIdentity(pin);
       else await unlockEncryptionIdentity(pin);
       setPin("");
@@ -89,30 +118,45 @@ export default function SecureChatOnboarding({
             id="recovery-passcode-title"
             className="mt-4 text-center text-lg font-bold"
           >
-            {creating
+            {makingNewPasscode
               ? confirming
                 ? "Confirm your passcode"
-                : "Create a recovery passcode"
+                : resettingPasscode
+                  ? "Create a new passcode"
+                  : "Create a recovery passcode"
               : "Enter your passcode"}
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-center text-[11px] leading-5 text-[#9298A8]">
-            {creating
+            {makingNewPasscode
               ? confirming
                 ? "Enter the same six digits again."
-                : "Use six digits you will remember. You will need them when you open messages on a new device."
+                : resettingPasscode
+                  ? "Choose six new digits. You do not need the old passcode."
+                  : "Use six digits you will remember. You will need them when you open messages on a new device."
               : "Unlock your messages on this device with the six digits you created."}
           </p>
+
+          {resettingPasscode ? (
+            <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-3 py-2.5 text-[9px] leading-4 text-amber-200">
+              Resetting creates a new private encryption key. Existing encrypted
+              message history may no longer be readable, but your account and
+              future private messages will continue normally.
+            </div>
+          ) : null}
+
           <div className="mx-auto mt-5 max-w-xs">
             <PinInput
               label={
-                creating
+                makingNewPasscode
                   ? confirming
                     ? "Confirm passcode"
                     : "New passcode"
                   : "Recovery passcode"
               }
-              value={creating && confirming ? confirmation : pin}
-              onChange={creating && confirming ? setConfirmation : setPin}
+              value={makingNewPasscode && confirming ? confirmation : pin}
+              onChange={
+                makingNewPasscode && confirming ? setConfirmation : setPin
+              }
               onEnter={() => void continueToChat()}
             />
           </div>
@@ -124,22 +168,48 @@ export default function SecureChatOnboarding({
           >
             {busy
               ? "Please wait…"
-              : creating
+              : makingNewPasscode
                 ? confirming
-                  ? "Finish setup"
+                  ? resettingPasscode
+                    ? "Reset passcode"
+                    : "Finish setup"
                   : "Continue"
                 : "Continue"}
           </button>
-          {creating && confirming ? (
+
+          {makingNewPasscode && confirming ? (
             <button
               type="button"
+              disabled={busy}
               onClick={() => {
                 setConfirmation("");
                 setConfirming(false);
               }}
-              className="mt-2 min-h-10 w-full text-[10px] font-medium text-[#8A90A0]"
+              className="mt-2 min-h-10 w-full text-[10px] font-medium text-[#8A90A0] disabled:opacity-50"
             >
               Use different digits
+            </button>
+          ) : null}
+
+          {!creating && !resettingPasscode ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={startForgottenPasscodeReset}
+              className="mt-1 min-h-10 w-full text-[10px] font-semibold text-violet-300 disabled:opacity-50"
+            >
+              Forgot passcode?
+            </button>
+          ) : null}
+
+          {resettingPasscode ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={cancelForgottenPasscodeReset}
+              className="mt-1 min-h-10 w-full text-[10px] font-medium text-[#8A90A0] disabled:opacity-50"
+            >
+              Back to unlock
             </button>
           ) : null}
         </section>
