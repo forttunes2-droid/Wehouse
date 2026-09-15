@@ -61,6 +61,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
       - name: Exercise identity policy and Service Provider review contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_face_review_contract.sql
+      - name: Exercise cross-user RLS foundation contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
