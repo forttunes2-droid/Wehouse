@@ -31,7 +31,8 @@ test("public signup cannot create a Service Provider or Property Partner identit
   assert.doesNotMatch(auth, /signup_role/);
   assert.match(login, /onLoginSuccess\(user\.id, returnedEmail, "user"\)/);
   assert.match(login, /signUpWithEmail\(clean, password, "user"\)/);
-  assert.match(migration, /Public account creation always creates Personal first/);
+  assert.match(migration, /Public account creation always creates Personal only/);
+  assert.match(migration, /v_auth_id,v_email,v_username,'user'/);
 });
 
 test("public password login is throttled before service-role identity lookup", async () => {
@@ -271,7 +272,7 @@ test("private audio/video calls use call-participant authorization and temporary
   assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
   assert.match(edge, /TURN_URLS/);
   assert.match(edge, /TURN_SHARED_SECRET/);
-  assert.match(edge, /\+ 3600/);
+  assert.match(edge, /\+ 60 \* 60/);
   assert.match(edge, /crypto\.subtle\.sign/);
   assert.doesNotMatch(edge, /return json\(\{[^}]*TURN_SHARED_SECRET/);
 });
