@@ -234,7 +234,6 @@ function normalizePageForRole(
   workerProfileComplete = true,
 ): NavPage {
   if (page === "messages" || page === "chat") page = "conversation";
-  // Preserve old deep links without keeping a second booking destination.
   if (page === "my_bookings") page = "my_reservations";
   if (
     page === "privacy_policy" ||
@@ -343,9 +342,6 @@ export default function App() {
   }, [baseProfile?.user_id, baseProfile?.role]);
   const effectiveRole = useMemo(() => {
     if (!baseProfile) return "";
-    // Never render the personal/user workspace while privileged workspace access
-    // is still being restored. That caused the user bottom bar and user pages to
-    // flash inside Creator, Admin, Staff and Hotel sessions on refresh.
     if (workspaceAccess?.identity?.user_id !== baseProfile.user_id)
       return baseProfile.role;
     return activeWorkspace === "personal"
@@ -383,8 +379,13 @@ export default function App() {
             },
             {
               id: "conversation" as NavPage,
-              label: "Inbox",
+              label: "Conversation",
               icon: MessagesSvg,
+            },
+            {
+              id: "notifications" as NavPage,
+              label: "Inbox",
+              icon: InboxSvg,
             },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
@@ -1404,8 +1405,8 @@ export default function App() {
   };
   const desktopNavItems = getNavForRole(
     userRole,
-    unreadCount,
-    supportUnreadCount + notificationCount,
+    unreadCount + supportUnreadCount,
+    notificationCount,
   );
   const hide = [
     "profile",
@@ -1488,29 +1489,29 @@ export default function App() {
               <div className="mx-auto flex max-w-lg items-center justify-around py-1">
                 {tabs.map((tab) => {
                   const active = navPage === tab.id;
+                  const badge =
+                    tab.id === "conversation"
+                      ? unreadCount + supportUnreadCount
+                      : tab.id === "notifications"
+                        ? notificationCount
+                        : 0;
                   return (
                     <button
                       key={tab.id}
                       aria-label={tab.label}
                       onClick={() => goTo(tab.id)}
-                      className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
+                      className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-2 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
                     >
                       <tab.icon size={22} active={active} />
-                      {
-                        <span className="text-[9px] font-medium">
-                          {tab.label}
-                        </span>
-                      }
+                      <span className="text-[9px] font-medium">{tab.label}</span>
                       {active && (
                         <span className="h-1 w-1 rounded-full bg-violet-400" />
                       )}
-                      {tab.id === "conversation" && unreadCount + supportUnreadCount + notificationCount > 0 && (
-                          <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
-                            {unreadCount + supportUnreadCount + notificationCount > 99
-                              ? "99+"
-                              : unreadCount + supportUnreadCount + notificationCount}
-                          </span>
-                        )}
+                      {badge > 0 && (
+                        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1579,6 +1580,21 @@ function MessagesSvg({ size, active }: { size: number; active: boolean }) {
       strokeWidth="2"
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+function InboxSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M4 4h16v12H4z" />
+      <path d="M4 13h4l2 3h4l2-3h4" />
     </svg>
   );
 }
