@@ -35,7 +35,7 @@ values(
 insert into public.messages(id,conversation_id,sender_id,content,ciphertext,encryption_iv,encryption_version)
 values(
   'bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb',
-  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','rls-victim-a','[encrypted]','ciphertext','iv',1
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','rls-victim-a','[Encrypted message]','ciphertext','iv',1
 );
 
 insert into public.private_calls(
@@ -99,7 +99,7 @@ begin
       conversation_id,sender_id,content,ciphertext,encryption_iv,encryption_version
     ) values(
       'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','rls-attacker',
-      '[encrypted]','attacker-ciphertext','attacker-iv',1
+      '[Encrypted message]','attacker-ciphertext','attacker-iv',1
     );
   exception when others then
     reason:=sqlerrm;
