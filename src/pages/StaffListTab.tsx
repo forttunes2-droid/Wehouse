@@ -5,27 +5,31 @@ import { supabase } from '@/lib/supabase';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
+import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 
-const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance Operations',support:'Support Operations',security:'Security Operations',verification:'Worker Operations',field_officer:'Field Operations'};
+const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance Operations',support:'Support Operations',security:'Security Operations',verification:'Service Provider Operations',field_officer:'Field Operations'};
 type RoleFilter='all'|'admin'|'staff';
 
 export default function StaffListTab({profile}:{profile:Profile}){
  const creator=profile.role==='creator';
+ const{requestElevation}=useCreatorAuth();
  const[team,setTeam]=useState<Profile[]>([]),[assigned,setAssigned]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[saving,setSaving]=useState<string|null>(null),[selected,setSelected]=useState<Profile|null>(null);
  const[role,setRole]=useState<RoleFilter>('all'),[state,setState]=useState(''),[lga,setLga]=useState(''),[search,setSearch]=useState('');
  async function load(){setLoading(true);let list:Profile[]=[];if(creator){const{users,error}=await getAllUsers();if(error)toast.error('Unable to load WeHouse team');list=(users||[]).filter((item:any)=>item.role==='admin'||item.role==='staff') as Profile[]}else{const{data,error}=await supabase.rpc('admin_get_my_branch_profiles',{p_role:'staff'});if(error)toast.error(error.message);list=(Array.isArray(data)?data:[]) as Profile[]}setTeam(list);const ids=list.filter(x=>x.role==='staff').map(x=>x.user_id);if(ids.length){const{data,error}=await supabase.from('staff_permissions').select('staff_id,permission').in('staff_id',ids).eq('is_active',true);if(error)toast.error(error.message);const map:Record<string,string>={};(data||[]).forEach((row:any)=>map[row.staff_id]=row.permission);setAssigned(map)}else setAssigned({});setLoading(false)}
  useEffect(()=>{void load()},[profile.role,profile.assigned_state,profile.assigned_lga]);
  const stateData=NIGERIA_STATES.find(x=>x.state===state);
  const shown=useMemo(()=>{const q=search.trim().toLowerCase();return team.filter(x=>(!creator||role==='all'||x.role===role)&&(!state||x.assigned_state===state)&&(!lga||x.assigned_lga===lga)&&(!q||[x.full_name,x.username,x.email,x.user_id,x.assigned_state,x.assigned_lga].filter(Boolean).join(' ').toLowerCase().includes(q)))},[team,creator,role,state,lga,search]);
- async function moduleFor(person:Profile,next:string):Promise<void>{setSaving(person.user_id);const current=assigned[person.user_id]||'';if(current&&current!==next){const off=await supabase.rpc('manage_staff_permission',{p_staff_id:person.user_id,p_permission:current,p_enabled:false});if(off.error){setSaving(null);toast.error(off.error.message);return}}if(next){const on=await supabase.rpc('manage_staff_permission',{p_staff_id:person.user_id,p_permission:next,p_enabled:true});if(on.error){setSaving(null);toast.error(on.error.message);return}}setAssigned(v=>({...v,[person.user_id]:next}));setSaving(null);toast.success(next?'Work area updated':'Work area removed')}
- async function reassign(person:Profile,nextState:string,nextLga:string):Promise<void>{if(!creator||!nextState||!nextLga)return;setSaving(person.user_id);const{error}=await supabase.rpc('creator_reassign_branch',{p_target_user_id:person.user_id,p_new_state:nextState,p_new_lga:nextLga});setSaving(null);if(error){toast.error(error.message);return}toast.success('Branch assignment updated');setSelected(null);void load()}
+ async function applyModule(person:Profile,next:string,elevationId?:string):Promise<void>{setSaving(person.user_id);const current=assigned[person.user_id]||'';const rpc=(permission:string,enabled:boolean)=>supabase.rpc('manage_staff_permission',creator?{p_staff_id:person.user_id,p_permission:permission,p_enabled:enabled,p_creator_elevation_id:elevationId}:{p_staff_id:person.user_id,p_permission:permission,p_enabled:enabled});if(current&&current!==next){const off=await rpc(current,false);if(off.error){setSaving(null);toast.error(off.error.message);return}}if(next){const on=await rpc(next,true);if(on.error){setSaving(null);toast.error(on.error.message);return}}setAssigned(v=>({...v,[person.user_id]:next}));setSaving(null);toast.success(next?'Work area updated':'Work area removed')}
+ async function moduleFor(person:Profile,next:string):Promise<void>{if(creator){requestElevation('staff_authority',elevationId=>void applyModule(person,next,elevationId));return}await applyModule(person,next)}
+ async function applyReassign(person:Profile,nextState:string,nextLga:string,elevationId:string):Promise<void>{setSaving(person.user_id);const{error}=await supabase.rpc('creator_reassign_branch',{p_target_user_id:person.user_id,p_new_state:nextState,p_new_lga:nextLga,p_creator_elevation_id:elevationId});setSaving(null);if(error){toast.error(error.message);return}toast.success('Branch assignment updated');setSelected(null);void load()}
+ async function reassign(person:Profile,nextState:string,nextLga:string):Promise<void>{if(!creator||!nextState||!nextLga)return;requestElevation('staff_authority',elevationId=>void applyReassign(person,nextState,nextLga,elevationId))}
  if(loading)return <div className="grid min-h-52 place-items-center">
 <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/>
 </div>;
  return <div className="space-y-4">
   <div>
 <h2 className="text-lg font-bold">Team</h2>
-<p className="mt-1 text-[10px] text-[#707687]">Admins and Operations members, with each person’s branch and work area.</p>
+<p className="mt-1 text-[10px] text-[#707687]">Admins and Operations members, with each person’s branch and work area. Sensitive Creator changes require a fresh security confirmation.</p>
 </div>
   <div className="grid grid-cols-3 gap-2">
 <Metric label="Admins" value={team.filter(x=>x.role==='admin').length}/>
