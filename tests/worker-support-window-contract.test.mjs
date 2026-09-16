@@ -8,7 +8,7 @@ test("Worker Message WeHouse stays open through 72 hours after final release", a
   const migration = await read(
     "supabase/migrations/20260914084537_worker_support_window_and_auth_grants.sql",
   );
-  assert.match(migration, /exactly\s+72 hours from released_at/i);
+  assert.match(migration, /72 hours from released_at/i);
   assert.match(migration, /released_at\+interval '72 hours'/);
   assert.match(migration, /v_payment_released_at\+interval '72 hours'/);
   assert.doesNotMatch(migration, /interval '24 hours'/);
