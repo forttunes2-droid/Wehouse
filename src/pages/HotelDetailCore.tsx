@@ -4,14 +4,13 @@ import {
   getHotelReviews,
   addHotelReview,
   canReviewHotel,
-  getHotelBookingsForUser,
 } from "@/lib/supabase";
 import type { Hotel, HotelRoom, HotelReview } from "@/types";
 import type { HotelRatePlan, HotelVenue } from "@/types";
 import { Toaster, toast } from "sonner";
 import {
   directionsUrl,
-  distanceBetweenKm,
+  getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
@@ -76,10 +75,10 @@ export default function HotelDetail({
     [showAllAmenities, setShowAllAmenities] = useState(false),
     [showReviewForm, setShowReviewForm] = useState(false),
     [reviewEligible, setReviewEligible] = useState(false),
-    [locationUnlocked, setLocationUnlocked] = useState(false),
     [reviewRating, setReviewRating] = useState(5),
     [reviewComment, setReviewComment] = useState(""),
     [submittingReview, setSubmittingReview] = useState(false),
+    [distance, setDistance] = useState<number | null>(null),
     [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null),
     [selectedRate, setSelectedRate] = useState<HotelRatePlan | null>(null),
     [checkIn, setCheckIn] = useState(""),
@@ -87,14 +86,20 @@ export default function HotelDetail({
   useEffect(() => {
     void load();
   }, [hotelId]);
+  useEffect(() => {
+    let live = true;
+    void getDiscoveryDistanceMap(location).then((map) => {
+      if (live) setDistance(map.get(`hotel:${hotelId}`) ?? null);
+    });
+    return () => { live = false; };
+  }, [hotelId, location]);
   async function load() {
     setLoading(true);
-    const [{ hotel: h, error }, { reviews: r }, eligibility, bookingResult] =
+    const [{ hotel: h, error }, { reviews: r }, eligibility] =
       await Promise.all([
         getHotelById(hotelId),
         getHotelReviews(hotelId),
         canReviewHotel(hotelId, profile.user_id),
-        getHotelBookingsForUser(profile.user_id),
       ]);
     if (error || !h) {
       toast.error("Hotel could not be loaded");
@@ -107,16 +112,6 @@ export default function HotelDetail({
     setSelectedRate(firstRoom?.rate_plans?.find((plan) => plan.active) || null);
     setReviews((r || []) as ReviewRow[]);
     setReviewEligible(eligibility.eligible);
-    setLocationUnlocked(
-      Boolean(
-        bookingResult.bookings?.some(
-          (booking) =>
-            booking.hotel_id === hotelId &&
-            booking.payment_status === "paid" &&
-            !["cancelled", "refunded"].includes(booking.status),
-        ),
-      ),
-    );
     setLoading(false);
   }
   async function submitReview() {
@@ -191,11 +186,7 @@ export default function HotelDetail({
     displayedAmenities = showAllAmenities
       ? allAmenities
       : allAmenities.slice(0, 4);
-  const latitude = Number(hotel.gps_latitude),
-    longitude = Number(hotel.gps_longitude),
-    mapPoint = Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : null,
-    destination = locationUnlocked && hotel.location_exact === true ? mapPoint : null,
-    distance = location && mapPoint ? distanceBetweenKm(location, mapPoint) : null;
+  const hotelAddress = locationLabel(hotel.address, hotel.area, hotel.city, hotel.state);
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
       <Toaster position="top-center" richColors />
@@ -250,7 +241,7 @@ export default function HotelDetail({
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
                 <p className="mt-1 text-[10px] text-[#747B8B]">
-                  {locationLabel(hotel.area, hotel.city, hotel.state)}
+                  {hotelAddress}
                   {distance !== null
                     ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
                     : ""}
@@ -267,26 +258,22 @@ export default function HotelDetail({
                 {hotel.description}
               </p>
             )}
-            {destination && hotel.address ? (
+            {hotelAddress ? (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
-                <span>{locationLabel(hotel.address, hotel.city, hotel.state)}</span>
-                {destination && (
-                  <a
-                    href={directionsUrl(destination.lat, destination.lng)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 font-semibold text-violet-300"
-                  >
-                    Directions
-                  </a>
-                )}
+                <div>
+                  <span>{hotelAddress}</span>
+                  <p className="mt-1 text-[8px] text-[#62697A]">Published street address · internal entrance-location data stays private</p>
+                </div>
+                <a
+                  href={directionsUrl(hotelAddress)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 font-semibold text-violet-300"
+                >
+                  Directions
+                </a>
               </div>
-            ) : (
-              <div className="mt-4 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
-                Approximate area only. The exact entrance and road directions
-                unlock after a confirmed payment.
-              </div>
-            )}
+            ) : null}
           </div>
         </section>
 

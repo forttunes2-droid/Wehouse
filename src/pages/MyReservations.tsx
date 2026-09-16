@@ -1464,12 +1464,6 @@ function HotelBookingDetail({
   const packageName =
     row.rate_plan_name || row.hotel_rate_plans?.name || "Room package";
   const hotelAddress = row.hotels?.address || null;
-  const hotelLatitude = Number(row.hotels?.gps_latitude);
-  const hotelLongitude = Number(row.hotels?.gps_longitude);
-  const exactDestination =
-    row.hotels?.location_exact === true &&
-    Number.isFinite(hotelLatitude) &&
-    Number.isFinite(hotelLongitude);
   const journeyStatus =
     row.status === "checked_out" ? "completed" : String(row.status || "");
   const stages = ["pending", "confirmed", "checked_in", "completed"];
@@ -1551,9 +1545,9 @@ function HotelBookingDetail({
             </div>
           ) : null}
 
-          {exactDestination ? (
+          {hotelAddress ? (
             <a
-              href={directionsUrl(hotelLatitude, hotelLongitude)}
+              href={directionsUrl(hotelAddress)}
               target="_blank"
               rel="noreferrer"
               className="mt-4 flex min-h-11 items-center justify-center border-y border-violet-500/20 text-[10px] font-semibold text-violet-300"
