@@ -1,0 +1,65 @@
+name: Temporary Wire Account Help
+on:
+  push:
+    branches:
+      - codex/harden-main-resume-repairs-20260914
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/harden-main-resume-repairs-20260914
+      - name: Wire Account Help
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/pages/AccountCenter.tsx')
+          s=p.read_text()
+          s=s.replace('import AccountShell, {\n  AccountRow,\n  AccountSection,\n} from "@/components/AccountShell";','import AccountShell, {\n  AccountRow,\n  AccountSection,\n} from "@/components/AccountShell";\nimport AccountHelpCenter from "@/components/AccountHelpCenter";')
+          s=s.replace('  | "workspaces"\n  | null;','  | "workspaces"\n  | "help"\n  | null;')
+          marker='  if (panel === "privacy_security")\n    return (\n'
+          insert='  if (panel === "help")\n    return <AccountHelpCenter profile={profile} onBack={() => setPanel(null)} />;\n\n'
+          if insert not in s:
+              s=s.replace(marker,insert+marker)
+          marker2='      <AccountSection title="Legal">\n'
+          help_section='      <AccountSection title="Help">\n        <AccountRow\n          title="Help"\n          detail="General help, linked jobs, payments, payouts and safety or security concerns"\n          onClick={() => setPanel("help")}\n          icon={<ToolsIcon />}\n        />\n      </AccountSection>\n\n'
+          if help_section not in s:
+              s=s.replace(marker2,help_section+marker2)
+          p.write_text(s)
+
+          p=Path('src/lib/supabase/support.ts')
+          s=p.read_text()
+          marker='export async function uploadSupportDraftAttachment(\n'
+          fn='''export async function sendFirstContextualHelpMessage(\n  draftId: string,\n  context: SupportOpenContext,\n  content: string,\n  attachments: string[] = [],\n  attachmentTypes: string[] = [],\n) {\n  const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);\n  const reasonCode = String(snapshot.reason_code || "").trim();\n  const subjectType = String(snapshot.subject_type || "").trim();\n  const subjectId = String(snapshot.source_id || context.contextId || "").trim();\n  const { data, error } = await supabase.rpc("send_my_first_contextual_help_message", {\n    p_draft_id: draftId,\n    p_reason_code: reasonCode,\n    p_subject_type: subjectType,\n    p_subject_id: subjectId,\n    p_summary: context.subject || null,\n    p_snapshot: snapshot,\n    p_content: content,\n    p_attachments: attachments,\n    p_attachment_types: attachmentTypes,\n  });\n  const result = (data || {}) as {\n    conversation_id?: string | null;\n    message_id?: string | null;\n    replayed?: boolean;\n  };\n  return {\n    conversationId: result.conversation_id || null,\n    messageId: result.message_id || null,\n    replayed: result.replayed === true,\n    error,\n  };\n}\n\n'''
+          if 'sendFirstContextualHelpMessage' not in s:
+              s=s.replace(marker,fn+marker)
+
+          anchor='''  if (contextType === "worker_booking")\n    return {\n      kind: "service_help",\n      title: rawSubject || String(snapshot.service_type || "Service booking"),\n      operator: "WeHouse Worker Operations",\n      meta: ["Service booking", audience === "customer" ? "" : reference, status]\n        .filter(Boolean)\n        .join(" · "),\n      operational: true,\n    };\n'''
+          case_block='''  if (["contextual_help", "operational_case"].includes(contextType)) {\n    const reason = String(snapshot.reason_code || "");\n    const domain = String(snapshot.owning_domain || (\n      ["payment_issue", "payout_issue", "caution_claim"].includes(reason)\n        ? "finance_operations"\n        : ["account_compromise", "blocked_active_obligation", "safety_threat"].includes(reason)\n          ? "security_operations"\n          : ["worker_job_issue", "worker_verification"].includes(reason)\n            ? "worker_operations"\n            : "support"\n    ));\n    const operator = domain === "finance_operations"\n      ? "WeHouse Finance Operations"\n      : domain === "security_operations"\n        ? "WeHouse Security Operations"\n        : domain === "worker_operations"\n          ? "WeHouse Worker Operations"\n          : domain === "property_operations"\n            ? "WeHouse Property Operations"\n            : "WeHouse Support";\n    return {\n      kind: "support",\n      title: rawSubject || String(snapshot.reason_label || snapshot.linked_label || "WeHouse"),\n      operator,\n      meta: [String(snapshot.reason_label || "Help"), status].filter(Boolean).join(" · "),\n      operational: false,\n    };\n  }\n'''
+          if case_block not in s:
+              s=s.replace(anchor,anchor+case_block)
+          p.write_text(s)
+
+          p=Path('src/components/SupportChat.tsx')
+          s=p.read_text()
+          s=s.replace('  sendFirstWeHouseMessage,\n','  sendFirstContextualHelpMessage,\n  sendFirstWeHouseMessage,\n')
+          old='''    const sent = await sendFirstWeHouseMessage(\n      attempt.draftId,\n      attempt.context,\n      attempt.content,\n      attempt.paths,\n      attempt.types,\n    );\n'''
+          new='''    const sent =\n      attempt.context.contextType === "contextual_help" &&\n      String(attempt.context.contextSnapshot?.reason_code || "").trim()\n        ? await sendFirstContextualHelpMessage(\n            attempt.draftId,\n            attempt.context,\n            attempt.content,\n            attempt.paths,\n            attempt.types,\n          )\n        : await sendFirstWeHouseMessage(\n            attempt.draftId,\n            attempt.context,\n            attempt.content,\n            attempt.paths,\n            attempt.types,\n          );\n'''
+          if old not in s:
+              raise SystemExit('SupportChat first-send anchor not found')
+          s=s.replace(old,new)
+          p.write_text(s)
+          PY
+      - name: Remove temporary workflow and commit
+        run: |
+          rm -f .github/workflows/temporary-wire-account-help.yml
+          git config user.name "WeHouse Account Help Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/pages/AccountCenter.tsx src/lib/supabase/support.ts src/components/SupportChat.tsx .github/workflows/temporary-wire-account-help.yml
+          git commit -m "Wire structured Account Help across workspaces" || exit 0
+          git push origin HEAD:codex/harden-main-resume-repairs-20260914
