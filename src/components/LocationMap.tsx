@@ -171,15 +171,25 @@ export default function LocationMap({
   return (
     <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#10131B]">
       <div className="relative">
-        <div ref={host} style={{ height }} className="w-full" role="img" aria-label={label} />
+        <div
+          ref={host}
+          style={{ height }}
+          className="w-full"
+          role="img"
+          aria-label={label}
+        />
         {editable && (
           <p className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/75 px-3 py-2 text-[9px] font-semibold text-white shadow-lg">
-            Tap the real entrance to adjust the saved pin
+            Tap the real entrance to adjust the saved location
           </p>
         )}
         {mapError && (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-[#10131B]/95 px-3 py-2 text-[9px] text-amber-200 shadow-lg" role="status">
-            Map tiles are temporarily unavailable. The saved location is still available.
+          <div
+            className="pointer-events-none absolute inset-x-3 bottom-3 rounded-xl bg-[#10131B]/95 px-3 py-2 text-[9px] text-amber-200 shadow-lg"
+            role="status"
+          >
+            Map tiles are temporarily unavailable. The saved location is still
+            available.
           </div>
         )}
       </div>
@@ -191,10 +201,14 @@ export default function LocationMap({
               {editable
                 ? "Choose the exact entrance, then confirm below"
                 : approximate
-                  ? "Approximate area only; no route or exact pin is shown"
-                  : "Exact destination unlocked for this confirmed stay"}
+                  ? "Approximate area only; exact coordinates are not shown"
+                  : "Confirmed destination"}
               {distance !== null
-                ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(1)} km`} away`
+                ? ` · about ${
+                    distance < 1
+                      ? `${Math.max(1, Math.round(distance * 1000))} m`
+                      : `${distance.toFixed(1)} km`
+                  } away`
                 : ""}
             </p>
           </div>
@@ -205,18 +219,28 @@ export default function LocationMap({
               disabled={locating}
               className="shrink-0 rounded-lg border border-violet-500/20 px-3 py-2 text-[9px] font-semibold text-violet-300 disabled:opacity-50"
             >
-              {locating ? "Finding you…" : user ? "Refresh distance" : "Estimate distance"}
+              {locating
+                ? "Finding you…"
+                : user
+                  ? "Refresh distance"
+                  : "Estimate distance"}
             </button>
           )}
         </div>
         {user && (
           <p className="text-[9px] text-[#8D93A3]">
             <span className="text-emerald-300">● You</span> ·{" "}
-            <span className="text-violet-300">● {approximate ? "Property area" : "Destination"}</span> · straight-line estimate, not road navigation
+            <span className="text-violet-300">
+              ● {approximate ? "Property area" : "Destination"}
+            </span>{" "}
+            · straight-line estimate, not road navigation
           </p>
         )}
         {locationError && (
-          <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[9px] leading-5 text-amber-200" role="alert">
+          <p
+            className="rounded-xl bg-amber-500/10 px-3 py-2 text-[9px] leading-5 text-amber-200"
+            role="alert"
+          >
             {locationError}
           </p>
         )}
