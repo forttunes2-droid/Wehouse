@@ -3,7 +3,7 @@
 -- it is not a separate customer-facing front door.
 
 update public.case_reason_registry
-set owning_domain='property_operations', updated_at=now()
+set owning_domain='property_operations'
 where reason_code='field_visit';
 
 create or replace function public.create_user_inspection_request(
