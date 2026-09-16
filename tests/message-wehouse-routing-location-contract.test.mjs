@@ -28,6 +28,17 @@ test("Property Partner submission help enters Property Operations through struct
   assert.match(migration, /array\['inspection'\]::text\[\]/);
 });
 
+test("fallback Help keeps payment and safety with the linked property or job owner", async () => {
+  const help = await read("src/components/AccountHelpCenter.tsx");
+  assert.match(help, /function openLinkedJourney/);
+  assert.match(help, /\["apartment_reservation", "hotel_booking", "worker_booking"\]/);
+  assert.match(help, /openLinkedJourney\(target, "payment_issue", "Payment issue"\)/);
+  assert.match(help, /openLinkedJourney\(target, "safety_threat", "Safety concern"\)/);
+  assert.match(help, /Finance is the direct/);
+  assert.match(help, /moneyReason === "payout_issue" \? "payout"/);
+  assert.match(help, /contextType: "contextual_help"/);
+});
+
 test("public accommodation shows written address without returning supplier coordinates", async () => {
   const [projection, legacy] = await Promise.all([
     read("supabase/migrations/20260916180000_property_routing_and_public_address.sql"),
