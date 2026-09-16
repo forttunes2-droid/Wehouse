@@ -356,8 +356,9 @@ function UserProfileSheet({
 
       {avatarOpen && user.avatar_url ? (
         <MediaViewer
-          items={[{ type: "image", url: user.avatar_url }]}
-          startIndex={0}
+          src={user.avatar_url}
+          kind="image"
+          title={user.full_name || user.username || "Profile photo"}
           onClose={() => setAvatarOpen(false)}
         />
       ) : null}
