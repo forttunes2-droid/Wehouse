@@ -1,0 +1,85 @@
+name: Temporary Canonical Routing Fix
+
+on:
+  push:
+    branches: [codex/harden-main-resume-repairs-20260914]
+    paths:
+      - .github/workflows/temporary-canonical-routing-fix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/harden-main-resume-repairs-20260914
+          fetch-depth: 0
+      - name: Align customer front doors and inspection assignment UI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Wire inspection assignment into Property Operations.
+          path = Path('src/components/HousingOperationsWorkspace.tsx')
+          source = path.read_text()
+          marker = 'import PropertyBookingJourney from "@/components/PropertyBookingJourney";\n'
+          insert = marker + 'import CustomerInspectionAssignmentPanel from "@/components/CustomerInspectionAssignmentPanel";\n'
+          if 'CustomerInspectionAssignmentPanel' not in source:
+              if marker not in source: raise SystemExit('Housing import marker not found')
+              source = source.replace(marker, insert, 1)
+          old = '''    ) : (\n      <HousingCase\n        row={selected}\n        bookingCode={verifiedMoveInCode}\n        back={() => {\n          setSelected(null);\n          setVerifiedBooking(null);\n          setVerifiedMoveInCode(null);\n          setBookingCode(\"\");\n          void load();\n        }}\n      />\n    );'''
+          new = '''    ) : (\n      <div className=\"space-y-4\">\n        {getPropertyBookingJourney(selected, null, \"operations\").action === \"inspection\" &&\n        selected.current_reservation_id ? (\n          <CustomerInspectionAssignmentPanel\n            reservationId={String(selected.current_reservation_id)}\n          />\n        ) : null}\n        <HousingCase\n          row={selected}\n          bookingCode={verifiedMoveInCode}\n          back={() => {\n            setSelected(null);\n            setVerifiedBooking(null);\n            setVerifiedMoveInCode(null);\n            setBookingCode(\"\");\n            void load();\n          }}\n        />\n      </div>\n    );'''
+          if 'reservationId={String(selected.current_reservation_id)}' not in source:
+              if old not in source: raise SystemExit('Housing selected long-stay block not found')
+              source = source.replace(old, new, 1)
+          path.write_text(source)
+
+          # Customer-facing labels must name the owning Operations team, not generic Support.
+          path = Path('src/lib/supabase/support.ts')
+          source = path.read_text()
+          reservation_anchor = '''      operator: \"WeHouse Support\",\n      meta: [\n        contextType === \"hotel_booking\"'''
+          if reservation_anchor in source:
+              source = source.replace(reservation_anchor, '''      operator: \"WeHouse Property Operations\",\n      meta: [\n        contextType === \"hotel_booking\"''', 1)
+          property_anchor = '''      operator: \"WeHouse Support\",\n      meta: [\n        contextType === \"property_inspection\"'''
+          if property_anchor in source:
+              source = source.replace(property_anchor, '''      operator: \"WeHouse Property Operations\",\n      meta: [\n        contextType === \"property_inspection\"''', 1)
+          worker_old = '''  if (contextType === \"worker_booking\")\n    return {\n      kind: \"service_help\",\n      title: rawSubject || String(snapshot.service_type || \"Service booking\"),\n      operator: \"WeHouse Support\",\n      meta: [\"Service booking\", audience === \"customer\" ? \"\" : reference, status]\n        .filter(Boolean)\n        .join(\" · \"),\n      operational: false,\n    };'''
+          worker_new = '''  if (contextType === \"worker_booking\")\n    return {\n      kind: \"service_help\",\n      title: rawSubject || String(snapshot.service_type || \"Service booking\"),\n      operator: \"WeHouse Worker Operations\",\n      meta: [\"Service booking\", audience === \"customer\" ? \"\" : reference, status]\n        .filter(Boolean)\n        .join(\" · \"),\n      operational: true,\n    };'''
+          if worker_old in source:
+              source = source.replace(worker_old, worker_new, 1)
+          elif 'operator: "WeHouse Worker Operations"' not in source:
+              raise SystemExit('Worker presentation block not found')
+
+          # Non-first-send helper follows the same Worker Operations route.
+          marker = '''  if (canonicalContextType === \"property_listing\") {'''
+          worker_route = '''  if (canonicalContextType === \"worker_booking\") {\n    const { data, error } = await supabase.rpc(\n      \"open_contextual_case_conversation\",\n      {\n        p_reason_code: \"worker_job_issue\",\n        p_subject_type: \"worker_job\",\n        p_subject_id: input.contextId,\n        p_summary: input.subject || null,\n        p_snapshot: snapshot,\n      },\n    );\n    const result = (data || {}) as { conversation_id?: string | null };\n    return { conversationId: result.conversation_id || null, error };\n  }\n\n'''
+          if 'p_reason_code: "worker_job_issue"' not in source:
+              if marker not in source: raise SystemExit('support property route marker not found')
+              source = source.replace(marker, worker_route + marker, 1)
+          path.write_text(source)
+
+          # Atomic first Send must create/reuse Worker Operations, not generic Support.
+          path = Path('supabase/migrations/20260916123000_atomic_wehouse_first_send_and_support_storage.sql')
+          source = path.read_text()
+          marker = '''  elsif v_context='property_listing' then\n    v_conversation_id:=public.open_property_operations_conversation('''
+          worker_sql = '''  elsif v_context='worker_booking' then\n    v_conversation_id:=(public.open_contextual_case_conversation(\n      'worker_job_issue','worker_job',p_context_id,\n      nullif(btrim(coalesce(p_subject,'')),''),v_snapshot\n    )->>'conversation_id')::uuid;\n'''
+          if "v_context='worker_booking'" not in source:
+              if marker not in source: raise SystemExit('atomic property route marker not found')
+              source = source.replace(marker, worker_sql + marker, 1)
+          path.write_text(source)
+          PY
+      - name: Remove temporary workflow
+        run: rm .github/workflows/temporary-canonical-routing-fix.yml
+      - name: Commit repair
+        run: |
+          git config user.name "WeHouse Routing Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/HousingOperationsWorkspace.tsx src/lib/supabase/support.ts supabase/migrations/20260916123000_atomic_wehouse_first_send_and_support_storage.sql .github/workflows/temporary-canonical-routing-fix.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Align customer-facing Operations routing"
+          git push origin HEAD:codex/harden-main-resume-repairs-20260914
