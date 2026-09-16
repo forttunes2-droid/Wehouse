@@ -201,11 +201,23 @@ export function conversationPresentation(
     return {
       kind: "service_help",
       title: rawSubject || String(snapshot.service_type || "Service booking"),
-      operator: "WeHouse Service Support",
+      operator: "WeHouse Support",
       meta: ["Service booking", audience === "customer" ? "" : reference, status]
         .filter(Boolean)
         .join(" · "),
-      operational: true,
+      operational: false,
+    };
+  if (contextType === "hotel_booking_help")
+    return {
+      kind: "support",
+      title:
+        rawSubject ||
+        String(snapshot.hotel_name || "Hotel booking help"),
+      operator: "WeHouse Support",
+      meta: ["Hotel booking", audience === "customer" ? "" : reference, status]
+        .filter(Boolean)
+        .join(" · "),
+      operational: false,
     };
   return {
     kind: "support",

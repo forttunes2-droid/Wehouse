@@ -607,13 +607,15 @@ export default function MyReservations({
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
         detail: {
-          category: "hotel_booking",
+          category: "hotel_booking_help",
           subject: `Hotel booking help · ${
             row.hotels?.name || row.hotel?.name || row.hotel_name || "Hotel stay"
           }`,
-          contextType: "hotel_booking",
+          contextType: "hotel_booking_help",
           contextId: String(row.booking_id),
           contextSnapshot: {
+            source_type: "hotel_booking_help",
+            source_id: String(row.booking_id),
             booking_id: row.booking_id,
             hotel_id: row.hotel_id,
             hotel_name:
