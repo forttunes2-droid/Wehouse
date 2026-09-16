@@ -84,6 +84,7 @@ begin
     v_target_lga := coalesce(nullif(v_target.assigned_lga,''),nullif(v_target.local_government,''),nullif(v_target.city,''));
 
     if v_admin_state is null or v_admin_lga is null
+       or v_target_state is null or v_target_lga is null
        or lower(v_target_state)<>lower(v_admin_state)
        or lower(v_target_lga)<>lower(v_admin_lga) then
       raise exception 'Account is outside your Admin branch';
@@ -113,7 +114,7 @@ begin
     'city',l.city,
     'state',l.state,
     'address',l.address,
-    'images',coalesce(l.images,'[]'::jsonb),
+    'images',to_jsonb(coalesce(l.images,'{}'::text[])),
     'created_at',l.created_at
   ) order by l.created_at desc),'[]'::jsonb)
   into v_apartments
@@ -129,7 +130,7 @@ begin
     'state',h.state,
     'area',h.area,
     'address',h.address,
-    'images',coalesce(h.images,'[]'::jsonb),
+    'images',to_jsonb(coalesce(h.images,'{}'::text[])),
     'created_at',h.created_at
   ) order by h.created_at desc),'[]'::jsonb)
   into v_hotels
@@ -142,7 +143,7 @@ begin
     'hotel_name',h.name,
     'hotel_role',tm.hotel_role,
     'status',tm.status,
-    'capabilities',coalesce(tm.capabilities,'[]'::jsonb),
+    'capabilities',to_jsonb(coalesce(tm.capabilities,'{}'::text[])),
     'city',h.city,
     'state',h.state,
     'created_at',tm.created_at
@@ -164,7 +165,7 @@ begin
       'experience',v_target.worker_experience,
       'price',v_target.worker_price,
       'bio',v_target.worker_bio,
-      'skills',coalesce(to_jsonb(v_target.worker_skills),'[]'::jsonb),
+      'skills',coalesce(v_target.worker_skills,'[]'::jsonb),
       'jobs',coalesce((select count(*) from public.worker_bookings b where b.worker_id=p_target_user_id),0),
       'completed_jobs',coalesce((select count(*) from public.worker_bookings b where b.worker_id=p_target_user_id and b.status='approved_released'),0),
       'completed_job_earnings',coalesce((select sum(coalesce(b.worker_receives,0)) from public.worker_bookings b where b.worker_id=p_target_user_id and b.status='approved_released'),0),
