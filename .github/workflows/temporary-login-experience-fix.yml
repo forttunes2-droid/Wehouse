@@ -1,0 +1,30 @@
+name: Temporary Login Experience Fix
+on:
+  push:
+    branches: [codex/harden-main-resume-repairs-20260914]
+    paths:
+      - scripts/temporary_login_experience_fix.py
+      - .github/workflows/temporary-login-experience-fix.yml
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/harden-main-resume-repairs-20260914
+          fetch-depth: 0
+      - name: Redesign login experience shell
+        run: python scripts/temporary_login_experience_fix.py
+      - name: Remove temporary repair files
+        run: |
+          rm scripts/temporary_login_experience_fix.py
+          rm .github/workflows/temporary-login-experience-fix.yml
+      - name: Commit login experience repair
+        run: |
+          git config user.name "WeHouse Login Experience"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/pages/Login.tsx scripts/temporary_login_experience_fix.py .github/workflows/temporary-login-experience-fix.yml
+          git commit -m "Redesign WeHouse login experience" || exit 0
+          git push origin HEAD:codex/harden-main-resume-repairs-20260914
