@@ -76,15 +76,25 @@ test("discovery distance is server-computed and directions use the written addre
   assert.doesNotMatch(hotel, /directionsUrl\(exactDestination\.lat/);
 });
 
-test("a manually corrected property address remains authoritative over reverse geocoding", async () => {
-  const [picker, submission] = await Promise.all([
+test("human location UI is address-only and manual address remains authoritative", async () => {
+  const [picker, submission, profile] = await Promise.all([
     read("src/components/PreciseLocationPicker.tsx"),
     read("src/components/PropertyInspectionRequestPanel.tsx"),
+    read("src/pages/ProfileEditAccount.tsx"),
   ]);
+  assert.match(picker, /latitude: number \| null/);
+  assert.match(picker, /longitude: number \| null/);
   assert.match(picker, /const typedAddress = value\?\.address\?\.trim\(\) \|\| ""/);
   assert.match(picker, /address: typedAddress \|\| suggestedAddress/);
-  assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
-  assert.doesNotMatch(picker, /GPS accuracy/);
-  assert.doesNotMatch(picker, /Pin adjusted manually/);
+  assert.match(picker, /value=\{value\?\.address \|\| ""\}/);
+  assert.match(picker, /type the street address manually/i);
+  assert.doesNotMatch(picker, /LocationMap/);
+  assert.doesNotMatch(picker, /GPS accuracy/i);
+  assert.doesNotMatch(picker, /Adjust entrance on map/i);
   assert.doesNotMatch(picker, /Edit pin/i);
+  assert.match(submission, /const hasCoordinates = value\.latitude != null && value\.longitude != null/);
+  assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
+  assert.match(profile, /label="Street address"/);
+  assert.match(profile, /preciseLocation\?\.address\?\.trim\(\) \|\| 'Not added'/);
+  assert.match(profile, /Phone location is optional assistance; technical coordinates are not shown in the app/);
 });
