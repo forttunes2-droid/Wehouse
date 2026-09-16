@@ -1,0 +1,31 @@
+name: Temporary Profile Media Fix
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - run: python scripts/temporary_profile_media_fix.py
+      - name: Commit profile media fix
+        shell: bash
+        run: |
+          if git diff --quiet -- src/components/UserProfileModal.tsx; then
+            echo "Profile media already current."
+            exit 0
+          fi
+          git config user.name "WeHouse Build Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/UserProfileModal.tsx
+          git commit -m "Fix structural profile media preview build"
+          git push origin HEAD:${{ github.head_ref }}
