@@ -260,7 +260,7 @@ test("password recovery is one-use, OAuth-bound, server-completed and globally s
   assert.match(edge, /admin\.auth\.admin\.signOut\(token, "global"\)/);
 });
 
-test("private audio/video calls use call-participant authorization and temporary TURN credentials", async () => {
+test("private audio/video calls use least-privilege RLS plus explicit participant authorization and temporary TURN credentials", async () => {
   const [client, center, edge] = await Promise.all([
     read("src/lib/private-calls.ts"),
     read("src/components/PrivateCallCenter.tsx"),
@@ -268,7 +268,11 @@ test("private audio/video calls use call-participant authorization and temporary
   ]);
   assert.match(client, /functions\.invoke\('private-call-ice'/);
   assert.match(center, /getPrivateCallIceServers\(call\.id\)/);
-  assert.match(edge, /admin\.auth\.getUser\(token\)/);
+  assert.match(edge, /SUPABASE_ANON_KEY/);
+  assert.match(edge, /Authorization: `Bearer \$\{token\}`/);
+  assert.match(edge, /client\.auth\.getUser\(token\)/);
+  assert.doesNotMatch(edge, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge, /\.from\("private_calls"\)/);
   assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
   assert.match(edge, /TURN_URLS/);
   assert.match(edge, /TURN_SHARED_SECRET/);
