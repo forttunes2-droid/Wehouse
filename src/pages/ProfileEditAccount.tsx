@@ -32,7 +32,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [state, setState] = useState(profile.state || '');
   const [lga, setLga] = useState(profile.local_government || profile.city || '');
   const [locationNotice, setLocationNotice] = useState('');
-  const [preciseLocation,setPreciseLocation]=useState<PreciseLocation|null>(()=>profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null);
+  const [preciseLocation,setPreciseLocation]=useState<PreciseLocation|null>(()=>profile.precise_address||profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:profile.precise_latitude==null?null:Number(profile.precise_latitude),longitude:profile.precise_longitude==null?null:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null);
   const [institutions, setInstitutions] = useState<RegisteredInstitution[]>([]);
   const [institutionsLoading, setInstitutionsLoading] = useState(false);
   const [institutionsError, setInstitutionsError] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     const original: Record<string, unknown> = {
       full_name: (profile.full_name || '').trim(), username: (profile.username || '').trim().toLowerCase(), phone: (profile.phone || '').trim(),
     };
-    Object.assign(current,{state,lga,preciseLocation});Object.assign(original,{state:profile.state||'',lga:profile.local_government||profile.city||'',preciseLocation:profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:Number(profile.precise_latitude),longitude:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null});
+    Object.assign(current,{state,lga,preciseLocation});Object.assign(original,{state:profile.state||'',lga:profile.local_government||profile.city||'',preciseLocation:profile.precise_address||profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:profile.precise_latitude==null?null:Number(profile.precise_latitude),longitude:profile.precise_longitude==null?null:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null});
     if (isUser) {
       Object.assign(current, { bio: bio.trim(), gender, is_student: isStudent, school: isStudent ? school.trim() : '', state, lga });
       Object.assign(original, { bio: (profile.bio || '').trim(), gender: profile.gender || '', is_student: Boolean(profile.is_student), school: profile.is_student ? (profile.school || '').trim() : '', state: profile.state || '', lga: profile.local_government || profile.city || '' });
@@ -159,7 +159,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     }
     const detectedLga = detectedState.cities.find((item) => clean(item) === clean(next.city || '')) || '';
     if (state !== detectedState.state || (detectedLga && lga !== detectedLga)) {
-      setLocationNotice(`The map suggested ${[detectedLga, detectedState.state].filter(Boolean).join(', ')}. It can be approximate, so your selected State and LGA were not changed.`);
+      setLocationNotice(`The phone suggested ${[detectedLga, detectedState.state].filter(Boolean).join(', ')}. It can be approximate, so your selected State and LGA were not changed.`);
     } else setLocationNotice('Location found. Check the street address before saving.');
   }
 
@@ -171,7 +171,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           <div className="min-w-0 flex-1"><h2 className="truncate text-lg font-bold">{fullName || username || 'WeHouse member'}</h2><p className="mt-1 truncate text-[10px] text-[#737A8B]">@{username || 'username'}</p>{bio && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[#A1A6B3]">{bio}</p>}</div>
         </div>
         <div className="grid grid-cols-2 border-y border-white/[.06] sm:grid-cols-3"><ProfileFact label="Phone · private" value={phone || 'Not added'} /><ProfileFact label="Account" value={profile.role === 'worker' ? 'WeHouse professional' : profile.role === 'user' ? 'WeHouse member' : profile.role.replaceAll('_', ' ')} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
-        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Exact address" value={preciseLocation ? 'Saved privately' : 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
+        {isUser && <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Street address" value={preciseLocation?.address?.trim() || 'Not added'} /><ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} /></div>}
         <div className="p-4"><button type="button" onClick={()=>setEditing(true)} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Edit profile</button></div>
       </section>
     </AccountShell>
@@ -210,10 +210,10 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </>}
           <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Use your phone location below to find and confirm one private street address.</p>
+            <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Type your actual street address below. Phone location is optional assistance; technical coordinates are not shown in the app.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Precise address cleared because the region changed. Use your location again if you want to save it.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
-              <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Precise address cleared because the LGA changed. Use your location again if you want to save it.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
+              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street address cleared because the region changed. Type the correct address for the new region.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
+              <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street address cleared because the LGA changed. Type the correct address for the new LGA.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
             </div>
             <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={resolveLocation}/>{locationNotice&&<p className="mt-2 rounded-xl bg-violet-500/[.07] px-3 py-2 text-[9px] leading-5 text-violet-200" role="status">{locationNotice}</p>}</div>
           </section>

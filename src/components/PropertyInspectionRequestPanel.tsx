@@ -555,19 +555,22 @@ export default function PropertyInspectionRequestPanel({
       patch(index, { latitude: "", longitude: "", location: null });
       return;
     }
+    const hasCoordinates = value.latitude != null && value.longitude != null;
     patch(index, {
-      latitude: String(value.latitude),
-      longitude: String(value.longitude),
+      latitude: hasCoordinates ? String(value.latitude) : "",
+      longitude: hasCoordinates ? String(value.longitude) : "",
       propertyAddress: value.address || drafts[index]?.propertyAddress || "",
       propertyCity: drafts[index]?.propertyCity || value.city || "",
       propertyState: drafts[index]?.propertyState || value.state || "",
-      location: {
-        lat: value.latitude,
-        lon: value.longitude,
-        accuracy: value.accuracy,
-        source: "gps",
-        address: value.address,
-      },
+      location: hasCoordinates
+        ? {
+            lat: value.latitude as number,
+            lon: value.longitude as number,
+            accuracy: value.accuracy,
+            source: "gps",
+            address: value.address,
+          }
+        : null,
     });
   }
   async function submit(e: React.FormEvent) {
