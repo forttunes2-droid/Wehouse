@@ -12,6 +12,18 @@ const json = (body: Record<string, unknown>, status = 200) =>
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
+function jwtSessionId(token: string): string {
+  try {
+    const encoded = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(
+      atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+    );
+    return String(payload?.session_id || "");
+  } catch {
+    return "";
+  }
+}
+
 async function paystack(path: string, secret: string, init?: RequestInit) {
   const response = await fetch(`https://api.paystack.co${path}`, {
     ...init,
@@ -76,6 +88,44 @@ serve(async (req) => {
     const action = String(body?.action || "").trim();
     const withdrawalId = String(body?.withdrawal_id || "").trim();
     if (!withdrawalId) return json({ success: false, error: "Withdrawal ID is required" }, 400);
+
+    if (profile.role === "creator" && ["approve", "reject"].includes(action)) {
+      const creatorElevationId = String(body?.creator_elevation_id || "").trim();
+      const sessionId = jwtSessionId(token);
+      if (
+        !sessionId ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          creatorElevationId,
+        )
+      ) {
+        return json({ success: false, error: "Fresh Creator finance confirmation required" }, 403);
+      }
+      const { data: grant, error: grantError } = await admin
+        .from("creator_elevation_grants")
+        .select(
+          "creator_user_id,auth_user_id,auth_session_id,action_classes,expires_at,revoked_at",
+        )
+        .eq("creator_elevation_id", creatorElevationId)
+        .maybeSingle();
+      const classes = Array.isArray(grant?.action_classes)
+        ? grant.action_classes.map((value: unknown) => String(value))
+        : [];
+      const expiresAt = Date.parse(String(grant?.expires_at || ""));
+      if (
+        grantError ||
+        !grant ||
+        grant.creator_user_id !== profile.user_id ||
+        String(grant.auth_user_id) !== user.id ||
+        grant.auth_session_id !== sessionId ||
+        grant.revoked_at ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= Date.now() ||
+        (!classes.includes("finance_exception") &&
+          !classes.includes("all_sensitive"))
+      ) {
+        return json({ success: false, error: "Fresh Creator finance confirmation required" }, 403);
+      }
+    }
 
     if (action === "reject") {
       const reason = String(body?.reason || "").trim();

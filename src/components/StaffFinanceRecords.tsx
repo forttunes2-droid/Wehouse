@@ -19,6 +19,7 @@ export default function StaffFinanceRecords({
   const [acting, setActing] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [actorRole, setActorRole] = useState("");
   const { requestElevation } = useCreatorAuth();
 
   const load = useCallback(async () => {
@@ -61,6 +62,23 @@ export default function StaffFinanceRecords({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return;
+      const { data: actor } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("auth_id", auth.user.id)
+        .maybeSingle();
+      if (active) setActorRole(String(actor?.role || ""));
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function executePayoutAction(
     row: any,
@@ -106,7 +124,7 @@ export default function StaffFinanceRecords({
     const reason = action === "reject" ? rejectionReason.trim() : null;
     if (action === "reject" && !reason) return;
 
-    if (creatorProtected && action !== "reconcile") {
+    if ((creatorProtected || actorRole === "creator") && action !== "reconcile") {
       requestElevation("finance_exception", (creatorElevationId) => {
         void executePayoutAction(row, action, creatorElevationId);
       });
