@@ -30,6 +30,7 @@ type Props = {
   chatUnreadCount?: number;
   activityUnreadCount?: number;
   onActivityUnreadChange?: (count: number) => void;
+  conversationOnly?: boolean;
 };
 
 type BookingConversation = {
@@ -83,6 +84,7 @@ export default function Chat({
   onConversationClose,
   activityUnreadCount = 0,
   onActivityUnreadChange,
+  conversationOnly = false,
 }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [bookingConversations, setBookingConversations] = useState<
@@ -379,16 +381,18 @@ export default function Chat({
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-xl font-bold">Inbox</h1>
+          <h1 className="text-xl font-bold">{conversationOnly ? "Conversation" : "Inbox"}</h1>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <InboxActivityEntry
-          unread={activityUnreadCount}
-          detail="Updates and actions that affect you"
-          onOpen={() => setView("activity")}
-        />
+        {!conversationOnly ? (
+          <InboxActivityEntry
+            unread={activityUnreadCount}
+            detail="Updates and actions that affect you"
+            onOpen={() => setView("activity")}
+          />
+        ) : null}
 
         <section className="pt-4">
           <div className="flex items-end justify-between gap-4 pb-3">

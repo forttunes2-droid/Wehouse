@@ -524,7 +524,7 @@ export default function Notifications({
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
-          <h1 className="text-xl font-bold">Activity</h1>
+          <h1 className="text-xl font-bold">Inbox</h1>
         </div>
       </header>
       {content}

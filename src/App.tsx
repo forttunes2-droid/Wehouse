@@ -64,6 +64,7 @@ const CreatorDashboard = lazy(() => import("@/pages/CreatorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const Roommate = lazy(() => import("@/pages/Roommate"));
 const Chat = lazy(() => import("@/pages/Chat"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
 const ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));
 const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
 const PrivacySecuritySettings = lazy(
@@ -74,7 +75,6 @@ const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
 const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
 const WorkerDashboard = lazy(() => import("@/pages/WorkerDashboard"));
 const WorkerDiscovery = lazy(() => import("@/pages/WorkerDiscovery"));
-const Activity = lazy(() => import("@/pages/Activity"));
 const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
 const HotelsHome = lazy(() => import("@/pages/HotelsHome"));
 const HotelDetail = lazy(() => import("@/pages/HotelDetail"));
@@ -383,8 +383,13 @@ export default function App() {
             },
             {
               id: "conversation" as NavPage,
-              label: "Inbox",
+              label: "Conversation",
               icon: MessagesSvg,
+            },
+            {
+              id: "notifications" as NavPage,
+              label: "Inbox",
+              icon: InboxSvg,
             },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
@@ -1172,23 +1177,14 @@ export default function App() {
         ) : (
           renderRoleRoot()
         );
-      case "activity":
-        return isUserRole ? (
-          <Activity
-            profile={profile}
-            onNavigate={openUserDestination}
-            onGoToChat={goToChat}
-          />
-        ) : (
-          renderRoleRoot()
-        );
+      case "activity": // legacy alias: Activity now lives inside Inbox
       case "notifications":
         return isUserRole ? (
-          <Chat
+          <Notifications
             profile={profile}
-            activityUnreadCount={notificationCount}
+            scope="personal"
             onNavigate={openUserDestination}
-            onActivityUnreadChange={setNotificationCount}
+            onUnreadChange={setNotificationCount}
           />
         ) : (
           renderRoleRoot()
@@ -1280,9 +1276,8 @@ export default function App() {
               setChatConvId(null);
               setChatPeerId(null);
             }}
-            chatUnreadCount={unreadCount}
-            activityUnreadCount={notificationCount}
-            onActivityUnreadChange={setNotificationCount}
+            chatUnreadCount={unreadCount + supportUnreadCount}
+            conversationOnly
           />
         ) : (
           renderRoleRoot()
@@ -1404,8 +1399,8 @@ export default function App() {
   };
   const desktopNavItems = getNavForRole(
     userRole,
-    unreadCount,
-    supportUnreadCount + notificationCount,
+    unreadCount + supportUnreadCount,
+    notificationCount,
   );
   const hide = [
     "profile",
@@ -1488,6 +1483,12 @@ export default function App() {
               <div className="mx-auto flex max-w-lg items-center justify-around py-1">
                 {tabs.map((tab) => {
                   const active = navPage === tab.id;
+                  const badgeCount =
+                    tab.id === "conversation"
+                      ? unreadCount + supportUnreadCount
+                      : tab.id === "notifications"
+                        ? notificationCount
+                        : 0;
                   return (
                     <button
                       key={tab.id}
@@ -1504,13 +1505,11 @@ export default function App() {
                       {active && (
                         <span className="h-1 w-1 rounded-full bg-violet-400" />
                       )}
-                      {tab.id === "conversation" && unreadCount + supportUnreadCount + notificationCount > 0 && (
-                          <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
-                            {unreadCount + supportUnreadCount + notificationCount > 99
-                              ? "99+"
-                              : unreadCount + supportUnreadCount + notificationCount}
-                          </span>
-                        )}
+                      {badgeCount > 0 && (
+                        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+                          {badgeCount > 99 ? "99+" : badgeCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1579,6 +1578,21 @@ function MessagesSvg({ size, active }: { size: number; active: boolean }) {
       strokeWidth="2"
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+function InboxSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M4 4h16v13H4z" />
+      <path d="M4 13h4l2 3h4l2-3h4" />
     </svg>
   );
 }
