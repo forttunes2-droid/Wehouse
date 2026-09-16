@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { NIGERIA_STATES } from "@/data/nigeria-locations";
 import type { Profile } from "@/types";
-import { Toaster, toast } from "sonner";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import MediaViewer from "@/components/MediaViewer";
 
@@ -16,7 +15,7 @@ interface UserProfileModalProps {
   onGoToChat?: (convId?: string) => void;
 }
 
-interface WorkerStats {
+interface ProviderStats {
   totalBookings: number;
   completedBookings: number;
   totalEarnings: number;
@@ -34,17 +33,6 @@ interface PartnerProperty {
   created_at: string;
 }
 
-interface WorkerBookingSummary {
-  status: string;
-  agreed_amount: number | null;
-  worker_receives: number | null;
-}
-
-interface WorkerReviewSummary {
-  rating: number | null;
-}
-
-type CreatorTeamRole = "admin" | "staff";
 type StaffModule =
   | "operations"
   | "finance"
@@ -52,6 +40,7 @@ type StaffModule =
   | "security"
   | "verification"
   | "field_officer";
+
 const STAFF_MODULES: Array<[StaffModule, string]> = [
   ["operations", "Property Operations"],
   ["finance", "Finance Operations"],
@@ -61,53 +50,27 @@ const STAFF_MODULES: Array<[StaffModule, string]> = [
   ["field_officer", "Field Operations"],
 ];
 
-export default function UserProfileModal({
-  user,
-  adminProfile,
-  onClose,
-  onPromote,
-  onNavigate,
-  onGoToChat,
-}: UserProfileModalProps) {
-  if (!user) return null;
-
-  return (
-    <UserProfileContent
-      user={user}
-      adminProfile={adminProfile}
-      onClose={onClose}
-      onPromote={onPromote}
-      onNavigate={onNavigate}
-      onGoToChat={onGoToChat}
-    />
-  );
+export default function UserProfileModal(props: UserProfileModalProps) {
+  if (!props.user) return null;
+  return <UserProfileSheet {...props} user={props.user} />;
 }
 
-function UserProfileContent({
+function UserProfileSheet({
   user,
   adminProfile,
   onClose,
   onPromote,
   onNavigate,
 }: UserProfileModalProps & { user: Profile }) {
+  const [providerStats, setProviderStats] = useState<ProviderStats | null>(null);
+  const [partnerProperties, setPartnerProperties] = useState<PartnerProperty[]>([]);
+  const [existingModule, setExistingModule] = useState<string | null>(null);
+  const [adminModule, setAdminModule] = useState<StaffModule>("operations");
   const [confirmingPromote, setConfirmingPromote] = useState(false);
   const [promoting, setPromoting] = useState(false);
-  const [workerStats, setWorkerStats] = useState<WorkerStats | null>(null);
-  const [partnerProperties, setPartnerProperties] = useState<PartnerProperty[]>(
-    [],
-  );
-  const [assigningTeamRole, setAssigningTeamRole] = useState(false);
-  const [creatorRole, setCreatorRole] = useState<CreatorTeamRole | "">("");
-  const [teamState, setTeamState] = useState("");
-  const [teamLga, setTeamLga] = useState("");
-  const [teamModule, setTeamModule] = useState<StaffModule | "">("");
-  const [adminModule, setAdminModule] = useState<StaffModule>("operations");
-  const [teamSaving, setTeamSaving] = useState(false);
-  const [existingModule, setExistingModule] = useState<string | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
 
   const isAdmin = adminProfile?.role === "admin";
-  const isCreator = adminProfile?.role === "creator";
   const adminState = adminProfile?.assigned_state || adminProfile?.state || "";
   const adminLga =
     adminProfile?.assigned_lga ||
@@ -118,77 +81,86 @@ function UserProfileContent({
   const userLga = user.local_government || user.city || "";
   const inBranch = userState === adminState && userLga === adminLga;
   const canAppoint = isAdmin && inBranch && user.role === "user";
-  const canCreatorAssign = isCreator && user.role === "user";
-  const teamStateData = NIGERIA_STATES.find((item) => item.state === teamState);
-  const initials = (user.username || user.email[0] || "U").toUpperCase();
+  const initials = String(user.full_name || user.username || user.email || "W")
+    .trim()
+    .charAt(0)
+    .toUpperCase();
 
   useEffect(() => {
-    const u = user;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
 
-    async function loadWorkerStats() {
-      if (u.role !== "worker") return;
-      const { data: bookings } = await supabase
-        .from("worker_bookings")
-        .select("status, agreed_amount, worker_receives")
-        .eq("worker_id", u.user_id);
-      const bookingRows = (bookings || []) as WorkerBookingSummary[];
-      const totalBookings = bookingRows.length;
-      const completedBookings = bookingRows.filter(
-        (booking) => booking.status === "approved_released",
-      ).length;
-      const totalEarnings = bookingRows
-        .filter((booking) => booking.status === "approved_released")
-        .reduce((sum, booking) => sum + (booking.worker_receives || 0), 0);
-      const { data: reviews } = await supabase
-        .from("reviews")
-        .select("rating")
-        .eq("worker_id", u.user_id);
-      const reviewRows = (reviews || []) as WorkerReviewSummary[];
-      const reviewCount = reviewRows.length;
-      const avgRating =
-        reviewCount > 0
-          ? reviewRows.reduce((sum, review) => sum + (review.rating || 0), 0) /
-            reviewCount
-          : 0;
-      setWorkerStats({
-        totalBookings,
-        completedBookings,
-        totalEarnings,
-        avgRating,
-        reviewCount,
+  useEffect(() => {
+    let active = true;
+
+    async function loadProviderStats() {
+      if (user.role !== "worker") return;
+      const [{ data: bookings }, { data: reviews }] = await Promise.all([
+        supabase
+          .from("worker_bookings")
+          .select("status,worker_receives")
+          .eq("worker_id", user.user_id),
+        supabase.from("reviews").select("rating").eq("worker_id", user.user_id),
+      ]);
+      if (!active) return;
+      const bookingRows = bookings || [];
+      const reviewRows = reviews || [];
+      const completed = bookingRows.filter(
+        (row: any) => row.status === "approved_released",
+      );
+      setProviderStats({
+        totalBookings: bookingRows.length,
+        completedBookings: completed.length,
+        totalEarnings: completed.reduce(
+          (sum: number, row: any) => sum + Number(row.worker_receives || 0),
+          0,
+        ),
+        avgRating: reviewRows.length
+          ? reviewRows.reduce(
+              (sum: number, row: any) => sum + Number(row.rating || 0),
+              0,
+            ) / reviewRows.length
+          : 0,
+        reviewCount: reviewRows.length,
       });
     }
 
     async function loadPartnerProperties() {
-      if (u.role !== "property_partner") return;
-      const { data: byPartner } = await supabase
+      if (user.role !== "property_partner") return;
+      const { data: direct } = await supabase
         .from("listings")
-        .select("id, title, state, city, price, status, created_at")
-        .eq("partner_id", u.user_id)
+        .select("id,title,state,city,price,status,created_at")
+        .eq("partner_id", user.user_id)
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
-      if (byPartner && byPartner.length > 0) {
-        setPartnerProperties(byPartner);
-      } else {
-        const { data: byOwner } = await supabase
-          .from("listings")
-          .select("id, title, state, city, price, status, created_at")
-          .eq("owner_id", u.user_id)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false });
-        setPartnerProperties(byOwner || []);
+      if (!active) return;
+      if (direct?.length) {
+        setPartnerProperties(direct as PartnerProperty[]);
+        return;
       }
+      const { data: owned } = await supabase
+        .from("listings")
+        .select("id,title,state,city,price,status,created_at")
+        .eq("owner_id", user.user_id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
+      if (active) setPartnerProperties((owned || []) as PartnerProperty[]);
     }
 
     async function loadTeamAssignment() {
-      if (u.role !== "staff") return;
+      if (user.role !== "staff") return;
       const { data } = await supabase
         .from("staff_permissions")
         .select("permission")
-        .eq("staff_id", u.user_id)
+        .eq("staff_id", user.user_id)
         .eq("is_active", true)
         .limit(2);
-      const values = (data || []).map((row) => String(row.permission));
+      if (!active) return;
+      const values = (data || []).map((row: any) => String(row.permission));
       setExistingModule(
         values.length === 1
           ? STAFF_MODULES.find(([id]) => id === values[0])?.[1] || values[0]
@@ -198,23 +170,15 @@ function UserProfileContent({
       );
     }
 
-    loadWorkerStats();
-    loadPartnerProperties();
-    loadTeamAssignment();
+    void loadProviderStats();
+    void loadPartnerProperties();
+    void loadTeamAssignment();
+    return () => {
+      active = false;
+    };
   }, [user]);
 
-  useEffect(() => {
-    const orig = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-    return () => {
-      document.body.style.overflow = orig;
-      document.body.style.touchAction = "";
-    };
-  }, []);
-
-  async function handlePromote() {
-    if (!user) return;
+  async function appointToOperations() {
     setPromoting(true);
     const { data, error } = await supabase.rpc("admin_appoint_staff", {
       p_target_user_id: user.user_id,
@@ -222,591 +186,256 @@ function UserProfileContent({
     });
     setPromoting(false);
     setConfirmingPromote(false);
-    if (error) {
-      toast.error(`Failed: ${error.message}`);
-      return;
-    }
-    if (data) {
-      toast.success(
-        `${user.username || "User"} added to ${STAFF_MODULES.find(([id]) => id === adminModule)?.[1] || "the team"}`,
-      );
-      onPromote?.();
-      onClose();
-    }
-  }
-
-  async function handleCreatorAssign() {
-    if (!user) return;
-    if (!creatorRole) return toast.error("Choose Admin or Operations member");
-    if (!teamState || !teamLga)
-      return toast.error("Choose the State and LGA for this team member");
-    if (creatorRole === "staff" && !teamModule)
-      return toast.error("Choose the work area");
-    setTeamSaving(true);
-    const { data, error } = await supabase.rpc("creator_set_team_role", {
-      p_target_user_id: user.user_id,
-      p_new_role: creatorRole,
-      p_state: teamState,
-      p_lga: teamLga,
-      p_module: creatorRole === "staff" ? teamModule : null,
-    });
-    setTeamSaving(false);
-    if (error || data !== true)
-      return toast.error(error?.message || "Could not assign team role");
-    toast.success(
-      `${user.username || "User"} assigned as ${creatorRole === "admin" ? "Admin" : "an Operations member"} in ${teamLga}, ${teamState}`,
-    );
+    if (error) return toast.error(error.message);
+    if (!data) return toast.error("The team assignment was not completed");
+    toast.success("Operations access assigned");
     onPromote?.();
     onClose();
   }
 
   const roleLabel =
-    user.role === "user"
-      ? "User"
-      : user.role === "worker"
-        ? "Worker"
-        : user.role === "property_partner"
-          ? "Partner"
-          : user.role === "staff"
-            ? "Team member"
-            : user.role === "admin"
-              ? "Admin"
-              : user.role;
+    user.role === "worker"
+      ? "Service Provider"
+      : user.role === "property_partner"
+        ? "Property Partner"
+        : user.role === "staff"
+          ? "Operations member"
+          : user.role === "admin"
+            ? "Admin"
+            : user.role === "creator"
+              ? "Creator"
+              : "User";
 
-  const content = (
+  const statusLabel = user.deleted
+    ? "Deleted"
+    : user.banned
+      ? "Banned"
+      : user.suspended
+        ? "Suspended"
+        : "Active";
+
+  const sheet = (
     <div
-      className="fixed inset-0 bg-[#0E0E14]"
-      style={{ zIndex: 99999, touchAction: "none" }}
+      className="fixed inset-0 z-[100040] bg-black/70 backdrop-blur-sm"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div
-        className="absolute inset-0 overflow-y-auto bg-[#0E0E14]"
-        style={{
-          WebkitOverflowScrolling: "touch",
-          overscrollBehaviorY: "contain",
-        }}
-      >
-        <div className="mx-auto min-h-full w-full max-w-4xl bg-[#0E0E14]">
-          <div className="sticky top-0 z-20 border-b border-white/[.06] bg-[#0E0E14]/95 px-5 py-4 backdrop-blur-xl">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center active:bg-white/20"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#8A8B9C"
-                strokeWidth="2"
-              >
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-            <div className="flex items-center gap-4 pr-10">
-              <button
-                type="button"
-                onClick={() => user.avatar_url && setAvatarOpen(true)}
-                className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center text-white text-xl font-bold"
-                aria-label={
-                  user.avatar_url ? "Preview profile photo" : undefined
-                }
-              >
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    className="w-full h-full rounded-2xl object-cover"
-                    alt=""
-                  />
-                ) : (
-                  initials
-                )}
-              </button>
-              <div className="min-w-0">
-                <h3 className="truncate text-lg font-bold text-white">
-                  {user.full_name || `@${user.username || "unknown"}`}
-                </h3>
-                <p className="mt-0.5 truncate text-xs text-[#6D7282]">
-                  @{user.username || "unknown"} · {user.email}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20">
-                    {roleLabel}
-                  </span>
-                  {user.worker_verified && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Verified
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+      <aside className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-hidden rounded-t-[28px] border-t border-white/[.08] bg-[#0D1017] text-white shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[460px] sm:rounded-none sm:border-l sm:border-t-0">
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
 
-          <div className="space-y-0 px-5 pb-10">
-            {user.role === "worker" && workerStats && (
-              <div className={`grid divide-x divide-white/[.06] border-b border-white/[.06] py-4 text-center ${workerStats.reviewCount > 0 ? "grid-cols-4" : "grid-cols-3"}`}>
-                <div>
-                  <p className="text-lg font-bold text-white">
-                    {workerStats.totalBookings}
-                  </p>
-                  <p className="text-[10px] text-[#5C5E72]">Bookings</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-emerald-400">
-                    {workerStats.completedBookings}
-                  </p>
-                  <p className="text-[10px] text-[#5C5E72]">Completed</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-white">
-                    ₦{workerStats.totalEarnings.toLocaleString()}
-                  </p>
-                  <p className="text-[10px] text-[#5C5E72]">Earnings</p>
-                </div>
-                {workerStats.reviewCount > 0 ? (
-                  <div>
-                    <p className="text-lg font-bold text-amber-400">
-                      {workerStats.avgRating.toFixed(1)}
-                    </p>
-                    <p className="text-[10px] text-[#5C5E72]">
-                      {workerStats.reviewCount} {workerStats.reviewCount === 1 ? "Review" : "Reviews"}
-                    </p>
-                  </div>
+        <header className="sticky top-0 z-10 border-b border-white/[.06] bg-[#0D1017]/95 px-5 pb-4 pt-4 backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => user.avatar_url && setAvatarOpen(true)}
+              className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-lg font-bold text-violet-200"
+              aria-label={user.avatar_url ? "Preview profile photo" : "Profile photo"}
+            >
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                initials
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-base font-bold">
+                {user.full_name || user.username || "WeHouse account"}
+              </h2>
+              <p className="mt-0.5 truncate text-[10px] text-[#737A8B]">
+                @{user.username || "username-not-set"}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Badge>{roleLabel}</Badge>
+                <Badge tone={statusLabel === "Active" ? "good" : "danger"}>
+                  {statusLabel}
+                </Badge>
+                {user.role === "worker" && user.worker_verified ? (
+                  <Badge tone="good">WeHouse reviewed</Badge>
                 ) : null}
               </div>
-            )}
-
-            {user.role === "property_partner" && (
-              <div className="grid grid-cols-2 divide-x divide-white/[.06] border-b border-white/[.06] py-4 text-center">
-                <div>
-                  <p className="text-lg font-bold text-white">
-                    {partnerProperties.length}
-                  </p>
-                  <p className="text-[10px] text-[#5C5E72]">Properties</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-emerald-400">
-                    {
-                      partnerProperties.filter((p) => p.status === "available")
-                        .length
-                    }
-                  </p>
-                  <p className="text-[10px] text-[#5C5E72]">Live</p>
-                </div>
-              </div>
-            )}
-
-            <section className="divide-y divide-white/[.055] border-b border-white/[.06] py-3">
-              {[
-                { label: "ID", value: user.user_id },
-                { label: "Full Name", value: user.full_name || "Not set" },
-                { label: "Phone", value: user.phone || "Not set" },
-                { label: "State", value: user.state || "Not set" },
-                {
-                  label: "LGA",
-                  value: user.local_government || user.city || "Not set",
-                },
-                {
-                  label: "Joined",
-                  value: new Date(user.created_at).toLocaleDateString(
-                    undefined,
-                    { month: "short", day: "numeric", year: "numeric" },
-                  ),
-                },
-                {
-                  label: "Status",
-                  value: user.deleted
-                    ? "Deleted"
-                    : user.banned
-                      ? "Banned"
-                      : user.suspended
-                        ? "Suspended"
-                        : "Active",
-                },
-                ...(user.role === "admin"
-                  ? [{ label: "Work area", value: "Branch administration" }]
-                  : user.role === "staff"
-                    ? [
-                        {
-                          label: "Work area",
-                          value: existingModule || "Not assigned",
-                        },
-                      ]
-                    : []),
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex min-h-11 items-center justify-between gap-4 text-xs"
-                >
-                  <span className="text-[#676C7D]">{item.label}</span>
-                  <span className="max-w-[65%] break-words text-right font-medium text-white/85">
-                    {item.value}
-                  </span>
-                </div>
-              ))}
-            </section>
-
-            {user.role === "worker" && (
-              <>
-                {user.worker_occupation && (
-                  <div className="border-b border-white/[.06] py-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                      Occupation
-                    </p>
-                    <p className="text-xs text-white/80 font-medium">
-                      {workerOccupation(user)}
-                    </p>
-                  </div>
-                )}
-                {user.worker_bio && (
-                  <div className="border-b border-white/[.06] py-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                      About
-                    </p>
-                    <p className="text-xs text-white/80 leading-relaxed">
-                      {user.worker_bio}
-                    </p>
-                  </div>
-                )}
-                {user.worker_skills && user.worker_skills.length > 0 && (
-                  <div className="border-b border-white/[.06] py-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                      Skills
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {user.worker_skills.map((s: string, i: number) => (
-                        <span
-                          key={i}
-                          className="text-[10px] px-2 py-0.5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {user.worker_price && (
-                  <div className="border-b border-white/[.06] py-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                      Service Price
-                    </p>
-                    <p className="text-xs text-white/80 font-medium">
-                      N{user.worker_price.toLocaleString()}
-                    </p>
-                  </div>
-                )}
-                {user.worker_experience && (
-                  <div className="border-b border-white/[.06] py-4">
-                    <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                      Experience
-                    </p>
-                    <p className="text-xs text-white/80">
-                      {user.worker_experience}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-
-            {user.role === "property_partner" &&
-              partnerProperties.length > 0 && (
-                <div className="space-y-3 border-b border-white/[.06] py-4">
-                  <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider">
-                    Properties ({partnerProperties.length})
-                  </p>
-                  {partnerProperties.slice(0, 5).map((prop) => (
-                    <button
-                      key={prop.id}
-                      onClick={() => {
-                        onNavigate?.("operations_properties", prop.id);
-                        onClose();
-                      }}
-                      className="flex min-h-16 w-full items-center justify-between gap-3 border-b border-white/[.055] py-3 text-left last:border-b-0"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-medium text-white">
-                          {prop.title}
-                        </span>
-                        <span className="mt-1 block truncate text-[9px] text-[#666C7D]">
-                          {prop.city}, {prop.state} ·{" "}
-                          {String(prop.status || "recorded").replace(/_/g, " ")}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-right">
-                        <span className="block text-[10px] font-semibold text-violet-300">
-                          ₦{prop.price?.toLocaleString()}
-                        </span>
-                        <span className="mt-1 block text-[9px] text-[#666C7D]">
-                          Open record ›
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-            {user.bio && (
-              <div className="border-b border-white/[.06] py-4">
-                <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                  About
-                </p>
-                <p className="text-xs text-white/80 leading-relaxed">
-                  {user.bio}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-2 border-b border-white/[.06] py-4">
-              <p className="text-[10px] text-[#5C5E72] uppercase tracking-wider mb-2">
-                Contact
-              </p>
-              {user.email && (
-                <div className="flex items-center gap-2 break-all text-xs text-white">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#5C5E72"
-                    strokeWidth="2"
-                  >
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                  {user.email}
-                </div>
-              )}
-              {user.phone && (
-                <div className="flex items-center gap-2 text-xs text-white">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#5C5E72"
-                    strokeWidth="2"
-                  >
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-                  </svg>
-                  {user.phone}
-                </div>
-              )}
             </div>
-
-            {canCreatorAssign && (
-              <div className="border-b border-violet-500/15 py-4">
-                <h4 className="text-xs font-semibold text-violet-300">
-                  Team assignment
-                </h4>
-                <p className="mt-1 text-[10px] leading-relaxed text-[#686D7E]">
-                  This account is currently a User. No operational role or
-                  module is assigned until you deliberately choose and confirm
-                  one.
-                </p>
-                {!assigningTeamRole ? (
-                  <button
-                    type="button"
-                    onClick={() => setAssigningTeamRole(true)}
-                    className="mt-3 h-10 w-full rounded-xl border border-violet-500/25 text-xs font-semibold text-violet-200"
-                  >
-                    Assign team role
-                  </button>
-                ) : (
-                  <>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-[9px] uppercase text-[#5E6375]">
-                          Role
-                        </span>
-                        <select
-                          value={creatorRole}
-                          onChange={(e) => {
-                            setCreatorRole(
-                              e.target.value as CreatorTeamRole | "",
-                            );
-                            setTeamModule("");
-                          }}
-                          className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"
-                        >
-                          <option value="">Choose role</option>
-                          <option value="admin">Admin</option>
-                          <option value="staff">Operations member</option>
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[9px] uppercase text-[#5E6375]">
-                          State
-                        </span>
-                        <select
-                          value={teamState}
-                          onChange={(e) => {
-                            setTeamState(e.target.value);
-                            setTeamLga("");
-                          }}
-                          className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"
-                        >
-                          <option value="">Select State</option>
-                          {NIGERIA_STATES.map((item) => (
-                            <option key={item.state} value={item.state}>
-                              {item.state}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[9px] uppercase text-[#5E6375]">
-                          LGA
-                        </span>
-                        <select
-                          value={teamLga}
-                          disabled={!teamState}
-                          onChange={(e) => setTeamLga(e.target.value)}
-                          className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs disabled:opacity-40"
-                        >
-                          <option value="">Select LGA</option>
-                          {(teamStateData?.cities || []).map((lga) => (
-                            <option key={lga} value={lga}>
-                              {lga}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {creatorRole === "staff" && (
-                        <label className="block">
-                          <span className="mb-1 block text-[9px] uppercase text-[#5E6375]">
-                            Work area
-                          </span>
-                          <select
-                            value={teamModule}
-                            onChange={(e) =>
-                              setTeamModule(e.target.value as StaffModule | "")
-                            }
-                            className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs"
-                          >
-                            <option value="">Choose work area</option>
-                            {STAFF_MODULES.map(([id, label]) => (
-                              <option key={id} value={id}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAssigningTeamRole(false);
-                          setCreatorRole("");
-                          setTeamState("");
-                          setTeamLga("");
-                          setTeamModule("");
-                        }}
-                        className="h-10 rounded-xl border border-white/[.08] text-xs text-[#8C91A2]"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => void handleCreatorAssign()}
-                        disabled={
-                          teamSaving ||
-                          !creatorRole ||
-                          !teamState ||
-                          !teamLga ||
-                          (creatorRole === "staff" && !teamModule)
-                        }
-                        className="h-10 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
-                      >
-                        {teamSaving ? "Assigning…" : "Confirm assignment"}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {canAppoint && (
-              <div className="border-b border-amber-500/10 py-4">
-                <h4 className="text-xs font-semibold text-amber-400">
-                  Management
-                </h4>
-                <p className="mt-1 text-[10px] text-[#666B7B]">
-                  Add this branch User to the Operations team and choose their
-                  work area.
-                </p>
-                <label className="mt-3 block">
-                  <span className="mb-1 block text-[9px] uppercase tracking-wide text-[#5E6375]">
-                    Work area
-                  </span>
-                  <select
-                    value={adminModule}
-                    disabled={promoting}
-                    onChange={(e) =>
-                      setAdminModule(e.target.value as StaffModule)
-                    }
-                    className="h-10 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white disabled:opacity-50"
-                  >
-                    {STAFF_MODULES.map(([id, label]) => (
-                      <option key={id} value={id}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {!confirmingPromote ? (
-                  <button
-                    onClick={() => setConfirmingPromote(true)}
-                    className="mt-3 w-full h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
-                  >
-                    Add to team
-                  </button>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-[10px] text-[#5C5E72]">
-                      Add <span className="text-white">@{user.username}</span>{" "}
-                      to{" "}
-                      <span className="text-white">
-                        {STAFF_MODULES.find(([id]) => id === adminModule)?.[1]}
-                      </span>
-                      ?
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setConfirmingPromote(false)}
-                        className="flex-1 h-8 rounded-lg bg-[#12121A] border border-[#232330] text-[#5C5E72] text-[10px] font-semibold"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handlePromote}
-                        disabled={promoting}
-                        className="flex-1 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-semibold disabled:opacity-50"
-                      >
-                        {promoting ? "Adding..." : "Confirm"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             <button
+              type="button"
               onClick={onClose}
-              className="w-full h-10 rounded-xl bg-[#1A1A24] border border-[#2A2A3A] text-[#5C5E72] text-xs font-semibold hover:bg-[#232330] transition-colors"
+              aria-label="Close profile"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg text-[#8B91A1] active:bg-white/[.1]"
             >
-              Close
+              ×
             </button>
           </div>
+        </header>
+
+        <div className="max-h-[calc(88dvh-92px)] overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[100dvh]">
+          {user.role === "worker" && providerStats ? (
+            <section className="grid grid-cols-3 gap-2 py-4">
+              <Metric label="Jobs" value={providerStats.totalBookings} />
+              <Metric label="Completed" value={providerStats.completedBookings} />
+              <Metric
+                label="Reviews"
+                value={providerStats.reviewCount ? providerStats.avgRating.toFixed(1) : "New"}
+              />
+            </section>
+          ) : null}
+
+          {user.role === "property_partner" ? (
+            <section className="grid grid-cols-2 gap-2 py-4">
+              <Metric label="Properties" value={partnerProperties.length} />
+              <Metric
+                label="Live"
+                value={partnerProperties.filter((item) => item.status === "available").length}
+              />
+            </section>
+          ) : null}
+
+          <Section title="Account">
+            <Row label="Name" value={user.full_name || "Not set"} />
+            <Row label="Email" value={user.email || "Not set"} />
+            <Row label="Phone" value={user.phone || "Not set"} />
+            <Row label="State" value={user.state || "Not set"} />
+            <Row label="LGA" value={user.local_government || user.city || "Not set"} />
+            <Row
+              label="Joined"
+              value={new Date(user.created_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            />
+            {user.role === "admin" ? (
+              <Row label="Work area" value="Branch administration" />
+            ) : null}
+            {user.role === "staff" ? (
+              <Row label="Work area" value={existingModule || "Not assigned"} />
+            ) : null}
+          </Section>
+
+          {user.role === "worker" ? (
+            <Section title="Service Provider profile">
+              <Row label="Occupation" value={workerOccupation(user) || "Not set"} />
+              {user.worker_experience ? (
+                <Row label="Experience" value={String(user.worker_experience)} />
+              ) : null}
+              {user.worker_price ? (
+                <Row label="Service price" value={`₦${Number(user.worker_price).toLocaleString()}`} />
+              ) : null}
+              {user.worker_bio ? <TextBlock>{user.worker_bio}</TextBlock> : null}
+              {user.worker_skills?.length ? (
+                <div className="flex flex-wrap gap-1.5 py-3">
+                  {user.worker_skills.map((skill: string) => (
+                    <span
+                      key={skill}
+                      className="rounded-full border border-violet-500/15 bg-violet-500/[.06] px-2.5 py-1 text-[9px] text-violet-200"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {providerStats ? (
+                <Row
+                  label="Completed-job earnings"
+                  value={`₦${providerStats.totalEarnings.toLocaleString()}`}
+                />
+              ) : null}
+            </Section>
+          ) : null}
+
+          {user.role === "property_partner" && partnerProperties.length ? (
+            <Section title="Properties">
+              {partnerProperties.slice(0, 5).map((property) => (
+                <button
+                  type="button"
+                  key={property.id}
+                  onClick={() => {
+                    onNavigate?.("operations_properties", property.id);
+                    onClose();
+                  }}
+                  className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-white/[.05] py-3 text-left last:border-b-0"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-[11px] font-semibold">
+                      {property.title}
+                    </span>
+                    <span className="mt-1 block truncate text-[9px] text-[#686F80]">
+                      {[property.city, property.state].filter(Boolean).join(", ")} · {String(property.status || "recorded").replace(/_/g, " ")}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right text-[10px] font-semibold text-violet-300">
+                    ₦{Number(property.price || 0).toLocaleString()} ›
+                  </span>
+                </button>
+              ))}
+            </Section>
+          ) : null}
+
+          {user.bio ? (
+            <Section title="About">
+              <TextBlock>{user.bio}</TextBlock>
+            </Section>
+          ) : null}
+
+          {canAppoint ? (
+            <Section title="Branch management">
+              <p className="pb-3 text-[9px] leading-5 text-[#747B8C]">
+                Add this User to your branch Operations team. Creator-wide team changes remain in the Team workspace rather than this profile viewer.
+              </p>
+              <select
+                value={adminModule}
+                disabled={promoting}
+                onChange={(event) => setAdminModule(event.target.value as StaffModule)}
+                className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151922] px-3 text-xs outline-none disabled:opacity-40"
+              >
+                {STAFF_MODULES.map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              {!confirmingPromote ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingPromote(true)}
+                  className="mt-2 h-11 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.07] text-[10px] font-semibold text-violet-200"
+                >
+                  Add to Operations team
+                </button>
+              ) : (
+                <div className="mt-2 rounded-xl border border-white/[.07] bg-black/15 p-3">
+                  <p className="text-[9px] leading-5 text-[#858B9B]">
+                    Confirm adding this account to {STAFF_MODULES.find(([id]) => id === adminModule)?.[1]}.
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingPromote(false)}
+                      className="h-10 rounded-xl border border-white/[.08] text-[10px] text-[#8B91A1]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={promoting}
+                      onClick={() => void appointToOperations()}
+                      className="h-10 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40"
+                    >
+                      {promoting ? "Adding…" : "Confirm"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Section>
+          ) : null}
+
+          <p className="py-4 text-center text-[8px] leading-4 text-[#4F5667]">
+            Account ID · {user.user_id}
+          </p>
         </div>
-      </div>
-      <Toaster position="top-center" richColors />
+      </aside>
     </div>
   );
 
   return createPortal(
     <>
-      {content}
+      {sheet}
       {avatarOpen && user.avatar_url ? (
         <MediaViewer
           src={user.avatar_url}
@@ -818,4 +447,59 @@ function UserProfileContent({
     </>,
     document.body,
   );
+}
+
+function Badge({
+  children,
+  tone = "default",
+}: {
+  children: React.ReactNode;
+  tone?: "default" | "good" | "danger";
+}) {
+  const style =
+    tone === "good"
+      ? "border-emerald-500/15 bg-emerald-500/[.06] text-emerald-300"
+      : tone === "danger"
+        ? "border-red-500/15 bg-red-500/[.06] text-red-300"
+        : "border-violet-500/15 bg-violet-500/[.06] text-violet-200";
+  return (
+    <span className={`rounded-full border px-2 py-1 text-[8px] font-semibold ${style}`}>
+      {children}
+    </span>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border border-white/[.055] bg-[#11151D] p-3">
+      <p className="text-base font-bold">{value}</p>
+      <p className="mt-1 text-[8px] text-[#62697A]">{label}</p>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-white/[.06] py-4 last:border-b-0">
+      <h3 className="mb-2 text-[9px] font-bold uppercase tracking-[.14em] text-[#676E7F]">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex min-h-10 items-center justify-between gap-4 border-b border-white/[.045] py-2 last:border-b-0">
+      <span className="shrink-0 text-[9px] text-[#6B7283]">{label}</span>
+      <span className="min-w-0 break-words text-right text-[10px] font-medium text-[#D7DAE2]">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function TextBlock({ children }: { children: React.ReactNode }) {
+  return <p className="py-2 text-[10px] leading-5 text-[#B1B6C3]">{children}</p>;
 }
