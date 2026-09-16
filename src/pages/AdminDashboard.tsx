@@ -18,9 +18,10 @@ import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
+import AdminSecurityCases from "@/components/AdminSecurityCases";
 
 type AdminTab = "overview" | "operations" | "inbox";
-type Operation = "people" | "staff" | "properties" | "workers" | "bookings";
+type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security";
 type OperationTarget = { operation: Operation; id?: string } | null;
 type PersonFilter = "user" | "property_partner";
 type Props = {
@@ -37,7 +38,7 @@ const NAV = [
 const NOTES: Record<AdminTab, string> = {
   overview: "Branch health and work that needs attention.",
   operations:
-    "People, team, properties, workers and bookings in one branch workspace.",
+    "People, team, properties, workers, bookings and security decisions in one branch workspace.",
   inbox: "Assigned branch conversations and Activity that require awareness.",
 };
 const OPS: [Operation, string, string][] = [
@@ -53,6 +54,11 @@ const OPS: [Operation, string, string][] = [
     "bookings",
     "Bookings",
     "Worker services, apartment reservations and hotel stays",
+  ],
+  [
+    "security",
+    "Security",
+    "Security Operations escalations and branch account decisions",
   ],
 ];
 export default function AdminDashboard({
@@ -109,6 +115,7 @@ export default function AdminDashboard({
     )
       return openOperation("bookings", id);
     if (route.includes("worker")) return openOperation("workers", id);
+    if (route.includes("security")) return openOperation("security", id);
     onNavigate?.(page, id);
   }
   const nav = NAV.map((item) =>
@@ -344,6 +351,12 @@ function Operations({
       {active === "bookings" && (
         <BookingsWorkspace
           initialRecordId={target?.operation === "bookings" ? target.id : undefined}
+        />
+      )}{" "}
+      {active === "security" && (
+        <AdminSecurityCases
+          onViewAccount={onView}
+          initialCaseId={target?.operation === "security" ? target.id : undefined}
         />
       )}{" "}
     </div>
