@@ -64,7 +64,7 @@ test("optional Short Let caution gets a 30-60 minute check-in evidence window wi
 });
 
 test("Worker job-specific Message WeHouse keeps the 72-hour post-release shortcut", async () => {
-  const migration = await read("supabase/migrations/20260916144500_worker_help_window_72_hours.sql");
+  const migration = await read("supabase/migrations/20260914084537_worker_support_window_and_auth_grants.sql");
   assert.match(migration, /interval '72 hours'/);
   assert.match(migration, /protection_state='released'/);
 });
