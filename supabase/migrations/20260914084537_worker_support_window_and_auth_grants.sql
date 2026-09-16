@@ -1,6 +1,6 @@
 -- Job-specific support stays open while money is unsettled. Once the final
 -- Payment Protection release is authoritative, it remains open for exactly
--- 24 hours from released_at. Job completion and mutable booking timestamps do
+-- 72 hours from released_at. Job completion and mutable booking timestamps do
 -- not start or extend this window.
 
 create or replace function public.normalize_worker_help_window()
@@ -21,7 +21,7 @@ begin
 
   new.help_until:=case
     when v_released_at is null then null
-    else v_released_at+interval '24 hours'
+    else v_released_at+interval '72 hours'
   end;
   return new;
 end
@@ -51,13 +51,13 @@ where booking.help_until is not null
   );
 
 update public.worker_bookings booking
-set help_until=protection.released_at+interval '24 hours'
+set help_until=protection.released_at+interval '72 hours'
 from public.payment_protection_transactions protection
 where protection.id=booking.payment_protection_id
   and protection.subject_type='worker_booking'
   and protection.protection_state='released'
   and protection.released_at is not null
-  and booking.help_until is distinct from protection.released_at+interval '24 hours';
+  and booking.help_until is distinct from protection.released_at+interval '72 hours';
 
 create or replace function public.get_my_worker_booking_details(p_booking_id uuid)
 returns jsonb
@@ -126,7 +126,7 @@ begin
   v_job_support_until:=case
     when lower(coalesce(v_protection_status,''))='released'
       and v_payment_released_at is not null
-    then v_payment_released_at+interval '24 hours'
+    then v_payment_released_at+interval '72 hours'
     else null
   end;
   v_job_support_open:=case
