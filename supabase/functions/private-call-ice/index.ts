@@ -23,8 +23,8 @@ Deno.serve(async (request) => {
   const token =
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
   const url = Deno.env.get("SUPABASE_URL");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!token || !url || !serviceKey)
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!token || !url || !anonKey)
     return json({ error: "Call access required" }, 401);
 
   const body = await request.json().catch(() => ({}));
@@ -36,27 +36,39 @@ Deno.serve(async (request) => {
   )
     return json({ error: "Invalid call" }, 400);
 
-  const admin = createClient(url, serviceKey, {
+  // Use the caller's JWT for every database read. RLS is therefore the first
+  // authorization boundary; the explicit participant/status checks below are
+  // a second independent barrier. This endpoint does not need service-role DB
+  // authority merely to issue relay credentials to a legitimate participant.
+  const client = createClient(url, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: auth, error: authError } = await admin.auth.getUser(token);
+  const { data: auth, error: authError } = await client.auth.getUser(token);
   if (authError || !auth.user)
     return json({ error: "Call access expired" }, 401);
 
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await client
     .from("profiles")
     .select("user_id,deleted,suspended,banned")
     .eq("auth_id", auth.user.id)
     .maybeSingle();
-  if (!profile || profile.deleted || profile.suspended || profile.banned)
+  if (
+    profileError ||
+    !profile ||
+    profile.deleted ||
+    profile.suspended ||
+    profile.banned
+  )
     return json({ error: "Active account required" }, 403);
 
-  const { data: call } = await admin
+  const { data: call, error: callError } = await client
     .from("private_calls")
     .select("caller_id,callee_id,status")
     .eq("id", callId)
     .maybeSingle();
   if (
+    callError ||
     !call ||
     ![call.caller_id, call.callee_id].includes(profile.user_id) ||
     !["ringing", "accepted"].includes(call.status)
@@ -71,7 +83,7 @@ Deno.serve(async (request) => {
   if (!urls.length || !sharedSecret)
     return json({ error: "TURN relay is not configured" }, 503);
 
-  // TURN REST credentials are deliberately short-lived.  The permanent shared
+  // TURN REST credentials are deliberately short-lived. The permanent shared
   // secret never leaves the Edge Function and credentials are issued only to a
   // signed-in participant of this exact active call.
   const expires = Math.floor(Date.now() / 1000) + 60 * 60;
