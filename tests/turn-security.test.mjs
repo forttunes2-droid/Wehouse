@@ -24,9 +24,13 @@ test('TURN credentials are bound to one authenticated active call participant', 
   assert.match(edge, /\.from\("private_calls"\)/);
   assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
   assert.match(edge, /\["ringing", "accepted"\]\.includes\(call\.status\)/);
-  assert.match(edge, /TURN_URLS/);
-  assert.match(edge, /TURN_SHARED_SECRET/);
-  assert.match(edge, /profile\.user_id.*callId/);
+  assert.match(edge, /CLOUDFLARE_TURN_KEY_ID/);
+  assert.match(edge, /CLOUDFLARE_TURN_API_TOKEN/);
+  assert.match(edge, /rtc\.live\.cloudflare\.com\/v1\/turn\/keys/);
+  assert.match(edge, /generate-ice-servers/);
+  assert.match(edge, /ttlSeconds = 60 \* 60/);
+  assert.match(edge, /customIdentifier/);
+  assert.doesNotMatch(edge, /TURN_SHARED_SECRET/);
   assert.match(client, /functions\.invoke\('private-call-ice'/);
   assert.doesNotMatch(client, /turn-credentials/);
   assert.match(config, /\[functions\.private-call-ice\][\s\S]*verify_jwt = true/);

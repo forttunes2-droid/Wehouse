@@ -4,14 +4,14 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("GitHub exposes stable required checks on Node 24 with production dependency audit", async () => {
+test("GitHub exposes stable required checks on Node 24 with full dependency audit", async () => {
   const [build, consolidation] = await Promise.all([
     read(".github/workflows/profile-phase-check.yml"),
     read(".github/workflows/consolidation-validation.yml"),
   ]);
   assert.match(build, /name: WeHouse Build Check[\s\S]*name: WeHouse Build Check/);
   assert.match(build, /node-version: 24/);
-  assert.match(build, /npm audit --omit=dev --audit-level=high/);
+  assert.match(build, /npm audit --audit-level=high/);
   assert.match(build, /npm run lint[\s\S]*npm test[\s\S]*npx tsc --noEmit[\s\S]*npm run build/);
   assert.match(consolidation, /name: Consolidation Validation/);
   assert.match(consolidation, /needs: \[tests-and-build, migration-replay\]/);
@@ -72,31 +72,33 @@ test("password creation and change keep an eight-character minimum", async () =>
   assert.match(recovery, /newPassword\.length\s*<\s*8/);
 });
 
-test("Personal navigation is exactly Explore, Bookings, Inbox and Account", async () => {
+test("Personal navigation is exactly Explore, Bookings, Conversation, Inbox and Account", async () => {
   const app = await read("src/App.tsx");
   const start = app.indexOf("const tabs = useMemo");
   const end = app.indexOf("const navHistoryRef", start);
   const tabs = app.slice(start, end);
   assert.match(tabs, /label: "Explore"/);
   assert.match(tabs, /label: "Bookings"/);
+  assert.match(tabs, /label: "Conversation"/);
   assert.match(tabs, /label: "Inbox"/);
   assert.match(tabs, /label: "Account"/);
-  assert.doesNotMatch(tabs, /label: "Conversation"/);
+  assert.match(tabs, /id: "conversation"/);
+  assert.match(tabs, /id: "notifications"/);
 });
 
-test("Inbox keeps Activity and Messages in one product surface with separate counts", async () => {
-  const [personal, provider, activity] = await Promise.all([
+test("Conversation and Inbox are separate Personal surfaces with separate unread counts", async () => {
+  const [app, conversation, inbox] = await Promise.all([
+    read("src/App.tsx"),
     read("src/pages/Chat.tsx"),
-    read("src/components/WorkerJobsPanelV2.tsx"),
-    read("src/components/InboxActivityEntry.tsx"),
+    read("src/pages/Notifications.tsx"),
   ]);
-  assert.match(personal, /InboxActivityEntry/);
-  assert.match(personal, /activityUnreadCount/);
-  assert.match(personal, /Messages/);
-  assert.match(provider, /InboxActivityEntry/);
-  assert.match(provider, /displayedActivityUnread/);
-  assert.match(provider, /displayedChatUnread/);
-  assert.match(activity, /Activity/);
+  assert.match(app, /case "conversation"[\s\S]*conversationOnly/);
+  assert.match(app, /case "notifications"[\s\S]*<Notifications/);
+  assert.match(app, /tab\.id === "conversation"[\s\S]*unreadCount \+ supportUnreadCount/);
+  assert.match(app, /tab\.id === "notifications"[\s\S]*notificationCount/);
+  assert.match(conversation, /conversationOnly \? "Conversation" : "Inbox"/);
+  assert.match(conversation, /!conversationOnly \? \(/);
+  assert.match(inbox, /<h1 className="text-xl font-bold">Inbox<\/h1>/);
 });
 
 test("private messaging unlock is profile-session scoped, not route or conversation scoped", async () => {
@@ -274,11 +276,13 @@ test("private audio/video calls use least-privilege RLS plus explicit participan
   assert.doesNotMatch(edge, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(edge, /\.from\("private_calls"\)/);
   assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
-  assert.match(edge, /TURN_URLS/);
-  assert.match(edge, /TURN_SHARED_SECRET/);
-  assert.match(edge, /\+ 60 \* 60/);
-  assert.match(edge, /crypto\.subtle\.sign/);
-  assert.doesNotMatch(edge, /return json\(\{[^}]*TURN_SHARED_SECRET/);
+  assert.match(edge, /CLOUDFLARE_TURN_KEY_ID/);
+  assert.match(edge, /CLOUDFLARE_TURN_API_TOKEN/);
+  assert.match(edge, /rtc\.live\.cloudflare\.com\/v1\/turn\/keys/);
+  assert.match(edge, /generate-ice-servers/);
+  assert.match(edge, /ttlSeconds = 60 \* 60/);
+  assert.match(edge, /customIdentifier/);
+  assert.doesNotMatch(edge, /return json\(\{[^}]*turnApiToken/);
 });
 
 test("account closure checks all workspaces and cannot ignore obligations because of a legacy role", async () => {
