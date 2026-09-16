@@ -1,0 +1,31 @@
+name: Temporary Creator Finance Hardening
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - run: python scripts/temporary_creator_finance_hardening.py
+      - name: Commit Creator finance hardening
+        shell: bash
+        run: |
+          if git diff --quiet -- src/components/StaffFinanceRecords.tsx supabase/functions/payout-withdrawal/index.ts; then
+            echo "Creator finance hardening already applied."
+            exit 0
+          fi
+          git config user.name "WeHouse Creator Security"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/StaffFinanceRecords.tsx supabase/functions/payout-withdrawal/index.ts
+          git commit -m "Enforce Creator step-up for payout decisions"
+          git push origin HEAD:${{ github.head_ref }}
