@@ -10,7 +10,7 @@ test("Worker job help remains ordinary WeHouse Support while direct job chat sta
     read("src/components/BookingNegotiationChat.tsx"),
   ]);
   const workerStart = support.indexOf('if (contextType === "worker_booking")');
-  const workerEnd = support.indexOf('if (contextType === "hotel_booking_help")', workerStart);
+  const workerEnd = support.indexOf('return {\n    kind: "support",', workerStart);
   const workerBlock = support.slice(workerStart, workerEnd);
   assert.match(workerBlock, /operator: "WeHouse Support"/);
   assert.match(workerBlock, /operational: false/);
@@ -18,25 +18,24 @@ test("Worker job help remains ordinary WeHouse Support while direct job chat sta
   assert.match(jobChat, /category: "service_booking_help"/);
 });
 
-test("Hotel guest chat and Message WeHouse use different purpose identities", async () => {
-  const [reservations, support] = await Promise.all([
+test("Hotel guest chat stays separate while Message WeHouse preserves the canonical booking thread", async () => {
+  const [reservations, support, hotelDetail] = await Promise.all([
     read("src/pages/MyReservations.tsx"),
     read("src/lib/supabase/support.ts"),
+    read("src/pages/HotelDetailExperience.tsx"),
   ]);
   const hotelHelpStart = reservations.indexOf("function hotelSupport(row: any)");
   const hotelHelpEnd = reservations.indexOf("if (activeService)", hotelHelpStart);
   const hotelHelp = reservations.slice(hotelHelpStart, hotelHelpEnd);
-  assert.match(hotelHelp, /category: "hotel_booking_help"/);
-  assert.match(hotelHelp, /contextType: "hotel_booking_help"/);
-  assert.match(hotelHelp, /source_type: "hotel_booking_help"/);
-  assert.doesNotMatch(hotelHelp, /contextType: "hotel_booking"/);
+  assert.match(hotelHelp, /category: "hotel_booking"/);
+  assert.match(hotelHelp, /contextType: "hotel_booking"/);
+  assert.match(hotelHelp, /source_type: "hotel_booking"/);
+  assert.doesNotMatch(hotelHelp, /hotel_booking_help/);
   assert.match(reservations, /<HotelBookingChat/);
-  const presentationStart = support.indexOf('if (contextType === "hotel_booking_help")');
-  const presentationEnd = support.indexOf("return {", presentationStart + 10);
-  const helpTail = support.slice(presentationStart, presentationStart + 700);
-  assert.match(helpTail, /operator: "WeHouse Support"/);
-  assert.match(helpTail, /operational: false/);
-  assert.ok(presentationEnd > presentationStart);
+  assert.match(hotelDetail, /contextType: "hotel_property"/);
+  assert.match(hotelDetail, /Message WeHouse/);
+  assert.match(support, /\["apartment_reservation", "hotel_booking"\][\s\S]*open_my_reservation_conversation/);
+  assert.doesNotMatch(support, /contextType === "hotel_booking_help"/);
 });
 
 test("Adult eligibility mutation requires authentication and the completion guard is trigger-only", async () => {
