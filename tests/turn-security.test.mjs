@@ -18,7 +18,10 @@ test('TURN credentials are bound to one authenticated active call participant', 
     read('src/lib/private-calls.ts'),
     read('supabase/config.toml'),
   ]);
-  assert.match(edge, /admin\.auth\.getUser\(token\)/);
+  assert.match(edge, /SUPABASE_ANON_KEY/);
+  assert.match(edge, /client\.auth\.getUser\(token\)/);
+  assert.doesNotMatch(edge, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge, /\.from\("private_calls"\)/);
   assert.match(edge, /\[call\.caller_id, call\.callee_id\]\.includes\(profile\.user_id\)/);
   assert.match(edge, /\["ringing", "accepted"\]\.includes\(call\.status\)/);
   assert.match(edge, /TURN_URLS/);
