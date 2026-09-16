@@ -1,0 +1,35 @@
+name: Temporary authoritative address repair
+on:
+  push:
+    branches: [codex/harden-main-resume-repairs-20260914]
+    paths: [.github/workflows/temporary-address-state-fix.yml]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/harden-main-resume-repairs-20260914
+      - name: Keep the written address authoritative
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/components/PropertyInspectionRequestPanel.tsx')
+          s=p.read_text()
+          old='''                        address:\n                          current.location.address || current.propertyAddress,'''
+          new='''                        address:\n                          current.propertyAddress || current.location.address,'''
+          if old not in s:
+              raise SystemExit('expected property address precedence not found')
+          p.write_text(s.replace(old,new,1))
+      - name: Remove one-use workflow
+        run: rm .github/workflows/temporary-address-state-fix.yml
+      - name: Commit
+        run: |
+          git config user.name "forttunes2-droid"
+          git config user.email "forttunes2@gmail.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Keep written property address authoritative"
+          git push origin HEAD:codex/harden-main-resume-repairs-20260914
