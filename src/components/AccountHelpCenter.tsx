@@ -211,11 +211,53 @@ export default function AccountHelpCenter({
     });
   }
 
+  function openLinkedJourney(
+    target: HelpTarget,
+    reasonCode: "payment_issue" | "safety_threat",
+    subject: string,
+  ) {
+    const contextType = target.context_type || "";
+    if (!["apartment_reservation", "hotel_booking", "worker_booking"].includes(contextType))
+      return false;
+    openConversation({
+      subject,
+      category: reasonCode,
+      contextType,
+      contextId: target.subject_id,
+      priority: reasonCode === "safety_threat" ? "urgent" : "normal",
+      contextSnapshot: {
+        reason_code: reasonCode,
+        subject_type: target.subject_type,
+        source_type: contextType,
+        source_id: target.subject_id,
+        linked_label: target.label,
+        stay_type: target.stay_type,
+        status: target.detail,
+      },
+    });
+    return true;
+  }
+
   function startMoney() {
     const source = moneyReason === "payout_issue" ? payoutTargets : paymentTargets;
     const target = source.find((item) => key(item) === targetId);
-    if (!target) return toast.error(moneyReason === "payout_issue" ? "Choose the withdrawal first" : "Choose the payment record first");
-    const subjectType = moneyReason === "payout_issue" ? "payout" : financeSubjectType(target);
+    if (!target)
+      return toast.error(
+        moneyReason === "payout_issue"
+          ? "Choose the withdrawal first"
+          : "Choose the payment record first",
+      );
+
+    // Payment questions stay with the journey owner. Finance is the direct
+    // customer front door only for a standalone payout/withdrawal record.
+    if (
+      moneyReason === "payment_issue" &&
+      openLinkedJourney(target, "payment_issue", "Payment issue")
+    )
+      return;
+
+    const subjectType =
+      moneyReason === "payout_issue" ? "payout" : financeSubjectType(target);
     openConversation({
       subject: moneyReason === "payout_issue" ? "Payout issue" : "Payment issue",
       category: moneyReason,
@@ -235,6 +277,13 @@ export default function AccountHelpCenter({
   function startSecurity() {
     const account = targets.account;
     if (!account) return toast.error("Your account security link is unavailable");
+
+    if (securityReason === "safety_threat" && targetId) {
+      const target = safetyTargets.find((item) => key(item) === targetId);
+      if (target && openLinkedJourney(target, "safety_threat", "Safety concern"))
+        return;
+    }
+
     let subjectType = "account";
     let subjectId = account.subject_id;
     let linkedLabel = account.label;
@@ -247,7 +296,8 @@ export default function AccountHelpCenter({
       }
     }
     openConversation({
-      subject: securityReason === "account_compromise" ? "Account security" : "Safety concern",
+      subject:
+        securityReason === "account_compromise" ? "Account security" : "Safety concern",
       category: securityReason,
       contextType: "contextual_help",
       contextId: subjectId,
