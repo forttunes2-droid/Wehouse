@@ -1246,7 +1246,7 @@ export default function PropertyInspectionRequestPanel({
                         longitude: current.location.lon,
                         accuracy: current.location.accuracy,
                         address:
-                          current.location.address || current.propertyAddress,
+                          current.propertyAddress || current.location.address,
                       }
                     : null
                 }
