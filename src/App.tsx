@@ -64,7 +64,6 @@ const CreatorDashboard = lazy(() => import("@/pages/CreatorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const Roommate = lazy(() => import("@/pages/Roommate"));
 const Chat = lazy(() => import("@/pages/Chat"));
-const Notifications = lazy(() => import("@/pages/Notifications"));
 const ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));
 const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
 const PrivacySecuritySettings = lazy(
@@ -233,7 +232,8 @@ function normalizePageForRole(
   page: NavPage,
   workerProfileComplete = true,
 ): NavPage {
-  if (page === "messages" || page === "chat") page = "conversation";
+  if (["messages", "chat", "notifications", "activity"].includes(page))
+    page = "conversation";
   // Preserve old deep links without keeping a second booking destination.
   if (page === "my_bookings") page = "my_reservations";
   if (
@@ -383,11 +383,6 @@ export default function App() {
             },
             {
               id: "conversation" as NavPage,
-              label: "Conversation",
-              icon: MessagesSvg,
-            },
-            {
-              id: "notifications" as NavPage,
               label: "Inbox",
               icon: InboxSvg,
             },
@@ -685,7 +680,7 @@ export default function App() {
       setChatPeerId(null);
       handleSetNavPage("conversation");
     };
-    const openNotifications = () => handleSetNavPage("notifications");
+    const openNotifications = () => handleSetNavPage("conversation");
     const refreshUnread = () => void count();
     window.addEventListener("wehouse:unread-changed", refreshUnread);
     const chatChannel = supabase
@@ -703,7 +698,7 @@ export default function App() {
               message.content ||
                 ((message.attachments || []).length
                   ? "New attachment"
-                  : "Open Conversation to read it."),
+                  : "Open Inbox to read it."),
             ).slice(0, 110),
             action: {
               label: "View",
@@ -750,7 +745,7 @@ export default function App() {
           void count();
           if (profile.pref_push_notif === false) return;
           toast("New hotel message", {
-            description: String(message.content || "Open Conversation to read it.").slice(0, 110),
+            description: String(message.content || "Open Inbox to read it.").slice(0, 110),
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -1177,18 +1172,6 @@ export default function App() {
         ) : (
           renderRoleRoot()
         );
-      case "activity": // legacy alias: Activity now lives inside Inbox
-      case "notifications":
-        return isUserRole ? (
-          <Notifications
-            profile={profile}
-            scope="personal"
-            onNavigate={openUserDestination}
-            onUnreadChange={setNotificationCount}
-          />
-        ) : (
-          renderRoleRoot()
-        );
       case "profile":
       case "account":
         return (
@@ -1263,6 +1246,8 @@ export default function App() {
         ) : (
           renderRoleRoot()
         );
+      case "activity":
+      case "notifications":
       case "chat":
       case "conversation":
       case "messages":
@@ -1277,7 +1262,8 @@ export default function App() {
               setChatPeerId(null);
             }}
             chatUnreadCount={unreadCount + supportUnreadCount}
-            conversationOnly
+            activityUnreadCount={notificationCount}
+            onActivityUnreadChange={setNotificationCount}
           />
         ) : (
           renderRoleRoot()
@@ -1485,10 +1471,8 @@ export default function App() {
                   const active = navPage === tab.id;
                   const badgeCount =
                     tab.id === "conversation"
-                      ? unreadCount + supportUnreadCount
-                      : tab.id === "notifications"
-                        ? notificationCount
-                        : 0;
+                      ? unreadCount + supportUnreadCount + notificationCount
+                      : 0;
                   return (
                     <button
                       key={tab.id}
@@ -1564,20 +1548,6 @@ function ReservationSvg({ size, active }: { size: number; active: boolean }) {
     >
       <rect x="3" y="5" width="18" height="16" rx="2" />
       <path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" />
-    </svg>
-  );
-}
-function MessagesSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }

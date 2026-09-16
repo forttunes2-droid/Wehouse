@@ -158,24 +158,7 @@ export default function CommunicationsWorkspace({
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, selected?.conversation_id]);
   async function open(row: any) {
-    if (profile.role === "staff" && queue !== "field_operations") {
-      const claimed = await claimCommunicationCase(row.conversation_id);
-      if (claimed.error)
-        return toast.error(
-          claimed.error.message || "This case could not be assigned",
-        );
-    }
-    setSelected(
-      profile.role === "staff"
-        ? {
-            ...row,
-            assigned_staff_id: profile.user_id,
-            assigned_staff_name:
-              profile.full_name || profile.username || "Current team member",
-            status: row.status === "open" ? "assigned" : row.status,
-          }
-        : row,
-    );
+    setSelected(row);
     setFiles([]);
     setInput("");
     setEvents([]);
@@ -246,6 +229,24 @@ export default function CommunicationsWorkspace({
     await refreshMessages(selected.conversation_id, true);
     void load(true);
   }
+  async function takeConversation() {
+    if (!selected || updatingCase || profile.role !== "staff") return;
+    setUpdatingCase(true);
+    const claimed = await claimCommunicationCase(selected.conversation_id);
+    if (claimed.error) {
+      setUpdatingCase(false);
+      toast.error(claimed.error.message || "This work could not be assigned");
+      return;
+    }
+    toast.success(
+      conversationPresentation(selected, presentationAudience).operational
+        ? "Assignment taken"
+        : "Request assigned to you",
+    );
+    await load(true);
+    setUpdatingCase(false);
+  }
+
   async function updateCase(action: CaseAction) {
     if (!selected || updatingCase) return;
     const noteRequired = ["request_info", "escalate", "resolve"].includes(
@@ -347,13 +348,18 @@ export default function CommunicationsWorkspace({
       selected.requester_name || selected.requester_email || "WeHouse member";
     const handlerLabel =
       selected.assigned_staff_name ||
-      profile.full_name ||
-      profile.username ||
-      "Current team member";
+      (profile.role === "staff"
+        ? "Awaiting assignment"
+        : profile.full_name || profile.username || "Current team member");
+    const staffOwnsConversation =
+      profile.role !== "staff" || selected.assigned_staff_id === profile.user_id;
+    const staffCanTakeConversation =
+      profile.role === "staff" && !selected.assigned_staff_id;
     const caseNumber = String(selected.context_snapshot?.case_number || "");
     const conversationLocked = Boolean(
-      !selectedPresentation.operational &&
-        (selected.status === "resolved" || selected.status === "closed"),
+      !staffOwnsConversation ||
+        (!selectedPresentation.operational &&
+          (selected.status === "resolved" || selected.status === "closed")),
     );
     return (
       <div className="-mx-4 flex min-h-[calc(100dvh-13.5rem)] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219] sm:mx-0 sm:min-h-[70vh] sm:rounded-2xl sm:border">
@@ -388,6 +394,34 @@ export default function CommunicationsWorkspace({
             </span>
           )}
         </header>
+        {profile.role === "staff" && !staffOwnsConversation ? (
+          <section className="flex items-center justify-between gap-3 border-b border-white/[.06] bg-amber-500/[.04] px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold text-amber-100">
+                {staffCanTakeConversation
+                  ? "This work is not assigned yet"
+                  : `Assigned to ${selected.assigned_staff_name || "another team member"}`}
+              </p>
+              <p className="mt-1 text-[8px] text-[#777E8E]">
+                Opening a record never assigns it. Take it explicitly before replying or changing its state.
+              </p>
+            </div>
+            {staffCanTakeConversation ? (
+              <button
+                type="button"
+                disabled={updatingCase}
+                onClick={() => void takeConversation()}
+                className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-50"
+              >
+                {updatingCase
+                  ? "Assigning…"
+                  : selectedPresentation.operational
+                    ? "Take assignment"
+                    : "Take request"}
+              </button>
+            ) : null}
+          </section>
+        ) : null}
         {!selectedPresentation.operational && (
         <section className="border-b border-white/[.06] bg-[#0B0F15] px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
@@ -417,6 +451,7 @@ export default function CommunicationsWorkspace({
           activeAction={caseAction}
           note={caseNote}
           busy={updatingCase}
+          canManage={staffOwnsConversation}
           onSelectAction={(action) => {
             setCaseAction(action);
             setCaseNote("");
@@ -692,6 +727,7 @@ function CaseManagementPanel({
   activeAction,
   note,
   busy,
+  canManage,
   onSelectAction,
   onNoteChange,
   onCancel,
@@ -702,13 +738,14 @@ function CaseManagementPanel({
   activeAction: CaseAction | null;
   note: string;
   busy: boolean;
+  canManage: boolean;
   onSelectAction: (action: CaseAction) => void;
   onNoteChange: (value: string) => void;
   onCancel: () => void;
   onSubmit: (action: CaseAction) => void;
 }) {
   const next = supportNextStep(row.status, row.assigned_staff_name);
-  const actions = availableCaseActions(row.status);
+  const actions = canManage ? availableCaseActions(row.status) : [];
   const importantEvent = [...events]
     .reverse()
     .find((event) =>

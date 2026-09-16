@@ -72,33 +72,50 @@ test("password creation and change keep an eight-character minimum", async () =>
   assert.match(recovery, /newPassword\.length\s*<\s*8/);
 });
 
-test("Personal navigation is exactly Explore, Bookings, Conversation, Inbox and Account", async () => {
-  const app = await read("src/App.tsx");
+test("Personal navigation is exactly Explore, Bookings, Inbox and Account", async () => {
+  const [app, nav] = await Promise.all([
+    read("src/App.tsx"),
+    read("src/lib/nav2.tsx"),
+  ]);
   const start = app.indexOf("const tabs = useMemo");
   const end = app.indexOf("const navHistoryRef", start);
   const tabs = app.slice(start, end);
   assert.match(tabs, /label: "Explore"/);
   assert.match(tabs, /label: "Bookings"/);
-  assert.match(tabs, /label: "Conversation"/);
   assert.match(tabs, /label: "Inbox"/);
   assert.match(tabs, /label: "Account"/);
   assert.match(tabs, /id: "conversation"/);
-  assert.match(tabs, /id: "notifications"/);
+  assert.doesNotMatch(tabs, /label: "Conversation"/);
+  assert.doesNotMatch(tabs, /id: "notifications"/);
+  const userBlock = nav.slice(nav.indexOf("export function getUserNav"), nav.indexOf("export function getNavForRole"));
+  assert.doesNotMatch(userBlock, /label: ['"]Conversation['"]/);
+  assert.doesNotMatch(userBlock, /id: ['"]notifications['"]/);
 });
 
-test("Conversation and Inbox are separate Personal surfaces with separate unread counts", async () => {
-  const [app, conversation, inbox] = await Promise.all([
+test("Personal Inbox owns Messages and nested Activity with one combined badge", async () => {
+  const [app, inbox] = await Promise.all([
     read("src/App.tsx"),
     read("src/pages/Chat.tsx"),
-    read("src/pages/Notifications.tsx"),
   ]);
-  assert.match(app, /case "conversation"[\s\S]*conversationOnly/);
-  assert.match(app, /case "notifications"[\s\S]*<Notifications/);
-  assert.match(app, /tab\.id === "conversation"[\s\S]*unreadCount \+ supportUnreadCount/);
-  assert.match(app, /tab\.id === "notifications"[\s\S]*notificationCount/);
-  assert.match(conversation, /conversationOnly \? "Conversation" : "Inbox"/);
-  assert.match(conversation, /!conversationOnly \? \(/);
-  assert.match(inbox, /<h1 className="text-xl font-bold">Inbox<\/h1>/);
+  assert.match(app, /case "activity":[\s\S]*case "notifications":[\s\S]*case "conversation":[\s\S]*<Chat/);
+  assert.doesNotMatch(app, /conversationOnly/);
+  assert.match(app, /unreadCount \+ supportUnreadCount \+ notificationCount/);
+  assert.match(inbox, /<InboxActivityEntry/);
+  assert.match(inbox, /setView\("activity"\)/);
+  assert.match(inbox, /<h2 className="text-\[15px\] font-bold">Messages<\/h2>/);
+});
+
+test("Staff Inbox viewing never silently claims work", async () => {
+  const communications = await read("src/components/CommunicationsWorkspace.tsx");
+  const openStart = communications.indexOf("async function open(row: any)");
+  const openEnd = communications.indexOf("function addFiles", openStart);
+  const openBody = communications.slice(openStart, openEnd);
+  assert.doesNotMatch(openBody, /claimCommunicationCase/);
+  assert.match(communications, /async function takeConversation\(\)/);
+  assert.match(communications, /claimCommunicationCase\(selected\.conversation_id\)/);
+  assert.match(communications, />Take request</);
+  assert.match(communications, />Take assignment</);
+  assert.match(communications, /Opening a record never assigns it/);
 });
 
 test("private messaging unlock is profile-session scoped, not route or conversation scoped", async () => {
