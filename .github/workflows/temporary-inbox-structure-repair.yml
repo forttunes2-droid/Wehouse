@@ -1,0 +1,230 @@
+name: Temporary Inbox Structure Repair
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Apply canonical Personal navigation structure
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected text not found in {path}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          app = "src/App.tsx"
+          replace_once(app,
+              'const Chat = lazy(() => import("@/pages/Chat"));\nconst ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));',
+              'const Chat = lazy(() => import("@/pages/Chat"));\nconst Notifications = lazy(() => import("@/pages/Notifications"));\nconst ProfileEdit = lazy(() => import("@/pages/ProfileEdit"));')
+          replace_once(app,
+              'const Activity = lazy(() => import("@/pages/Activity"));\n',
+              '')
+          replace_once(app,
+'''            {
+              id: "conversation" as NavPage,
+              label: "Inbox",
+              icon: MessagesSvg,
+            },
+            { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },''',
+'''            {
+              id: "conversation" as NavPage,
+              label: "Conversation",
+              icon: MessagesSvg,
+            },
+            {
+              id: "notifications" as NavPage,
+              label: "Inbox",
+              icon: InboxSvg,
+            },
+            { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },''')
+          replace_once(app,
+'''      case "activity":
+        return isUserRole ? (
+          <Activity
+            profile={profile}
+            onNavigate={openUserDestination}
+            onGoToChat={goToChat}
+          />
+        ) : (
+          renderRoleRoot()
+        );
+      case "notifications":
+        return isUserRole ? (
+          <Chat
+            profile={profile}
+            activityUnreadCount={notificationCount}
+            onNavigate={openUserDestination}
+            onActivityUnreadChange={setNotificationCount}
+          />
+        ) : (
+          renderRoleRoot()
+        );''',
+'''      case "activity": // legacy alias: Activity now lives inside Inbox
+      case "notifications":
+        return isUserRole ? (
+          <Notifications
+            profile={profile}
+            scope="personal"
+            onNavigate={openUserDestination}
+            onUnreadChange={setNotificationCount}
+          />
+        ) : (
+          renderRoleRoot()
+        );''')
+          replace_once(app,
+'''            chatUnreadCount={unreadCount}
+            activityUnreadCount={notificationCount}
+            onActivityUnreadChange={setNotificationCount}
+          />''',
+'''            chatUnreadCount={unreadCount + supportUnreadCount}
+            conversationOnly
+          />''')
+          replace_once(app,
+'''  const desktopNavItems = getNavForRole(
+    userRole,
+    unreadCount,
+    supportUnreadCount + notificationCount,
+  );''',
+'''  const desktopNavItems = getNavForRole(
+    userRole,
+    unreadCount + supportUnreadCount,
+    notificationCount,
+  );''')
+          replace_once(app,
+'''                {tabs.map((tab) => {
+                  const active = navPage === tab.id;
+                  return (''',
+'''                {tabs.map((tab) => {
+                  const active = navPage === tab.id;
+                  const badgeCount =
+                    tab.id === "conversation"
+                      ? unreadCount + supportUnreadCount
+                      : tab.id === "notifications"
+                        ? notificationCount
+                        : 0;
+                  return (''')
+          replace_once(app,
+'''                      {tab.id === "conversation" && unreadCount + supportUnreadCount + notificationCount > 0 && (
+                          <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+                            {unreadCount + supportUnreadCount + notificationCount > 99
+                              ? "99+"
+                              : unreadCount + supportUnreadCount + notificationCount}
+                          </span>
+                        )}''',
+'''                      {badgeCount > 0 && (
+                        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+                          {badgeCount > 99 ? "99+" : badgeCount}
+                        </span>
+                      )}''')
+          replace_once(app,
+'''function MessagesSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}''',
+'''function MessagesSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+function InboxSvg({ size, active }: { size: number; active: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "#A78BFA" : "currentColor"}
+      strokeWidth="2"
+    >
+      <path d="M4 4h16v13H4z" />
+      <path d="M4 13h4l2 3h4l2-3h4" />
+    </svg>
+  );
+}''')
+
+          chat = "src/pages/Chat.tsx"
+          replace_once(chat,
+'''  onActivityUnreadChange?: (count: number) => void;
+};''',
+'''  onActivityUnreadChange?: (count: number) => void;
+  conversationOnly?: boolean;
+};''')
+          replace_once(chat,
+'''  activityUnreadCount = 0,
+  onActivityUnreadChange,
+}: Props) {''',
+'''  activityUnreadCount = 0,
+  onActivityUnreadChange,
+  conversationOnly = false,
+}: Props) {''')
+          replace_once(chat,
+'''          <h1 className="text-xl font-bold">Inbox</h1>''',
+'''          <h1 className="text-xl font-bold">{conversationOnly ? "Conversation" : "Inbox"}</h1>''')
+          replace_once(chat,
+'''        <InboxActivityEntry
+          unread={activityUnreadCount}
+          detail="Updates and actions that affect you"
+          onOpen={() => setView("activity")}
+        />''',
+'''        {!conversationOnly ? (
+          <InboxActivityEntry
+            unread={activityUnreadCount}
+            detail="Updates and actions that affect you"
+            onOpen={() => setView("activity")}
+          />
+        ) : null}''')
+
+          notifications = "src/pages/Notifications.tsx"
+          replace_once(notifications,
+'''          <h1 className="text-xl font-bold">Activity</h1>''',
+'''          <h1 className="text-xl font-bold">Inbox</h1>''')
+          PY
+
+      - name: Commit structural repair
+        shell: bash
+        run: |
+          if git diff --quiet -- src/App.tsx src/pages/Chat.tsx src/pages/Notifications.tsx; then
+            echo "Inbox structure already repaired."
+            exit 0
+          fi
+          git config user.name "WeHouse Structure Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/App.tsx src/pages/Chat.tsx src/pages/Notifications.tsx
+          git commit -m "Restore structural Conversation and Inbox navigation"
+          git push origin HEAD:${{ github.head_ref }}
