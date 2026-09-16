@@ -6,19 +6,26 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Admin and Creator profile viewer has role-aware structural navigation", async () => {
   const profile = await read("src/components/UserProfileModal.tsx");
-  assert.match(profile, /type SectionKey = "overview" \| "professional" \| "properties" \| "assignment" \| "access"/);
+  assert.match(profile, /type SectionKey =[\s\S]*\| "workspaces"[\s\S]*\| "professional"[\s\S]*\| "apartments"[\s\S]*\| "hotels"[\s\S]*\| "hotel_team"[\s\S]*\| "wehouse_team"[\s\S]*\| "access"/);
   assert.match(profile, /Profile sections/);
-  assert.match(profile, /label: "Properties", count: partnerProperties\.length/);
-  assert.match(profile, /<PropertiesSection/);
-  assert.match(profile, /<AssignmentSection/);
+  assert.match(profile, /label: "Access", count: workspaces\.length/);
+  assert.match(profile, /label: "Apartments", count: apartments\.length/);
+  assert.match(profile, /label: "Hotels", count: hotels\.length/);
+  assert.match(profile, /<ApartmentList/);
+  assert.match(profile, /<HotelList/);
+  assert.match(profile, /<HotelTeam/);
+  assert.match(profile, /<WeHouseTeam/);
+  assert.match(profile, /<TeamAccess/);
 });
 
-test("Property Partner properties are individually inspectable from the profile record", async () => {
+test("Property Partner apartment and hotel records are individually inspectable", async () => {
   const profile = await read("src/components/UserProfileModal.tsx");
-  assert.match(profile, /properties\.map\(\(property, index\) =>/);
-  assert.match(profile, /onClick=\{\(\) => onOpen\(property\)\}/);
-  assert.match(profile, /function PropertyRecord/);
-  assert.match(profile, /Property ID/);
+  assert.match(profile, /<ApartmentList rows=\{apartments\} onOpen=\{\(row\) => setSelected\(\{ kind: "apartment", row \}\)\}/);
+  assert.match(profile, /<HotelList rows=\{hotels\} onOpen=\{\(row\) => setSelected\(\{ kind: "hotel", row \}\)\}/);
+  assert.match(profile, /function ApartmentList/);
+  assert.match(profile, /function HotelList/);
+  assert.match(profile, /function PropertyDetail/);
+  assert.match(profile, /Record ID/);
   assert.match(profile, /Open in Property Operations/);
   assert.doesNotMatch(profile, /partnerProperties\.slice\(0, 5\)/);
 });

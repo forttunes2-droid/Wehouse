@@ -2,27 +2,60 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import VideoPlayer from "@/components/VideoPlayer";
 
-type MediaViewerProps = {
-  src: string;
-  kind: "image" | "video";
+type MediaKind = "image" | "video";
+type MediaViewerItem = { url: string; kind: MediaKind };
+
+type MediaViewerSharedProps = {
   title?: string;
   subtitle?: string;
   avatarUrl?: string | null;
   onClose: () => void;
 };
 
-export default function MediaViewer({
-  src,
-  kind,
-  title = "Media preview",
-  subtitle,
-  avatarUrl,
-  onClose,
-}: MediaViewerProps) {
+type MediaViewerProps = MediaViewerSharedProps &
+  (
+    | {
+        src: string;
+        kind: MediaKind;
+        items?: never;
+        initialIndex?: never;
+      }
+    | {
+        items: MediaViewerItem[];
+        initialIndex?: number;
+        src?: never;
+        kind?: never;
+      }
+  );
+
+export default function MediaViewer(props: MediaViewerProps) {
+  const {
+    title = "Media preview",
+    subtitle,
+    avatarUrl,
+    onClose,
+  } = props;
+  const items: MediaViewerItem[] =
+    props.items !== undefined
+      ? props.items
+      : [{ url: props.src, kind: props.kind }];
+  const requestedIndex =
+    props.items !== undefined ? props.initialIndex ?? 0 : 0;
+  const maxIndex = Math.max(0, items.length - 1);
+  const [index, setIndex] = useState(
+    Math.min(Math.max(requestedIndex, 0), maxIndex),
+  );
+  const current = items[index] || items[0] || { url: "", kind: "image" as const };
+  const src = current.url;
+  const kind = current.kind;
   const [ready, setReady] = useState(kind === "video");
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    setIndex(Math.min(Math.max(requestedIndex, 0), maxIndex));
+  }, [requestedIndex, maxIndex]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -30,6 +63,12 @@ export default function MediaViewer({
     const previousRootBackground = document.documentElement.style.background;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+      if (items.length > 1 && event.key === "ArrowLeft") {
+        setIndex((value) => Math.max(0, value - 1));
+      }
+      if (items.length > 1 && event.key === "ArrowRight") {
+        setIndex((value) => Math.min(items.length - 1, value + 1));
+      }
     };
     document.body.style.overflow = "hidden";
     document.body.style.background = "#000";
@@ -41,11 +80,13 @@ export default function MediaViewer({
       document.documentElement.style.background = previousRootBackground;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [onClose]);
+  }, [items.length, onClose]);
 
   useEffect(() => {
     setReady(kind === "video");
     setFailed(!src);
+    setCurrentTime(0);
+    setDuration(0);
   }, [kind, src]);
 
   return createPortal(
@@ -73,6 +114,10 @@ export default function MediaViewer({
             ) : kind === "video" && duration > 0 ? (
               <p className="mt-0.5 font-mono text-[9px] text-white/55">
                 {formatDuration(currentTime)} / {formatDuration(duration)}
+              </p>
+            ) : items.length > 1 ? (
+              <p className="mt-0.5 text-[9px] text-white/55">
+                {index + 1} / {items.length}
               </p>
             ) : null}
           </div>
@@ -125,6 +170,28 @@ export default function MediaViewer({
             className={`max-h-full max-w-full object-contain transition-opacity ${ready ? "opacity-100" : "opacity-0"}`}
           />
         )}
+        {items.length > 1 && index > 0 ? (
+          <button
+            type="button"
+            onClick={() => setIndex((value) => Math.max(0, value - 1))}
+            className="absolute left-3 grid h-11 w-11 place-items-center rounded-full bg-black/55 text-2xl"
+            aria-label="Previous media"
+          >
+            ‹
+          </button>
+        ) : null}
+        {items.length > 1 && index < items.length - 1 ? (
+          <button
+            type="button"
+            onClick={() =>
+              setIndex((value) => Math.min(items.length - 1, value + 1))
+            }
+            className="absolute right-3 grid h-11 w-11 place-items-center rounded-full bg-black/55 text-2xl"
+            aria-label="Next media"
+          >
+            ›
+          </button>
+        ) : null}
       </main>
       <div className="h-[env(safe-area-inset-bottom)] shrink-0 bg-black" />
     </div>,
