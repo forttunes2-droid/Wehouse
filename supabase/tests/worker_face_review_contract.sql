@@ -70,16 +70,32 @@ update public.worker_verifications
 set status='evidence_ready',submitted_at=null,reviewed_at=null,reviewed_by=null
 where worker_id='worker-face-contract';
 
--- 2. The real production trigger deliberately refuses to enable regulated
--- biometric processing without a recorded launch approval. This contract is
--- testing the behavior *after* that separate launch gate has approved it, so
--- only this rolled-back superuser fixture update bypasses setting triggers.
--- Production/API callers never receive this bypass.
-set local session_replication_role=replica;
+-- 2. Enabling biometric processing must use the same regulated legal-launch
+-- gate as production. This approval is explicitly CI-only, exists inside this
+-- transaction, and is rolled back at the end; it is not a real legal approval.
+insert into public.legal_launch_approvals(
+  gate_key,status,authority,approval_reference,scope,conditions,
+  approved_at,expires_at,recorded_by
+) values(
+  'worker_identity_checks','approved','CI contract fixture',
+  'TEST-ONLY-ROLLBACK','Ephemeral automated contract for the biometric policy gate only.',
+  'Never persist or treat this fixture as legal approval.',
+  now()-interval '1 minute',now()+interval '1 hour','ci-contract'
+)
+on conflict(gate_key) do update set
+  status='approved',
+  authority='CI contract fixture',
+  approval_reference='TEST-ONLY-ROLLBACK',
+  scope='Ephemeral automated contract for the biometric policy gate only.',
+  conditions='Never persist or treat this fixture as legal approval.',
+  approved_at=now()-interval '1 minute',
+  expires_at=now()+interval '1 hour',
+  recorded_by='ci-contract',
+  updated_at=now();
+
 update public.platform_settings
 set value='true',is_active=true
 where key='worker_identity_checks_enabled';
-set local session_replication_role=origin;
 
 do $$
 declare
@@ -128,19 +144,16 @@ end;
 $$;
 
 -- Reset again and prove that the separate recurring switch has real effect when
--- explicitly enabled later. Like the initial biometric toggle above, this is a
--- rolled-back fixture state representing an already-approved future policy.
+-- explicitly enabled later. It is independent from the initial launch gate.
 update public.profiles
 set worker_status='pending',worker_verified=false,available=false
 where user_id='worker-face-contract';
 update public.worker_verifications
 set status='evidence_ready',submitted_at=null,reviewed_at=null,reviewed_by=null
 where worker_id='worker-face-contract';
-set local session_replication_role=replica;
 update public.platform_settings
 set value='true',is_active=true
 where key='account_identity_recurring_enabled';
-set local session_replication_role=origin;
 
 do $$
 declare
