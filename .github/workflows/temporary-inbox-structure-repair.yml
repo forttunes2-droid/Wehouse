@@ -1,3 +1,4 @@
+# One-use repair workflow; remove after the canonical navigation commit lands.
 name: Temporary Inbox Structure Repair
 
 on:
