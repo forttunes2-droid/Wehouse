@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import LocationMap from "./LocationMap";
 
 export type PreciseLocation = {
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   accuracy: number | null;
   address: string;
   city?: string;
@@ -25,16 +23,11 @@ export default function PreciseLocationPicker({
   value,
   onChange,
   title = "Street address",
-  description = "Use your phone to suggest the area, then type or correct the real street address.",
+  description = "Type the real street address. You can optionally use this phone to suggest it, then correct the text before saving.",
   subject = "personal",
 }: Props) {
   const [locating, setLocating] = useState(false);
   const [message, setMessage] = useState("");
-  const [mapOpen, setMapOpen] = useState(false);
-  const [mapPosition, setMapPosition] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
   const requestRef = useRef(0);
 
   useEffect(
@@ -43,6 +36,17 @@ export default function PreciseLocationPicker({
     },
     [],
   );
+
+  function updateAddress(address: string) {
+    onChange({
+      latitude: value?.latitude ?? null,
+      longitude: value?.longitude ?? null,
+      accuracy: value?.accuracy ?? null,
+      address,
+      city: value?.city,
+      state: value?.state,
+    });
+  }
 
   async function finish(position: GeolocationPosition, request: number) {
     if (request !== requestRef.current) return;
@@ -64,7 +68,7 @@ export default function PreciseLocationPicker({
     setMessage(
       typedAddress
         ? "Location updated. Your written street address was kept."
-        : `Location found · device accuracy about ${Math.round(accuracy)} m`,
+        : "Location found. Looking up the street address…",
     );
 
     try {
@@ -85,7 +89,7 @@ export default function PreciseLocationPicker({
         const suggestedAddress = String(result.data.address);
         onChange({
           ...base,
-          // Once somebody has typed/corrected the real address, a later device
+          // The person's written address is authoritative. A later device
           // refresh must never replace it with a nearby reverse-geocode result.
           address: typedAddress || suggestedAddress,
           city: String(result.data.city || value?.city || ""),
@@ -94,14 +98,14 @@ export default function PreciseLocationPicker({
         setMessage(
           typedAddress
             ? "Location updated. Your written street address was kept."
-            : "Address suggestion found. Check and correct it before continuing.",
+            : "Address suggestion found. Check and correct it before saving.",
         );
       } else if (!typedAddress) {
-        setMessage("Location found. Enter the exact street address below.");
+        setMessage("Location found. Type the exact street address before saving.");
       }
     } catch {
       if (request === requestRef.current && !typedAddress)
-        setMessage("Location found. Enter the exact street address below.");
+        setMessage("Location found. Type the exact street address before saving.");
     }
   }
 
@@ -109,20 +113,20 @@ export default function PreciseLocationPicker({
     setLocating(false);
     const denied = error.code === error.PERMISSION_DENIED;
     const text = denied
-      ? "Location permission is blocked. Open the site controls beside the WeHouse address, set Location to Allow, then tap again."
+      ? "Location permission is blocked. You can still type the street address manually, or allow Location in the site controls and try again."
       : error.code === error.TIMEOUT
-        ? "No location arrived from this phone. Turn on Location, return to WeHouse and tap again."
-        : "This phone could not provide a location. Check that Location is on, then tap again.";
+        ? "No location arrived from this phone. You can type the street address manually or try again."
+        : "This phone could not provide a location. You can type the street address manually.";
     setMessage(text);
     toast.error(
-      denied ? "Allow WeHouse to use your location" : "No location received",
+      denied ? "Location is optional — type your address manually" : "No location received",
     );
   }
 
   function locate() {
     if (!navigator.geolocation) {
       setMessage(
-        "This browser cannot share location. Open WeHouse in Chrome or Safari on a phone with Location enabled.",
+        "This browser cannot share location. Type the exact street address manually.",
       );
       return;
     }
@@ -133,8 +137,8 @@ export default function PreciseLocationPicker({
     setLocating(true);
     setMessage(
       subject === "property"
-        ? "Finding the property area… keep this page open."
-        : "Finding your street area… keep this page open.",
+        ? "Checking the property location…"
+        : "Checking your current location…",
     );
 
     const settle = () => {
@@ -146,9 +150,7 @@ export default function PreciseLocationPicker({
     const receive = (position: GeolocationPosition) => {
       if (done || request !== requestRef.current) return;
       if (!best || position.coords.accuracy < best.coords.accuracy) best = position;
-      setMessage(
-        `Improving device location… about ${Math.round(best.coords.accuracy)} m`,
-      );
+      setMessage("Checking the best available location from this phone…");
       if (best.coords.accuracy <= 25) settle();
     };
 
@@ -179,18 +181,16 @@ export default function PreciseLocationPicker({
         if (watch >= 0) navigator.geolocation.clearWatch(watch);
         setLocating(false);
         setMessage(
-          "We could not find your current location. Move near a window, allow precise device location and try again, or type the address manually.",
+          "We could not confirm a location from this phone. Type the exact street address manually or try again.",
         );
       }
     }, 12000);
   }
 
-  const mapLabel =
-    subject === "property" ? "Property entrance" : "Your location";
   const addressHelp =
     subject === "property"
-      ? "The device suggestion may be nearby rather than exact. Type the real street address yourself if needed. The written address is what customers see; entrance-location data stays private to WeHouse operations."
-      : "The device suggestion may be nearby rather than exact. Type your real street address yourself if needed.";
+      ? "The written street address is the address people see. WeHouse keeps the technical location data behind the property record instead of showing it in the app."
+      : "Your written street address is what you see in Account. WeHouse keeps the technical location data behind your profile instead of showing it in the app.";
 
   return (
     <section className="border-y border-white/[.07] py-4">
@@ -201,87 +201,48 @@ export default function PreciseLocationPicker({
             {description}
           </p>
         </div>
-        {value && (
-          <span
-            className={`shrink-0 text-[8px] font-bold uppercase tracking-wide ${
-              value.address.trim() ? "text-emerald-300" : "text-amber-300"
-            }`}
-          >
-            {value.address.trim() ? "Address saved" : "Check address"}
-          </span>
-        )}
+        <span
+          className={`shrink-0 text-[8px] font-bold uppercase tracking-wide ${
+            value?.address.trim() ? "text-emerald-300" : "text-amber-300"
+          }`}
+        >
+          {value?.address.trim() ? "Address saved" : "Add address"}
+        </span>
       </div>
 
-      {!value ? (
-        <div className="mt-3 space-y-2">
+      <div className="mt-3">
+        <label className="block">
+          <span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">
+            {subject === "property"
+              ? "Property street address"
+              : "Your street address"}
+          </span>
+          <textarea
+            rows={2}
+            value={value?.address || ""}
+            placeholder="House number, street, area"
+            onChange={(event) => updateAddress(event.target.value)}
+            className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"
+          />
+        </label>
+
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-[8px] leading-4 text-[#656B7B]">{addressHelp}</p>
           <button
             type="button"
             onClick={locate}
             disabled={locating}
-            className="min-h-11 w-full rounded-xl bg-violet-500 px-4 text-[10px] font-semibold text-white disabled:opacity-50"
+            className="shrink-0 text-[9px] font-semibold text-violet-300 disabled:opacity-50"
           >
             {locating
-              ? "Finding address…"
+              ? "Checking…"
               : subject === "property"
-                ? "Use this phone at the property"
-                : "Use my current location"}
+                ? "Confirm from this phone"
+                : "Suggest from this phone"}
           </button>
-          <p className="text-[8px] leading-4 text-[#656B7B]">
-            You can type and correct the street address after the device suggests
-            the area.
-          </p>
         </div>
-      ) : (
-        <div className="mt-3">
-          <label className="block">
-            <span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">
-              {subject === "property"
-                ? "Property street address"
-                : "Your street address"}
-            </span>
-            <textarea
-              rows={2}
-              value={value.address}
-              placeholder="House number, street, area"
-              onChange={(event) =>
-                onChange({ ...value, address: event.target.value })
-              }
-              className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"
-            />
-          </label>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <p className="text-[8px] text-[#656B7B]">
-              {value.accuracy
-                ? `Device location accuracy about ${Math.round(value.accuracy)} m`
-                : "Location adjusted manually"}
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setMapPosition({
-                    latitude: value.latitude,
-                    longitude: value.longitude,
-                  });
-                  setMapOpen(true);
-                }}
-                className="text-[9px] font-semibold text-violet-300"
-              >
-                Adjust entrance on map
-              </button>
-              <button
-                type="button"
-                onClick={locate}
-                disabled={locating}
-                className="text-[9px] font-semibold text-violet-300"
-              >
-                {locating ? "Updating…" : "Refresh device location"}
-              </button>
-            </div>
-          </div>
-          <p className="mt-2 text-[8px] leading-4 text-[#656B7B]">
-            {addressHelp}
-          </p>
+
+        {value && (
           <button
             type="button"
             onClick={() => {
@@ -293,18 +254,18 @@ export default function PreciseLocationPicker({
           >
             Remove address
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {message && (
         <p
           className={`mt-2 rounded-xl px-3 py-2 text-[9px] leading-5 ${
-            /off|could not|unavailable|No location|cannot/i.test(message)
+            /blocked|could not|cannot|No location/i.test(message)
               ? "bg-amber-500/10 text-amber-200"
               : "text-[#9AA0AF]"
           }`}
           role={
-            /off|could not|unavailable|No location|cannot/i.test(message)
+            /blocked|could not|cannot|No location/i.test(message)
               ? "alert"
               : "status"
           }
@@ -312,74 +273,6 @@ export default function PreciseLocationPicker({
           {message}
         </p>
       )}
-
-      {mapOpen &&
-        value &&
-        mapPosition &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[160] flex items-end justify-center bg-black/75 p-3 backdrop-blur-sm sm:items-center"
-            onClick={() => setMapOpen(false)}
-          >
-            <section
-              className="w-full max-w-lg rounded-[26px] border border-white/[.09] bg-[#11141C] p-4"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold">{mapLabel}</p>
-                  <p className="mt-1 text-[9px] text-[#747A8B]">
-                    Tap the real entrance or access point.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMapOpen(false)}
-                  className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#858B9B]"
-                  aria-label="Close map"
-                >
-                  ×
-                </button>
-              </div>
-              <LocationMap
-                latitude={mapPosition.latitude}
-                longitude={mapPosition.longitude}
-                label={mapLabel}
-                height={300}
-                editable
-                onPositionChange={setMapPosition}
-              />
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMapOpen(false)}
-                  className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange({
-                      ...value,
-                      latitude: mapPosition.latitude,
-                      longitude: mapPosition.longitude,
-                      accuracy: null,
-                    });
-                    setMessage(
-                      "Entrance location adjusted. Your written street address was kept.",
-                    );
-                    setMapOpen(false);
-                  }}
-                  className="h-11 rounded-xl bg-violet-500 text-[10px] font-semibold"
-                >
-                  Save entrance location
-                </button>
-              </div>
-            </section>
-          </div>,
-          document.body,
-        )}
     </section>
   );
 }
