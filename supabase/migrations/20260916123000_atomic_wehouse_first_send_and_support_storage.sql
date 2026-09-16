@@ -342,6 +342,11 @@ begin
     if v_conversation_id is null then
       v_conversation_id:=public.open_my_reservation_conversation(v_context,p_context_id);
     end if;
+  elsif v_context='worker_booking' then
+    v_conversation_id:=(public.open_contextual_case_conversation(
+      'worker_job_issue','worker_job',p_context_id,
+      nullif(btrim(coalesce(p_subject,'')),''),v_snapshot
+    )->>'conversation_id')::uuid;
   elsif v_context='property_listing' then
     v_conversation_id:=public.open_property_operations_conversation(
       'apartment',p_context_id,v_snapshot

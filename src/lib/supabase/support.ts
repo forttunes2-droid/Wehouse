@@ -152,7 +152,7 @@ export function conversationPresentation(
         place ||
         safeSubject ||
         (contextType === "hotel_booking" ? "Hotel stay" : stay),
-      operator: "WeHouse Support",
+      operator: "WeHouse Property Operations",
       meta: [
         contextType === "hotel_booking"
           ? "Hotel booking"
@@ -183,7 +183,7 @@ export function conversationPresentation(
           rawSubject ||
           "Property",
       ).replace(/^(question about|inspection help)\s*·\s*/i, ""),
-      operator: "WeHouse Support",
+      operator: "WeHouse Property Operations",
       meta: [
         contextType === "property_inspection"
           ? "Property inspection"
@@ -201,11 +201,11 @@ export function conversationPresentation(
     return {
       kind: "service_help",
       title: rawSubject || String(snapshot.service_type || "Service booking"),
-      operator: "WeHouse Support",
+      operator: "WeHouse Worker Operations",
       meta: ["Service booking", audience === "customer" ? "" : reference, status]
         .filter(Boolean)
         .join(" · "),
-      operational: false,
+      operational: true,
     };
   return {
     kind: "support",
@@ -274,6 +274,21 @@ export async function createSupportConversation(
       },
     );
     return { conversationId: data as string | null, error };
+  }
+
+  if (canonicalContextType === "worker_booking") {
+    const { data, error } = await supabase.rpc(
+      "open_contextual_case_conversation",
+      {
+        p_reason_code: "worker_job_issue",
+        p_subject_type: "worker_job",
+        p_subject_id: input.contextId,
+        p_summary: input.subject || null,
+        p_snapshot: snapshot,
+      },
+    );
+    const result = (data || {}) as { conversation_id?: string | null };
+    return { conversationId: result.conversation_id || null, error };
   }
 
   if (canonicalContextType === "property_listing") {
