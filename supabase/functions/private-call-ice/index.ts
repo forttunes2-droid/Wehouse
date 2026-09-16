@@ -10,8 +10,22 @@ const headers = {
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers });
 
-function base64(bytes: ArrayBuffer) {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+type IceServer = {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+};
+
+function filterBrowserBlockedUrls(server: IceServer): IceServer | null {
+  const values = Array.isArray(server.urls) ? server.urls : [server.urls];
+  const urls = values.filter(
+    (value) => typeof value === "string" && !/:53(?:\?|$)/i.test(value),
+  );
+  if (!urls.length) return null;
+  return {
+    ...server,
+    urls: Array.isArray(server.urls) ? urls : urls[0],
+  };
 }
 
 Deno.serve(async (request) => {
@@ -36,10 +50,9 @@ Deno.serve(async (request) => {
   )
     return json({ error: "Invalid call" }, 400);
 
-  // Use the caller's JWT for every database read. RLS is therefore the first
-  // authorization boundary; the explicit participant/status checks below are
-  // a second independent barrier. This endpoint does not need service-role DB
-  // authority merely to issue relay credentials to a legitimate participant.
+  // Use the caller JWT for database reads. RLS plus the explicit participant
+  // check below ensure relay credentials are issued only to a participant of
+  // this exact active WeHouse call.
   const client = createClient(url, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -75,40 +88,61 @@ Deno.serve(async (request) => {
   )
     return json({ error: "This call is not available" }, 403);
 
-  const urls = (Deno.env.get("TURN_URLS") || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => /^turns?:/i.test(value));
-  const sharedSecret = Deno.env.get("TURN_SHARED_SECRET") || "";
-  if (!urls.length || !sharedSecret)
+  // Cloudflare's TURN token is a long-lived server secret. Never return it to
+  // the browser. Exchange it here for short-lived ICE credentials instead.
+  const turnKeyId = Deno.env.get("CLOUDFLARE_TURN_KEY_ID") || "";
+  const turnApiToken = Deno.env.get("CLOUDFLARE_TURN_API_TOKEN") || "";
+  if (!turnKeyId || !turnApiToken)
     return json({ error: "TURN relay is not configured" }, 503);
 
-  // TURN REST credentials are deliberately short-lived. The permanent shared
-  // secret never leaves the Edge Function and credentials are issued only to a
-  // signed-in participant of this exact active call.
-  const expires = Math.floor(Date.now() / 1000) + 60 * 60;
-  const username = `${expires}:${profile.user_id}:${callId}`;
-  const signingKey = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(sharedSecret),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"],
-  );
-  const credential = base64(
-    await crypto.subtle.sign(
-      "HMAC",
-      signingKey,
-      new TextEncoder().encode(username),
-    ),
-  );
+  const ttlSeconds = 60 * 60;
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(turnKeyId)}/credentials/generate-ice-servers`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${turnApiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ttl: ttlSeconds,
+          customIdentifier: `wehouse:${profile.user_id}`,
+        }),
+      },
+    );
+  } catch (reason) {
+    console.error(
+      "Cloudflare TURN credential request failed",
+      reason instanceof Error ? reason.message : reason,
+    );
+    return json({ error: "TURN relay is temporarily unavailable" }, 503);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !Array.isArray(payload?.iceServers)) {
+    console.error(
+      "Cloudflare TURN credential response rejected",
+      response.status,
+      typeof payload?.error === "string" ? payload.error : "invalid response",
+    );
+    return json({ error: "TURN relay is temporarily unavailable" }, 503);
+  }
+
+  const iceServers = (payload.iceServers as IceServer[])
+    .map(filterBrowserBlockedUrls)
+    .filter((server): server is IceServer => Boolean(server?.urls));
+  const hasRelay = iceServers.some((server) => {
+    const values = Array.isArray(server.urls) ? server.urls : [server.urls];
+    return values.some((value) => /^turns?:/i.test(value));
+  });
+  if (!hasRelay)
+    return json({ error: "TURN relay credentials were incomplete" }, 503);
 
   return json({
-    ice_servers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls, username, credential },
-    ],
+    ice_servers: iceServers,
     relay_ready: true,
-    expires_at: new Date(expires * 1000).toISOString(),
+    expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
   });
 });
