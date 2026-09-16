@@ -6,17 +6,22 @@ import { supabase } from "@/lib/supabase";
 import {
   completeSupportCase,
   conversationPresentation,
+  createSupportMessageDraft,
   deleteSupportAttachment,
-  ensureSupportConversation,
+  discardSupportMessageDraft,
   getMySupportConversations,
   getSupportCaseEvents,
+  getSupportMessageDraftStatus,
   getSupportMessages,
+  isSupportedSupportEvidence,
   markSupportMessagesRead,
   reopenSupportCase,
+  sendFirstWeHouseMessage,
   sendSupportMessage,
   supportNextStep,
   supportStatusLabel,
   uploadSupportAttachment,
+  uploadSupportDraftAttachment,
   supportContextType,
   type SupportCaseEvent,
   type SupportOpenContext,
@@ -74,6 +79,13 @@ export default function SupportChat({
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const firstSendAttemptRef = useRef<{
+    draftId: string;
+    content: string;
+    context: SupportOpenContext;
+    paths: string[];
+    types: string[];
+  } | null>(null);
   const presentation = conversationPresentation(thread || pendingContext || {});
   const caseLocked = Boolean(
     !presentation.operational &&
@@ -94,11 +106,7 @@ export default function SupportChat({
         toast.error(`${file.name} is larger than 25MB`);
         return false;
       }
-      if (
-        !file.type.startsWith("image/") &&
-        !file.type.startsWith("video/") &&
-        file.type !== "application/pdf"
-      ) {
+      if (!isSupportedSupportEvidence(file)) {
         toast.error(`${file.name} is not a supported evidence file`);
         return false;
       }
@@ -227,61 +235,119 @@ export default function SupportChat({
   }, [open]);
 
   async function send() {
-    if (sending || (!input.trim() && !files.length)) return;
+    if (sending || (!input.trim() && !files.length && !firstSendAttemptRef.current)) return;
+    if (!profile) return;
     setSending(true);
 
-    let activeThread = thread;
-    let conversationId = thread?.conversation_id || null;
-
-    if (!conversationId) {
-      const created = await ensureSupportConversation(pendingContext || {});
-      if (created.error || !created.conversationId) {
-        setSending(false);
-        toast.error(
-          created.error?.message || "Unable to start this WeHouse conversation",
-        );
-        return;
+    const existingConversationId = thread?.conversation_id || null;
+    if (existingConversationId) {
+      const paths: string[] = [];
+      const types: string[] = [];
+      for (const file of files) {
+        const uploaded = await uploadSupportAttachment(existingConversationId, file);
+        if (uploaded.error || !uploaded.path) {
+          for (const path of paths) await deleteSupportAttachment(path);
+          setSending(false);
+          toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
+          return;
+        }
+        paths.push(uploaded.path);
+        types.push(file.type || "application/octet-stream");
       }
-      conversationId = created.conversationId;
-      activeThread = await refreshThread(pendingContext, conversationId);
-    }
-
-    const paths: string[] = [];
-    const types: string[] = [];
-
-    for (const file of files) {
-      const uploaded = await uploadSupportAttachment(conversationId, file);
-      if (uploaded.error || !uploaded.path) {
+      const { error } = await sendSupportMessage(
+        existingConversationId,
+        input.trim(),
+        paths,
+        types,
+        null,
+      );
+      if (error) {
         for (const path of paths) await deleteSupportAttachment(path);
         setSending(false);
-        toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
+        toast.error(error.message || "Message failed");
         return;
       }
-      paths.push(uploaded.path);
-      types.push(file.type || "application/octet-stream");
-    }
-
-    const { error } = await sendSupportMessage(
-      conversationId,
-      input.trim(),
-      paths,
-      types,
-      pendingContext,
-    );
-    if (error) {
-      for (const path of paths) await deleteSupportAttachment(path);
+      setInput("");
+      setFiles([]);
       setSending(false);
-      toast.error(error.message || "Message failed");
+      await loadMessages(existingConversationId, true);
+      void refreshThread(null, existingConversationId);
       return;
     }
 
+    let attempt = firstSendAttemptRef.current;
+    if (!attempt) {
+      const context = pendingContext || {};
+      const draft = await createSupportMessageDraft();
+      if (draft.error || !draft.draftId) {
+        setSending(false);
+        toast.error(draft.error?.message || "Unable to prepare this WeHouse message");
+        return;
+      }
+      const paths: string[] = [];
+      const types: string[] = [];
+      for (const file of files) {
+        const uploaded = await uploadSupportDraftAttachment(
+          draft.draftId,
+          profile.user_id,
+          file,
+        );
+        if (uploaded.error || !uploaded.path) {
+          for (const path of paths) await deleteSupportAttachment(path);
+          await discardSupportMessageDraft(draft.draftId);
+          setSending(false);
+          toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
+          return;
+        }
+        paths.push(uploaded.path);
+        types.push(file.type || "application/octet-stream");
+      }
+      attempt = {
+        draftId: draft.draftId,
+        content: input.trim(),
+        context,
+        paths,
+        types,
+      };
+      firstSendAttemptRef.current = attempt;
+    }
+
+    const sent = await sendFirstWeHouseMessage(
+      attempt.draftId,
+      attempt.context,
+      attempt.content,
+      attempt.paths,
+      attempt.types,
+    );
+    let conversationId = sent.conversationId;
+    if (sent.error || !conversationId) {
+      const checked = await getSupportMessageDraftStatus(attempt.draftId);
+      if (checked.status?.state === "sent" && checked.status.conversation_id) {
+        conversationId = checked.status.conversation_id;
+      } else if (checked.error) {
+        setSending(false);
+        toast.error(
+          "We could not confirm whether that message was sent. Tap Send again to reconcile the same request before creating another one.",
+        );
+        return;
+      } else {
+        for (const path of attempt.paths) await deleteSupportAttachment(path);
+        if (checked.status?.state !== "expired")
+          await discardSupportMessageDraft(attempt.draftId);
+        firstSendAttemptRef.current = null;
+        setSending(false);
+        toast.error(sent.error?.message || "Message failed");
+        return;
+      }
+    }
+
+    firstSendAttemptRef.current = null;
     setInput("");
     setFiles([]);
     setPendingContext(null);
     setSending(false);
     await loadMessages(conversationId, true);
-    if (!activeThread) await refreshThread(pendingContext, conversationId);
-    else void refreshThread(null, conversationId);
+    await refreshThread(attempt.context, conversationId);
   }
 
   async function respondToResolution(action: "complete" | "reopen") {
@@ -326,6 +392,7 @@ export default function SupportChat({
               setFiles([]);
               setEvents([]);
               setPendingContext(null);
+              if (!firstSendAttemptRef.current) setInput("");
             }}
             aria-label="Close WeHouse conversation"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9DA3B2] hover:bg-white/[.05]"
@@ -452,6 +519,12 @@ export default function SupportChat({
 
       <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         <div className="mx-auto max-w-4xl">
+          {!thread ? (
+            <FirstSendDisclosure
+              context={pendingContext}
+              presentation={presentation}
+            />
+          ) : null}
           {pendingContext && hasContext(pendingContext) && (
             <PendingContext
               context={pendingContext}
@@ -490,7 +563,7 @@ export default function SupportChat({
               type="file"
               hidden
               multiple
-              accept="image/*,video/*,application/pdf"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,text/plain,.doc,.docx"
               onChange={(event) => addFiles(event.target.files)}
             />
             <button
@@ -1040,6 +1113,63 @@ function MessageContext({
         </div>
       )}
     </div>
+  );
+}
+
+function FirstSendDisclosure({
+  context,
+  presentation,
+}: {
+  context: SupportOpenContext | null;
+  presentation: ReturnType<typeof conversationPresentation>;
+}) {
+  const type = supportContextType(context || {});
+  const isReservation = [
+    "apartment_reservation",
+    "apartment_payment",
+    "reservation",
+    "hotel_booking",
+  ].includes(type);
+  const thisIs = presentation.operational
+    ? isReservation
+      ? "Reservation Operations conversation"
+      : "Property Operations conversation"
+    : "WeHouse conversation";
+  const handledBy = presentation.operational
+    ? isReservation
+      ? "Reservation Operations"
+      : "Property Operations"
+    : "WeHouse Support";
+  const linkedTo =
+    context?.subject ||
+    (context?.contextId
+      ? String(type || "WeHouse record").replace(/_/g, " ")
+      : "Your WeHouse account");
+  const sendingEffect = presentation.operational
+    ? "Creates or opens one conversation linked to this record and sends this message. It does not change payment or booking state by itself."
+    : "Creates one WeHouse help request and sends this message. It does not freeze, release, refund or transfer money by itself.";
+  const facts = [
+    ["This is", thisIs],
+    ["Handled by", handledBy],
+    ["Linked to", linkedTo],
+    ["What sending does", sendingEffect],
+  ];
+  return (
+    <section className="mb-2 rounded-2xl border border-white/[.065] bg-white/[.025] p-3">
+      <p className="mb-2 text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
+        Before you send
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <p className="text-[8px] font-semibold uppercase tracking-wide text-[#626A7B]">
+              {label}
+            </p>
+            <p className="mt-0.5 text-[9px] leading-4 text-[#C7CBD5]">{value}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

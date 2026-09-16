@@ -269,6 +269,103 @@ export async function createSupportConversation(
 
 export const ensureSupportConversation = createSupportConversation;
 
+export type SupportMessageDraftStatus = {
+  draft_id: string;
+  state: "draft" | "sent" | "expired";
+  conversation_id: string | null;
+  message_id: string | null;
+  expires_at: string;
+  consumed_at: string | null;
+};
+
+export const SUPPORT_EVIDENCE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export function isSupportedSupportEvidence(file: File) {
+  return SUPPORT_EVIDENCE_MIME_TYPES.has(file.type || "");
+}
+
+export async function createSupportMessageDraft() {
+  const { data, error } = await supabase.rpc("create_my_support_message_draft");
+  return { draftId: data as string | null, error };
+}
+
+export async function getSupportMessageDraftStatus(draftId: string) {
+  const { data, error } = await supabase.rpc("get_my_support_message_draft_status", {
+    p_draft_id: draftId,
+  });
+  return { status: (data || null) as SupportMessageDraftStatus | null, error };
+}
+
+export async function discardSupportMessageDraft(draftId: string) {
+  const { data, error } = await supabase.rpc("discard_my_support_message_draft", {
+    p_draft_id: draftId,
+  });
+  return { discarded: data === true, error };
+}
+
+export async function sendFirstWeHouseMessage(
+  draftId: string,
+  context: SupportOpenContext,
+  content: string,
+  attachments: string[] = [],
+  attachmentTypes: string[] = [],
+) {
+  const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);
+  const { data, error } = await supabase.rpc("send_my_first_wehouse_message", {
+    p_draft_id: draftId,
+    p_subject: context.subject || "WeHouse",
+    p_category: context.category || "general",
+    p_context_type: context.contextType || "general",
+    p_context_id: context.contextId || null,
+    p_context_snapshot: snapshot,
+    p_priority: context.priority || "normal",
+    p_content: content,
+    p_attachments: attachments,
+    p_attachment_types: attachmentTypes,
+  });
+  const result = (data || {}) as {
+    conversation_id?: string | null;
+    message_id?: string | null;
+    replayed?: boolean;
+  };
+  return {
+    conversationId: result.conversation_id || null,
+    messageId: result.message_id || null,
+    replayed: result.replayed === true,
+    error,
+  };
+}
+
+export async function uploadSupportDraftAttachment(
+  draftId: string,
+  requesterId: string,
+  file: File,
+) {
+  const safeName =
+    file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100) || "attachment";
+  const path = `drafts/${requesterId}/${draftId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+  const { error } = await supabase.storage
+    .from("support-files")
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || undefined,
+    });
+  return { path: error ? null : path, error };
+}
+
 export async function getMySupportConversations() {
   const { data, error } = await supabase.rpc("get_my_support_conversations");
   return { conversations: (data || []) as SupportThread[], error };
