@@ -68,8 +68,8 @@ test("Staff Inbox does not claim work merely by viewing it", async () => {
   assert.ok(openStart >= 0 && openEnd > openStart);
   assert.doesNotMatch(communications.slice(openStart, openEnd), /claimCommunicationCase/);
   assert.match(communications, /async function takeConversation\(\)/);
-  assert.match(communications, />Take request</);
-  assert.match(communications, />Take assignment</);
+  assert.match(communications, /"Take request"/);
+  assert.match(communications, /"Take assignment"/);
 });
 
 test("Hotel Team has one Inbox surface with guest conversations and nested Activity", async () => {

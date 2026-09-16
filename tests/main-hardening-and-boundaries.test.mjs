@@ -113,8 +113,8 @@ test("Staff Inbox viewing never silently claims work", async () => {
   assert.doesNotMatch(openBody, /claimCommunicationCase/);
   assert.match(communications, /async function takeConversation\(\)/);
   assert.match(communications, /claimCommunicationCase\(selected\.conversation_id\)/);
-  assert.match(communications, />Take request</);
-  assert.match(communications, />Take assignment</);
+  assert.match(communications, /"Take request"/);
+  assert.match(communications, /"Take assignment"/);
   assert.match(communications, /Opening a record never assigns it/);
 });
 
