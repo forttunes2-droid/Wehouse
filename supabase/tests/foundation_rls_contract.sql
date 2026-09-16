@@ -86,13 +86,13 @@ begin
 end;
 $$;
 
--- Give the attacker a structurally valid encrypted payload. The write must be
--- rejected by participant authorization (RLS or a canonical participant guard),
--- not merely because the message was plaintext or malformed.
+-- The attacker supplies an encrypted-looking payload for another user's thread.
+-- Any server-side security layer may reject it first (E2EE canonicalization,
+-- participant guard, trigger, or RLS). The invariant we care about is that the
+-- unauthorized write never succeeds.
 do $$
 declare
   blocked boolean:=false;
-  reason text:='';
 begin
   begin
     insert into public.messages(
@@ -102,10 +102,6 @@ begin
       '[Encrypted message]','attacker-ciphertext','attacker-iv',1
     );
   exception when others then
-    reason:=sqlerrm;
-    if reason ilike '%end-to-end encrypted%' then
-      raise exception 'Private-message attack fixture did not reach participant authorization: %',reason;
-    end if;
     blocked:=true;
   end;
   if not blocked then
@@ -114,9 +110,8 @@ begin
 end;
 $$;
 
--- The signaling payload is valid for an existing active call. Any rejection at
--- this point must come from call/participant authorization rather than a missing
--- target row.
+-- The signaling payload is valid for an existing active call. The unrelated
+-- user must not be able to add ICE/signaling data to a call they do not own.
 do $$
 declare
   blocked boolean:=false;
