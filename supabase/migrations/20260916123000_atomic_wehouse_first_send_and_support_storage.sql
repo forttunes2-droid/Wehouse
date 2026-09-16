@@ -318,11 +318,18 @@ begin
 
   if v_context in('reservation','apartment_payment') then
     v_context:='apartment_reservation';
+  elsif v_context='listing' then
+    v_context:='property_listing';
   end if;
 
   -- Reuse an already-created context if another device won the race. This keeps
   -- one context/purpose identity without creating a second customer thread.
-  if v_context in('apartment_reservation','hotel_booking') then
+  if v_context='property_inspection'
+     and nullif(btrim(coalesce(v_snapshot->>'reservation_id','')),'') is not null then
+    v_conversation_id:=public.open_my_reservation_conversation(
+      'apartment_reservation',v_snapshot->>'reservation_id'
+    );
+  elsif v_context in('apartment_reservation','hotel_booking') then
     select c.id into v_conversation_id
     from public.partner_support_conversations c
     where c.partner_id=v_actor.user_id
@@ -335,6 +342,14 @@ begin
     if v_conversation_id is null then
       v_conversation_id:=public.open_my_reservation_conversation(v_context,p_context_id);
     end if;
+  elsif v_context='property_listing' then
+    v_conversation_id:=public.open_property_operations_conversation(
+      'apartment',p_context_id,v_snapshot
+    );
+  elsif v_context in('hotel_property','hotel_operations') then
+    v_conversation_id:=public.open_property_operations_conversation(
+      'hotel',p_context_id,v_snapshot
+    );
   else
     select c.id into v_conversation_id
     from public.partner_support_conversations c

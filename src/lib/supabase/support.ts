@@ -207,18 +207,6 @@ export function conversationPresentation(
         .join(" · "),
       operational: false,
     };
-  if (contextType === "hotel_booking_help")
-    return {
-      kind: "support",
-      title:
-        rawSubject ||
-        String(snapshot.hotel_name || "Hotel booking help"),
-      operator: "WeHouse Support",
-      meta: ["Hotel booking", audience === "customer" ? "" : reference, status]
-        .filter(Boolean)
-        .join(" · "),
-      operational: false,
-    };
   return {
     kind: "support",
     title:
@@ -246,11 +234,33 @@ function reservationStatusLabel(status: string, contextType: string) {
 export async function createSupportConversation(
   input: SupportOpenContext = {},
 ) {
+  const snapshot = sanitizeSupportSnapshot(input.contextSnapshot);
+  const rawContextType = input.contextType || "general";
   const canonicalContextType = ["reservation", "apartment_payment"].includes(
-    input.contextType || "",
+    rawContextType,
   )
     ? "apartment_reservation"
-    : input.contextType;
+    : rawContextType === "listing"
+      ? "property_listing"
+      : rawContextType;
+
+  // Inspection is its own work record, but customer communication remains on
+  // the reservation's existing WeHouse thread when a reservation already exists.
+  if (
+    canonicalContextType === "property_inspection" &&
+    typeof snapshot.reservation_id === "string" &&
+    snapshot.reservation_id
+  ) {
+    const { data, error } = await supabase.rpc(
+      "open_my_reservation_conversation",
+      {
+        p_context_type: "apartment_reservation",
+        p_context_id: snapshot.reservation_id,
+      },
+    );
+    return { conversationId: data as string | null, error };
+  }
+
   if (
     ["apartment_reservation", "hotel_booking"].includes(
       canonicalContextType || "",
@@ -265,7 +275,31 @@ export async function createSupportConversation(
     );
     return { conversationId: data as string | null, error };
   }
-  const snapshot = sanitizeSupportSnapshot(input.contextSnapshot);
+
+  if (canonicalContextType === "property_listing") {
+    const { data, error } = await supabase.rpc(
+      "open_property_operations_conversation",
+      {
+        p_subject_type: "apartment",
+        p_subject_id: input.contextId,
+        p_snapshot: snapshot,
+      },
+    );
+    return { conversationId: data as string | null, error };
+  }
+
+  if (["hotel_property", "hotel_operations"].includes(canonicalContextType)) {
+    const { data, error } = await supabase.rpc(
+      "open_property_operations_conversation",
+      {
+        p_subject_type: "hotel",
+        p_subject_id: input.contextId,
+        p_snapshot: snapshot,
+      },
+    );
+    return { conversationId: data as string | null, error };
+  }
+
   const { data, error } = await supabase.rpc("create_my_support_case", {
     p_subject: input.subject || "WeHouse",
     p_category: input.category || "general",

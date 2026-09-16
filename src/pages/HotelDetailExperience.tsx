@@ -184,6 +184,27 @@ export default function HotelDetailExperience({
     setCheckOut("");
   }
 
+  function messageWeHouse() {
+    if (!hotel) return;
+    window.dispatchEvent(
+      new CustomEvent("openSupportChat", {
+        detail: {
+          category: "hotel_enquiry",
+          subject: `Question about · ${hotel.name}`,
+          contextType: "hotel_property",
+          contextId: String(hotelId),
+          contextSnapshot: {
+            source_type: "hotel_property",
+            source_id: String(hotelId),
+            hotel_id: hotelId,
+            hotel_name: hotel.name,
+            location: [hotel.area, hotel.city, hotel.state].filter(Boolean).join(", "),
+          },
+        },
+      }),
+    );
+  }
+
   function proceed() {
     if (!selectedRoom) return toast.error("Choose a room type first");
     if (!selectedRate) return toast.error("Choose a package for that room");
@@ -720,12 +741,19 @@ export default function HotelDetailExperience({
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto grid max-w-5xl grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <button
+            type="button"
+            onClick={messageWeHouse}
+            className="h-12 rounded-2xl border border-violet-400/20 bg-violet-500/[.07] px-4 text-[10px] font-semibold text-violet-200"
+          >
+            Message WeHouse
+          </button>
           <button
             type="button"
             onClick={proceed}
             disabled={!selectedRoom || !selectedRate || nights < 1}
-            className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:bg-white/[.055] disabled:text-[#656B7A]"
+            className="h-12 min-w-0 rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:bg-white/[.055] disabled:text-[#656B7A]"
           >
             {!selectedRoom
               ? "Choose a room"
