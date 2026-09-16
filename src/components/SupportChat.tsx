@@ -16,6 +16,7 @@ import {
   isSupportedSupportEvidence,
   markSupportMessagesRead,
   reopenSupportCase,
+  sendFirstContextualHelpMessage,
   sendFirstWeHouseMessage,
   sendSupportMessage,
   supportNextStep,
@@ -312,13 +313,23 @@ export default function SupportChat({
       firstSendAttemptRef.current = attempt;
     }
 
-    const sent = await sendFirstWeHouseMessage(
-      attempt.draftId,
-      attempt.context,
-      attempt.content,
-      attempt.paths,
-      attempt.types,
-    );
+    const sent =
+      attempt.context.contextType === "contextual_help" &&
+      String(attempt.context.contextSnapshot?.reason_code || "").trim()
+        ? await sendFirstContextualHelpMessage(
+            attempt.draftId,
+            attempt.context,
+            attempt.content,
+            attempt.paths,
+            attempt.types,
+          )
+        : await sendFirstWeHouseMessage(
+            attempt.draftId,
+            attempt.context,
+            attempt.content,
+            attempt.paths,
+            attempt.types,
+          );
     let conversationId = sent.conversationId;
     if (sent.error || !conversationId) {
       const checked = await getSupportMessageDraftStatus(attempt.draftId);

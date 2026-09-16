@@ -5,6 +5,7 @@ import AccountShell, {
   AccountRow,
   AccountSection,
 } from "@/components/AccountShell";
+import AccountHelpCenter from "@/components/AccountHelpCenter";
 import type { Profile } from "@/types";
 import PrivacySecuritySettings from "@/pages/PrivacySecuritySettings";
 import MediaViewer from "@/components/MediaViewer";
@@ -65,6 +66,7 @@ type Panel =
   | "legal"
   | "privacy_security"
   | "workspaces"
+  | "help"
   | null;
 type ProfilePreferences = {
   pref_email_notif?: boolean | null;
@@ -352,6 +354,9 @@ export default function AccountCenter({
   ) {
     onWorkspaceActivated?.(workspace);
   }
+
+  if (panel === "help")
+    return <AccountHelpCenter profile={profile} onBack={() => setPanel(null)} />;
 
   if (panel === "privacy_security")
     return (
@@ -711,6 +716,15 @@ export default function AccountCenter({
           }
           onClick={() => setPanel("privacy_security")}
           icon={<ShieldIcon />}
+        />
+      </AccountSection>
+
+      <AccountSection title="Help">
+        <AccountRow
+          title="Help"
+          detail="General help, linked jobs, payments, payouts and safety or security concerns"
+          onClick={() => setPanel("help")}
+          icon={<ToolsIcon />}
         />
       </AccountSection>
 

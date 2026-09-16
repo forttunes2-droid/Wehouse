@@ -207,6 +207,34 @@ export function conversationPresentation(
         .join(" · "),
       operational: true,
     };
+  if (["contextual_help", "operational_case"].includes(contextType)) {
+    const reason = String(snapshot.reason_code || "");
+    const domain = String(snapshot.owning_domain || (
+      ["payment_issue", "payout_issue", "caution_claim"].includes(reason)
+        ? "finance_operations"
+        : ["account_compromise", "blocked_active_obligation", "safety_threat"].includes(reason)
+          ? "security_operations"
+          : ["worker_job_issue", "worker_verification"].includes(reason)
+            ? "worker_operations"
+            : "support"
+    ));
+    const operator = domain === "finance_operations"
+      ? "WeHouse Finance Operations"
+      : domain === "security_operations"
+        ? "WeHouse Security Operations"
+        : domain === "worker_operations"
+          ? "WeHouse Worker Operations"
+          : domain === "property_operations"
+            ? "WeHouse Property Operations"
+            : "WeHouse Support";
+    return {
+      kind: "support",
+      title: rawSubject || String(snapshot.reason_label || snapshot.linked_label || "WeHouse"),
+      operator,
+      meta: [String(snapshot.reason_label || "Help"), status].filter(Boolean).join(" · "),
+      operational: false,
+    };
+  }
   return {
     kind: "support",
     title:
@@ -392,6 +420,41 @@ export async function sendFirstWeHouseMessage(
     p_context_id: context.contextId || null,
     p_context_snapshot: snapshot,
     p_priority: context.priority || "normal",
+    p_content: content,
+    p_attachments: attachments,
+    p_attachment_types: attachmentTypes,
+  });
+  const result = (data || {}) as {
+    conversation_id?: string | null;
+    message_id?: string | null;
+    replayed?: boolean;
+  };
+  return {
+    conversationId: result.conversation_id || null,
+    messageId: result.message_id || null,
+    replayed: result.replayed === true,
+    error,
+  };
+}
+
+export async function sendFirstContextualHelpMessage(
+  draftId: string,
+  context: SupportOpenContext,
+  content: string,
+  attachments: string[] = [],
+  attachmentTypes: string[] = [],
+) {
+  const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);
+  const reasonCode = String(snapshot.reason_code || "").trim();
+  const subjectType = String(snapshot.subject_type || "").trim();
+  const subjectId = String(snapshot.source_id || context.contextId || "").trim();
+  const { data, error } = await supabase.rpc("send_my_first_contextual_help_message", {
+    p_draft_id: draftId,
+    p_reason_code: reasonCode,
+    p_subject_type: subjectType,
+    p_subject_id: subjectId,
+    p_summary: context.subject || null,
+    p_snapshot: snapshot,
     p_content: content,
     p_attachments: attachments,
     p_attachment_types: attachmentTypes,
