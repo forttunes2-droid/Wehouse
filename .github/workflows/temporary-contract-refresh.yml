@@ -1,0 +1,31 @@
+name: Temporary Contract Refresh
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - run: python scripts/temporary_contract_refresh.py
+      - name: Commit refreshed contracts
+        shell: bash
+        run: |
+          if git diff --quiet -- tests/main-hardening-and-boundaries.test.mjs tests/turn-security.test.mjs; then
+            echo "Contracts already current."
+            exit 0
+          fi
+          git config user.name "WeHouse Contract Refresh"
+          git config user.email "actions@users.noreply.github.com"
+          git add tests/main-hardening-and-boundaries.test.mjs tests/turn-security.test.mjs
+          git commit -m "Refresh security contracts for canonical Inbox and Cloudflare TURN"
+          git push origin HEAD:${{ github.head_ref }}
