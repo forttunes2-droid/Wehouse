@@ -1,0 +1,47 @@
+name: Temporary Fix Property Front Door Migration
+
+on:
+  push:
+    branches: [codex/harden-main-resume-repairs-20260914]
+    paths:
+      - .github/workflows/temporary-fix-property-front-door-migration.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/harden-main-resume-repairs-20260914
+          fetch-depth: 0
+      - name: Remove nonexistent registry timestamp write
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('supabase/migrations/20260916160000_property_operations_front_door.sql')
+          source=path.read_text()
+          old="set owning_domain='property_operations', updated_at=now()\nwhere reason_code='field_visit';"
+          new="set owning_domain='property_operations'\nwhere reason_code='field_visit';"
+          if old not in source:
+              if new in source:
+                  print('already fixed')
+              else:
+                  raise SystemExit('registry update block not found')
+          else:
+              path.write_text(source.replace(old,new,1))
+          PY
+      - name: Remove temporary workflow
+        run: rm .github/workflows/temporary-fix-property-front-door-migration.yml
+      - name: Commit repair
+        run: |
+          git config user.name "WeHouse Migration Repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add supabase/migrations/20260916160000_property_operations_front_door.sql .github/workflows/temporary-fix-property-front-door-migration.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix property front-door migration replay"
+          git push origin HEAD:codex/harden-main-resume-repairs-20260914
