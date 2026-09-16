@@ -1,0 +1,34 @@
+name: Temporary Account Help domain repair
+on:
+  push:
+    branches: [codex/harden-main-resume-repairs-20260914]
+    paths: [.github/workflows/temporary-account-help-domain-fix.yml]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/harden-main-resume-repairs-20260914
+      - name: Route fallback Help through the linked journey owner
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/components/AccountHelpCenter.tsx')
+          s=p.read_text()
+          start=s.index('  function startMoney() {')
+          end=s.index('\n\n  return (', start)
+          replacement='''  function openLinkedJourney(\n    target: HelpTarget,\n    reasonCode: "payment_issue" | "safety_threat",\n    subject: string,\n  ) {\n    const contextType = target.context_type || "";\n    if (!["apartment_reservation", "hotel_booking", "worker_booking"].includes(contextType))\n      return false;\n    openConversation({\n      subject,\n      category: reasonCode,\n      contextType,\n      contextId: target.subject_id,\n      priority: reasonCode === "safety_threat" ? "urgent" : "normal",\n      contextSnapshot: {\n        reason_code: reasonCode,\n        subject_type: target.subject_type,\n        source_type: contextType,\n        source_id: target.subject_id,\n        linked_label: target.label,\n        stay_type: target.stay_type,\n        status: target.detail,\n      },\n    });\n    return true;\n  }\n\n  function startMoney() {\n    const source = moneyReason === "payout_issue" ? payoutTargets : paymentTargets;\n    const target = source.find((item) => key(item) === targetId);\n    if (!target)\n      return toast.error(\n        moneyReason === "payout_issue"\n          ? "Choose the withdrawal first"\n          : "Choose the payment record first",\n      );\n\n    // Payment questions stay with the journey owner. Finance is the direct\n    // customer front door only for a standalone payout/withdrawal record.\n    if (\n      moneyReason === "payment_issue" &&\n      openLinkedJourney(target, "payment_issue", "Payment issue")\n    )\n      return;\n\n    const subjectType =\n      moneyReason === "payout_issue" ? "payout" : financeSubjectType(target);\n    openConversation({\n      subject: moneyReason === "payout_issue" ? "Payout issue" : "Payment issue",\n      category: moneyReason,\n      contextType: "contextual_help",\n      contextId: target.subject_id,\n      contextSnapshot: {\n        reason_code: moneyReason,\n        subject_type: subjectType,\n        source_type: subjectType,\n        source_id: target.subject_id,\n        linked_label: target.label,\n        status: target.detail,\n      },\n    });\n  }\n\n  function startSecurity() {\n    const account = targets.account;\n    if (!account) return toast.error("Your account security link is unavailable");\n\n    if (securityReason === "safety_threat" && targetId) {\n      const target = safetyTargets.find((item) => key(item) === targetId);\n      if (target && openLinkedJourney(target, "safety_threat", "Safety concern"))\n        return;\n    }\n\n    let subjectType = "account";\n    let subjectId = account.subject_id;\n    let linkedLabel = account.label;\n    if (securityReason === "safety_threat" && targetId) {\n      const target = safetyTargets.find((item) => key(item) === targetId);\n      if (target) {\n        subjectType = safetySubjectType(target);\n        subjectId = target.subject_id;\n        linkedLabel = target.label;\n      }\n    }\n    openConversation({\n      subject:\n        securityReason === "account_compromise" ? "Account security" : "Safety concern",\n      category: securityReason,\n      contextType: "contextual_help",\n      contextId: subjectId,\n      priority: securityReason === "safety_threat" ? "urgent" : "high",\n      contextSnapshot: {\n        reason_code: securityReason,\n        subject_type: subjectType,\n        source_type: subjectType,\n        source_id: subjectId,\n        linked_label: linkedLabel,\n      },\n    });\n  }'''
+          p.write_text(s[:start]+replacement+s[end:])
+      - name: Remove one-use workflow
+        run: rm .github/workflows/temporary-account-help-domain-fix.yml
+      - name: Commit
+        run: |
+          git config user.name "forttunes2-droid"
+          git config user.email "forttunes2@gmail.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Keep Account Help with the source journey owner"
+          git push origin HEAD:codex/harden-main-resume-repairs-20260914
