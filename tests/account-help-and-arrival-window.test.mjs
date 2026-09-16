@@ -22,6 +22,10 @@ test("Help remains nested inside the shared Account surface across workspaces", 
   assert.match(help, /Service job/);
   assert.match(help, /Payment or payout/);
   assert.match(help, /Safety or account security/);
+  assert.match(help, /worker_profile/);
+  assert.match(help, /property_requests/);
+  assert.match(help, /partner_reservations/);
+  assert.match(help, /partner_hotel_bookings/);
 });
 
 test("Help routing is structured by reason and linked record, not inferred from message text", async () => {

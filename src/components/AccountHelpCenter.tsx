@@ -17,12 +17,16 @@ type HelpTarget = {
 
 type HelpTargets = {
   account?: HelpTarget;
+  worker_profile?: HelpTarget | null;
   worker_jobs?: HelpTarget[];
   withdrawals?: HelpTarget[];
   reservations?: HelpTarget[];
   hotel_bookings?: HelpTarget[];
+  property_requests?: HelpTarget[];
   properties?: HelpTarget[];
   hotels?: HelpTarget[];
+  partner_reservations?: HelpTarget[];
+  partner_hotel_bookings?: HelpTarget[];
 };
 
 type Topic = "general" | "property" | "job" | "money" | "security";
@@ -90,17 +94,25 @@ export default function AccountHelpCenter({
     () => [
       ...(targets.reservations || []),
       ...(targets.hotel_bookings || []),
+      ...(targets.property_requests || []),
       ...(targets.properties || []),
       ...(targets.hotels || []),
+      ...(targets.partner_reservations || []),
+      ...(targets.partner_hotel_bookings || []),
     ],
     [targets],
   );
-  const jobTargets = targets.worker_jobs || [];
+  const jobTargets = [
+    ...(targets.worker_profile ? [targets.worker_profile] : []),
+    ...(targets.worker_jobs || []),
+  ];
   const paymentTargets = useMemo(
     () => [
       ...(targets.worker_jobs || []),
       ...(targets.reservations || []),
       ...(targets.hotel_bookings || []),
+      ...(targets.partner_reservations || []),
+      ...(targets.partner_hotel_bookings || []),
     ],
     [targets],
   );
@@ -168,7 +180,23 @@ export default function AccountHelpCenter({
 
   function startJob() {
     const target = jobTargets.find((item) => key(item) === targetId);
-    if (!target) return toast.error("Choose the job first");
+    if (!target) return toast.error("Choose the Service Provider record first");
+    if (target.subject_type === "worker") {
+      openConversation({
+        subject: target.label,
+        category: "worker_verification",
+        contextType: "contextual_help",
+        contextId: target.subject_id,
+        contextSnapshot: {
+          reason_code: "worker_verification",
+          subject_type: "worker",
+          source_type: "worker",
+          source_id: target.subject_id,
+          linked_label: target.label,
+        },
+      });
+      return;
+    }
     openConversation({
       subject: target.label,
       category: "service_booking_help",
@@ -305,11 +333,11 @@ export default function AccountHelpCenter({
 
           {topic === "job" ? (
             <TargetPicker
-              title="Which service job?"
+              title="Which Service Provider record?"
               targets={jobTargets}
               value={targetId}
               setValue={setTargetId}
-              empty="No WeHouse Services job is linked to this identity yet."
+              empty="No Service Provider profile or job is linked to this identity yet."
               action={startJob}
             />
           ) : null}
