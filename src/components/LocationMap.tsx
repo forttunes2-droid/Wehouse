@@ -201,7 +201,7 @@ export default function LocationMap({
               {editable
                 ? "Choose the exact entrance, then confirm below"
                 : approximate
-                  ? "Approximate area only; exact coordinates are not shown"
+                  ? "Approximate area only; the exact entrance location is not shown"
                   : "Confirmed destination"}
               {distance !== null
                 ? ` · about ${

@@ -23,7 +23,7 @@ import {
   type SavedSearch,
 } from "@/lib/supabase/saved-searches";
 import {
-  distanceBetweenKm,
+  getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 
@@ -88,6 +88,13 @@ export default function Search({
     requestLocation,
     clearLocation,
   } = useDiscoveryLocation();
+  const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    let live = true;
+    void getDiscoveryDistanceMap(location).then((next) => { if (live) setDistanceMap(next); });
+    return () => { live = false; };
+  }, [location]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem("search_property_type");
@@ -169,15 +176,10 @@ export default function Search({
   const filtered = useMemo(
     () =>
       listings
-        .map((listing) => {
-          const lat = Number(listing.gps_latitude);
-          const lng = Number(listing.gps_longitude);
-          const distance =
-            location && Number.isFinite(lat) && Number.isFinite(lng)
-              ? distanceBetweenKm(location, { lat, lng })
-              : null;
-          return { listing, distance };
-        })
+        .map((listing) => ({
+          listing,
+          distance: distanceMap.get(`listing:${listing.id}`) ?? null,
+        }))
         .filter(({ listing }) => {
           if (stayType !== "all" && listing.sub_type !== stayType) return false;
           const price = Number(listing.price || 0);
@@ -201,7 +203,7 @@ export default function Search({
       bathrooms,
       filterState,
       filterCity,
-      location,
+      distanceMap,
     ],
   );
 

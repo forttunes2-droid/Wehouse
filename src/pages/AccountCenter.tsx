@@ -118,6 +118,7 @@ export default function AccountCenter({
   const [photoPreview, setPhotoPreview] = useState(false);
 
   const role = profile.role;
+  const canOpenCustomerHelp = ["user", "worker", "property_partner"].includes(role);
   const isUser = role === "user";
   const isServiceProvider = role === "worker";
   const isStaff = role === "staff";
@@ -355,7 +356,7 @@ export default function AccountCenter({
     onWorkspaceActivated?.(workspace);
   }
 
-  if (panel === "help")
+  if (panel === "help" && canOpenCustomerHelp)
     return <AccountHelpCenter profile={profile} onBack={() => setPanel(null)} />;
 
   if (panel === "privacy_security")
@@ -719,14 +720,16 @@ export default function AccountCenter({
         />
       </AccountSection>
 
-      <AccountSection title="Help">
-        <AccountRow
-          title="Help"
-          detail="General help, linked jobs, payments, payouts and safety or security concerns"
-          onClick={() => setPanel("help")}
-          icon={<ToolsIcon />}
-        />
-      </AccountSection>
+      {canOpenCustomerHelp ? (
+        <AccountSection title="Help">
+          <AccountRow
+            title="Help"
+            detail="General help, linked jobs, payments, payouts and safety or security concerns"
+            onClick={() => setPanel("help")}
+            icon={<ToolsIcon />}
+          />
+        </AccountSection>
+      ) : null}
 
       <AccountSection title="Legal">
         <AccountRow

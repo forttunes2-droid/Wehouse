@@ -189,7 +189,7 @@ export default function PreciseLocationPicker({
     subject === "property" ? "Property entrance" : "Your location";
   const addressHelp =
     subject === "property"
-      ? "The device suggestion may be nearby rather than exact. Type the real street address yourself if needed. The written address is what customers see; coordinates stay private to WeHouse operations."
+      ? "The device suggestion may be nearby rather than exact. Type the real street address yourself if needed. The written address is what customers see; entrance-location data stays private to WeHouse operations."
       : "The device suggestion may be nearby rather than exact. Type your real street address yourself if needed.";
 
   return (

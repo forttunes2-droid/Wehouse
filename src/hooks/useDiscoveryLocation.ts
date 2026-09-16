@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export type DiscoveryLocation = {
   lat: number;
@@ -94,6 +95,25 @@ export function distanceBetweenKm(
   return radius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
-export function directionsUrl(latitude: number, longitude: number) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${latitude},${longitude}`)}&travelmode=driving`;
+export async function getDiscoveryDistanceMap(
+  origin: Pick<DiscoveryLocation, "lat" | "lng"> | null,
+) {
+  const map = new Map<string, number>();
+  if (!origin) return map;
+  const { data, error } = await supabase.rpc("get_my_discovery_distances", {
+    p_lat: origin.lat,
+    p_lng: origin.lng,
+  });
+  if (error) return map;
+  for (const row of Array.isArray(data) ? data : []) {
+    const type = String(row?.subject_type || "");
+    const id = String(row?.subject_id || "");
+    const distance = Number(row?.distance_km);
+    if (type && id && Number.isFinite(distance)) map.set(`${type}:${id}`, distance);
+  }
+  return map;
+}
+
+export function directionsUrl(address: string) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
 }

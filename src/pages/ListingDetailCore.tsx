@@ -26,7 +26,7 @@ import RentalPlanSelector from "@/components/RentalPlanSelector";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import {
   directionsUrl,
-  distanceBetweenKm,
+  getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import { Toaster, toast } from "sonner";
@@ -119,6 +119,7 @@ export default function ListingDetail({
   const [shortCheckOut, setShortCheckOut] = useState("");
   const [shortGuests, setShortGuests] = useState(1);
   const { location } = useDiscoveryLocation();
+  const [distance, setDistance] = useState<number | null>(null);
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber("reservation_fee", 10000);
 
@@ -166,6 +167,14 @@ export default function ListingDetail({
   useEffect(() => {
     void load();
   }, [listingId, profile.user_id]);
+
+  useEffect(() => {
+    let live = true;
+    void getDiscoveryDistanceMap(location).then((map) => {
+      if (live) setDistance(map.get(`listing:${listing?.id || listingId}`) ?? null);
+    });
+    return () => { live = false; };
+  }, [listing?.id, listingId, location]);
 
   function support(
     kind: "property" | "reservation" | "inspection" | "payment" = "property",
@@ -476,20 +485,8 @@ export default function ListingDetail({
   const accommodationPaid = reservation
     ? hasProtectedAccommodationPayment(reservation)
     : false;
-  const locationExact = accommodationPaid && listing.location_exact === true;
-  const visibleAddress = locationExact
-    ? locationLabel(listing.address, listing.city, listing.state)
-    : locationLabel(listing.city, listing.state);
-  const mapPoint = Number.isFinite(Number(listing.gps_latitude)) &&
-    Number.isFinite(Number(listing.gps_longitude))
-      ? {
-          lat: Number(listing.gps_latitude),
-          lng: Number(listing.gps_longitude),
-        }
-      : null;
-  const destination = locationExact ? mapPoint : null;
-  const distance =
-    location && mapPoint ? distanceBetweenKm(location, mapPoint) : null;
+  void accommodationPaid;
+  const visibleAddress = locationLabel(listing.address, listing.city, listing.state);
   const displayTitle = listingDisplayTitle(listing);
 
   return (
@@ -583,17 +580,13 @@ export default function ListingDetail({
                         ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
                         : ""}
                     </p>
-                    {!locationExact && (
-                      <p className="mt-1 text-[9px] text-[#5F6575]">
-                        Approximate area and distance only. The exact address,
-                        entrance and road directions unlock after the full
-                        accommodation payment is confirmed and protected.
-                      </p>
-                    )}
+                    <p className="mt-1 text-[9px] text-[#5F6575]">
+                      The published street address is visible before booking. Internal entrance-location data stays private.
+                    </p>
                   </div>
-                  {destination && (
+                  {visibleAddress && (
                     <a
-                      href={directionsUrl(destination.lat, destination.lng)}
+                      href={directionsUrl(visibleAddress)}
                       target="_blank"
                       rel="noreferrer"
                       className="shrink-0 rounded-xl border border-white/[.09] px-4 py-2.5 text-[10px] font-semibold text-violet-300"

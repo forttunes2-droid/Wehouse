@@ -179,11 +179,15 @@ export default function PartnerSubmittedRequests({
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
         detail: {
-          category: "property_inspection",
-          subject: `Property inspection ${request.request_code || ""}`.trim(),
-          contextType: "property_inspection",
+          category: "property_submission_help",
+          subject: `Property submission ${request.request_code || ""}`.trim(),
+          contextType: "contextual_help",
           contextId: request.id,
           contextSnapshot: {
+            reason_code: "property_submission_help",
+            subject_type: "inspection",
+            source_type: "inspection",
+            source_id: request.id,
             request_code: request.request_code,
             property_address: request.property_address,
             property_type: request.property_type,
