@@ -32,3 +32,18 @@ test("Inspection help with a reservation stays on that reservation conversation"
   assert.match(support,/canonicalContextType === "property_inspection"[\s\S]*snapshot\.reservation_id[\s\S]*open_my_reservation_conversation/);
   assert.match(migration,/v_context='property_inspection'[\s\S]*v_snapshot->>'reservation_id'[\s\S]*open_my_reservation_conversation/);
 });
+
+test("Property Partner owns apartments and hotels in one Properties workspace",async()=>{
+  const [partner,hotelTeam]=await Promise.all([
+    read("src/pages/PropertyOwnerDashboard.tsx"),
+    read("src/pages/HotelTeamDashboard.tsx"),
+  ]);
+  assert.match(partner,/type PartnerTab = "properties" \| "finance" \| "communication"/);
+  assert.match(partner,/value: "apartment", label: "Apartments"/);
+  assert.match(partner,/value: "hotel", label: "Hotels"/);
+  assert.match(partner,/assetKind === "apartment"[\s\S]*\.from\("listings"\)[\s\S]*:\s*await supabase[\s\S]*\.from\("hotels"\)/);
+  assert.match(partner,/accessRole="owner"/);
+  assert.doesNotMatch(partner,/PartnerTab = [^\n]*"hotels"/);
+  assert.match(hotelTeam,/access_role: "manager" \| "front_desk"/);
+  assert.doesNotMatch(hotelTeam,/accessRole="owner"/);
+});
