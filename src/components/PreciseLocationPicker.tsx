@@ -23,7 +23,7 @@ export default function PreciseLocationPicker({
   value,
   onChange,
   title = "Street address",
-  description = "Type the real street address. You can optionally use this phone to suggest it, then correct the text before saving.",
+  description = "Use my location to suggest the street address, then correct the text if needed.",
   subject = "personal",
 }: Props) {
   const [locating, setLocating] = useState(false);
@@ -89,8 +89,8 @@ export default function PreciseLocationPicker({
         const suggestedAddress = String(result.data.address);
         onChange({
           ...base,
-          // The person's written address is authoritative. A later device
-          // refresh must never replace it with a nearby reverse-geocode result.
+          // A manually corrected written address is authoritative. Refreshing
+          // device location must never replace it with a nearby suggestion.
           address: typedAddress || suggestedAddress,
           city: String(result.data.city || value?.city || ""),
           state: String(result.data.state || value?.state || ""),
@@ -101,11 +101,11 @@ export default function PreciseLocationPicker({
             : "Address suggestion found. Check and correct it before saving.",
         );
       } else if (!typedAddress) {
-        setMessage("Location found. Type the exact street address before saving.");
+        setMessage("Location found. Type the correct street address before saving.");
       }
     } catch {
       if (request === requestRef.current && !typedAddress)
-        setMessage("Location found. Type the exact street address before saving.");
+        setMessage("Location found. Type the correct street address before saving.");
     }
   }
 
@@ -126,7 +126,7 @@ export default function PreciseLocationPicker({
   function locate() {
     if (!navigator.geolocation) {
       setMessage(
-        "This browser cannot share location. Type the exact street address manually.",
+        "This browser cannot share location. Type the correct street address manually.",
       );
       return;
     }
@@ -135,11 +135,7 @@ export default function PreciseLocationPicker({
     let done = false;
     let watch = -1;
     setLocating(true);
-    setMessage(
-      subject === "property"
-        ? "Checking the property location…"
-        : "Checking your current location…",
-    );
+    setMessage("Finding the best available location from this phone…");
 
     const settle = () => {
       if (done || request !== requestRef.current || !best) return;
@@ -150,7 +146,7 @@ export default function PreciseLocationPicker({
     const receive = (position: GeolocationPosition) => {
       if (done || request !== requestRef.current) return;
       if (!best || position.coords.accuracy < best.coords.accuracy) best = position;
-      setMessage("Checking the best available location from this phone…");
+      setMessage("Finding the best available location from this phone…");
       if (best.coords.accuracy <= 25) settle();
     };
 
@@ -181,7 +177,7 @@ export default function PreciseLocationPicker({
         if (watch >= 0) navigator.geolocation.clearWatch(watch);
         setLocating(false);
         setMessage(
-          "We could not confirm a location from this phone. Type the exact street address manually or try again.",
+          "We could not confirm a location from this phone. Type the correct street address manually or try again.",
         );
       }
     }, 12000);
@@ -189,8 +185,8 @@ export default function PreciseLocationPicker({
 
   const addressHelp =
     subject === "property"
-      ? "The written street address is the address people see. WeHouse keeps the technical location data behind the property record instead of showing it in the app."
-      : "Your written street address is what you see in Account. WeHouse keeps the technical location data behind your profile instead of showing it in the app.";
+      ? "The street address is what the Partner, WeHouse team and customers see. Device location stays in the background for verification and distance calculations."
+      : "The street address is what you see and edit. Device location stays in the background and is never shown as coordinates.";
 
   return (
     <section className="border-y border-white/[.07] py-4">
@@ -234,11 +230,7 @@ export default function PreciseLocationPicker({
             disabled={locating}
             className="shrink-0 text-[9px] font-semibold text-violet-300 disabled:opacity-50"
           >
-            {locating
-              ? "Checking…"
-              : subject === "property"
-                ? "Confirm from this phone"
-                : "Suggest from this phone"}
+            {locating ? "Finding address…" : "Use my location"}
           </button>
         </div>
 
