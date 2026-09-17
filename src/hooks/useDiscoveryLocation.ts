@@ -5,19 +5,38 @@ export type DiscoveryLocation = {
   lat: number;
   lng: number;
   accuracy: number | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
   capturedAt: number;
 };
 
-const STORAGE_KEY = "wh_discovery_location_v1";
+const STORAGE_KEY = "wh_discovery_location_v2";
 const EVENT_NAME = "wehouse:discovery-location";
 let memoryLocation: DiscoveryLocation | null | undefined;
+
+function normalizeStoredLocation(value: unknown): DiscoveryLocation | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Partial<DiscoveryLocation>;
+  if (!Number.isFinite(row.lat) || !Number.isFinite(row.lng)) return null;
+  return {
+    lat: Number(row.lat),
+    lng: Number(row.lng),
+    accuracy: Number.isFinite(row.accuracy) ? Number(row.accuracy) : null,
+    address: typeof row.address === "string" && row.address.trim() ? row.address.trim() : null,
+    city: typeof row.city === "string" && row.city.trim() ? row.city.trim() : null,
+    state: typeof row.state === "string" && row.state.trim() ? row.state.trim() : null,
+    capturedAt: Number.isFinite(row.capturedAt) ? Number(row.capturedAt) : Date.now(),
+  };
+}
 
 function readLocation(): DiscoveryLocation | null {
   if (memoryLocation !== undefined) return memoryLocation;
   if (typeof window === "undefined") return null;
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null") as DiscoveryLocation | null;
-    memoryLocation = parsed && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng) ? parsed : null;
+    memoryLocation = normalizeStoredLocation(
+      JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null"),
+    );
   } catch {
     memoryLocation = null;
   }
@@ -39,7 +58,8 @@ export function useDiscoveryLocation() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const sync = (event: Event) => setLocation((event as CustomEvent<DiscoveryLocation | null>).detail);
+    const sync = (event: Event) =>
+      setLocation((event as CustomEvent<DiscoveryLocation | null>).detail);
     window.addEventListener(EVENT_NAME, sync);
     return () => window.removeEventListener(EVENT_NAME, sync);
   }, []);
@@ -52,22 +72,65 @@ export function useDiscoveryLocation() {
     setLocating(true);
     setError("");
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const next = {
+      async (position) => {
+        const base: DiscoveryLocation = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-          accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+          accuracy: Number.isFinite(position.coords.accuracy)
+            ? position.coords.accuracy
+            : null,
+          address: null,
+          city: null,
+          state: null,
           capturedAt: Date.now(),
         };
-        publish(next);
-        setLocation(next);
-        setLocating(false);
+
+        // Coordinates stay internal to the browser/server calculation path. The
+        // human-facing result is the reverse-geocoded address text only.
+        publish(base);
+        setLocation(base);
+
+        try {
+          const result = await Promise.race([
+            supabase.functions.invoke("reverse-geocode", {
+              body: { latitude: base.lat, longitude: base.lng },
+            }),
+            new Promise<never>((_, reject) =>
+              window.setTimeout(
+                () => reject(new Error("Address lookup timed out")),
+                8000,
+              ),
+            ),
+          ]);
+          if (!result.error && result.data?.address) {
+            const resolved: DiscoveryLocation = {
+              ...base,
+              address: String(result.data.address).trim() || null,
+              city: String(result.data.city || "").trim() || null,
+              state: String(result.data.state || "").trim() || null,
+            };
+            publish(resolved);
+            setLocation(resolved);
+          } else {
+            setError(
+              "Location found, but the street address could not be identified. Distance still works.",
+            );
+          }
+        } catch {
+          setError(
+            "Location found, but the street address could not be identified. Distance still works.",
+          );
+        } finally {
+          setLocating(false);
+        }
       },
       (reason) => {
         setLocating(false);
-        setError(reason.code === reason.PERMISSION_DENIED
-          ? "Allow location access to see distance from you."
-          : "Your location could not be found. Try again outside or with device location enabled.");
+        setError(
+          reason.code === reason.PERMISSION_DENIED
+            ? "Allow location access to use your current location."
+            : "Your location could not be found. Try again with device location enabled.",
+        );
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
     );
@@ -90,8 +153,11 @@ export function distanceBetweenKm(
   const radians = (value: number) => (value * Math.PI) / 180;
   const latitude = radians(destination.lat - origin.lat);
   const longitude = radians(destination.lng - origin.lng);
-  const value = Math.sin(latitude / 2) ** 2
-    + Math.cos(radians(origin.lat)) * Math.cos(radians(destination.lat)) * Math.sin(longitude / 2) ** 2;
+  const value =
+    Math.sin(latitude / 2) ** 2 +
+    Math.cos(radians(origin.lat)) *
+      Math.cos(radians(destination.lat)) *
+      Math.sin(longitude / 2) ** 2;
   return radius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
@@ -109,7 +175,8 @@ export async function getDiscoveryDistanceMap(
     const type = String(row?.subject_type || "");
     const id = String(row?.subject_id || "");
     const distance = Number(row?.distance_km);
-    if (type && id && Number.isFinite(distance)) map.set(`${type}:${id}`, distance);
+    if (type && id && Number.isFinite(distance))
+      map.set(`${type}:${id}`, distance);
   }
   return map;
 }
