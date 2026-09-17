@@ -23,10 +23,17 @@ function normalizeStoredLocation(value: unknown): DiscoveryLocation | null {
     lat: Number(row.lat),
     lng: Number(row.lng),
     accuracy: Number.isFinite(row.accuracy) ? Number(row.accuracy) : null,
-    address: typeof row.address === "string" && row.address.trim() ? row.address.trim() : null,
-    city: typeof row.city === "string" && row.city.trim() ? row.city.trim() : null,
-    state: typeof row.state === "string" && row.state.trim() ? row.state.trim() : null,
-    capturedAt: Number.isFinite(row.capturedAt) ? Number(row.capturedAt) : Date.now(),
+    address:
+      typeof row.address === "string" && row.address.trim()
+        ? row.address.trim()
+        : null,
+    city:
+      typeof row.city === "string" && row.city.trim() ? row.city.trim() : null,
+    state:
+      typeof row.state === "string" && row.state.trim() ? row.state.trim() : null,
+    capturedAt: Number.isFinite(row.capturedAt)
+      ? Number(row.capturedAt)
+      : Date.now(),
   };
 }
 
@@ -53,13 +60,21 @@ function publish(location: DiscoveryLocation | null) {
 }
 
 export function useDiscoveryLocation() {
-  const [location, setLocation] = useState<DiscoveryLocation | null>(() => readLocation());
+  const [location, setLocation] = useState<DiscoveryLocation | null>(() =>
+    readLocation(),
+  );
   const [locating, setLocating] = useState(false);
-  const [error, setError] = useState("");
+  // Kept as `error` for the existing toolbar API. On a successful location
+  // lookup it carries the human-readable address so every "Use my location"
+  // surface shows text rather than coordinates.
+  const [error, setError] = useState(() => readLocation()?.address || "");
 
   useEffect(() => {
-    const sync = (event: Event) =>
-      setLocation((event as CustomEvent<DiscoveryLocation | null>).detail);
+    const sync = (event: Event) => {
+      const next = (event as CustomEvent<DiscoveryLocation | null>).detail;
+      setLocation(next);
+      setError(next?.address || "");
+    };
     window.addEventListener(EVENT_NAME, sync);
     return () => window.removeEventListener(EVENT_NAME, sync);
   }, []);
@@ -111,6 +126,7 @@ export function useDiscoveryLocation() {
             };
             publish(resolved);
             setLocation(resolved);
+            setError(resolved.address || "Current location");
           } else {
             setError(
               "Location found, but the street address could not be identified. Distance still works.",
