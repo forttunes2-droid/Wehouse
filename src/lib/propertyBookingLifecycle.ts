@@ -31,37 +31,23 @@ export type PropertyJourney = {
 
 const COMPLETE_STATUSES = new Set(["paid", "completed"]);
 const RENT_PAID_STATUSES = new Set(["paid", "upfront_paid"]);
-const ACTIVE_INSPECTION_STATUSES = new Set([
-  "pending",
-  "scheduled",
-  "in_progress",
-]);
-const STOPPED_STATUSES = new Set([
-  "cancelled",
-  "expired",
-  "refunded",
-  "payment_conflict",
-]);
+const ACTIVE_INSPECTION_STATUSES = new Set(["pending", "scheduled", "in_progress"]);
+const STOPPED_STATUSES = new Set(["cancelled", "expired", "refunded", "payment_conflict"]);
 
 export function hasProtectedAccommodationPayment(row: Record<string, any>) {
-  const shortStay =
-    String(row.stay_type || row._stayKind || "long_stay") === "short_let";
+  const shortStay = String(row.stay_type || row._stayKind || "long_stay") === "short_let";
   const protectionId = shortStay
     ? row.stay_payment_protection_id
     : row.year_one_rent_protection_id;
   return (
-    RENT_PAID_STATUSES.has(
-      String(row.rent_payment_status || row.payment_status || "not_started"),
-    ) &&
+    RENT_PAID_STATUSES.has(String(row.rent_payment_status || row.payment_status || "not_started")) &&
     Boolean(row.rent_paid_at) &&
     Boolean(protectionId)
   );
 }
 
 export function hasUnprotectedPaidAccommodation(row: Record<string, any>) {
-  const rentStatus = String(
-    row.rent_payment_status || row.payment_status || "not_started",
-  );
+  const rentStatus = String(row.rent_payment_status || row.payment_status || "not_started");
   return (
     RENT_PAID_STATUSES.has(rentStatus) &&
     Boolean(row.rent_paid_at) &&
@@ -84,6 +70,15 @@ function inspectionLabel(status: string | null) {
   if (status === "in_progress") return "Visit in progress";
   if (status === "completed") return "Inspection completed";
   return "Inspection requested";
+}
+
+function shortLetHasCaution(row: Record<string, any>) {
+  return Number(
+    row.security_deposit_amount ??
+      row.stay_security_deposit_amount ??
+      row.caution_amount ??
+      0,
+  ) > 0;
 }
 
 export function getPropertyBookingJourney(
@@ -154,16 +149,29 @@ export function getPropertyBookingJourney(
   }
 
   if (shortStay) {
+    const cautionEnabled = shortLetHasCaution(row);
     const paymentStep = rentPaid
-      ? complete("Stay payment", "Stay rent and the refundable deposit are confirmed.")
+      ? complete(
+          "Stay payment",
+          cautionEnabled
+            ? "Stay payment and the separately refundable caution are confirmed."
+            : "Stay payment is confirmed. This Short Let has no refundable caution.",
+        )
       : feePaid
-        ? current("Stay payment", rentStatus === "payment_pending" ? "Secure checkout started; payment is not confirmed yet." : "Pay the stay rent and refundable deposit.")
+        ? current(
+            "Stay payment",
+            rentStatus === "payment_pending"
+              ? "Secure checkout started; payment is not confirmed yet."
+              : cautionEnabled
+                ? "Pay the stay price and the separately refundable caution."
+                : "Pay the stay price. No refundable caution is required for this Short Let.",
+          )
         : upcoming("Stay payment", "Available after the reservation fee is confirmed.");
     const arrivalStep = status === "occupied" || status === "completed"
       ? complete("Check-in", "Access was handed over and entry was recorded.")
       : status === "ready_for_move_in" && rentPaid
         ? current("Check-in", "Property Operations verifies the booking code at arrival.")
-        : upcoming("Check-in", "Available after full stay payment.");
+        : upcoming("Check-in", "Available after the required stay payment is confirmed.");
     const stayStep = status === "completed"
       ? complete("Stay", "The reserved stay has ended.")
       : status === "occupied"
@@ -183,7 +191,7 @@ export function getPropertyBookingJourney(
             : status === "ready_for_move_in"
               ? "handover"
               : "rent_payment";
-    const copy = shortStayCopy(action, audience, rentStatus);
+    const copy = shortStayCopy(action, audience, rentStatus, cautionEnabled);
     return {
       action,
       ...copy,
@@ -343,17 +351,45 @@ function shortStayCopy(
   action: PropertyJourneyAction,
   audience: PropertyJourneyAudience,
   rentStatus: string,
+  cautionEnabled: boolean,
 ) {
   const operations = audience === "operations";
-  if (action === "reservation_payment") return { title: "Reserve your dates", detail: "Pay the reservation fee to hold these dates before completing the stay payment." };
+  if (action === "reservation_payment") return {
+    title: "Reserve your dates",
+    detail: "Pay the reservation fee to hold these dates before completing the stay payment.",
+  };
   if (action === "rent_payment") return {
-    title: operations ? "Waiting for full stay payment" : rentStatus === "payment_pending" ? "Finish stay payment" : "Pay for the Short Let",
-    detail: operations ? "Do not check the guest in until stay rent and the refundable deposit are verified." : "Pay the stay rent and refundable deposit before arrival.",
+    title: operations
+      ? "Waiting for required stay payment"
+      : rentStatus === "payment_pending"
+        ? "Finish stay payment"
+        : "Pay for the Short Let",
+    detail: operations
+      ? cautionEnabled
+        ? "Do not check the guest in until the stay payment and separately refundable caution are verified."
+        : "Do not check the guest in until the stay payment is verified. This booking has no refundable caution."
+      : cautionEnabled
+        ? "Pay the stay price and the separately refundable caution before arrival."
+        : "Pay the stay price before arrival. No refundable caution is required for this Short Let.",
   };
   if (action === "handover") return {
     title: operations ? "Verify code and check the guest in" : "Ready for check-in",
-    detail: operations ? "Confirm the booking code and reserved dates before handing over access." : "Show the booking code to Property Operations during the reserved check-in period.",
+    detail: operations
+      ? "Confirm the booking code and reserved dates before handing over access."
+      : "Show the booking code to Property Operations during the reserved check-in period.",
   };
-  if (action === "tenancy") return { title: "Stay in progress", detail: "You are checked in until the booked checkout date." };
-  return { title: "Stay completed", detail: "The booking and any refundable-deposit review remain attached to this record." };
+  if (action === "tenancy") {
+    return {
+      title: "Stay in progress",
+      detail: cautionEnabled
+        ? "You are checked in until the booked checkout date. If the property already has damage, record it within the caution check-in evidence window."
+        : "You are checked in until the booked checkout date.",
+    };
+  }
+  return {
+    title: "Stay completed",
+    detail: cautionEnabled
+      ? "The stay is complete. Any caution claim or refund remains attached to this booking."
+      : "The stay is complete and remains attached to this booking history.",
+  };
 }
