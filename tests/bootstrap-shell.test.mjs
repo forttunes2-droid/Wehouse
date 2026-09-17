@@ -11,6 +11,19 @@ test("WeHouse renders a branded shell before React mounts", async () => {
   assert.match(html, /wh-bootstrap-loader/);
 });
 
+test("startup failures replace the splash instead of hanging forever", async () => {
+  const [preflight, main] = await Promise.all([
+    readFile("src/preflight.ts", "utf8"),
+    readFile("src/main.tsx", "utf8"),
+  ]);
+
+  assert.match(preflight, /renderStartupFailure/);
+  assert.match(preflight, /Preview backend is not connected/);
+  assert.match(preflight, /non-production WeHouse host cannot connect to the production Supabase project/);
+  assert.match(preflight, /setTimeout\([\s\S]*8000/);
+  assert.match(main, /dataset\.whReactMounted\s*=\s*['"]true['"]/);
+});
+
 test("startup HTML does not preload retired map UI dependencies", async () => {
   const html = await readFile("index.html", "utf8");
   assert.doesNotMatch(html, /tile\.openstreetmap\.org/i);
