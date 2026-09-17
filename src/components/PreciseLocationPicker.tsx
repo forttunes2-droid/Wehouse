@@ -77,10 +77,7 @@ export default function PreciseLocationPicker({
           body: { latitude, longitude },
         }),
         new Promise<never>((_, reject) =>
-          window.setTimeout(
-            () => reject(new Error("Address lookup timed out")),
-            8000,
-          ),
+          window.setTimeout(() => reject(new Error("Address lookup timed out")), 8000),
         ),
       ]);
       if (request !== requestRef.current) return;
@@ -89,8 +86,6 @@ export default function PreciseLocationPicker({
         const suggestedAddress = String(result.data.address);
         onChange({
           ...base,
-          // A manually corrected written address is authoritative. Refreshing
-          // device location must never replace it with a nearby suggestion.
           address: typedAddress || suggestedAddress,
           city: String(result.data.city || value?.city || ""),
           state: String(result.data.state || value?.state || ""),
@@ -98,14 +93,24 @@ export default function PreciseLocationPicker({
         setMessage(
           typedAddress
             ? "Location updated. Your written street address was kept."
-            : "Address suggestion found. Check and correct it before saving.",
+            : subject === "property"
+              ? "Address suggestion found. Correct the Street address above if needed."
+              : "Address suggestion found. Check and correct it before saving.",
         );
       } else if (!typedAddress) {
-        setMessage("Location found. Type the correct street address before saving.");
+        setMessage(
+          subject === "property"
+            ? "Location found. Type the correct Street address above before saving."
+            : "Location found. Type the correct street address before saving.",
+        );
       }
     } catch {
       if (request === requestRef.current && !typedAddress)
-        setMessage("Location found. Type the correct street address before saving.");
+        setMessage(
+          subject === "property"
+            ? "Location found. Type the correct Street address above before saving."
+            : "Location found. Type the correct street address before saving.",
+        );
     }
   }
 
@@ -125,9 +130,7 @@ export default function PreciseLocationPicker({
 
   function locate() {
     if (!navigator.geolocation) {
-      setMessage(
-        "This browser cannot share location. Type the correct street address manually.",
-      );
+      setMessage("This browser cannot share location. Type the correct street address manually.");
       return;
     }
     const request = ++requestRef.current;
@@ -176,26 +179,22 @@ export default function PreciseLocationPicker({
         done = true;
         if (watch >= 0) navigator.geolocation.clearWatch(watch);
         setLocating(false);
-        setMessage(
-          "We could not confirm a location from this phone. Type the correct street address manually or try again.",
-        );
+        setMessage("We could not confirm a location from this phone. Type the correct street address manually or try again.");
       }
     }, 12000);
   }
 
   const addressHelp =
     subject === "property"
-      ? "The street address is what the Partner, WeHouse team and customers see. Device location stays in the background for verification and distance calculations."
-      : "The street address is what you see and edit. Device location stays in the background and is never shown as coordinates.";
+      ? "Street address is the editable location people see. Device accuracy stays behind the interface for verification and distance calculations."
+      : "Your street address is what you see and edit. Device accuracy stays behind the interface and is never shown as coordinates.";
 
   return (
     <section className="border-y border-white/[.07] py-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold">{title}</p>
-          <p className="mt-1 text-[9px] leading-5 text-[#787D8F]">
-            {description}
-          </p>
+          <p className="mt-1 text-[9px] leading-5 text-[#787D8F]">{description}</p>
         </div>
         <span
           className={`shrink-0 text-[8px] font-bold uppercase tracking-wide ${
@@ -207,20 +206,24 @@ export default function PreciseLocationPicker({
       </div>
 
       <div className="mt-3">
-        <label className="block">
-          <span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">
-            {subject === "property"
-              ? "Property street address"
-              : "Your street address"}
-          </span>
-          <textarea
-            rows={2}
-            value={value?.address || ""}
-            placeholder="House number, street, area"
-            onChange={(event) => updateAddress(event.target.value)}
-            className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"
-          />
-        </label>
+        {subject === "personal" ? (
+          <label className="block">
+            <span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">
+              Your street address
+            </span>
+            <textarea
+              rows={2}
+              value={value?.address || ""}
+              placeholder="House number, street, area"
+              onChange={(event) => updateAddress(event.target.value)}
+              className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"
+            />
+          </label>
+        ) : value?.address.trim() ? (
+          <p className="rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2.5 text-[10px] text-[#A9AEBA]">
+            {value.address.trim()}
+          </p>
+        ) : null}
 
         <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-[8px] leading-4 text-[#656B7B]">{addressHelp}</p>
@@ -234,7 +237,7 @@ export default function PreciseLocationPicker({
           </button>
         </div>
 
-        {value && (
+        {subject === "personal" && value ? (
           <button
             type="button"
             onClick={() => {
@@ -246,25 +249,21 @@ export default function PreciseLocationPicker({
           >
             Remove address
           </button>
-        )}
+        ) : null}
       </div>
 
-      {message && (
+      {message ? (
         <p
           className={`mt-2 rounded-xl px-3 py-2 text-[9px] leading-5 ${
             /blocked|could not|cannot|No location/i.test(message)
               ? "bg-amber-500/10 text-amber-200"
               : "text-[#9AA0AF]"
           }`}
-          role={
-            /blocked|could not|cannot|No location/i.test(message)
-              ? "alert"
-              : "status"
-          }
+          role={/blocked|could not|cannot|No location/i.test(message) ? "alert" : "status"}
         >
           {message}
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
