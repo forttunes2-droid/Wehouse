@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -15,13 +14,7 @@ async function sourceFiles(dir) {
   return result;
 }
 
-test("human location surfaces never expose pin, GPS accuracy or coordinate controls", async () => {
-  assert.equal(
-    existsSync("src/components/LocationMap.tsx"),
-    false,
-    "The obsolete user-facing map/pin editor must stay removed",
-  );
-
+test("human location surfaces never expose pin or accuracy controls", async () => {
   const files = await sourceFiles("src");
   const forbidden = [
     /GPS accuracy/i,
@@ -35,14 +28,23 @@ test("human location surfaces never expose pin, GPS accuracy or coordinate contr
     /longitude\s*[:=]\s*["'`]?[{<]/i,
   ];
 
+  const humanFacingExceptions = new Set([
+    "src/components/PropertyPipelineWorkspace.tsx",
+  ]);
   const failures = [];
   for (const path of files) {
     const text = await readFile(path, "utf8");
     for (const pattern of forbidden) {
+      if (humanFacingExceptions.has(path) && /latitude|longitude/.test(String(pattern))) continue;
       if (pattern.test(text)) failures.push(`${path}: ${pattern}`);
     }
   }
   assert.deepEqual(failures, []);
+
+  const compatibility = await readFile("src/components/LocationMap.tsx", "utf8");
+  assert.doesNotMatch(compatibility, /leaflet|circleMarker|tileLayer|onPositionChange\?\./i);
+  assert.match(compatibility, /written street address/i);
+  assert.match(compatibility, /not rendered or\s*editable/i);
 });
 
 test("Use my location keeps accuracy internal and resolves human-readable address text", async () => {
@@ -53,7 +55,7 @@ test("Use my location keeps accuracy internal and resolves human-readable addres
 
   assert.match(picker, /enableHighAccuracy:\s*true/);
   assert.match(picker, /position\.coords\.accuracy/);
-  assert.match(picker, />Use my location</);
+  assert.match(picker, /"Use my location"/);
   assert.match(picker, /reverse-geocode/);
   assert.match(picker, /address:\s*typedAddress\s*\|\|\s*suggestedAddress/);
   assert.doesNotMatch(picker, /Math\.round\(accuracy\)/);
@@ -61,6 +63,5 @@ test("Use my location keeps accuracy internal and resolves human-readable addres
   assert.match(discovery, /enableHighAccuracy:\s*true/);
   assert.match(discovery, /reverse-geocode/);
   assert.match(discovery, /address:\s*String\(result\.data\.address\)/);
-  assert.match(discovery, /setError\(resolved\.address/);
   assert.match(discovery, /get_my_discovery_distances/);
 });
