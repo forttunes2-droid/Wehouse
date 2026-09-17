@@ -44,7 +44,8 @@ test("human location surfaces never expose pin or accuracy controls", async () =
   const compatibility = await readFile("src/components/LocationMap.tsx", "utf8");
   assert.doesNotMatch(compatibility, /leaflet|circleMarker|tileLayer|onPositionChange\?\./i);
   assert.match(compatibility, /written street address/i);
-  assert.match(compatibility, /not rendered or\s*editable/i);
+  assert.match(compatibility, /not rendered/i);
+  assert.match(compatibility, /editable here/i);
 });
 
 test("Use my location keeps accuracy internal and resolves human-readable address text", async () => {
