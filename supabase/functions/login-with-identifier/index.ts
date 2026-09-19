@@ -54,9 +54,11 @@ Deno.serve(async (request) => {
       request.headers.get("x-real-ip") ||
       request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ||
       "unavailable";
-    const fingerprint = await sha256Hex(
-      `${forwardedFor}|${request.headers.get("user-agent") || "unknown"}`,
-    );
+    // User-Agent is caller-controlled. Including it lets one client create a
+    // fresh rate-limit bucket for every password guess by changing that header.
+    // Keep the network bucket stable across browsers and identifiers; Supabase
+    // Auth applies its own password checks after this public bridge's throttle.
+    const fingerprint = await sha256Hex(`network:${forwardedFor}`);
     const { data: throttle, error: throttleError } = await admin.rpc(
       "consume_public_password_login_attempt_from_service",
       { p_fingerprint_hash: fingerprint },

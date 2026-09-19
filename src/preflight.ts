@@ -61,7 +61,7 @@ function renderStartupFailure(reason: unknown) {
     ? "Production remains isolated and untouched."
     : "Startup error detected before the app mounted.";
   detail.style.cssText =
-    "margin:14px 0 0;color:#575B6B;font-size:10px;line-height:1.5";
+    "margin:14px 0 0;color:#A7AEBD;font-size:12px;line-height:1.5";
 
   card.append(mark, title, body, reload, detail);
   shell.append(card);

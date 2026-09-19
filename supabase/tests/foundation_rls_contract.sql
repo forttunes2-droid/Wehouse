@@ -2,6 +2,40 @@
 
 begin;
 
+-- A hosted restore must not inherit broad Supabase function defaults. These
+-- anonymous SECURITY DEFINER endpoints are the explicit public API surface.
+do $$
+declare
+  unexpected text;
+begin
+  select string_agg(p.oid::regprocedure::text, ', ') into unexpected
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname in ('public','private') and p.prosecdef
+    and has_function_privilege('anon',p.oid,'execute')
+    and p.oid::regprocedure::text <> all(array[
+      'begin_identity_provider_password_recovery(text,text)',
+      'get_current_legal_documents()', 'get_discoverable_homes()',
+      'get_discoverable_hotels()', 'get_discoverable_listings()',
+      'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
+      'get_short_let_date_availability(text,date,date)'
+    ]);
+  if unexpected is not null then
+    raise exception 'Unexpected anonymous privileged RPC access: %',unexpected;
+  end if;
+end;
+$$;
+
+create function public.wh_contract_default_grant_probe() returns integer
+language sql security definer as 'select 1';
+do $$
+begin
+  if has_function_privilege('anon','public.wh_contract_default_grant_probe()','execute')
+    or has_function_privilege('authenticated','public.wh_contract_default_grant_probe()','execute') then
+    raise exception 'New privileged functions must require explicit API grants';
+  end if;
+end;
+$$;
+
 -- Synthetic users are inserted as fixtures and rolled back. Once the attacker
 -- role is selected, normal authenticated RLS/policies and participant guards
 -- apply exactly as they do through the API.
@@ -53,6 +87,20 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;
+
+-- Positive control: the attacker is a valid authenticated account, so an
+-- all-deny policy or broken fixture cannot make the privacy assertions pass.
+do $$
+begin
+  if not exists(select 1 from public.profiles where user_id='rls-attacker') then
+    raise exception 'Positive control failed: account cannot read its own profile';
+  end if;
+  update public.profiles set bio='Allowed ordinary profile edit' where user_id='rls-attacker';
+  if not exists(select 1 from public.profiles where user_id='rls-attacker' and bio='Allowed ordinary profile edit') then
+    raise exception 'Positive control failed: account cannot edit its own biography';
+  end if;
+end;
+$$;
 
 do $$
 begin
@@ -129,4 +177,43 @@ end;
 $$;
 
 reset role;
+
+-- User-editable JWT metadata cannot turn a Personal account into Creator.
+select set_config('request.jwt.claims', jsonb_build_object(
+  'sub','22222222-2222-4222-8222-222222222222','role','authenticated',
+  'user_metadata',jsonb_build_object('role','creator','is_admin',true)
+)::text,true);
+set local role authenticated;
+do $$
+declare
+  affected integer;
+begin
+  begin
+    update public.profiles set role='creator' where user_id='rls-attacker';
+  exception when insufficient_privilege or raise_exception then
+    null;
+  end;
+  if exists(select 1 from public.profiles where user_id='rls-attacker' and role<>'user') then
+    raise exception 'Privilege escalation: Personal account changed its own role';
+  end if;
+  begin
+    update public.bank_accounts set account_name='Attacker replacement' where user_id='rls-victim-a';
+    get diagnostics affected=row_count;
+    if affected<>0 then raise exception 'Cross-user bank account mutation succeeded'; end if;
+  exception when insufficient_privilege then
+    null;
+  end;
+end;
+$$;
+reset role;
+do $$
+begin
+  if (select role from public.profiles where user_id='rls-attacker') is distinct from 'user' then
+    raise exception 'Privilege escalation changed the stored profile role';
+  end if;
+  if (select account_name from public.bank_accounts where user_id='rls-victim-a') is distinct from 'RLS Victim A' then
+    raise exception 'Unauthorized write changed the stored bank account';
+  end if;
+end;
+$$;
 rollback;

@@ -107,10 +107,12 @@ function PageTransitionFallback() {
         alt=""
         className="h-9 w-9 rounded-[10px] opacity-90"
       />
+      <p className="mt-4 text-lg font-semibold tracking-tight">WeHouse</p>
+      {!slow && <p className="mt-2 text-sm text-[#A7AEBD]">Opening your account…</p>}
       {slow && (
         <div className="mt-5 max-w-xs">
           <p className="text-sm font-semibold">WeHouse is taking longer than expected</p>
-          <p className="mt-2 text-[10px] leading-5 text-[#74798A]">Your session or connection has not answered yet. This screen will recover automatically.</p>
+          <p className="mt-2 text-sm leading-6 text-[#A7AEBD]">We’re still checking your connection. You can wait a moment or try again.</p>
           <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl border border-violet-500/25 bg-violet-500/[.08] px-5 text-xs font-semibold text-violet-200">Try again now</button>
         </div>
       )}
@@ -126,8 +128,8 @@ function RouteTransitionFallback() {
       aria-label="Opening page"
     >
       <div className="text-center">
-        <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
-        <p className="mt-3 text-[10px] text-[#777D8D]">Opening page…</p>
+        <div className="mx-auto h-7 w-7 animate-spin motion-reduce:animate-none rounded-full border-2 border-violet-400 border-t-transparent" />
+        <p className="mt-3 text-sm text-[#A7AEBD]">Opening page…</p>
       </div>
     </div>
   );
@@ -1011,10 +1013,17 @@ export default function App() {
   }, [handleSetNavPage]);
 
   if (auth.isLoading) return <PageTransitionFallback />;
+  if (auth.page === "login" && (navPage === "privacy_policy" || navPage === "terms_of_service"))
+    return (
+      <Suspense fallback={<RouteTransitionFallback />}>
+        {navPage === "privacy_policy" ? <PrivacyPolicyPage /> : <TermsPage />}
+      </Suspense>
+    );
   if (auth.page === "login")
     return (
       <Login
         onLoginSuccess={auth.handleLoginSuccess}
+        onOpenLegal={(page) => goTo(page)}
         serverError={auth.error}
         kickedOut={auth.kickedOut}
         pendingDevice={auth.pendingDevice}
@@ -1127,6 +1136,7 @@ export default function App() {
       return (
         <Login
           onLoginSuccess={auth.handleLoginSuccess}
+          onOpenLegal={(page) => goTo(page)}
           serverError={auth.error}
           pendingDevice={auth.pendingDevice}
         />

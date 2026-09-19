@@ -30,6 +30,7 @@ type VerificationContext = "signup" | "password_recovery" | "new_device";
 
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: PublicRole) => void;
+  onOpenLegal: (page: "privacy_policy" | "terms_of_service") => void;
   serverError: string;
   kickedOut?: boolean;
   pendingDevice?: DeviceRegistration | null;
@@ -128,6 +129,7 @@ function friendlyError(raw: string) {
 
 export default function Login({
   onLoginSuccess,
+  onOpenLegal,
   serverError,
   kickedOut,
   pendingDevice,
@@ -650,8 +652,8 @@ export default function Login({
           <section className="w-full max-w-[470px] overflow-hidden rounded-[30px] border border-white/[.08] bg-[#0E1017]/92 shadow-[0_30px_90px_rgba(0,0,0,.45)] backdrop-blur-2xl">
             <div className="border-b border-white/[.05] px-5 py-5 sm:px-8">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-[9px] font-bold uppercase tracking-[.22em] text-violet-300">Secure WeHouse access</span>
-                <span className="inline-flex items-center gap-1.5 text-[9px] text-[#7C8292]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />One identity</span>
+                <span className="text-xs font-bold uppercase tracking-[.22em] text-violet-300">Secure WeHouse access</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-[#A7AEBD]"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />One identity</span>
               </div>
             </div>
             <div className="px-5 py-6 sm:px-8 sm:py-8">
@@ -667,9 +669,9 @@ export default function Login({
         {mode === "choose" ? (
           <div className="space-y-3">
             <div className="pb-3 text-center lg:text-left">
-              <p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">One Personal account</p>
+              <p className="text-xs font-bold uppercase tracking-[.2em] text-violet-300">One Personal account</p>
               <h1 className="mt-2 text-[26px] font-bold leading-tight tracking-[-.035em] text-white sm:text-[30px]">Everything starts here.</h1>
-              <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#858B9A] lg:mx-0">Homes, hotels, roommates and WeHouse Services stay connected to one identity.</p>
+              <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#858B9A] lg:mx-0">Homes, hotels, roommates and WeHouse Services stay connected to one identity.</p>
             </div>
             <button
               type="button"
@@ -686,7 +688,7 @@ export default function Login({
               onClick={() => { setMode("signin"); clearMessages(); }}
               className="h-12 w-full rounded-2xl border border-white/[.09] bg-white/[.035] text-sm font-medium text-[#E6E8EE] transition hover:border-violet-400/25 hover:bg-violet-500/[.06]"
             >
-              Sign in with email
+              Sign in with username or email
             </button>
             <button
               type="button"
@@ -695,8 +697,8 @@ export default function Login({
             >
               Create account
             </button>
-            <p className="pt-1 text-center text-[9px] leading-4 text-[#656B7B]">
-              Every account starts with Personal. Worker and Property Partner workspaces can be added later.
+            <p className="pt-1 text-center text-xs leading-5 text-[#A7AEBD]">
+              Every account starts with Personal. Service Provider and Property Partner workspaces can be added later.
             </p>
           </div>
         ) : null}
@@ -708,8 +710,8 @@ export default function Login({
                 {mode === "signup" ? "Create your Personal account" : "Welcome back"}
               </h1>
               {mode === "signup" ? (
-                <p className="mt-1 text-[10px] leading-4 text-[#73798A]">
-                  You can add Worker or Property Partner access later without creating another account.
+                <p className="mt-1 text-xs leading-5 text-[#A7AEBD]">
+                  You can add Service Provider or Property Partner access later without creating another account.
                 </p>
               ) : null}
             </div>
@@ -721,6 +723,7 @@ export default function Login({
                 placeholder={mode === "signup" ? "you@example.com" : "Username or email"}
                 autoCapitalize="none"
                 autoCorrect="off"
+                autoComplete={mode === "signup" ? "email" : "username"}
                 required
                 className="h-12 rounded-2xl border-white/[.08] bg-white/[.035] text-white shadow-inner shadow-black/10 focus-visible:border-violet-400/50 focus-visible:ring-violet-500/20"
               />
@@ -731,6 +734,7 @@ export default function Login({
               set={setPassword}
               visible={showPassword}
               toggle={() => setShowPassword((value) => !value)}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
             />
             <button
               type="submit"
@@ -751,7 +755,7 @@ export default function Login({
             <button
               type="button"
               onClick={() => { setMode("choose"); setPassword(""); setConfirmPassword(""); clearMessages(); }}
-              className="w-full text-center text-xs text-[#676C7D]"
+              className="w-full text-center text-xs text-[#A7AEBD]"
             >
               Back
             </button>
@@ -764,12 +768,12 @@ export default function Login({
               <div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300">
                 <ShieldCheckIcon />
               </div>
-              <p className="mt-5 text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">VERIFY EMAIL OWNERSHIP</p>
+              <p className="mt-5 text-xs font-bold uppercase tracking-[.18em] text-violet-300">VERIFY EMAIL OWNERSHIP</p>
               <h2 className="mt-2 text-xl font-semibold">Confirm you own this email</h2>
               <p className="mt-2 text-xs leading-5 text-[#858B9A]">
                 Continue with the Google account for <span className="font-semibold text-white">{email.trim()}</span>. A different address will be rejected.
               </p>
-              <p className="mt-3 text-[10px] leading-4 text-[#666C7D]">
+              <p className="mt-3 text-xs leading-5 text-[#666C7D]">
                 No WeHouse verification code is sent. This only verifies the email; email-and-password sign-in remains available.
               </p>
             </section>
@@ -786,7 +790,7 @@ export default function Login({
               type="button"
               onClick={() => { clearGoogleVerification(); setMode("signup"); setPassword(""); clearMessages(); }}
               disabled={working}
-              className="w-full text-center text-xs text-[#73798A]"
+              className="w-full text-center text-xs text-[#A7AEBD]"
             >
               Change email
             </button>
@@ -798,7 +802,7 @@ export default function Login({
             <section className="border-y border-white/[.08] py-5">
               <div className="flex items-center justify-between gap-3">
                 <div className="grid h-11 w-11 place-items-center rounded-full bg-violet-500/10 text-violet-300"><ShieldCheckIcon /></div>
-                <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[8px] font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span>
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-bold tracking-[.14em] text-amber-300">NEW DEVICE</span>
               </div>
               <h2 className="mt-5 text-xl font-bold">Verify this device login</h2>
               <p className="mt-2 text-xs leading-5 text-[#858B9A]">
@@ -823,7 +827,7 @@ export default function Login({
               type="button"
               onClick={() => void cancelDeviceConfirmation()}
               disabled={working}
-              className="h-11 w-full rounded-xl text-xs font-semibold text-[#73798A] disabled:opacity-50"
+              className="h-11 w-full rounded-xl text-xs font-semibold text-[#A7AEBD] disabled:opacity-50"
             >
               Cancel this login
             </button>
@@ -834,7 +838,7 @@ export default function Login({
           <div className="space-y-4">
             <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
               <p className="text-sm font-semibold text-amber-200">That Google account does not match</p>
-              <p className="mt-2 text-[10px] leading-5 text-[#A4A8B3]">
+              <p className="mt-2 text-xs leading-5 text-[#A4A8B3]">
                 This step can verify only <strong className="text-white">{loginIdentifier || email}</strong>. <strong className="text-white">{googleMismatchEmail || "The selected Google account"}</strong> was rejected and no account details were changed.
               </p>
             </div>
@@ -850,7 +854,7 @@ export default function Login({
               type="button"
               onClick={() => void returnFromGoogleMismatch()}
               disabled={working}
-              className="w-full text-center text-xs text-[#73798A]"
+              className="w-full text-center text-xs text-[#A7AEBD]"
             >
               Cancel verification
             </button>
@@ -861,7 +865,7 @@ export default function Login({
           <form onSubmit={(event) => void handleForgot(event)} className="space-y-4">
             <div className="mb-5">
               <p className="text-lg font-semibold">Create a new password</p>
-              <p className="mt-1 text-xs leading-5 text-[#73788A]">
+              <p className="mt-1 text-xs leading-5 text-[#A7AEBD]">
                 Enter your username or email, then confirm with the Google identity already linked to that WeHouse account. No reset link or recovery code is sent.
               </p>
             </div>
@@ -884,7 +888,7 @@ export default function Login({
             >
               <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Confirm with Google"}</span>
             </button>
-            <button type="button" onClick={() => { setMode("signin"); clearMessages(); }} className="w-full text-center text-xs text-[#676C7D]">
+            <button type="button" onClick={() => { setMode("signin"); clearMessages(); }} className="w-full text-center text-xs text-[#A7AEBD]">
               Back to sign in
             </button>
           </form>
@@ -894,12 +898,12 @@ export default function Login({
           <form onSubmit={(event) => void handleRecovery(event)} className="space-y-4">
             <div className="mb-5">
               <p className="text-lg font-semibold">Create a new password</p>
-              <p className="mt-1 text-xs leading-5 text-[#73788A]">
+              <p className="mt-1 text-xs leading-5 text-[#A7AEBD]">
                 Confirmed as <span className="font-semibold text-white">{loginIdentifier || email}</span>. Choose a new password.
               </p>
             </div>
             {!recoveryReady ? (
-              <div className="rounded-xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[10px] text-amber-300">Finishing confirmation…</div>
+              <div className="rounded-xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-xs text-amber-300">Finishing confirmation…</div>
             ) : null}
             <PasswordField label="New password" value={password} set={setPassword} visible={showPassword} toggle={() => setShowPassword((value) => !value)} />
             <PasswordField label="Confirm new password" value={confirmPassword} set={setConfirmPassword} visible={showPassword} toggle={() => setShowPassword((value) => !value)} />
@@ -910,14 +914,18 @@ export default function Login({
             >
               {working ? "Updating…" : "Save new password"}
             </button>
-            <button type="button" onClick={() => void cancelRecovery()} className="w-full text-center text-xs text-[#6A6F80]">
+            <button type="button" onClick={() => void cancelRecovery()} className="w-full text-center text-xs text-[#A7AEBD]">
               Cancel and return to sign in
             </button>
           </form>
         ) : null}
             </div>
             <div className="border-t border-white/[.05] px-5 py-4 sm:px-8">
-              <div className="flex items-center justify-between gap-3 text-[8px] text-[#626979]">
+              <nav aria-label="Legal information" className="mb-3 flex items-center justify-center gap-6 text-xs text-[#A7AEBD]">
+                <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 underline decoration-white/30 underline-offset-4 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">Terms of Service</button>
+                <button type="button" onClick={() => onOpenLegal("privacy_policy")} className="min-h-11 underline decoration-white/30 underline-offset-4 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">Privacy Policy</button>
+              </nav>
+              <div className="flex items-center justify-between gap-3 text-xs text-[#A7AEBD]">
                 <span>find · connect · live better</span>
                 <span>wehouse.com.ng</span>
               </div>
@@ -934,21 +942,21 @@ function AuthStory() {
     <aside className="relative hidden min-h-[100dvh] overflow-hidden border-r border-white/[.05] lg:flex lg:items-center lg:px-14 xl:px-20">
       <div className="relative z-10 max-w-[620px]">
         <img src="/brand-lockup-dark.svg?v=2" alt="WeHouse" className="h-auto w-56" />
-        <p className="mt-10 text-[10px] font-bold uppercase tracking-[.28em] text-violet-300">Find · connect · live better</p>
-        <h1 className="mt-5 max-w-[590px] text-[clamp(2.8rem,4.8vw,5.4rem)] font-black leading-[.93] tracking-[-.055em] text-white">
+        <p className="mt-10 text-xs font-bold uppercase tracking-[.28em] text-violet-300">Find · connect · live better</p>
+        <h2 className="mt-5 max-w-[590px] text-[clamp(2.8rem,4.8vw,5.4rem)] font-black leading-[.98] tracking-[-.055em] text-white">
           Your place, your people, your work — one account.
-        </h1>
+        </h2>
         <p className="mt-6 max-w-xl text-[15px] leading-7 text-[#969CAB]">
-          Discover homes and hotels, meet compatible roommates, book trusted services and manage every real WeHouse journey without creating separate identities.
+          Find a home or a stay, connect with roommates and explore WeHouse Services. Bring your plans together in one Personal account.
         </p>
         <div className="mt-10 grid grid-cols-3 gap-3">
           <AuthFeature index="01" title="Find a place" detail="Homes, Short Let and hotels" />
-          <AuthFeature index="02" title="Connect safely" detail="Roommates and private conversations" />
-          <AuthFeature index="03" title="Get things done" detail="Services and protected bookings" />
+          <AuthFeature index="02" title="Find your people" detail="Roommates and conversations" />
+          <AuthFeature index="03" title="Get things done" detail="Explore WeHouse Services" />
         </div>
-        <div className="mt-8 flex items-center gap-3 text-[10px] text-[#747B8B]">
+        <div className="mt-8 flex items-center gap-3 text-xs text-[#A7AEBD]">
           <span className="h-px w-10 bg-violet-400/50" />
-          <span>Built around real housing journeys, not disconnected dashboards.</span>
+          <span>One account, from your first search to your next move.</span>
         </div>
       </div>
       <div aria-hidden="true" className="absolute bottom-[-12rem] left-[18%] h-[32rem] w-[32rem] rounded-full border border-violet-400/10" />
@@ -960,9 +968,9 @@ function AuthStory() {
 function AuthFeature({ index, title, detail }: { index: string; title: string; detail: string }) {
   return (
     <div className="min-h-32 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 backdrop-blur-sm">
-      <p className="text-[8px] font-bold tracking-[.18em] text-violet-300">{index}</p>
+      <p className="text-xs font-bold tracking-[.18em] text-violet-300">{index}</p>
       <p className="mt-6 text-[12px] font-semibold text-white">{title}</p>
-      <p className="mt-1 text-[9px] leading-4 text-[#707787]">{detail}</p>
+      <p className="mt-1 text-xs leading-5 text-[#A7AEBD]">{detail}</p>
     </div>
   );
 }
@@ -982,7 +990,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] font-medium text-[#8B90A0]">{label}</span>
+      <span className="mb-1.5 block text-xs font-medium text-[#8B90A0]">{label}</span>
       {children}
     </label>
   );
@@ -994,12 +1002,14 @@ function PasswordField({
   set,
   visible,
   toggle,
+  autoComplete = "new-password",
 }: {
   label: string;
   value: string;
   set: (value: string) => void;
   visible: boolean;
   toggle: () => void;
+  autoComplete?: "current-password" | "new-password";
 }) {
   return (
     <Field label={label}>
@@ -1010,10 +1020,11 @@ function PasswordField({
           onChange={(event) => set(event.target.value)}
           placeholder="Minimum 8 characters"
           minLength={8}
+          autoComplete={autoComplete}
           required
           className="h-12 rounded-2xl border-white/[.08] bg-white/[.035] pr-12 text-white shadow-inner shadow-black/10 focus-visible:border-violet-400/50 focus-visible:ring-violet-500/20"
         />
-        <button type="button" onClick={toggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#777C8C]">
+        <button type="button" onClick={toggle} aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`} aria-pressed={visible} className="absolute right-1 top-1/2 min-h-11 min-w-11 -translate-y-1/2 rounded-lg text-xs text-[#A7AEBD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">
           {visible ? "Hide" : "Show"}
         </button>
       </div>
@@ -1036,7 +1047,7 @@ function Notice({
       ? "border-amber-500/15 bg-amber-500/[.05] text-amber-200"
       : "border-violet-500/15 bg-violet-500/[.05] text-violet-200";
   return (
-    <div className={`mb-4 rounded-xl border p-3 text-[10px] leading-5 ${className}`}>
+    <div role={tone === "error" ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm leading-5 ${className}`}>
       {title ? <p className="mb-1 text-xs font-semibold">{title}</p> : null}
       {children}
     </div>
@@ -1045,8 +1056,8 @@ function Notice({
 
 function SecurityDetail({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 text-[10px]">
-      <span className="text-[#696F7F]">{label}</span>
+    <div className="flex items-start justify-between gap-4 py-3 text-xs">
+      <span className="text-[#A7AEBD]">{label}</span>
       <span className="text-right font-medium text-[#D6D9E0]">{value || "Unavailable"}</span>
     </div>
   );
@@ -1056,7 +1067,7 @@ function Divider() {
   return (
     <div className="flex items-center gap-3 py-1">
       <span className="h-px flex-1 bg-white/[.06]" />
-      <span className="text-[8px] uppercase tracking-[.14em] text-[#5F6574]">or</span>
+      <span className="text-xs uppercase tracking-[.14em] text-[#A7AEBD]">or</span>
       <span className="h-px flex-1 bg-white/[.06]" />
     </div>
   );
