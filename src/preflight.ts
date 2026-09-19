@@ -22,11 +22,11 @@ function renderStartupFailure(reason: unknown) {
 
   const shell = document.createElement("main");
   shell.style.cssText =
-    "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:radial-gradient(circle at 50% 34%,rgba(124,58,237,.18),transparent 30%),#07070A;color:#fff;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+    "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#0A0A0F;color:#fff;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
 
   const card = document.createElement("section");
   card.style.cssText =
-    "width:min(100%,380px);text-align:center;border:1px solid rgba(255,255,255,.07);background:rgba(15,15,20,.86);border-radius:28px;padding:30px 24px;box-shadow:0 30px 90px rgba(0,0,0,.35)";
+    "width:min(100%,380px);text-align:center";
 
   const mark = document.createElement("img");
   mark.src = "/app-icon.svg?v=3";
@@ -45,21 +45,21 @@ function renderStartupFailure(reason: unknown) {
   const body = document.createElement("p");
   body.textContent = previewConfigurationProblem
     ? "This preview is intentionally blocked from using production data. Connect a safe test Supabase environment, then reload."
-    : "Reload once. If this keeps happening, this build needs attention before release.";
+    : "Check your connection, then try again.";
   body.style.cssText =
-    "margin:10px auto 0;max-width:310px;color:#8B8FA0;font-size:12px;line-height:1.7";
+    "margin:12px auto 0;max-width:310px;color:#A7AEBD;font-size:14px;line-height:1.7";
 
   const reload = document.createElement("button");
   reload.type = "button";
   reload.textContent = "Reload WeHouse";
   reload.style.cssText =
-    "margin-top:22px;min-height:46px;width:100%;border:0;border-radius:15px;background:#8B5CF6;color:white;font-size:13px;font-weight:700";
+    "margin-top:24px;min-height:48px;width:100%;border:0;border-radius:12px;background:#7C3AED;color:white;font-size:14px;font-weight:600;cursor:pointer";
   reload.addEventListener("click", () => window.location.reload());
 
   const detail = document.createElement("p");
   detail.textContent = previewConfigurationProblem
     ? "Production remains isolated and untouched."
-    : "Startup error detected before the app mounted.";
+    : "";
   detail.style.cssText =
     "margin:14px 0 0;color:#A7AEBD;font-size:12px;line-height:1.5";
 

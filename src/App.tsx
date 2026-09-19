@@ -98,22 +98,23 @@ function PageTransitionFallback() {
   }, []);
   return (
     <div
-      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#08090D] px-6 text-center text-white"
+      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0A0A0F] px-6 py-10 text-center text-white"
       role="status"
       aria-label="Loading WeHouse"
     >
       <img
         src="/app-icon.svg?v=3"
         alt=""
-        className="h-9 w-9 rounded-[10px] opacity-90"
+        className="h-12 w-12 rounded-[14px]"
       />
-      <p className="mt-4 text-lg font-semibold tracking-tight">WeHouse</p>
-      {!slow && <p className="mt-2 text-sm text-[#A7AEBD]">Opening your account…</p>}
+      <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
+      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#A7AEBD]">find · connect · live better</p>
+      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-300/20 border-t-violet-400 motion-reduce:animate-none" />}
       {slow && (
         <div className="mt-5 max-w-xs">
-          <p className="text-sm font-semibold">WeHouse is taking longer than expected</p>
-          <p className="mt-2 text-sm leading-6 text-[#A7AEBD]">We’re still checking your connection. You can wait a moment or try again.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl border border-violet-500/25 bg-violet-500/[.08] px-5 text-xs font-semibold text-violet-200">Try again now</button>
+          <p className="text-sm text-[#A7AEBD]">Taking longer than usual.</p>
+          <p className="mt-2 text-sm leading-6 text-[#A7AEBD]">Check your connection or try again.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
         </div>
       )}
     </div>
@@ -123,12 +124,12 @@ function PageTransitionFallback() {
 function RouteTransitionFallback() {
   return (
     <div
-      className="grid min-h-[45vh] place-items-center bg-[#08090D] px-6 text-white"
+      className="grid min-h-[45vh] place-items-center bg-[#0A0A0F] px-6 text-white"
       role="status"
       aria-label="Opening page"
     >
       <div className="text-center">
-        <div className="mx-auto h-7 w-7 animate-spin motion-reduce:animate-none rounded-full border-2 border-violet-400 border-t-transparent" />
+        <div aria-hidden="true" className="mx-auto h-[22px] w-[22px] animate-spin motion-reduce:animate-none rounded-full border-2 border-violet-300/20 border-t-violet-400" />
         <p className="mt-3 text-sm text-[#A7AEBD]">Opening page…</p>
       </div>
     </div>
