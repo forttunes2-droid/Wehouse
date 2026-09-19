@@ -1,5 +1,11 @@
 # WeHouse Product Master
 
+> **Current status — 19 September 2026:** This file's original implementation audit below is historical (11 September), not a current deployment inventory. The owner-locked canonical plan is `WEHOUSE_CANONICAL_MASTER_PRODUCT_PLAN_2026-09-11.md`, with later accepted rules recorded in [the alignment note](./MASTER_PLAN_ALIGNMENT_NOTE_2026-09-15.md) and PR #74. Do not treat old proposed decisions, counts or role descriptions below as newer authority.
+>
+> Continue with [the current account, Staff and database review](./account-staff-and-database-review.md), [Creator/control-layout evidence](./creator-controls-and-layout-review.md), and [legal signup evidence](./legal-review-and-preview-status.md). Repairs remain on existing draft PR #74. Live customer records belong to Production; Test is isolated. Complete signed-in, privileged-action, provider, device and restoration checks remain outstanding. WeHouse is not yet technically production-ready.
+
+## Historical audit begins here
+
 Status: proposed canonical product contract, ready for owner decision lock
 
 Product-code audit baseline: `baf8d529fb4ef659d4f0059f9d5d44cf6da9729c` on `main` (descended from the requested `2d875578` checkpoint)

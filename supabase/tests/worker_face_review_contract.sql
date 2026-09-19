@@ -21,6 +21,9 @@ insert into public.profiles(
 insert into public.worker_service_coverage(worker_id,state,lga,areas)
 values('worker-face-contract','Nasarawa','Lafia',array['Lafia']);
 
+insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
+values('worker-face-contract','worker','global','active');
+
 insert into public.worker_verifications(
   worker_id,verification_video_url,status
 ) values(

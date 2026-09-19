@@ -1,12 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import * as tus from 'tus-js-client';
+import { resolveSupabaseEnvironment } from './environment';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // Browser publishable keys are intentionally public. Real authorization lives in
 // RLS/RPC boundaries. What must never happen is a Preview/localhost/native test
 // build silently talking to the production database.
-const PRODUCTION_SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
-const PRODUCTION_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_PhMsGwc_jy21ICg11jQsVg_uwT2dhKQ';
 const configuredUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
 const configuredKey = String(
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
@@ -14,29 +13,16 @@ const configuredKey = String(
   '',
 ).trim();
 const runtimeHost = typeof window === 'undefined' ? '' : window.location.hostname.toLowerCase();
-const officialProductionHost = runtimeHost === 'wehouse.com.ng' || runtimeHost === 'www.wehouse.com.ng';
-
-if ((!configuredUrl || !configuredKey) && !officialProductionHost) {
-  throw new Error(
-    'WeHouse preview configuration is missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for this environment.',
-  );
-}
-
-const SUPABASE_URL = configuredUrl || PRODUCTION_SUPABASE_URL;
-const SUPABASE_ANON_KEY = configuredKey || PRODUCTION_SUPABASE_PUBLISHABLE_KEY;
-
-if (!officialProductionHost && SUPABASE_URL.replace(/\/$/, '') === PRODUCTION_SUPABASE_URL) {
-  throw new Error(
-    'Safety stop: a non-production WeHouse host cannot connect to the production Supabase project.',
-  );
-}
+const environment = resolveSupabaseEnvironment(runtimeHost, configuredUrl, configuredKey);
+const SUPABASE_URL = environment.url;
+const SUPABASE_ANON_KEY = environment.key;
 
 const SUPABASE_STORAGE_URL = SUPABASE_URL.replace(
   /\.supabase\.co\/?$/,
   '.storage.supabase.co',
 );
 
-export const isTestEnvironment = !officialProductionHost;
+export const isTestEnvironment = environment.isTestEnvironment;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
