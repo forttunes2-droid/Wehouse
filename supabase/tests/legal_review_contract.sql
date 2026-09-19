@@ -29,8 +29,15 @@ values
 ('77777777-2222-4222-8222-777777777777','legal_terms',999001,'{"title":"Test terms","body":"Synthetic test fixture; not legal terms","locale":"en-NG","review_reference":"rollback-fixture"}','active',now()-interval '1 hour',true,'reviewed','Rollback-only test','terms-checksum');
 set local session_replication_role=origin;
 
--- Exercise the same database role as the hosted Auth hook.
-set local role supabase_auth_admin;
+-- Supabase intentionally prevents postgres from SET ROLE to its Auth owner.
+-- Check the required grants here; CI also exercises the hook through Auth HTTP.
+DO $$ BEGIN
+  if not has_schema_privilege('supabase_auth_admin','public','usage')
+    or not has_function_privilege('supabase_auth_admin','public.require_reviewed_legal_signup(jsonb)','execute')
+    or not has_function_privilege('supabase_auth_admin','public.get_current_legal_documents()','execute') then
+    raise exception 'The Auth service cannot execute its legal signup check';
+  end if;
+END $$;
 do $$ declare event jsonb; begin
   if public.require_reviewed_legal_signup('{"user":{"app_metadata":{"provider":"google"}}}')->'error' is null then
     raise exception 'Direct OAuth account creation must not skip legal review';

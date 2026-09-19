@@ -67,6 +67,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_cancellation_payout_contract.sql
       - name: Exercise reviewed legal signup and acceptance contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/legal_review_contract.sql
+      - name: Verify signup hook through Supabase Auth
+        run: node scripts/verify-signup-legal-hook.mjs
       - name: Exercise cross-user RLS foundation contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
       - name: Stop local Supabase
