@@ -21,6 +21,7 @@ export default function Setup({ profile, onSetupComplete }: Props) {
   const [choices, setChoices] = useState<LegalChoices>({});
   const [legalLoading, setLegalLoading] = useState(true);
   const [legalError, setLegalError] = useState(false);
+  const [legalReload, setLegalReload] = useState(0);
 
   const role = profile.role;
   const content = ({
@@ -38,6 +39,8 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
   useEffect(() => {
     let active = true;
+    setLegalLoading(true);
+    setLegalError(false);
     void Promise.all([getCurrentLegalDocuments(), supabase.auth.getUser()]).then(([result, identity]) => {
       if (!active) return;
       setDocuments(result.documents);
@@ -48,7 +51,7 @@ export default function Setup({ profile, onSetupComplete }: Props) {
       setLegalLoading(false);
     }).catch(() => { if (active) { setLegalError(true); setLegalLoading(false); } });
     return () => { active = false; };
-  }, []);
+  }, [legalReload]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -70,9 +73,15 @@ export default function Setup({ profile, onSetupComplete }: Props) {
         setWorking(false);
         return;
       }
+      const current = await getCurrentLegalDocuments();
+      if (current.error || !hasLegalConsent(current.documents, choices)) {
+        setDocuments(current.documents); setChoices({}); setLegalError(Boolean(current.error));
+        setError('The published documents could not be confirmed or have changed. Review them and try again.');
+        setWorking(false); return;
+      }
       for (const kind of ['privacy', 'terms'] as const) {
-        const document = documents[kind];
-        if (!document) throw new Error('Legal documents are unavailable');
+        const document = current.documents[kind];
+        if (!document) continue;
         const result = await acceptReviewedLegalDocument(kind, document);
         if (result.error) {
           const refreshed = await getCurrentLegalDocuments();
@@ -127,9 +136,8 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
           <div className="rounded-2xl border border-white/[.06] bg-[#11131B] p-4 text-[10px] leading-relaxed text-[#7D8291]">{content.info}</div>
 
-          {legalLoading ? <p role="status" className="text-sm text-[#AAA3B3]">Loading documents…</p>
-            : legalError ? <p role="alert" className="text-sm text-red-200">The documents could not be loaded. Please sign out and try again.</p>
-            : !documents.privacy || !documents.terms ? <p className="text-sm leading-6 text-[#AAA3B3]">Account setup will open when the Privacy Policy and Terms of Service are published.</p>
+          {legalLoading ? <p role="status" className="text-sm text-[#AAA3B3]">Checking signup requirements…</p>
+            : legalError ? <div role="alert" className="text-sm text-red-200"><p>Signup requirements could not be checked.</p><button type="button" onClick={() => setLegalReload((value) => value + 1)} className="min-h-11 text-violet-300 underline underline-offset-4">Try again</button></div>
             : <LegalReview key={legalDocumentKey(documents)} documents={documents} choices={choices} onChange={setChoices} />}
 
           <button type="submit" disabled={working || !legalReady} className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white disabled:opacity-40">{working ? 'Saving…' : 'Continue'}</button>

@@ -6,8 +6,10 @@ import LegalDocumentBody from './LegalDocumentBody';
 export default function LegalReview({ documents, choices, onChange }: {
   documents: CurrentLegalDocuments; choices: LegalChoices; onChange: (choices: LegalChoices) => void;
 }) {
+  const count = Number(Boolean(documents.privacy)) + Number(Boolean(documents.terms));
+  if (!count) return null;
   return <section aria-label="Review legal documents" className="space-y-3">
-    <p className="text-sm leading-6 text-[#AAA3B3]">Open and read both documents, then confirm below each one.</p>
+    <p className="text-sm leading-6 text-[#AAA3B3]">{count === 2 ? 'Read both documents and confirm below each one.' : 'Read the document and confirm below it.'}</p>
     {(['privacy', 'terms'] as const).map(kind => {
       const document = documents[kind];
       return document ? <DocumentReview key={`${document.policy_version_id}:${document.checksum}`} document={document}

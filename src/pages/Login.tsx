@@ -14,6 +14,7 @@ import { isTestEnvironment } from '@/lib/supabase/client';
 import { getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
 import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
 import LegalReview from '@/components/LegalReview';
+import BackButton from '@/components/BackButton';
 import {
   clearGoogleVerification,
   googleVerificationReturnContext,
@@ -196,6 +197,7 @@ export default function Login({
   const [legalChoices, setLegalChoices] = useState<LegalChoices>({});
   const [legalLoading, setLegalLoading] = useState(true);
   const [legalError, setLegalError] = useState(false);
+  const [legalReload, setLegalReload] = useState(0);
   const legalReady = !legalLoading && !legalError && hasLegalConsent(legalDocuments, legalChoices);
 
   useEffect(() => {
@@ -207,7 +209,7 @@ export default function Login({
       setLegalDocuments(documents); setLegalError(Boolean(readError)); setLegalLoading(false);
     }).catch(() => { if (active) { setLegalError(true); setLegalLoading(false); } });
     return () => { active = false; };
-  }, [mode]);
+  }, [mode, legalReload]);
 
   function clearMessages() {
     setError("");
@@ -432,7 +434,7 @@ export default function Login({
     setWorking(true);
     try {
       if (isSignup) {
-        if (!legalReady) { setError('Read and confirm both documents before creating your account.'); return; }
+        if (!legalReady) { setError('Review each published legal document before creating your account.'); return; }
         const { documents, error: documentError } = await getCurrentLegalDocuments();
         if (documentError || !hasLegalConsent(documents, legalChoices)) {
           setLegalDocuments(documents); setLegalChoices({});
@@ -724,16 +726,18 @@ export default function Login({
         {(mode === "signin" || mode === "signup") ? (
           <form onSubmit={(event) => void handleEmail(event, mode === "signup")} className="space-y-4">
             <div className="pb-4">
+              <div className="flex items-center gap-2">
+              <BackButton onClick={() => { setMode('choose'); setPassword(''); setConfirmPassword(''); clearMessages(); }} ariaLabel="Back to welcome" />
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
                 {mode === "signup" ? "Create your account" : "Welcome back"}
               </h1>
+              </div>
               {mode === "signup" ? (
                 <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                  Review the documents, then enter your email and a password.
+                  Start with your email and a password.
                 </p>
               ) : null}
             </div>
-            {mode === 'signup' ? legalLoading ? <p role="status" className="text-sm text-[var(--auth-muted)]">Loading documents…</p> : legalError ? <p role="alert" className="text-sm text-red-200">The documents could not be loaded. Go back and try again.</p> : !legalDocuments.privacy || !legalDocuments.terms ? <p className="text-sm leading-6 text-[var(--auth-muted)]">Registration will open when the Privacy Policy and Terms of Service are published.</p> : <LegalReview key={legalDocumentKey(legalDocuments)} documents={legalDocuments} choices={legalChoices} onChange={setLegalChoices} /> : null}
             <Field label={mode === "signup" ? "Email" : "Username or email"}>
               <Input
                 type={mode === "signup" ? "email" : "text"}
@@ -755,6 +759,7 @@ export default function Login({
               toggle={() => setShowPassword((value) => !value)}
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
             />
+            {mode === 'signup' ? legalLoading ? <p role="status" className="text-sm text-[var(--auth-muted)]">Checking signup requirements…</p> : legalError ? <div role="alert" className="text-sm text-red-200">Signup requirements could not be checked. <button type="button" onClick={() => setLegalReload(value => value + 1)} className={textAction}>Try again</button></div> : <LegalReview key={legalDocumentKey(legalDocuments)} documents={legalDocuments} choices={legalChoices} onChange={setLegalChoices} /> : null}
             <button
               type="submit"
               disabled={working || (mode === 'signup' && !legalReady) || !(mode === "signup" ? email : loginIdentifier).trim() || password.length < 8}
@@ -771,13 +776,6 @@ export default function Login({
                 Forgot password?
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={() => { setMode("choose"); setPassword(""); setConfirmPassword(""); clearMessages(); }}
-              className={`${textAction} w-full`}
-            >
-              Back
-            </button>
           </form>
         ) : null}
 

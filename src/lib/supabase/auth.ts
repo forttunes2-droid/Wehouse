@@ -21,7 +21,7 @@ export async function signUpWithEmail(
   void legacyInitialWorkspace;
   const { documents, error: legalError } = await getCurrentLegalDocuments();
   if (legalError || !hasLegalConsent(documents, legalChoices)) {
-    return { data: { user: null, session: null }, error: { message: 'Review the current Privacy Policy and Terms of Service before creating an account.' } };
+    return { data: { user: null, session: null }, error: { message: legalError ? 'Signup requirements could not be checked. Please try again.' : 'Review each published legal document before creating an account.' } };
   }
   const { data, error } = await supabase.auth.signUp({
     email,

@@ -11,22 +11,43 @@ insert into public.profile_age_eligibility(user_id,date_of_birth,verified_at,upd
 set local session_replication_role=origin;
 
 do $$ begin
-  if not (public.require_reviewed_legal_signup('{"user":{}}')->'error'->>'message' like 'Registration is unavailable%') then
-    raise exception 'Unpublished legal documents must block identity creation';
+  if public.require_reviewed_legal_signup('{"user":{}}') <> '{}'::jsonb then
+    raise exception 'Unpublished documents must not block identity creation';
   end if;
-  begin
-    update public.profiles set profile_complete=true where user_id='legal-fixture';
-    raise exception 'FAIL: profile completed without documents';
-  exception when others then
-    if sqlerrm like 'FAIL:%' or sqlerrm not like 'Review and confirm both%' then raise; end if;
-  end;
+  update public.profiles set profile_complete=true where user_id='legal-fixture';
+  if not (select profile_complete from public.profiles where user_id='legal-fixture') then
+    raise exception 'Unpublished documents blocked profile completion';
+  end if;
 end $$;
+-- Exercise a new incomplete profile against the later publication.
+set local session_replication_role=replica;
+update public.profiles set profile_complete=false where user_id='legal-fixture';
+set local session_replication_role=origin;
 
 set local session_replication_role=replica;
 insert into public.creator_policy_versions(policy_version_id,policy_key,version,value,status,effective_from,public_disclosure,legal_review_state,reason,checksum)
 values
 ('77777777-1111-4111-8111-777777777777','legal_privacy',999001,'{"title":"Test policy","body":"Synthetic test fixture; not a legal policy","locale":"en-NG","review_reference":"rollback-fixture"}','active',now()-interval '1 hour',true,'reviewed','Rollback-only test','privacy-checksum'),
 ('77777777-2222-4222-8222-777777777777','legal_terms',999001,'{"title":"Test terms","body":"Synthetic test fixture; not legal terms","locale":"en-NG","review_reference":"rollback-fixture"}','active',now()-interval '1 hour',true,'reviewed','Rollback-only test','terms-checksum');
+set local session_replication_role=origin;
+
+-- One published document is independently required; the missing second one
+-- must not block a valid confirmation of the first.
+set local session_replication_role=replica;
+update public.creator_policy_versions set status='retired'
+where policy_version_id='77777777-2222-4222-8222-777777777777';
+set local session_replication_role=origin;
+do $$ begin
+  if public.require_reviewed_legal_signup('{"user":{}}')->'error' is null then
+    raise exception 'One published document was ignored';
+  end if;
+  if public.require_reviewed_legal_signup('{"user":{"user_metadata":{"legal_review":{"privacy":{"policy_version_id":"77777777-1111-4111-8111-777777777777","checksum":"privacy-checksum"}}}}}') <> '{}'::jsonb then
+    raise exception 'Unpublished second document blocked accepted first document';
+  end if;
+end $$;
+set local session_replication_role=replica;
+update public.creator_policy_versions set status='active'
+where policy_version_id='77777777-2222-4222-8222-777777777777';
 set local session_replication_role=origin;
 
 -- Supabase intentionally prevents postgres from SET ROLE to its Auth owner.
@@ -73,7 +94,7 @@ do $$ begin
     update public.profiles set profile_complete=true where user_id='legal-fixture';
     raise exception 'FAIL: profile completed with only one receipt';
   exception when others then
-    if sqlerrm like 'FAIL:%' or sqlerrm not like 'Review and confirm both%' then raise; end if;
+    if sqlerrm like 'FAIL:%' or sqlerrm not like 'Review and confirm each published%' then raise; end if;
   end;
   perform public.accept_reviewed_legal('terms','77777777-2222-4222-8222-777777777777','terms-checksum');
   perform public.accept_reviewed_legal('terms','77777777-2222-4222-8222-777777777777','terms-checksum');

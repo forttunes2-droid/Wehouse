@@ -24,10 +24,10 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   min-height: 100vh;
   min-height: 100svh;
   margin: 0 auto;
-  padding: max(32px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(28px, env(safe-area-inset-left, 0px));
+  padding: max(28px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
 }
 
-.wh-auth-header { width: 100%; max-width: 392px; margin-inline: auto; flex-shrink: 0; padding-bottom: clamp(40px, 8svh, 72px); }
+.wh-auth-header { width: 100%; max-width: 392px; margin-inline: auto; flex-shrink: 0; padding-bottom: clamp(28px, 5svh, 44px); }
 .wh-auth-brand { text-align: left; }
 .wh-auth-wordmark { display: flex; align-items: center; gap: 12px; }
 .wh-auth-wordmark img { width: 44px; height: 44px; }
@@ -38,6 +38,7 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
 .wh-auth-form, .wh-auth-legal { width: 100%; max-width: 392px; margin-inline: auto; }
 .wh-auth-form { overflow-wrap: anywhere; }
 .wh-auth-form h1 { font-size: clamp(28px, 5vw, 32px); line-height: 1.2; letter-spacing: -.04em; }
+.wh-auth-mode-signup .wh-auth-form h1 { font-size: clamp(24px, 5vw, 30px); }
 .wh-auth-mode-choose .wh-auth-form { margin-block: auto; padding-block: 8px 48px; }
 .wh-auth-legal { margin-top: auto; padding-top: 32px; }
 

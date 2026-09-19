@@ -18,9 +18,11 @@ const choices = {
   terms: { policy_version_id: 'terms-1', checksum: 'text-b' },
 };
 
-test('signup needs both published documents and both explicit confirmations', () => {
-  assert.equal(hasLegalConsent({ privacy: null, terms: null }, {}), false);
-  assert.equal(hasLegalConsent({ ...documents, terms: null }, choices), false);
+test('signup requires acceptance only for documents that are published', () => {
+  assert.equal(hasLegalConsent({ privacy: null, terms: null }, {}), true);
+  assert.equal(hasLegalConsent({ ...documents, terms: null }, choices), true);
+  assert.equal(hasLegalConsent({ privacy: documents.privacy, terms: null }, {}), false);
+  assert.equal(hasLegalConsent({ privacy: null, terms: documents.terms }, { terms: choices.terms }), true);
   assert.equal(hasLegalConsent(documents, {}), false);
   assert.equal(hasLegalConsent(documents, { privacy: choices.privacy }), false);
   assert.equal(hasLegalConsent(documents, choices), true);
@@ -47,7 +49,7 @@ function signupHarness(currentDocuments = documents, readError = null) {
   return { calls, signUp: authExports.signUpWithEmail };
 }
 test('auth helper rejects missing, stale or unavailable legal review before creating an identity', async () => {
-  for (const [docs, review, error] of [[documents, {}, null], [{ ...documents, terms: null }, choices, null], [documents, choices, new Error('offline')]]) {
+  for (const [docs, review, error] of [[documents, {}, null], [{ ...documents, terms: { ...documents.terms, checksum: 'changed' } }, choices, null], [documents, choices, new Error('offline')]]) {
     const h = signupHarness(docs, error);
     assert.ok((await h.signUp('person@example.invalid', 'synthetic-fixture', 'user', review)).error);
     assert.equal(h.calls.length, 0);
@@ -60,4 +62,11 @@ test('reviewed signup submits document versions without granting a requested pri
   assert.deepEqual(h.calls[0].options.data.legal_review, choices);
   assert.equal(h.calls[0].options.data.role, undefined);
   assert.equal(h.calls[0].options.data.signup_role, undefined);
+});
+
+test('unpublished documents do not block the actual signup helper', async () => {
+  const h = signupHarness({privacy:null,terms:null});
+  assert.equal((await h.signUp('person@example.invalid','synthetic-fixture','user',{})).error,null);
+  assert.equal(h.calls.length,1);
+  assert.deepEqual(h.calls[0].options.data.legal_review,{});
 });

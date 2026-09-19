@@ -11,7 +11,10 @@ export function matchesLegalChoice(document: PublishedLegalDocument | null, choi
 }
 
 export function hasLegalConsent(documents: CurrentLegalDocuments, choices: LegalChoices) {
-  return matchesLegalChoice(documents.privacy, choices.privacy) && matchesLegalChoice(documents.terms, choices.terms);
+  // Unpublished documents have no text to accept. Each published document
+  // independently requires confirmation of its current version.
+  return (['privacy', 'terms'] as const).every(kind =>
+    documents[kind] === null || matchesLegalChoice(documents[kind], choices[kind]));
 }
 
 export function legalDocumentKey(documents: CurrentLegalDocuments) {
