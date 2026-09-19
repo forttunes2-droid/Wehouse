@@ -4,9 +4,11 @@ import { Input } from '@/components/ui/input';
 import SearchableSelect from '@/components/SearchableSelect';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
+import { acceptReviewedLegalDocument, getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
+import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
+import LegalReview from '@/components/LegalReview';
 
 interface Props { profile: Profile; onSetupComplete: (profile: Profile) => void }
-type LegalDoc = 'privacy' | 'terms' | null;
 
 export default function Setup({ profile, onSetupComplete }: Props) {
   const [username, setUsername] = useState('');
@@ -15,11 +17,11 @@ export default function Setup({ profile, onSetupComplete }: Props) {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
-  const [privacy, setPrivacy] = useState('');
-  const [terms, setTerms] = useState('');
-  const [privacyOk, setPrivacyOk] = useState(false);
-  const [termsOk, setTermsOk] = useState(false);
-  const [openDoc, setOpenDoc] = useState<LegalDoc>(null);
+  const [documents, setDocuments] = useState<CurrentLegalDocuments>({ privacy: null, terms: null });
+  const [choices, setChoices] = useState<LegalChoices>({});
+  const [legalLoading, setLegalLoading] = useState(true);
+  const [legalError, setLegalError] = useState(false);
+  const [legalReload, setLegalReload] = useState(0);
 
   const role = profile.role;
   const content = ({
@@ -33,19 +35,23 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
   const stateOptions = useMemo(() => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })), []);
   const cityOptions = useMemo(() => (NIGERIA_STATES.find((item) => item.state === state)?.cities || []).map((name) => ({ value: name, label: name })), [state]);
-  const privacyPublished = Boolean(privacy.trim());
-  const termsPublished = Boolean(terms.trim());
-  const legalReady = (!privacyPublished || privacyOk) && (!termsPublished || termsOk);
+  const legalReady = !legalLoading && !legalError && hasLegalConsent(documents, choices);
 
   useEffect(() => {
-    void (async () => {
-      const { data } = await supabase.from('platform_settings').select('key,value').in('key', ['privacy_policy', 'terms_of_service']);
-      for (const row of data || []) {
-        if (row.key === 'privacy_policy') setPrivacy(row.value?.trim() || '');
-        if (row.key === 'terms_of_service') setTerms(row.value?.trim() || '');
-      }
-    })();
-  }, []);
+    let active = true;
+    setLegalLoading(true);
+    setLegalError(false);
+    void Promise.all([getCurrentLegalDocuments(), supabase.auth.getUser()]).then(([result, identity]) => {
+      if (!active) return;
+      setDocuments(result.documents);
+      setLegalError(Boolean(result.error || identity.error));
+      // A user's own declaration of reading is not a role/authorization claim.
+      const prior = identity.data.user?.user_metadata?.legal_review || {};
+      if (hasLegalConsent(result.documents, prior)) setChoices(prior);
+      setLegalLoading(false);
+    }).catch(() => { if (active) { setLegalError(true); setLegalLoading(false); } });
+    return () => { active = false; };
+  }, [legalReload]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -67,13 +73,21 @@ export default function Setup({ profile, onSetupComplete }: Props) {
         setWorking(false);
         return;
       }
-      if (privacyPublished) {
-        const result = await supabase.rpc('accept_current_legal', { p_document: 'privacy' });
-        if (result.error) { setError(result.error.message); setWorking(false); return; }
+      const current = await getCurrentLegalDocuments();
+      if (current.error || !hasLegalConsent(current.documents, choices)) {
+        setDocuments(current.documents); setChoices({}); setLegalError(Boolean(current.error));
+        setError('The published documents could not be confirmed or have changed. Review them and try again.');
+        setWorking(false); return;
       }
-      if (termsPublished) {
-        const result = await supabase.rpc('accept_current_legal', { p_document: 'terms' });
-        if (result.error) { setError(result.error.message); setWorking(false); return; }
+      for (const kind of ['privacy', 'terms'] as const) {
+        const document = current.documents[kind];
+        if (!document) continue;
+        const result = await acceptReviewedLegalDocument(kind, document);
+        if (result.error) {
+          const refreshed = await getCurrentLegalDocuments();
+          setDocuments(refreshed.documents); setChoices({}); setLegalError(Boolean(refreshed.error));
+          setError('Your confirmation could not be saved. Review the current documents and try again.'); setWorking(false); return;
+        }
       }
       const ageResult = await supabase.rpc('set_my_date_of_birth', { p_date_of_birth: dateOfBirth });
       if (ageResult.error) { setError(ageResult.error.message); setWorking(false); return; }
@@ -122,38 +136,19 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
           <div className="rounded-2xl border border-white/[.06] bg-[#11131B] p-4 text-[10px] leading-relaxed text-[#7D8291]">{content.info}</div>
 
-          {(privacyPublished || termsPublished) && (
-            <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#11131B]">
-              <div className="border-b border-white/[.05] p-4">
-                <p className="text-sm font-semibold">Legal consent</p>
-                <p className="mt-1 text-[10px] text-[#6F7384]">Read the current WeHouse legal documents.</p>
-              </div>
-              {privacyPublished && <Consent checked={privacyOk} onChange={setPrivacyOk} title="Privacy Policy" onRead={() => setOpenDoc('privacy')} />}
-              {termsPublished && <Consent checked={termsOk} onChange={setTermsOk} title="Terms & Conditions" onRead={() => setOpenDoc('terms')} />}
-            </section>
-          )}
+          {legalLoading ? <p role="status" className="text-sm text-[#AAA3B3]">Checking signup requirements…</p>
+            : legalError ? <div role="alert" className="text-sm text-red-200"><p>Signup requirements could not be checked.</p><button type="button" onClick={() => setLegalReload((value) => value + 1)} className="min-h-11 text-violet-300 underline underline-offset-4">Try again</button></div>
+            : <LegalReview key={legalDocumentKey(documents)} documents={documents} choices={choices} onChange={setChoices} />}
 
           <button type="submit" disabled={working || !legalReady} className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white disabled:opacity-40">{working ? 'Saving…' : 'Continue'}</button>
+          <button type="button" onClick={() => void supabase.auth.signOut({ scope: 'local' })} className="min-h-11 w-full text-sm font-semibold text-violet-300">Sign out</button>
         </form>
       </div>
 
-      {openDoc && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 sm:items-center sm:p-5" onClick={() => setOpenDoc(null)}>
-          <div onClick={(event) => event.stopPropagation()} className="max-h-[88dvh] w-full max-w-2xl overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#10121A] sm:rounded-3xl">
-            <header className="flex items-center justify-between border-b border-white/[.06] p-4">
-              <div><p className="text-[9px] font-semibold tracking-[.18em] text-violet-300">WEHOUSE LEGAL</p><h2 className="mt-1 text-base font-semibold">{openDoc === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions'}</h2></div>
-              <button type="button" onClick={() => setOpenDoc(null)} className="grid h-9 w-9 place-items-center rounded-xl border border-white/[.08]">×</button>
-            </header>
-            <article className="max-h-[68dvh] overflow-y-auto p-5 text-[12px] leading-7 text-[#A6A9B5] sm:p-6">{render(openDoc === 'privacy' ? privacy : terms)}</article>
-            <div className="border-t border-white/[.06] p-4"><button type="button" onClick={() => { if (openDoc === 'privacy') setPrivacyOk(true); else setTermsOk(true); setOpenDoc(null); }} className="min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">I have read this document</button></div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
 
 function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-medium text-[#8A8B9C]">{label} *</span>{children}</label>; }
-function Consent({ checked, onChange, title, onRead }: { checked: boolean; onChange: (value: boolean) => void; title: string; onRead: () => void }) { return <div className="flex items-center gap-3 border-b border-white/[.05] p-4 last:border-0"><button type="button" onClick={() => onChange(!checked)} className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border text-xs ${checked ? 'border-violet-500 bg-violet-500' : 'border-white/[.15]'}`}>{checked ? '✓' : ''}</button><div className="min-w-0 flex-1"><p className="text-xs">I accept the {title}</p><button type="button" onClick={onRead} className="mt-1 text-[10px] font-semibold text-violet-300">Read {title}</button></div></div>; }
-function render(text: string) { return text.split('\n').map((line, index) => { const trimmed = line.trim(); if (!trimmed) return <div key={index} className="h-3" />; if (trimmed.startsWith('**') && trimmed.endsWith('**')) return <h3 key={index} className="mt-5 text-sm font-semibold text-white first:mt-0">{trimmed.replace(/\*\*/g, '')}</h3>; return <p key={index}>{line}</p>; }); }
 function adultCutoff() { const date = new Date(); date.setFullYear(date.getFullYear() - 18); return date.toISOString().slice(0, 10); }

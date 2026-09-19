@@ -1,3 +1,4 @@
+import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
 import {
   activityIsCurrent,
@@ -13,7 +14,7 @@ export function useWorkerInboxSummary(userId: string) {
   const [chatUnread, setChatUnread] = useState(0);
   const [activityUnread, setActivityUnread] = useState(0);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean) => {
     if (!userId) return;
     const [jobs, support, events, announcements] = await Promise.all([
       getCommunicationBookingConversations(userId),
@@ -29,6 +30,7 @@ export function useWorkerInboxSummary(userId: string) {
         .gte("created_at", longestActivityCutoff()),
       getAnnouncementsForUser(userId),
     ]);
+    if (!isCurrent()) return;
 
     if (!jobs.error || !support.error) {
       const jobThreads = jobs.error
@@ -74,9 +76,10 @@ export function useWorkerInboxSummary(userId: string) {
       setActivityUnread(eventUnread + announcementUnread);
   }, [userId]);
 
+  const refresh = useInboxRefresh(load, Boolean(userId));
+
   useEffect(() => {
     if (!userId) return;
-    void refresh();
     const channel = supabase
       .channel(`worker-inbox-summary:${userId}`)
       .on(
@@ -109,20 +112,10 @@ export function useWorkerInboxSummary(userId: string) {
         },
         () => void refresh(),
       )
-      .subscribe();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    const onUnreadChanged = () => void refresh();
-    window.addEventListener("focus", onVisible);
-    window.addEventListener("wehouse:unread-changed", onUnreadChanged);
-    document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => void refresh(), 60_000);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      window.removeEventListener("wehouse:unread-changed", onUnreadChanged);
-      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [refresh, userId]);

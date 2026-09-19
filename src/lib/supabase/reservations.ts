@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { locationLabel } from "@/lib/locationPresentation";
 
 type PaymentInitResult = {
   success?: boolean;
@@ -116,11 +117,11 @@ export async function getReservationForListing(
   return { reservation: (data as ReservationRecord) || null, error };
 }
 
-export async function getReservationsForUser(userId?: string) {
-  void userId;
+export async function getReservationsForUser(userId: string) {
   const { data, error } = await supabase
     .from("reservations")
     .select("*")
+    .eq("user_id", userId)
     .eq("reservation_type", "apartment")
     .order("created_at", { ascending: false });
   const reservations = (data || []) as ReservationRecord[];
@@ -186,9 +187,7 @@ export async function getReservationsForUser(userId?: string) {
         listing_address: media.address,
         listing_city: media.city,
         listing_state: media.state,
-        listing_location: [media.address, media.city, media.state]
-          .filter(Boolean)
-          .join(", "),
+        listing_location: locationLabel(media.address, media.city, media.state),
         listing_image: media.images[0] || null,
         listing_images: media.images,
         listing_videos: media.videos,
@@ -265,11 +264,11 @@ export async function getInspectionRequestForReservation(
   return { inspection: data as InspectionRecord | null, error };
 }
 
-export async function getInspectionRequestsForUser(userId?: string) {
-  void userId;
+export async function getInspectionRequestsForUser(userId: string) {
   const { data, error } = await supabase
     .from("user_inspection_requests")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
   return { inspections: data as InspectionRecord[] | null, error };
 }

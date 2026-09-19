@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
+import StaffWorkspaceState from '@/components/StaffWorkspaceState';
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import HousingOperationsWorkspace from "@/components/HousingOperationsWorkspace";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
@@ -11,6 +12,7 @@ import StaffFinanceSummary from "@/components/StaffFinanceSummary";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import StaffSecurityOverviewV2 from "@/components/StaffSecurityOverviewV2";
 import StaffActivityTrailV2 from "@/components/StaffActivityTrailV2";
+import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import { useStaffPermissions } from "@/hooks/useStaffPermissions";
 import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
 import type { Profile } from "@/types";
@@ -56,12 +58,12 @@ const MODULE_COPY: Record<
     workLabel: "Properties",
   },
   finance: {
-    title: "Finance",
+    title: "Finance Operations",
     description: "Review assigned payments, payouts and financial records.",
     workLabel: "Finance Work",
   },
   support: {
-    title: "Communications",
+    title: "Support Operations",
     description: "Handle WeHouse conversations assigned to your branch.",
     workLabel: "Conversations",
   },
@@ -89,7 +91,8 @@ export default function StaffWorkspaceRepair({
   onLogout,
   onNavigate,
 }: Props) {
-  const { permissions, loading } = useStaffPermissions(profile.user_id);
+  const { permissions, loading, error, refresh } = useStaffPermissions(profile.user_id);
+  const stateActions = { onLogout, onAccount: onNavigate ? () => onNavigate('profile') : undefined };
   const assigned = useMemo(
     () =>
       permissions.filter((value): value is Module =>
@@ -99,21 +102,25 @@ export default function StaffWorkspaceRepair({
   );
   if (loading)
     return (
-      <State
+      <StaffWorkspaceState {...stateActions}
         title="Loading your workspace"
         text="Checking your branch and work area…"
       />
     );
+  if (error)
+    return <StaffWorkspaceState {...stateActions} title="Could not check your work area"
+      text="WeHouse could not load your permissions. Try again to check your assignment."
+      onRetry={() => { void refresh(); }} />;
   if (!profile.assigned_state || !profile.assigned_lga)
     return (
-      <State
+      <StaffWorkspaceState {...stateActions}
         title="Branch assignment required"
         text="An Admin or Creator must assign this team member to a State and LGA before work can begin."
       />
     );
   if (assigned.length !== 1)
     return (
-      <State
+      <StaffWorkspaceState {...stateActions}
         title="Work area needs attention"
         text={
           assigned.length
@@ -341,7 +348,7 @@ function ModuleWork({
       </div>
     );
   if (module === "operations")
-    return <PropertyPipelineWorkspace profile={profile} initialRecordId={initialRecordId} />;
+    return <div className="space-y-5"><AccountIdentityReviewQueue accountRole="property_partner"/><PropertyPipelineWorkspace profile={profile} initialRecordId={initialRecordId} /></div>;
   if (module === "finance")
     return (
       <div className="space-y-5">
@@ -560,21 +567,6 @@ function LocalTabs<T extends string>({
           )}
         </button>
       ))}
-    </div>
-  );
-}
-function State({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white">
-      <div className="w-full max-w-lg rounded-3xl border border-white/[.07] bg-[#10141C] p-6 text-center">
-        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-          WEHOUSE TEAM
-        </p>
-        <h1 className="mt-3 text-lg font-bold capitalize">{title}</h1>
-        <p className="mt-2 text-[11px] leading-relaxed text-[#747A8B]">
-          {text}
-        </p>
-      </div>
     </div>
   );
 }

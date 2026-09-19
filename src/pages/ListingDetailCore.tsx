@@ -26,11 +26,13 @@ import RentalPlanSelector from "@/components/RentalPlanSelector";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import {
   directionsUrl,
-  distanceBetweenKm,
+  getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import { Toaster, toast } from "sonner";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
+import { locationLabel } from "@/lib/locationPresentation";
+import { hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
 import BackButton from "@/components/BackButton";
 
 type Props = {
@@ -117,6 +119,7 @@ export default function ListingDetail({
   const [shortCheckOut, setShortCheckOut] = useState("");
   const [shortGuests, setShortGuests] = useState(1);
   const { location } = useDiscoveryLocation();
+  const [distance, setDistance] = useState<number | null>(null);
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber("reservation_fee", 10000);
 
@@ -164,6 +167,14 @@ export default function ListingDetail({
   useEffect(() => {
     void load();
   }, [listingId, profile.user_id]);
+
+  useEffect(() => {
+    let live = true;
+    void getDiscoveryDistanceMap(location).then((map) => {
+      if (live) setDistance(map.get(`listing:${listing?.id || listingId}`) ?? null);
+    });
+    return () => { live = false; };
+  }, [listing?.id, listingId, location]);
 
   function support(
     kind: "property" | "reservation" | "inspection" | "payment" = "property",
@@ -471,26 +482,11 @@ export default function ListingDetail({
   );
   const canStartReservation =
     status === "available" && !hasOwnActiveReservation;
-  const reservationPaid = Boolean(
-    reservation?.paid_at ||
-    ["paid", "completed"].includes(
-      String(reservation?.manual_payment_status || ""),
-    ),
-  );
-  const locationExact = reservationPaid && listing.location_exact === true;
-  const visibleAddress = shortStay || locationExact
-    ? [listing.address, listing.city, listing.state].filter(Boolean).join(", ")
-    : [listing.city, listing.state].filter(Boolean).join(", ");
-  const mapPoint = Number.isFinite(Number(listing.gps_latitude)) &&
-    Number.isFinite(Number(listing.gps_longitude))
-      ? {
-          lat: Number(listing.gps_latitude),
-          lng: Number(listing.gps_longitude),
-        }
-      : null;
-  const destination = locationExact ? mapPoint : null;
-  const distance =
-    location && mapPoint ? distanceBetweenKm(location, mapPoint) : null;
+  const accommodationPaid = reservation
+    ? hasProtectedAccommodationPayment(reservation)
+    : false;
+  void accommodationPaid;
+  const visibleAddress = locationLabel(listing.address, listing.city, listing.state);
   const displayTitle = listingDisplayTitle(listing);
 
   return (
@@ -584,17 +580,13 @@ export default function ListingDetail({
                         ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
                         : ""}
                     </p>
-                    {!locationExact && (
-                      <p className="mt-1 text-[9px] text-[#5F6575]">
-                        {shortStay
-                          ? "The public street or area is shown before booking. Exact entrance instructions, access codes and private directions unlock only for a confirmed stay."
-                          : "Approximate area and distance only. The exact entrance and road directions unlock after confirmed payment."}
-                      </p>
-                    )}
+                    <p className="mt-1 text-[9px] text-[#5F6575]">
+                      The published street address is visible before booking. Internal entrance-location data stays private.
+                    </p>
                   </div>
-                  {destination && (
+                  {visibleAddress && (
                     <a
-                      href={directionsUrl(destination.lat, destination.lng)}
+                      href={directionsUrl(visibleAddress)}
                       target="_blank"
                       rel="noreferrer"
                       className="shrink-0 rounded-xl border border-white/[.09] px-4 py-2.5 text-[10px] font-semibold text-violet-300"

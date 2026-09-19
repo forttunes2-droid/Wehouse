@@ -10,7 +10,7 @@
 WeHouse combines:
 
 - Long Let apartment reservation, optional inspection, rent payment and physical handover;
-- date-based Short Let reservation, arrival/check-in, checkout and refundable-deposit handling;
+- date-based Short Let reservation, arrival/check-in, checkout and payment handling;
 - hotel discovery, inventory, payment, hotel-team check-in/out and guest messages;
 - roommate discovery/matching and private communications;
 - free Worker onboarding, service booking, protected payment, completion, dispute and verified-job reviews;
@@ -60,7 +60,7 @@ Counsel should give a written answer, responsible regulator, filing/approval, la
 | Platform Terms | In public pack | Any public account |
 | Privacy Notice and cookie notice | In public pack; processor/transfer details missing | Data collection/analytics |
 | Long Let reservation, inspection, rent, handover and cancellation terms | Core rules drafted | Long Let launch |
-| Short Let booking, cancellation, arrival, checkout and deposit terms | Core rules drafted | Short Let launch |
+| Short Let booking, cancellation, arrival, checkout and payment terms | Core rules drafted | Short Let launch |
 | Hotel customer booking terms and hotel/PMS participation agreement | Product rules drafted; contract needed | Hotel launch/integration |
 | Worker marketplace/customer terms | Core rules drafted | Worker bookings |
 | Worker provider agreement | Needed | First Worker activation |
@@ -80,7 +80,7 @@ Counsel should give a written answer, responsible regulator, filing/approval, la
 3. Confirm whether the reservation fee is refundable, credited toward the main price, or separately earned, and at exactly which event.
 4. Approve a stage-based cancellation/refund table for each product; do not approve a blanket no-refund term.
 5. Confirm who legally holds customer money, when each supplier earns it, and whether the current “protected” wording is permissible.
-6. Confirm deposit ownership, evidence/notice deadlines, customer response rights and final decision authority.
+6. Confirm that Long Let remains rent-only with no security deposit, and approve any separately disclosed Short Let payment/refund rule.
 7. Confirm Worker marketplace licensing and the boundary between independent marketplace, recruitment and employment.
 8. Confirm required property/hotel licences per launch State/LGA and the evidence WeHouse must retain.
 9. Confirm app-store/web billing disclosures, auto-renewal consent, cancellation and price-change notice.
@@ -100,7 +100,7 @@ Counsel should give a written answer, responsible regulator, filing/approval, la
 - hotel/property partner onboarding evidence and proposed contracts;
 - vendor/subprocessor inventory, hosting regions and cross-border transfers;
 - retention schedule, role/permission matrix, incident process and DPIA;
-- final badge, ranking, insights, Sponsored and subscription benefit wording.
+- final Reviewed/Trusted, ranking, insights, Sponsored and subscription benefit wording.
 
 ## 7. Release rule
 

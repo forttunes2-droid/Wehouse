@@ -12,7 +12,7 @@ import DiscoveryShell, {
   DiscoveryToolbar,
 } from "@/components/DiscoveryShell";
 import {
-  distanceBetweenKm,
+  getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import {
@@ -46,12 +46,6 @@ const HOTEL_PRICE_STEP = 1000;
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
-function coordinates(hotel: HotelRow) {
-  const lat = Number(hotel.gps_latitude);
-  const lng = Number(hotel.gps_longitude);
-  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
-}
-
 export default function HotelsHome({ onNavigate }: Props) {
   const [hotels, setHotels] = useState<HotelRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +68,13 @@ export default function HotelsHome({ onNavigate }: Props) {
     requestLocation,
     clearLocation,
   } = useDiscoveryLocation();
+  const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    let live = true;
+    void getDiscoveryDistanceMap(userLocation).then((next) => { if (live) setDistanceMap(next); });
+    return () => { live = false; };
+  }, [userLocation]);
 
   useEffect(() => {
     let live = true;
@@ -131,16 +132,10 @@ export default function HotelsHome({ onNavigate }: Props) {
   const filtered = useMemo(
     () =>
       hotels
-        .map((hotel) => {
-          const point = coordinates(hotel);
-          return {
-            hotel,
-            distance:
-              userLocation && point
-                ? distanceBetweenKm(userLocation, point)
-                : null,
-          };
-        })
+        .map((hotel) => ({
+          hotel,
+          distance: distanceMap.get(`hotel:${hotel.hotel_id}`) ?? null,
+        }))
         .filter(({ hotel, distance }) => {
           const needle = normalize(query);
           if (needle && !normalize(hotel.name).includes(needle)) return false;
@@ -172,7 +167,7 @@ export default function HotelsHome({ onNavigate }: Props) {
             ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
             : Number(Boolean(b.hotel.featured)) - Number(Boolean(a.hotel.featured)),
         ),
-    [hotels, query, state, city, amenities, minPrice, maxPrice, userLocation, radius],
+    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap, radius],
   );
 
   const priceActive = minPrice !== "" || maxPrice !== "";

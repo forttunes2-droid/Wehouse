@@ -37,7 +37,7 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave, d
     </div>
     <div className="px-1 pt-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">{listing.sub_type === 'short_let' ? 'Short Let' : 'Long Let'}</p><h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3><p className="mt-1 truncate text-[10px] text-[#686F80]">{[listing.city, listing.state].filter(Boolean).join(', ') || 'Location unavailable'}</p></div>
+        <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">{listing.sub_type === 'short_let' ? 'Short Let' : 'Long Let'}</p><h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3><p className="mt-1 truncate text-[10px] text-[#686F80]">{[listing.address, listing.city, listing.state].filter(Boolean).join(', ') || 'Location unavailable'}</p></div>
         <div className="shrink-0 text-right text-[9px] text-[#9BA0AF]">{listing.bedrooms > 0 ? <p>{listing.bedrooms} bed · {listing.bathrooms || 0} bath</p> : null}{distanceKm != null && Number.isFinite(distanceKm) ? <p className="mt-1 text-violet-300">{distanceKm < 1 ? `${Math.max(1, Math.round(distanceKm * 1000))} m` : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`} away</p> : null}</div>
       </div>
       <div className="mt-3 flex items-center gap-2 text-[8px]">{rawStatus === 'available' ? <span className="text-emerald-300">● Verified and available</span> : null}{listing.videos?.length > 0 ? <span className="text-[#747B8C]">▶ Video preview</span> : null}</div>

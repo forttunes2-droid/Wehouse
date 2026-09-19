@@ -10,9 +10,10 @@ export default function BackButton({ onClick, className = '', ariaLabel = 'Back'
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
-      className={`-ml-2 grid h-10 w-9 shrink-0 place-items-center text-[#9DA3B2] transition hover:text-white ${className}`}
+      title={ariaLabel}
+      className={`-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[#AAA3B3] transition hover:bg-white/[.04] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400 ${className}`}
     >
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="m15 18-6-6 6-6" />
       </svg>
     </button>

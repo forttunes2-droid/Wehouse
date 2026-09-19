@@ -60,7 +60,13 @@ export default function ShowcaseMediaThumbnail({
           playsInline
           preload="metadata"
           aria-hidden="true"
+          onLoadedMetadata={(event) => {
+            if (event.currentTarget.duration > 0) {
+              event.currentTarget.currentTime = Math.min(0.1, event.currentTarget.duration / 2);
+            }
+          }}
           onLoadedData={() => setReady(true)}
+          onSeeked={() => setReady(true)}
           className={`${className} transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
         />
       ) : null}

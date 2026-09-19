@@ -46,19 +46,21 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
   if(peerUserId)preparePrivateConversation('worker',conversationId,peerUserId);
   const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'worker',p_conversation_id:conversationId});
   if(error||!data)return{messages:data||[],error};
+  const legacyPaths=Array.from(new Set((data as any[]).flatMap(msg=>Array.isArray(msg.legacy_attachments)?msg.legacy_attachments.filter(Boolean):[]))) as string[];
+  const signed=legacyPaths.length?await supabase.storage.from('chat-files').createSignedUrls(legacyPaths,300):{data:[],error:null};
+  const legacyUrls=new Map((signed.data||[]).map(item=>[item.path,item.signedUrl||'']));
   const messages=await Promise.all((data as any[]).map(async msg=>{
     let content=String(msg.legacy_content||'');
+    let decryptionFailed=false;
     if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{content='🔒 Encrypted message · unlock with your recovery passcode'}
+      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
-    const attachments:string[]=[];
-    const legacyPaths=Array.isArray(msg.legacy_attachments)?msg.legacy_attachments.filter(Boolean):[];
-    for(const path of legacyPaths){
-      const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(path,300);
-      if(!signedError&&signed?.signedUrl)attachments.push(signed.signedUrl);
+    const attachments=(Array.isArray(msg.legacy_attachments)?msg.legacy_attachments:[]).map((path:string)=>legacyUrls.get(path)||'').filter(Boolean);
+    if(peerUserId){
+      const decrypted=await Promise.all((Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]).map(async(item:any)=>{try{return(await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment)).url}catch{return''}}));
+      attachments.push(...decrypted.filter(Boolean));
     }
-    if(peerUserId)for(const item of Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url)}catch{/* Message content remains available if a file cannot be opened. */}}
-    return{...msg,content,attachments,is_read:Boolean(msg.is_read)};
+    return{...msg,content,decryption_failed:decryptionFailed,attachments,is_read:Boolean(msg.is_read)};
   }));
   return{messages,error};
 }

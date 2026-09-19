@@ -31,8 +31,11 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
   getPropertyBookingJourney,
+  hasProtectedAccommodationPayment,
+  hasUnprotectedPaidAccommodation,
   propertyBookingStatusLabel,
 } from "@/lib/propertyBookingLifecycle";
+import { locationLabel } from "@/lib/locationPresentation";
 import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
 import {
   getMyAccommodationProtection,
@@ -605,12 +608,14 @@ export default function MyReservations({
       new CustomEvent("openSupportChat", {
         detail: {
           category: "hotel_booking",
-          subject: `Hotel booking help · ${
+          subject: `Hotel · ${
             row.hotels?.name || row.hotel?.name || row.hotel_name || "Hotel stay"
           }`,
           contextType: "hotel_booking",
           contextId: String(row.booking_id),
           contextSnapshot: {
+            source_type: "hotel_booking",
+            source_id: String(row.booking_id),
             booking_id: row.booking_id,
             hotel_id: row.hotel_id,
             hotel_name:
@@ -888,9 +893,7 @@ export default function MyReservations({
 function bookingGroup(item: BookingItem): BookingGroup {
   if (item.kind === "housing") {
     const status = String(item.row.status || "");
-    const rentPaid = ["paid", "upfront_paid"].includes(
-      String(item.row.rent_payment_status || ""),
-    );
+    const rentPaid = hasProtectedAccommodationPayment(item.row);
     if (
       status === "payment_pending" ||
       status === "payment_conflict" ||
@@ -1000,9 +1003,7 @@ function serviceNextAction(status: string) {
 
 function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const short = row.stay_type === "short_let";
-  const rentPaid = ["paid", "upfront_paid"].includes(
-    String(row.rent_payment_status || ""),
-  );
+  const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
   const visibleStatus = propertyBookingStatusLabel(row);
   const nextSummary =
@@ -1204,6 +1205,7 @@ function PropertyBookingDetail({
         ? "Short Let"
         : "Long Let";
   const journey = getPropertyBookingJourney(row, inspection);
+  const paymentNeedsReview = hasUnprotectedPaidAccommodation(row);
   const recordCode =
     Boolean(row.booking_code) &&
     journey.rentPaid &&
@@ -1231,6 +1233,7 @@ function PropertyBookingDetail({
   const helpRelevant =
     row.status === "payment_conflict" ||
     row.rent_payment_status === "payment_conflict" ||
+    hasUnprotectedPaidAccommodation(row) ||
     (journey.rentPaid && ["handover", "tenancy"].includes(journey.action));
 
   return (
@@ -1251,13 +1254,16 @@ function PropertyBookingDetail({
               <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
                 {short ? "Short Let" : "Long Let"}
               </p>
-              <h1 className="mt-1 break-words text-xl font-bold">
+              <h2 className="mt-1 break-words text-xl font-bold">
                 {row.listing_title || "Apartment booking"}
-              </h1>
+              </h2>
               <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
-                {row.listing_location ||
-                  row.listing_address ||
-                  [row.listing_city, row.listing_state].filter(Boolean).join(", ") ||
+                {locationLabel(
+                  row.listing_location,
+                  row.listing_address,
+                  row.listing_city,
+                  row.listing_state,
+                ) ||
                   "Area unavailable"}
               </p>
             </div>
@@ -1283,7 +1289,9 @@ function PropertyBookingDetail({
             <Info
               label={short ? "Stay payment" : "Year 1 rent"}
               value={
-                journey.rentPaid
+                paymentNeedsReview
+                  ? "Needs WeHouse review"
+                  : journey.rentPaid
                   ? "Paid"
                   : row.rent_payment_status === "payment_pending"
                     ? "Payment started"
@@ -1456,12 +1464,6 @@ function HotelBookingDetail({
   const packageName =
     row.rate_plan_name || row.hotel_rate_plans?.name || "Room package";
   const hotelAddress = row.hotels?.address || null;
-  const hotelLatitude = Number(row.hotels?.gps_latitude);
-  const hotelLongitude = Number(row.hotels?.gps_longitude);
-  const exactDestination =
-    row.hotels?.location_exact === true &&
-    Number.isFinite(hotelLatitude) &&
-    Number.isFinite(hotelLongitude);
   const journeyStatus =
     row.status === "checked_out" ? "completed" : String(row.status || "");
   const stages = ["pending", "confirmed", "checked_in", "completed"];
@@ -1514,7 +1516,7 @@ function HotelBookingDetail({
               <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">
                 Hotel
               </p>
-              <h1 className="mt-1 text-xl font-bold">{name}</h1>
+              <h2 className="mt-1 text-xl font-bold">{name}</h2>
               <p className="mt-1 text-[10px] text-[#777D8E]">
                 {room} · {packageName}
               </p>
@@ -1543,9 +1545,9 @@ function HotelBookingDetail({
             </div>
           ) : null}
 
-          {exactDestination ? (
+          {hotelAddress ? (
             <a
-              href={directionsUrl(hotelLatitude, hotelLongitude)}
+              href={directionsUrl(hotelAddress)}
               target="_blank"
               rel="noreferrer"
               className="mt-4 flex min-h-11 items-center justify-center border-y border-violet-500/20 text-[10px] font-semibold text-violet-300"

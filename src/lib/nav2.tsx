@@ -31,11 +31,11 @@ export function getPartnerNav(): DesktopNavItem[] { return [{ id: 'property_part
 export function getHotelTeamNav(): DesktopNavItem[] { return [{ id: 'hotel_operations', label: 'Hotel Operations', icon: DASHBOARD }, account()]; }
 
 export function getUserNav(conversationUnread = 0, inboxUnread = 0): DesktopNavItem[] {
-  const totalInboxUnread = conversationUnread + inboxUnread;
+  const unread = conversationUnread + inboxUnread;
   return [
     { id: 'search', label: 'Explore', icon: SEARCH },
     { id: 'my_reservations', label: 'Bookings', icon: RESERVATIONS },
-    { id: 'conversation', label: 'Inbox', icon: INBOX, badge: totalInboxUnread > 0 ? totalInboxUnread : undefined },
+    { id: 'conversation', label: 'Inbox', icon: INBOX, badge: unread > 0 ? unread : undefined },
     account(),
   ];
 }

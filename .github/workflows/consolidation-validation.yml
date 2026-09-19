@@ -10,8 +10,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: consolidation-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  tests-and-build:
     name: Consolidation Tests and Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -19,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm test
@@ -34,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Reject duplicate migration versions
         shell: bash
         run: |
@@ -53,6 +57,55 @@ jobs:
         run: |
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';")" -ge 90
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
+      - name: Exercise accommodation handover contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
+      - name: Exercise identity policy and Service Provider review contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_face_review_contract.sql
+      - name: Exercise atomic Message WeHouse first-send contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_first_send_contract.sql
+      - name: Exercise payment cancellation and payout contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_cancellation_payout_contract.sql
+      - name: Exercise reviewed legal signup and acceptance contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/legal_review_contract.sql
+      - name: Exercise Creator bootstrap and platform controls
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_controls_contract.sql
+      - name: Exercise workspace grants, revocation and geographic scope
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_authority_contract.sql
+      - name: Verify signup hook through Supabase Auth
+        run: node scripts/verify-signup-legal-hook.mjs
+      - name: Exercise cross-user RLS foundation contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup
+
+  existing-account-upgrade:
+    name: Existing Account Upgrade
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '54322'
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Start disposable local Supabase
+        run: npx --yes supabase@2.114.0 start
+      - name: Load the current production baseline
+        run: npx --yes supabase@2.114.0 db reset --local --version 20260913181317
+      - name: Seed existing approvals, reviews, private evidence and a wallet
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
+      - name: Verify the full upgrade rolls back without changing records or history
+        run: python scripts/coordinated-database-release.py check --local-ci
+      - name: Verify the full upgrade commits with existing records preserved
+        run: python scripts/coordinated-database-release.py apply --local-ci
+      - name: Verify a repeated release is a no-op
+        run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
@@ -60,14 +113,16 @@ jobs:
   consolidation-gate:
     name: Consolidation Validation
     if: always()
-    needs: [build, migration-replay]
+    needs: [tests-and-build, migration-replay, existing-account-upgrade]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Require build and migration replay
         env:
-          BUILD_RESULT: ${{ needs.build.result }}
+          BUILD_RESULT: ${{ needs.tests-and-build.result }}
           MIGRATION_RESULT: ${{ needs.migration-replay.result }}
+          UPGRADE_RESULT: ${{ needs.existing-account-upgrade.result }}
         run: |
           test "$BUILD_RESULT" = "success"
           test "$MIGRATION_RESULT" = "success"
+          test "$UPGRADE_RESULT" = "success"

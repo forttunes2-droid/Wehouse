@@ -1,3 +1,4 @@
+import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
 import {
   activityIsCurrent,
@@ -18,7 +19,7 @@ export function useOperationsInboxSummary(
   const [activityUnread, setActivityUnread] = useState(0);
   const [latestActivity, setLatestActivity] = useState<LatestActivity>(null);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean) => {
     if (!userId) return;
     const [support, events, announcements] = await Promise.all([
       queue
@@ -34,6 +35,7 @@ export function useOperationsInboxSummary(
         .gte("created_at", longestActivityCutoff()),
       getAnnouncementsForUser(userId),
     ]);
+    if (!isCurrent()) return;
 
     if (!support.error) {
       setMessageUnread(
@@ -88,9 +90,10 @@ export function useOperationsInboxSummary(
     }
   }, [activityScope, queue, userId]);
 
+  const refresh = useInboxRefresh(load, Boolean(userId));
+
   useEffect(() => {
     if (!userId) return;
-    void refresh();
     const channel = supabase
       .channel(`operations-inbox-summary:${activityScope}:${userId}`)
       .on(
@@ -118,17 +121,10 @@ export function useOperationsInboxSummary(
         { event: "*", schema: "public", table: "partner_support_messages" },
         () => void refresh(),
       )
-      .subscribe();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => void refresh(), 60_000);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [activityScope, queue, refresh, userId]);

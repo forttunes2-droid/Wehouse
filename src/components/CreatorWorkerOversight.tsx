@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { reactivateUser, suspendUser } from "@/lib/supabase/admin";
 import { supabase } from "@/lib/supabase";
 import InlineFilterChips from "@/components/InlineFilterChips";
 import { canonicalStatusOptions } from "@/lib/status";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import MediaViewer from "@/components/MediaViewer";
+import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 
 type Worker = {
   user_id: string;
@@ -24,7 +24,7 @@ type Worker = {
   review_count?: number | null;
 };
 type Checks = {
-  payment_confirmed?: boolean;
+  profile_ready?: boolean;
   identity_captured?: boolean;
   identity_passed?: boolean;
   readiness_passed?: boolean;
@@ -37,6 +37,7 @@ type Checks = {
 };
 
 export default function CreatorWorkerOversight() {
+  const { requestElevation } = useCreatorAuth();
   const [rows, setRows] = useState<Worker[]>([]),
     [selected, setSelected] = useState<Worker | null>(null),
     [checks, setChecks] = useState<Checks | null>(null),
@@ -46,6 +47,7 @@ export default function CreatorWorkerOversight() {
     [filter, setFilter] = useState("all"),
     [reason, setReason] = useState(""),
     [acting, setActing] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_get_my_branch_profiles", {
@@ -55,9 +57,11 @@ export default function CreatorWorkerOversight() {
     setRows(Array.isArray(data) ? data : []);
     setLoading(false);
   }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
+
   async function open(worker: Worker) {
     setSelected(worker);
     setReason("");
@@ -71,42 +75,72 @@ export default function CreatorWorkerOversight() {
     else setChecks((data || null) as Checks | null);
     setLoadingChecks(false);
   }
-  async function changeAccess() {
+
+  async function applyAccessChange(elevationId: string) {
     if (!selected) return;
     setActing(true);
-    const result = selected.suspended
-      ? await reactivateUser(selected.user_id)
-      : await suspendUser(
-          selected.user_id,
-          reason.trim() || "Worker access paused by Creator oversight",
-        );
-    setActing(false);
-    if (result.error) return toast.error(result.error.message);
-    toast.success(
-      selected.suspended ? "Worker access restored" : "Worker access suspended",
-    );
-    setSelected(null);
-    await load();
-  }
-  async function review(decision: "approve" | "reject") {
-    if (!selected) return;
-    if (decision === "reject" && !reason.trim())
-      return toast.error("Enter a rejection reason");
-    setActing(true);
-    const { error } = await supabase.rpc("admin_review_my_branch_worker", {
-      p_worker_id: selected.user_id,
-      p_decision: decision,
-      p_reason: decision === "reject" ? reason.trim() : null,
+    const { error } = await supabase.rpc("creator_set_account_suspension", {
+      p_target_user_id: selected.user_id,
+      p_suspended: !selected.suspended,
+      p_reason: selected.suspended
+        ? null
+        : reason.trim() || "Service Provider access paused by Creator oversight",
+      p_creator_elevation_id: elevationId,
     });
     setActing(false);
     if (error) return toast.error(error.message);
     toast.success(
-      decision === "approve" ? "Worker approved" : "Worker rejected",
+      selected.suspended
+        ? "Service Provider access restored"
+        : "Service Provider access suspended",
     );
     setSelected(null);
     setReason("");
     await load();
   }
+
+  function changeAccess() {
+    if (!selected) return;
+    requestElevation("all_sensitive", (elevationId) =>
+      void applyAccessChange(elevationId),
+    );
+  }
+
+  async function applyReview(
+    decision: "approve" | "reject",
+    elevationId: string,
+  ) {
+    if (!selected) return;
+    setActing(true);
+    const { error } = await supabase.rpc("creator_review_worker", {
+      p_worker_id: selected.user_id,
+      p_decision: decision,
+      p_reason: decision === "reject" ? reason.trim() : null,
+      p_creator_elevation_id: elevationId,
+    });
+    setActing(false);
+    if (error) return toast.error(error.message);
+    toast.success(
+      decision === "approve"
+        ? "Service Provider approved"
+        : "Service Provider rejected",
+    );
+    setSelected(null);
+    setReason("");
+    await load();
+  }
+
+  function review(decision: "approve" | "reject") {
+    if (!selected) return;
+    if (decision === "reject" && !reason.trim()) {
+      toast.error("Enter a rejection reason");
+      return;
+    }
+    requestElevation("private_evidence", (elevationId) =>
+      void applyReview(decision, elevationId),
+    );
+  }
+
   const statusOptions = useMemo(
     () =>
       canonicalStatusOptions(
@@ -116,10 +150,12 @@ export default function CreatorWorkerOversight() {
       ),
     [rows],
   );
+
   useEffect(() => {
     if (!statusOptions.some((option) => option.value === filter))
       setFilter("all");
   }, [filter, statusOptions]);
+
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((worker) => {
@@ -145,6 +181,7 @@ export default function CreatorWorkerOversight() {
         .includes(q);
     });
   }, [rows, search, filter]);
+
   if (selected)
     return (
       <div className="space-y-4">
@@ -152,17 +189,17 @@ export default function CreatorWorkerOversight() {
           onClick={() => setSelected(null)}
           className="text-[10px] font-semibold text-violet-400"
         >
-          ← Worker oversight
+          ← Service Provider oversight
         </button>
         <section className="rounded-3xl border border-white/[.06] bg-[#10131B] p-5">
           <div className="flex items-start gap-3">
             <Avatar worker={selected} />
             <div className="min-w-0 flex-1">
               <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
-                WEHOUSE SERVICE WORKER
+                WEHOUSE SERVICE PROVIDER
               </p>
               <h2 className="mt-1 truncate text-lg font-bold">
-                {selected.full_name || selected.username || "Worker"}
+                {selected.full_name || selected.username || "Service Provider"}
               </h2>
               <p className="mt-1 truncate text-[10px] text-[#707687]">
                 {workerOccupation(selected)} ·{" "}
@@ -195,12 +232,12 @@ export default function CreatorWorkerOversight() {
                 good={!!checks?.identity_passed}
               />
               <Check
-                label="Payment"
-                value={checks?.payment_confirmed ? "Confirmed" : "Incomplete"}
-                good={!!checks?.payment_confirmed}
+                label="Profile"
+                value={checks?.profile_ready ? "Complete" : "Incomplete"}
+                good={!!checks?.profile_ready}
               />
               <Check
-                label="Profile"
+                label="Readiness"
                 value={
                   checks?.readiness_passed
                     ? `Ready · ${checks.readiness_percent || 100}%`
@@ -222,7 +259,7 @@ export default function CreatorWorkerOversight() {
             />
             <Info
               label="Discovery"
-              value={selected.available ? "Visible" : "Hidden by Worker"}
+              value={selected.available ? "Visible" : "Hidden by provider"}
             />
             <Info
               label="Rating"
@@ -238,7 +275,8 @@ export default function CreatorWorkerOversight() {
             <h3 className="text-xs font-semibold">Professional evidence</h3>
             <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
               Review the identity result, readiness and work evidence before
-              making the account decision.
+              making the account decision. Identity confirmation is not proof of
+              skill, licensing or ownership.
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <EvidenceLink
@@ -260,9 +298,9 @@ export default function CreatorWorkerOversight() {
           <section className="border-y border-white/[.06] py-4">
             <h3 className="text-sm font-semibold">Account decision</h3>
             <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
-              Creator and the worker's branch Admin can approve a complete
-              review. The server still blocks approval when identity or evidence
-              is incomplete.
+              Creator approval requires fresh security confirmation. The server
+              still blocks approval when required identity or professional
+              evidence is incomplete.
             </p>
             <textarea
               value={reason}
@@ -273,18 +311,18 @@ export default function CreatorWorkerOversight() {
             />
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
-                onClick={() => void review("reject")}
+                onClick={() => review("reject")}
                 disabled={acting || !reason.trim()}
                 className="h-11 rounded-xl border border-red-500/20 text-xs font-semibold text-red-300 disabled:opacity-35"
               >
                 Reject
               </button>
               <button
-                onClick={() => void review("approve")}
+                onClick={() => review("approve")}
                 disabled={acting}
                 className="h-11 rounded-xl bg-emerald-500 text-xs font-semibold text-[#04120A] disabled:opacity-35"
               >
-                Approve Worker
+                Approve Service Provider
               </button>
             </div>
           </section>
@@ -292,7 +330,8 @@ export default function CreatorWorkerOversight() {
         <section className="border-y border-white/[.06] py-4">
           <h3 className="text-sm font-semibold">Platform access</h3>
           <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
-            Use this only to suspend or restore an existing Worker account.
+            Suspend or restore an existing Service Provider account. This action
+            requires fresh Creator confirmation and is audit logged.
           </p>
           {!selected.suspended && (
             <textarea
@@ -304,39 +343,40 @@ export default function CreatorWorkerOversight() {
             />
           )}
           <button
-            onClick={() => void changeAccess()}
+            onClick={changeAccess}
             disabled={acting || (!selected.suspended && !reason.trim())}
             className={`mt-3 h-11 w-full rounded-xl text-xs font-semibold disabled:opacity-35 ${selected.suspended ? "bg-emerald-500 text-[#04120A]" : "bg-red-500/15 text-red-300"}`}
           >
             {acting
               ? "Updating access…"
               : selected.suspended
-                ? "Restore Worker access"
-                : "Suspend Worker access"}
+                ? "Restore Service Provider access"
+                : "Suspend Service Provider access"}
           </button>
         </section>
       </div>
     );
+
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold">Worker oversight</h2>
+        <h2 className="text-lg font-bold">Service Provider oversight</h2>
         <p className="mt-1 text-[10px] text-[#707687]">
-          Lifecycle, marketplace access and exceptions. Worker Operations handle
-          professional review.
+          Onboarding, marketplace access, professional review and account
+          exceptions for WeHouse Services.
         </p>
       </div>
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search Worker, occupation, service or location"
+        placeholder="Search Service Provider, occupation, service or location"
         className="h-11 w-full rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none"
       />
       <InlineFilterChips
         value={filter}
         options={statusOptions}
         onChange={setFilter}
-        ariaLabel="Show workers by lifecycle"
+        ariaLabel="Show Service Providers by lifecycle"
       />
       {loading ? (
         <Loading />
@@ -353,7 +393,7 @@ export default function CreatorWorkerOversight() {
               <Avatar worker={worker} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
-                  {worker.full_name || worker.username || "Worker"}
+                  {worker.full_name || worker.username || "Service Provider"}
                 </p>
                 <p className="mt-1 truncate text-[9px] text-[#686F7F]">
                   {workerOccupation(worker)} ·{" "}
@@ -377,10 +417,11 @@ export default function CreatorWorkerOversight() {
     </div>
   );
 }
+
 function Avatar({ worker }: { worker: Worker }) {
   return (
     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/12 text-sm font-bold text-violet-300">
-      {String(worker.full_name || worker.username || "W")[0].toUpperCase()}
+      {String(worker.full_name || worker.username || "S")[0].toUpperCase()}
     </div>
   );
 }
@@ -435,7 +476,7 @@ function Loading() {
 function Empty() {
   return (
     <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">
-      No Workers match this view.
+      No Service Providers match this view.
     </div>
   );
 }

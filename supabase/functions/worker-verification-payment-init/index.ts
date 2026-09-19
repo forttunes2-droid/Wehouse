@@ -16,7 +16,7 @@ Deno.serve((request) => {
       success: false,
       fee_waived: true,
       retired: true,
-      error: "Worker registration, professional evidence submission and WeHouse review are free. No verification payment can be initialized.",
+      error: "Service Provider onboarding, professional evidence submission and WeHouse review are free. No verification payment can be initialized.",
     }),
     { status: 410, headers },
   );

@@ -3,7 +3,6 @@ import { Toaster, toast } from "sonner";
 import {
   addHotelReview,
   canReviewHotel,
-  getHotelBookingsForUser,
   getHotelById,
   getHotelReviews,
 } from "@/lib/supabase";
@@ -21,10 +20,11 @@ import type {
 } from "@/types";
 import {
   directionsUrl,
-  distanceBetweenKm,
+  getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
+import { locationLabel } from "@/lib/locationPresentation";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -73,7 +73,7 @@ export default function HotelDetailExperience({
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
-  const [locationUnlocked, setLocationUnlocked] = useState(false);
+  const [distance, setDistance] = useState<number | null>(null);
 
   useEffect(() => {
     window.dispatchEvent(
@@ -90,12 +90,11 @@ export default function HotelDetailExperience({
     let live = true;
     void (async () => {
       setLoading(true);
-      const [hotelResult, reviewResult, eligibility, bookingResult, savedResult] =
+      const [hotelResult, reviewResult, eligibility, savedResult] =
         await Promise.all([
           getHotelById(hotelId),
           getHotelReviews(hotelId),
           canReviewHotel(hotelId, profile.user_id),
-          getHotelBookingsForUser(profile.user_id),
           getMySavedHotelIds(),
         ]);
       if (!live) return;
@@ -114,22 +113,20 @@ export default function HotelDetailExperience({
       setSaved(
         !savedResult.error && savedResult.hotelIds.includes(Number(hotelId)),
       );
-      setLocationUnlocked(
-        Boolean(
-          bookingResult.bookings?.some(
-            (booking) =>
-              Number(booking.hotel_id) === Number(hotelId) &&
-              booking.payment_status === "paid" &&
-              ["confirmed", "checked_in"].includes(String(booking.status)),
-          ),
-        ),
-      );
       setLoading(false);
     })();
     return () => {
       live = false;
     };
   }, [hotelId, profile.user_id]);
+
+  useEffect(() => {
+    let live = true;
+    void getDiscoveryDistanceMap(location).then((map) => {
+      if (live) setDistance(map.get(`hotel:${hotelId}`) ?? null);
+    });
+    return () => { live = false; };
+  }, [hotelId, location]);
 
   const tomorrow = useMemo(() => {
     const value = new Date();
@@ -180,6 +177,27 @@ export default function HotelDetailExperience({
     setSelectedRate(plan);
     setCheckIn("");
     setCheckOut("");
+  }
+
+  function messageWeHouse() {
+    if (!hotel) return;
+    window.dispatchEvent(
+      new CustomEvent("openSupportChat", {
+        detail: {
+          category: "hotel_enquiry",
+          subject: `Question about · ${hotel.name}`,
+          contextType: "hotel_property",
+          contextId: String(hotelId),
+          contextSnapshot: {
+            source_type: "hotel_property",
+            source_id: String(hotelId),
+            hotel_id: hotelId,
+            hotel_name: hotel.name,
+            location: [hotel.area, hotel.city, hotel.state].filter(Boolean).join(", "),
+          },
+        },
+      }),
+    );
   }
 
   function proceed() {
@@ -241,16 +259,6 @@ export default function HotelDetailExperience({
   const images = hotel.images?.filter(Boolean) || [];
   const amenities = hotel.amenities || [];
   const shownAmenities = showAllAmenities ? amenities : amenities.slice(0, 6);
-  const latitude = Number(hotel.gps_latitude);
-  const longitude = Number(hotel.gps_longitude);
-  const point =
-    Number.isFinite(latitude) && Number.isFinite(longitude)
-      ? { lat: latitude, lng: longitude }
-      : null;
-  const exactDestination =
-    locationUnlocked && hotel.location_exact === true ? point : null;
-  const distance =
-    location && point ? distanceBetweenKm(location, point) : null;
 
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
@@ -315,7 +323,7 @@ export default function HotelDetailExperience({
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
                 <p className="mt-1 text-[10px] text-[#747B8B]">
-                  {[hotel.area, hotel.city, hotel.state].filter(Boolean).join(", ")}
+                  {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
                   {distance != null
                     ? ` · about ${
                         distance < 1
@@ -616,23 +624,24 @@ export default function HotelDetailExperience({
 
         <section className="border-y border-white/[.06] py-5">
           <h2 className="text-sm font-semibold">Location</h2>
-          {exactDestination && hotel.address ? (
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[10px] text-[#858B9A]">{hotel.address}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] text-[#858B9A]">
+                {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
+              </p>
+              <p className="mt-1 text-[8px] text-[#666D7E]">The published street address is visible before booking; internal entrance-location data stays private.</p>
+            </div>
+            {hotel.address ? (
               <a
-                href={directionsUrl(exactDestination.lat, exactDestination.lng)}
+                href={directionsUrl(locationLabel(hotel.address, hotel.area, hotel.city, hotel.state))}
                 target="_blank"
                 rel="noreferrer"
                 className="shrink-0 text-[9px] font-semibold text-violet-300"
               >
                 Road directions
               </a>
-            </div>
-          ) : (
-            <p className="mt-2 text-[10px] leading-5 text-[#777E8E]">
-              Approximate area only. Exact entrance and road directions unlock for a confirmed paid stay.
-            </p>
-          )}
+            ) : null}
+          </div>
         </section>
 
         <section className="border-y border-white/[.06] py-5">
@@ -716,12 +725,19 @@ export default function HotelDetailExperience({
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto grid max-w-5xl grid-cols-[auto_minmax(0,1fr)] gap-2">
+          <button
+            type="button"
+            onClick={messageWeHouse}
+            className="h-12 rounded-2xl border border-violet-400/20 bg-violet-500/[.07] px-4 text-[10px] font-semibold text-violet-200"
+          >
+            Message WeHouse
+          </button>
           <button
             type="button"
             onClick={proceed}
             disabled={!selectedRoom || !selectedRate || nights < 1}
-            className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:bg-white/[.055] disabled:text-[#656B7A]"
+            className="h-12 min-w-0 rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:bg-white/[.055] disabled:text-[#656B7A]"
           >
             {!selectedRoom
               ? "Choose a room"

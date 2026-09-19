@@ -12,6 +12,18 @@ const json = (body: Record<string, unknown>, status = 200) =>
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
+function jwtSessionId(token: string): string {
+  try {
+    const encoded = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(
+      atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+    );
+    return String(payload?.session_id || "");
+  } catch {
+    return "";
+  }
+}
+
 async function paystack(path: string, secret: string, init?: RequestInit) {
   const response = await fetch(`https://api.paystack.co${path}`, {
     ...init,
@@ -33,6 +45,22 @@ async function paystack(path: string, secret: string, init?: RequestInit) {
     throw failure;
   }
   return body.data;
+}
+
+function ngnBalanceKobo(data: any) {
+  if (!Array.isArray(data)) return 0;
+  const row = data.find((item: any) => String(item?.currency || "").toUpperCase() === "NGN");
+  return Math.max(0, Number(row?.balance || 0));
+}
+
+function transferFeeBufferKobo() {
+  // Provider fees can change. Keep the safety buffer configurable rather than
+  // coupling wallet accounting to a hard-coded Paystack tariff.
+  const configuredNaira = Number(Deno.env.get("PAYSTACK_NGN_TRANSFER_FEE_BUFFER") || "100");
+  const safeNaira = Number.isFinite(configuredNaira)
+    ? Math.max(0, Math.min(configuredNaira, 5000))
+    : 100;
+  return Math.round(safeNaira * 100);
 }
 
 serve(async (req) => {
@@ -77,6 +105,44 @@ serve(async (req) => {
     const withdrawalId = String(body?.withdrawal_id || "").trim();
     if (!withdrawalId) return json({ success: false, error: "Withdrawal ID is required" }, 400);
 
+    if (profile.role === "creator" && ["approve", "reject"].includes(action)) {
+      const creatorElevationId = String(body?.creator_elevation_id || "").trim();
+      const sessionId = jwtSessionId(token);
+      if (
+        !sessionId ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          creatorElevationId,
+        )
+      ) {
+        return json({ success: false, error: "Fresh Creator finance confirmation required" }, 403);
+      }
+      const { data: grant, error: grantError } = await admin
+        .from("creator_elevation_grants")
+        .select(
+          "creator_user_id,auth_user_id,auth_session_id,action_classes,expires_at,revoked_at",
+        )
+        .eq("creator_elevation_id", creatorElevationId)
+        .maybeSingle();
+      const classes = Array.isArray(grant?.action_classes)
+        ? grant.action_classes.map((value: unknown) => String(value))
+        : [];
+      const expiresAt = Date.parse(String(grant?.expires_at || ""));
+      if (
+        grantError ||
+        !grant ||
+        grant.creator_user_id !== profile.user_id ||
+        String(grant.auth_user_id) !== user.id ||
+        grant.auth_session_id !== sessionId ||
+        grant.revoked_at ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= Date.now() ||
+        (!classes.includes("finance_exception") &&
+          !classes.includes("all_sensitive"))
+      ) {
+        return json({ success: false, error: "Fresh Creator finance confirmation required" }, 403);
+      }
+    }
+
     if (action === "reject") {
       const reason = String(body?.reason || "").trim();
       if (!reason) return json({ success: false, error: "A rejection reason is required" }, 400);
@@ -90,6 +156,52 @@ serve(async (req) => {
     }
 
     if (action === "approve") {
+      // Do not reserve/claim a withdrawal until Paystack's own NGN balance can
+      // actually fund it. This lets a released Worker/Partner request a payout
+      // immediately while safely waiting for Paystack Manual Payout settlement.
+      const { data: pending, error: pendingError } = await admin
+        .from("withdrawals")
+        .select("id,amount,status,paystack_transfer_reference")
+        .eq("id", withdrawalId)
+        .maybeSingle();
+      if (pendingError || !pending)
+        return json({ success: false, error: "Withdrawal could not be loaded" }, 409);
+      if (pending.status === "processing") {
+        return json({
+          success: false,
+          error: "This withdrawal is already processing. Use Check Paystack status; do not send it again.",
+        }, 409);
+      }
+      if (pending.status !== "awaiting_review")
+        return json({ success: false, error: "Withdrawal is not awaiting review" }, 409);
+
+      let balances: any;
+      try {
+        balances = await paystack("/balance", paystackSecret);
+      } catch (error) {
+        console.error("payout balance check failed", {
+          withdrawal_id: withdrawalId,
+          error: errorMessage(error, "Paystack balance check failed"),
+        });
+        return json({
+          success: false,
+          error: "Paystack balance could not be confirmed. The withdrawal remains awaiting review; try again later.",
+        }, 502);
+      }
+      const availableKobo = ngnBalanceKobo(balances);
+      const transferKobo = Math.round(Number(pending.amount) * 100);
+      const requiredKobo = transferKobo + transferFeeBufferKobo();
+      if (!Number.isFinite(transferKobo) || transferKobo <= 0)
+        return json({ success: false, error: "Withdrawal amount is invalid" }, 409);
+      if (availableKobo < requiredKobo) {
+        return json({
+          success: false,
+          provider_balance_pending: true,
+          status: "awaiting_review",
+          error: "Paystack has not settled enough NGN balance for this withdrawal yet. The request remains awaiting review and can be sent after settlement.",
+        }, 409);
+      }
+
       const { data: claim, error: claimError } = await admin.rpc("claim_withdrawal_for_payout", {
         p_withdrawal_id: withdrawalId,
         p_reviewer_id: profile.user_id,

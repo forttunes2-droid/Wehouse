@@ -1,11 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 import * as tus from 'tus-js-client';
+import { resolveSupabaseEnvironment } from './environment';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
-// These are PUBLIC client credentials — safe in browser bundles.
-// Real security = Row Level Security (RLS) policies, not key secrecy.
-const SUPABASE_URL = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrcmhua2hwcGVpaHZtdXd2c3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NjY0MjEsImV4cCI6MjA5NTA0MjQyMX0.y78mFMsrN81WOg4-YXHVnq6mNYUw5I-IowQWXnjeXyw';
+// Browser publishable keys are intentionally public. Real authorization lives in
+// RLS/RPC boundaries. What must never happen is a Preview/localhost/native test
+// build silently talking to the production database.
+const configuredUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+const configuredKey = String(
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  '',
+).trim();
+const runtimeHost = typeof window === 'undefined' ? '' : window.location.hostname.toLowerCase();
+const environment = resolveSupabaseEnvironment(runtimeHost, configuredUrl, configuredKey);
+const SUPABASE_URL = environment.url;
+const SUPABASE_ANON_KEY = environment.key;
+
+const SUPABASE_STORAGE_URL = SUPABASE_URL.replace(
+  /\.supabase\.co\/?$/,
+  '.storage.supabase.co',
+);
+
+export const isTestEnvironment = environment.isTestEnvironment;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -100,7 +117,7 @@ async function uploadResumableStorageObject(
 ) {
   await new Promise<void>((resolve, reject) => {
     const upload = new tus.Upload(body, {
-      endpoint: 'https://rkrhnkhppeihvmuwvsvn.storage.supabase.co/storage/v1/upload/resumable',
+      endpoint: `${SUPABASE_STORAGE_URL}/storage/v1/upload/resumable`,
       retryDelays: [0, 3000, 5000, 10000, 20000],
       headers: {
         authorization: `Bearer ${accessToken}`,

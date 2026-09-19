@@ -26,11 +26,11 @@ WeHouse requires account holders to be 18 or older. Date of birth is private and
 
 ### Long Let
 
-The customer first reserves the apartment by paying the disclosed reservation fee. That fee is not rent. After confirmation, the customer may request an optional inspection or continue to the disclosed Year 1 rent. Rent must be verified before a move-in time can be chosen. Tenancy starts only after authorised Property Operations verifies the booking code, customer, property and payment and hands over access.
+The customer chooses the tenure, reviews the contract total, completes the required payment and Payment Protection steps, and proceeds to tenancy handover. There is **no Long Let security deposit** in the WeHouse product. The paid tenure and contract total must not be changed without a controlled contract and payment process.
 
 ### Short Let
 
-The customer chooses available dates and guests, reviews the full price and deposit, and pays the disclosed reservation fee to hold the dates. The remaining stay payment and any refundable deposit must be verified before check-in. Authorised Property Operations verifies the booking code at arrival. Checkout ends the stay; deposit claims and refunds follow the published deposit process.
+The customer chooses available dates and guests, reviews the total price and cancellation rule, pays, and receives a confirmed stay. Authorised Property Operations verifies the booking code at arrival. Short Let uses check-in and checkout language; it is never described as move-in.
 
 A Short Let public page may show the property’s public street/area before booking. Exact entrance instructions, unit/door details, access codes, host contact details and precise directions are released only to an eligible confirmed guest at the appropriate time.
 
@@ -46,7 +46,7 @@ Worker onboarding and ordinary use are free. Workers act as independent service 
 
 “Reviewed” means WeHouse completed the published review process. “Trusted” is a higher earned status under published performance and safety rules. Customer ratings come only from completed, paid WeHouse jobs. None of these is a guarantee of future work.
 
-A paid professional plan or gold PRO mark shows only an active paid feature entitlement. It does **not** mean Reviewed, Trusted, licensed, more skilled, safer or endorsed. A non-Pro Worker remains discoverable, bookable and able to complete the normal job flow.
+An optional paid Worker subscription buys only the tools and placement benefits shown on its purchase screen. It does **not** buy Reviewed, Trusted, a rating, skill, safety or endorsement. A Worker without the subscription remains discoverable, bookable and able to complete the normal job flow.
 
 For each service request, the Worker and customer agree the work, full price and date. The customer pays through WeHouse. The Worker marks when work starts and when it is ready for review. The customer confirms only after checking the work, or opens a dispute. Payment release, refunds and disputes follow the disclosed booking policy.
 
@@ -60,7 +60,7 @@ Initial benefits approved for launch are professional work insights based only o
 
 ## 7. Payments, cancellations, refunds and disputes
 
-The checkout screen must identify the amount, purpose, recipient/supplier, applicable fee, refundable deposit and refund rule. A browser redirect or screenshot is not payment confirmation; only server verification and the payment record are authoritative. Duplicate and conflicting confirmations go to review rather than creating a second entitlement or release.
+The checkout screen must identify the total amount, purpose, recipient/supplier, applicable fee and refund rule. A browser redirect or screenshot is not payment confirmation; only server verification and the matching Payment Protection record are authoritative. Duplicate and conflicting confirmations go to review rather than creating a second entitlement or release.
 
 Users may cancel where the booking screen permits. A paid booking cannot be silently cancelled: the applicable refund calculation and any provider/consumed-service deductions must be shown and recorded. WeHouse will not use a blanket “no refunds” term. Non-delivery, material misdescription, duplicate charge, unauthorised payment, unsafe arrival, provider cancellation and legal rights remain reviewable.
 

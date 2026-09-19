@@ -6,31 +6,6 @@
     <meta name="theme-color" content="#0A0A0F" />
     <meta name="background-color" content="#0A0A0F" />
     <meta name="description" content="WeHouse - Find houses, connect with roommates, hire verified workers" />
-    <script>window.WH_VERSION='__WH_VERSION__';</script>
-    <script>
-      (function() {
-        // One-time compatibility cleanup: Property Partner is the only
-        // canonical Partner workspace. Never restore the retired owner alias.
-        try {
-          if (localStorage.getItem('wh_navpage') === 'property_owner') {
-            localStorage.setItem('wh_navpage', 'property_partner');
-          }
-          if (window.history.state && window.history.state.page === 'property_owner') {
-            window.history.replaceState({ page: 'property_partner' }, '', '#property_partner');
-          }
-        } catch (_) {}
-      })();
-    </script>
-    <script>
-      (function() {
-        if (!('serviceWorker' in navigator)) return;
-        // The build emits a new worker body for every Git commit. Existing
-        // installations therefore receive the current application shell.
-        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
-          .then(function(registration) { return registration.update(); })
-          .catch(function() {});
-      })();
-    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WeHouse" />
@@ -44,21 +19,58 @@
     <link rel="manifest" href="/manifest.webmanifest?v=3" />
     <link rel="apple-touch-icon" href="/icon-192.png?v=3" />
     <link rel="mask-icon" href="/brand-mask.svg?v=3" color="#7C3AED" />
-    <link rel="preconnect" href="https://rkrhnkhppeihvmuwvsvn.supabase.co" />
-    <link rel="preconnect" href="https://tile.openstreetmap.org" />
 
     <title>WeHouse</title>
     <style>
-      html, body { background: #0A0A0F; }
+      html, body { margin: 0; min-height: 100%; background: #0E0C12; }
+      body { min-height: 100dvh; }
       .safe-area-top { padding-top: env(safe-area-inset-top); }
       .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-      .leaflet-container { background: #11141c; font-family: inherit; }
-      .leaflet-control-attribution { font-size: 8px !important; }
-      .wehouse-map-pin { background: transparent !important; border: 0 !important; }
+      #wh-bootstrap {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        color: #F6F2FC;
+        background: #0E0C12;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      #wh-bootstrap-inner { text-align: center; }
+      #wh-bootstrap-logo {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: block;
+        margin: 0 auto;
+      }
+      #wh-bootstrap-name { margin: 16px 0 0; font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+      #wh-bootstrap-tagline { margin: 6px 0 0; color: #AAA3B3; font-size: 13px; letter-spacing: .04em; }
+      #wh-bootstrap-loader {
+        width: 22px;
+        height: 22px;
+        margin: 20px auto 0;
+        border: 2px solid rgba(167,139,250,.22);
+        border-top-color: #A78BFA;
+        border-radius: 999px;
+        animation: wh-spin .8s linear infinite;
+      }
+      @keyframes wh-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { #wh-bootstrap-loader { animation: none; } }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="wh-bootstrap" role="status" aria-label="Opening WeHouse">
+        <div id="wh-bootstrap-inner">
+          <img id="wh-bootstrap-logo" src="/app-icon.svg?v=3" alt="" />
+          <p id="wh-bootstrap-name">WeHouse</p>
+          <p id="wh-bootstrap-tagline">find · connect · live better</p>
+          <div id="wh-bootstrap-loader" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/preflight.ts"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

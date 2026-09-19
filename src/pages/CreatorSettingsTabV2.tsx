@@ -1,72 +1,65 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { invalidateSettingsCache } from '@/hooks/usePlatformSettings';
+import { CREATOR_SETTING_GROUPS, type CreatorSettingsGroupId, type Def } from '@/lib/creatorSettingsSchema';
+import { saveCreatorSetting, type DbSetting } from '@/lib/saveCreatorSetting';
 import type { Profile } from '@/types';
 
-type Kind='text'|'email'|'number'|'toggle'|'textarea';
-type Def={key:string;label:string;description:string;kind:Kind;defaultValue:string;min?:number;max?:number;step?:number;category?:string};
-type DbSetting={key:string;value:string;is_active:boolean};
-type Group={id:string;label:string;description:string;note?:string;settings:Def[]};
-
-const GROUPS:Group[]=[
- {id:'identity',label:'Platform identity',description:'Public WeHouse contact information.',settings:[
-  {key:'company_name',label:'Company name',description:'Name shown across the platform.',kind:'text',defaultValue:'WeHouse'},
-  {key:'support_email',label:'Support email',description:'Primary public support email.',kind:'email',defaultValue:''},
-  {key:'support_phone',label:'Support phone',description:'Primary public support phone number.',kind:'text',defaultValue:''},
- ]},
- {id:'worker_pro',label:'Paid Worker plan',description:'Optional monthly or yearly tools, separate from free Worker onboarding, Reviewed and Trusted.',note:'The public name, prices, annual saving, Sponsored slots and support target are controlled here without a code change. Saving either price pauses new web sales and synchronizes its Paystack plan without changing existing subscribers. Apple and Google control native-store prices.',settings:[
-  {key:'worker_pro_product_name',label:'Public plan name',description:'Short name shown to Workers. Default: WeHouse Works.',kind:'text',defaultValue:'WeHouse Works',category:'worker_pro'},
-  {key:'worker_pro_product_tagline',label:'Plan tagline',description:'One clear sentence explaining what the tools do.',kind:'text',defaultValue:'Run your work with clearer numbers, documents and reach.',category:'worker_pro'},
-  {key:'worker_pro_monthly_price_ngn',label:'Monthly web price (₦)',description:'Price for new monthly web subscriptions. Saving it synchronizes the Paystack monthly plan.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'worker_pro'},
-  {key:'worker_pro_yearly_price_ngn',label:'Yearly web price (₦)',description:'Total annual price for new yearly web subscriptions. Set it below twelve monthly payments to offer a visible saving.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'worker_pro'},
-  {key:'worker_pro_apple_product_id',label:'Apple monthly product ID',description:'Monthly auto-renewable subscription product configured in App Store Connect.',kind:'text',defaultValue:'',category:'worker_pro'},
-  {key:'worker_pro_apple_yearly_product_id',label:'Apple yearly product ID',description:'Yearly product in the same App Store subscription group as the monthly product.',kind:'text',defaultValue:'',category:'worker_pro'},
-  {key:'worker_pro_google_product_id',label:'Google Play monthly product ID',description:'Monthly subscription product or base plan configured in Google Play Console.',kind:'text',defaultValue:'',category:'worker_pro'},
-  {key:'worker_pro_google_yearly_product_id',label:'Google Play yearly product ID',description:'Yearly subscription product or base plan configured in Google Play Console.',kind:'text',defaultValue:'',category:'worker_pro'},
-  {key:'worker_pro_terms_version',label:'Published plan terms version',description:'Version Workers must accept before starting a subscription.',kind:'text',defaultValue:'',category:'worker_pro'},
-  {key:'worker_pro_terms_content',label:'Paid plan subscription terms',description:'Explain both prices, automatic renewal, paid-through cancellation, expiry, failed-payment handling, feature access and refunds.',kind:'textarea',defaultValue:'',category:'worker_pro'},
-  {key:'worker_pro_payment_grace_days',label:'Failed-payment grace (days)',description:'Optional access after a failed renewal. Zero keeps access only through the already-paid period.',kind:'number',defaultValue:'0',min:0,max:14,step:1,category:'worker_pro'},
-  {key:'worker_pro_support_response_hours',label:'Priority support target (hours)',description:'Ordinary platform-help response target. Safety, payment, refund and dispute handling never depends on payment.',kind:'number',defaultValue:'24',min:1,max:168,step:1,category:'worker_pro'},
-  {key:'worker_featured_slot_count',label:'Sponsored slots',description:'Maximum matching Featured Workers shown separately. Organic results remain unchanged.',kind:'number',defaultValue:'3',min:0,max:6,step:1,category:'worker_pro'},
-  {key:'worker_featured_sales_enabled',label:'Enable Featured Workers',description:'Requires approved Worker marketplace and sponsored-placement legal gates. Cards are always labelled Sponsored.',kind:'toggle',defaultValue:'false',category:'worker_pro'},
-  {key:'worker_pro_sales_enabled',label:'Enable paid plan web sales',description:'Opens web checkout only after legal approval, published terms, and at least one verified Paystack plan.',kind:'toggle',defaultValue:'false',category:'worker_pro'},
- ]},
- {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, Worker-caused cancellations and unresolved disputes.',settings:[
-  {key:'worker_trust_enabled',label:'Enable WeHouse Trusted',description:'Turn on automatic earned marketplace trust only after Worker-booking reputation data is ready.',kind:'toggle',defaultValue:'false',category:'worker_trust'},
-  {key:'worker_trusted_min_completed_jobs',label:'Minimum completed WeHouse jobs',description:'Completed Worker bookings required before Trusted can be earned.',kind:'number',defaultValue:'5',min:0,max:10000,step:1,category:'worker_trust'},
-  {key:'worker_trusted_min_rating',label:'Minimum rating',description:'Minimum marketplace rating required for Trusted.',kind:'number',defaultValue:'4.5',min:0,max:5,step:0.1,category:'worker_trust'},
-  {key:'worker_trusted_max_cancel_rate',label:'Maximum Worker cancellation rate (%)',description:'Maximum percentage of terminal jobs cancelled by the Worker while retaining Trusted.',kind:'number',defaultValue:'20',min:0,max:100,step:1,category:'worker_trust'},
-  {key:'worker_trusted_block_open_disputes',label:'Block Trusted with unresolved disputes',description:'Require a clean Worker-booking dispute record before Trusted is shown.',kind:'toggle',defaultValue:'true',category:'worker_trust'},
- ]},
- {id:'access',label:'Platform access',description:'High-level access switches.',settings:[
-  {key:'maintenance_mode',label:'Maintenance mode',description:'Temporarily block normal platform access.',kind:'toggle',defaultValue:'false'},
-  {key:'registration_open',label:'Registration open',description:'Allow new accounts to register.',kind:'toggle',defaultValue:'true'},
- ]},
- {id:'legal',label:'Legal documents',description:'Current Privacy Policy and Terms & Conditions shown to users.',settings:[
-  {key:'privacy_policy',label:'Privacy Policy',description:'Published WeHouse Privacy Policy.',kind:'textarea',defaultValue:''},
-  {key:'terms_of_service',label:'Terms & Conditions',description:'Published WeHouse Terms & Conditions.',kind:'textarea',defaultValue:''},
- ]},
-];
-
-export default function CreatorSettingsTabV2({profile,groups,title='Platform settings',description='Product policy and global configuration.'}:{profile?:Profile;groups?:string[];title?:string;description?:string}){
- void profile;
+type Props = { profile?: Profile; groups?: CreatorSettingsGroupId[]; title?: string; description?: string; embedded?: boolean };
+export default function CreatorSettingsTabV2({groups,title='Platform settings',description='Product policy and global configuration.',embedded=false}: Props){
  const groupKey=groups?.join('|')||'';
- const visibleGroups=useMemo(()=>{const selected=new Set(groupKey?groupKey.split('|'):[]);return selected.size?GROUPS.filter(group=>selected.has(group.id)):GROUPS},[groupKey]);
- const defs=useMemo(()=>visibleGroups.flatMap(group=>group.settings),[visibleGroups]),keys=useMemo(()=>defs.map(def=>def.key),[defs]);
- const[rows,setRows]=useState<DbSetting[]>([]),[drafts,setDrafts]=useState<Record<string,string>>({}),[saving,setSaving]=useState<Record<string,boolean>>({}),[loading,setLoading]=useState(true);
- useEffect(()=>{let active=true;void(async()=>{const settingsResult=await supabase.from('platform_settings').select('key,value,is_active').in('key',keys);if(!active)return;if(settingsResult.error)toast.error(settingsResult.error.message);else setRows((settingsResult.data||[]) as DbSetting[]);setLoading(false)})();return()=>{active=false}},[keys]);
- function stored(def:Def){return rows.find(row=>row.key===def.key&&row.is_active!==false)?.value??def.defaultValue}
- function current(def:Def){return drafts[def.key]!==undefined?drafts[def.key]:stored(def)}
- function normalize(def:Def,raw:string){if(def.kind!=='number')return raw;const cleaned=raw.trim().replace(/,/g,'');if(!/^\d+(\.\d+)?$/.test(cleaned))return null;const value=Number(cleaned);if(!Number.isFinite(value)||(def.min!==undefined&&value<def.min)||(def.max!==undefined&&value>def.max)||((def.step??1)>=1&&!Number.isInteger(value)))return null;return String(value)}
- async function save(def:Def,raw:string){const value=normalize(def,raw);if(value===null){toast.error(`${def.label} has an invalid value`);return false}setSaving(state=>({...state,[def.key]:true}));let result;if(def.category==='worker_pro'){result=await supabase.rpc('creator_set_worker_pro_setting',{p_key:def.key,p_value:value})}else{const{data:existing,error:readError}=await supabase.from('platform_settings').select('key').eq('key',def.key).maybeSingle();if(readError){setSaving(state=>({...state,[def.key]:false}));toast.error(readError.message);return false}const payload={value,category:def.category||'platform',label:def.label,description:def.description,data_type:def.kind==='toggle'?'boolean':def.kind==='number'?'number':'text',editable:true,is_active:true,updated_at:new Date().toISOString()};result=existing?await supabase.from('platform_settings').update(payload).eq('key',def.key):await supabase.from('platform_settings').insert({key:def.key,...payload})}if(result.error){setSaving(state=>({...state,[def.key]:false}));toast.error(result.error.message);return false}const{data:verified,error:verifyError}=await supabase.from('platform_settings').select('key,value,is_active').eq('key',def.key).maybeSingle();if(verifyError||!verified||String(verified.value)!==String(value)){setSaving(state=>({...state,[def.key]:false}));toast.error(`${def.label} could not be verified after saving`);return false}let message=def.kind==='textarea'?`${def.label} published`:`${def.label} saved`;let syncFailed=false;const pricePeriod=def.key==='worker_pro_monthly_price_ngn'?'monthly':def.key==='worker_pro_yearly_price_ngn'?'yearly':null;if(pricePeriod&&Number(value)>0){const sync=await supabase.functions.invoke('worker-pro-plan-sync',{body:{billing_period:pricePeriod}});if(sync.error||!sync.data?.success){message=sync.data?.error||sync.error?.message||'Price saved; Paystack sync failed, so keep paid plan sales off';syncFailed=true}else{const planCode=String(sync.data.plan_code||'');const planKey=pricePeriod==='yearly'?'worker_pro_web_paystack_yearly_plan_code':'worker_pro_web_paystack_plan_code';const planRow:DbSetting={key:planKey,value:planCode,is_active:true};setRows(state=>[...state.filter(row=>row.key!==def.key&&row.key!==planRow.key),verified as DbSetting,planRow]);message=`${pricePeriod==='yearly'?'Yearly':'Monthly'} web price and Paystack plan synchronized`}}setSaving(state=>({...state,[def.key]:false}));setRows(state=>[...state.filter(row=>row.key!==def.key),verified as DbSetting]);setDrafts(state=>{const next={...state};delete next[def.key];return next});invalidateSettingsCache();if(syncFailed)toast.error(`Price saved, but ${message}`);else toast.success(message);return true}
- async function saveAll(){for(const def of defs.filter(def=>drafts[def.key]!==undefined))await save(def,drafts[def.key])}
- if(loading)return <Loading/>;const changed=Object.keys(drafts).length;
- return <section className="space-y-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-base font-bold">{title}</h2><p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#686C7E]">{description}</p></div>{changed>0&&<button onClick={()=>void saveAll()} disabled={Object.values(saving).some(Boolean)} className="min-h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">Save changes ({changed})</button>}</div>
- <div className="grid gap-4 xl:grid-cols-2">{visibleGroups.map(group=><section key={group.id} className={`${group.id==='legal'?'xl:col-span-2':''} rounded-2xl border border-white/[.06] bg-[#10131B] p-4 sm:p-5`}><div className="mb-4"><h3 className="text-sm font-semibold">{group.label}</h3><p className="mt-1 text-[10px] leading-relaxed text-[#666A7C]">{group.description}</p>{group.note&&<p className="mt-3 rounded-xl border border-violet-500/10 bg-violet-500/[.035] p-3 text-[9px] leading-relaxed text-violet-100/70">{group.note}</p>}</div><div className="space-y-3">{group.settings.map(def=><Setting key={def.key} def={def} value={current(def)} dirty={drafts[def.key]!==undefined} busy={saving[def.key]} setValue={value=>setDrafts(state=>({...state,[def.key]:value}))} save={()=>void save(def,current(def))}/>)}</div></section>)}</div></section>
+ const visibleGroups=useMemo(()=>{const selected=new Set(groupKey?groupKey.split('|'):[]);return selected.size?CREATOR_SETTING_GROUPS.filter(group=>selected.has(group.id)):CREATOR_SETTING_GROUPS},[groupKey]);
+ const defs=useMemo(()=>visibleGroups.flatMap(group=>group.settings),[visibleGroups]);
+ const keys=useMemo(()=>defs.map(def=>def.key),[defs]);
+ const [rows,setRows]=useState<DbSetting[]>([]),[drafts,setDrafts]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState(''),[reload,setReload]=useState(0);
+ const savingRef=useRef(false);
+ useEffect(()=>{
+   let active=true; setLoading(true); setLoadError(''); setDrafts({});
+   void (async()=>{try{
+     const result=await supabase.from('platform_settings').select('key,value,is_active').in('key',keys);
+     if(result.error)throw result.error;
+     if(active)setRows((result.data||[]) as DbSetting[]);
+   }catch{if(active)setLoadError('Settings could not be loaded. Reload before making changes.');}
+   finally{if(active)setLoading(false);}})();
+   return()=>{active=false};
+ },[keys,reload]);
+ function current(def:Def){return drafts[def.key]??rows.find(row=>row.key===def.key&&row.is_active!==false)?.value??def.defaultValue}
+ const save=useCallback(async(def:Def,raw:string)=>{
+   try{
+     const result=await saveCreatorSetting(def,raw);
+     setRows(state=>[...state.filter(row=>row.key!==def.key),result.row]);
+     setDrafts(state=>{if(state[def.key]!==raw)return state;const next={...state};delete next[def.key];return next});
+     invalidateSettingsCache();
+     if(result.warning){toast.error(result.warning);return false;}
+     toast.success(`${def.label} saved`);return true;
+   }catch(error){toast.error(error instanceof Error?error.message:'The change could not be saved. Please try again.');return false;}
+ },[]);
+ async function saveChanges(selected:Def[]){
+   if(savingRef.current||loading||loadError)return;
+   savingRef.current=true;setBusy(true);
+   try{for(const def of selected){if(!await save(def,current(def)))break;}}
+   finally{savingRef.current=false;setBusy(false);}
+ }
+ if(loading)return <Loading/>;
+ if(loadError)return <div role="alert" className="space-y-3"><p className="text-sm text-red-200">{loadError}</p><button type="button" onClick={()=>setReload(value=>value+1)} className="min-h-11 text-sm font-semibold text-violet-300">Reload settings</button></div>;
+ const changed=defs.filter(def=>drafts[def.key]!==undefined);
+ return <section className="space-y-5">
+  {(!embedded||changed.length>0)&&<div className="flex flex-wrap items-center justify-between gap-3">
+   {!embedded&&<div><h2 className="text-base font-semibold">{title}</h2><p className="mt-1 text-sm leading-6 text-[#AAA3B3]">{description}</p></div>}
+   {changed.length>0&&<button type="button" onClick={()=>void saveChanges(changed)} disabled={busy} className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold disabled:opacity-40">{busy?'Saving…':`Save changes (${changed.length})`}</button>}
+  </div>}
+  <fieldset disabled={busy} className="min-w-0 space-y-6">
+   {visibleGroups.map(group=><section key={group.id} className="space-y-4">
+    {(!embedded||visibleGroups.length>1)&&<div><h3 className="text-sm font-semibold">{group.label}</h3><p className="mt-1 text-sm leading-6 text-[#AAA3B3]">{group.description}</p></div>}
+    {group.note&&<p className="max-w-3xl text-sm leading-6 text-[#AAA3B3]">{group.note}</p>}
+    <div className="grid gap-4 xl:grid-cols-2">{group.settings.map(def=><Setting key={def.key} def={def} value={current(def)} dirty={drafts[def.key]!==undefined} busy={busy} setValue={value=>setDrafts(state=>({...state,[def.key]:value}))} save={()=>void saveChanges([def])}/>)}</div>
+   </section>)}
+  </fieldset>
+ </section>;
 }
 
-function Setting({def,value,dirty,busy,setValue,save}:{def:Def;value:string;dirty:boolean;busy?:boolean;setValue:(value:string)=>void;save:()=>void}){if(def.kind==='toggle'){const enabled=['true','1','yes','on'].includes(String(value).toLowerCase());return <div className="rounded-xl border border-white/[.05] bg-[#0D1017] p-3"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold">{def.label}</p><p className="mt-1 text-[9px] leading-relaxed text-[#666A7C]">{def.description}</p></div><button type="button" aria-label={def.label} aria-pressed={enabled} onClick={()=>setValue(enabled?'false':'true')} className={`relative mt-1 h-6 w-11 shrink-0 rounded-full ${enabled?'bg-violet-500':'bg-white/[.1]'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${enabled?'left-6':'left-1'}`}/></button></div>{dirty&&<button type="button" onClick={save} disabled={busy} className="mt-3 h-9 rounded-xl bg-violet-500 px-3 text-[9px] font-semibold disabled:opacity-40">{busy?'Saving…':'Save'}</button>}</div>}
- if(def.kind==='textarea')return <div className="rounded-xl border border-white/[.05] bg-[#0D1017] p-3"><p className="text-xs font-semibold">{def.label}</p><p className="mt-1 text-[9px] text-[#666A7C]">{def.description}</p><textarea rows={9} value={value} onChange={event=>setValue(event.target.value)} className="mt-3 w-full resize-y rounded-xl border border-white/[.08] bg-[#171A23] p-3 text-xs leading-5 outline-none focus:border-violet-500/40"/>{dirty&&<button onClick={save} disabled={busy} className="mt-2 h-10 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busy?'Publishing…':`Publish ${def.label}`}</button>}</div>;
- return <label className="block rounded-xl border border-white/[.05] bg-[#0D1017] p-3"><span className="text-xs font-semibold">{def.label}</span><span className="mt-1 block text-[9px] leading-relaxed text-[#666A7C]">{def.description}</span><div className="mt-3 flex gap-2"><input type={def.kind==='number'?'number':def.kind==='email'?'email':'text'} min={def.min} max={def.max} step={def.step} value={value} onChange={event=>setValue(event.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-violet-500/40"/>{dirty&&<button type="button" onClick={save} disabled={busy} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">{busy?'Saving…':'Save'}</button>}</div></label>}
-function Loading(){return <div className="grid min-h-40 place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
+function Setting({def,value,dirty,busy,setValue,save}:{def:Def;value:string;dirty:boolean;busy?:boolean;setValue:(value:string)=>void;save:()=>void}){if(def.kind==='toggle'){const enabled=['true','1','yes','on'].includes(String(value).toLowerCase());return <div className="rounded-xl border border-white/[.05] bg-[#15121B] p-3"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold">{def.label}</p><p className="mt-1 text-xs leading-relaxed text-[#AAA3B3]">{def.description}</p></div><button type="button" aria-label={def.label} aria-pressed={enabled} onClick={()=>setValue(enabled?'false':'true')} className={`relative mt-1 h-6 w-11 shrink-0 rounded-full ${enabled?'bg-violet-500':'bg-white/[.1]'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${enabled?'left-6':'left-1'}`}/></button></div>{dirty&&<button type="button" onClick={save} disabled={busy} className="mt-3 h-9 rounded-xl bg-violet-500 px-3 text-xs font-semibold disabled:opacity-40">{busy?'Saving…':'Save'}</button>}</div>}
+ if(def.kind==='textarea')return <div className="rounded-xl border border-white/[.05] bg-[#15121B] p-3"><p className="text-xs font-semibold">{def.label}</p><p className="mt-1 text-xs text-[#AAA3B3]">{def.description}</p><textarea aria-label={def.label} rows={9} value={value} onChange={event=>setValue(event.target.value)} className="mt-3 w-full resize-y rounded-xl border border-white/[.08] bg-[#1B1722] p-3 text-base leading-7 outline-none focus:border-violet-500/40"/>{dirty&&<button onClick={save} disabled={busy} className="mt-2 h-10 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{busy?'Publishing…':`Publish ${def.label}`}</button>}</div>;
+ return <label className="block rounded-xl border border-white/[.05] bg-[#15121B] p-3"><span className="text-xs font-semibold">{def.label}</span><span className="mt-1 block text-xs leading-relaxed text-[#AAA3B3]">{def.description}</span><div className="mt-3 flex gap-2"><input type={def.kind==='number'?'number':def.kind==='email'?'email':'text'} min={def.min} max={def.max} step={def.step} value={value} onChange={event=>setValue(event.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#1B1722] px-3 text-base outline-none focus:border-violet-500/40"/>{dirty&&<button type="button" onClick={save} disabled={busy} className="h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{busy?'Saving…':'Save'}</button>}</div></label>}
+function Loading(){return <p role="status" className="py-8 text-sm text-[#AAA3B3]">Loading settings…</p>}

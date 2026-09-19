@@ -1,30 +1,269 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
-import LocationMap from './LocationMap';
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
-export type PreciseLocation={latitude:number;longitude:number;accuracy:number|null;address:string;city?:string;state?:string};
-type Props={value:PreciseLocation|null;onChange:(value:PreciseLocation|null)=>void;title?:string;description?:string;subject?:'personal'|'property'};
+export type PreciseLocation = {
+  latitude: number | null;
+  longitude: number | null;
+  accuracy: number | null;
+  address: string;
+  city?: string;
+  state?: string;
+};
 
-export default function PreciseLocationPicker({value,onChange,title='Street address',description='Use your phone to find your address, then correct it if needed.',subject='personal'}:Props){
- const[locating,setLocating]=useState(false),[message,setMessage]=useState(''),[mapOpen,setMapOpen]=useState(false),[mapPin,setMapPin]=useState<{latitude:number;longitude:number}|null>(null);
- const requestRef=useRef(0);
- useEffect(()=>()=>{requestRef.current+=1},[]);
- async function finish(position:GeolocationPosition,request:number){if(request!==requestRef.current)return;setLocating(false);const latitude=position.coords.latitude,longitude=position.coords.longitude,accuracy=position.coords.accuracy;const pin={latitude,longitude,accuracy,address:value?.address||'',city:value?.city,state:value?.state};onChange(pin);setMessage(`Location found · accurate to about ${Math.round(accuracy)} m`);try{const result=await Promise.race([supabase.functions.invoke('reverse-geocode',{body:{latitude,longitude}}),new Promise<never>((_,reject)=>window.setTimeout(()=>reject(new Error('Address lookup timed out')),8000))]);if(request!==requestRef.current)return;if(!result.error&&result.data?.address){const address=String(result.data.address);onChange({...pin,address,city:String(result.data.city||''),state:String(result.data.state||'')});setMessage('Street address found. Check it before continuing.')}else setMessage('Location found. Enter the exact street address below.')}catch{if(request===requestRef.current)setMessage('Location found. Enter the exact street address below.')}}
- function fail(error:GeolocationPositionError){setLocating(false);const denied=error.code===error.PERMISSION_DENIED;const text=denied?'Location permission is blocked. Open the site controls beside the WeHouse address, set Location to Allow, then tap again.':error.code===error.TIMEOUT?'No location arrived from this phone. Turn on Location, return to WeHouse and tap again.':'This phone could not provide a location. Check that Location is on, then tap again.';setMessage(text);toast.error(denied?'Allow WeHouse to use your location':'No location received')}
- function locate(){
-  if(!navigator.geolocation){setMessage('This browser cannot share location. Open WeHouse in Chrome or Safari on a phone with Location enabled.');return}
-  const request=++requestRef.current;
-  let best:GeolocationPosition|null=null,done=false,watch=-1;
-  setLocating(true);
-  setMessage(subject==='property'?'Finding the property entrance… keep this page open.':'Finding your street address… keep this page open.');
-  const settle=()=>{if(done||request!==requestRef.current||!best)return;done=true;if(watch>=0)navigator.geolocation.clearWatch(watch);void finish(best,request)};
-  const receive=(position:GeolocationPosition)=>{if(done||request!==requestRef.current)return;if(!best||position.coords.accuracy<best.coords.accuracy)best=position;setMessage(`Improving location accuracy… about ${Math.round(best.coords.accuracy)} m`);if(best.coords.accuracy<=25)settle()};
-  watch=navigator.geolocation.watchPosition(receive,error=>{if(!best){done=true;fail(error)}else settle()},{enableHighAccuracy:true,maximumAge:0,timeout:20000});
-  navigator.geolocation.getCurrentPosition(receive,error=>{if(!best&&watch<0){done=true;fail(error)}},{enableHighAccuracy:true,maximumAge:0,timeout:20000});
-  window.setTimeout(()=>{if(best)settle();else if(!done){done=true;if(watch>=0)navigator.geolocation.clearWatch(watch);setLocating(false);setMessage('We could not find your current location. Move near a window, allow precise location and try again.')}},12000);
- }
- const pinLabel=subject==='property'?'Property location':'Your precise location',addressHelp=subject==='property'?'The map suggestion may be approximate. Correct it so WeHouse Operations can find the property.':'The map suggestion may be approximate. Correct it to your real street address. Only your broad area is shown publicly.';
- return <section className="border-y border-white/[.07] py-4"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold">{title}</p><p className="mt-1 text-[9px] leading-5 text-[#787D8F]">{description}</p></div>{value&&<span className={`shrink-0 text-[8px] font-bold uppercase tracking-wide ${value.address.trim()?'text-emerald-300':'text-amber-300'}`}>{value.address.trim()?'Location saved':'Check address'}</span>}</div>{!value?<button type="button" onClick={locate} disabled={locating} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 px-4 text-[10px] font-semibold text-white disabled:opacity-50">{locating?'Finding address…':subject==='property'?'Use current property location':'Use my current location'}</button>:<div className="mt-3"><label className="block"><span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">{subject==='property'?'Property street address':'Your private street address'}</span><textarea rows={2} value={value.address} placeholder="House number, street, area" onChange={event=>onChange({...value,address:event.target.value})} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"/></label><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[8px] text-[#656B7B]">{value.accuracy?`GPS accuracy about ${Math.round(value.accuracy)} m`:'Pin adjusted manually'}</p><div className="flex gap-3"><button type="button" onClick={()=>{setMapPin({latitude:value.latitude,longitude:value.longitude});setMapOpen(true)}} className="text-[9px] font-semibold text-violet-300">Adjust on map</button><button type="button" onClick={locate} disabled={locating} className="text-[9px] font-semibold text-violet-300">{locating?'Updating…':'Use my location again'}</button></div></div><p className="mt-2 text-[8px] leading-4 text-[#656B7B]">{addressHelp}</p><button type="button" onClick={()=>{requestRef.current+=1;onChange(null);setMessage('')}} className="mt-2 text-[9px] font-semibold text-red-300">Remove address</button></div>}{message&&<p className={`mt-2 rounded-xl px-3 py-2 text-[9px] leading-5 ${/off|could not|unavailable|No location|cannot/i.test(message)?'bg-amber-500/10 text-amber-200':'text-[#9AA0AF]'}`} role={/off|could not|unavailable|No location|cannot/i.test(message)?'alert':'status'}>{message}</p>}{mapOpen&&value&&mapPin&&createPortal(<div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/75 p-3 backdrop-blur-sm sm:items-center" onClick={()=>setMapOpen(false)}><section className="w-full max-w-lg rounded-[26px] border border-white/[.09] bg-[#11141C] p-4" onClick={event=>event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><div><p className="text-sm font-semibold">{pinLabel}</p><p className="mt-1 text-[9px] text-[#747A8B]">Tap the exact entrance on the map.</p></div><button type="button" onClick={()=>setMapOpen(false)} className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#858B9B]" aria-label="Close map">×</button></div><LocationMap latitude={mapPin.latitude} longitude={mapPin.longitude} label={pinLabel} height={300} editable onPositionChange={setMapPin}/><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={()=>setMapOpen(false)} className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold">Cancel</button><button type="button" onClick={()=>{onChange({...value,latitude:mapPin.latitude,longitude:mapPin.longitude,accuracy:null});setMessage('Location adjusted on the map. Check the street address before saving.');setMapOpen(false)}} className="h-11 rounded-xl bg-violet-500 text-[10px] font-semibold">Use this location</button></div></section></div>,document.body)}</section>
+type Props = {
+  value: PreciseLocation | null;
+  onChange: (value: PreciseLocation | null) => void;
+  title?: string;
+  description?: string;
+  subject?: "personal" | "property";
+};
+
+export default function PreciseLocationPicker({
+  value,
+  onChange,
+  title = "Street address",
+  description = "Use my location to suggest the street address, then correct the text if needed.",
+  subject = "personal",
+}: Props) {
+  const [locating, setLocating] = useState(false);
+  const [message, setMessage] = useState("");
+  const requestRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      requestRef.current += 1;
+    },
+    [],
+  );
+
+  function updateAddress(address: string) {
+    onChange({
+      latitude: value?.latitude ?? null,
+      longitude: value?.longitude ?? null,
+      accuracy: value?.accuracy ?? null,
+      address,
+      city: value?.city,
+      state: value?.state,
+    });
+  }
+
+  async function finish(position: GeolocationPosition, request: number) {
+    if (request !== requestRef.current) return;
+    setLocating(false);
+
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
+    const typedAddress = value?.address?.trim() || "";
+    const base: PreciseLocation = {
+      latitude,
+      longitude,
+      accuracy,
+      address: typedAddress,
+      city: value?.city,
+      state: value?.state,
+    };
+    onChange(base);
+    setMessage(
+      typedAddress
+        ? "Location updated. Your written street address was kept."
+        : "Location found. Looking up the street address…",
+    );
+
+    try {
+      const result = await Promise.race([
+        supabase.functions.invoke("reverse-geocode", {
+          body: { latitude, longitude },
+        }),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => reject(new Error("Address lookup timed out")), 8000),
+        ),
+      ]);
+      if (request !== requestRef.current) return;
+
+      if (!result.error && result.data?.address) {
+        const suggestedAddress = String(result.data.address);
+        onChange({
+          ...base,
+          address: typedAddress || suggestedAddress,
+          city: String(result.data.city || value?.city || ""),
+          state: String(result.data.state || value?.state || ""),
+        });
+        setMessage(
+          typedAddress
+            ? "Location updated. Your written street address was kept."
+            : subject === "property"
+              ? "Address suggestion found. Correct the Street address above if needed."
+              : "Address suggestion found. Check and correct it before saving.",
+        );
+      } else if (!typedAddress) {
+        setMessage(
+          subject === "property"
+            ? "Location found. Type the correct Street address above before saving."
+            : "Location found. Type the correct street address before saving.",
+        );
+      }
+    } catch {
+      if (request === requestRef.current && !typedAddress)
+        setMessage(
+          subject === "property"
+            ? "Location found. Type the correct Street address above before saving."
+            : "Location found. Type the correct street address before saving.",
+        );
+    }
+  }
+
+  function fail(error: GeolocationPositionError) {
+    setLocating(false);
+    const denied = error.code === error.PERMISSION_DENIED;
+    const text = denied
+      ? "Location permission is blocked. You can still type the street address manually, or allow Location in the site controls and try again."
+      : error.code === error.TIMEOUT
+        ? "No location arrived from this phone. You can type the street address manually or try again."
+        : "This phone could not provide a location. You can type the street address manually.";
+    setMessage(text);
+    toast.error(
+      denied ? "Location is optional — type your address manually" : "No location received",
+    );
+  }
+
+  function locate() {
+    if (!navigator.geolocation) {
+      setMessage("This browser cannot share location. Type the correct street address manually.");
+      return;
+    }
+    const request = ++requestRef.current;
+    let best: GeolocationPosition | null = null;
+    let done = false;
+    let watch = -1;
+    setLocating(true);
+    setMessage("Finding the best available location from this phone…");
+
+    const settle = () => {
+      if (done || request !== requestRef.current || !best) return;
+      done = true;
+      if (watch >= 0) navigator.geolocation.clearWatch(watch);
+      void finish(best, request);
+    };
+    const receive = (position: GeolocationPosition) => {
+      if (done || request !== requestRef.current) return;
+      if (!best || position.coords.accuracy < best.coords.accuracy) best = position;
+      setMessage("Finding the best available location from this phone…");
+      if (best.coords.accuracy <= 25) settle();
+    };
+
+    watch = navigator.geolocation.watchPosition(
+      receive,
+      (error) => {
+        if (!best) {
+          done = true;
+          fail(error);
+        } else settle();
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+    );
+    navigator.geolocation.getCurrentPosition(
+      receive,
+      (error) => {
+        if (!best && watch < 0) {
+          done = true;
+          fail(error);
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+    );
+    window.setTimeout(() => {
+      if (best) settle();
+      else if (!done) {
+        done = true;
+        if (watch >= 0) navigator.geolocation.clearWatch(watch);
+        setLocating(false);
+        setMessage("We could not confirm a location from this phone. Type the correct street address manually or try again.");
+      }
+    }, 12000);
+  }
+
+  const addressHelp =
+    subject === "property"
+      ? "Street address is the editable location people see. Device accuracy stays behind the interface for verification and distance calculations."
+      : "Your street address is what you see and edit. Device accuracy stays behind the interface and is never shown as coordinates.";
+
+  return (
+    <section className="border-y border-white/[.07] py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold">{title}</p>
+          <p className="mt-1 text-[9px] leading-5 text-[#787D8F]">{description}</p>
+        </div>
+        <span
+          className={`shrink-0 text-[8px] font-bold uppercase tracking-wide ${
+            value?.address.trim() ? "text-emerald-300" : "text-amber-300"
+          }`}
+        >
+          {value?.address.trim() ? "Address saved" : "Add address"}
+        </span>
+      </div>
+
+      <div className="mt-3">
+        {subject === "personal" ? (
+          <label className="block">
+            <span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">
+              Your street address
+            </span>
+            <textarea
+              rows={2}
+              value={value?.address || ""}
+              placeholder="House number, street, area"
+              onChange={(event) => updateAddress(event.target.value)}
+              className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"
+            />
+          </label>
+        ) : value?.address.trim() ? (
+          <p className="rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2.5 text-[10px] text-[#A9AEBA]">
+            {value.address.trim()}
+          </p>
+        ) : null}
+
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-[8px] leading-4 text-[#656B7B]">{addressHelp}</p>
+          <button
+            type="button"
+            onClick={locate}
+            disabled={locating}
+            className="shrink-0 text-[9px] font-semibold text-violet-300 disabled:opacity-50"
+          >
+            {locating ? "Finding address…" : "Use my location"}
+          </button>
+        </div>
+
+        {subject === "personal" && value ? (
+          <button
+            type="button"
+            onClick={() => {
+              requestRef.current += 1;
+              onChange(null);
+              setMessage("");
+            }}
+            className="mt-2 text-[9px] font-semibold text-red-300"
+          >
+            Remove address
+          </button>
+        ) : null}
+      </div>
+
+      {message ? (
+        <p
+          className={`mt-2 rounded-xl px-3 py-2 text-[9px] leading-5 ${
+            /blocked|could not|cannot|No location/i.test(message)
+              ? "bg-amber-500/10 text-amber-200"
+              : "text-[#9AA0AF]"
+          }`}
+          role={/blocked|could not|cannot|No location/i.test(message) ? "alert" : "status"}
+        >
+          {message}
+        </p>
+      ) : null}
+    </section>
+  );
 }

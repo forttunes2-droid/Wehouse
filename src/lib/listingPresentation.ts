@@ -16,8 +16,8 @@ export function listingDisplayTitle(listing: Listing) {
 
   if (listing.sub_type === "short_let" && generic) {
     const partner = String(listing.partner_display_name || "").trim();
-    if (partner) return `${titleCaseName(partner)}’s Short Stay${city ? ` · ${city}` : ""}`;
-    return `Short Stay${city ? ` in ${city}` : ""}`;
+    if (partner) return `${titleCaseName(partner)}’s Short Let${city ? ` · ${city}` : ""}`;
+    return `Short Let${city ? ` in ${city}` : ""}`;
   }
   if (listing.sub_type === "long_stay" && generic)
     return `Long Let Apartment${city ? ` in ${city}` : ""}`;
