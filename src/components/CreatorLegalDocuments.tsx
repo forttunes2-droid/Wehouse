@@ -21,7 +21,7 @@ type Editor = {
 
 const EMPTY: Record<DocumentKind, Editor> = {
   privacy: { title: "Privacy Policy", body: "", draft: null, publishedVersion: null },
-  terms: { title: "Terms & Conditions", body: "", draft: null, publishedVersion: null },
+  terms: { title: "Terms of Service", body: "", draft: null, publishedVersion: null },
 };
 
 export default function CreatorLegalDocuments() {
@@ -56,7 +56,7 @@ export default function CreatorLegalDocuments() {
         publishedVersion: documents.privacy?.version || null,
       },
       terms: {
-        title: termsDraft?.value.title || documents.terms?.title || "Terms & Conditions",
+        title: termsDraft?.value.title || documents.terms?.title || "Terms of Service",
         body: termsDraft?.value.body || documents.terms?.body || "",
         draft: termsDraft,
         publishedVersion: documents.terms?.version || null,
@@ -162,7 +162,7 @@ export default function CreatorLegalDocuments() {
             <article key={kind} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold">{kind === "privacy" ? "Privacy Policy" : "Terms & Conditions"}</p>
+                  <p className="text-sm font-semibold">{kind === "privacy" ? "Privacy Policy" : "Terms of Service"}</p>
                   <p className="mt-1 text-[9px] text-[#686F80]">
                     {editor.draft ? `Draft v${editor.draft.version}` : "No saved draft"} · {editor.publishedVersion ? `Published v${editor.publishedVersion}` : "Nothing published"}
                   </p>

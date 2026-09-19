@@ -1108,7 +1108,7 @@ const PLATFORM_SECTIONS: Array<{
   {
     id: "legal",
     label: "Legal documents",
-    note: "Published Privacy Policy and Terms & Conditions.",
+    note: "Published Privacy Policy and Terms of Service.",
   },
 ];
 function PlatformControl({ profile }: { profile: Profile }) {

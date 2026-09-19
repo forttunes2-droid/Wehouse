@@ -36,6 +36,8 @@ const SUPABASE_STORAGE_URL = SUPABASE_URL.replace(
   '.storage.supabase.co',
 );
 
+export const isTestEnvironment = !officialProductionHost;
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: true,

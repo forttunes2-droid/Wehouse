@@ -30,7 +30,7 @@ test("public signup cannot create a Service Provider or Property Partner identit
   assert.match(auth, /void legacyInitialWorkspace/);
   assert.doesNotMatch(auth, /signup_role/);
   assert.match(login, /onLoginSuccess\(user\.id, returnedEmail, "user"\)/);
-  assert.match(login, /signUpWithEmail\(clean, password, "user"\)/);
+  assert.match(login, /signUpWithEmail\(clean, password, "user", legalChoices\)/);
   assert.match(migration, /Public account creation always creates Personal only/);
   assert.match(migration, /v_auth_id,v_email,v_username,'user'/);
 });
@@ -321,16 +321,19 @@ test("legacy verification payment recording is retired", async () => {
 });
 
 test("legal surfaces use reviewed versioned documents and Long Let never gains an invented deposit", async () => {
-  const [account, setup, terms, privacy, editor, drafts, rentOnly] = await Promise.all([
+  const [account, setup, terms, privacy, legalPage, editor, drafts, rentOnly] = await Promise.all([
     read("src/pages/AccountCenter.tsx"),
     read("src/pages/Setup.tsx"),
     read("src/pages/TermsPage.tsx"),
     read("src/pages/PrivacyPolicyPage.tsx"),
+    read("src/pages/LegalDocumentPage.tsx"),
     read("src/components/CreatorLegalDocuments.tsx"),
     read("src/content/legalReviewDrafts.ts"),
     read("supabase/migrations/20260914170000_enforce_long_let_rent_only.sql"),
   ]);
-  for (const source of [account, setup, terms, privacy]) assert.match(source, /getCurrentLegalDocuments/);
+  for (const source of [account, setup, legalPage]) assert.match(source, /getCurrentLegalDocuments/);
+  assert.match(terms, /LegalDocumentPage kind="terms"/);
+  assert.match(privacy, /LegalDocumentPage kind="privacy"/);
   assert.match(editor, /creator_save_legal_draft/);
   assert.match(editor, /creator_publish_legal_document/);
   assert.match(drafts, /There is no Long Let security deposit/);

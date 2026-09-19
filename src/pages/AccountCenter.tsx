@@ -107,8 +107,6 @@ export default function AccountCenter({
     privacy: false,
     terms: false,
   });
-  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
-  const [acceptTerms, setAcceptTerms] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [activatingWorkspace, setActivatingWorkspace] = useState<
@@ -269,41 +267,6 @@ export default function AccountCenter({
     setSaving(false);
     if (error) return toast.error("This preference could not be saved");
     toast.success("Preference saved");
-  }
-
-  async function acceptLegal() {
-    if (
-      (published.privacy && !legal.privacy_accepted && !acceptPrivacy) ||
-      (published.terms && !legal.terms_accepted && !acceptTerms)
-    )
-      return toast.error("Read and accept each published document");
-    setSaving(true);
-    let next = legal;
-    if (published.privacy && !legal.privacy_accepted) {
-      const { data, error } = await supabase.rpc("accept_current_legal", {
-        p_document: "privacy",
-      });
-      if (error) {
-        setSaving(false);
-        return toast.error(error.message);
-      }
-      if (data) next = data as Legal;
-    }
-    if (published.terms && !legal.terms_accepted) {
-      const { data, error } = await supabase.rpc("accept_current_legal", {
-        p_document: "terms",
-      });
-      if (error) {
-        setSaving(false);
-        return toast.error(error.message);
-      }
-      if (data) next = data as Legal;
-    }
-    setSaving(false);
-    setLegal(next);
-    setAcceptPrivacy(false);
-    setAcceptTerms(false);
-    toast.success("Legal documents accepted");
   }
 
   async function logout() {
@@ -496,85 +459,14 @@ export default function AccountCenter({
   }
 
   if (panel === "legal") {
-    const any = published.privacy || published.terms;
-    const done =
-      (!published.privacy || legal.privacy_accepted) &&
-      (!published.terms || legal.terms_accepted);
     return (
-      <AccountShell
-        profile={profile}
-        title="Legal & consent"
-        description="Published WeHouse documents and your current consent status."
-        onBack={() => setPanel(null)}
-      >
-        <Toaster position="top-center" richColors />
-        <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
-          <p className="text-sm font-semibold">Published documents</p>
-          <p className="mt-1 text-[10px] leading-relaxed text-[#74798B]">
-            Only documents actually published by WeHouse can be accepted.
-          </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <LegalCard
-              title="Privacy Policy"
-              published={published.privacy}
-              accepted={legal.privacy_accepted}
-              onClick={() => openLegal("privacy_policy")}
-            />
-            <LegalCard
-              title="Terms & Conditions"
-              published={published.terms}
-              accepted={legal.terms_accepted}
-              onClick={() => openLegal("terms_of_service")}
-            />
-          </div>
-        </section>
-
-        {!any ? (
-          <Empty
-            title="Nothing to accept yet"
-            text="Privacy Policy and Terms & Conditions have not been published."
-          />
-        ) : (
-          <>
-            {!done ? (
-              <AccountSection>
-                {published.privacy && !legal.privacy_accepted ? (
-                  <Check
-                    label="I have read and accept the published Privacy Policy"
-                    value={acceptPrivacy}
-                    set={setAcceptPrivacy}
-                  />
-                ) : null}
-                {published.terms && !legal.terms_accepted ? (
-                  <Check
-                    label="I have read and accept the published Terms & Conditions"
-                    value={acceptTerms}
-                    set={setAcceptTerms}
-                  />
-                ) : null}
-              </AccountSection>
-            ) : null}
-            {done ? (
-              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.05] p-4 text-xs text-emerald-300">
-                Current published documents accepted.
-              </div>
-            ) : (
-              <button
-                onClick={() => void acceptLegal()}
-                disabled={
-                  saving ||
-                  (published.privacy &&
-                    !legal.privacy_accepted &&
-                    !acceptPrivacy) ||
-                  (published.terms && !legal.terms_accepted && !acceptTerms)
-                }
-                className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
-              >
-                {saving ? "Saving…" : "Accept published documents"}
-              </button>
-            )}
-          </>
-        )}
+      <AccountShell profile={profile} title="Legal documents" onBack={() => setPanel(null)}>
+        <div className="divide-y divide-white/10">
+          <LegalCard title="Privacy Policy" published={published.privacy} accepted={legal.privacy_accepted}
+            onClick={() => openLegal("privacy_policy")} />
+          <LegalCard title="Terms of Service" published={published.terms} accepted={legal.terms_accepted}
+            onClick={() => openLegal("terms_of_service")} />
+        </div>
       </AccountShell>
     );
   }
@@ -818,30 +710,6 @@ function Toggle({
   );
 }
 
-function Check({
-  label,
-  value,
-  set,
-}: {
-  label: string;
-  value: boolean;
-  set: (value: boolean) => void;
-}) {
-  return (
-    <label className="flex min-h-[4rem] cursor-pointer items-center gap-3 border-b border-white/[.05] px-4 py-3 last:border-b-0 sm:px-5">
-      <input
-        type="checkbox"
-        checked={value}
-        onChange={(event) => set(event.target.checked)}
-        className="h-4 w-4 accent-violet-500"
-      />
-      <span className="text-[10px] leading-relaxed text-[#B3B8C4]">
-        {label}
-      </span>
-    </label>
-  );
-}
-
 function LegalCard({
   title,
   published,
@@ -858,26 +726,17 @@ function LegalCard({
       type="button"
       onClick={onClick}
       disabled={!published}
-      className="rounded-2xl border border-white/[.06] bg-black/10 p-4 text-left disabled:opacity-40"
+      className="min-h-16 w-full py-4 text-left disabled:opacity-50"
     >
-      <p className="text-[11px] font-semibold">{title}</p>
+      <p className="text-sm font-semibold">{title}</p>
       <p
-        className={`mt-2 text-[9px] ${
+        className={`mt-1 text-xs ${
           accepted ? "text-emerald-300" : "text-[#6E7484]"
         }`}
       >
         {!published ? "Not published" : accepted ? "Accepted" : "Review document"}
       </p>
     </button>
-  );
-}
-
-function Empty({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
-      <p className="text-xs font-semibold">{title}</p>
-      <p className="mt-1 text-[9px] text-[#666D7E]">{text}</p>
-    </div>
   );
 }
 

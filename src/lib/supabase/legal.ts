@@ -26,3 +26,13 @@ export async function getCurrentLegalDocuments() {
     error,
   };
 }
+
+// The server checks the exact version that was shown, not whichever version
+// happens to be current when the request reaches it.
+export async function acceptReviewedLegalDocument(kind: 'privacy' | 'terms', document: PublishedLegalDocument) {
+  return supabase.rpc('accept_reviewed_legal', {
+    p_document: kind,
+    p_policy_version_id: document.policy_version_id,
+    p_checksum: document.checksum,
+  });
+}

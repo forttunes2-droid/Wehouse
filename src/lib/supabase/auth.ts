@@ -2,6 +2,9 @@ import { supabase } from './client';
 import { parseDeviceInfo } from './session';
 import type { GoogleVerificationContext } from '@/lib/googleVerification';
 import { verificationRedirectUrl } from '@/lib/googleVerification';
+import type { LegalChoices } from '@/lib/legalConsent';
+import { hasLegalConsent } from '@/lib/legalConsent';
+import { getCurrentLegalDocuments } from './legal';
 
 // ─── AUTH HELPERS ──────────────────────────────────
 // Public signup always creates one Personal identity. Service Provider and
@@ -11,16 +14,21 @@ export async function signUpWithEmail(
   email: string,
   password: string,
   legacyInitialWorkspace: 'user' | 'worker' | 'property_partner' = 'user',
+  legalChoices: LegalChoices = {},
 ) {
   // Keep the old call signature so stale clients compile, but deliberately do
   // not persist or trust their requested workspace during public signup.
   void legacyInitialWorkspace;
+  const { documents, error: legalError } = await getCurrentLegalDocuments();
+  if (legalError || !hasLegalConsent(documents, legalChoices)) {
+    return { data: { user: null, session: null }, error: { message: 'Review the current Privacy Policy and Terms of Service before creating an account.' } };
+  }
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/`,
-      data: { source: 'wehouse' },
+      data: { source: 'wehouse', legal_review: legalChoices },
     },
   });
   return { data, error };

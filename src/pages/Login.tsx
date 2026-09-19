@@ -10,6 +10,10 @@ import {
 import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import "./login.css";
+import { isTestEnvironment } from '@/lib/supabase/client';
+import { getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
+import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
+import LegalReview from '@/components/LegalReview';
 import {
   clearGoogleVerification,
   googleVerificationReturnContext,
@@ -105,6 +109,8 @@ function friendlyError(raw: string) {
   const msg = raw.toLowerCase();
   if (msg.includes("api key") || msg.includes("invalid key"))
     return "Authentication service is not configured correctly.";
+  if (msg.includes('provider') && (msg.includes('not enabled') || msg.includes('disabled') || msg.includes('unsupported')))
+    return isTestEnvironment ? 'Google sign-in is not ready on this test preview yet. Use live WeHouse for your existing account.' : 'Google sign-in is temporarily unavailable. Please try again later.';
   if (msg.includes("banned"))
     return "Your account has been permanently banned. Contact WeHouse for assistance.";
   if (msg.includes("suspended"))
@@ -113,6 +119,8 @@ function friendlyError(raw: string) {
     return "This account has been deleted. Contact WeHouse if you believe this is an error.";
   if (msg.includes("invalid login credentials") || msg.includes("invalid credentials"))
     return "Invalid username, email or password. Please check and try again.";
+  if (msg.includes("review the current") || msg.includes("registration is unavailable") || msg.includes("choose create account"))
+    return raw;
   if (msg.includes("email not confirmed") || msg.includes("not confirmed"))
     return "Finish the Google email verification for this account.";
   if (msg.includes("already registered"))
@@ -184,6 +192,22 @@ export default function Login({
     },
   );
   const authenticatedIdentityRef = useRef<string | null>(null);
+  const [legalDocuments, setLegalDocuments] = useState<CurrentLegalDocuments>({ privacy: null, terms: null });
+  const [legalChoices, setLegalChoices] = useState<LegalChoices>({});
+  const [legalLoading, setLegalLoading] = useState(true);
+  const [legalError, setLegalError] = useState(false);
+  const legalReady = !legalLoading && !legalError && hasLegalConsent(legalDocuments, legalChoices);
+
+  useEffect(() => {
+    if (mode !== 'signup') return;
+    let active = true;
+    setLegalLoading(true); setLegalError(false);
+    void getCurrentLegalDocuments().then(({ documents, error: readError }) => {
+      if (!active) return;
+      setLegalDocuments(documents); setLegalError(Boolean(readError)); setLegalLoading(false);
+    }).catch(() => { if (active) { setLegalError(true); setLegalLoading(false); } });
+    return () => { active = false; };
+  }, [mode]);
 
   function clearMessages() {
     setError("");
@@ -198,7 +222,8 @@ export default function Login({
     const context = googleVerificationContext();
     setWorking(false);
     setRecoveryReady(false);
-    setError(cancelledGoogleMessage(context));
+    setError(oauthError.toLowerCase().includes('choose create account') || oauthError.toLowerCase().includes('registration is unavailable')
+      ? oauthError : cancelledGoogleMessage(context));
     if (context === "password_recovery") setMode("forgot");
     else if (context === "signup") setMode("verify_email");
     else if (context === "new_device") setMode("confirm_device");
@@ -407,9 +432,16 @@ export default function Login({
     setWorking(true);
     try {
       if (isSignup) {
+        if (!legalReady) { setError('Read and confirm both documents before creating your account.'); return; }
+        const { documents, error: documentError } = await getCurrentLegalDocuments();
+        if (documentError || !hasLegalConsent(documents, legalChoices)) {
+          setLegalDocuments(documents); setLegalChoices({});
+          setError('The documents could not be confirmed or have changed. Review the current versions and try again.');
+          return;
+        }
         saveGoogleVerification({ context: "signup", email: clean });
         sessionStorage.setItem("wh_login_method", "signup");
-        const { data, error: signupError } = await signUpWithEmail(clean, password, "user");
+        const { data, error: signupError } = await signUpWithEmail(clean, password, "user", legalChoices);
         if (signupError) {
           if (signupError.message.toLowerCase().includes("email not confirmed")) {
             setMode("verify_email");
@@ -651,6 +683,7 @@ export default function Login({
         <header className="wh-auth-header"><Brand /></header>
         <section className="wh-auth-content">
         <div className="wh-auth-form">
+        {isTestEnvironment ? <p className="mb-6 border-l-2 border-violet-400 pl-3 text-sm leading-6 text-[var(--auth-muted)]">Test preview · Live accounts don’t work here. <a href="https://www.wehouse.com.ng/" className="text-violet-300 underline underline-offset-4">Open live WeHouse</a></p> : null}
         {kickedOut ? (
           <Notice tone="warning" title="This device was signed out">
             This device&apos;s WeHouse session is no longer active. Sign in again to continue.
@@ -696,10 +729,11 @@ export default function Login({
               </h1>
               {mode === "signup" ? (
                 <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                  Start with your email and a password.
+                  Review the documents, then enter your email and a password.
                 </p>
               ) : null}
             </div>
+            {mode === 'signup' ? legalLoading ? <p role="status" className="text-sm text-[var(--auth-muted)]">Loading documents…</p> : legalError ? <p role="alert" className="text-sm text-red-200">The documents could not be loaded. Go back and try again.</p> : !legalDocuments.privacy || !legalDocuments.terms ? <p className="text-sm leading-6 text-[var(--auth-muted)]">Registration will open when the Privacy Policy and Terms of Service are published.</p> : <LegalReview key={legalDocumentKey(legalDocuments)} documents={legalDocuments} choices={legalChoices} onChange={setLegalChoices} /> : null}
             <Field label={mode === "signup" ? "Email" : "Username or email"}>
               <Input
                 type={mode === "signup" ? "email" : "text"}
@@ -723,7 +757,7 @@ export default function Login({
             />
             <button
               type="submit"
-              disabled={working || !(mode === "signup" ? email : loginIdentifier).trim() || password.length < 8}
+              disabled={working || (mode === 'signup' && !legalReady) || !(mode === "signup" ? email : loginIdentifier).trim() || password.length < 8}
               className={primaryAction}
             >
               {working ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
