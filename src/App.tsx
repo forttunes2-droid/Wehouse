@@ -521,6 +521,11 @@ export default function App() {
       );
       const current = navHistoryRef.current.at(-1);
       if (safe !== current) {
+        // The signed-out landing page has no router state until its first link.
+        // Preserve it so Back from a public legal page returns to sign-in.
+        if (!window.history.state?.page) {
+          window.history.replaceState({ page: current || "search" }, "");
+        }
         window.history.pushState({ page: safe }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
