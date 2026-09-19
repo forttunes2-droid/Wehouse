@@ -1,4 +1,6 @@
 import { useState } from "react";
+import BackButton from '@/components/BackButton';
+import { WorkspaceHeadingContext } from '@/lib/workspaceHeading';
 
 type Item = { id: string; label: string; badge?: number };
 type Props = {
@@ -13,6 +15,8 @@ type Props = {
   onLogout: () => void;
   compact?: boolean;
   immersive?: boolean;
+  onBack?: () => void;
+  backLabel?: string;
   children: React.ReactNode;
 };
 
@@ -28,6 +32,8 @@ export default function WorkspaceFrameV2({
   onLogout,
   compact = false,
   immersive = false,
+  onBack,
+  backLabel = 'Back',
   children,
 }: Props) {
   void onLogout;
@@ -65,9 +71,12 @@ export default function WorkspaceFrameV2({
                   <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">{label}</p>
                   {labelBadge}
                 </div>
-                <h1 className="mt-1 truncate text-xl font-bold">{title}</h1>
+                <div className="mt-1 flex min-w-0 items-center gap-1">
+                  {onBack && <BackButton onClick={onBack} ariaLabel={backLabel} />}
+                  <h1 className="min-w-0 break-words text-xl font-semibold">{title}</h1>
+                </div>
                 {description ? (
-                  <p className={`mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
+                  <p className={`mt-1 max-w-2xl text-xs leading-5 text-[#AAA3B3] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
                 ) : null}
               </div>
               {onAccount ? (
@@ -95,7 +104,7 @@ export default function WorkspaceFrameV2({
       )}
 
       <main className={`mx-auto max-w-7xl ${immersive ? "px-4 py-4 sm:px-5 lg:px-8" : "px-4 py-5 sm:px-5 lg:px-8 lg:py-7"}`}>
-        {children}
+          <WorkspaceHeadingContext.Provider value={title}>{children}</WorkspaceHeadingContext.Provider>
       </main>
 
       {!immersive && more && hasOverflow && (

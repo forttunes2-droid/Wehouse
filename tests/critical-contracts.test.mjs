@@ -213,7 +213,7 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   const paidPanel=read('src/components/WorkerProPanel.tsx');
   const publicProfile=read('src/components/WorkerPublicProfile.tsx');
   const discovery=read('src/pages/WorkerDiscovery.tsx');
-  const creator=read('src/pages/CreatorSettingsTabV2.tsx');
+  const creator=read('src/lib/saveCreatorSetting.ts');
 
   assert.match(foundation,/\('worker_verification_fee_enabled','false'/);
   assert.match(foundation,/\('worker_pro_sales_enabled','false'/);

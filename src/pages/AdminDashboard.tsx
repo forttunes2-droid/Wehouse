@@ -10,7 +10,7 @@ import { canonicalStatusOptions } from "@/lib/status";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import StaffListTab from "./StaffListTab";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
-import BackButton from "@/components/BackButton";
+import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import Notifications from "./Notifications";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import HousingOperationsWorkspace from "@/components/HousingOperationsWorkspace";
@@ -130,6 +130,8 @@ export default function AdminDashboard({
       <WorkspaceFrameV2
         label={`WEHOUSE TEAM · BRANCH ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
         title={workspaceTitle}
+        onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
+        backLabel="Back to work areas"
         description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : " · Branch assignment required"}`}
         items={nav}
         active={tab}
@@ -332,10 +334,9 @@ function Operations({
   onView: (p: Profile) => void;
   onRefreshStats: () => Promise<void> | void;
 }) {
-  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose a branch work area. Each opens its canonical records here.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
+  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose the area you want to manage.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-1 border-b border-white/[.06] pb-2"><BackButton onClick={() => setActive(null)} /><span className="text-[10px] font-semibold text-[#A2A7B5]">All work areas</span></div>
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
@@ -760,10 +761,7 @@ function Section({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-bold">{title}</h3>
-        <p className="mt-1 text-[10px] text-[#707386]">{note}</p>
-      </div>
+      <WorkspaceSectionHeading title={title} description={note} />
       {children}
     </div>
   );

@@ -24,7 +24,7 @@ const EMPTY: Record<DocumentKind, Editor> = {
   terms: { title: "Terms of Service", body: "", draft: null, publishedVersion: null },
 };
 
-export default function CreatorLegalDocuments() {
+export default function CreatorLegalDocuments({ embedded = false }: { embedded?: boolean }) {
   const [editors, setEditors] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<DocumentKind | null>(null);
@@ -150,7 +150,7 @@ export default function CreatorLegalDocuments() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-base font-bold">Legal documents</h2>
+        {!embedded && <h2 className="text-base font-bold">Legal documents</h2>}
         <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#73798A]">
           Save drafts here. Publication requires a legal-review reference and a fresh Creator security check. A draft is never shown to users.
         </p>

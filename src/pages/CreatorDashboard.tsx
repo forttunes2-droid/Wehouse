@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import BackButton from "@/components/BackButton";
+import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
@@ -134,6 +135,7 @@ export default function CreatorDashboard({
 }: Props) {
   const [tab, setTab] = useState<Tab>("overview");
   const [operation, setOperation] = useState<Operation | null>(null);
+  const [platformSection, setPlatformSection] = useState<PlatformSection | null>(null);
   const [operationTarget, setOperationTarget] = useState<OperationTarget>(null);
   const [inboxTargetId, setInboxTargetId] = useState<string | undefined>();
   const [viewing, setViewing] = useState<Profile | null>(null);
@@ -142,6 +144,7 @@ export default function CreatorDashboard({
   function openOperation(next: Operation, id?: string) {
     setOperationTarget({ operation: next, id });
     setOperation(next);
+    setPlatformSection(null);
     setTab("operations");
   }
 
@@ -183,6 +186,7 @@ export default function CreatorDashboard({
   const currentOperation = operation
     ? OPS.find((item) => item.id === operation)
     : null;
+  const currentPlatform = tab === "operations" && operation === "platform" ? PLATFORM_SECTIONS.find(item => item.id === platformSection) : undefined;
   const workspaceTitle =
     tab === "operations" && currentOperation
       ? currentOperation.label
@@ -196,8 +200,13 @@ export default function CreatorDashboard({
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
         label="WEHOUSE · CREATOR"
-        title={workspaceTitle}
-        description={workspaceDescription}
+        title={currentPlatform?.label || workspaceTitle}
+        description={currentPlatform?.note || workspaceDescription}
+        onBack={tab === "operations" && operation ? () => {
+          if (platformSection) setPlatformSection(null);
+          else { setOperation(null); setOperationTarget(null); }
+        } : undefined}
+        backLabel={platformSection ? "Back to platform settings" : "Back to work areas"}
         items={nav}
         active={tab}
         setActive={(id) => {
@@ -205,6 +214,7 @@ export default function CreatorDashboard({
           setTab(next);
           if (next === "operations") {
             setOperation(null);
+            setPlatformSection(null);
             setOperationTarget(null);
           }
         }}
@@ -216,6 +226,8 @@ export default function CreatorDashboard({
         {tab === "operations" && (
           <Operations
             profile={profile}
+            platformSection={platformSection}
+            setPlatformSection={setPlatformSection}
             active={operation}
             target={operationTarget}
             setActive={(next) => {
@@ -339,7 +351,7 @@ function Overview({
           Platform at a glance
         </p>
         <p className="mt-2 max-w-2xl text-[10px] leading-5 text-[#747A8B]">
-          Open a row to continue in its one authoritative Operations workspace.
+          Choose an area to see its records and actions.
         </p>
       </section>
       <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
@@ -371,12 +383,16 @@ function Overview({
 
 function Operations({
   profile,
+  platformSection,
+  setPlatformSection,
   active,
   target,
   setActive,
   onView,
 }: {
   profile: Profile;
+  platformSection: PlatformSection | null;
+  setPlatformSection: (section: PlatformSection | null) => void;
   active: Operation | null;
   target: OperationTarget;
   setActive: (value: Operation | null) => void;
@@ -386,8 +402,7 @@ function Operations({
     return (
       <div className="space-y-6">
         <p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">
-          Choose a work area. Each opens its canonical records inside this
-          Operations workspace.
+          Choose the area you want to manage.
         </p>
         {OP_GROUPS.map((group) => (
           <section key={group}>
@@ -417,7 +432,6 @@ function Operations({
     );
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-1 border-b border-white/[.06] pb-2"><BackButton onClick={() => setActive(null)} /><span className="text-[10px] font-semibold text-[#A2A7B5]">All work areas</span></div>
       {active === "people" && <People onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
       {active === "properties" && (
@@ -442,7 +456,7 @@ function Operations({
       {active === "finance" && <Finance />}
       {active === "analytics" && <CreatorAnalyticsV2 profile={profile} />}
       {active === "audit" && <CreatorAuditWorkspace />}
-      {active === "platform" && <PlatformControl profile={profile} />}
+      {active === "platform" && <PlatformControl profile={profile} section={platformSection} setSection={setPlatformSection} />}
     </div>
   );
 }
@@ -809,13 +823,6 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
     );
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold">Booking records</h2>
-        <p className="mt-1 text-[10px] leading-relaxed text-[#707687]">
-          Worker services, apartment reservations and hotel stays, organised by
-          customer, property and booking code.
-        </p>
-      </div>
       <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
         <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One workspace, one active filter</p></div>
         <WeHouseSelect value={view} options={[{ value: "worker", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
@@ -1043,7 +1050,7 @@ function Finance() {
   }
   return (
     <Section
-      title="Platform finance"
+      title="Finance"
       note="Review payout requests, monitor Paystack settlement and inspect commission records. Product rules are managed in Operations → Platform settings."
     >
       <WeHouseSelect
@@ -1079,7 +1086,7 @@ function Finance() {
 }
 
 type PlatformSection =
-  "identity" | "access" | "workers" | "properties" | "legal";
+  "identity" | "access" | "workers" | "worker_plan" | "properties" | "legal";
 const PLATFORM_SECTIONS: Array<{
   id: PlatformSection;
   label: string;
@@ -1101,6 +1108,11 @@ const PLATFORM_SECTIONS: Array<{
     note: "Onboarding, trust, occupations and services.",
   },
   {
+    id: "worker_plan",
+    label: "Paid Service Provider plan",
+    note: "Plan name, prices, subscription terms and sales controls.",
+  },
+  {
     id: "properties",
     label: "Property marketplace",
     note: "Property choices used in submission and discovery.",
@@ -1111,18 +1123,10 @@ const PLATFORM_SECTIONS: Array<{
     note: "Published Privacy Policy and Terms of Service.",
   },
 ];
-function PlatformControl({ profile }: { profile: Profile }) {
-  const [section, setSection] = useState<PlatformSection | null>(null);
+function PlatformControl({ profile, section, setSection }: { profile: Profile; section: PlatformSection | null; setSection: (section: PlatformSection | null) => void }) {
   if (!section)
     return (
       <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-bold">Platform settings</h2>
-          <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#707687]">
-            Choose one control area. Settings are grouped by what they change
-            across WeHouse.
-          </p>
-        </div>
         <div className="overflow-hidden border-y border-white/[.07]">
           {PLATFORM_SECTIONS.map((item, index) => (
             <div key={item.id}>
@@ -1148,23 +1152,13 @@ function PlatformControl({ profile }: { profile: Profile }) {
         </div>
       </div>
     );
-  const current = PLATFORM_SECTIONS.find((item) => item.id === section)!;
   return (
     <div className="space-y-5">
-      <header className="flex items-center gap-3 border-b border-white/[.07] pb-3">
-        <BackButton onClick={() => setSection(null)} />
-        <div>
-          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
-            Platform settings
-          </p>
-          <h2 className="mt-0.5 text-lg font-bold">{current.label}</h2>
-          <p className="mt-0.5 text-[9px] text-[#707687]">{current.note}</p>
-        </div>
-      </header>
       {section === "identity" && (
         <CreatorSettingsTabV2
           profile={profile}
           groups={["identity"]}
+          embedded
           title="Identity & contact"
           description="Canonical public details used across WeHouse."
         />
@@ -1173,6 +1167,7 @@ function PlatformControl({ profile }: { profile: Profile }) {
         <CreatorSettingsTabV2
           profile={profile}
           groups={["access"]}
+          embedded
           title="Access & registration"
           description="Platform-wide availability and account creation controls."
         />
@@ -1181,7 +1176,8 @@ function PlatformControl({ profile }: { profile: Profile }) {
         <div className="space-y-5">
           <CreatorSettingsTabV2
             profile={profile}
-            groups={["worker_verification", "worker_trust"]}
+            groups={["worker_trust"]}
+            embedded
             title="Worker marketplace rules"
             description="Worker onboarding and earned marketplace trust."
           />
@@ -1197,6 +1193,7 @@ function PlatformControl({ profile }: { profile: Profile }) {
           </section>
         </div>
       )}
+      {section === "worker_plan" && <CreatorSettingsTabV2 profile={profile} groups={["worker_pro"]} embedded />}
       {section === "properties" && (
         <section>
           <h3 className="mb-1 text-sm font-semibold">Property types</h3>
@@ -1208,7 +1205,7 @@ function PlatformControl({ profile }: { profile: Profile }) {
         </section>
       )}
       {section === "legal" && (
-        <CreatorLegalDocuments />
+        <CreatorLegalDocuments embedded />
       )}
     </div>
   );
@@ -1225,10 +1222,7 @@ function Section({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold">{title}</h2>
-        <p className="mt-1 text-[10px] text-[#707687]">{note}</p>
-      </div>
+      <WorkspaceSectionHeading title={title} description={note} />
       {children}
     </div>
   );

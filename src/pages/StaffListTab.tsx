@@ -1,3 +1,4 @@
+import WorkspaceSectionHeading from '@/components/WorkspaceSectionHeading';
 import { useEffect,useMemo,useState } from 'react';
 import { toast } from 'sonner';
 import { getAllUsers } from '@/lib/supabase/admin';
@@ -27,10 +28,7 @@ export default function StaffListTab({profile}:{profile:Profile}){
 <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/>
 </div>;
  return <div className="space-y-4">
-  <div>
-<h2 className="text-lg font-bold">Team</h2>
-<p className="mt-1 text-[10px] text-[#707687]">Admins and Operations members, with each person’s branch and work area. Sensitive Creator changes require a fresh security confirmation.</p>
-</div>
+  <WorkspaceSectionHeading title="Team" description="Admins and Operations members, with their branch and work area." />
   <div className="grid grid-cols-3 gap-2">
 <Metric label="Admins" value={team.filter(x=>x.role==='admin').length}/>
 <Metric label="Operations" value={team.filter(x=>x.role==='staff').length}/>

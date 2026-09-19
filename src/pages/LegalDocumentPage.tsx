@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { acceptReviewedLegalDocument, getCurrentLegalDocuments, type PublishedLegalDocument } from '@/lib/supabase/legal';
 import { legalTitles, type LegalKind } from '@/lib/legalConsent';
 import LegalDocumentBody from '@/components/LegalDocumentBody';
+import BackButton from '@/components/BackButton';
 
 export default function LegalDocumentPage({ kind }: { kind: LegalKind }) {
   const [document, setDocument] = useState<PublishedLegalDocument | null>(null);
@@ -49,8 +50,10 @@ export default function LegalDocumentPage({ kind }: { kind: LegalKind }) {
 
   return <div className="min-h-[100svh] bg-[#0E0C12] text-[#F6F2FC]">
     <main className="mx-auto w-full max-w-3xl pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))] pb-[max(32px,env(safe-area-inset-bottom))] pt-[max(20px,env(safe-area-inset-top))] sm:px-8 sm:pt-10">
-      <button type="button" onClick={back} className="mb-6 min-h-11 rounded-md pr-4 text-sm font-semibold text-violet-300">← Back</button>
-      <h1 className="text-3xl font-semibold tracking-tight">{legalTitles[kind]}</h1>
+      <header className="flex items-center gap-2">
+        <BackButton onClick={back} />
+        <h1 className="min-w-0 text-2xl font-semibold tracking-tight sm:text-3xl">{legalTitles[kind]}</h1>
+      </header>
       {loading ? <p role="status" className="mt-8 text-sm text-[#AAA3B3]">Loading document…</p> : error ?
         <div className="mt-8"><p role="alert" className="text-sm text-red-200">{error}</p><button onClick={() => void load()} className="mt-4 min-h-11 text-sm font-semibold text-violet-300">Reload document</button></div> : document ? <>
           <p className="mb-8 mt-3 text-sm text-[#AAA3B3]">Version {document.version} · Effective {new Date(document.effective_from).toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>

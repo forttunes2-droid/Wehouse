@@ -1254,9 +1254,9 @@ function PropertyBookingDetail({
               <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
                 {short ? "Short Let" : "Long Let"}
               </p>
-              <h1 className="mt-1 break-words text-xl font-bold">
+              <h2 className="mt-1 break-words text-xl font-bold">
                 {row.listing_title || "Apartment booking"}
-              </h1>
+              </h2>
               <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
                 {locationLabel(
                   row.listing_location,
@@ -1516,7 +1516,7 @@ function HotelBookingDetail({
               <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">
                 Hotel
               </p>
-              <h1 className="mt-1 text-xl font-bold">{name}</h1>
+              <h2 className="mt-1 text-xl font-bold">{name}</h2>
               <p className="mt-1 text-[10px] text-[#777D8E]">
                 {room} · {packageName}
               </p>

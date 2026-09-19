@@ -119,7 +119,7 @@ function friendlyError(raw: string) {
     return "This account has been deleted. Contact WeHouse if you believe this is an error.";
   if (msg.includes("invalid login credentials") || msg.includes("invalid credentials"))
     return "Invalid username, email or password. Please check and try again.";
-  if (msg.includes("review the current") || msg.includes("registration is unavailable") || msg.includes("choose create account"))
+  if (msg.includes("review the current") || msg.includes("registration is unavailable") || msg.includes("choose create account") || msg.includes("registrations are currently closed") || msg.includes("under maintenance"))
     return raw;
   if (msg.includes("email not confirmed") || msg.includes("not confirmed"))
     return "Finish the Google email verification for this account.";
@@ -222,7 +222,7 @@ export default function Login({
     const context = googleVerificationContext();
     setWorking(false);
     setRecoveryReady(false);
-    setError(oauthError.toLowerCase().includes('choose create account') || oauthError.toLowerCase().includes('registration is unavailable')
+    setError(oauthError.toLowerCase().includes('choose create account') || oauthError.toLowerCase().includes('registration is unavailable') || oauthError.toLowerCase().includes('registrations are currently closed') || oauthError.toLowerCase().includes('under maintenance')
       ? oauthError : cancelledGoogleMessage(context));
     if (context === "password_recovery") setMode("forgot");
     else if (context === "signup") setMode("verify_email");

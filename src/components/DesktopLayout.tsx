@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import BackButton from '@/components/BackButton';
 import type { NavPage } from '@/types/nav';
 import type { DesktopNavItem } from '@/lib/desktop-nav';
 
@@ -51,6 +52,8 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
   'my_reservations',
   'worker_verification',
   'worker_setup',
+  'payment_return',
+  'new_listing',
 ]);
 
 const OPERATIONAL_ROLES = new Set(['creator', 'admin', 'staff', 'worker', 'property_partner']);
@@ -303,26 +306,9 @@ export default function DesktopLayout({
           collapsed ? 'lg:!ml-[72px]' : ''
         }`}
       >
-        <header className="sticky top-0 z-30 hidden h-14 items-center justify-between border-b border-white/[.04] bg-[#0A0A0F]/80 px-6 backdrop-blur-xl lg:flex">
-          <div className="flex min-w-0 items-center gap-2 text-[13px]">
-            {showBack && (
-              <button onClick={back} className="mr-1 rounded-lg border border-white/[.06] px-2 py-1 text-[#8A8B9C] hover:text-white">
-                ← Back
-              </button>
-            )}
-            <span className="text-[#5C5E72]">WeHouse</span>
-            <span className="text-[#2A2A3A]">/</span>
-            <span className="truncate font-medium capitalize text-white">{activePage.replace(/_/g, ' ')}</span>
-          </div>
-          <span className="text-[11px] capitalize text-[#5C5E72]">{role || 'User'}</span>
-        </header>
-
         {showMobileBack && (
-          <div className="border-b border-white/[.05] bg-[#0B0C12] px-4 py-2 lg:hidden">
-            <button onClick={back} className="flex min-h-9 items-center gap-2 rounded-xl border border-white/[.07] bg-white/[.025] px-3 text-xs font-medium text-[#A8ABB8]">
-              <span>←</span>
-              <span>Back</span>
-            </button>
+          <div className="px-4 pt-3 lg:px-8">
+            <BackButton onClick={back} />
           </div>
         )}
 
