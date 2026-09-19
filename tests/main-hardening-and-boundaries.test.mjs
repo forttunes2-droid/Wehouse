@@ -14,7 +14,7 @@ test("GitHub exposes stable required checks on Node 24 with full dependency audi
   assert.match(build, /npm audit --audit-level=high/);
   assert.match(build, /npm run lint[\s\S]*npm test[\s\S]*npx tsc --noEmit[\s\S]*npm run build/);
   assert.match(consolidation, /name: Consolidation Validation/);
-  assert.match(consolidation, /needs: \[tests-and-build, migration-replay\]/);
+  assert.match(consolidation, /needs: \[tests-and-build, migration-replay, existing-account-upgrade\]/);
   assert.match(consolidation, /node-version: 24/);
   assert.match(consolidation, /worker_face_review_contract\.sql/);
   assert.match(consolidation, /accommodation_handover_contract\.sql/);

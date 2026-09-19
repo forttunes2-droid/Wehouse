@@ -79,10 +79,41 @@ jobs:
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
 
+  existing-account-upgrade:
+    name: Existing Account Upgrade
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '54322'
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Start disposable local Supabase
+        run: npx --yes supabase@2.114.0 start
+      - name: Load the current production baseline
+        run: npx --yes supabase@2.114.0 db reset --local --version 20260913181317
+      - name: Seed existing approvals, reviews, private evidence and a wallet
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
+      - name: Verify the full upgrade rolls back without changing records or history
+        run: python scripts/coordinated-database-release.py check --local-ci
+      - name: Verify the full upgrade commits with existing records preserved
+        run: python scripts/coordinated-database-release.py apply --local-ci
+      - name: Verify a repeated release is a no-op
+        run: python scripts/coordinated-database-release.py apply --local-ci
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup
+
   consolidation-gate:
     name: Consolidation Validation
     if: always()
-    needs: [tests-and-build, migration-replay]
+    needs: [tests-and-build, migration-replay, existing-account-upgrade]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -90,6 +121,8 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.tests-and-build.result }}
           MIGRATION_RESULT: ${{ needs.migration-replay.result }}
+          UPGRADE_RESULT: ${{ needs.existing-account-upgrade.result }}
         run: |
           test "$BUILD_RESULT" = "success"
           test "$MIGRATION_RESULT" = "success"
+          test "$UPGRADE_RESULT" = "success"

@@ -349,20 +349,15 @@ using(
 );
 
 -- Earlier automatic passes were based only on caller-supplied browser scores.
--- Preserve their evidence, but require the new independent decision before
--- they can unlock review or public discovery.
+-- Keep the capture and prior evidence history, while requiring an independent
+-- decision before presenting an automatic pass as a verified identity. This
+-- does not revoke a separate professional approval: biometric enforcement is
+-- policy-gated by the later migration in the same coordinated release.
 update public.worker_identity_checks
 set status='pending_review',submitted_at=coalesce(submitted_at,updated_at),
   pending_reference_photo_path=coalesce(latest_reference_photo_path,enrollment_photo_path),
-  captured_at=null,reviewed_at=null,reviewed_by=null,review_notes=null,
   updated_at=now()
-where status='passed';
-
-update public.profiles profile
-set worker_status=case when profile.worker_status='verified' then 'pending' else profile.worker_status end,
-  worker_verified=false,available=false,updated_at=now()
-where public.user_has_active_workspace(profile.user_id,'worker')
-  and not public.worker_identity_is_current(profile.user_id);
+where status='passed' and reviewed_by is null;
 
 -- Trigger helpers never need browser/API execution. Date-of-birth submission is
 -- signed-in only; name anon explicitly so later default grants cannot blur it.

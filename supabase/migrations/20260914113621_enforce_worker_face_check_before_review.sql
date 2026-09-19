@@ -325,26 +325,10 @@ begin
 end;
 $$;
 
--- Preserve the uploaded evidence but remove reviews that reached the queue
--- through the old flag-dependent bypass.  The Worker completes the face check
--- and explicitly submits again.
-update public.worker_verifications verification
-set status='evidence_ready',submitted_at=null,reviewed_by=null,
-    review_notes=null,reviewed_at=null,updated_at=now()
-where verification.status='profile_under_review'
-  and exists(
-    select 1
-    from public.profiles profile
-    where profile.user_id=verification.worker_id
-      and profile.worker_status='profile_under_review'
-      and not public.worker_identity_is_current(profile.user_id)
-  );
-
-update public.profiles profile
-set worker_status='pending',worker_verified=false,available=false,updated_at=now()
-where profile.worker_status='profile_under_review'
-  and public.user_has_active_workspace(profile.user_id,'worker')
-  and not public.worker_identity_is_current(profile.user_id);
+-- The final release makes biometric processing optional and policy-gated.
+-- Preserve existing professional review submissions and their audit history;
+-- a schema upgrade must not silently cancel an Operations review. New review
+-- actions use the server-side policy gate installed later in this release.
 
 -- Repair the old client-helper semantics: payment, queue entry and rejection
 -- never mean that WeHouse approved the Worker.
