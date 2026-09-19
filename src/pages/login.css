@@ -1,0 +1,115 @@
+/* The entry screen fills a phone; larger screens frame the same compact layout. */
+html.wh-auth-open,
+body.wh-auth-open,
+body.wh-auth-open #root {
+  background-color: #5b21b6 !important;
+}
+
+.wh-auth-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: #5b21b6;
+  color: #fff;
+}
+
+.wh-auth-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  margin: 0 auto;
+  background: #17131f;
+}
+
+.wh-auth-header {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  min-height: 200px;
+  min-height: clamp(180px, 28svh, 240px);
+  padding: max(28px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) 52px max(24px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(145deg, #7c3aed, #5b21b6);
+}
+
+.wh-auth-content {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  margin-top: -24px;
+  padding: 32px max(24px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  border-radius: 28px 28px 0 0;
+  background: #17131f;
+}
+
+.wh-auth-form,
+.wh-auth-legal {
+  width: 100%;
+  max-width: 392px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.wh-auth-form {
+  overflow-wrap: anywhere;
+}
+
+.wh-auth-legal {
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.wh-auth-content input {
+  scroll-margin-block: 24px;
+}
+
+/* Keep the form close when the software keyboard reduces the usable screen. */
+.wh-keyboard-open .wh-auth-header {
+  min-height: 132px;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: 36px;
+}
+
+@media (min-width: 640px) {
+  html.wh-auth-open,
+  body.wh-auth-open,
+  body.wh-auth-open #root {
+    background-color: #251a36 !important;
+  }
+
+  .wh-auth-screen {
+    display: grid;
+    place-items: center;
+    padding: 40px 24px;
+    background: #251a36;
+  }
+
+  .wh-auth-layout {
+    max-width: 480px;
+    min-height: 720px;
+    min-height: min(760px, calc(100svh - 80px));
+    border-radius: 32px;
+    box-shadow: 0 20px 64px rgb(8 4 17 / 20%);
+  }
+
+  .wh-auth-header {
+    min-height: 216px;
+    border-radius: 32px 32px 0 0;
+  }
+
+  .wh-auth-content {
+    padding: 36px 36px 24px;
+    border-radius: 28px 28px 32px 32px;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .wh-auth-header {
+    min-height: 144px;
+    padding-top: max(16px, env(safe-area-inset-top, 0px));
+    padding-bottom: 36px;
+  }
+}

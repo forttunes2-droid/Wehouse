@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase";
 import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
+import "./login.css";
 import {
   clearGoogleVerification,
   googleVerificationReturnContext,
@@ -645,10 +646,11 @@ export default function Login({
   const displayError = error || serverError;
 
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] text-white">
-      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[440px] flex-col justify-center px-6 py-10 sm:py-14">
-        <Brand />
-        <div>
+    <AuthSurface>
+      <main className="wh-auth-layout">
+        <header className="wh-auth-header"><Brand /></header>
+        <section className="wh-auth-content">
+        <div className="wh-auth-form">
         {kickedOut ? (
           <Notice tone="warning" title="This device was signed out">
             This device&apos;s WeHouse session is no longer active. Sign in again to continue.
@@ -660,8 +662,7 @@ export default function Login({
         {mode === "choose" ? (
           <div>
             <div className="mb-8 text-center">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Welcome to WeHouse</h1>
-              <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">Find. Connect. Live better.</p>
+              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Welcome</h1>
             </div>
             <button
               type="button"
@@ -897,25 +898,40 @@ export default function Login({
           </form>
         ) : null}
         </div>
-        <nav aria-label="Legal information" className="mt-8 flex flex-wrap items-center justify-center gap-x-6 text-xs text-[#A7AEBD]">
+        <nav aria-label="Legal information" className="wh-auth-legal flex flex-wrap items-center justify-center gap-x-6 text-xs text-[#A7AEBD]">
           <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 rounded-md hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Terms of Service</button>
           <button type="button" onClick={() => onOpenLegal("privacy_policy")} className="min-h-11 rounded-md hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Privacy Policy</button>
         </nav>
+        </section>
       </main>
-    </div>
+    </AuthSurface>
   );
+}
+
+function AuthSurface({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const theme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const previousTheme = theme?.content;
+    document.documentElement.classList.add("wh-auth-open");
+    document.body.classList.add("wh-auth-open");
+    if (theme) theme.content = "#5B21B6";
+    return () => {
+      document.documentElement.classList.remove("wh-auth-open");
+      document.body.classList.remove("wh-auth-open");
+      if (theme && previousTheme !== undefined) theme.content = previousTheme;
+    };
+  }, []);
+  return <div className="wh-auth-screen">{children}</div>;
 }
 
 function Brand() {
   return (
-    <div className="mb-7 flex justify-center">
-      <img
-        src="/app-icon.svg?v=3"
-        alt="WeHouse"
-        width={56}
-        height={56}
-        className="h-14 w-14"
-      />
+    <div className="text-center">
+      <div className="flex items-center justify-center gap-3">
+        <img src="/app-icon.svg?v=3" alt="" width={52} height={52} className="h-[52px] w-[52px]" />
+        <p className="text-[30px] font-semibold tracking-tight">WeHouse</p>
+      </div>
+      <p className="mt-4 text-sm text-violet-100">Find. Connect. Live better.</p>
     </div>
   );
 }
