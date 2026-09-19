@@ -1,3 +1,4 @@
+import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getMySupportConversations } from "@/lib/supabase/support";
@@ -8,7 +9,7 @@ import { activityIsCurrent, currentActivityRows, longestActivityCutoff } from "@
 export function usePartnerInboxSummary(userId: string) {
   const [chatUnread, setChatUnread] = useState(0);
   const [activityUnread, setActivityUnread] = useState(0);
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean) => {
     if (!userId) return;
     const [wehouse, hotels, events, announcements] = await Promise.all([
       getMySupportConversations(),
@@ -16,6 +17,7 @@ export function usePartnerInboxSummary(userId: string) {
       supabase.from("notifications").select("type,title,message,source_type,destination_route,created_at,read").eq("recipient_id", userId).eq("workspace_scope", "partner").eq("read", false).gte("created_at", longestActivityCutoff()),
       getAnnouncementsForUser(userId),
     ]);
+    if (!isCurrent()) return;
     const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).filter((row) => Number(row.unread_count || 0) > 0).length;
     const hotelUnread = hotels.error ? 0 : hotels.conversations.filter((row) => Number(row.unread_count || 0) > 0).length;
     setChatUnread(wehouseUnread + hotelUnread);
@@ -29,28 +31,19 @@ export function usePartnerInboxSummary(userId: string) {
     if (!events.error || !announcements.error) setActivityUnread(eventUnread + announcementUnread);
   }, [userId]);
 
+  const refresh = useInboxRefresh(load, Boolean(userId));
+
   useEffect(() => {
-    void refresh();
     if (!userId) return;
     const channel = supabase.channel(`partner-inbox-summary:${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, () => void refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "hotel_booking_messages" }, () => void refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` }, () => void refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "announcement_recipients", filter: `user_id=eq.${userId}` }, () => void refresh())
-      .subscribe();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    const onUnreadChanged = () => void refresh();
-    window.addEventListener("focus", onVisible);
-    window.addEventListener("wehouse:unread-changed", onUnreadChanged);
-    document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => void refresh(), 60_000);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      window.removeEventListener("wehouse:unread-changed", onUnreadChanged);
-      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [refresh, userId]);

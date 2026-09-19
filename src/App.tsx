@@ -1,3 +1,4 @@
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
   useState,
   useEffect,
@@ -602,7 +603,7 @@ export default function App() {
       return;
     }
     const uid = profile.user_id;
-    async function count() {
+    async function loadCounts(isCurrent: () => boolean) {
       const [
         { data },
         bookingResult,
@@ -628,6 +629,7 @@ export default function App() {
           .eq("read", false),
         getAnnouncementsForUser(uid),
       ]);
+      if (!isCurrent()) return;
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
         if (Number(c.participant_a === uid ? c.unread_a : c.unread_b) > 0)
@@ -682,7 +684,12 @@ export default function App() {
       setSupportUnreadCount(support);
       setNotificationCount(activity + announcementUnread);
     }
-    void count();
+    const countScheduler = createRefreshScheduler(
+      loadCounts,
+      () => document.visibilityState === "visible",
+    );
+    const count = countScheduler.request;
+    count();
     const openMessages = (conversationId?: string) => {
       setChatConvId(conversationId || null);
       setChatPeerId(null);
@@ -893,6 +900,7 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
     const unreadTimer = window.setInterval(() => void count(), 60_000);
     return () => {
+      countScheduler.dispose();
       window.clearInterval(unreadTimer);
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
