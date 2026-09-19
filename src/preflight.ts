@@ -22,7 +22,7 @@ function renderStartupFailure(reason: unknown) {
 
   const shell = document.createElement("main");
   shell.style.cssText =
-    "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#0A0A0F;color:#fff;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+    "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#F8F6FC;color:#241B33;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
 
   const card = document.createElement("section");
   card.style.cssText =
@@ -47,7 +47,7 @@ function renderStartupFailure(reason: unknown) {
     ? "This preview is intentionally blocked from using production data. Connect a safe test Supabase environment, then reload."
     : "Check your connection, then try again.";
   body.style.cssText =
-    "margin:12px auto 0;max-width:310px;color:#A7AEBD;font-size:14px;line-height:1.7";
+    "margin:12px auto 0;max-width:310px;color:#70677D;font-size:14px;line-height:1.7";
 
   const reload = document.createElement("button");
   reload.type = "button";
@@ -61,7 +61,7 @@ function renderStartupFailure(reason: unknown) {
     ? "Production remains isolated and untouched."
     : "";
   detail.style.cssText =
-    "margin:14px 0 0;color:#A7AEBD;font-size:12px;line-height:1.5";
+    "margin:14px 0 0;color:#70677D;font-size:12px;line-height:1.5";
 
   card.append(mark, title, body, reload, detail);
   shell.append(card);

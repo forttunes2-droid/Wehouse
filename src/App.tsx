@@ -99,7 +99,7 @@ function PageTransitionFallback() {
   }, []);
   return (
     <div
-      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0A0A0F] px-6 py-10 text-center text-white"
+      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#F8F6FC] px-6 py-10 text-center text-[#241B33]"
       role="status"
       aria-label="Loading WeHouse"
     >
@@ -109,13 +109,13 @@ function PageTransitionFallback() {
         className="h-12 w-12 rounded-[14px]"
       />
       <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
-      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#A7AEBD]">find · connect · live better</p>
-      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-300/20 border-t-violet-400 motion-reduce:animate-none" />}
+      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#70677D]">find · connect · live better</p>
+      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-200 border-t-violet-600 motion-reduce:animate-none" />}
       {slow && (
         <div className="mt-5 max-w-xs">
-          <p className="text-sm text-[#A7AEBD]">Taking longer than usual.</p>
-          <p className="mt-2 text-sm leading-6 text-[#A7AEBD]">Check your connection or try again.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+          <p className="text-sm text-[#70677D]">Taking longer than usual.</p>
+          <p className="mt-2 text-sm leading-6 text-[#70677D]">Check your connection or try again.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
         </div>
       )}
     </div>

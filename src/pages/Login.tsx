@@ -29,10 +29,10 @@ type Mode =
   | "recover";
 type VerificationContext = "signup" | "password_recovery" | "new_device";
 
-const primaryAction = "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300 disabled:cursor-not-allowed disabled:opacity-50";
-const secondaryAction = "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#343441] bg-transparent px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300 disabled:cursor-not-allowed disabled:opacity-50";
-const textAction = "min-h-11 rounded-md px-2 text-sm font-medium text-violet-300 hover:text-violet-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300 disabled:opacity-50";
-const inputStyle = "h-12 rounded-xl border-[#343441] bg-[#111118] text-base text-white placeholder:text-[#9494A3] focus-visible:border-violet-400 focus-visible:ring-violet-400/30";
+const primaryAction = "wh-auth-primary flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryAction = "wh-auth-secondary flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+const textAction = "wh-auth-text-action min-h-11 rounded-md px-2 text-sm font-semibold disabled:opacity-50";
+const inputStyle = "wh-auth-input h-12 rounded-xl text-base focus-visible:ring-violet-500/20";
 
 interface LoginProps {
   onLoginSuccess: (authId: string, email: string, role?: PublicRole) => void;
@@ -661,7 +661,7 @@ export default function Login({
 
         {mode === "choose" ? (
           <div>
-            <div className="mb-8 text-center">
+            <div className="mb-8">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Welcome</h1>
             </div>
             <button
@@ -681,7 +681,7 @@ export default function Login({
               <GoogleIcon />
               {working ? "Opening Google…" : "Continue with Google"}
             </button>
-            <p className="mt-5 flex flex-wrap items-center justify-center text-sm text-[#A7AEBD]">
+            <p className="mt-5 flex flex-wrap items-center justify-center text-sm text-[var(--auth-muted)]">
               New here?
               <button type="button" onClick={() => { setMode("signup"); clearMessages(); }} className={textAction}>Create account</button>
             </p>
@@ -690,12 +690,12 @@ export default function Login({
 
         {(mode === "signin" || mode === "signup") ? (
           <form onSubmit={(event) => void handleEmail(event, mode === "signup")} className="space-y-4">
-            <div className="pb-4 text-center">
+            <div className="pb-4">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
                 {mode === "signup" ? "Create your account" : "Welcome back"}
               </h1>
               {mode === "signup" ? (
-                <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">
+                <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                   Start with your email and a password.
                 </p>
               ) : null}
@@ -751,10 +751,10 @@ export default function Login({
           <div className="space-y-4">
             <section className="pb-4">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Confirm your email</h1>
-              <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">
-                Use the Google account for <span className="break-words font-medium text-white">{email.trim()}</span> to confirm it belongs to you.
+              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
+                Use the Google account for <span className="break-words font-medium text-[var(--auth-ink)]">{email.trim()}</span> to confirm it belongs to you.
               </p>
-              <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">
+              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                 You can still sign in with your email and password afterwards.
               </p>
             </section>
@@ -782,10 +782,10 @@ export default function Login({
           <div className="space-y-4">
             <section className="pb-4">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Confirm this device</h1>
-              <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">
-                Use the Google account for <span className="break-words font-medium text-white">{email.trim()}</span> to approve this sign-in.
+              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
+                Use the Google account for <span className="break-words font-medium text-[var(--auth-ink)]">{email.trim()}</span> to approve this sign-in.
               </p>
-              <div className="mt-5 divide-y divide-white/[.06] border-y border-white/[.06]">
+              <div className="mt-5 divide-y divide-[var(--auth-border)] border-y border-[var(--auth-border)]">
                 <SecurityDetail label="Device" value={deviceDetails.device} />
                 <SecurityDetail label="System" value={`${deviceDetails.os} · ${deviceDetails.browser}`} />
                 <SecurityDetail label="Near" value={deviceDetails.location} />
@@ -815,8 +815,8 @@ export default function Login({
           <div className="space-y-4">
             <div role="alert" className="pb-4">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Choose the matching account</h1>
-              <p className="mt-3 break-words text-sm leading-6 text-[#A7AEBD]">
-                This step can verify only <strong className="text-white">{loginIdentifier || email}</strong>. <strong className="text-white">{googleMismatchEmail || "The selected Google account"}</strong> was rejected and no account details were changed.
+              <p className="mt-3 break-words text-sm leading-6 text-[var(--auth-muted)]">
+                This step can verify only <strong className="text-[var(--auth-ink)]">{loginIdentifier || email}</strong>. <strong className="text-[var(--auth-ink)]">{googleMismatchEmail || "The selected Google account"}</strong> was rejected and no account details were changed.
               </p>
             </div>
             <button
@@ -842,7 +842,7 @@ export default function Login({
           <form onSubmit={(event) => void handleForgot(event)} className="space-y-4">
             <div className="mb-5">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Reset your password</h1>
-              <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">
+              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                 Enter your username or email. You’ll confirm with the Google account linked to WeHouse.
               </p>
             </div>
@@ -876,12 +876,12 @@ export default function Login({
           <form onSubmit={(event) => void handleRecovery(event)} className="space-y-4">
             <div className="mb-5">
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Choose a new password</h1>
-              <p className="mt-3 text-sm leading-6 text-[#A7AEBD]">
-                Confirmed as <span className="font-semibold text-white">{loginIdentifier || email}</span>. Choose a new password.
+              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
+                Confirmed as <span className="font-semibold text-[var(--auth-ink)]">{loginIdentifier || email}</span>. Choose a new password.
               </p>
             </div>
             {!recoveryReady ? (
-              <p role="status" className="text-sm text-[#A7AEBD]">Finishing confirmation…</p>
+              <p role="status" className="text-sm text-[var(--auth-muted)]">Finishing confirmation…</p>
             ) : null}
             <PasswordField label="New password" value={password} set={setPassword} visible={showPassword} toggle={() => setShowPassword((value) => !value)} />
             <PasswordField label="Confirm new password" value={confirmPassword} set={setConfirmPassword} visible={showPassword} toggle={() => setShowPassword((value) => !value)} />
@@ -898,9 +898,9 @@ export default function Login({
           </form>
         ) : null}
         </div>
-        <nav aria-label="Legal information" className="wh-auth-legal flex flex-wrap items-center justify-center gap-x-6 text-xs text-[#A7AEBD]">
-          <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 rounded-md hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Terms of Service</button>
-          <button type="button" onClick={() => onOpenLegal("privacy_policy")} className="min-h-11 rounded-md hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Privacy Policy</button>
+        <nav aria-label="Legal information" className="wh-auth-legal flex flex-wrap items-center justify-center gap-x-6 text-xs text-[var(--auth-muted)]">
+          <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 rounded-md hover:text-violet-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Terms of Service</button>
+          <button type="button" onClick={() => onOpenLegal("privacy_policy")} className="min-h-11 rounded-md hover:text-violet-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Privacy Policy</button>
         </nav>
         </section>
       </main>
@@ -914,7 +914,7 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
     const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#5B21B6";
+    if (theme) theme.content = "#F8F6FC";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");
@@ -939,7 +939,7 @@ function Brand() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-[#C5C5D0]">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-[var(--auth-ink)]">{label}</span>
       {children}
     </label>
   );
@@ -973,7 +973,7 @@ function PasswordField({
           required
           className={`${inputStyle} pr-14`}
         />
-        <button type="button" onClick={toggle} aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`} aria-pressed={visible} className="absolute right-1 top-1/2 min-h-11 min-w-11 -translate-y-1/2 rounded-lg text-xs text-[#A7AEBD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">
+        <button type="button" onClick={toggle} aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`} aria-pressed={visible} className="absolute right-1 top-1/2 min-h-11 min-w-11 -translate-y-1/2 rounded-lg text-xs text-[var(--auth-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300">
           {visible ? "Hide" : "Show"}
         </button>
       </div>
@@ -991,10 +991,10 @@ function Notice({
   tone: "error" | "warning" | "info";
 }) {
   const className = tone === "error"
-    ? "border-red-500/15 bg-red-500/[.05] text-red-200"
+    ? "border-red-200 bg-red-50 text-red-800"
     : tone === "warning"
-      ? "border-amber-500/15 bg-amber-500/[.05] text-amber-200"
-      : "border-violet-500/15 bg-violet-500/[.05] text-violet-200";
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : "border-violet-200 bg-violet-50 text-violet-900";
   return (
     <div role={tone === "error" ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm leading-5 ${className}`}>
       {title ? <p className="mb-1 text-xs font-semibold">{title}</p> : null}
@@ -1006,8 +1006,8 @@ function Notice({
 function SecurityDetail({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex items-start justify-between gap-4 py-3 text-xs">
-      <span className="text-[#A7AEBD]">{label}</span>
-      <span className="text-right font-medium text-[#D6D9E0]">{value || "Unavailable"}</span>
+      <span className="text-[var(--auth-muted)]">{label}</span>
+      <span className="text-right font-medium text-[var(--auth-ink)]">{value || "Unavailable"}</span>
     </div>
   );
 }
@@ -1015,9 +1015,9 @@ function SecurityDetail({ label, value }: { label: string; value?: string | null
 function Divider() {
   return (
     <div className="my-5 flex items-center gap-4" aria-hidden="true">
-      <span className="h-px flex-1 bg-white/10" />
-      <span className="text-xs text-[#A7AEBD]">or</span>
-      <span className="h-px flex-1 bg-white/10" />
+      <span className="h-px flex-1 bg-[var(--auth-border)]" />
+      <span className="text-xs text-[var(--auth-muted)]">or</span>
+      <span className="h-px flex-1 bg-[var(--auth-border)]" />
     </div>
   );
 }
