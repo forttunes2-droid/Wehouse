@@ -899,8 +899,8 @@ export default function Login({
         ) : null}
         </div>
         <nav aria-label="Legal information" className="wh-auth-legal flex flex-wrap items-center justify-center gap-x-6 text-xs text-[var(--auth-muted)]">
-          <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 rounded-md hover:text-violet-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Terms of Service</button>
-          <button type="button" onClick={() => onOpenLegal("privacy_policy")} className="min-h-11 rounded-md hover:text-violet-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Privacy Policy</button>
+          <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 rounded-md hover:text-violet-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Terms of Service</button>
+          <button type="button" onClick={() => onOpenLegal("privacy_policy")} className="min-h-11 rounded-md hover:text-violet-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Privacy Policy</button>
         </nav>
         </section>
       </main>
@@ -914,7 +914,7 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
     const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#F8F6FC";
+    if (theme) theme.content = "#0E0C12";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");
@@ -991,10 +991,10 @@ function Notice({
   tone: "error" | "warning" | "info";
 }) {
   const className = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-800"
+    ? "border-red-500/25 bg-red-500/10 text-red-200"
     : tone === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-900"
-      : "border-violet-200 bg-violet-50 text-violet-900";
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
+      : "border-violet-500/25 bg-violet-500/10 text-violet-200";
   return (
     <div role={tone === "error" ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm leading-5 ${className}`}>
       {title ? <p className="mb-1 text-xs font-semibold">{title}</p> : null}

@@ -1,14 +1,14 @@
-/* A single quiet surface: purple identifies actions, never a separate panel. */
+/* Keep WeHouse dark: one continuous surface, aligned controls and purple actions. */
 html.wh-auth-open,
 body.wh-auth-open,
-body.wh-auth-open #root { background-color: #f8f6fc !important; color-scheme: light; }
+body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: dark; }
 
 .wh-auth-screen {
-  --auth-surface: #f8f6fc;
-  --auth-ink: #241b33;
-  --auth-muted: #70677d;
-  --auth-border: #ddd6e7;
-  --auth-accent: #682bd7;
+  --auth-surface: #0e0c12;
+  --auth-ink: #f6f2fc;
+  --auth-muted: #aaa3b3;
+  --auth-border: #61566f;
+  --auth-accent: #7c3aed;
   min-height: 100vh;
   min-height: 100svh;
   background: var(--auth-surface);
@@ -27,7 +27,7 @@ body.wh-auth-open #root { background-color: #f8f6fc !important; color-scheme: li
   padding: max(32px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(28px, env(safe-area-inset-left, 0px));
 }
 
-.wh-auth-header { flex-shrink: 0; padding-bottom: clamp(40px, 8svh, 72px); }
+.wh-auth-header { width: 100%; max-width: 392px; margin-inline: auto; flex-shrink: 0; padding-bottom: clamp(40px, 8svh, 72px); }
 .wh-auth-brand { text-align: left; }
 .wh-auth-wordmark { display: flex; align-items: center; gap: 12px; }
 .wh-auth-wordmark img { width: 44px; height: 44px; }
@@ -42,13 +42,13 @@ body.wh-auth-open #root { background-color: #f8f6fc !important; color-scheme: li
 .wh-auth-legal { margin-top: auto; padding-top: 32px; }
 
 .wh-auth-primary { background: var(--auth-accent); color: #fff; box-shadow: 0 4px 12px rgb(104 43 215 / 12%); }
-.wh-auth-primary:hover { background: #5921bf; }
-.wh-auth-secondary { border-color: var(--auth-border); background: #fff; color: var(--auth-ink); }
-.wh-auth-secondary:hover { background: #f0eaf9; }
-.wh-auth-text-action { color: #6026bd; }
-.wh-auth-text-action:hover { color: #431886; text-decoration: underline; text-underline-offset: 3px; }
-.wh-auth-input { border-color: var(--auth-border); background: #fff; color: var(--auth-ink); box-shadow: none; }
-.wh-auth-input::placeholder { color: #81778c; }
+.wh-auth-primary:hover { background: #6d28d9; }
+.wh-auth-secondary { border-color: var(--auth-border); background: #19151f; color: var(--auth-ink); }
+.wh-auth-secondary:hover { background: #241c30; }
+.wh-auth-text-action { color: #c4b5fd; }
+.wh-auth-text-action:hover { color: #ddd6fe; text-decoration: underline; text-underline-offset: 3px; }
+.wh-auth-input { border-color: var(--auth-border); background: #19151f; color: var(--auth-ink); box-shadow: none; }
+.wh-auth-input::placeholder { color: #aaa3b3; }
 .wh-auth-input:focus-visible { border-color: var(--auth-accent); }
 .wh-auth-screen button:focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 4px; }
 .wh-auth-content input { scroll-margin-block: 24px; }
