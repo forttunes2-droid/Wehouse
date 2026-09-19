@@ -1,0 +1,31 @@
+{
+  "name": "WeHouse main required checks",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [
+    {
+      "actor_id": 287019455,
+      "actor_type": "User",
+      "bypass_mode": "pull_request"
+    }
+  ],
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main", "~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "do_not_enforce_on_create": false,
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "WeHouse Build Check", "integration_id": 15368 },
+          { "context": "Consolidation Validation", "integration_id": 15368 }
+        ]
+      }
+    }
+  ]
+}
