@@ -11,6 +11,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
+import CustomerInspectionAssignmentPanel from "@/components/CustomerInspectionAssignmentPanel";
 import {
   getPropertyBookingJourney,
   propertyBookingStatusLabel,
@@ -232,17 +233,25 @@ export default function HousingOperationsWorkspace({
         }}
       />
     ) : (
-      <HousingCase
-        row={selected}
-        bookingCode={verifiedMoveInCode}
-        back={() => {
-          setSelected(null);
-          setVerifiedBooking(null);
-          setVerifiedMoveInCode(null);
-          setBookingCode("");
-          void load();
-        }}
-      />
+      <div className="space-y-4">
+        {getPropertyBookingJourney(selected, null, "operations").action === "inspection" &&
+        selected.current_reservation_id ? (
+          <CustomerInspectionAssignmentPanel
+            reservationId={String(selected.current_reservation_id)}
+          />
+        ) : null}
+        <HousingCase
+          row={selected}
+          bookingCode={verifiedMoveInCode}
+          back={() => {
+            setSelected(null);
+            setVerifiedBooking(null);
+            setVerifiedMoveInCode(null);
+            setBookingCode("");
+            void load();
+          }}
+        />
+      </div>
     );
 
   return (

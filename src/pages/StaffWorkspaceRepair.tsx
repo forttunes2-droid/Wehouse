@@ -11,6 +11,7 @@ import StaffFinanceSummary from "@/components/StaffFinanceSummary";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import StaffSecurityOverviewV2 from "@/components/StaffSecurityOverviewV2";
 import StaffActivityTrailV2 from "@/components/StaffActivityTrailV2";
+import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import { useStaffPermissions } from "@/hooks/useStaffPermissions";
 import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
 import type { Profile } from "@/types";
@@ -56,12 +57,12 @@ const MODULE_COPY: Record<
     workLabel: "Properties",
   },
   finance: {
-    title: "Finance",
+    title: "Finance Operations",
     description: "Review assigned payments, payouts and financial records.",
     workLabel: "Finance Work",
   },
   support: {
-    title: "Communications",
+    title: "Support Operations",
     description: "Handle WeHouse conversations assigned to your branch.",
     workLabel: "Conversations",
   },
@@ -341,7 +342,7 @@ function ModuleWork({
       </div>
     );
   if (module === "operations")
-    return <PropertyPipelineWorkspace profile={profile} initialRecordId={initialRecordId} />;
+    return <div className="space-y-5"><AccountIdentityReviewQueue accountRole="property_partner"/><PropertyPipelineWorkspace profile={profile} initialRecordId={initialRecordId} /></div>;
   if (module === "finance")
     return (
       <div className="space-y-5">

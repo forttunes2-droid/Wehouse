@@ -50,26 +50,26 @@ export const WORKER_OCCUPATION_LABELS: Record<string, string> = {
 // Worker status display labels.
 export const WORKER_STATUS_LABELS: Record<string, string> = {
   pending: "Pending", // Registered, hasn't started verification
-  verification_paid: "Verification Paid",
+  verification_paid: "Legacy payment — Finance review",
   profile_under_review: "Profile Under Review",
   verified: "Verified", // WeHouse approved, worker is PUBLIC
   rejected: "Rejected", // WeHouse declined, NOT public, can resubmit
   suspended: "Suspended",
-  // Legacy — workers with old 'approved_for_verification' status should be migrated to 'verification_paid'
-  approved_for_verification: "Approved For Verification (Legacy)",
+  // Legacy values remain readable for Finance reconciliation only.
+  approved_for_verification: "Legacy review state",
   approved: "Approved (Legacy)",
   declined: "Declined (Legacy)",
 };
 
 export const WORKER_STATUS_COLORS: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  verification_paid: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  verification_paid: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   profile_under_review: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   verified: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   rejected: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   suspended: "bg-red-500/10 text-red-400 border-red-500/20",
   // Legacy
-  approved_for_verification: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  approved_for_verification: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   approved: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   declined: "bg-orange-500/10 text-orange-400 border-orange-500/20",
 };
@@ -112,7 +112,7 @@ export interface Profile {
   privacy_activity_visible: boolean;
   pref_push_notif: boolean;
   // ── WORKER FIELDS ─────────────────────────────────
-  worker_status: WorkerStatus | null; // pending → verification_paid → profile_under_review → verified/rejected
+  worker_status: WorkerStatus | null; // pending → profile_under_review → verified/rejected; verification_paid is legacy-only
   worker_occupation: string | null; // e.g. "electrician" (primary skill)
   worker_skills: string[] | null; // multiple skills e.g. ["plumbing", "electrical"]
   worker_price: number | null; // price worker charges (in NGN)
@@ -475,6 +475,7 @@ export interface Message {
   seen: boolean;
   created_at: string;
   edited_at?: string | null;
+  decryption_failed?: boolean;
   file_url?: string | null;
   file_name?: string | null;
   file_type?: string | null;
@@ -671,6 +672,7 @@ export interface HotelBooking {
   total_price: number;
   status: HotelBookingStatus;
   payment_status?: string | null;
+  payment_protection_id?: string | null;
   booking_code?: string | null;
   guest_name: string | null;
   guest_phone: string | null;
@@ -1467,14 +1469,15 @@ export const WORKER_VERIFICATION_STATUS_COLORS: Record<
   rejected: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
-// ─── BLUE BADGE SUBSCRIPTION ────────────────────────────────
+// ─── LEGACY WORKER SUBSCRIPTION RECORD ──────────────
 
-export type BlueBadgeStatus = "active" | "inactive" | "expired" | "cancelled";
+// Legacy subscription type names are retained only for database compatibility.
+export type LegacyWorkerSubscriptionStatus = "active" | "inactive" | "expired" | "cancelled";
 
-export interface BlueBadgeSubscription {
+export interface LegacyWorkerSubscription {
   id: string;
   worker_id: string;
-  status: BlueBadgeStatus;
+  status: LegacyWorkerSubscriptionStatus;
   started_at: string | null;
   expires_at: string | null;
   paystack_reference: string | null;
@@ -1484,14 +1487,14 @@ export interface BlueBadgeSubscription {
   updated_at: string;
 }
 
-export const BLUE_BADGE_STATUS_LABELS: Record<BlueBadgeStatus, string> = {
+export const LEGACY_WORKER_SUBSCRIPTION_STATUS_LABELS: Record<LegacyWorkerSubscriptionStatus, string> = {
   active: "Active",
   inactive: "Inactive",
   expired: "Expired",
   cancelled: "Cancelled",
 };
 
-export const BLUE_BADGE_STATUS_COLORS: Record<BlueBadgeStatus, string> = {
+export const LEGACY_WORKER_SUBSCRIPTION_STATUS_COLORS: Record<LegacyWorkerSubscriptionStatus, string> = {
   active: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   inactive: "bg-gray-500/10 text-gray-400 border-gray-500/20",
   expired: "bg-amber-500/10 text-amber-400 border-amber-500/20",

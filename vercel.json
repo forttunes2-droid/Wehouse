@@ -1,6 +1,35 @@
 {
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://js.paystack.co https://cdn.jsdelivr.net https://vercel.live; style-src 'self' 'unsafe-inline' https://vercel.live; img-src 'self' data: blob: https: https://vercel.live https://vercel.com; media-src 'self' blob: https://*.supabase.co; connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://*.paystack.co https://cdn.jsdelivr.net https://*.basemaps.cartocdn.com https://tile.openstreetmap.org https://vercel.live wss://ws-us3.pusher.com; frame-src https://*.paystack.co https://vercel.live; worker-src 'self' blob:; font-src 'self' data: https://vercel.live https://assets.vercel.com; upgrade-insecure-requests"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=(self), payment=(self)"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    },
+    {
       "source": "/assets/(.*)",
       "headers": [
         {

@@ -7,6 +7,7 @@ export type PrivateCall={id:string;context_type:PrivateCallContext;context_id:st
 export type CallCapabilities={peer_id:string;peer_name:string;peer_avatar:string|null;allow_audio_calls:boolean;allow_video_calls:boolean};
 export type CallPreferences={allow_audio_calls:boolean;allow_video_calls:boolean};
 export type CallSignal={id:string;call_id:string;sender_id:string;signal_type:'offer'|'answer'|'ice';payload:any;created_at:string};
+export type PrivateCallIce={iceServers:RTCIceServer[];relayReady:boolean};
 
 export function launchPrivateCall(contextType:PrivateCallContext,contextId:string,callType:PrivateCallType){
   window.dispatchEvent(new CustomEvent('wehouse:start-private-call',{detail:{contextType,contextId,callType}}));
@@ -21,3 +22,10 @@ export async function respondPrivateCall(callId:string,accept:boolean){const{dat
 export async function endPrivateCall(callId:string){const{data,error}=await supabase.rpc('end_private_call',{p_call_id:callId});return{call:(data||null) as PrivateCall|null,error}}
 export async function listCallSignals(callId:string){const{data,error}=await supabase.from('private_call_signals').select('id,call_id,sender_id,signal_type,payload,created_at').eq('call_id',callId).order('created_at',{ascending:true});return{signals:(data||[]) as CallSignal[],error}}
 export async function sendCallSignal(callId:string,senderId:string,signalType:CallSignal['signal_type'],payload:any){return supabase.from('private_call_signals').insert({call_id:callId,sender_id:senderId,signal_type:signalType,payload})}
+export async function getPrivateCallIceServers(callId:string):Promise<PrivateCallIce>{
+  const fallback:PrivateCallIce={iceServers:[{urls:'stun:stun.l.google.com:19302'}],relayReady:false};
+  const{data,error}=await supabase.functions.invoke('private-call-ice',{body:{call_id:callId}});
+  if(error||!Array.isArray(data?.ice_servers))return fallback;
+  const iceServers=(data.ice_servers as RTCIceServer[]).filter(server=>Boolean(server?.urls));
+  return iceServers.length?{iceServers,relayReady:Boolean(data.relay_ready)}:fallback;
+}

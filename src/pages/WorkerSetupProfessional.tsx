@@ -12,11 +12,17 @@ import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
 import { occupationForService, workerOccupation } from '@/lib/workerTaxonomy';
 
-type Props = { profile: Profile; onComplete: () => void; onBack?: () => void };
+type Props = {
+  profile: Profile;
+  onComplete: () => void;
+  onContinueVerification?: () => void;
+  onBack?: () => void;
+};
 
 export default function WorkerSetupProfessional({
   profile,
   onComplete,
+  onContinueVerification,
   onBack,
 }: Props) {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -143,23 +149,13 @@ export default function WorkerSetupProfessional({
     });
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success("Professional profile saved");
+    toast.success("Worker profile saved");
 
-    try {
-      if (sessionStorage.getItem("wh_worker_setup_return") === "verification") {
-        sessionStorage.removeItem("wh_worker_setup_return");
-        localStorage.setItem("wh_navpage", "worker_verification");
-        window.history.replaceState(
-          { page: "worker_verification" },
-          "",
-          "#worker_verification",
-        );
-        window.location.reload();
+    if (!profile.worker_verified) {
+      if (onContinueVerification) {
+        onContinueVerification();
         return;
       }
-    } catch {}
-
-    if (!profile.profile_complete) {
       try {
         localStorage.setItem("wh_navpage", "worker_verification");
         window.history.replaceState(
@@ -187,7 +183,7 @@ export default function WorkerSetupProfessional({
             </p>
             <div className="mt-1 flex items-center justify-between gap-3">
               <h1 className="truncate text-xl font-bold">
-                {profile.profile_complete
+                {profile.worker_occupation
                   ? "Edit profile"
                   : "Set up your work profile"}
               </h1>
@@ -251,7 +247,7 @@ export default function WorkerSetupProfessional({
               />
             </div>
             <div className="mt-3">
-              <Field label="Professional title" value={occupation} set={setOccupation} />
+              <Field label="Work title" value={occupation} set={setOccupation} />
               <p className="mt-1.5 text-[8px] text-[#5F6676]">This is the title shown on your public profile, such as Electrician or Hairstylist.</p>
             </div>
             <label className="mt-3 block">

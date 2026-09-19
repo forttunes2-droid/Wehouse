@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import WorkerProBadge from '@/components/WorkerProBadge';
 import WorkerProTools from '@/components/WorkerProTools';
 import { supabase } from '@/lib/supabase';
 import { isAndroid, isIOS, isNative } from '@/lib/native';
@@ -101,9 +100,9 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
       <section className="overflow-hidden rounded-3xl border border-amber-300/15 bg-[radial-gradient(circle_at_top_right,rgba(245,190,48,.16),transparent_38%),#11131A] p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <WorkerProBadge />
+            <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-200">Optional paid tools</p>
             <h2 className="mt-3 text-xl font-bold">{pro.product_name || 'WeHouse Works'}</h2>
-            <p className="mt-2 max-w-xl text-[10px] leading-5 text-[#9196A5]">{pro.product_tagline || 'Run your work with clearer numbers, documents and reach.'} The gold PRO mark shows paid membership only; it never buys Reviewed, Trusted, jobs, organic ranking or favorable dispute treatment.</p>
+            <p className="mt-2 max-w-xl text-[10px] leading-5 text-[#9196A5]">{pro.product_tagline || 'Run your work with clearer numbers, documents and reach.'} Your subscription pays for the business tools listed below. It never buys Reviewed, Trusted, jobs, organic ranking or favorable dispute treatment.</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-lg font-bold">{native ? 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>
@@ -115,10 +114,9 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
       <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">{pro.active ? 'Plan is active' : 'Plan features'}</p>
-            <p className="mt-1 text-[9px] text-[#707686]">{pro.active ? `${pro.cancel_at_period_end ? 'Access ends' : 'Current period ends'}${activeUntil ? ` ${activeUntil}` : ''}` : 'Business value beyond the gold PRO mark.'}</p>
+            <p className="text-sm font-semibold">{pro.active ? 'Paid tools are active' : 'Included tools'}</p>
+            <p className="mt-1 text-[9px] text-[#707686]">{pro.active ? `${pro.cancel_at_period_end ? 'Access ends' : 'Current period ends'}${activeUntil ? ` ${activeUntil}` : ''}` : 'Choose this only if the listed business tools are useful to your work.'}</p>
           </div>
-          {pro.active && <WorkerProBadge />}
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {pro.features.map((feature) => <div key={feature} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.05] bg-black/10 px-3 text-[10px] text-[#C9CCD5]"><span className="text-amber-300">✓</span>{feature}</div>)}

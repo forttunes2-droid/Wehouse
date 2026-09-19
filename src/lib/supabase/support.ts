@@ -152,7 +152,7 @@ export function conversationPresentation(
         place ||
         safeSubject ||
         (contextType === "hotel_booking" ? "Hotel stay" : stay),
-      operator: "WeHouse Support",
+      operator: "WeHouse Property Operations",
       meta: [
         contextType === "hotel_booking"
           ? "Hotel booking"
@@ -183,7 +183,7 @@ export function conversationPresentation(
           rawSubject ||
           "Property",
       ).replace(/^(question about|inspection help)\s*·\s*/i, ""),
-      operator: "WeHouse Support",
+      operator: "WeHouse Property Operations",
       meta: [
         contextType === "property_inspection"
           ? "Property inspection"
@@ -201,12 +201,40 @@ export function conversationPresentation(
     return {
       kind: "service_help",
       title: rawSubject || String(snapshot.service_type || "Service booking"),
-      operator: "WeHouse Service Support",
+      operator: "WeHouse Worker Operations",
       meta: ["Service booking", audience === "customer" ? "" : reference, status]
         .filter(Boolean)
         .join(" · "),
       operational: true,
     };
+  if (["contextual_help", "operational_case"].includes(contextType)) {
+    const reason = String(snapshot.reason_code || "");
+    const domain = String(snapshot.owning_domain || (
+      ["payment_issue", "payout_issue", "caution_claim"].includes(reason)
+        ? "finance_operations"
+        : ["account_compromise", "blocked_active_obligation", "safety_threat"].includes(reason)
+          ? "security_operations"
+          : ["worker_job_issue", "worker_verification"].includes(reason)
+            ? "worker_operations"
+            : "support"
+    ));
+    const operator = domain === "finance_operations"
+      ? "WeHouse Finance Operations"
+      : domain === "security_operations"
+        ? "WeHouse Security Operations"
+        : domain === "worker_operations"
+          ? "WeHouse Worker Operations"
+          : domain === "property_operations"
+            ? "WeHouse Property Operations"
+            : "WeHouse Support";
+    return {
+      kind: "support",
+      title: rawSubject || String(snapshot.reason_label || snapshot.linked_label || "WeHouse"),
+      operator,
+      meta: [String(snapshot.reason_label || "Help"), status].filter(Boolean).join(" · "),
+      operational: false,
+    };
+  }
   return {
     kind: "support",
     title:
@@ -234,11 +262,33 @@ function reservationStatusLabel(status: string, contextType: string) {
 export async function createSupportConversation(
   input: SupportOpenContext = {},
 ) {
+  const snapshot = sanitizeSupportSnapshot(input.contextSnapshot);
+  const rawContextType = input.contextType || "general";
   const canonicalContextType = ["reservation", "apartment_payment"].includes(
-    input.contextType || "",
+    rawContextType,
   )
     ? "apartment_reservation"
-    : input.contextType;
+    : rawContextType === "listing"
+      ? "property_listing"
+      : rawContextType;
+
+  // Inspection is its own work record, but customer communication remains on
+  // the reservation's existing WeHouse thread when a reservation already exists.
+  if (
+    canonicalContextType === "property_inspection" &&
+    typeof snapshot.reservation_id === "string" &&
+    snapshot.reservation_id
+  ) {
+    const { data, error } = await supabase.rpc(
+      "open_my_reservation_conversation",
+      {
+        p_context_type: "apartment_reservation",
+        p_context_id: snapshot.reservation_id,
+      },
+    );
+    return { conversationId: data as string | null, error };
+  }
+
   if (
     ["apartment_reservation", "hotel_booking"].includes(
       canonicalContextType || "",
@@ -253,7 +303,46 @@ export async function createSupportConversation(
     );
     return { conversationId: data as string | null, error };
   }
-  const snapshot = sanitizeSupportSnapshot(input.contextSnapshot);
+
+  if (canonicalContextType === "worker_booking") {
+    const { data, error } = await supabase.rpc(
+      "open_contextual_case_conversation",
+      {
+        p_reason_code: "worker_job_issue",
+        p_subject_type: "worker_job",
+        p_subject_id: input.contextId,
+        p_summary: input.subject || null,
+        p_snapshot: snapshot,
+      },
+    );
+    const result = (data || {}) as { conversation_id?: string | null };
+    return { conversationId: result.conversation_id || null, error };
+  }
+
+  if (canonicalContextType === "property_listing") {
+    const { data, error } = await supabase.rpc(
+      "open_property_operations_conversation",
+      {
+        p_subject_type: "apartment",
+        p_subject_id: input.contextId,
+        p_snapshot: snapshot,
+      },
+    );
+    return { conversationId: data as string | null, error };
+  }
+
+  if (["hotel_property", "hotel_operations"].includes(canonicalContextType)) {
+    const { data, error } = await supabase.rpc(
+      "open_property_operations_conversation",
+      {
+        p_subject_type: "hotel",
+        p_subject_id: input.contextId,
+        p_snapshot: snapshot,
+      },
+    );
+    return { conversationId: data as string | null, error };
+  }
+
   const { data, error } = await supabase.rpc("create_my_support_case", {
     p_subject: input.subject || "WeHouse",
     p_category: input.category || "general",
@@ -268,6 +357,138 @@ export async function createSupportConversation(
 }
 
 export const ensureSupportConversation = createSupportConversation;
+
+export type SupportMessageDraftStatus = {
+  draft_id: string;
+  state: "draft" | "sent" | "expired";
+  conversation_id: string | null;
+  message_id: string | null;
+  expires_at: string;
+  consumed_at: string | null;
+};
+
+export const SUPPORT_EVIDENCE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export function isSupportedSupportEvidence(file: File) {
+  return SUPPORT_EVIDENCE_MIME_TYPES.has(file.type || "");
+}
+
+export async function createSupportMessageDraft() {
+  const { data, error } = await supabase.rpc("create_my_support_message_draft");
+  return { draftId: data as string | null, error };
+}
+
+export async function getSupportMessageDraftStatus(draftId: string) {
+  const { data, error } = await supabase.rpc("get_my_support_message_draft_status", {
+    p_draft_id: draftId,
+  });
+  return { status: (data || null) as SupportMessageDraftStatus | null, error };
+}
+
+export async function discardSupportMessageDraft(draftId: string) {
+  const { data, error } = await supabase.rpc("discard_my_support_message_draft", {
+    p_draft_id: draftId,
+  });
+  return { discarded: data === true, error };
+}
+
+export async function sendFirstWeHouseMessage(
+  draftId: string,
+  context: SupportOpenContext,
+  content: string,
+  attachments: string[] = [],
+  attachmentTypes: string[] = [],
+) {
+  const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);
+  const { data, error } = await supabase.rpc("send_my_first_wehouse_message", {
+    p_draft_id: draftId,
+    p_subject: context.subject || "WeHouse",
+    p_category: context.category || "general",
+    p_context_type: context.contextType || "general",
+    p_context_id: context.contextId || null,
+    p_context_snapshot: snapshot,
+    p_priority: context.priority || "normal",
+    p_content: content,
+    p_attachments: attachments,
+    p_attachment_types: attachmentTypes,
+  });
+  const result = (data || {}) as {
+    conversation_id?: string | null;
+    message_id?: string | null;
+    replayed?: boolean;
+  };
+  return {
+    conversationId: result.conversation_id || null,
+    messageId: result.message_id || null,
+    replayed: result.replayed === true,
+    error,
+  };
+}
+
+export async function sendFirstContextualHelpMessage(
+  draftId: string,
+  context: SupportOpenContext,
+  content: string,
+  attachments: string[] = [],
+  attachmentTypes: string[] = [],
+) {
+  const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);
+  const reasonCode = String(snapshot.reason_code || "").trim();
+  const subjectType = String(snapshot.subject_type || "").trim();
+  const subjectId = String(snapshot.source_id || context.contextId || "").trim();
+  const { data, error } = await supabase.rpc("send_my_first_contextual_help_message", {
+    p_draft_id: draftId,
+    p_reason_code: reasonCode,
+    p_subject_type: subjectType,
+    p_subject_id: subjectId,
+    p_summary: context.subject || null,
+    p_snapshot: snapshot,
+    p_content: content,
+    p_attachments: attachments,
+    p_attachment_types: attachmentTypes,
+  });
+  const result = (data || {}) as {
+    conversation_id?: string | null;
+    message_id?: string | null;
+    replayed?: boolean;
+  };
+  return {
+    conversationId: result.conversation_id || null,
+    messageId: result.message_id || null,
+    replayed: result.replayed === true,
+    error,
+  };
+}
+
+export async function uploadSupportDraftAttachment(
+  draftId: string,
+  requesterId: string,
+  file: File,
+) {
+  const safeName =
+    file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100) || "attachment";
+  const path = `drafts/${requesterId}/${draftId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+  const { error } = await supabase.storage
+    .from("support-files")
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || undefined,
+    });
+  return { path: error ? null : path, error };
+}
 
 export async function getMySupportConversations() {
   const { data, error } = await supabase.rpc("get_my_support_conversations");

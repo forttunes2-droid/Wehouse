@@ -19,6 +19,7 @@ type Activation = {
   profile_complete: boolean;
   identity_required?: boolean;
   identity_status: string;
+  identity_captured?: boolean;
   identity_passed: boolean;
   identity_current?: boolean;
   identity_captured_at?: string | null;
@@ -44,6 +45,7 @@ const EMPTY: Activation = {
   profile_complete: false,
   identity_required: false,
   identity_status: "not_started",
+  identity_captured: false,
   identity_passed: false,
   identity_current: false,
   identity_captured_at: null,
@@ -83,14 +85,14 @@ export default function WorkerVerificationPhase9({
     },
     [preview],
   );
-  const identityRequired = a.identity_required === true,
-    complete = (!identityRequired || a.identity_passed) && a.evidence_saved,
+  const identityComplete = a.identity_captured === true && a.identity_passed === true,
+    complete = identityComplete && a.evidence_saved,
     reviewing =
       a.worker_status === "profile_under_review" ||
       (a.submitted && a.worker_status !== "verified"),
     approvedProfile =
       a.worker_status === "verified" && profile.worker_verified === true,
-    identityExpired = approvedProfile && !a.identity_current,
+    identityExpired = approvedProfile && a.identity_captured === true && !a.identity_current,
     live = Boolean(a.live),
     repeatDays = Number(a.identity_recheck_days || 14);
   function openProfile() {
@@ -229,7 +231,7 @@ export default function WorkerVerificationPhase9({
               WEHOUSE · SERVICE WORKER
             </p>
             <h1 className="mt-1 text-lg font-bold">
-              Professional verification
+              Worker verification
             </h1>
           </div>
         </div>
@@ -249,7 +251,7 @@ export default function WorkerVerificationPhase9({
             Worker onboarding and review are free
           </h2>
           <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
-            WeHouse never charges you to register, submit professional evidence,
+            WeHouse never charges you to register, submit work evidence,
             become Reviewed, appear in discovery or receive eligible jobs.
             The paid Worker plan is optional work software and does not
             buy review status, marketplace trust or better dispute treatment.
@@ -260,7 +262,7 @@ export default function WorkerVerificationPhase9({
             <Card
               eyebrow="IDENTITY CHECK DUE"
               title="Confirm it is still you"
-              text="Your professional profile and history are safe. Complete the quick live check to return to public discovery and new Worker activity."
+              text="Your Worker profile and history are safe. Complete the quick live check to return to public discovery and new Worker activity."
             >
               <Status text="New bookings and public Worker activity are paused until this check passes" />
             </Card>
@@ -295,8 +297,8 @@ export default function WorkerVerificationPhase9({
             />
             {a.profile_complete && !reviewing && !approvedProfile && (
               <WorkerVerificationChecklist
-                identityPassed={a.identity_passed}
-                identityRequired={identityRequired}
+                identityPassed={identityComplete}
+                identityRequired
                 skillVideoSaved={a.evidence_saved}
               />
             )}{" "}
@@ -307,39 +309,39 @@ export default function WorkerVerificationPhase9({
                 text={a.rejection_reason}
               />
             )}{" "}
-            {reviewing ? (
+            {!a.profile_complete ? (
               <Card
-                eyebrow="3 · WEHOUSE REVIEW"
-                title="Review in progress"
-                text="WeHouse is reviewing your real professional work evidence."
-              >
-                <Status text="Your profile stays private until approval" />
-                <Button label="Back to dashboard" onClick={onBack} secondary />
-              </Card>
-            ) : !a.profile_complete ? (
-              <Card
-                eyebrow="1 · PROFESSIONAL PROFILE"
+                eyebrow="1 · WORKER PROFILE"
                 title="Complete your work profile"
                 text="Add your service, experience, price and work location."
               >
                 <Button
-                  label="Complete professional profile"
+                  label="Continue Worker setup"
                   onClick={openProfile}
                 />
               </Card>
-            ) : identityRequired && !a.identity_passed ? (
+            ) : !identityComplete ? (
               <WorkerIdentityCheck
                 profile={profile}
                 status={a.identity_status}
                 onSaved={refresh}
               />
+            ) : reviewing ? (
+              <Card
+                eyebrow="3 · WEHOUSE REVIEW"
+                title="Review in progress"
+                text="WeHouse is reviewing your real work evidence."
+              >
+                <Status text="Your profile stays private until approval" />
+                <Button label="Back to dashboard" onClick={onBack} secondary />
+              </Card>
             ) : !a.evidence_saved ? (
               <Card
                 eyebrow="2 · WORKER VERIFICATION"
                 title="Show your real work"
                 text="Upload one short skill or completed-work video for private WeHouse review."
               >
-                <Status text={identityRequired ? "Identity check complete · onboarding is free" : "Free onboarding · no payment required"} good />
+                <Status text="Private face check complete · onboarding is free" good />
                 <Upload
                   label={
                     certificatePath
@@ -376,7 +378,7 @@ export default function WorkerVerificationPhase9({
                   <VideoPlayer src={preview} className="max-h-64 w-full rounded-2xl bg-black object-contain" />
                 )}
                 <Button
-                  label={busy ? "Saving…" : "Save professional evidence"}
+                  label={busy ? "Saving…" : "Save work evidence"}
                   onClick={() => void saveEvidence()}
                   disabled={busy || !videoPath}
                 />
@@ -385,7 +387,7 @@ export default function WorkerVerificationPhase9({
               <Card
                 eyebrow="3 · WEHOUSE REVIEW"
                 title="Ready for review"
-                text={identityRequired ? "Your approved identity step and professional work evidence are complete. No onboarding payment is required." : "Your professional work evidence is complete. Onboarding and review are free."}
+                text="Your private face check and work evidence are complete. No onboarding payment is required."
               >
                 <Button
                   label={busy ? "Submitting…" : "Submit to WeHouse"}
@@ -563,7 +565,7 @@ function Progress({
   review: boolean;
 }) {
   const items = [
-    ["Professional profile", profile],
+    ["Worker profile", profile],
     ["Verification", verification],
     ["WeHouse review", review],
   ] as const;

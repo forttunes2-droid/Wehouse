@@ -36,7 +36,7 @@ export default function WorkerBookingDocuments({
 
   if (loading) return <p className="mt-4 text-[9px] text-[#6B7181]">Loading job documents…</p>;
   if (documents.length === 0) return null;
-  return <section className="mt-4 border-t border-white/[.06] pt-4" aria-label="Quotes and invoices">
+  return <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4" aria-label="Quotes and invoices">
     <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">Quotes &amp; invoices</p>
     <div className="mt-2 space-y-2">{documents.map((document) => <article key={document.id} className="rounded-xl border border-white/[.06] bg-black/10 p-3">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.1em] text-violet-300">{document.document_type} · {document.document_number}</p><p className="mt-1 truncate text-[10px] font-semibold">{document.title}</p><p className="mt-1 text-[8px] text-[#6C7282]">{document.document_status.replaceAll("_", " ")}</p></div><p className="shrink-0 text-[11px] font-bold">₦{Number(document.total).toLocaleString("en-NG")}</p></div>

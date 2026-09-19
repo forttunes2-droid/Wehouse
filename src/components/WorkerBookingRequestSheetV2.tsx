@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import SearchableSelect from "@/components/SearchableSelect";
-import WorkerProBadge from "@/components/WorkerProBadge";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
 import { createBookingRequest } from "@/lib/supabase/worker-bookings";
 import { supabase } from "@/lib/supabase";
@@ -163,7 +162,6 @@ export default function WorkerBookingRequestSheetV2({
             </p>
               <h2 className="flex items-center gap-2 truncate text-sm font-semibold">
                 {worker.full_name || worker.username || "Professional"}
-                {worker.pro_active ? <WorkerProBadge compact /> : null}
                 <WorkerTrustBadge />
               </h2>
           </div>

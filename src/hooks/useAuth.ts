@@ -146,8 +146,12 @@ function safeAuthMessage(error: unknown, fallback = "We couldn’t complete sign
 }
 function passwordRecoveryRequested() {
   try {
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     return (
-      new URLSearchParams(window.location.search).get("auth") === "recovery"
+      query.get("auth") === "recovery" ||
+      query.get("type") === "recovery" ||
+      hash.get("type") === "recovery"
     );
   } catch {
     return false;

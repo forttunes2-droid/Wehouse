@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import MediaViewer from "@/components/MediaViewer";
 import VideoPlayer from "@/components/VideoPlayer";
+import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 
 type Worker = {
   user_id: string;
@@ -329,6 +330,8 @@ export default function StaffWorkerReviewModern() {
   }
   return (
     <div className="space-y-4">
+      <AccountIdentityReviewQueue accountRole="worker" />
+      <div className="border-t border-white/[.06]" />
       <div>
         <h2 className="text-lg font-bold">Worker reviews</h2>
         <p className="mt-1 text-[10px] text-[#707687]">

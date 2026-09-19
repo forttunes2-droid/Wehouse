@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 type Props = {
   src: string;
   className?: string;
+  containerClassName?: string;
   autoPlay?: boolean;
   muted?: boolean;
   durationHint?: number;
@@ -14,6 +15,7 @@ type Props = {
 export default function VideoPlayer({
   src,
   className = "aspect-video w-full bg-black object-contain",
+  containerClassName = "bg-black",
   autoPlay = false,
   muted = false,
   durationHint = 0,
@@ -93,7 +95,7 @@ export default function VideoPlayer({
   }
 
   return (
-    <div className="relative overflow-hidden bg-black">
+    <div className={`relative overflow-hidden ${containerClassName}`}>
       <video
         ref={videoRef}
         src={src}

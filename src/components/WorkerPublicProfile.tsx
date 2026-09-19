@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import WorkerProBadge from "@/components/WorkerProBadge";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
 import { supabase } from "@/lib/supabase";
 import { workerServiceNames } from "@/lib/workerTaxonomy";
@@ -29,7 +28,6 @@ type Trust = {
   reviewed?: boolean;
   trusted?: boolean;
   trusted_enabled?: boolean;
-  pro_active?: boolean;
   completed_jobs?: number;
   rating?: number;
   review_count?: number;
@@ -191,7 +189,7 @@ export default function WorkerPublicProfileV2({
       onClose={onBack}
       maxWidth="4xl"
       actions={communicationActions}
-      badges={<>{trust?.pro_active ? <WorkerProBadge /> : null}{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
+      badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[9px] font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
       bottomAction={showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-xs font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
       <section className={`grid border-y border-white/[.06] ${reviewCount > 0 ? "grid-cols-2" : "grid-cols-1"}`}>

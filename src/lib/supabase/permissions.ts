@@ -5,7 +5,7 @@ import { supabase } from './client';
 import type { StaffPermission } from '@/types';
 import type { PostgrestError } from '@supabase/supabase-js';
 
-type PermissionRow = { permission: StaffPermission | null };
+type PermissionRow = { permission: string | null };
 type StaffProfileRow = {
   user_id: string;
   email: string;
@@ -15,6 +15,30 @@ type StaffProfileRow = {
 };
 type StaffSummary = Pick<StaffProfileRow, 'user_id' | 'email' | 'username'>;
 
+// The database stores canonical operational domains. The UI keeps the existing
+// StaffPermission identifiers so old and new assignments resolve to the same
+// one workspace instead of leaving a Staff account with "no work area".
+export function normalizeStaffPermission(value: string | null | undefined): StaffPermission | null {
+  const key = String(value || '').trim().toLowerCase();
+  const map: Record<string, StaffPermission> = {
+    operations: 'operations',
+    property_operations: 'operations',
+    finance: 'finance',
+    finance_operations: 'finance',
+    support: 'support',
+    security: 'security',
+    security_operations: 'security',
+    verification: 'verification',
+    worker_verification: 'verification',
+    worker_operations: 'verification',
+    field_officer: 'field_officer',
+    field_operation: 'field_officer',
+    field_operations: 'field_officer',
+    admin: 'admin',
+  };
+  return map[key] || null;
+}
+
 export async function getStaffPermissions(staffId: string): Promise<{
   permissions: StaffPermission[];
   error: PostgrestError | null;
@@ -23,15 +47,14 @@ export async function getStaffPermissions(staffId: string): Promise<{
     .from('staff_permissions')
     .select('permission')
     .eq('staff_id', staffId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .is('revoked_at', null);
 
   if (error) return { permissions: [], error };
-  return {
-    permissions: ((data || []) as PermissionRow[])
-      .map((row) => row.permission)
-      .filter((permission): permission is StaffPermission => permission !== null),
-    error: null,
-  };
+  const permissions = ((data || []) as PermissionRow[])
+    .map((row) => normalizeStaffPermission(row.permission))
+    .filter((permission): permission is StaffPermission => permission !== null);
+  return { permissions: [...new Set(permissions)], error: null };
 }
 
 export async function grantPermission(
@@ -98,11 +121,24 @@ export async function getAllStaffWithPermissions(): Promise<{
 export async function getStaffByPermission(
   permission: StaffPermission
 ): Promise<{ staff: StaffSummary[]; error: PostgrestError | null }> {
+  const canonical =
+    permission === 'operations'
+      ? 'property_operations'
+      : permission === 'field_officer'
+        ? 'field_operations'
+        : permission === 'verification'
+          ? 'worker_operations'
+          : permission === 'finance'
+            ? 'finance_operations'
+            : permission === 'security'
+              ? 'security_operations'
+              : permission;
   const { data, error } = await supabase
     .from('staff_permissions')
     .select('staff_id')
-    .eq('permission', permission)
-    .eq('is_active', true);
+    .eq('permission', canonical)
+    .eq('is_active', true)
+    .is('revoked_at', null);
   if (error || !data?.length) return { staff: [], error };
 
   const { data: profiles, error: profileError } = await supabase

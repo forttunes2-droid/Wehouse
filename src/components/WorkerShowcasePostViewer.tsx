@@ -121,7 +121,7 @@ export default function WorkerShowcasePostViewer({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100200] isolate h-[100dvh] overflow-hidden bg-black text-white"
+      className="fixed inset-0 z-[100200] isolate h-[100dvh] overflow-hidden bg-[#090B12] text-white"
       role="dialog"
       aria-modal="true"
       aria-label={`${workerName} work post`}
@@ -185,8 +185,16 @@ export default function WorkerShowcasePostViewer({
       </div>
 
       {commentsOpen ? (
-        <section className="absolute inset-0 z-20 flex w-full flex-col bg-[#10131A] pb-[env(safe-area-inset-bottom)] shadow-2xl sm:left-auto sm:w-[min(28rem,46vw)] sm:border-l sm:border-white/[.1]">
-            <header className="flex min-h-16 items-center gap-2 border-b border-white/[.06] px-3 pt-[env(safe-area-inset-top)] sm:px-4">
+        <>
+          <button
+            type="button"
+            aria-label="Close comments"
+            onClick={() => setCommentsOpen(false)}
+            className="absolute inset-0 z-[19] bg-black/30"
+          />
+          <section className="absolute inset-x-0 bottom-0 z-20 flex max-h-[72dvh] min-h-[18rem] flex-col rounded-t-[28px] border-t border-white/[.1] bg-[#10131A] pb-[env(safe-area-inset-bottom)] shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(28rem,46vw)] sm:rounded-none sm:border-l sm:border-t-0">
+            <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 sm:hidden" />
+            <header className="flex min-h-14 items-center gap-2 border-b border-white/[.06] px-3 sm:min-h-16 sm:px-4 sm:pt-[env(safe-area-inset-top)]">
               <BackButton onClick={() => setCommentsOpen(false)} className="!ml-0 !h-11 !w-11" />
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-bold">Comments</h2>
@@ -230,7 +238,8 @@ export default function WorkerShowcasePostViewer({
                 {commentBusy ? "…" : "Post"}
               </button>
             </form>
-        </section>
+          </section>
+        </>
       ) : null}
     </div>,
     document.body,
@@ -240,18 +249,25 @@ export default function WorkerShowcasePostViewer({
 function MediaStage({ post, workerName }: { post: Post; workerName: string }) {
   const src = post.url || "";
   return (
-    <div className="absolute inset-0 overflow-hidden bg-black">
-      {src ? (
-        post.media_type === "video" ? (
-          <video src={src} muted autoPlay loop playsInline aria-hidden="true" className="absolute inset-[-8%] h-[116%] w-[116%] scale-110 object-cover opacity-35 blur-3xl" />
-        ) : (
+    <div className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_50%_42%,rgba(124,58,237,.22),transparent_42%),linear-gradient(180deg,#111522_0%,#090B12_100%)]">
+      {src && post.media_type === "image" ? (
           <img src={src} alt="" aria-hidden="true" className="absolute inset-[-8%] h-[116%] w-[116%] scale-110 object-cover opacity-35 blur-3xl" />
-        )
       ) : null}
-      <div className="absolute inset-0 bg-black/25" />
+      <div className="absolute inset-0 bg-black/10" />
       <div className="absolute inset-0 flex items-center justify-center">
-        {post.media_type === "video" ? (
-          <VideoPlayer src={src} autoPlay className="h-full w-full bg-transparent object-contain" />
+        {!src ? (
+          <div className="mx-6 rounded-3xl border border-white/[.08] bg-white/[.035] px-8 py-10 text-center backdrop-blur-sm">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-violet-500/12 text-violet-200">▶</span>
+            <p className="mt-4 text-sm font-semibold">This work video is unavailable</p>
+            <p className="mt-2 text-[10px] leading-5 text-[#858B9A]">Close this post and try again when your connection improves.</p>
+          </div>
+        ) : post.media_type === "video" ? (
+          <VideoPlayer
+            src={src}
+            autoPlay
+            containerClassName="h-full w-full bg-transparent"
+            className="h-full w-full bg-transparent object-contain"
+          />
         ) : (
           <img src={src} alt={`${workerName} work`} className="max-h-full max-w-full object-contain" />
         )}

@@ -73,6 +73,7 @@ type Draft = {
   bedrooms: string;
   bathrooms: string;
   expectedRent: string;
+  cautionEnabled: boolean;
   securityDeposit: string;
   maxGuests: string;
   description: string;
@@ -150,6 +151,10 @@ function fresh(profile: Profile, copy?: Draft): Draft {
     bedrooms: "1",
     bathrooms: "1",
     expectedRent: "",
+    cautionEnabled:
+      copy?.subType === "short_let"
+        ? copy.cautionEnabled ?? Boolean(copy.securityDeposit)
+        : false,
     securityDeposit: copy?.subType === "short_let" ? copy.securityDeposit : "",
     maxGuests: copy?.subType === "short_let" ? copy.maxGuests || "" : "",
     description: "",
@@ -250,7 +255,7 @@ export default function PropertyInspectionRequestPanel({
       (draft.propertyType !== "apartment" ||
         draft.subType !== "short_let" ||
         (draft.propertyDisplayName.trim() &&
-          Number(draft.securityDeposit) > 0 &&
+          (!draft.cautionEnabled || Number(draft.securityDeposit) > 0) &&
           Number.isInteger(Number(draft.maxGuests)) &&
           Number(draft.maxGuests) >= 1)) &&
       (draft.propertyType !== "hotel" ||
@@ -283,6 +288,7 @@ export default function PropertyInspectionRequestPanel({
     draft.bedrooms !== "1" ||
     draft.bathrooms !== "1" ||
     draft.expectedRent.trim() ||
+    draft.cautionEnabled ||
     draft.securityDeposit.trim() ||
     draft.maxGuests.trim() ||
     draft.description.trim() ||
@@ -549,19 +555,22 @@ export default function PropertyInspectionRequestPanel({
       patch(index, { latitude: "", longitude: "", location: null });
       return;
     }
+    const hasCoordinates = value.latitude != null && value.longitude != null;
     patch(index, {
-      latitude: String(value.latitude),
-      longitude: String(value.longitude),
+      latitude: hasCoordinates ? String(value.latitude) : "",
+      longitude: hasCoordinates ? String(value.longitude) : "",
       propertyAddress: value.address || drafts[index]?.propertyAddress || "",
       propertyCity: drafts[index]?.propertyCity || value.city || "",
       propertyState: drafts[index]?.propertyState || value.state || "",
-      location: {
-        lat: value.latitude,
-        lon: value.longitude,
-        accuracy: value.accuracy,
-        source: "gps",
-        address: value.address,
-      },
+      location: hasCoordinates
+        ? {
+            lat: value.latitude as number,
+            lon: value.longitude as number,
+            accuracy: value.accuracy,
+            source: "gps",
+            address: value.address,
+          }
+        : null,
     });
   }
   async function submit(e: React.FormEvent) {
@@ -578,8 +587,9 @@ export default function PropertyInspectionRequestPanel({
             ? `Property ${invalid + 1}: add a photo for every room type`
             : d.propertyType === "apartment" &&
                 d.subType === "short_let" &&
+                d.cautionEnabled &&
                 !Number(d.securityDeposit)
-              ? `Property ${invalid + 1}: add the refundable security deposit`
+              ? `Property ${invalid + 1}: add the refundable caution amount`
               : d.propertyType === "apartment" &&
                   d.subType === "short_let" &&
                   Number(d.maxGuests) < 1
@@ -736,7 +746,9 @@ export default function PropertyInspectionRequestPanel({
                 : null,
           security_deposit_amount:
             d.propertyType === "apartment" && d.subType === "short_let"
-              ? Number(d.securityDeposit)
+              ? d.cautionEnabled
+                ? Number(d.securityDeposit)
+                : 0
               : null,
           max_guests:
             d.propertyType === "apartment" && d.subType === "short_let"
@@ -978,6 +990,7 @@ export default function PropertyInspectionRequestPanel({
                           onClick={() =>
                             patch(active, {
                               subType: "long_stay",
+                              cautionEnabled: false,
                               securityDeposit: "",
                             })
                           }
@@ -1036,14 +1049,44 @@ export default function PropertyInspectionRequestPanel({
                           set={(v) => patch(active, { propertyDisplayName: v })}
                           span
                         />
-                        <Field
-                          label="Refundable security deposit *"
-                          inputMode="numeric"
-                          value={current.securityDeposit}
-                          set={(v) =>
-                            patch(active, { securityDeposit: digits(v) })
-                          }
-                        />
+                        <section className="space-y-2">
+                          <p className="text-[10px] text-[#8A8B9C]">
+                            Refundable caution
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                patch(active, {
+                                  cautionEnabled: false,
+                                  securityDeposit: "",
+                                })
+                              }
+                              className={`rounded-xl border p-3 text-left ${!current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                            >
+                              <span className="block text-[10px] font-semibold">No caution</span>
+                              <span className="mt-1 block text-[8px] text-[#777C8D]">Guest pays only the stay price</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => patch(active, { cautionEnabled: true })}
+                              className={`rounded-xl border p-3 text-left ${current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                            >
+                              <span className="block text-[10px] font-semibold">Use caution</span>
+                              <span className="mt-1 block text-[8px] text-[#777C8D]">Separate refundable property protection</span>
+                            </button>
+                          </div>
+                        </section>
+                        {current.cautionEnabled && (
+                          <Field
+                            label="Refundable caution amount *"
+                            inputMode="numeric"
+                            value={current.securityDeposit}
+                            set={(v) =>
+                              patch(active, { securityDeposit: digits(v) })
+                            }
+                          />
+                        )}
                         <Field
                           label="Maximum guests *"
                           inputMode="numeric"
@@ -1187,10 +1230,11 @@ export default function PropertyInspectionRequestPanel({
                       Short Let rule
                     </p>
                     <p className="mt-1 text-[9px] text-[#85899A]">
-                      Short Let apartments are furnished, priced per night and
-                      require a refundable property-specific security deposit.
-                      Set the maximum number of guests the apartment safely
-                      allows.
+                      Short Let apartments are furnished and priced per night.
+                      A Property Partner may optionally enable a refundable caution amount.
+                      When caution is enabled, the guest can record pre-existing condition
+                      evidence during the booked 30–60 minute check-in window. Set the
+                      maximum number of guests the apartment safely allows.
                     </p>
                   </div>
                 )}
@@ -1205,7 +1249,7 @@ export default function PropertyInspectionRequestPanel({
                         longitude: current.location.lon,
                         accuracy: current.location.accuracy,
                         address:
-                          current.location.address || current.propertyAddress,
+                          current.propertyAddress || current.location.address || "",
                       }
                     : null
                 }

@@ -76,7 +76,11 @@ function MobileViewportInit() {
   return null;
 }
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('WeHouse root element is missing');
+
+document.documentElement.dataset.whReactMounted = 'true';
+createRoot(rootElement).render(
   <StrictMode>
     <ErrorBoundary>
       <NativeInit />

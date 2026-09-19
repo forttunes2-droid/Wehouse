@@ -10,16 +10,18 @@ import { canonicalStatusOptions } from "@/lib/status";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import StaffListTab from "./StaffListTab";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
-import BackButton from "@/components/BackButton";
+import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import Notifications from "./Notifications";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import HousingOperationsWorkspace from "@/components/HousingOperationsWorkspace";
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 import WeHouseSelect from "@/components/WeHouseSelect";
+import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
+import AdminSecurityCases from "@/components/AdminSecurityCases";
 
 type AdminTab = "overview" | "operations" | "inbox";
-type Operation = "people" | "staff" | "properties" | "workers" | "bookings";
+type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security";
 type OperationTarget = { operation: Operation; id?: string } | null;
 type PersonFilter = "user" | "property_partner";
 type Props = {
@@ -36,7 +38,7 @@ const NAV = [
 const NOTES: Record<AdminTab, string> = {
   overview: "Branch health and work that needs attention.",
   operations:
-    "People, team, properties, workers and bookings in one branch workspace.",
+    "People, team, properties, workers, bookings and security decisions in one branch workspace.",
   inbox: "Assigned branch conversations and Activity that require awareness.",
 };
 const OPS: [Operation, string, string][] = [
@@ -52,6 +54,11 @@ const OPS: [Operation, string, string][] = [
     "bookings",
     "Bookings",
     "Worker services, apartment reservations and hotel stays",
+  ],
+  [
+    "security",
+    "Security",
+    "Security Operations escalations and branch account decisions",
   ],
 ];
 export default function AdminDashboard({
@@ -108,6 +115,7 @@ export default function AdminDashboard({
     )
       return openOperation("bookings", id);
     if (route.includes("worker")) return openOperation("workers", id);
+    if (route.includes("security")) return openOperation("security", id);
     onNavigate?.(page, id);
   }
   const nav = NAV.map((item) =>
@@ -120,8 +128,10 @@ export default function AdminDashboard({
     <>
       <Toaster position="top-center" richColors />
       <WorkspaceFrameV2
-        label={`WEHOUSE · ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
+        label={`WEHOUSE TEAM · BRANCH ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
         title={workspaceTitle}
+        onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
+        backLabel="Back to work areas"
         description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : " · Branch assignment required"}`}
         items={nav}
         active={tab}
@@ -324,22 +334,30 @@ function Operations({
   onView: (p: Profile) => void;
   onRefreshStats: () => Promise<void> | void;
 }) {
-  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose a branch work area. Each opens its canonical records here.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
+  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose the area you want to manage.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-1 border-b border-white/[.06] pb-2"><BackButton onClick={() => setActive(null)} /><span className="text-[10px] font-semibold text-[#A2A7B5]">All work areas</span></div>
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
-        <PropertyPipelineWorkspace
-          profile={profile}
-          initialRecordId={target?.operation === "properties" ? target.id : undefined}
-        />
+        <div className="space-y-5">
+          <AccountIdentityReviewQueue accountRole="property_partner" />
+          <PropertyPipelineWorkspace
+            profile={profile}
+            initialRecordId={target?.operation === "properties" ? target.id : undefined}
+          />
+        </div>
       )}{" "}
       {active === "workers" && <Workers onChanged={onRefreshStats} />}{" "}
       {active === "bookings" && (
         <BookingsWorkspace
           initialRecordId={target?.operation === "bookings" ? target.id : undefined}
+        />
+      )}{" "}
+      {active === "security" && (
+        <AdminSecurityCases
+          onViewAccount={onView}
+          initialCaseId={target?.operation === "security" ? target.id : undefined}
         />
       )}{" "}
     </div>
@@ -553,6 +571,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
       title="Workers"
       note="Worker lifecycle review lives here. Availability is controlled only by the Worker and is not part of this filter."
     >
+      <AccountIdentityReviewQueue accountRole="worker" />
       <InlineFilterChips
         value={filter}
         options={statusOptions}
@@ -742,10 +761,7 @@ function Section({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-bold">{title}</h3>
-        <p className="mt-1 text-[10px] text-[#707386]">{note}</p>
-      </div>
+      <WorkspaceSectionHeading title={title} description={note} />
       {children}
     </div>
   );

@@ -1,3 +1,4 @@
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
   useState,
   useEffect,
@@ -27,6 +28,7 @@ import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import { workspaceLabel } from "@/lib/workspacePresentation";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -73,7 +75,6 @@ const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
 const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
 const WorkerDashboard = lazy(() => import("@/pages/WorkerDashboard"));
 const WorkerDiscovery = lazy(() => import("@/pages/WorkerDiscovery"));
-const Activity = lazy(() => import("@/pages/Activity"));
 const StaffDashboard = lazy(() => import("@/pages/StaffDashboard"));
 const HotelsHome = lazy(() => import("@/pages/HotelsHome"));
 const HotelDetail = lazy(() => import("@/pages/HotelDetail"));
@@ -98,20 +99,23 @@ function PageTransitionFallback() {
   }, []);
   return (
     <div
-      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#08090D] px-6 text-center text-white"
+      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0E0C12] px-6 py-10 text-center text-[#F6F2FC]"
       role="status"
       aria-label="Loading WeHouse"
     >
       <img
         src="/app-icon.svg?v=3"
         alt=""
-        className="h-9 w-9 rounded-[10px] opacity-90"
+        className="h-12 w-12 rounded-[14px]"
       />
+      <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
+      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#AAA3B3]">find · connect · live better</p>
+      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-200 border-t-violet-600 motion-reduce:animate-none" />}
       {slow && (
         <div className="mt-5 max-w-xs">
-          <p className="text-sm font-semibold">WeHouse is taking longer than expected</p>
-          <p className="mt-2 text-[10px] leading-5 text-[#74798A]">Your session or connection has not answered yet. This screen will recover automatically.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl border border-violet-500/25 bg-violet-500/[.08] px-5 text-xs font-semibold text-violet-200">Try again now</button>
+          <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
+          <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
         </div>
       )}
     </div>
@@ -121,13 +125,13 @@ function PageTransitionFallback() {
 function RouteTransitionFallback() {
   return (
     <div
-      className="grid min-h-[45vh] place-items-center bg-[#08090D] px-6 text-white"
+      className="grid min-h-[45vh] place-items-center bg-[#0A0A0F] px-6 text-white"
       role="status"
       aria-label="Opening page"
     >
       <div className="text-center">
-        <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
-        <p className="mt-3 text-[10px] text-[#777D8D]">Opening page…</p>
+        <div aria-hidden="true" className="mx-auto h-[22px] w-[22px] animate-spin motion-reduce:animate-none rounded-full border-2 border-violet-300/20 border-t-violet-400" />
+        <p className="mt-3 text-sm text-[#A7AEBD]">Opening page…</p>
       </div>
     </div>
   );
@@ -232,7 +236,8 @@ function normalizePageForRole(
   page: NavPage,
   workerProfileComplete = true,
 ): NavPage {
-  if (page === "messages" || page === "chat") page = "conversation";
+  if (["messages", "chat", "notifications", "activity"].includes(page))
+    page = "conversation";
   // Preserve old deep links without keeping a second booking destination.
   if (page === "my_bookings") page = "my_reservations";
   if (
@@ -383,7 +388,7 @@ export default function App() {
             {
               id: "conversation" as NavPage,
               label: "Inbox",
-              icon: MessagesSvg,
+              icon: InboxSvg,
             },
             { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
           ]
@@ -431,10 +436,32 @@ export default function App() {
       toast.success(
         workspace === "personal"
           ? "Personal WeHouse opened"
-          : `${workspace[0].toUpperCase()}${workspace.slice(1)} workspace opened`,
+          : `${workspaceLabel(workspace)} opened`,
       );
     },
     [baseProfile, workspaceAccess],
+  );
+
+  const openActivatedWorkspace = useCallback(
+    (workspace: "worker" | "property_partner") => {
+      if (!baseProfile) return;
+      const destination: NavPage =
+        workspace === "worker" ? "worker_setup" : "property_partner";
+      setActiveWorkspace(workspace);
+      setNavPage(destination);
+      navHistoryRef.current = [destination];
+      window.dispatchEvent(new Event("wehouse:navigation"));
+      try {
+        localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
+        localStorage.setItem(NAV_STORAGE_KEY, destination);
+        window.history.replaceState(
+          { page: destination },
+          "",
+          `#${destination}`,
+        );
+      } catch {}
+    },
+    [baseProfile],
   );
 
   useEffect(() => {
@@ -496,6 +523,11 @@ export default function App() {
       );
       const current = navHistoryRef.current.at(-1);
       if (safe !== current) {
+        // The signed-out landing page has no router state until its first link.
+        // Preserve it so Back from a public legal page returns to sign-in.
+        if (!window.history.state?.page) {
+          window.history.replaceState({ page: current || "search" }, "");
+        }
         window.history.pushState({ page: safe }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
@@ -571,7 +603,7 @@ export default function App() {
       return;
     }
     const uid = profile.user_id;
-    async function count() {
+    async function loadCounts(isCurrent: () => boolean) {
       const [
         { data },
         bookingResult,
@@ -597,6 +629,7 @@ export default function App() {
           .eq("read", false),
         getAnnouncementsForUser(uid),
       ]);
+      if (!isCurrent()) return;
       let roommate = 0;
       ((data || []) as ConversationUnreadRow[]).forEach((c) => {
         if (Number(c.participant_a === uid ? c.unread_a : c.unread_b) > 0)
@@ -651,13 +684,18 @@ export default function App() {
       setSupportUnreadCount(support);
       setNotificationCount(activity + announcementUnread);
     }
-    void count();
+    const countScheduler = createRefreshScheduler(
+      loadCounts,
+      () => document.visibilityState === "visible",
+    );
+    const count = countScheduler.request;
+    count();
     const openMessages = (conversationId?: string) => {
       setChatConvId(conversationId || null);
       setChatPeerId(null);
       handleSetNavPage("conversation");
     };
-    const openNotifications = () => handleSetNavPage("notifications");
+    const openNotifications = () => handleSetNavPage("conversation");
     const refreshUnread = () => void count();
     window.addEventListener("wehouse:unread-changed", refreshUnread);
     const chatChannel = supabase
@@ -675,7 +713,7 @@ export default function App() {
               message.content ||
                 ((message.attachments || []).length
                   ? "New attachment"
-                  : "Open Conversation to read it."),
+                  : "Open Inbox to read it."),
             ).slice(0, 110),
             action: {
               label: "View",
@@ -722,7 +760,7 @@ export default function App() {
           void count();
           if (profile.pref_push_notif === false) return;
           toast("New hotel message", {
-            description: String(message.content || "Open Conversation to read it.").slice(0, 110),
+            description: String(message.content || "Open Inbox to read it.").slice(0, 110),
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -862,6 +900,7 @@ export default function App() {
     document.addEventListener("visibilitychange", onVisible);
     const unreadTimer = window.setInterval(() => void count(), 60_000);
     return () => {
+      countScheduler.dispose();
       window.clearInterval(unreadTimer);
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
@@ -988,10 +1027,17 @@ export default function App() {
   }, [handleSetNavPage]);
 
   if (auth.isLoading) return <PageTransitionFallback />;
+  if (auth.page === "login" && (navPage === "privacy_policy" || navPage === "terms_of_service"))
+    return (
+      <Suspense fallback={<RouteTransitionFallback />}>
+        {navPage === "privacy_policy" ? <PrivacyPolicyPage /> : <TermsPage />}
+      </Suspense>
+    );
   if (auth.page === "login")
     return (
       <Login
         onLoginSuccess={auth.handleLoginSuccess}
+        onOpenLegal={(page) => goTo(page)}
         serverError={auth.error}
         kickedOut={auth.kickedOut}
         pendingDevice={auth.pendingDevice}
@@ -1006,6 +1052,17 @@ export default function App() {
       <WorkerSetup
         profile={profile}
         onComplete={() => auth.handleSetupComplete(profile)}
+        onContinueVerification={() => {
+          try {
+            localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");
+            window.history.replaceState(
+              { page: "worker_verification" },
+              "",
+              "#worker_verification",
+            );
+          } catch {}
+          window.location.reload();
+        }}
       />
     );
   if (error)
@@ -1063,6 +1120,9 @@ export default function App() {
           onGoToSetup={() => goTo("worker_setup")}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isPropertyPartner)
@@ -1090,6 +1150,7 @@ export default function App() {
       return (
         <Login
           onLoginSuccess={auth.handleLoginSuccess}
+          onOpenLegal={(page) => goTo(page)}
           serverError={auth.error}
           pendingDevice={auth.pendingDevice}
         />
@@ -1135,27 +1196,6 @@ export default function App() {
         ) : (
           renderRoleRoot()
         );
-      case "activity":
-        return isUserRole ? (
-          <Activity
-            profile={profile}
-            onNavigate={openUserDestination}
-            onGoToChat={goToChat}
-          />
-        ) : (
-          renderRoleRoot()
-        );
-      case "notifications":
-        return isUserRole ? (
-          <Chat
-            profile={profile}
-            activityUnreadCount={notificationCount}
-            onNavigate={openUserDestination}
-            onActivityUnreadChange={setNotificationCount}
-          />
-        ) : (
-          renderRoleRoot()
-        );
       case "profile":
       case "account":
         return (
@@ -1171,6 +1211,7 @@ export default function App() {
             workspaceAccess={workspaceAccess}
             activeWorkspace={activeWorkspace}
             onSwitchWorkspace={switchWorkspace}
+            onWorkspaceActivated={openActivatedWorkspace}
           />
         );
       case "privacy":
@@ -1191,20 +1232,12 @@ export default function App() {
             initialSection="devices"
           />
         );
-      case "encryption":
-        return (
-          <PrivacySecuritySettings
-            profile={profile}
-            onUpdate={(u) => auth.handleSetupComplete(u)}
-            onBack={subpageBack}
-            initialSection="encryption"
-          />
-        );
       case "profile_edit":
         return isWorkerRole ? (
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onContinueVerification={() => goTo("worker_verification")}
             onBack={subpageBack}
           />
         ) : (
@@ -1237,6 +1270,8 @@ export default function App() {
         ) : (
           renderRoleRoot()
         );
+      case "activity":
+      case "notifications":
       case "chat":
       case "conversation":
       case "messages":
@@ -1250,7 +1285,7 @@ export default function App() {
               setChatConvId(null);
               setChatPeerId(null);
             }}
-            chatUnreadCount={unreadCount}
+            chatUnreadCount={unreadCount + supportUnreadCount}
             activityUnreadCount={notificationCount}
             onActivityUnreadChange={setNotificationCount}
           />
@@ -1274,6 +1309,7 @@ export default function App() {
           <WorkerSetup
             profile={profile}
             onComplete={() => goTo("worker_dashboard")}
+            onContinueVerification={() => goTo("worker_verification")}
             onBack={subpageBack}
           />
         ) : (
@@ -1373,8 +1409,8 @@ export default function App() {
   };
   const desktopNavItems = getNavForRole(
     userRole,
-    unreadCount,
-    supportUnreadCount + notificationCount,
+    unreadCount + supportUnreadCount,
+    notificationCount,
   );
   const hide = [
     "profile",
@@ -1457,6 +1493,10 @@ export default function App() {
               <div className="mx-auto flex max-w-lg items-center justify-around py-1">
                 {tabs.map((tab) => {
                   const active = navPage === tab.id;
+                  const badgeCount =
+                    tab.id === "conversation"
+                      ? unreadCount + supportUnreadCount + notificationCount
+                      : 0;
                   return (
                     <button
                       key={tab.id}
@@ -1473,13 +1513,11 @@ export default function App() {
                       {active && (
                         <span className="h-1 w-1 rounded-full bg-violet-400" />
                       )}
-                      {tab.id === "conversation" && unreadCount + supportUnreadCount + notificationCount > 0 && (
-                          <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
-                            {unreadCount + supportUnreadCount + notificationCount > 99
-                              ? "99+"
-                              : unreadCount + supportUnreadCount + notificationCount}
-                          </span>
-                        )}
+                      {badgeCount > 0 && (
+                        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+                          {badgeCount > 99 ? "99+" : badgeCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1537,7 +1575,7 @@ function ReservationSvg({ size, active }: { size: number; active: boolean }) {
     </svg>
   );
 }
-function MessagesSvg({ size, active }: { size: number; active: boolean }) {
+function InboxSvg({ size, active }: { size: number; active: boolean }) {
   return (
     <svg
       width={size}
@@ -1547,7 +1585,8 @@ function MessagesSvg({ size, active }: { size: number; active: boolean }) {
       stroke={active ? "#A78BFA" : "currentColor"}
       strokeWidth="2"
     >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M4 4h16v13H4z" />
+      <path d="M4 13h4l2 3h4l2-3h4" />
     </svg>
   );
 }

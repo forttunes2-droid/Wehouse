@@ -1,2 +1,15 @@
 # Supabase Configuration
 project_id = "wehouse"
+
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/require_reviewed_legal_signup"
+
+[functions.provider-password-recovery]
+verify_jwt = true
+
+[functions.private-call-ice]
+verify_jwt = true
+
+[functions.turn-credentials]
+verify_jwt = true
