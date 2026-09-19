@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
+import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -20,8 +21,9 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const paystackSecret = Deno.env.get('PAYSTACK_SECRET_KEY');
-    const appUrl = (Deno.env.get('APP_URL') || 'https://wehouse.com.ng').replace(/\/$/, '');
     if (!supabaseUrl || !serviceKey || !paystackSecret) return json({ success: false, error: 'Subscription server configuration is incomplete' }, 503);
+    const paymentReturnUrl = resolvePaymentReturnUrl(supabaseUrl, Deno.env.get('APP_URL'), paystackSecret, 'worker_dashboard');
+    if (!paymentReturnUrl) return json({ success: false, error: 'Payment environment configuration is incomplete or mismatched' }, 503);
 
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const token = authHeader.replace(/^Bearer\s+/i, '');
@@ -72,7 +74,7 @@ Deno.serve(async (req) => {
         currency: 'NGN',
         reference,
         plan: planCode,
-        callback_url: `${appUrl}/#worker_dashboard`,
+        callback_url: paymentReturnUrl,
         metadata: {
           purpose: 'worker_pro_subscription',
           worker_id: profile.user_id,
