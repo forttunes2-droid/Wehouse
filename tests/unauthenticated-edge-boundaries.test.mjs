@@ -28,7 +28,7 @@ test('hotel PMS gateway requires an active hashed integration token and idempote
   assert.match(source, /tokenHash = await sha256\(token\)/);
   assert.match(source, /\.eq\("token_hash", tokenHash\)/);
   assert.match(source, /\.eq\("status", "active"\)/);
-  assert.match(source, /Idempotency-Key is required/);
+  assert.match(source, /Idempotency-Key must contain 1 to 200 characters/);
   assert.match(source, /integration\.hotel_id/);
 });
 

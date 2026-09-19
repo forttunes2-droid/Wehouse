@@ -647,7 +647,7 @@ export default function Login({
 
   return (
     <AuthSurface>
-      <main className="wh-auth-layout">
+      <main className={`wh-auth-layout wh-auth-mode-${mode}`}>
         <header className="wh-auth-header"><Brand /></header>
         <section className="wh-auth-content">
         <div className="wh-auth-form">
@@ -926,12 +926,12 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
 
 function Brand() {
   return (
-    <div className="text-center">
-      <div className="flex items-center justify-center gap-3">
+    <div className="wh-auth-brand">
+      <div className="wh-auth-wordmark">
         <img src="/app-icon.svg?v=3" alt="" width={52} height={52} className="h-[52px] w-[52px]" />
         <p className="text-[30px] font-semibold tracking-tight">WeHouse</p>
       </div>
-      <p className="mt-4 text-sm text-violet-100">Find. Connect. Live better.</p>
+      <p className="wh-auth-tagline">Find. Connect. Live better.</p>
     </div>
   );
 }

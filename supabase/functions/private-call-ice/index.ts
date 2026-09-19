@@ -90,8 +90,10 @@ Deno.serve(async (request) => {
 
   // Cloudflare's TURN token is a long-lived server secret. Never return it to
   // the browser. Exchange it here for short-lived ICE credentials instead.
-  const turnKeyId = Deno.env.get("CLOUDFLARE_TURN_KEY_ID") || "";
-  const turnApiToken = Deno.env.get("CLOUDFLARE_TURN_API_TOKEN") || "";
+  // Keep the already-configured production secret names working. Both forms
+  // remain server-only; the canonical names take precedence during rotation.
+  const turnKeyId = Deno.env.get("CLOUDFLARE_TURN_KEY_ID") || Deno.env.get("Cloud_turntokenid") || "";
+  const turnApiToken = Deno.env.get("CLOUDFLARE_TURN_API_TOKEN") || Deno.env.get("Cloud_turnApitoken") || "";
   if (!turnKeyId || !turnApiToken)
     return json({ error: "TURN relay is not configured" }, 503);
 
