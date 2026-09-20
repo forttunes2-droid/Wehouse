@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import WorkerProTools from '@/components/WorkerProTools';
+import GoldTickBadge from '@/components/GoldTickBadge';
 import { supabase } from '@/lib/supabase';
 import { isAndroid, isIOS, isNative } from '@/lib/native';
 import type { Profile, WorkerProBillingPeriod, WorkerProEntitlement } from '@/types';
@@ -101,8 +102,8 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-200">Optional paid tools</p>
-            <h2 className="mt-3 text-xl font-bold">{pro.product_name || 'WeHouse Works'}</h2>
-            <p className="mt-2 max-w-xl text-[10px] leading-5 text-[#9196A5]">{pro.product_tagline || 'Run your work with clearer numbers, documents and reach.'} Your subscription pays for the business tools listed below. It never buys Reviewed, Trusted, jobs, organic ranking or favorable dispute treatment.</p>
+            <h2 className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">{pro.product_name || 'WeHouse Works'}{pro.active && <GoldTickBadge />}</h2>
+            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for your Service Provider profile. Gold PRO means an active subscription. Identity and professional checks are reviewed separately.</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-lg font-bold">{native ? 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>

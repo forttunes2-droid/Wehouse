@@ -67,7 +67,15 @@ export function buildReceiptPdf(r: PaymentReceipt) {
   return doc;
 }
 
-export async function downloadReceiptPdf(receipt: PaymentReceipt) {
+export function downloadReceiptPdf(receipt: PaymentReceipt) {
   const reference = receipt.reference.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 100) || "payment";
-  await buildReceiptPdf(receipt).save(`WeHouse-receipt-${reference}.pdf`, { returnPromise: true });
+  const url = URL.createObjectURL(buildReceiptPdf(receipt).output("blob"));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `WeHouse-receipt-${reference}.pdf`;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
