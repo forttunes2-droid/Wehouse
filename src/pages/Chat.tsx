@@ -413,7 +413,7 @@ export default function Chat({
           </label>
 
           <div role="group" aria-label="Message categories" className="mt-3 flex gap-1 overflow-x-auto">
-            {([['all', 'All'], ['people', 'People'], ['bookings', 'Bookings'], ['wehouse', 'WeHouse']] as const).map(([value, label]) => (
+            {([['all', 'All'], ['people', 'Roommates'], ['bookings', 'Bookings'], ['wehouse', 'WeHouse']] as const).map(([value, label]) => (
               <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
                 className={`min-h-11 shrink-0 rounded-full px-3 text-[13px] font-semibold ${category === value ? 'bg-violet-500/20 text-violet-200' : 'text-[#A1A7B5] hover:bg-white/[.04]'}`}>
                 {label}

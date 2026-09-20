@@ -121,7 +121,7 @@ async function wipeOnLogout() {
       const k = localStorage.key(i);
       if (
         k &&
-        (k.includes("sb-") || k.includes("supabase") || k.startsWith("wh_"))
+        (k.includes("sb-") || k.includes("supabase") || (k.startsWith("wh_") && !/^wh_workspace_[A-Za-z0-9-]+$/.test(k)))
       )
         keys.push(k);
     }

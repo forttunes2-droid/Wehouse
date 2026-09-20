@@ -84,6 +84,8 @@ export default defineConfig({
   build: {
     assetsInlineLimit: 0,
     rollupOptions: {
+      // Review fixtures are built only for isolated Vercel Preview deployments.
+      ...(process.env.VERCEL_ENV === 'preview' ? { input: { app: path.resolve(__dirname, 'index.html'), review: path.resolve(__dirname, 'tests/visual/repair.html') } } : {}),
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],

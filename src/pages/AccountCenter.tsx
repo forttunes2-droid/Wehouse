@@ -74,7 +74,6 @@ type ProfilePreferences = {
   pref_email_notif?: boolean | null;
   pref_push_notif?: boolean | null;
 };
-type PartnerStatus = "active" | "pending_verification" | string | null;
 
 export default function AccountCenter({
   profile,
@@ -114,23 +113,17 @@ export default function AccountCenter({
   const [activatingWorkspace, setActivatingWorkspace] = useState<
     "worker" | "property_partner" | null
   >(null);
-  const [partnerStatus, setPartnerStatus] = useState<PartnerStatus>(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
-  const role = profile.role;
-  const canOpenCustomerHelp = ["user", "worker", "property_partner"].includes(role);
-  const isUser = role === "user";
-  const isServiceProvider = role === "worker";
-  const isStaff = role === "staff";
+  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hotel"].includes(activeWorkspace);
+  const isUser = activeWorkspace === "personal";
+  const isServiceProvider = activeWorkspace === "worker";
+  const isStaff = activeWorkspace === "staff";
   const canEditGenericProfile = !isStaff && !isServiceProvider;
-  const roleLabel =
-    role === "worker"
-      ? "Service Provider"
-      : role === "property_partner"
-        ? "Property Partner"
-        : role === "staff" || role === "admin"
-          ? "WeHouse Team"
-          : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ");
+  const helpDetail = activeWorkspace === 'worker' ? 'Your jobs, professional profile and earnings'
+    : activeWorkspace === 'property_partner' ? 'Your properties, guests and earnings'
+    : activeWorkspace === 'hotel' ? 'Your assigned hotel and account'
+    : 'Your account, stays, services and payments';
   const initials = (
     profile.full_name ||
     profile.username ||
@@ -149,9 +142,6 @@ export default function AccountCenter({
     hasServiceProviderWorkspace &&
       profile.worker_status === "verified" &&
       profile.worker_verified === true,
-  );
-  const partnerLive = Boolean(
-    hasPartnerWorkspace && partnerStatus === "active",
   );
   const assignedWorkspaces = privilegedWorkspaces.filter((workspace) =>
     ["hotel", "staff", "admin", "creator"].includes(workspace.role),
@@ -173,17 +163,17 @@ export default function AccountCenter({
         label: "Personal",
         detail: "Explore, Bookings, Inbox and Account",
       });
-    if (serviceProviderLive)
+    if (hasServiceProviderWorkspace)
       items.push({
         role: "worker",
         label: "Service Provider",
-        detail: "WeHouse Services jobs, Inbox, Showcase and Earnings",
+        detail: serviceProviderLive ? "Jobs, Showcase and earnings" : serviceProviderStatusText(profile.worker_status),
       });
-    if (partnerLive)
+    if (hasPartnerWorkspace)
       items.push({
         role: "property_partner",
         label: "Property Partner",
-        detail: "Apartments, hotels, bookings, team and finance",
+        detail: "Your properties, submissions and guest bookings",
       });
     for (const workspace of assignedWorkspaces) {
       items.push({
@@ -197,10 +187,12 @@ export default function AccountCenter({
               : "Assigned work access",
       });
     }
-    return items;
+    return items.filter((item, index) => items.findIndex(other => other.role === item.role) === index);
   }, [
     assignedWorkspaces,
-    partnerLive,
+    hasPartnerWorkspace,
+    hasServiceProviderWorkspace,
+    profile.worker_status,
     serviceProviderLive,
     workspaceAccess?.personal_workspace,
   ]);
@@ -220,26 +212,6 @@ export default function AccountCenter({
       });
     })();
   }, []);
-
-  useEffect(() => {
-    if (!hasPartnerWorkspace) {
-      setPartnerStatus(null);
-      return;
-    }
-    let cancelled = false;
-    void supabase
-      .from("property_partners")
-      .select("status")
-      .eq("profile_id", profile.user_id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled || error) return;
-        setPartnerStatus((data?.status as PartnerStatus) || null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [hasPartnerWorkspace, profile.user_id]);
 
   useEffect(() => {
     window.dispatchEvent(
@@ -319,7 +291,7 @@ export default function AccountCenter({
   }
 
   if (panel === "help" && canOpenCustomerHelp)
-    return <AccountHelpCenter profile={profile} onBack={() => setPanel(null)} />;
+    return <AccountHelpCenter profile={profile} workspace={activeWorkspace} onBack={() => setPanel(null)} />;
 
   if (panel === "privacy_security")
     return (
@@ -334,14 +306,15 @@ export default function AccountCenter({
     return (
       <AccountShell
         profile={profile}
-        title="Workspaces"
-        description="Choose where you want to work."
+        title="WeHouse"
+        description="Your personal account, professional profiles and team access."
+        workspace={activeWorkspace}
         onBack={() => setPanel(null)}
       >
 
         {workspaceAccess?.personal_workspace && onSwitchWorkspace ? (
           <AccountSection title="Personal">
-            <AccountRow title="My WeHouse" detail="Your bookings, messages and saved places" icon={<PersonIcon />}
+            <AccountRow title="Personal" detail="Find places, book services and meet roommates" icon={<PersonIcon />}
               onClick={activeWorkspace === 'personal' ? undefined : () => onSwitchWorkspace('personal')}
               trailing={activeWorkspace === 'personal' ? <span className="text-xs text-violet-300">Current</span> : undefined} />
           </AccountSection>
@@ -357,7 +330,7 @@ export default function AccountCenter({
                   key={workspace.role}
                   title={workspace.label}
                   detail={workspace.detail}
-                  onClick={activeWorkspace === workspace.role ? undefined : () => onSwitchWorkspace(workspace.role)}
+                  onClick={activeWorkspace === workspace.role ? undefined : () => workspace.role === 'worker' && !serviceProviderLive && onWorkspaceActivated ? continueProfessionalOnboarding('worker') : onSwitchWorkspace(workspace.role)}
                   trailing={activeWorkspace === workspace.role ? <span className="text-xs text-violet-300">Current</span> : undefined}
                   icon={<ToolsIcon />}
                 />
@@ -366,21 +339,13 @@ export default function AccountCenter({
           );
         })}
 
-        {canStartProfessionalOnboarding ? (
-          <AccountSection title="Applications">
+        {canStartProfessionalOnboarding && (!hasServiceProviderWorkspace || !hasPartnerWorkspace) ? (
+          <AccountSection title="Get started">
             {!hasServiceProviderWorkspace ? (
               <AccountRow
                 title="Offer services"
-                detail="Apply as a Service Provider. Review is free."
+                detail="Create your Service Provider profile"
                 onClick={() => void startProfessionalOnboarding("worker")}
-                disabled={activatingWorkspace !== null}
-                icon={<PersonIcon />}
-              />
-            ) : !serviceProviderLive ? (
-              <AccountRow
-                title={profile.worker_status === "profile_under_review" ? "Service Provider application" : "Continue Service Provider setup"}
-                detail={serviceProviderStatusText(profile.worker_status)}
-                onClick={() => continueProfessionalOnboarding("worker")}
                 disabled={activatingWorkspace !== null}
                 icon={<PersonIcon />}
               />
@@ -389,27 +354,11 @@ export default function AccountCenter({
             {!hasPartnerWorkspace ? (
               <AccountRow
                 title="List a property"
-                detail="Apply to manage apartments or hotels."
+                detail="Create your Property Partner profile"
                 onClick={() => void startProfessionalOnboarding("property_partner")}
                 disabled={activatingWorkspace !== null}
                 icon={<HomeIcon />}
               />
-            ) : !partnerLive ? (
-              <AccountRow
-                title="Property Partner application"
-                detail={partnerStatusText(partnerStatus)}
-                onClick={() => continueProfessionalOnboarding("property_partner")}
-                disabled={activatingWorkspace !== null}
-                icon={<HomeIcon />}
-              />
-            ) : null}
-
-            {serviceProviderLive && partnerLive ? (
-              <div className="px-4 py-4 text-[10px] leading-5 text-[#777E8E] sm:px-5">
-                Your Service Provider and Property Partner workspaces are both
-                active. Additional hotel-team or WeHouse-team access arrives by
-                invitation or grant, not by creating another account.
-              </div>
             ) : null}
           </AccountSection>
         ) : null}
@@ -474,12 +423,13 @@ export default function AccountCenter({
     (!published.privacy || legal.privacy_accepted) &&
     (!published.terms || legal.terms_accepted);
 
-  const workspaceDetail = activeWorkspace === 'personal' ? 'Open a work area or manage your applications' : `Current: ${workspaceLabel(activeWorkspace)}`;
+  const workspaceDetail = switchableWorkspaces.map(item => item.label).join(' · ');
 
   return (
     <AccountShell
       profile={profile}
       title="Account"
+      workspace={activeWorkspace}
       description="Your details and settings."
       onBack={onBack}
     >
@@ -512,7 +462,7 @@ export default function AccountCenter({
                 {profile.full_name || `@${profile.username || "account"}`}
               </h2>
               <span className="rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#9CA2B2]">
-                {activeWorkspace === "personal" ? "Personal" : roleLabel}
+                {workspaceLabel(activeWorkspace)}
               </span>
             </div>
             <p className="mt-1 truncate text-[10px] text-[#777E8E]">
@@ -536,9 +486,9 @@ export default function AccountCenter({
       ) : null}
 
       {workspaceAccess ? (
-        <AccountSection title="Work">
+        <AccountSection>
           <AccountRow
-            title="Workspaces"
+            title="WeHouse"
             detail={workspaceDetail}
             onClick={() => setPanel("workspaces")}
             icon={<ToolsIcon />}
@@ -557,7 +507,7 @@ export default function AccountCenter({
         ) : null}
         {onGoToWorkerPaidTools ? (
           <AccountRow
-            title="WeHouse Pro"
+            title="Paid tools"
             detail="Optional business tools for your Service Provider workspace"
             onClick={onGoToWorkerPaidTools}
             icon={<ToolsIcon />}
@@ -604,7 +554,7 @@ export default function AccountCenter({
         <AccountSection title="Help">
           <AccountRow
             title="Help"
-            detail="General help, linked jobs, payments, payouts and safety or security concerns"
+            detail={helpDetail}
             onClick={() => setPanel("help")}
             icon={<ToolsIcon />}
           />
@@ -650,12 +600,6 @@ function serviceProviderStatusText(status?: string | null) {
   if (status === "pending")
     return "Finish your services, coverage and required onboarding steps.";
   return "Continue your Service Provider onboarding.";
-}
-
-function partnerStatusText(status: PartnerStatus) {
-  if (status === "pending_verification")
-    return "Continue the Property Partner application and property verification flow.";
-  return "Continue your Property Partner setup.";
 }
 
 function Toggle({

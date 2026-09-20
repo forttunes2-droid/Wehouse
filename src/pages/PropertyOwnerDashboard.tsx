@@ -1,6 +1,7 @@
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { getMyHotelOperations, getMyHotelOperationSnapshot } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
@@ -71,22 +72,24 @@ export default function PropertyOwnerDashboard({
         setTab("properties");
         return;
       }
-      const hotelBooking = await supabase
-        .from("hotel_bookings")
-        .select("booking_id,hotel_id")
-        .eq("booking_id", id)
-        .maybeSingle();
-      if (!hotelBooking.error && hotelBooking.data?.hotel_id) {
-        setPropertyTargetId(`hotel:${hotelBooking.data.hotel_id}`);
-        setPropertyReservationId(undefined);
-        setTab("properties");
-        return;
-      }
+      try {
+        const hotels = await getMyHotelOperations();
+        if (hotels.error) throw hotels.error;
+        for (const hotel of hotels.data.filter((row: any) => row.access_role === "owner")) {
+          const snapshot = await getMyHotelOperationSnapshot(hotel.hotel_id);
+          if (snapshot.bookings.some((booking: { booking_id: number }) => String(booking.booking_id) === id)) {
+            setPropertyTargetId(`hotel:${hotel.hotel_id}`);
+            setPropertyReservationId(undefined);
+            setTab("properties");
+            return;
+          }
+        }
+      } catch { toast.error("Hotel information could not be loaded. Please try again."); return; }
       toast.error("The linked reservation could not be opened.");
       return;
     }
     if (/propert|listing|inspection|hotel_detail/.test(route)) {
-      setPropertyTargetId(id);
+      setPropertyTargetId(route === "hotel_detail" && id ? `hotel:${id.replace(/^hotel:/, "")}` : id);
       setPropertyReservationId(undefined);
       setTab("properties");
       return;
@@ -154,6 +157,12 @@ function PropertiesWorkspace({
   const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (initialRecordId?.startsWith("hotel:")) {
+      setAssetKind("hotel");
+      setFilter("public");
+    }
+  }, [initialRecordId]);
   useEffect(() => {
     if (!initialReservationId) return;
     setAssetKind("apartment");
@@ -240,18 +249,13 @@ function PropertiesTab({
               .not("approved_at", "is", null)
               .is("deleted_at", null)
               .order("created_at", { ascending: false })
-          : await supabase
-              .from("hotels")
-              .select("*,hotel_rooms(room_id,total_rooms,price_per_night,images)")
-              .eq("owner_id", profile.user_id)
-              .eq("status", "active")
-              .order("created_at", { ascending: false });
+          : await getMyHotelOperations();
       if (!active) return;
       if (result.error)
         toast.error(
           `Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`,
         );
-      const nextAssets = (result.data || []).map((row) =>
+      const nextAssets = (result.data || []).filter((row: any) => assetKind !== "hotel" || (row.status === "active" && row.access_role === "owner")).map((row: any) =>
           assetKind === "apartment"
             ? {
                 ...row,
@@ -267,7 +271,7 @@ function PropertiesTab({
       setAssets(nextAssets);
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
-        const target = nextAssets.find((asset) =>
+        const target = nextAssets.find((asset: any) =>
           [asset.id, asset.listing_id, asset.hotel_id, `hotel:${asset.hotel_id}`]
             .filter(Boolean)
             .some((value) => String(value) === String(initialRecordId)),

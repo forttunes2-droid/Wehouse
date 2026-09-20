@@ -1530,7 +1530,7 @@ export default function Chat({
             <div className="mb-3">
               <h2 className="text-xs font-semibold">Messages</h2>
               <p className="mt-1 text-[9px] text-[#6F7586]">
-                People, stays, services and WeHouse help in one list
+                Roommates, stays, services and WeHouse help
               </p>
             </div>
             <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">

@@ -1516,6 +1516,7 @@ function ConversationIdentitySheet({
   blockBusy: boolean;
   onToggleBlock: () => void;
 }) {
+  const [fullProfile, setFullProfile] = useState(false);
   const viewingWorker = !isWorker;
   const displayName = profile?.full_name || name;
   const avatarUrl = profile?.avatar_url || avatar || null;
@@ -1525,11 +1526,11 @@ function ConversationIdentitySheet({
   const reviewed = ["approved", "verified", "live"].includes(
     String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
   );
-  if (viewingWorker && profile?.user_id) {
+  if (fullProfile && viewingWorker && profile?.user_id) {
     return (
       <WorkerPublicProfile
         worker={{ ...profile, local_government: profile.lga || profile.local_government } as Profile}
-        onBack={onClose}
+        onBack={() => setFullProfile(false)}
         onBook={() => undefined}
         showBookingAction={false}
           communicationActions={!blocked && !blockedByPeer ? (
@@ -1545,6 +1546,7 @@ function ConversationIdentitySheet({
   return (
     <RoommatePublicProfile
       context="conversation"
+      onViewProfile={viewingWorker && profile?.user_id ? () => setFullProfile(true) : undefined}
       person={{
         name: displayName,
         username: profile?.username,

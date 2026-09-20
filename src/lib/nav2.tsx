@@ -18,7 +18,7 @@ function icon(path: string) {
 
 const DASHBOARD = icon('M4 5h6v6H4z M14 5h6v6h-6z M4 15h6v4H4z M14 15h6v4h-6z');
 const SEARCH = icon('M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M20 20l-4-4');
-const INBOX = icon('M4 4h16v12H4z M4 13h4l2 3h4l2-3h4');
+const INBOX = icon('m4 4-3 9v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-6l-3-9H4Zm-3 9h6l2 3h6l2-3h6');
 const ACCOUNT = icon('M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 0 1 0 8 4 4 0 0 1 0-8z');
 const RESERVATIONS = icon('M3 5h18v16H3z M8 3v4 M16 3v4 M3 10h18 M8 15l2 2 5-5');
 const account = (): DesktopNavItem => ({ id: 'profile', label: 'Account', icon: ACCOUNT });

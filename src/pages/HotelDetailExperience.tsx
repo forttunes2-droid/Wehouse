@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   addHotelReview,
-  canReviewHotel,
   getHotelById,
   getHotelReviews,
 } from "@/lib/supabase";
@@ -57,6 +56,7 @@ export default function HotelDetailExperience({
   profile,
 }: Props) {
   const { location } = useDiscoveryLocation();
+  const [attempt, setAttempt] = useState(0);
   const [hotel, setHotel] = useState<HotelDetailRow | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,13 +91,10 @@ export default function HotelDetailExperience({
     let live = true;
     void (async () => {
       setLoading(true);
-      const [hotelResult, reviewResult, eligibility, savedResult] =
-        await Promise.all([
-          getHotelById(hotelId),
-          getHotelReviews(hotelId),
-          canReviewHotel(hotelId, profile.user_id),
-          getMySavedHotelIds(),
-        ]);
+      // Secondary reviews and saved state must not delay the hotel itself.
+      void getHotelReviews(hotelId).then(result => { if (live) { setReviews(result.reviews); setReviewEligible(result.eligible); } });
+      void getMySavedHotelIds().then(result => { if (live && !result.error) setSaved(result.hotelIds.includes(hotelId)); });
+      const hotelResult = await getHotelById(hotelId);
       if (!live) return;
       if (hotelResult.error || !hotelResult.hotel) {
         toast.error("Hotel could not be loaded");
@@ -109,17 +106,12 @@ export default function HotelDetailExperience({
         setSelectedRate(null);
         setRoomImage(0);
       }
-      setReviews((reviewResult.reviews || []) as ReviewRow[]);
-      setReviewEligible(Boolean(eligibility.eligible));
-      setSaved(
-        !savedResult.error && savedResult.hotelIds.includes(Number(hotelId)),
-      );
       setLoading(false);
     })();
     return () => {
       live = false;
     };
-  }, [hotelId, profile.user_id]);
+  }, [hotelId, profile.user_id, attempt]);
 
   useEffect(() => {
     let live = true;
@@ -245,7 +237,8 @@ export default function HotelDetailExperience({
     return (
       <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white">
         <div className="text-center">
-          <p className="text-sm font-semibold">Hotel not found</p>
+          <p className="text-sm font-semibold">Hotel information could not be loaded</p>
+          <button onClick={() => setAttempt(value => value + 1)} className="min-h-11 px-3 text-sm text-violet-300">Try again</button>
           <button
             type="button"
             onClick={onBack}
@@ -264,29 +257,8 @@ export default function HotelDetailExperience({
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/96 px-4 py-3 backdrop-blur-xl sm:px-6">
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <BackButton onClick={onBack} />
-          <div className="min-w-0 flex-1">
-            <p className="text-[8px] font-bold uppercase tracking-[.18em] text-violet-400">
-              WEHOUSE · HOTELS
-            </p>
-            <p className="mt-1 truncate text-sm font-semibold">{hotel.name}</p>
-          </div>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void toggleSaved()}
-            aria-label={saved ? "Remove hotel from Saved" : "Save hotel"}
-            aria-pressed={saved}
-            className="grid h-10 w-10 shrink-0 place-items-center text-white active:scale-95 disabled:opacity-50"
-          >
-            <Heart filled={saved} />
-          </button>
-        </div>
-      </header>
 
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-5xl space-y-5 px-4 pb-5 sm:px-6">
         <section className="-mx-4 overflow-hidden border-y border-white/[.07] sm:mx-0 sm:rounded-2xl sm:border">
           <div className="relative aspect-[4/3] bg-[#171B24] sm:aspect-[16/9]">
             {images.length ? (
@@ -302,6 +274,10 @@ export default function HotelDetailExperience({
                 No hotel image yet
               </div>
             )}
+            <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/55 to-transparent px-3 pt-[max(.75rem,env(safe-area-inset-top))] pb-6">
+              <BackButton onClick={onBack} ariaLabel="Back to hotels" className="bg-black/50 !text-white backdrop-blur" />
+              <button type="button" disabled={saving} onClick={() => void toggleSaved()} aria-label={saved ? 'Remove hotel from Saved' : 'Save hotel'} aria-pressed={saved} className="grid h-11 w-11 place-items-center rounded-full bg-black/50 text-white backdrop-blur disabled:opacity-50"><Heart filled={saved} /></button>
+            </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
             {images.length > 1 ? (
               <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 backdrop-blur">
@@ -390,7 +366,7 @@ export default function HotelDetailExperience({
           </div>
         </section>
 
-        <section>
+        <section id="hotel-room-options" className="scroll-mt-4">
           <div className="mb-3">
             <h2 className="text-base font-bold">Choose a room</h2>
             <p className="mt-1 text-[9px] text-[#666D7E]">
@@ -500,7 +476,7 @@ export default function HotelDetailExperience({
               </div>
             ) : null}
 
-            <div className="mt-5">
+            <div id="hotel-package-options" className="mt-5 scroll-mt-4">
               <h3 className="text-sm font-bold">Choose a package</h3>
               <p className="mt-1 text-[9px] text-[#666D7E]">
                 Compare what’s included in each package.
@@ -548,7 +524,7 @@ export default function HotelDetailExperience({
         ) : null}
 
         {selectedRate ? (
-          <section className="border-y border-white/[.07] py-5">
+          <section id="hotel-stay-dates" className="scroll-mt-4 border-y border-white/[.07] py-5">
             <h2 className="text-sm font-semibold">Choose stay dates</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <DateField
@@ -736,8 +712,11 @@ export default function HotelDetailExperience({
           </button>
           <button
             type="button"
-            onClick={proceed}
-            disabled={!selectedRoom || !selectedRate || nights < 1}
+            onClick={() => {
+              const section = !selectedRoom ? 'hotel-room-options' : !selectedRate ? 'hotel-package-options' : nights < 1 ? 'hotel-stay-dates' : null;
+              if (section) document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              else proceed();
+            }}
             className="h-12 min-w-0 rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:bg-white/[.055] disabled:text-[#656B7A]"
           >
             {!selectedRoom

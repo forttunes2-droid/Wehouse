@@ -17,6 +17,7 @@ begin
       'get_current_legal_documents()', 'get_discoverable_homes()',
       'get_discoverable_hotels()', 'get_discoverable_listings()',
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
+      'get_hotel_review_summary(integer)',
       'get_short_let_date_availability(text,date,date)'
     ]);
   if unexpected is not null then

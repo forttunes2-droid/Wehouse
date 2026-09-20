@@ -33,7 +33,7 @@ test('Booking dates name the month and do not expose invalid dates', () => {
 });
 test('A hotel receipt renders the verified merchant, stay, amount and reference with a Test label', () => {
   const {ReceiptDocument}=moduleAt('src/components/PaymentReceipt.tsx', {
-    '@/lib/displayDate':dates, '@/lib/supabase/receipts':{}, '@/components/ui/dialog':{},
+    '@/lib/displayDate':dates, '@/lib/supabase/receipts':{}, '@/components/ui/dialog':{}, '@/components/BackButton':moduleAt('src/components/BackButton.tsx'),
   });
   const html=renderToStaticMarkup(React.createElement(ReceiptDocument,{receipt:{id:'test',reference:'TEST-REFERENCE',purpose:'hotel_booking',amount:180000,currency:'NGN',paid_at:'2026-09-20T03:00:00Z',status:'paid',environment:'test',payer_name:'Test Guest',merchant_name:'Example Hotel',description:'Deluxe',package_name:'Room only',check_in:'2026-09-24',check_out:'2026-09-30',nights:6,guests:2}}));
   for (const text of ['Example Hotel','Test Guest','Deluxe','Room only','TEST-REFERENCE','180,000.00','24 Sept 2026','No real money was charged']) assert.ok(html.includes(text),text);
@@ -85,7 +85,7 @@ test('A stalled request times out and late completion cannot resolve the abandon
 const inboxCategories = moduleAt('src/lib/inboxCategories.ts');
 const workspacePresentation = moduleAt('src/lib/workspacePresentation.ts');
 test('Marketplace work, Hotel Team and WeHouse Team stay separate', () => {
-  for (const role of ['worker','property_partner']) assert.equal(workspacePresentation.workspaceGroup(role),'Marketplace work');
+  for (const role of ['worker','property_partner']) assert.equal(workspacePresentation.workspaceGroup(role),'Your professional profiles');
   for (const role of ['staff','admin','creator']) assert.equal(workspacePresentation.workspaceGroup(role),'WeHouse Team');
   assert.equal(workspacePresentation.workspaceGroup('hotel'),'Hotel Team');
   assert.equal(workspacePresentation.workspaceGroup('personal'),'Personal');

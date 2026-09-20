@@ -28,7 +28,6 @@ import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceChoice } from "@/pages/AccountCenter";
-import { workspaceLabel } from "@/lib/workspacePresentation";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
@@ -405,11 +404,6 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       try {
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
       } catch {}
-      toast.success(
-        workspace === "personal"
-          ? "Personal WeHouse opened"
-          : `${workspaceLabel(workspace)} opened`,
-      );
     },
     [baseProfile, workspaceAccess],
   );
@@ -1004,8 +998,8 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     );
   const subpageBack = useCallback(() => {
     if (navHistoryRef.current.length > 1) window.history.back();
-    else handleSetNavPage("profile");
-  }, [handleSetNavPage]);
+    else handleSetNavPage(navPage === "hotel_detail" || navPage === "hotel_booking" ? "hotels" : "profile");
+  }, [handleSetNavPage, navPage]);
 
   if (auth.isLoading) return <PageTransitionFallback />;
   if (baseProfile && !workspaceReady) return workspaceError ? (
@@ -1427,7 +1421,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       !conversationOpen &&
       !nestedScreen &&
       !hide.includes(navPage),
-    supportRole = ["user", "worker", "property_partner"].includes(
+    supportRole = ["user", "worker", "property_partner", "hotel_staff"].includes(
       profile?.role || "",
     );
   return (
@@ -1580,8 +1574,7 @@ function InboxSvg({ size, active }: { size: number; active: boolean }) {
       stroke={active ? "#A78BFA" : "currentColor"}
       strokeWidth="2"
     >
-      <path d="M4 4h16v13H4z" />
-      <path d="M4 13h4l2 3h4l2-3h4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4 4-3 9v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-6l-3-9H4Zm-3 9h6l2 3h6l2-3h6" />
     </svg>
   );
 }

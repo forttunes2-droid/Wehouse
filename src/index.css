@@ -72,20 +72,24 @@
   display: none;
 }
 
-/* Smooth page transitions */
-.page-transition {
-  animation: fadeSlideUp 0.3s ease-out;
+/* Opacity leaves fixed dialogs anchored to the viewport during navigation. */
+.page-transition,
+.wh-panel-enter {
+  animation: whPageEnter 160ms ease-out;
 }
 
-@keyframes fadeSlideUp {
+@keyframes whPageEnter {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition, .wh-panel-enter { animation: none; }
+  [data-sonner-toast] { transition: none !important; animation: none !important; }
 }
 
 /* ═══ FLOATING GRADIENT ORBS — background depth ═══ */

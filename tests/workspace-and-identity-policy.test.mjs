@@ -21,7 +21,7 @@ test('Personal identity can add both Service Provider and Property Partner works
     conflictMigration.indexOf('drop trigger if exists workspace_one_marketplace_role_guard') <
       conflictMigration.indexOf('drop function if exists public.enforce_one_marketplace_workspace'),
   );
-  assert.match(account, /title="Workspaces"/);
+  assert.match(account, /title="WeHouse"/);
   assert.match(account, /Service Provider/);
   assert.match(account, /title="Offer services"/);
   assert.match(account, /Property Partner/);

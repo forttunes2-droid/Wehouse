@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import AccountShell from "@/components/AccountShell";
+import AccountShell, { AccountRow, AccountSection } from "@/components/AccountShell";
+import type { WorkspaceName } from "@/lib/workspacePresentation";
+import { withTimeout } from "@/lib/withTimeout";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -38,39 +40,43 @@ const TOPICS: Array<{ id: Topic; title: string; detail: string }> = [
   {
     id: "general",
     title: "Using WeHouse or my account",
-    detail: "General app help, account access or something you do not understand.",
+    detail: "App help and account access",
   },
   {
     id: "property",
     title: "Property or stay",
-    detail: "An apartment, Long Let, Short Let, hotel or Property Partner property.",
+    detail: "Your home or hotel booking",
   },
   {
     id: "job",
     title: "Service job",
-    detail: "Link a current or older WeHouse Services job to Worker Operations.",
+    detail: "A service you booked",
   },
   {
     id: "money",
     title: "Payment or payout",
-    detail: "Link a withdrawal, job payment or accommodation payment to Finance Operations.",
+    detail: "A payment, refund or withdrawal",
   },
   {
     id: "security",
     title: "Safety or account security",
-    detail: "Unauthorized access, abuse, threats or a safety concern.",
+    detail: "Report a concern or secure your account",
   },
 ];
 
 export default function AccountHelpCenter({
   profile,
   onBack,
+  workspace = "personal",
 }: {
   profile: Profile;
   onBack: () => void;
+  workspace?: WorkspaceName;
 }) {
   const [targets, setTargets] = useState<HelpTargets>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [topic, setTopic] = useState<Topic | null>(null);
   const [targetId, setTargetId] = useState("");
   const [generalReason, setGeneralReason] = useState<GeneralReason>("app_help");
@@ -79,16 +85,39 @@ export default function AccountHelpCenter({
 
   useEffect(() => {
     let cancelled = false;
-    void supabase.rpc("get_my_account_help_targets").then(({ data, error }) => {
+    setLoading(true);
+    setLoadError(false);
+    setTargets({});
+    setTopic(null);
+    setTargetId("");
+    void withTimeout(supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace }), 15000, 'Help timed out').then(({ data, error }) => {
       if (cancelled) return;
-      if (error) toast.error("Help links could not be loaded");
+      setLoadError(Boolean(error));
       setTargets((data || {}) as HelpTargets);
+      setLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setLoadError(true);
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [profile.user_id, workspace, retry]);
+
+  const topics = TOPICS.filter(item => {
+    if (item.id === 'property') return workspace === 'personal' || workspace === 'property_partner' || workspace === 'hotel';
+    if (item.id === 'job') return workspace === 'personal' || workspace === 'worker';
+    if (item.id === 'money') return workspace !== 'hotel';
+    return true;
+  }).map(item => {
+    if (item.id === 'property' && workspace === 'property_partner') return {...item, title:'Properties and guests', detail:'Your submissions, properties and guest bookings'};
+    if (item.id === 'property' && workspace === 'hotel') return {...item, title:'Your hotel', detail:'Help with your assigned hotel'};
+    if (item.id === 'job' && workspace === 'worker') return {...item, title:'Jobs and professional profile', detail:'Your jobs, setup and review'};
+    if (item.id === 'money' && workspace === 'personal') return {...item, title:'Payments and refunds', detail:'A payment for a booking or service'};
+    if (item.id === 'money') return {...item, title:'Earnings and payouts', detail:'Job payments, guest payments and withdrawals'};
+    return item;
+  });
 
   const propertyTargets = useMemo(
     () => [
@@ -122,6 +151,8 @@ export default function AccountHelpCenter({
       ...(targets.worker_jobs || []),
       ...(targets.reservations || []),
       ...(targets.hotel_bookings || []),
+      ...(targets.partner_reservations || []),
+      ...(targets.partner_hotel_bookings || []),
     ],
     [targets],
   );
@@ -315,40 +346,17 @@ export default function AccountHelpCenter({
   return (
     <AccountShell
       profile={profile}
+      workspace={workspace}
       title="Help"
-      description="Choose what you need help with. WeHouse routes it from the selected reason and linked record — never by guessing from your message."
-      onBack={onBack}
+      description="What do you need help with?"
+      onBack={topic ? () => { setTopic(null); setTargetId(''); } : onBack}
     >
-      {!topic ? (
-        <div className="space-y-2">
-          {TOPICS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => resetTopic(item.id)}
-              className="w-full rounded-2xl border border-white/[.06] bg-[#11141C] p-4 text-left transition hover:border-violet-500/20 hover:bg-violet-500/[.035]"
-            >
-              <p className="text-[12px] font-semibold text-white">{item.title}</p>
-              <p className="mt-1 text-[9px] leading-5 text-[#747B8C]">{item.detail}</p>
-            </button>
-          ))}
-          <p className="px-1 pt-2 text-[9px] leading-5 text-[#62697A]">
-            Opening Help creates nothing. A request is created only when your first message is successfully sent.
-          </p>
-        </div>
+      {loadError ? <div role="alert" className="rounded-2xl border border-white/10 p-4 text-sm"><p>We couldn't load your help options.</p><button className="mt-3 min-h-11 text-violet-300" onClick={() => setRetry(value => value + 1)}>Try again</button></div> : !topic ? (
+        <AccountSection>
+          {topics.map(item => <AccountRow key={item.id} title={item.title} detail={item.detail} onClick={() => resetTopic(item.id)} />)}
+        </AccountSection>
       ) : (
         <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => {
-              setTopic(null);
-              setTargetId("");
-            }}
-            className="text-[10px] font-semibold text-violet-300"
-          >
-            ← Change help topic
-          </button>
-
           {loading ? (
             <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-5 text-[10px] text-[#747B8C]">Loading your WeHouse records…</div>
           ) : null}
@@ -366,7 +374,7 @@ export default function AccountHelpCenter({
                 title="What do you need help with?"
                 ariaLabel="Choose general help reason"
               />
-              <PrimaryButton onClick={startGeneral}>Message WeHouse</PrimaryButton>
+              <PrimaryButton onClick={startGeneral} disabled={loading || !targets.account}>Message WeHouse</PrimaryButton>
             </>
           ) : null}
 
@@ -398,7 +406,7 @@ export default function AccountHelpCenter({
                 value={moneyReason}
                 options={[
                   { value: "payment_issue", label: "Payment issue" },
-                  { value: "payout_issue", label: "Withdrawal / payout issue" },
+                  ...(workspace !== 'personal' ? [{ value: "payout_issue", label: "Withdrawal / payout issue" }] : []),
                 ]}
                 onChange={(value) => {
                   setMoneyReason(value as MoneyReason);
@@ -444,10 +452,10 @@ export default function AccountHelpCenter({
                     setValue={setTargetId}
                     allowAccount
                   />
-                  <PrimaryButton onClick={startSecurity}>Message WeHouse Security</PrimaryButton>
+                  <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse Security</PrimaryButton>
                 </>
               ) : (
-                <PrimaryButton onClick={startSecurity}>Message WeHouse Security</PrimaryButton>
+                <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse Security</PrimaryButton>
               )}
             </>
           ) : null}
