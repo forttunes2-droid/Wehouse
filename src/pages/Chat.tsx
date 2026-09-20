@@ -69,10 +69,8 @@ type ThreadView = {
   title: string;
   avatar?: string | null;
   fallback: string;
-  kind: string;
   preview: string;
   context: string;
-  status: string;
   time: string;
   unread: number;
   tone: "violet" | "amber" | "emerald" | "blue";
@@ -401,7 +399,6 @@ export default function Chat({
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
         <section className="pt-4">
           <h2 className="sr-only">Messages</h2>
-          {messageUnreadCount > 0 && <p className="mb-3 text-xs text-violet-300">{messageUnreadCount} unread conversation{messageUnreadCount === 1 ? '' : 's'}</p>}
           <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
             <SearchIcon />
             <input
@@ -522,45 +519,30 @@ function ThreadRow({
           {view.time ? (
             <span
               className={`shrink-0 text-[11px] ${
-                view.unread ? "text-violet-300" : "text-[#9B9FAE]"
+                view.unread ? "text-violet-300" : "text-[#8A90A0]"
               }`}
             >
               {view.time}
             </span>
           ) : null}
         </div>
-        <p
-          className={`mt-0.5 truncate text-[13px] ${
-            view.unread
-              ? "font-medium text-[#DADDE5]"
-              : "text-[#777D8D]"
-          }`}
-        >
-          {view.preview}
-        </p>
-        <p className="mt-0.5 text-[11px] leading-4 text-[#989DAC]">
-          <span
-            className={`font-semibold ${
-              view.tone === "amber"
-                ? "text-violet-300"
-                : view.tone === "emerald"
-                  ? "text-violet-300"
-                  : view.tone === "blue"
-                    ? "text-violet-300"
-                    : "text-violet-300"
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          <p
+            className={`min-w-0 flex-1 truncate text-[13px] ${
+              view.unread
+                ? "font-medium text-[#DADDE5]"
+                : "text-[#7D8392]"
             }`}
           >
-            {view.kind}
-          </span>
-          {view.context ? ` · ${view.context}` : ""}
-          {view.status ? ` · ${view.status}` : ""}
-        </p>
+            {view.preview}
+          </p>
+          {view.unread > 0 ? (
+            <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold text-white">
+              {view.unread > 99 ? "99+" : view.unread}
+            </span>
+          ) : null}
+        </div>
       </div>
-      {view.unread > 0 ? (
-        <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold">
-          {view.unread > 99 ? "99+" : view.unread}
-        </span>
-      ) : null}
     </button>
   );
 }
@@ -586,12 +568,10 @@ function threadPresentation(
       title: peer?.name || peer?.username || "Roommate",
       avatar: peer?.avatar || null,
       fallback: (peer?.name || peer?.username || "R").slice(0, 1),
-      kind: "Roommate",
       preview: cleanEncryptedPreview(
         thread.row.last_message || "Start the conversation",
       ),
       context: "Matched",
-      status: "",
       time: formatListTime(thread.time),
       unread,
       tone: "violet",
@@ -602,14 +582,12 @@ function threadPresentation(
       title: thread.row.other_person_name || "Service Provider",
       avatar: thread.row.other_person_avatar,
       fallback: (thread.row.other_person_name || "S").slice(0, 1),
-      kind: "Service",
       preview: cleanEncryptedPreview(
         thread.row.last_message ||
           thread.row.service_type ||
           "Service conversation",
       ),
       context: thread.row.service_type || "WeHouse Services",
-      status: statusLabel(thread.row.booking_status) || "Requested",
       time: formatListTime(
         thread.row.last_message_time || thread.row.updated_at,
       ),
@@ -622,7 +600,6 @@ function threadPresentation(
       title: thread.row.other_party_label || thread.row.hotel_name || "Hotel",
       avatar: thread.row.hotel_image,
       fallback: "H",
-      kind: "Stay",
       preview: thread.row.last_message || "Stay conversation",
       context: [
         thread.row.room_name,
@@ -630,7 +607,6 @@ function threadPresentation(
       ]
         .filter(Boolean)
         .join(" · "),
-      status: statusLabel(thread.row.booking_status) || "Stay",
       time: formatListTime(
         thread.row.last_message_time || thread.row.updated_at,
       ),
@@ -643,10 +619,8 @@ function threadPresentation(
     title: presentation.title,
     avatar: null,
     fallback: "W",
-    kind: "WeHouse",
     preview: thread.row.last_message || presentation.operator,
     context: presentation.meta || "WeHouse conversation",
-    status: statusLabel(thread.row.status) || "Open",
     time: formatListTime(
       thread.row.last_message_time || thread.row.created_at,
     ),
@@ -763,38 +737,6 @@ function formatListTime(value?: string | null) {
   return date.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 }
 
-function statusLabel(value?: string | null) {
-  const labels: Record<string, string> = {
-    booking_requested: "Requested",
-    negotiating: "Agreeing details",
-    waiting_payment: "Waiting payment",
-    confirmed: "Paid",
-    pending: "Waiting confirmation",
-    payment_pending: "Waiting payment",
-    paid: "Paid",
-    checked_in: "Checked in",
-    checked_out: "Checked out",
-    expired: "Expired",
-    payment_conflict: "Payment review",
-    in_progress: "In progress",
-    completed_pending_approval: "Review work",
-    approved_released: "Completed",
-    disputed: "WeHouse review",
-    cancelled: "Cancelled",
-    refunded: "Refunded",
-    open: "Open",
-    waiting_for_user: "Your reply needed",
-    waiting_for_staff: "WeHouse reviewing",
-    resolved: "Resolved",
-    closed: "Closed",
-  };
-  return (
-    labels[String(value || "")] ||
-    String(value || "")
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase())
-  );
-}
 
 function SearchIcon() {
   return (
