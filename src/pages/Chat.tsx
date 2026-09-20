@@ -245,18 +245,6 @@ export default function Chat({
       (!needle || threadSearchText(thread, people, otherId).includes(needle)));
   }, [category, otherId, people, query, threads]);
 
-  const messageUnreadCount = useMemo(
-    () =>
-      threads.reduce(
-        (sum, thread) =>
-          sum +
-          (threadPresentation(thread, people, profile.user_id).unread > 0
-            ? 1
-            : 0),
-        0,
-      ),
-    [people, profile.user_id, threads],
-  );
 
   const target =
     activeTarget || (conversationId ? { conversationId, peerUserId } : null);
