@@ -968,14 +968,12 @@ function BookingSourceNotice({
 }
 
 function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
-  const status = BOOKING_STATUS_LABELS[row.booking_status];
   const amount = Number(row.negotiated_amount || 0);
   return (
     <BookingCard
       eyebrow="WeHouse Service"
       title={row.service_type || "Service request"}
       subtitle={row.other_person_name || "WeHouse professional"}
-      status={status?.label || "Status unavailable"}
       image={null}
       fallback="⌁"
       meta={amount > 0 ? [money(amount)] : []}
@@ -1005,7 +1003,6 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const short = row.stay_type === "short_let";
   const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
-  const visibleStatus = propertyBookingStatusLabel(row);
   const nextSummary =
     row.status === "occupied"
       ? short
@@ -1043,19 +1040,16 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       eyebrow={short ? "Short Let" : "Long Let"}
       title={row.listing_title || "Apartment reservation"}
       subtitle={row.listing_location || "WeHouse apartment"}
-      status={visibleStatus}
       image={row.listing_image || null}
       fallback="⌂"
       meta={dates}
-      next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? "" : journey.title)}
+      next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? propertyBookingStatusLabel(row) : journey.title)}
       onOpen={onOpen}
     />
   );
 }
 
 function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
-  const visibleStatus =
-    HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
   const checkIn = date(row.check_in_date || row.check_in);
@@ -1068,13 +1062,12 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
         ? `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
         : row.status === "checked_in"
           ? `Check-out ${checkOut} by ${formatStayTime(hotel.check_out_time, "12:00")} (hotel local time)`
-          : "";
+          : HOTEL_STATUS[String(row.status || "")] || "";
   return (
     <BookingCard
       eyebrow="Hotel"
       title={hotel.name || row.hotel_name || "Hotel reservation"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
-      status={visibleStatus}
       image={image}
       fallback="H"
       meta={[`${checkIn} – ${checkOut}`]}
@@ -1088,7 +1081,6 @@ function BookingCard({
   eyebrow,
   title,
   subtitle,
-  status,
   image,
   fallback,
   meta,
@@ -1098,7 +1090,6 @@ function BookingCard({
   eyebrow: string;
   title: string;
   subtitle: string;
-  status: string;
   image: string | null;
   fallback: string;
   meta: string[];
@@ -1125,14 +1116,9 @@ function BookingCard({
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-          <p className="min-w-0 basis-full break-words text-base font-semibold">
-            {title}
-          </p>
-          <span className="text-xs font-medium text-violet-200">
-            {status}
-          </span>
-        </div>
+        <p className="break-words text-base font-semibold">
+          {title}
+        </p>
         <p className="mt-1 break-words text-sm text-[#A1A1AA]">
           {subtitle}
         </p>
@@ -1145,7 +1131,7 @@ function BookingCard({
           <span className="shrink-0 text-[10px] font-bold uppercase tracking-[.12em] text-violet-300">
             {eyebrow}
           </span>
-          {next !== status && <span className="text-xs text-[#A1A1AA]">{next}</span>}
+          {next ? <span className="text-xs text-[#A1A1AA]">{next}</span> : null}
         </div>
       </div>
       <span className="shrink-0 text-lg text-[#555C6D]">›</span>
