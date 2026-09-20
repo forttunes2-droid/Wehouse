@@ -41,6 +41,7 @@ export default function RoommatePublicProfile({
   const conversationMode = context === "conversation";
   return (
     <PublicProfileSurface
+      conversation={conversationMode}
       name={person.name}
       username={person.username}
       avatar={person.avatar}
@@ -54,12 +55,7 @@ export default function RoommatePublicProfile({
       badges={conversationMode ? undefined : <><span className="rounded-full border border-white/[.08] bg-white/[.04] px-2.5 py-1 text-[9px] font-semibold text-[#B7BBC6]">WeHouse account</span>{hasScore ? <><strong className="text-xl text-violet-300">{score}%</strong><span className="text-[9px] font-semibold text-[#A5AABA]">{matchLabel || "Roommate match"}</span></> : null}</>}
       bottomAction={primaryAction}
     >
-      {conversationMode ? (
-        <section className="border-y border-white/[.06] py-5">
-          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6F7585]">This conversation</p>
-          <p className="mt-2 text-[11px] leading-5 text-[#A4A9B7]">This is the private identity for your matched roommate conversation. Discovery preferences and school matching details stay outside chat.</p>
-        </section>
-      ) : (
+      {!conversationMode && (
         <>
           {hasScore && (
             <section className="border-b border-white/[.07] py-5">

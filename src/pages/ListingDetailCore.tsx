@@ -31,7 +31,7 @@ import {
   getDiscoveryDistanceMap,
   useDiscoveryLocation,
 } from "@/hooks/useDiscoveryLocation";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
 import { locationLabel } from "@/lib/locationPresentation";
 import { hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
@@ -496,7 +496,7 @@ export default function ListingDetail({
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-12 text-white">
-      <Toaster position="top-center" richColors />
+
       <div className="mx-auto max-w-6xl">
         <PropertyMediaCarousel
           images={images}

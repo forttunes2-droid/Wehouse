@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Toaster } from 'sonner';
 import AccountShell, { AccountRow, AccountSection } from '@/components/AccountShell';
 import PrivacySettings from '@/pages/PrivacySettings';
 import SecuritySettings from '@/pages/SecuritySettings';
@@ -16,7 +15,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,initial
   const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':'Privacy & Security';
   const description=section==='privacy'?'Control roommate discovery and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
-    <Toaster position="top-center" richColors/>
+
     {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
     section==='access'?<><SecuritySettings profile={profile} embedded focus="password"/><SecuritySettings profile={profile} embedded focus="sessions"/></>:
     section==='devices'?<SecuritySettings profile={profile} embedded focus="sessions"/>:

@@ -6,7 +6,7 @@ import {
   markAnnouncementRead,
 } from "@/lib/supabase/announcements";
 import type { Profile } from "@/types";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import {
   activityDestinationLabel,
   activityIsCurrent,
@@ -530,14 +530,14 @@ function NotificationFeed({
   if (embedded)
     return (
       <>
-        <Toaster position="top-center" richColors />
+
         {content}
         {confirmation}
       </>
     );
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white">
-      <Toaster position="top-center" richColors />
+
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
           <h1 className="text-xl font-bold">Inbox</h1>

@@ -6,7 +6,7 @@ const read=(path)=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
 test("Apartment and Hotel Message WeHouse preserve one property-to-booking conversation",async()=>{
   const [support,migration,hotel,reservations,apartment]=await Promise.all([
     read("src/lib/supabase/support.ts"),
-    read("supabase/migrations/20260916123000_atomic_wehouse_first_send_and_support_storage.sql"),
+    read("supabase/migrations/20260920114526_repair_support_topic_workspace_routing.sql"),
     read("src/pages/HotelDetailExperience.tsx"),
     read("src/pages/MyReservations.tsx"),
     read("src/pages/ListingDetailCore.tsx"),
@@ -17,10 +17,10 @@ test("Apartment and Hotel Message WeHouse preserve one property-to-booking conve
   assert.match(reservations,/contextType: "hotel_booking"/);
   assert.doesNotMatch(reservations,/hotel_booking_help/);
   assert.match(support,/open_property_operations_conversation/);
-  assert.match(support,/p_subject_type: "apartment"/);
-  assert.match(support,/p_subject_type: "hotel"/);
-  assert.match(migration,/v_context='property_listing'[\s\S]*open_property_operations_conversation\([\s\S]*'apartment'/);
-  assert.match(migration,/v_context in\('hotel_property','hotel_operations'\)[\s\S]*open_property_operations_conversation\([\s\S]*'hotel'/);
+  assert.match(support,/p_subject_type: "listing"/);
+  assert.match(support,/p_subject_type: "hotel_property"/);
+  assert.match(migration,/v_context='property_listing'[\s\S]*open_property_operations_conversation\([\s\S]*'listing'/);
+  assert.match(migration,/v_context in\('hotel_property','hotel_operations'\)[\s\S]*open_property_operations_conversation\([\s\S]*'hotel_property'/);
   assert.match(migration,/v_context in\('apartment_reservation','hotel_booking'\)[\s\S]*open_my_reservation_conversation/);
 });
 

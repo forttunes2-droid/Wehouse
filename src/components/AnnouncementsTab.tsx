@@ -3,7 +3,7 @@ import { deleteAnnouncement,getAllAnnouncements,getAllUsers,getAnnouncementsSent
 import { canSendAnnouncements } from '@/hooks/useAuth';
 import { useConfirm } from '@/hooks/useConfirm';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { Toaster,toast } from 'sonner';
+import { toast } from 'sonner';
 import type { Profile } from '@/types';
 
 type Scope='all'|{state:string;lga:string};
@@ -107,7 +107,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   }
 
   return <div className="min-w-0 space-y-4">
-    <ConfirmDialog {...dialogProps}/><Toaster position="top-center" richColors theme="dark"/>
+    <ConfirmDialog {...dialogProps}/>
     {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga}, {scope.state}.</div>}
     <div className="flex gap-6 border-b border-white/[.06]">
       <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Compose</button>

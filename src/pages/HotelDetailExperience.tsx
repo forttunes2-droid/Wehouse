@@ -1,6 +1,6 @@
 import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import {
   addHotelReview,
   canReviewHotel,
@@ -263,7 +263,7 @@ export default function HotelDetailExperience({
 
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
-      <Toaster position="top-center" richColors />
+
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/96 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <BackButton onClick={onBack} />

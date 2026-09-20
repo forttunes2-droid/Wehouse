@@ -22,10 +22,11 @@ test("first Message WeHouse send uses the idempotent draft boundary", async () =
   assert.match(migration, /consumed_at=now\(\)/);
 });
 
-test("unsent Message WeHouse composer discloses its purpose before persistence", async () => {
+test("unsent Message WeHouse shows one named topic without internal workflow instructions", async () => {
   const chat = await read("src/components/SupportChat.tsx");
-  for (const label of ["This is", "Handled by", "Linked to", "What sending does"])
-    assert.match(chat, new RegExp(label));
-  assert.match(chat, /Opening this screen alone does not create a conversation/);
+  assert.match(chat, /aria-label="Conversation topic"/);
+  assert.match(chat, /Hotel enquiry/);
+  assert.match(chat, /Remove linked topic/);
+  assert.doesNotMatch(chat, /Before you send|What sending does|FirstSendDisclosure/);
   assert.match(chat, /Attach evidence/);
 });

@@ -50,6 +50,7 @@ import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import MediaViewer from "@/components/MediaViewer";
 import HotelBookingChat from "@/components/HotelBookingChat";
+import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -150,6 +151,7 @@ export default function Chat({
   activityUnreadCount = 0,
   onActivityUnreadChange,
 }: Props) {
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const cachedInbox = inboxCache.get(profile.user_id);
   const [openingConversation, setOpeningConversation] = useState(Boolean(conversationId));
   const [conversations, setConversations] = useState<Conversation[]>(() => cachedInbox?.conversations || []),
@@ -1006,7 +1008,7 @@ export default function Chat({
               type="button"
               onClick={() => void openActiveProfile()}
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
-              aria-label="View roommate profile"
+              aria-label="Contact info"
             >
               <Avatar person={person} />
               <span className="min-w-0">
@@ -1046,7 +1048,7 @@ export default function Chat({
                 className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] hover:bg-white/[.04]"
               >
                 <span>◉</span>
-                <span>View profile</span>
+                <span>Contact info</span>
               </button>
               <button
                 disabled={blockBusy}
@@ -1123,12 +1125,14 @@ export default function Chat({
                         ? messageById.get(event.message.reply_to_id)
                         : undefined
                     }
-                    onOpenActions={() => {
+                    onOpenActions={(anchor) => {
+                      setMessageMenuAnchor(anchor);
                       if (event.message.delivery_state) return;
                       setMessageActionMode("actions");
                       setMessageActions(event.message);
                     }}
-                    onTapReaction={() => {
+                    onTapReaction={(anchor) => {
+                      setMessageMenuAnchor(anchor);
                       if (event.message.delivery_state) return;
                       setMessageActionMode("reactions");
                       setMessageActions(event.message);
@@ -1275,6 +1279,7 @@ export default function Chat({
         </footer>
         {messageActions && active && (
           <MessageActionSheet
+            anchor={messageMenuAnchor}
             mode={messageActionMode}
             currentReaction={
               messageActions.reactions?.[profile.user_id] || null
@@ -1920,8 +1925,8 @@ function RoommateBubble({
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
-  onOpenActions: () => void;
-  onTapReaction: () => void;
+  onOpenActions: (anchor: DOMRect) => void;
+  onTapReaction: (anchor: DOMRect) => void;
   onReply: () => void;
 }) {
   const reactions = Object.values(msg.reactions || {}).reduce<

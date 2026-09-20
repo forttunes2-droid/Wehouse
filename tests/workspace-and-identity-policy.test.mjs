@@ -54,7 +54,7 @@ test('biometric identity verification is policy-gated and recurring checks are s
   assert.match(migration, /'identity_passed',coalesce\(v_identity\.status='passed',false\)/);
   assert.match(gate, /state\?\.required && !state\.gate_satisfied/);
   assert.match(review, /activation\.identity_required === true/);
-  assert.match(review, /Face\/liveness verification is not currently required/);
+  assert.doesNotMatch(review, /Face\/liveness verification is not currently required/);
 });
 
 test('identity evidence stays distinct from public Reviewed or trust claims', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import UserProfileModal from "@/components/UserProfileModal";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
@@ -126,7 +126,7 @@ export default function AdminDashboard({
   const workspaceDescription = tab === "operations" && currentOperation ? currentOperation[2] : NOTES[tab];
   return (
     <>
-      <Toaster position="top-center" richColors />
+
       <WorkspaceFrameV2
         label={`WEHOUSE TEAM · BRANCH ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
         title={workspaceTitle}

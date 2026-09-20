@@ -17,6 +17,7 @@ import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import MessageActionSheet from "@/components/MessageActionSheet";
+import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import MessagePress from "@/components/MessagePress";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import type { Profile } from "@/types";
@@ -42,11 +43,12 @@ export default function HotelBookingChat({
   conversationId: initialConversationId,
   profile,
   title,
-  subtitle = "Private booking conversation",
+  subtitle = "Hotel team · Booking conversation",
   readOnly = false,
   onClose,
   onUpdated,
 }: Props) {
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [conversationId, setConversationId] = useState(
     initialConversationId || "",
   );
@@ -307,12 +309,14 @@ export default function HotelBookingChat({
               return (
                 <MessagePress
                   key={message.id}
-                  onOpen={() => {
+                  onOpen={(anchor) => {
+                    setMessageMenuAnchor(anchor);
                     if (message.delivery_state) return;
                     setMessageMenuMode("actions");
                     setMessageMenu(message);
                   }}
-                  onTap={() => {
+                  onTap={(anchor) => {
+                    setMessageMenuAnchor(anchor);
                     if (message.delivery_state) return;
                     setMessageMenuMode("reactions");
                     setMessageMenu(message);
@@ -533,6 +537,7 @@ export default function HotelBookingChat({
       </footer>
       {messageMenu && (
         <MessageActionSheet
+          anchor={messageMenuAnchor}
           mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
           onClose={() => setMessageMenu(null)}

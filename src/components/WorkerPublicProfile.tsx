@@ -157,6 +157,7 @@ export default function WorkerPublicProfileV2({
     const verified = Boolean((worker as Profile & { worker_verified?: boolean }).worker_verified);
     return (
       <PublicProfileSurface
+        conversation
         name={displayName}
         username={worker.username}
         avatar={avatarUrl}
@@ -169,10 +170,6 @@ export default function WorkerPublicProfileV2({
           </>
         }
       >
-        <section className="border-y border-white/[.06] py-5">
-          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6F7585]">This conversation</p>
-          <p className="mt-2 text-[11px] leading-5 text-[#A4A9B7]">Use the controls above for this private service conversation. Public reviews, Showcase posts, pricing and discovery details stay on the worker’s public profile.</p>
-        </section>
         {safetyAction ? <section className="pt-1">{safetyAction}</section> : null}
       </PublicProfileSurface>
     );

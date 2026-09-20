@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getAllListings, getHotels } from '@/lib/supabase';
 import ListingCard from '@/components/ListingCard';
 import type { Hotel, Listing, Profile } from '@/types';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import BackButton from '@/components/BackButton';
 import { getMySavedHotelIds, unsaveHotel } from '@/lib/supabase/saved-hotels';
 
@@ -55,7 +55,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
 
   return (
     <div className="min-h-screen bg-[#090B10] pb-24 text-white">
-      <Toaster position="top-center" richColors />
+
       <header className="sticky top-0 z-30 border-b border-white/[0.055] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto flex max-w-5xl items-start gap-3">
           <BackButton onClick={onBack} />

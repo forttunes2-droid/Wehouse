@@ -1,10 +1,10 @@
-import { useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
   className?: string;
-  onOpen: () => void;
-  onTap?: () => void;
+  onOpen: (anchor: DOMRect) => void;
+  onTap?: (anchor: DOMRect) => void;
   onReply?: () => void;
 };
 
@@ -25,8 +25,10 @@ export default function MessagePress({
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = null;
   }
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   function start(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button,a,input,textarea,audio,video")) return;
+    const element = event.currentTarget;
     opened.current = false;
     dragged.current = false;
     origin.current = { x: event.clientX, y: event.clientY };
@@ -35,7 +37,7 @@ export default function MessagePress({
       opened.current = true;
       timer.current = null;
       navigator.vibrate?.(18);
-      onOpen();
+      onOpen(element.getBoundingClientRect());
     }, 420);
   }
   function move(event: PointerEvent<HTMLDivElement>) {
@@ -76,13 +78,14 @@ export default function MessagePress({
       onContextMenu={(event) => {
         event.preventDefault();
         cancel();
-        onOpen();
+        opened.current = true;
+        onOpen(event.currentTarget.getBoundingClientRect());
       }}
       onClick={(event) => {
         if (opened.current || dragged.current || !onTap) return;
         const target = event.target as HTMLElement;
         if (target.closest("button,a,input,textarea,audio,video")) return;
-        onTap();
+        onTap(event.currentTarget.getBoundingClientRect());
       }}
       onClickCapture={(event) => {
         if (!opened.current && !dragged.current) return;

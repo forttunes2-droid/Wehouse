@@ -29,15 +29,20 @@ export default function PreciseLocationPicker({
   const [locating, setLocating] = useState(false);
   const [message, setMessage] = useState("");
   const requestRef = useRef(0);
+  const stopLocatingRef = useRef<() => void>(() => {});
 
   useEffect(
     () => () => {
       requestRef.current += 1;
+      stopLocatingRef.current();
     },
     [],
   );
 
   function updateAddress(address: string) {
+    stopLocatingRef.current();
+    requestRef.current += 1;
+    setLocating(false);
     onChange({
       latitude: value?.latitude ?? null,
       longitude: value?.longitude ?? null,
@@ -133,10 +138,12 @@ export default function PreciseLocationPicker({
       setMessage("This browser cannot share location. Type the correct street address manually.");
       return;
     }
+    stopLocatingRef.current();
     const request = ++requestRef.current;
     let best: GeolocationPosition | null = null;
     let done = false;
     let watch = -1;
+    stopLocatingRef.current = () => { done = true; if (watch >= 0) navigator.geolocation.clearWatch(watch); };
     setLocating(true);
     setMessage("Finding the best available location from this phone…");
 
@@ -156,6 +163,7 @@ export default function PreciseLocationPicker({
     watch = navigator.geolocation.watchPosition(
       receive,
       (error) => {
+        if (done || request !== requestRef.current) return;
         if (!best) {
           done = true;
           fail(error);
@@ -166,6 +174,7 @@ export default function PreciseLocationPicker({
     navigator.geolocation.getCurrentPosition(
       receive,
       (error) => {
+        if (done || request !== requestRef.current) return;
         if (!best && watch < 0) {
           done = true;
           fail(error);
@@ -174,6 +183,7 @@ export default function PreciseLocationPicker({
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
     );
     window.setTimeout(() => {
+      if (done || request !== requestRef.current) return;
       if (best) settle();
       else if (!done) {
         done = true;
@@ -196,13 +206,14 @@ export default function PreciseLocationPicker({
           <p className="text-xs font-semibold">{title}</p>
           <p className="mt-1 text-[9px] leading-5 text-[#787D8F]">{description}</p>
         </div>
-        <span
-          className={`shrink-0 text-[8px] font-bold uppercase tracking-wide ${
-            value?.address.trim() ? "text-emerald-300" : "text-amber-300"
-          }`}
-        >
-          {value?.address.trim() ? "Address added" : "Add address"}
-        </span>
+          <button
+            type="button"
+            onClick={locate}
+            disabled={locating}
+            className="min-h-11 shrink-0 px-2 text-xs font-semibold text-violet-300 disabled:opacity-50"
+          >
+            {locating ? "Finding address…" : "Use my location"}
+          </button>
       </div>
 
       <div className="mt-3">
@@ -227,14 +238,7 @@ export default function PreciseLocationPicker({
 
         <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-[8px] leading-4 text-[#656B7B]">{addressHelp}</p>
-          <button
-            type="button"
-            onClick={locate}
-            disabled={locating}
-            className="shrink-0 text-[9px] font-semibold text-violet-300 disabled:opacity-50"
-          >
-            {locating ? "Finding address…" : "Use my location"}
-          </button>
+
         </div>
 
         {subject === "personal" && value ? (
@@ -242,6 +246,8 @@ export default function PreciseLocationPicker({
             type="button"
             onClick={() => {
               requestRef.current += 1;
+              stopLocatingRef.current();
+              setLocating(false);
               onChange(null);
               setMessage("");
             }}

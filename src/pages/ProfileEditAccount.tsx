@@ -4,7 +4,7 @@ import { getRegisteredInstitutions, type RegisteredInstitution } from '@/lib/sup
 import SearchableSelect from '@/components/SearchableSelect';
 import AccountShell from '@/components/AccountShell';
 import { NIGERIA_STATES } from '@/data/nigeria-locations';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import type { Profile } from '@/types';
 import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
 import PreciseLocationPicker, { type PreciseLocation } from '@/components/PreciseLocationPicker';
@@ -179,7 +179,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
 
   return (
     <AccountShell profile={profile} title="Edit profile" description={isUser ? 'Your photo, name and personal details.' : 'Update the private details for this account.'} onBack={onBack}>
-      <Toaster position="top-center" richColors />
+
       <form onSubmit={save} className="relative space-y-4" aria-busy={saving}>
         <fieldset disabled={saving} className="contents">
         <button type="button" onClick={()=>setEditing(false)} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/[.08] px-4 text-[10px] font-semibold text-[#B9BECA]"><span aria-hidden="true">←</span> Profile summary</button>

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import InlineFilterChips from "@/components/InlineFilterChips";
 import { canonicalStatusOptions } from "@/lib/status";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import MediaViewer from "@/components/MediaViewer";
+import { useRpcRead } from "@/hooks/useRpcRead";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 
 type Worker = {
@@ -36,32 +37,18 @@ type Checks = {
   review_status?: string | null;
 };
 
-export default function CreatorWorkerOversight() {
+export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   const { requestElevation } = useCreatorAuth();
-  const [rows, setRows] = useState<Worker[]>([]),
-    [selected, setSelected] = useState<Worker | null>(null),
+  const [selected, setSelected] = useState<Worker | null>(null),
     [checks, setChecks] = useState<Checks | null>(null),
-    [loading, setLoading] = useState(true),
     [loadingChecks, setLoadingChecks] = useState(false),
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
     [reason, setReason] = useState(""),
     [acting, setActing] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("admin_get_my_branch_profiles", {
-      p_role: "worker",
-    });
-    if (error) toast.error(error.message);
-    setRows(Array.isArray(data) ? data : []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
+  const { data, loading, error: listError, refresh: load } = useRpcRead<Worker[]>("creator_get_people", userId, { p_workspace: "worker" });
+  const rows = useMemo(() => data || [], [data]);
   async function open(worker: Worker) {
     setSelected(worker);
     setReason("");
@@ -182,6 +169,7 @@ export default function CreatorWorkerOversight() {
     });
   }, [rows, search, filter]);
 
+  if (listError) return <section role="alert" className="rounded-xl border border-amber-500/20 p-4"><p className="text-sm text-amber-100">Service providers could not be loaded.</p><button type="button" onClick={() => void load()} className="min-h-11 text-violet-300">Try again</button></section>;
   if (selected)
     return (
       <div className="space-y-4">

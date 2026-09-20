@@ -1,6 +1,9 @@
+import CreatorOverview from "@/components/CreatorOverview";
+import { useRpcRead } from '@/hooks/useRpcRead';
+import { withTimeout } from '@/lib/withTimeout';
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import BackButton from "@/components/BackButton";
 import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
@@ -35,7 +38,7 @@ type Operation =
   | "analytics"
   | "audit"
   | "platform";
-type PersonRole = "user" | "property_partner";
+type PersonRole = "all" | "property_partner";
 type Props = {
   profile: Profile;
   onLogout: () => void;
@@ -66,12 +69,12 @@ const OPS: Array<{
   {
     id: "people",
     label: "People",
-    note: "Regular Users and Property Partners.",
+    note: "Personal accounts and property partner access.",
     group: "Accounts",
   },
   {
     id: "team",
-    label: "Team",
+    label: "WeHouse team",
     note: "Admins, Operations members, branches and work areas.",
     group: "Accounts",
   },
@@ -83,8 +86,8 @@ const OPS: Array<{
   },
   {
     id: "workers",
-    label: "Workers",
-    note: "Worker onboarding and account decisions.",
+    label: "Service providers",
+    note: "Professional onboarding and account decisions.",
     group: "Marketplace",
   },
   {
@@ -120,7 +123,7 @@ const OPS: Array<{
 ];
 const OP_GROUPS = ["Accounts", "Marketplace", "Platform"] as const;
 const PEOPLE_OPTIONS = [
-  { value: "user", label: "Users", description: "People using WeHouse to find homes and services." },
+  { value: "all", label: "All accounts", description: "Personal identities, including people with additional workspaces." },
   { value: "property_partner", label: "Property partners", description: "People and businesses supplying property inventory." },
 ] as const;
 const FINANCE_OPTIONS = [
@@ -198,7 +201,7 @@ export default function CreatorDashboard({
       : NOTES[tab];
   return (
     <>
-      <Toaster position="top-center" richColors />
+
       <WorkspaceFrameV2
         label="WEHOUSE · CREATOR"
         title={currentPlatform?.label || workspaceTitle}
@@ -223,7 +226,7 @@ export default function CreatorDashboard({
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
-        {tab === "overview" && <Overview openOperation={openOperation} />}
+        {tab === "overview" && <CreatorOverview userId={profile.user_id} onOpen={openOperation} />}
         {tab === "operations" && (
           <Operations
             profile={profile}
@@ -258,127 +261,6 @@ export default function CreatorDashboard({
         />
       )}
     </>
-  );
-}
-
-function Overview({
-  openOperation,
-}: {
-  openOperation: (tab: Operation) => void;
-}) {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    void (async () => {
-      const [base, hotels, team, payouts, inspections] = await Promise.all([
-        supabase.rpc("admin_get_my_branch_stats"),
-        supabase
-          .from("hotels")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "active"),
-        supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .in("role", ["admin", "staff"])
-          .eq("deleted", false),
-        supabase
-          .from("withdrawals")
-          .select("*", { count: "exact", head: true })
-          .in("status", ["awaiting_review", "processing"]),
-        supabase
-          .from("inspection_requests")
-          .select("*", { count: "exact", head: true })
-          .in("status", ["pending", "scheduled", "in_progress"]),
-      ]);
-      if (base.error) toast.error(base.error.message);
-      setStats({
-        ...(base.data || {}),
-        hotels: hotels.count || 0,
-        team: team.count || 0,
-        pendingPayouts: payouts.count || 0,
-        pendingInspections: inspections.count || 0,
-      });
-      setLoading(false);
-    })();
-  }, []);
-
-  if (loading) return <Loading />;
-  const groups: Array<{
-    title: string;
-    note: string;
-    action: () => void;
-    values: Array<[string, number]>;
-  }> = [
-    {
-      title: "Property review & publishing",
-      note: `${stats?.pendingInspections || 0} active inspections`,
-      action: () => openOperation("properties"),
-      values: [
-        ["Apartments", stats?.listings || 0],
-        ["Hotels", stats?.hotels || 0],
-      ],
-    },
-    {
-      title: "Users & property partners",
-      note: "Account records and partner access",
-      action: () => openOperation("people"),
-      values: [
-        ["Users", stats?.users || 0],
-        ["Partners", stats?.partners || 0],
-      ],
-    },
-    {
-      title: "Workers & internal team",
-      note: `${stats?.pending_verifications || 0} worker reviews pending`,
-      action: () => openOperation("workers"),
-      values: [
-        ["Workers", stats?.workers || 0],
-        ["Team", stats?.team || 0],
-      ],
-    },
-    {
-      title: "Payout review",
-      note: "Worker and property-partner settlements",
-      action: () => openOperation("finance"),
-      values: [["Payouts", stats?.pendingPayouts || 0]],
-    },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <section className="border-b border-white/[.07] pb-4">
-        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-          Platform at a glance
-        </p>
-        <p className="mt-2 max-w-2xl text-[10px] leading-5 text-[#747A8B]">
-          Choose an area to see its records and actions.
-        </p>
-      </section>
-      <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
-        {groups.map((group) => (
-          <button
-            key={group.title}
-            onClick={group.action}
-            className="flex min-h-20 w-full items-center gap-4 py-4 text-left transition hover:bg-white/[.018]"
-          >
-            <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">{group.title}</p>
-                <p className="mt-1 text-[9px] text-[#62697A]">{group.note}</p>
-            </div>
-            <div className="flex shrink-0 gap-5 text-right">
-              {group.values.map(([label, value]) => (
-                <div key={label}>
-                  <p className="text-base font-bold">{value}</p>
-                  <p className="mt-0.5 text-[8px] text-[#666D7E]">{label}</p>
-                </div>
-              ))}
-            </div>
-            <span className="shrink-0 text-[#697082]">›</span>
-          </button>
-        ))}
-      </section>
-    </div>
   );
 }
 
@@ -433,7 +315,7 @@ function Operations({
     );
   return (
     <div className="space-y-5">
-      {active === "people" && <People onView={onView} />}
+      {active === "people" && <People userId={profile.user_id} initialRole={target?.operation === 'people' && target.id === 'property_partner' ? 'property_partner' : 'all'} onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
       {active === "properties" && (
         <div className="space-y-5">
@@ -446,7 +328,7 @@ function Operations({
           />
         </div>
       )}
-      {active === "workers" && <div className="space-y-5"><AccountIdentityReviewQueue accountRole="worker"/><CreatorWorkerOversight /></div>}
+      {active === "workers" && <div className="space-y-5"><AccountIdentityReviewQueue accountRole="worker"/><CreatorWorkerOversight userId={profile.user_id} /></div>}
       {active === "bookings" && (
         <Bookings
           initialRecordId={
@@ -544,39 +426,26 @@ function Nested({
   );
 }
 
-function People({ onView }: { onView: (profile: Profile) => void }) {
-  const [role, setRole] = useState<PersonRole>("user");
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+function People({ userId, initialRole, onView }: { userId: string; initialRole: PersonRole; onView: (profile: Profile) => void }) {
+  const [role, setRole] = useState<PersonRole>(initialRole);
+  const { data, loading, error, refresh } = useRpcRead<Profile[]>('creator_get_people', userId, { p_workspace: role === 'all' ? null : role });
+  const rows = useMemo(() => data || [], [data]);
   const [search, setSearch] = useState("");
   const [opening, setOpening] = useState<string | null>(null);
-  useEffect(() => {
-    void load();
-  }, [role]);
-  async function load() {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("admin_get_my_branch_profiles", {
-      p_role: role,
-    });
-    if (error) toast.error(error.message);
-    setRows(Array.isArray(data) ? data : []);
-    setLoading(false);
-  }
   async function openCanonical(person: Profile) {
     setOpening(person.user_id);
-    const { data, error } = await supabase.rpc("admin_get_my_branch_profiles", {
-      p_role: person.role,
-    });
-    setOpening(null);
+    try {
+    const { data, error } = await withTimeout(supabase.rpc("creator_get_people", {
+      p_workspace: role === 'all' ? null : role,
+    }), 15000, 'The current profile could not be loaded');
     if (error) return toast.error("The current profile could not be loaded");
     const current = (Array.isArray(data) ? data : []).find(
       (row: any) => row.user_id === person.user_id,
     );
     if (!current) return toast.error("This profile is no longer available");
-    setRows((rows) =>
-      rows.map((row) => (row.user_id === current.user_id ? current : row)),
-    );
     onView(current as Profile);
+    } catch { toast.error('The current profile could not be loaded'); }
+    finally { setOpening(null); }
   }
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -601,7 +470,7 @@ function People({ onView }: { onView: (profile: Profile) => void }) {
   return (
     <Section
       title="People"
-      note="Regular Users and Property Partners. Team members and Workers have dedicated workspaces."
+      note="One Personal account per person. Property partner access is an additional workspace."
     >
       <WeHouseSelect
         value={role}
@@ -619,7 +488,7 @@ function People({ onView }: { onView: (profile: Profile) => void }) {
       />
       {loading ? (
         <Loading />
-      ) : shown.length === 0 ? (
+      ) : error ? <div role="alert" className="py-4 text-sm text-amber-100"><p>Accounts could not be loaded.</p><button type="button" onClick={() => void refresh()} className="min-h-11 text-violet-300">Try again</button></div> : shown.length === 0 ? (
         <Empty text="No matching accounts." />
       ) : (
         <div className="divide-y divide-white/[.06] border-y border-white/[.06]">

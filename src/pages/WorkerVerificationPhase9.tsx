@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import WorkerIdentityCheck from "@/components/WorkerIdentityCheck";
 import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklist";
 import { supabase } from "@/lib/supabase";
@@ -217,7 +217,7 @@ export default function WorkerVerificationPhase9({
     );
   return (
     <Shell>
-      <Toaster position="top-center" richColors theme="dark" />
+
       <header className="border-b border-white/[.06] px-4 py-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button

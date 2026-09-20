@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import VideoPlayer from '@/components/VideoPlayer';
 import WorkerVerificationPhase9 from '@/pages/WorkerVerificationPhase9';
+import { useRpcRead } from '@/hooks/useRpcRead';
 
 type Props = {
   profile: Profile;
@@ -28,26 +29,7 @@ type UploadState = {
 } | null;
 
 export default function ServiceProviderVerification(props: Props) {
-  const [activation, setActivation] = useState<Activation | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  async function refresh() {
-    setLoading(true);
-    const result = await supabase.rpc('get_my_worker_activation');
-    if (result.error) {
-      setError(result.error.message);
-      setActivation(null);
-    } else {
-      setActivation((result.data || {}) as Activation);
-      setError('');
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    void refresh();
-  }, [props.profile.user_id]);
+  const { data: activation, loading, error, refresh } = useRpcRead<Activation>('get_my_worker_activation', props.profile.user_id);
 
   if (loading)
     return (
@@ -185,13 +167,13 @@ function EvidenceOnlyVerification({
 
   return (
     <SimpleShell onBack={onBack}>
-      <Toaster position="top-center" richColors theme="dark" />
+
 
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
         <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICES</p>
         <h2 className="mt-1 text-base font-semibold">Service Provider onboarding is free</h2>
         <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
-          Face/liveness verification is not currently required. Professional evidence and WeHouse review remain real checks; a paid plan never buys Reviewed or Trusted status.
+          Complete your professional profile, add a short work video and submit it to WeHouse for review.
         </p>
       </section>
 
@@ -200,7 +182,7 @@ function EvidenceOnlyVerification({
           <PrimaryButton label="Continue profile setup" onClick={onEditProfile} />
         </Card>
       ) : reviewed ? (
-        <Card title="WeHouse review complete" text="Your professional review is complete. Identity/liveness verification remains separate and will only be required when the approved policy enables it.">
+        <Card title="WeHouse review complete" text="Your professional profile and work evidence have been reviewed.">
           <PrimaryButton label="Back to Service Provider workspace" onClick={onBack} />
         </Card>
       ) : reviewing ? (

@@ -1,6 +1,6 @@
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
-import { Toaster,toast } from 'sonner';
+import { toast } from 'sonner';
 import AccountShell, { AccountInfo } from '@/components/AccountShell';
 import type { Profile } from '@/types';
 
@@ -32,7 +32,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   async function closeAccount(){if(deleteText!=='DELETE')return;setDeleting(true);const {error}=await supabase.rpc('delete_user_account',{p_user_id:profile.user_id});setDeleting(false);if(error)return toast.error(error.message||'Account could not be closed');await supabase.auth.signOut({scope:'global'})}
 
   const content=<>
-    {!embedded&&<Toaster position="top-center" richColors/>}
+
     {(focus==='all'||focus==='sessions')&&<section className="grid gap-3 sm:grid-cols-3"><AccountInfo label="Email" value={emailVerified===null?'Checking…':emailVerified?'Verified':'Verification required'}/><AccountInfo label="Current device" value={`${device.device} · ${device.browser}`}/><AccountInfo label="Active sessions" value={loading?'Checking…':String(sessions.length)}/></section>}
 
     {(focus==='all'||focus==='password')&&<section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
