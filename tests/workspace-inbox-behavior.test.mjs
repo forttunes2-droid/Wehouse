@@ -100,21 +100,26 @@ test('Help menus follow the selected profile, including Hotel Team',()=>{
 });
 test('Existing professional profiles remain visible before public approval and do not become new applications',()=>{
   let stateIndex=0;
+  let selectedPanel='workspaces';
   const Account=moduleAt('src/pages/AccountCenter.tsx',{
-    react:{...React,useState:initial=>[stateIndex++===0?'workspaces':initial,()=>{}],useEffect(){},useMemo:fn=>fn()},
+    react:{...React,useState:initial=>[stateIndex++===0?selectedPanel:initial,()=>{}],useEffect(){},useMemo:fn=>fn()},
     '@/components/AccountShell':accountShell,'@/components/AccountHelpCenter':()=>null,
     '@/pages/PrivacySecuritySettings':()=>null,'@/components/MediaViewer':()=>null,
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
   }).default;
-  const render=roles=>{stateIndex=0;return renderToStaticMarkup(Account({
+  const render=(roles,workspace='personal')=>{stateIndex=0;return renderToStaticMarkup(Account({
     profile:{user_id:'person-a',role:'user',worker_status:'profile_under_review'},
     workspaceAccess:{...access(roles),identity:{user_id:'person-a',account_kind:'consumer'}},
-    activeWorkspace:'personal',onSwitchWorkspace(){},
+    activeWorkspace:workspace,onSwitchWorkspace(){},
   }));};
   const existing=render(['worker','property_partner','hotel','admin']);
   for(const label of ['Service Provider','Property Partner','Hotel Team','WeHouse Team','Current'])assert.match(existing,new RegExp(label));
   assert.doesNotMatch(existing,/Offer services|List a property|Property Partner application/);
   const revoked=render([]);
   assert.match(revoked,/Offer services/);assert.match(revoked,/List a property/);assert.doesNotMatch(revoked,/under WeHouse review/);
+  selectedPanel=null;
+  const partnerAccount=render(['property_partner'],'property_partner');
+  assert.match(partnerAccount,/Your properties, guests and earnings/);
+  assert.doesNotMatch(partnerAccount,/Saved apartments and search alerts|Roommate visibility/);
 });

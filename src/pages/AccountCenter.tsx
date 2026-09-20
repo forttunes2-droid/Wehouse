@@ -115,20 +115,15 @@ export default function AccountCenter({
   >(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
-  const role = profile.role;
   const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hotel"].includes(activeWorkspace);
-  const isUser = role === "user";
-  const isServiceProvider = role === "worker";
-  const isStaff = role === "staff";
+  const isUser = activeWorkspace === "personal";
+  const isServiceProvider = activeWorkspace === "worker";
+  const isStaff = activeWorkspace === "staff";
   const canEditGenericProfile = !isStaff && !isServiceProvider;
-  const roleLabel =
-    role === "worker"
-      ? "Service Provider"
-      : role === "property_partner"
-        ? "Property Partner"
-        : role === "staff" || role === "admin"
-          ? "WeHouse Team"
-          : role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ");
+  const helpDetail = activeWorkspace === 'worker' ? 'Your jobs, professional profile and earnings'
+    : activeWorkspace === 'property_partner' ? 'Your properties, guests and earnings'
+    : activeWorkspace === 'hotel' ? 'Your assigned hotel and account'
+    : 'Your account, stays, services and payments';
   const initials = (
     profile.full_name ||
     profile.username ||
@@ -467,7 +462,7 @@ export default function AccountCenter({
                 {profile.full_name || `@${profile.username || "account"}`}
               </h2>
               <span className="rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#9CA2B2]">
-                {activeWorkspace === "personal" ? "Personal" : roleLabel}
+                {workspaceLabel(activeWorkspace)}
               </span>
             </div>
             <p className="mt-1 truncate text-[10px] text-[#777E8E]">
@@ -512,7 +507,7 @@ export default function AccountCenter({
         ) : null}
         {onGoToWorkerPaidTools ? (
           <AccountRow
-            title="WeHouse Pro"
+            title="Paid tools"
             detail="Optional business tools for your Service Provider workspace"
             onClick={onGoToWorkerPaidTools}
             icon={<ToolsIcon />}
@@ -559,7 +554,7 @@ export default function AccountCenter({
         <AccountSection title="Help">
           <AccountRow
             title="Help"
-            detail="General help, linked jobs, payments, payouts and safety or security concerns"
+            detail={helpDetail}
             onClick={() => setPanel("help")}
             icon={<ToolsIcon />}
           />
