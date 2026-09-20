@@ -21,11 +21,11 @@ export function workspaceLabel(workspace: WorkspaceName) {
   return WORKSPACE_LABELS[workspace];
 }
 
-export const WORKSPACE_GROUPS = ["Marketplace work", "Hotel Team", "WeHouse Team"] as const;
+export const WORKSPACE_GROUPS = ["Your professional profiles", "Hotel Team", "WeHouse Team"] as const;
 
 export function workspaceGroup(workspace: WorkspaceName): typeof WORKSPACE_GROUPS[number] | "Personal" {
   if (workspace === "personal") return "Personal";
-  if (workspace === "worker" || workspace === "property_partner") return "Marketplace work";
+  if (workspace === "worker" || workspace === "property_partner") return "Your professional profiles";
   if (workspace === "hotel") return "Hotel Team";
   return "WeHouse Team";
 }

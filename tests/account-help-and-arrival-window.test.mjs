@@ -16,7 +16,7 @@ test("Help remains nested inside the shared Account surface across workspaces", 
   assert.match(account, /setPanel\("help"\)/);
   assert.match(worker, /<AccountCenter/);
   assert.match(partner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
-  assert.match(help, /get_my_account_help_targets/);
+  assert.match(help, /get_my_workspace_help_targets/);
   assert.match(help, /Using WeHouse or my account/);
   assert.match(help, /Property or stay/);
   assert.match(help, /Service job/);

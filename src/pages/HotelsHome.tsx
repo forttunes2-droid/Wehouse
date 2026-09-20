@@ -228,7 +228,7 @@ export default function HotelsHome({ onNavigate }: Props) {
         current.filter((item) => item.id !== followedSearch.id),
       );
       return toast.success(
-        "Search unfollowed. New matches will no longer create Activity updates.",
+        "Search unfollowed",
       );
     }
     const name = `${
@@ -246,7 +246,7 @@ export default function HotelsHome({ onNavigate }: Props) {
     toast.success(
       followedSearch
         ? "Hotel alerts resumed"
-        : "Search followed. New matches will appear in Inbox Activity.",
+        : "Search followed",
     );
   }
 

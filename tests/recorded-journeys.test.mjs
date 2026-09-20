@@ -85,7 +85,7 @@ test('A stalled request times out and late completion cannot resolve the abandon
 const inboxCategories = moduleAt('src/lib/inboxCategories.ts');
 const workspacePresentation = moduleAt('src/lib/workspacePresentation.ts');
 test('Marketplace work, Hotel Team and WeHouse Team stay separate', () => {
-  for (const role of ['worker','property_partner']) assert.equal(workspacePresentation.workspaceGroup(role),'Marketplace work');
+  for (const role of ['worker','property_partner']) assert.equal(workspacePresentation.workspaceGroup(role),'Your professional profiles');
   for (const role of ['staff','admin','creator']) assert.equal(workspacePresentation.workspaceGroup(role),'WeHouse Team');
   assert.equal(workspacePresentation.workspaceGroup('hotel'),'Hotel Team');
   assert.equal(workspacePresentation.workspaceGroup('personal'),'Personal');

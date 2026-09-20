@@ -89,9 +89,9 @@ createRoot(rootElement).render(
       <NativeSelectBridge />
       <NativeDateBridge />
       <App />
-      <Toaster position="top-center" theme="dark" closeButton visibleToasts={1} duration={4500}
+      <Toaster position="top-center" theme="dark" visibleToasts={1} duration={3200}
         offset="max(12px, env(safe-area-inset-top))" mobileOffset="max(12px, env(safe-area-inset-top))"
-        style={{ zIndex: 2147483647 }} toastOptions={{ style: { background: "#17151E", color: "#F4F1F8", borderColor: "#38313F" } }} />
+        style={{ zIndex: 2147483647 }} toastOptions={{ style: { background: "#17151E", color: "#F4F1F8", borderColor: "#38313F", borderRadius: '14px', padding: '12px 14px', fontSize: '13px', lineHeight: '1.4' } }} />
     </ErrorBoundary>
   </StrictMode>,
 )

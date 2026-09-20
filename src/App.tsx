@@ -1421,7 +1421,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       !conversationOpen &&
       !nestedScreen &&
       !hide.includes(navPage),
-    supportRole = ["user", "worker", "property_partner"].includes(
+    supportRole = ["user", "worker", "property_partner", "hotel_staff"].includes(
       profile?.role || "",
     );
   return (

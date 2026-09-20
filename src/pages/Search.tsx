@@ -261,7 +261,7 @@ export default function Search({
       setFollowedSearches((current) =>
         current.filter((item) => item.id !== followedSearch.id),
       );
-      toast.success("Search unfollowed. New matches will no longer create Activity updates.");
+      toast.success("Search unfollowed");
       return;
     }
     const name = `${
@@ -283,7 +283,7 @@ export default function Search({
     toast.success(
       followedSearch
         ? "Apartment alerts resumed"
-        : "Search followed. New matches will appear in Inbox Activity.",
+        : "Search followed",
     );
   }
 

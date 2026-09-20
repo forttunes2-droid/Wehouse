@@ -1,5 +1,6 @@
 import type { Profile } from '@/types';
 import BackButton from '@/components/BackButton';
+import { workspaceLabel, type WorkspaceName } from '@/lib/workspacePresentation';
 
 type Props = {
   profile: Profile;
@@ -7,11 +8,12 @@ type Props = {
   description?: string;
   onBack?: () => void;
   children: React.ReactNode;
+  workspace?: WorkspaceName;
 };
 
-export default function AccountShell({ profile, title, description, onBack, children }: Props) {
+export default function AccountShell({ profile, title, description, onBack, children, workspace }: Props) {
   const role = String(profile.role || 'user');
-  const roleLabel = role === 'property_partner'
+  const roleLabel = workspace ? workspaceLabel(workspace).toUpperCase() : role === 'property_partner'
     ? 'PROPERTY PARTNER'
     : role === 'staff'
       ? 'TEAM'
@@ -32,7 +34,7 @@ export default function AccountShell({ profile, title, description, onBack, chil
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
+      <main key={title} className="wh-panel-enter mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
         {children}
       </main>
     </div>

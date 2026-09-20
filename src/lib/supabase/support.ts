@@ -450,7 +450,7 @@ export async function discardSupportMessageDraft(draftId: string) {
 }
 
 export function supportContextForWorkspace(context: SupportOpenContext, role: string): SupportOpenContext {
-  const workspace = ['worker', 'property_partner', 'hotel'].includes(role) ? role : 'personal';
+  const workspace = role === 'hotel_staff' ? 'hotel' : ['worker', 'property_partner', 'hotel'].includes(role) ? role : 'personal';
   const general = !context.contextType || context.contextType === 'general';
   return {
     ...context,

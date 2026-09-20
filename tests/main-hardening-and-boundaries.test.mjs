@@ -161,8 +161,8 @@ test("Service Provider and Property Partner are additive workspaces on one Perso
     read("src/pages/AccountCenter.tsx"),
     read("supabase/migrations/20260915204500_allow_multi_professional_workspaces.sql"),
   ]);
-  assert.match(account, /title="Workspaces"/);
-  assert.match(account, /title="Applications"/);
+  assert.match(account, /title="WeHouse"/);
+  assert.match(account, /title="Get started"/);
   assert.match(account, /Service Provider/);
   assert.match(account, /Property Partner/);
   assert.match(account, /title="Offer services"/);

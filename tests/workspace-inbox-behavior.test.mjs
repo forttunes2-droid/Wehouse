@@ -4,6 +4,8 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 const require = createRequire(import.meta.url);
 function moduleAt(path, dependencies = {}, globals = {}) {
   const code = ts.transpileModule(readFileSync(new URL('../' + path, import.meta.url), 'utf8'), {
@@ -74,4 +76,45 @@ test('New WeHouse help retains its workspace without changing the subject bookin
   assert.equal(personal.contextId,'workspace:personal');assert.equal(work.contextId,'workspace:worker');
   const stay=supportContextForWorkspace({contextType:'hotel_booking',contextId:'booking-7',contextSnapshot:{hotel_name:'Test Hotel'}},'user');
   assert.equal(stay.contextId,'booking-7');assert.equal(stay.contextSnapshot.hotel_name,'Test Hotel');assert.equal(stay.contextSnapshot.requester_workspace,'personal');
+  assert.equal(supportContextForWorkspace({},'hotel_staff').contextSnapshot.requester_workspace,'hotel');
+});
+
+const accountShell = {
+  __esModule:true,
+  default:({title,children})=>React.createElement('section',null,React.createElement('h1',null,title),children),
+  AccountSection:({title,children})=>React.createElement('section',null,title,children),
+  AccountRow:({title,detail,trailing})=>React.createElement('div',null,title,' ',detail,' ',trailing),
+};
+test('Help menus follow the selected profile, including Hotel Team',()=>{
+  const Help=moduleAt('src/components/AccountHelpCenter.tsx',{
+    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,
+    '@/lib/supabase':{},'@/lib/withTimeout':{},sonner:{toast:{}},
+  }).default;
+  const render=workspace=>renderToStaticMarkup(React.createElement(Help,{profile:{user_id:'person'},workspace,onBack(){}}));
+  const personal=render('personal'),worker=render('worker'),partner=render('property_partner'),hotel=render('hotel');
+  assert.match(personal,/Payments and refunds/);assert.doesNotMatch(personal,/Earnings and payouts/);
+  assert.match(worker,/Jobs and professional profile/);assert.doesNotMatch(worker,/Property or stay/);
+  assert.match(partner,/Properties and guests/);assert.doesNotMatch(partner,/Service job/);
+  assert.match(hotel,/Your hotel/);assert.doesNotMatch(hotel,/Service job|Payments and refunds|Earnings and payouts/);
+  for(const html of [personal,worker,partner,hotel])assert.doesNotMatch(html,/Opening Help creates nothing|routes it from/);
+});
+test('Existing professional profiles remain visible before public approval and do not become new applications',()=>{
+  let stateIndex=0;
+  const Account=moduleAt('src/pages/AccountCenter.tsx',{
+    react:{...React,useState:initial=>[stateIndex++===0?'workspaces':initial,()=>{}],useEffect(){},useMemo:fn=>fn()},
+    '@/components/AccountShell':accountShell,'@/components/AccountHelpCenter':()=>null,
+    '@/pages/PrivacySecuritySettings':()=>null,'@/components/MediaViewer':()=>null,
+    '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
+    '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
+  }).default;
+  const render=roles=>{stateIndex=0;return renderToStaticMarkup(Account({
+    profile:{user_id:'person-a',role:'user',worker_status:'profile_under_review'},
+    workspaceAccess:{...access(roles),identity:{user_id:'person-a',account_kind:'consumer'}},
+    activeWorkspace:'personal',onSwitchWorkspace(){},
+  }));};
+  const existing=render(['worker','property_partner','hotel','admin']);
+  for(const label of ['Service Provider','Property Partner','Hotel Team','WeHouse Team','Current'])assert.match(existing,new RegExp(label));
+  assert.doesNotMatch(existing,/Offer services|List a property|Property Partner application/);
+  const revoked=render([]);
+  assert.match(revoked,/Offer services/);assert.match(revoked,/List a property/);assert.doesNotMatch(revoked,/under WeHouse review/);
 });
