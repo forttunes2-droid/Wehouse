@@ -9,6 +9,8 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,assigned
 ('77777777-0000-4000-8000-000000000005','team-revoked@example.invalid','team-revoked','staff',true,'Nasarawa','Lafia','Nasarawa','Lafia','Lafia'),
 ('77777777-0000-4000-8000-000000000006','team-user@example.invalid','team-user','user',true,null,null,'Nasarawa','Lafia','Lafia'),
 ('77777777-0000-4000-8000-000000000007','team-partner@example.invalid','team-partner','property_partner',true,null,null,'Nasarawa','Lafia','Lafia');
+insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city,local_government,worker_status,worker_verified,available) values
+('77777777-0000-4000-8000-000000000008','team-worker@example.invalid','team-worker','user',true,'Nasarawa','Lafia','Lafia','verified',true,true);
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state,scope_lga,status) values
 ('team-creator','creator','global',null,null,'active'),
 ('team-admin','admin','branch','Nasarawa','Lafia','active'),
@@ -16,7 +18,8 @@ insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,
 ('team-staff','property_operations','branch','Nasarawa','Lafia','active'),
 ('team-outside','staff','branch','Nasarawa','Keffi','active'),
 ('team-revoked','staff','branch','Nasarawa','Lafia','revoked'),
-('team-partner','property_partner','global',null,null,'active');
+('team-partner','property_partner','global',null,null,'active'),
+('team-worker','worker','global',null,null,'active');
 insert into public.staff_permissions(staff_id,permission,is_active,granted_by) values('team-staff','property_operations',true,'team-creator');
 insert into public.worker_identity_checks(worker_id,account_role,status,pending_reference_photo_path) values
 ('team-partner','property_partner','pending_review','team-partner/review.jpg');
@@ -36,6 +39,10 @@ do $$ declare rows jsonb; n integer; begin
   select count(*) into n from public.announcement_recipients where announcement_id in (-920001,-920002);
   if n<>2 then raise exception 'Active Creator cannot read delivery history'; end if;
   rows:=public.get_my_managed_team();
+  select (public.creator_get_dashboard_summary()->>'team')::integer into n;
+  if n<>2 then raise exception 'Creator team summary counted unassigned or revoked Staff'; end if;
+  select count(*) into n from public.get_public_workers(null,null,null) where user_id='team-worker';
+  if n<>1 then raise exception 'Creator cannot preview eligible Worker while public marketplace is gated'; end if;
   if not rows @> '[{"user_id":"team-staff","work_areas":["property_operations"]},{"user_id":"team-admin"},{"user_id":"team-outside"}]'::jsonb
     or rows @> '[{"user_id":"team-revoked"}]'::jsonb or rows @> '[{"user_id":"team-user"}]'::jsonb then
     raise exception 'Team list does not reflect active grants';
@@ -57,6 +64,8 @@ do $$ declare rows jsonb; n integer; begin
   if not rows @> '[{"user_id":"team-staff","work_areas":["finance_operations"]}]'::jsonb or rows @> '[{"user_id":"team-staff","work_areas":["property_operations"]}]'::jsonb then raise exception 'Work area replacement was not atomic'; end if;
   perform set_config('request.jwt.claim.sub','77777777-0000-4000-8000-000000000006',true);
   if public.get_my_workspace_access()->'privileged_workspaces'<>'[]'::jsonb then raise exception 'Personal account sees team access'; end if;
+  select count(*) into n from public.get_public_workers(null,null,null) where user_id='team-worker';
+  if n<>0 then raise exception 'Ordinary account bypassed the public Worker marketplace gate'; end if;
   select count(*) into n from public.announcements where id in (-920001,-920002);
   if n<>1 or not exists(select 1 from public.announcements where id=-920001) then raise exception 'Personal announcement visibility escaped recipient'; end if;
   select count(*) into n from public.announcement_recipients where announcement_id in (-920001,-920002);
