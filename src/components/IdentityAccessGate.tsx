@@ -26,9 +26,12 @@ export default function IdentityAccessGate({
 
   if (loading)
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[#0A0A0F]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <AccountShell profile={profile} title={profile.role === 'property_partner' ? 'Property Partner' : 'Service Provider'}>
+        <section role="status" aria-live="polite" className="space-y-4 py-5">
+          <p className="text-sm text-[#A1A1AA]">Opening your workspace…</p>
+          <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-white/[.04]" />)}</div>
+        </section>
+      </AccountShell>
     );
 
   // Privileged provider/partner work should never silently fail open when the

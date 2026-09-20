@@ -103,7 +103,7 @@ export default function WorkspaceFrameV2({
         </header>
       )}
 
-      <main className={`mx-auto max-w-7xl ${immersive ? "px-4 py-4 sm:px-5 lg:px-8" : "px-4 py-5 sm:px-5 lg:px-8 lg:py-7"}`}>
+      <main className={`mx-auto max-w-7xl ${immersive ? "px-4 py-4 sm:px-5 lg:px-8" : compact ? "px-4 py-2 sm:px-5 lg:px-8" : "px-4 py-5 sm:px-5 lg:px-8 lg:py-7"}`}>
           <WorkspaceHeadingContext.Provider value={title}>{children}</WorkspaceHeadingContext.Provider>
       </main>
 
@@ -162,7 +162,7 @@ function NavIcon({ id }: { id: string }) {
   if (id === "home" || id === "overview") return <svg {...common}><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /><path d="M9.5 20v-5h5v5" /></svg>;
   if (["jobs","reviews","pipeline","housing","properties","showcase"].includes(id)) return <svg {...common}><rect x="4" y="6" width="16" height="13" rx="2" /><path d="M9 6V4h6v2M4 11h16" /></svg>;
   if (["earnings","finance","payments","payouts","ledger"].includes(id)) return <svg {...common}><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M16 15h2" /></svg>;
-  if (["communication","communications","conversations","messages","inbox","support"].includes(id)) return <svg {...common}><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 3V7a2 2 0 0 1 2-2Z" /></svg>;
+  if (["communication","communications","conversations","messages","inbox","support"].includes(id)) return <svg {...common}><path strokeLinecap="round" strokeLinejoin="round" d="m4 4-3 9v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-6l-3-9H4Zm-3 9h6l2 3h6l2-3h6" /></svg>;
   if (id === "profile" || id === "account") return <svg {...common}><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6" /></svg>;
   if (id === "more") return <svg {...common}><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" /></svg>;
   return <svg {...common}><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>;

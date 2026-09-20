@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import PublicProfileSurface from "@/components/PublicProfileSurface";
+import { useState, type ReactNode } from "react";
+import { UserRound } from "lucide-react";
+import PublicProfileSurface, { PublicProfileAction } from "@/components/PublicProfileSurface";
 
 export type RoommatePublicProfileData = {
   name: string;
@@ -15,6 +16,7 @@ export type RoommatePublicProfileData = {
 type Props = {
   person: RoommatePublicProfileData;
   onClose: () => void;
+  onViewProfile?: () => void;
   context?: "discovery" | "conversation";
   score?: number;
   matchLabel?: string;
@@ -28,6 +30,7 @@ type Props = {
 export default function RoommatePublicProfile({
   person,
   onClose,
+  onViewProfile,
   context = "discovery",
   score,
   matchLabel,
@@ -37,8 +40,10 @@ export default function RoommatePublicProfile({
   footer,
   primaryAction,
 }: Props) {
+  const [fullProfile, setFullProfile] = useState(false);
   const hasScore = Number.isFinite(score);
   const conversationMode = context === "conversation";
+  if (fullProfile) return <RoommatePublicProfile person={person} onClose={() => setFullProfile(false)} />;
   return (
     <PublicProfileSurface
       conversation={conversationMode}
@@ -51,7 +56,7 @@ export default function RoommatePublicProfile({
       about={conversationMode ? undefined : person.bio}
       onClose={onClose}
       ariaLabel={`${person.name} profile`}
-      actions={actions}
+      actions={conversationMode ? <>{actions}<PublicProfileAction label="Profile" onClick={onViewProfile || (() => setFullProfile(true))}><UserRound size={18} /></PublicProfileAction></> : actions}
       badges={conversationMode ? undefined : <><span className="rounded-full border border-white/[.08] bg-white/[.04] px-2.5 py-1 text-[9px] font-semibold text-[#B7BBC6]">WeHouse account</span>{hasScore ? <><strong className="text-xl text-violet-300">{score}%</strong><span className="text-[9px] font-semibold text-[#A5AABA]">{matchLabel || "Roommate match"}</span></> : null}</>}
       bottomAction={primaryAction}
     >

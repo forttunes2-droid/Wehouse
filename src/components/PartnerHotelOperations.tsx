@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
+  getMyHotelOperationSnapshot,
   partnerCreateHotelRoom,
   partnerSaveHotelRatePlan,
   partnerSaveHotelVenue,
@@ -160,6 +161,8 @@ export default function PartnerHotelOperations({
   const [hotelChats, setHotelChats] = useState<HotelConversation[]>([]);
   const [activeChat, setActiveChat] = useState<ActiveHotelChat | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [liveCapabilities, setLiveCapabilities] = useState<HotelCapability[] | null>(null);
   const [reservationQuery, setReservationQuery] = useState("");
   const [reservationFilter, setReservationFilter] = useState("all");
   const [editingRoom, setEditingRoom] = useState<Room | "new" | null>(null);
@@ -172,13 +175,13 @@ export default function PartnerHotelOperations({
   const capabilities = useMemo(
     () =>
       new Set<HotelCapability>(
-        (Array.isArray(hotel.capabilities)
+        (liveCapabilities || (Array.isArray(hotel.capabilities)
           ? hotel.capabilities
           : accessRole === "owner"
             ? OWNER_HOTEL_CAPABILITIES
-            : []) as HotelCapability[],
+            : [])) as HotelCapability[],
       ),
-    [accessRole, hotel.capabilities],
+    [accessRole, hotel.capabilities, liveCapabilities],
   );
   const canReadStays = capabilities.has("stay.read");
   const canMessageGuests = capabilities.has("stay.message");
@@ -193,66 +196,26 @@ export default function PartnerHotelOperations({
   const load = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const date = today(hotel.timezone || "Africa/Lagos");
-      const [roomResult, bookingResult, inventoryResult, unitResult, venueResult, chatResult] =
-        await Promise.all([
-          supabase
-            .from("hotel_rooms")
-            .select("*,hotel_rate_plans(*)")
-            .eq("hotel_id", hotel.hotel_id)
-            .order("price_per_night"),
-          canReadStays
-            ? supabase
-                .from("hotel_bookings")
-                .select(
-                  "booking_id,room_id,rate_plan_id,rate_plan_name,check_in,check_out,guest_count,guest_name,booking_code,status,payment_status,payment_expires_at,total_price,special_requests,assigned_room_unit_id,profiles(username),hotel_rooms(room_type)",
-                )
-                .eq("hotel_id", hotel.hotel_id)
-                .order("created_at", { ascending: false })
-                .limit(200)
-            : Promise.resolve({ data: [], error: null }),
-          supabase
-            .from("hotel_inventory_daily")
-            .select(
-              "room_id,inventory_date,available_quantity,rate_override,closed,note",
-            )
-            .eq("hotel_id", hotel.hotel_id)
-            .eq("inventory_date", date),
-          supabase
-            .from("hotel_room_units")
-            .select("*")
-            .eq("hotel_id", hotel.hotel_id)
-            .order("unit_label"),
-          supabase
-            .from("hotel_venues")
-            .select("*")
-            .eq("hotel_id", hotel.hotel_id)
-            .order("kind")
-            .order("name"),
-          canMessageGuests
-            ? getMyHotelConversations(accessRole === "owner" ? "property_partner" : "hotel")
+      try {
+        const [snapshot, chatResult] = await Promise.all([
+          getMyHotelOperationSnapshot(hotel.hotel_id),
+          canMessageGuests ? getMyHotelConversations(accessRole === "owner" ? "property_partner" : "hotel")
             : Promise.resolve({ conversations: [], error: null }),
         ]);
-      const loadError =
-        roomResult.error ||
-        bookingResult.error ||
-        inventoryResult.error ||
-        unitResult.error ||
-        venueResult.error ||
-        chatResult.error;
-      if (loadError && !quiet)
-        toast.error(loadError.message || "Hotel operation could not be loaded");
-      setRooms((roomResult.data || []) as unknown as Room[]);
-      setBookings((bookingResult.data || []) as unknown as Booking[]);
-      setInventory((inventoryResult.data || []) as Inventory[]);
-      setRoomUnits((unitResult.data || []) as HotelRoomUnit[]);
-      setVenues((venueResult.data || []) as HotelVenue[]);
-      setHotelChats(
-        (chatResult.conversations || []).filter(
-          (row) => Number(row.hotel_id) === Number(hotel.hotel_id),
-        ),
-      );
-      if (!quiet) setLoading(false);
+        setRooms(snapshot.rooms || []);
+        setBookings(snapshot.bookings || []);
+        setInventory(snapshot.inventory || []);
+        setRoomUnits(snapshot.room_units || []);
+        setVenues(snapshot.venues || []);
+        setLiveCapabilities(snapshot.capabilities || []);
+        if (chatResult.error) throw chatResult.error;
+        setHotelChats((chatResult.conversations || []).filter(row => Number(row.hotel_id) === Number(hotel.hotel_id)));
+        setLoadError("");
+      } catch {
+        setLoadError("Hotel information could not be refreshed. Check your connection and try again.");
+      } finally {
+        if (!quiet) setLoading(false);
+      }
     },
     [accessRole, canMessageGuests, canReadStays, hotel.hotel_id, hotel.timezone],
   );
@@ -446,6 +409,7 @@ export default function PartnerHotelOperations({
 
       <HotelStayPolicy hotel={hotel} editable={canManagePolicy} />
 
+      {loadError && <div role="alert" className="mb-4 rounded-xl border border-amber-400/20 p-3 text-sm text-amber-100"><p>{loadError}</p><button onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
       {loading ? (
         <div className="min-h-44" role="status" aria-label="Loading hotel operation" />
       ) : (

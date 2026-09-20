@@ -235,7 +235,7 @@ function ServiceProviderPaidToolsAccount({
   return (
     <AccountShell
       profile={profile}
-      title="WeHouse Pro"
+      title="WeHouse Works"
       description="Optional business tools for Service Providers. Review and trust are earned separately."
       onBack={onBack}
     >

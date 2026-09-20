@@ -48,6 +48,8 @@ function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
 export default function HotelsHome({ onNavigate }: Props) {
+  const [attempt, setAttempt] = useState(0);
+  const [loadError, setLoadError] = useState(false);
   const [hotels, setHotels] = useState<HotelRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -80,21 +82,19 @@ export default function HotelsHome({ onNavigate }: Props) {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const [{ hotels: rows }, followed, saved] = await Promise.all([
-        getHotels(),
-        getMySavedSearches(),
-        getMySavedHotelIds(),
-      ]);
+      setLoading(true);
+      void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
+      void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
+      const result = await getHotels();
       if (!live) return;
-      setHotels((rows || []) as HotelRow[]);
-      if (!followed.error) setFollowedSearches(followed.searches);
-      if (!saved.error) setSavedHotelIds(new Set(saved.hotelIds));
+      setLoadError(Boolean(result.error));
+      if (!result.error) setHotels((result.hotels || []) as HotelRow[]);
       setLoading(false);
     })();
     return () => {
       live = false;
     };
-  }, []);
+  }, [attempt]);
 
   const cities = useMemo(() => getCitiesForState(state), [state]);
   const stateOptions = useMemo(
@@ -280,7 +280,8 @@ export default function HotelsHome({ onNavigate }: Props) {
   return (
     <DiscoveryShell active="hotels" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
-        <DiscoveryToolbar
+        {loadError && <div role="alert" className="px-4 py-3 text-sm text-amber-200">Hotels could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => setAttempt(value => value + 1)}>Try again</button></div>}
+      <DiscoveryToolbar
           value={query}
           onChange={setQuery}
           placeholder="Search hotel name"

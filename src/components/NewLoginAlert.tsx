@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { getStoredSessionId, supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
 type LoginAlert = {
@@ -9,56 +9,21 @@ type LoginAlert = {
   device: string;
   os: string;
   browser: string;
-  location: string;
   loginTime: string;
 };
 
 export default function NewLoginAlert({ profile }: { profile: Profile }) {
   const [alert, setAlert] = useState<LoginAlert | null>(null);
+  const generation = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const currentSessionId = getStoredSessionId();
-    const { data } = await supabase
-      .from("notifications")
-      .select("id,source_id,created_at,destination_params")
-      .eq("recipient_id", profile.user_id)
-      .eq("type", "new_device_login")
-      .eq("read", false)
-      .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(12);
-
-    const row = (data || []).find((item) => {
-      const params = (item.destination_params || {}) as Record<string, unknown>;
-      const sessionId = String(params.session_id || item.source_id || "");
-      const decision = String(params.decision || "");
-      return sessionId && sessionId !== currentSessionId && ["unreviewed", "verified_with_google"].includes(decision);
-    });
-    if (!row) return setAlert(null);
-
-    const params = (row.destination_params || {}) as Record<string, unknown>;
-    const sessionId = String(params.session_id || row.source_id || "");
-    const { data: session } = await supabase
-      .from("user_sessions")
-      .select("device,os,browser,login_time,is_active")
-      .eq("id", sessionId)
-      .maybeSingle();
-    if (!session?.is_active) {
-      await supabase.rpc("mark_my_notification_read", { p_notification_id: row.id });
-      return void load();
-    }
+    const request = ++generation.current;
+    const { data, error: loadError } = await supabase.rpc("get_my_pending_device_login_alert");
+    if (request !== generation.current || loadError) return;
     setError("");
-    setAlert({
-      notificationId: row.id,
-      sessionId,
-      device: String(session.device || params.device || "Unknown device"),
-      os: String(session.os || params.os || "Unknown system"),
-      browser: String(session.browser || params.browser || "Unknown browser"),
-      location: String(params.location || "Location unavailable"),
-      loginTime: String(session.login_time || params.login_time || row.created_at),
-    });
+    setAlert(data as LoginAlert | null);
   }, [profile.user_id]);
 
   useEffect(() => {
@@ -71,6 +36,7 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
+      generation.current += 1;
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
@@ -96,22 +62,22 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
 
   if (!alert || typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[100200] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-5">
-    <section className="w-full max-w-md overflow-hidden rounded-t-[28px] border border-amber-400/15 bg-[#11141C] text-white shadow-2xl shadow-black/70 sm:rounded-[28px]" role="alertdialog" aria-modal="true" aria-labelledby="new-login-title" aria-describedby="new-login-description">
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100200] flex justify-center px-3 pt-[max(.75rem,env(safe-area-inset-top))]">
+    <section className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-amber-400/15 bg-[#11141C] text-white shadow-2xl shadow-black/70" role="region" aria-live="polite" aria-labelledby="new-login-title" aria-describedby="new-login-description">
       <div className="flex items-start gap-3 px-4 pb-3 pt-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-300/10 text-amber-200"><DeviceShieldIcon /></div>
         <div className="min-w-0 flex-1">
           <h2 id="new-login-title" className="text-sm font-semibold">Someone signed in to your account</h2>
-          <p id="new-login-description" className="mt-1 text-[10px] leading-4 text-[#A4A7B0]">
-            {alert.device} · {alert.os} · {alert.browser} · {alert.location}. Was this you?
+          <p id="new-login-description" className="mt-1 text-xs leading-5 text-[#A4A7B0]">
+            {alert.device} · {alert.browser}. Was this you?
           </p>
-          <p className="mt-1 text-[8px] text-[#686E7E]">{new Date(alert.loginTime).toLocaleString()}</p>
+          <p className="mt-1 text-[11px] text-[#8B91A0]">{new Date(alert.loginTime).toLocaleString()}</p>
         </div>
       </div>
       {error && <p className="mx-4 mb-3 rounded-xl bg-red-500/10 px-3 py-2 text-[10px] text-red-300">{error}</p>}
       <div className="grid grid-cols-2 border-t border-white/[.06]">
-        <button onClick={() => void answer(true)} disabled={busy} className="min-h-11 text-[11px] font-semibold text-emerald-300 disabled:opacity-40">{busy ? "Checking…" : "Yes, it’s me"}</button>
-        <button onClick={() => void answer(false)} disabled={busy} className="min-h-11 border-l border-white/[.06] text-[11px] font-semibold text-red-300 disabled:opacity-40">No, it’s not me</button>
+        <button onClick={() => void answer(true)} disabled={busy} className="min-h-11 text-xs font-semibold text-emerald-300 disabled:opacity-40">{busy ? "Checking…" : "Yes, it’s me"}</button>
+        <button onClick={() => void answer(false)} disabled={busy} className="min-h-11 border-l border-white/[.06] text-xs font-semibold text-red-300 disabled:opacity-40">No, it’s not me</button>
       </div>
     </section>
     </div>,

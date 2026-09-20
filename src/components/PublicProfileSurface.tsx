@@ -66,7 +66,7 @@ export default function PublicProfileSurface({
         <div className={`mx-auto flex ${width} items-center gap-2.5`}>
           <BackButton onClick={onClose} ariaLabel={conversation ? "Back to conversation" : "Back"} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{conversation ? "Contact info" : name}</p>
+            <p className="truncate text-sm font-semibold">{conversation ? "Conversation info" : name}</p>
             {!conversation && [presence, subtitle].filter(Boolean).length ? (
               <p className="mt-0.5 truncate text-[9px] text-[#777D8D]">
                 {[presence, subtitle].filter(Boolean).join(" · ")}
@@ -76,7 +76,7 @@ export default function PublicProfileSurface({
         </div>
       </header>
 
-      <main className={`mx-auto ${width} px-5 pb-10 pt-6`}>
+      <main className={`mx-auto ${width} px-5 pb-8 pt-4`}>
         <section className="relative overflow-hidden border-b border-white/[.07] pb-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-violet-600/10 blur-3xl" />
           <div className={`relative flex items-center ${conversation ? "flex-col gap-3 text-center" : "gap-4"}`}>
@@ -85,7 +85,7 @@ export default function PublicProfileSurface({
               disabled={!avatar}
               onClick={() => avatar && setAvatarOpen(true)}
               aria-label={avatar ? `Preview ${name}'s profile photo` : "No profile photo"}
-              className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default"
+              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default"
             >
               {avatar ? (
                 <img src={avatar} alt="" className="h-full w-full object-cover" />

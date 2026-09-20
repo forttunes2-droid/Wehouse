@@ -41,6 +41,8 @@ export default function WorkerShowcaseManager({
   const { ask, dialogProps } = useConfirm();
   const input = useRef<HTMLInputElement>(null);
   const openedTarget = useRef<string | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<Post[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const kind = "work_post" as const;
@@ -54,7 +56,8 @@ export default function WorkerShowcaseManager({
   const [viewer, setViewer] = useState<Post | null>(null);
 
   const load = useCallback(async () => {
-    const [{ data: rows }, { data: completed }] = await Promise.all([
+    setLoading(true);
+    const [{ data: rows, error: postError }, { data: completed, error: jobError }] = await Promise.all([
       supabase
         .from("worker_showcase_posts")
         .select(
@@ -73,12 +76,15 @@ export default function WorkerShowcaseManager({
         .limit(30),
     ]);
 
+    if (postError || jobError) { setLoadError("Your work could not be loaded. Please try again."); setLoading(false); return; }
     const sourceRows = (rows || []) as Post[];
     const signed = sourceRows.length
       ? await supabase.storage
           .from("worker-showcase")
           .createSignedUrls(sourceRows.map((row) => row.storage_path), 3600)
       : { data: [], error: null };
+    if (signed.error) { setLoadError("Your media previews could not be loaded. Please try again."); setLoading(false); return; }
+    setLoadError(""); setLoading(false);
     const urls = new Map(
       (signed.data || []).map((item) => [item.path, item.signedUrl || ""]),
     );
@@ -345,7 +351,8 @@ export default function WorkerShowcaseManager({
           <p className="text-[10px] text-[#707687]">Published work</p>
           <span className="text-[9px] text-[#686F80]">{workPosts.length}</span>
         </div>
-        {workPosts.length > 0 ? (
+        {loadError && <p role="alert" className="py-3 text-sm text-amber-200">{loadError} <button onClick={() => void load()} className="min-h-11 px-2 font-semibold text-violet-300">Try again</button></p>}
+        {loading ? <p role="status" className="py-4 text-sm text-[#A1A1AA]">Loading your work…</p> : workPosts.length > 0 ? (
           <div className="-mx-4 grid grid-cols-2 gap-0.5 bg-white/[.07] sm:mx-0 sm:grid-cols-3 sm:overflow-hidden sm:rounded-2xl lg:grid-cols-4">
             {workPosts.map((post) => (
               <button

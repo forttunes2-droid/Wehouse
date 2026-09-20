@@ -14,10 +14,17 @@ export default function ShowcaseMediaThumbnail({
   className = "h-full w-full object-cover",
 }: Props) {
   const [ready, setReady] = useState(false);
+  const [poster, setPoster] = useState("");
+  const [failed, setFailed] = useState(false);
   const [nearViewport, setNearViewport] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
 
-  useEffect(() => setReady(false), [src]);
+  useEffect(() => { setReady(false); setPoster(""); setFailed(false); }, [src]);
+  useEffect(() => {
+    if (!nearViewport || ready) return;
+    const timer = window.setTimeout(() => setFailed(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [nearViewport, ready, src]);
   useEffect(() => {
     const node = root.current;
     if (!node || nearViewport) return;
@@ -50,26 +57,41 @@ export default function ShowcaseMediaThumbnail({
 
   return (
     <span ref={root} className="relative block h-full w-full overflow-hidden bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_48%),#111522]">
-      {!ready ? (
+      {!ready && !failed ? (
         <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[.035] via-violet-500/[.08] to-white/[.025]" />
       ) : null}
-      {src && nearViewport ? (
+      {poster ? <img src={poster} alt={alt} className={className} /> : src && nearViewport ? (
         <video
           src={`${src}#t=0.1`}
           muted
           playsInline
-          preload="metadata"
+          preload="auto"
+          crossOrigin="anonymous"
           aria-hidden="true"
           onLoadedMetadata={(event) => {
             if (event.currentTarget.duration > 0) {
               event.currentTarget.currentTime = Math.min(0.1, event.currentTarget.duration / 2);
             }
           }}
-          onLoadedData={() => setReady(true)}
-          onSeeked={() => setReady(true)}
+          onLoadedData={() => { setReady(true); setFailed(false); }}
+          onSeeked={(event) => {
+            const video = event.currentTarget;
+            setReady(true); setFailed(false);
+            if (!video.videoWidth || !video.videoHeight) return;
+            try {
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.min(480, video.videoWidth);
+              canvas.height = Math.round(canvas.width * video.videoHeight / video.videoWidth);
+              canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+              setPoster(canvas.toDataURL("image/jpeg", 0.75));
+            } catch { /* Keep the decoded video frame if the source does not permit a canvas. */ }
+            video.pause();
+          }}
+          onError={() => setFailed(true)}
           className={`${className} transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
         />
       ) : null}
+      {failed && !ready && <span className="absolute inset-x-1 top-2 text-center text-[10px] text-white/70">Video · tap to play</span>}
       <span className="pointer-events-none absolute inset-0 grid place-items-center">
         <span className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/50 pl-0.5 text-sm text-white shadow-lg backdrop-blur-sm">
           ▶

@@ -1,4 +1,9 @@
 import { supabase } from './client';
+import { withTimeout } from '@/lib/withTimeout';
+async function readHotel<T extends { data: unknown; error: unknown }>(request: PromiseLike<T>): Promise<T> {
+  try { return await withTimeout(request, 15000, 'Hotel information took too long to load. Please try again.'); }
+  catch (cause) { return { data: null, error: { message: cause instanceof Error ? cause.message : 'Hotel information could not be loaded.' } } as T; }
+}
 import type { Hotel, HotelRoom, HotelBooking, HotelReview, HotelRatePlan, HotelVenue } from '@/types';
 import { compressImageFile } from './utils';
 
@@ -13,7 +18,7 @@ export async function getHotels(filters?: {
   search?: string;
   featured?: boolean;
 }) {
-  const { data, error } = await supabase.rpc('get_discoverable_hotels');
+  const { data, error } = await readHotel(supabase.rpc('get_discoverable_hotels'));
   const rows = (Array.isArray(data) ? data : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
   const includes = (value: unknown, query: string) => String(value || '').toLowerCase().includes(query.toLowerCase());
   const hotels = rows.filter((hotel) => {
@@ -32,17 +37,13 @@ export async function getHotels(filters?: {
 }
 
 export async function getHotelById(hotelId: number) {
-  const { data, error } = await supabase.rpc('get_public_hotel_detail', { p_hotel_id: hotelId });
+  const { data, error } = await readHotel(supabase.rpc('get_public_hotel_detail', { p_hotel_id: hotelId }));
   return { hotel: data as (Hotel & { hotel_rooms: HotelRoom[]; venues?: HotelVenue[] }) | null, error };
 }
 
 export async function getHotelRooms(hotelId: number) {
-  const { data, error } = await supabase
-    .from('hotel_rooms')
-    .select('*')
-    .eq('hotel_id', hotelId)
-    .order('price_per_night', { ascending: true });
-  return { rooms: data as HotelRoom[] | null, error };
+  const { hotel, error } = await getHotelById(hotelId);
+  return { rooms: hotel?.hotel_rooms || [], error };
 }
 
 export async function getRoomById(roomId: number, hotelId?: number) {
@@ -60,12 +61,8 @@ export async function getRoomById(roomId: number, hotelId?: number) {
 // ── Reviews ────────────────────────────────────────────
 
 export async function getHotelReviews(hotelId: number) {
-  const { data, error } = await supabase
-    .from('hotel_reviews')
-    .select('*, profiles(username, avatar_url)')
-    .eq('hotel_id', hotelId)
-    .order('created_at', { ascending: false });
-  return { reviews: data as (HotelReview & { profiles: { username: string | null; avatar_url: string | null } })[] | null, error };
+  const { data, error } = await readHotel(supabase.rpc('get_hotel_review_summary', { p_hotel_id: hotelId }));
+  return { reviews: (data?.reviews || []) as (HotelReview & { profiles: { username: string | null; avatar_url: string | null } })[], eligible: Boolean(data?.eligible), error };
 }
 
 export async function addHotelReview(hotelId: number, userId: string, rating: number, comment?: string) {
@@ -75,15 +72,9 @@ export async function addHotelReview(hotelId: number, userId: string, rating: nu
 }
 
 export async function canReviewHotel(hotelId: number, userId: string) {
-  const { data, error } = await supabase
-    .from('hotel_bookings')
-    .select('booking_id')
-    .eq('hotel_id', hotelId)
-    .eq('user_id', userId)
-    .eq('payment_status', 'paid')
-    .in('status', ['checked_out', 'completed'])
-    .limit(1);
-  return { eligible: Boolean(data?.length), error };
+  void userId;
+  const { eligible, error } = await getHotelReviews(hotelId);
+  return { eligible, error };
 }
 
 // ── Bookings ────────────────────────────────────────────
@@ -274,4 +265,15 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
   } catch (err: any) {
     return { url: null, error: { message: err.message || 'Upload failed' } };
   }
+}
+
+export async function getMyHotelOperationSnapshot(hotelId: number) {
+  const { data, error } = await readHotel(supabase.rpc('get_my_hotel_operation_snapshot', { p_hotel_id: hotelId }));
+  if (error || !data) throw error || new Error('Hotel information is unavailable.');
+  return data;
+}
+
+export async function getMyHotelOperations() {
+  const { data, error } = await readHotel(supabase.rpc('get_my_hotel_operations'));
+  return { data: data || [], error };
 }
