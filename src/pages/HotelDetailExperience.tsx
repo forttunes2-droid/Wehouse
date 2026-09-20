@@ -1,3 +1,4 @@
+import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import {
@@ -393,7 +394,7 @@ export default function HotelDetailExperience({
           <div className="mb-3">
             <h2 className="text-base font-bold">Choose a room</h2>
             <p className="mt-1 text-[9px] text-[#666D7E]">
-              WeHouse does not choose a room or package for you.
+              Select a room and package to see the total.
             </p>
           </div>
           {hotel.hotel_rooms?.length ? (
@@ -502,7 +503,7 @@ export default function HotelDetailExperience({
             <div className="mt-5">
               <h3 className="text-sm font-bold">Choose a package</h3>
               <p className="mt-1 text-[9px] text-[#666D7E]">
-                Price belongs to the package you choose for this room.
+                Compare what’s included in each package.
               </p>
               <div className="mt-3 divide-y divide-white/[.06] border-y border-white/[.06]">
                 {(selectedRoom.rate_plans || [])
@@ -629,7 +630,7 @@ export default function HotelDetailExperience({
               <p className="text-[10px] text-[#858B9A]">
                 {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
               </p>
-              <p className="mt-1 text-[8px] text-[#666D7E]">The published street address is visible before booking; internal entrance-location data stays private.</p>
+
             </div>
             {hotel.address ? (
               <a
@@ -753,33 +754,6 @@ export default function HotelDetailExperience({
   );
 }
 
-function DateField({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  min: string;
-  max: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label>
-      <span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span>
-      <input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40"
-      />
-    </label>
-  );
-}
 
 function formatHotelTime(value: unknown, fallback: string) {
   const match = String(value || fallback).match(/^(\d{2}):(\d{2})/);

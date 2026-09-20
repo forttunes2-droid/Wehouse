@@ -1,3 +1,4 @@
+import InboxActivityEntry from "@/components/InboxActivityEntry";
 import { useEffect, useMemo, useState } from "react";
 import { Toaster, toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
@@ -475,8 +476,9 @@ function CreatorInbox({
   summary: ReturnType<typeof useCreatorInboxSummary>;
 }) {
   const [composing, setComposing] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   useEffect(() => {
-    if (initialConversationId) setComposing(false);
+    if (initialConversationId) { setComposing(false); setActivityOpen(false); }
   }, [initialConversationId]);
   if (composing)
     return (
@@ -489,39 +491,20 @@ function CreatorInbox({
         />
       </Nested>
     );
+  if (activityOpen) return (
+    <Nested title="Activity" back={() => setActivityOpen(false)}>
+      <button type="button" onClick={() => setComposing(true)} className="min-h-11 text-sm font-semibold text-violet-300">Post update</button>
+      <Notifications profile={profile} scope="creator" embedded compact onUnreadChange={summary.setActivityUnread} onNavigate={(page, id) => onNavigate?.(page, id)} />
+    </Nested>
+  );
   return (
-    <div className="space-y-8">
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
-          <div>
-            <h2 className="text-xs font-semibold">Activity</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">Platform updates linked to the record that caused them.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {summary.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.activityUnread} new</span> : null}
-            <button
-              onClick={() => setComposing(true)}
-              className="px-2 py-2 text-[9px] font-semibold text-violet-300"
-            >
-              Post update
-            </button>
-          </div>
-        </div>
-        <Notifications
-          profile={profile}
-          scope="creator"
-          embedded
-          compact
-          previewLimit={3}
-          onUnreadChange={summary.setActivityUnread}
-          onNavigate={(page, id) => onNavigate?.(page, id)}
-        />
-      </section>
+    <div className="space-y-5">
+      <InboxActivityEntry unread={summary.activityUnread} onOpen={() => setActivityOpen(true)} />
       <section>
         <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
           <div>
             <h2 className="text-xs font-semibold">Messages</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">Customer, partner and Operations conversations in one queue.</p>
+
           </div>
           {summary.messageUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.messageUnread} new</span> : null}
         </div>

@@ -539,6 +539,11 @@ Deno.serve(async (req) => {
     if (error) return new Response("Processing error", { status: 500 });
     if (!data?.success)
       return new Response("Payment requires Finance review", { status: 500 });
+    const { error: modeError } = await db.rpc("record_verified_payment_mode", {
+      p_reference: reference, p_transaction_id: transactionId,
+      p_domain: text(event.data?.domain) || null,
+    });
+    if (modeError) return new Response("Receipt details could not be saved", { status: 500 });
     return new Response("OK", { status: 200 });
   } catch {
     return new Response("Internal error", { status: 500 });

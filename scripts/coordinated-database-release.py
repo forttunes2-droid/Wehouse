@@ -15,6 +15,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20260913181317"
+# Completed, verified production releases. Later releases must still start from
+# a complete repository prefix; an interrupted batch remains an error.
+COMPLETED_RELEASES = {BASELINE, "20260919181136"}
 PRODUCTION_HOST = "aws-1-eu-north-1.pooler.supabase.com"
 PRODUCTION_USER = "postgres.rkrhnkhppeihvmuwvsvn"
 
@@ -139,7 +142,9 @@ def main():
         return
     # A partially applied batch needs investigation rather than silently moving
     # past the boundary at which existing-account preservation was established.
-    if any(version > BASELINE for version in applied):
+    if max(applied) not in COMPLETED_RELEASES or set(applied) != {
+        version for version in versions if version <= max(applied)
+    }:
         raise ValueError("Partial post-baseline rollout detected; investigate before proceeding")
     for path in pending:
         print(f"{path.name} sha256={hashlib.sha256(path.read_bytes()).hexdigest()}")
