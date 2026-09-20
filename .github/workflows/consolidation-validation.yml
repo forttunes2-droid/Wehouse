@@ -77,6 +77,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recorded_journeys_contract.sql
       - name: Exercise workspace inbox separation and revocation
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_inbox_contract.sql
+      - name: Exercise hotel and property first-send workspace routing
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_topic_workspace_contract.sql
       - name: Verify signup hook through Supabase Auth
         run: node scripts/verify-signup-legal-hook.mjs
       - name: Exercise cross-user RLS foundation contract

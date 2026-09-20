@@ -14,6 +14,17 @@ const dates=moduleAt('src/lib/displayDate.ts');
 const topic=id=>({contextType:'hotel_property',contextId:id,contextSnapshot:{hotel_name:id}});
 const thread=id=>({conversation_id:'chat-'+id,subject:id,status:'open',context_type:'hotel_property',context_id:id,context_snapshot:{hotel_name:id}});
 const tick=()=>new Promise(setImmediate);
+test('Property conversation client passes canonical subjects and reads the returned conversation ID',async()=>{
+  const calls=[];
+  const client=moduleAt('src/lib/supabase/support.ts',{'./client':{supabase:{rpc:async(name,args)=>{calls.push({name,args});return {data:{conversation_id:'saved-'+args.p_subject_id},error:null};}}},'@/lib/propertyBookingLifecycle':{}});
+  for(const [contextType,subject] of [['property_listing','listing'],['hotel_property','hotel_property']]) {
+    const result=await client.createSupportConversation({contextType,contextId:'record-1',contextSnapshot:{requester_workspace:'personal'}});
+    assert.equal(result.conversationId,'saved-record-1');
+    assert.equal(calls.at(-1).name,'open_property_operations_conversation');
+    assert.equal(calls.at(-1).args.p_subject_type,subject);
+    assert.equal(calls.at(-1).args.p_snapshot.requester_workspace,'personal');
+  }
+});
 test('Thread lookup never substitutes a different hotel, booking, workspace or help reason',()=>{
   assert.equal(api.findSupportThread([thread('A')],topic('B')),null);
   assert.equal(api.findSupportThread([thread('A')],{conversationId:'missing'}),null);

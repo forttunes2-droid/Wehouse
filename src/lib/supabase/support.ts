@@ -366,24 +366,26 @@ export async function createSupportConversation(
     const { data, error } = await supabase.rpc(
       "open_property_operations_conversation",
       {
-        p_subject_type: "apartment",
+        p_subject_type: "listing",
         p_subject_id: input.contextId,
         p_snapshot: snapshot,
       },
     );
-    return { conversationId: data as string | null, error };
+    const result = (data || {}) as { conversation_id?: string | null };
+    return { conversationId: result.conversation_id || null, error };
   }
 
   if (["hotel_property", "hotel_operations"].includes(canonicalContextType)) {
     const { data, error } = await supabase.rpc(
       "open_property_operations_conversation",
       {
-        p_subject_type: "hotel",
+        p_subject_type: "hotel_property",
         p_subject_id: input.contextId,
         p_snapshot: snapshot,
       },
     );
-    return { conversationId: data as string | null, error };
+    const result = (data || {}) as { conversation_id?: string | null };
+    return { conversationId: result.conversation_id || null, error };
   }
 
   const { data, error } = await supabase.rpc("create_my_support_case", {
