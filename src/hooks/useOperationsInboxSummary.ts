@@ -33,7 +33,7 @@ export function useOperationsInboxSummary(
         .eq("recipient_id", userId)
         .eq("workspace_scope", activityScope)
         .gte("created_at", longestActivityCutoff()),
-      getAnnouncementsForUser(userId),
+      getAnnouncementsForUser(userId, activityScope),
     ]);
     if (!isCurrent()) return;
 

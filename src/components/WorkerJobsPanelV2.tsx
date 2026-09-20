@@ -93,7 +93,7 @@ export function WorkerInboxPanel({
 
   const load = useCallback(async () => {
     try {
-      const [conversations, wehouse] = await Promise.all([loadWorkerConversations(profile.user_id), getMySupportConversations()]);
+      const [conversations, wehouse] = await Promise.all([loadWorkerConversations(profile.user_id), getMySupportConversations("worker")]);
       setRows(conversations);
       if (!wehouse.error) setSupportUnread((wehouse.conversations || []).reduce((sum, row) => sum + Number(row.unread_count || 0), 0));
     } catch (error: unknown) {

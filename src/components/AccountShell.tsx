@@ -73,8 +73,8 @@ export function AccountRow({
     >
       {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">{icon}</span> : null}
       <span className="min-w-0 flex-1">
-        <span className="block text-[12px] font-semibold text-[#E6E8EE]">{title}</span>
-        {detail ? <span className="mt-0.5 block text-[9px] leading-relaxed text-[#6F7585]">{detail}</span> : null}
+        <span className="block text-[15px] font-semibold text-[#E6E8EE]">{title}</span>
+        {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[#989EAE]">{detail}</span> : null}
       </span>
       {trailing ?? (onClick ? <span className="text-[#565D6D]">›</span> : null)}
     </Wrapper>

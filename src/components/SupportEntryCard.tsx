@@ -25,10 +25,10 @@ export default function SupportEntryCard({
   const [threads, setThreads] = useState<SupportThread[]>([]),
     [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
-    const { conversations } = await getMySupportConversations();
+    const { conversations } = await getMySupportConversations(profile.role);
     setThreads(conversations || []);
     setLoading(false);
-  }, []);
+  }, [profile.role]);
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0),
       timer = window.setInterval(() => void load(), 15000);

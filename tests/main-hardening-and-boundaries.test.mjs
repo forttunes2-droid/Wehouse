@@ -102,7 +102,7 @@ test("Personal Inbox owns Messages and nested Activity with one combined badge",
   assert.match(app, /unreadCount \+ supportUnreadCount \+ notificationCount/);
   assert.match(inbox, /<InboxActivityEntry/);
   assert.match(inbox, /setView\("activity"\)/);
-  assert.match(inbox, /<h2 className="text-\[15px\] font-bold">Messages<\/h2>/);
+  assert.match(inbox, /<h2 className="sr-only">Messages<\/h2>/);
 });
 
 test("Staff Inbox viewing never silently claims work", async () => {
@@ -161,12 +161,12 @@ test("Service Provider and Property Partner are additive workspaces on one Perso
     read("src/pages/AccountCenter.tsx"),
     read("supabase/migrations/20260915204500_allow_multi_professional_workspaces.sql"),
   ]);
-  assert.match(account, /Workspaces & access/);
-  assert.match(account, /Use WeHouse as/);
+  assert.match(account, /title="Workspaces"/);
+  assert.match(account, /title="Applications"/);
   assert.match(account, /Service Provider/);
   assert.match(account, /Property Partner/);
-  assert.match(account, /Offer services through WeHouse Services/);
-  assert.match(account, /List or manage apartments and hotels/);
+  assert.match(account, /title="Offer services"/);
+  assert.match(account, /title="List a property"/);
   assert.match(migration, /'worker','global','active'/);
   assert.match(migration, /'property_partner','global','active'/);
   assert.doesNotMatch(migration, /set role=case when role='user' then 'worker'/);

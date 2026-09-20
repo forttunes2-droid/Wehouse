@@ -186,8 +186,8 @@ export default function PreciseLocationPicker({
 
   const addressHelp =
     subject === "property"
-      ? "Street address is the editable location people see. Device accuracy stays behind the interface for verification and distance calculations."
-      : "Your street address is what you see and edit. Device accuracy stays behind the interface and is never shown as coordinates.";
+      ? "Check that this is the property’s address before saving."
+      : "Your personal street address is private.";
 
   return (
     <section className="border-y border-white/[.07] py-4">
@@ -201,7 +201,7 @@ export default function PreciseLocationPicker({
             value?.address.trim() ? "text-emerald-300" : "text-amber-300"
           }`}
         >
-          {value?.address.trim() ? "Address saved" : "Add address"}
+          {value?.address.trim() ? "Address added" : "Add address"}
         </span>
       </div>
 

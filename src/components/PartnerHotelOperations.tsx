@@ -229,7 +229,7 @@ export default function PartnerHotelOperations({
             .order("kind")
             .order("name"),
           canMessageGuests
-            ? getMyHotelConversations()
+            ? getMyHotelConversations(accessRole === "owner" ? "property_partner" : "hotel")
             : Promise.resolve({ conversations: [], error: null }),
         ]);
       const loadError =
@@ -253,7 +253,7 @@ export default function PartnerHotelOperations({
       );
       if (!quiet) setLoading(false);
     },
-    [canMessageGuests, canReadStays, hotel.hotel_id, hotel.timezone],
+    [accessRole, canMessageGuests, canReadStays, hotel.hotel_id, hotel.timezone],
   );
 
   useEffect(() => {

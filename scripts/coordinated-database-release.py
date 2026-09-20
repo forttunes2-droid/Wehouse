@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20260913181317"
 # Completed, verified production releases. Later releases must still start from
 # a complete repository prefix; an interrupted batch remains an error.
-COMPLETED_RELEASES = {BASELINE, "20260919181136"}
+COMPLETED_RELEASES = {BASELINE, "20260919181136", "20260920032704"}
 PRODUCTION_HOST = "aws-1-eu-north-1.pooler.supabase.com"
 PRODUCTION_USER = "postgres.rkrhnkhppeihvmuwvsvn"
 

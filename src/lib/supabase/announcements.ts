@@ -55,7 +55,8 @@ export async function sendAnnouncement(
   return{error:{message:'This role cannot send announcements'},announcement:null,recipientCount:0};
 }
 
-export async function getAnnouncementsForUser(userId:string){
+export async function getAnnouncementsForUser(userId:string,workspace="personal"){
+  if(workspace!=="personal")return{messages:[] as Array<AnnouncementInboxRow & {announcements:Announcement[];message:Announcement|null}>,error:null};
   void userId;
   const{data,error}=await supabase.rpc('get_my_announcement_inbox');
   if(error)return{messages:[],error};

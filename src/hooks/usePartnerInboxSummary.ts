@@ -12,10 +12,10 @@ export function usePartnerInboxSummary(userId: string) {
   const load = useCallback(async (isCurrent: () => boolean) => {
     if (!userId) return;
     const [wehouse, hotels, events, announcements] = await Promise.all([
-      getMySupportConversations(),
-      getMyHotelConversations(),
+      getMySupportConversations("property_partner"),
+      getMyHotelConversations("property_partner"),
       supabase.from("notifications").select("type,title,message,source_type,destination_route,created_at,read").eq("recipient_id", userId).eq("workspace_scope", "partner").eq("read", false).gte("created_at", longestActivityCutoff()),
-      getAnnouncementsForUser(userId),
+      getAnnouncementsForUser(userId, "partner"),
     ]);
     if (!isCurrent()) return;
     const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).filter((row) => Number(row.unread_count || 0) > 0).length;

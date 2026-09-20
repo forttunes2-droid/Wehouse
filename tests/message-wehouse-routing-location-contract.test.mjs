@@ -96,5 +96,5 @@ test("human location UI is address-only and manual address remains authoritative
   assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
   assert.match(profile, /label="Street address"/);
   assert.match(profile, /preciseLocation\?\.address\?\.trim\(\) \|\| 'Not added'/);
-  assert.match(profile, /Phone location is optional assistance; technical coordinates are not shown in the app/);
+  assert.match(profile, /Choose your State and Local Government, then add your street address/);
 });

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
 import {
   getConversations,
@@ -96,6 +97,8 @@ export default function Chat({
   const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [loading, setLoading] = useState(!conversationId);
+  const loadVersion = useRef(0);
+  const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
   const [view, setView] = useState<"messages" | "activity">("messages");
@@ -114,32 +117,39 @@ export default function Chat({
 
   const load = useCallback(
     async (quiet = false) => {
+      const request = ++loadVersion.current;
       if (!quiet) setLoading(true);
+      try {
       const [
         roommateResult,
         peopleResult,
         bookingResult,
         hotelResult,
         supportResult,
-      ] = await Promise.all([
+      ] = await withTimeout(Promise.all([
         getConversations(profile.user_id),
         getRoommateConversationPeople(),
-        getCommunicationBookingConversations(profile.user_id),
+        getCommunicationBookingConversations(profile.user_id, "personal"),
         getMyHotelConversations(),
         getMySupportConversations(),
-      ]);
-      setConversations(
+      ]), 15000, "Messages took too long to load. Please try again.");
+      if (request !== loadVersion.current) return;
+      const failed = [roommateResult, peopleResult, bookingResult, hotelResult, supportResult].some(result => result.error);
+      setLoadError(failed ? "Some messages could not be loaded. Please try again." : "");
+      if (!roommateResult.error) setConversations(
         (roommateResult.conversations || []).filter(
           (row) => row.conversation_type === "roommate",
         ),
       );
-      setPeople(peopleResult.people || {});
-      setBookingConversations(
+      if (!peopleResult.error) setPeople(peopleResult.people || {});
+      if (!bookingResult.error) setBookingConversations(
         (bookingResult.conversations || []) as BookingConversation[],
       );
-      setHotelConversations(hotelResult.conversations || []);
-      setSupportThreads(supportResult.conversations || []);
-      if (!quiet) setLoading(false);
+      if (!hotelResult.error) setHotelConversations(hotelResult.conversations || []);
+      if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
+      } catch {
+        if (request === loadVersion.current) setLoadError('Messages could not be loaded. Please try again.');
+      } finally { if (request === loadVersion.current) setLoading(false); }
     },
     [profile.user_id],
   );
@@ -178,6 +188,7 @@ export default function Chat({
       .subscribe();
     const timer = window.setInterval(() => void load(true), 30_000);
     return () => {
+      loadVersion.current += 1;
       window.clearInterval(timer);
       void supabase.removeChannel(channel);
     };
@@ -264,6 +275,7 @@ export default function Chat({
   if (target) {
     return (
       <ChatCore
+        key={`${profile.user_id}:${target.conversationId}`}
         profile={profile}
         onNavigate={onNavigate}
         conversationId={target.conversationId}
@@ -380,53 +392,30 @@ export default function Chat({
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
       <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <h1 className="text-xl font-bold">{conversationOnly ? "Conversation" : "Inbox"}</h1>
+          {!conversationOnly && <InboxActivityEntry compact unread={activityUnreadCount} onOpen={() => setView("activity")} />}
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        {!conversationOnly ? (
-          <InboxActivityEntry
-            unread={activityUnreadCount}
-            detail="Updates and actions that affect you"
-            onOpen={() => setView("activity")}
-          />
-        ) : null}
-
         <section className="pt-4">
-          <div className="flex items-end justify-between gap-4 pb-3">
-            <div>
-              <h2 className="text-[15px] font-bold">Messages</h2>
-              <p className="mt-1 text-[9px] text-[#6D7383]">
-                Roommates, stays, services and WeHouse conversations — most recent
-                first.
-              </p>
-            </div>
-            {messageUnreadCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">
-                {messageUnreadCount > 99 ? "99+" : messageUnreadCount} new
-              </span>
-            ) : null}
-          </div>
-
+          <h2 className="sr-only">Messages</h2>
+          {messageUnreadCount > 0 && <p className="mb-3 text-xs text-violet-300">{messageUnreadCount} unread conversation{messageUnreadCount === 1 ? '' : 's'}</p>}
           <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
             <SearchIcon />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search messages"
-              className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-[#858B9B]"
             />
           </label>
 
+          {loadError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-[#C1BBCB]"><p>{loadError}</p><button type="button" onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
           {loading ? (
-            <div
-              className="min-h-48"
-              role="status"
-              aria-label="Loading messages"
-            />
-          ) : visible.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[#A1A7B5]" role="status">Loading messages…</p>
+          ) : visible.length === 0 && !loadError ? (
             <div className="border-b border-dashed border-white/[.08] py-14 text-center">
               <p className="text-sm font-semibold">
                 {query.trim() ? "No matching messages" : "No messages yet"}
@@ -490,17 +479,17 @@ function ThreadRow({
 }) {
   const view = threadPresentation(thread, people, me);
   const tone: Record<ThreadView["tone"], string> = {
-    violet: "bg-violet-500/14 text-violet-200",
-    amber: "bg-amber-500/12 text-amber-200",
-    emerald: "bg-emerald-500/12 text-emerald-200",
-    blue: "bg-cyan-500/10 text-cyan-200",
+    violet: "bg-violet-500/[.12] text-violet-200",
+    amber: "bg-violet-500/[.12] text-violet-200",
+    emerald: "bg-violet-500/[.12] text-violet-200",
+    blue: "bg-violet-500/[.12] text-violet-200",
   };
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="flex min-h-[5.1rem] w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
+      className="flex min-h-[5.5rem] w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
     >
       <Avatar
         src={view.avatar}
@@ -510,7 +499,7 @@ function ThreadRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <p
-            className={`min-w-0 flex-1 truncate text-[14px] ${
+            className={`min-w-0 flex-1 truncate text-base ${
               view.unread
                 ? "font-bold text-white"
                 : "font-semibold text-[#E6E8ED]"
@@ -520,8 +509,8 @@ function ThreadRow({
           </p>
           {view.time ? (
             <span
-              className={`shrink-0 text-[8px] ${
-                view.unread ? "text-violet-300" : "text-[#5D6373]"
+              className={`shrink-0 text-[11px] ${
+                view.unread ? "text-violet-300" : "text-[#9B9FAE]"
               }`}
             >
               {view.time}
@@ -529,7 +518,7 @@ function ThreadRow({
           ) : null}
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${
+          className={`mt-1 truncate text-sm ${
             view.unread
               ? "font-medium text-[#DADDE5]"
               : "text-[#777D8D]"
@@ -537,15 +526,15 @@ function ThreadRow({
         >
           {view.preview}
         </p>
-        <p className="mt-1 truncate text-[8px] text-[#626879]">
+        <p className="mt-1 text-xs leading-5 text-[#989DAC]">
           <span
             className={`font-semibold ${
               view.tone === "amber"
-                ? "text-amber-300"
+                ? "text-violet-300"
                 : view.tone === "emerald"
-                  ? "text-emerald-300"
+                  ? "text-violet-300"
                   : view.tone === "blue"
-                    ? "text-cyan-300"
+                    ? "text-violet-300"
                     : "text-violet-300"
             }`}
           >
@@ -717,7 +706,7 @@ function Avatar({
 }) {
   return (
     <span
-      className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full text-xs font-bold ${className}`}
+      className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full text-lg font-semibold ${className}`}
     >
       {src ? (
         <img
@@ -743,7 +732,7 @@ function compactDate(value?: string | null) {
   if (!value) return "";
   const date = new Date(`${value}T12:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 }
 
 function formatListTime(value?: string | null) {
@@ -759,7 +748,7 @@ function formatListTime(value?: string | null) {
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 }
 
 function statusLabel(value?: string | null) {

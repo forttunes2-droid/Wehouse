@@ -14,12 +14,12 @@ function normalizeConversation(row:any){
 }
 
 export async function getMyBookingConversations(userId:string){
-  const{data,error}=await supabase.rpc('get_my_booking_conversations_v3',{p_user_id:userId});
-  return{conversations:(data||[]).map(normalizeConversation),error};
+  return getCommunicationBookingConversations(userId,'personal');
 }
 
-export async function getCommunicationBookingConversations(userId:string){
-  const{data,error}=await supabase.rpc('get_my_booking_conversations_v3',{p_user_id:userId});
+export async function getCommunicationBookingConversations(userId:string,workspace:'personal'|'worker'='worker'){
+  void userId; // The server derives the person from the authenticated session.
+  const{data,error}=await supabase.rpc('get_my_workspace_inbox',{p_workspace:workspace,p_kind:'service'});
   return{conversations:(data||[]).map(normalizeConversation),error};
 }
 

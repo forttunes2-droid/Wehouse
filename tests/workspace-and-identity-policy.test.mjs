@@ -21,11 +21,11 @@ test('Personal identity can add both Service Provider and Property Partner works
     conflictMigration.indexOf('drop trigger if exists workspace_one_marketplace_role_guard') <
       conflictMigration.indexOf('drop function if exists public.enforce_one_marketplace_workspace'),
   );
-  assert.match(account, /Use WeHouse as/);
+  assert.match(account, /title="Workspaces"/);
   assert.match(account, /Service Provider/);
-  assert.match(account, /Offer services through WeHouse Services/);
+  assert.match(account, /title="Offer services"/);
   assert.match(account, /Property Partner/);
-  assert.match(account, /List or manage apartments and hotels/);
+  assert.match(account, /title="List a property"/);
 });
 
 test('multi-role identities cannot approve records that benefit themselves', async () => {

@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/withTimeout';
 import { NIGERIA_STATES, getCitiesForState } from '@/data/nigeria-locations';
 import SearchableSelect from '@/components/SearchableSelect';
 
@@ -16,6 +18,31 @@ interface LocationSelectorProps {
 }
 
 export default function LocationSelector({ value, onChange, disabled }: LocationSelectorProps) {
+  const [locating, setLocating] = useState(false);
+  const [locationNotice, setLocationNotice] = useState('');
+  const [suggestion, setSuggestion] = useState<{ state: string; city: string } | null>(null);
+  const request = useRef(0);
+  useEffect(() => () => { request.current += 1; }, []);
+  useEffect(() => { request.current += 1; setSuggestion(null); setLocating(false); }, [value.state, value.city]);
+  async function locate() {
+    const id = ++request.current;
+    setLocating(true); setLocationNotice(''); setSuggestion(null);
+    try {
+      if (!navigator.geolocation) throw new Error('Location is unavailable. Choose your State and Local Government below.');
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }));
+      if (id !== request.current) return;
+      const result = await withTimeout(supabase.functions.invoke('reverse-geocode', { body: { latitude: position.coords.latitude, longitude: position.coords.longitude } }), 10000, 'Address lookup timed out. Choose your region below.');
+      if (id !== request.current) return;
+      const clean = (text: string) => text.toLowerCase().replace(/\b(state|local government area|lga|municipality)\b/g, '').replace(/[^a-z]/g, '');
+      const state = NIGERIA_STATES.find(row => clean(row.state) === clean(String(result.data?.state || '')));
+      const city = state?.cities.find(row => clean(row) === clean(String(result.data?.city || ''))) || '';
+      if (result.error || !state) throw new Error('We could not match your location. Choose your State and Local Government below.');
+      setSuggestion({ state: state.state, city });
+      setLocationNotice(city ? 'Check the suggested region before applying it.' : 'State found. Choose your Local Government after applying it.');
+    } catch {
+      if (id === request.current) setLocationNotice('Location could not be read. You can still choose your State and Local Government below.');
+    } finally { if (id === request.current) setLocating(false); }
+  }
   const cities = useMemo(() => getCitiesForState(value.state), [value.state]);
   const stateOptions = useMemo(() => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })), []);
   const cityOptions = useMemo(() => cities.map((city) => ({ value: city, label: city })), [cities]);
@@ -24,6 +51,9 @@ export default function LocationSelector({ value, onChange, disabled }: Location
 
   return (
     <div className="space-y-3">
+      <button type="button" disabled={disabled || locating} onClick={() => void locate()} className="min-h-11 text-sm font-semibold text-violet-300 disabled:opacity-50">{locating ? 'Finding your location…' : 'Use my location'}</button>
+      {locationNotice && <p role="status" className="text-xs leading-5 text-[#A1A7B5]">{locationNotice}</p>}
+      {suggestion && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span className="text-sm">{[suggestion.city, suggestion.state].filter(Boolean).join(', ')}</span><button type="button" disabled={disabled} onClick={() => { onChange({ ...value, state: suggestion.state, city: suggestion.city, area: '' }); setSuggestion(null); setLocationNotice('Region applied. Check the fields below.'); }} className="min-h-11 text-sm font-semibold text-violet-300">Use this region</button></div>}
       <div>
         <span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">Country</span>
         <div className="flex h-11 items-center rounded-xl border border-white/[0.08] bg-[#181B24] px-3 text-xs text-[#D6D9E1]">Nigeria</div>

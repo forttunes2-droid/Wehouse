@@ -18,7 +18,7 @@ export function useWorkerInboxSummary(userId: string) {
     if (!userId) return;
     const [jobs, support, events, announcements] = await Promise.all([
       getCommunicationBookingConversations(userId),
-      getMySupportConversations(),
+      getMySupportConversations("worker"),
       supabase
         .from("notifications")
         .select(
@@ -28,7 +28,7 @@ export function useWorkerInboxSummary(userId: string) {
         .eq("workspace_scope", "worker")
         .eq("read", false)
         .gte("created_at", longestActivityCutoff()),
-      getAnnouncementsForUser(userId),
+      getAnnouncementsForUser(userId, "worker"),
     ]);
     if (!isCurrent()) return;
 
