@@ -28,7 +28,6 @@ import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
 import type { WorkspaceChoice } from "@/pages/AccountCenter";
-import { workspaceLabel } from "@/lib/workspacePresentation";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";

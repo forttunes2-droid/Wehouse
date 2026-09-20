@@ -91,6 +91,7 @@ select set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001'
 set local role authenticated;
 do $$ declare snapshot jsonb; messages integer; notice jsonb; begin
   snapshot:=public.get_my_hotel_operation_snapshot(-9991);
+  if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0->>'total_rooms'<>'2' then raise exception 'Internal room count missing'; end if;
   if jsonb_array_length(snapshot->'rooms')<>1 or jsonb_array_length(snapshot->'bookings')<>1
     or jsonb_array_length(snapshot->'rooms'->0->'rate_plans')<>1 then raise exception 'Owner hotel operation is disconnected'; end if;
   select count(*) into messages from public.get_support_messages('99999999-2222-4222-8222-000000000001');
@@ -106,6 +107,7 @@ do $$ begin
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000002',true);
   if jsonb_array_length(public.get_my_hotel_operation_snapshot(-9991)->'bookings')<>0 then raise exception 'Room-only staff received guest bookings'; end if;
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000003',true);
+  if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0 ? 'total_rooms' then raise exception 'Guest received internal inventory'; end if;
   if public.get_hotel_review_summary(-9991)->>'eligible'<>'true' then raise exception 'Completed guest cannot review'; end if;
   begin
     perform public.get_my_hotel_operation_snapshot(-9991);
