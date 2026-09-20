@@ -57,6 +57,8 @@ jobs:
         run: |
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';")" -ge 90
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
+      - name: Exercise actual arrival dates and booking-code authority
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/arrival_dates_contract.sql
       - name: Exercise accommodation handover contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
       - name: Exercise identity policy and Service Provider review contract

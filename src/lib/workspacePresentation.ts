@@ -20,3 +20,12 @@ const WORKSPACE_LABELS: Record<WorkspaceName, string> = {
 export function workspaceLabel(workspace: WorkspaceName) {
   return WORKSPACE_LABELS[workspace];
 }
+
+export const WORKSPACE_GROUPS = ["Marketplace work", "Hotel Team", "WeHouse Team"] as const;
+
+export function workspaceGroup(workspace: WorkspaceName): typeof WORKSPACE_GROUPS[number] | "Personal" {
+  if (workspace === "personal") return "Personal";
+  if (workspace === "worker" || workspace === "property_partner") return "Marketplace work";
+  if (workspace === "hotel") return "Hotel Team";
+  return "WeHouse Team";
+}

@@ -1,5 +1,5 @@
 import ReceiptAccess from "@/components/PaymentReceipt";
-import { displayDate, displayDateTime } from "@/lib/displayDate";
+import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import {
@@ -90,7 +90,7 @@ const VIEW_OPTIONS = [
 const STATUS_OPTIONS = [
   {
     value: "all",
-    label: "All statuses",
+    label: "All booking stages",
     description: "Needs action, active and history",
   },
   {
@@ -520,7 +520,7 @@ export default function MyReservations({
     setBusyId(row.id);
     const { error } = await requestApartmentMoveIn(
       row.id,
-      new Date(requestedAt).toISOString(),
+      nigeriaInputToISO(requestedAt),
     );
     setBusyId(null);
     if (error) return toast.error(error.message);
@@ -827,7 +827,7 @@ export default function MyReservations({
           <div className="mt-4 space-y-5">
             {sections.map((section) => (
               <section key={section.id}>
-                <div className="flex items-center justify-between pb-2">
+                <div className={statusView === "all" ? "flex items-center justify-between pb-2" : "sr-only"}>
                   <h2
                     className={`text-[9px] font-bold uppercase tracking-[.14em] ${
                       section.id === "action"
@@ -899,7 +899,7 @@ function bookingGroup(item: BookingItem): BookingGroup {
       status === "payment_conflict" ||
       (status === "reserved" && !rentPaid) ||
       (status === "ready_for_move_in" &&
-        (!rentPaid || !item.row.requested_move_in_at))
+        (!rentPaid || (item.row.stay_type !== "short_let" && !item.row.requested_move_in_at)))
     )
       return "action";
     if (["completed", "cancelled", "expired", "refunded"].includes(status))
@@ -1025,9 +1025,7 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
             ? "WeHouse is reviewing the apartment"
             : row.status === "ready_for_move_in" && rentPaid
               ? row.requested_move_in_at
-                ? `Meet WeHouse ${new Date(
-                    row.requested_move_in_at,
-                  ).toLocaleString()} for handover`
+                ? `Handover ${displayDateTime(row.requested_move_in_at, "Africa/Lagos")} WAT`
                 : journey.title
               : row.status === "ready_for_move_in"
                 ? short
@@ -1049,7 +1047,7 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       image={row.listing_image || null}
       fallback="⌂"
       meta={dates}
-      next={nextSummary || journey.title}
+      next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? "" : journey.title)}
       onOpen={onOpen}
     />
   );
@@ -1067,10 +1065,10 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
     row.status === "pending"
       ? "Complete secure payment to confirm this stay"
       : row.status === "confirmed"
-        ? `Arrive from ${formatStayTime(hotel.check_in_time, "14:00")}`
+        ? `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
         : row.status === "checked_in"
-          ? `Checkout by ${formatStayTime(hotel.check_out_time, "12:00")}`
-          : "Open the stay record";
+          ? `Check-out ${checkOut} by ${formatStayTime(hotel.check_out_time, "12:00")} (hotel local time)`
+          : "";
   return (
     <BookingCard
       eyebrow="Hotel"
@@ -1213,17 +1211,18 @@ function PropertyBookingDetail({
           row.listing_price ||
           0,
   );
-  const earliestMoveIn = toLocalDateTimeInput(
+  const earliestMoveIn = nigeriaDateTimeInput(
     new Date(Date.now() + 5 * 60_000),
   );
-  const latestMoveIn = toLocalDateTimeInput(
+  const latestMoveIn = nigeriaDateTimeInput(
     new Date(Date.now() + 3 * 86_400_000),
   );
   const [moveInAt, setMoveInAt] = useState(
     row.requested_move_in_at
-      ? toLocalDateTimeInput(new Date(row.requested_move_in_at))
+      ? nigeriaDateTimeInput(new Date(row.requested_move_in_at))
       : earliestMoveIn,
   );
+  const [editingMoveIn, setEditingMoveIn] = useState(false);
   const helpRelevant =
     row.status === "payment_conflict" ||
     row.rent_payment_status === "payment_conflict" ||
@@ -1282,7 +1281,7 @@ function PropertyBookingDetail({
               value={journey.feePaid ? `Paid · ${money(row.amount)}` : money(row.amount)}
             />}
             <Info
-              label={short ? "Stay payment" : "Year 1 rent"}
+              label={short ? "Stay payment" : "Rent payment status"}
               value={
                 paymentNeedsReview
                   ? "Needs WeHouse review"
@@ -1361,18 +1360,22 @@ function PropertyBookingDetail({
             </button>
           ) : null}
 
-          {journey.action === "move_in_request" ? (
+          {journey.action === "move_in_request" || (!short && journey.action === "handover" && editingMoveIn) ? (
             <section className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <p className="text-xs font-semibold">Choose your move-in time</p>
               <p className="mt-1 text-[9px] leading-4 text-[#777D8E]">
-                Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
+                Times are in Nigeria time (WAT). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
               </p>
-              <input type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs" />
+              <input aria-label="Move-in time in Nigeria (WAT)" type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs" />
               <button type="button" disabled={busy || !moveInAt} onClick={() => onMoveIn(moveInAt)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Saving move-in time…" : "Send move-in time"}
               </button>
             </section>
           ) : null}
+
+          {!short && journey.action === "handover" && !editingMoveIn && (
+            <button type="button" onClick={() => { setMoveInAt(earliestMoveIn); setEditingMoveIn(true); }} className="mt-4 min-h-11 text-sm font-semibold text-violet-300">Change move-in time</button>
+          )}
 
           {journey.action === "handover" && row.booking_code ? (
             <div className="mt-5 border-y border-emerald-500/20 bg-emerald-500/[.035] py-4 text-center">
@@ -1422,10 +1425,6 @@ function PropertyBookingDetail({
   );
 }
 
-function toLocalDateTimeInput(value: Date) {
-  const offset = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offset).toISOString().slice(0, 16);
-}
 
 function HotelBookingDetail({
   row,
@@ -1482,7 +1481,7 @@ function HotelBookingDetail({
     journeyStatus === "pending"
       ? "Complete secure payment to confirm the room."
       : journeyStatus === "confirmed"
-        ? "Your room is confirmed. Contact the hotel for normal stay arrangements."
+        ? "Arrive on the check-in date shown below, from the hotel’s check-in time. Show your booking code at reception so the hotel team can assign your room and record your arrival."
         : journeyStatus === "checked_in"
           ? "Your stay is in progress."
           : journeyStatus === "completed"
@@ -1552,7 +1551,8 @@ function HotelBookingDetail({
             </a>
           ) : null}
 
-          <div className="mt-5 grid grid-cols-2 gap-2">
+          <p className="mt-4 text-xs text-[#A1A1AA]">Arrival and departure times use the hotel’s local time.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <Info
               label="Check-in"
               value={`${date(row.check_in_date || row.check_in)} from ${formatStayTime(
