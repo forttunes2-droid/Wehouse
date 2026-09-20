@@ -1,3 +1,4 @@
+import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -15,7 +16,7 @@ export default function ManageListing({listingId,source}:Props){
  if(!listing)return <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.04] p-4 text-[10px] text-amber-200">The published listing record could not be loaded.</div>;
  const photos=Array.isArray(listing.images)?listing.images:[];
  const videos=Array.isArray(listing.videos)?listing.videos:[];
- const location=[listing.address||source.property_address,listing.city,listing.state].filter(Boolean).join(', ');
+ const location=locationLabel(listing.address||source.property_address,listing.city,listing.state);
  const facts=[
   ['Type',listing.sub_type||listing.property_type||'Property'],
   ['Bedrooms',listing.bedrooms??'—'],

@@ -1,3 +1,4 @@
+import { locationLabel } from "@/lib/locationPresentation";
 import { displayDate, nigeriaDate } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -494,9 +495,7 @@ export default function HousingOperationsWorkspace({
                     ) : null}
                   </div>
                   <p className="mt-1 truncate text-[9px] text-[#686D7E]">
-                    {[row.address, row.lga, row.state]
-                      .filter(Boolean)
-                      .join(", ")}
+                    {locationLabel(row.address, row.lga, row.state)}
                   </p>
                 </div>
                 <Badge status={row.listing_status} />
@@ -625,7 +624,7 @@ function ShortStayCase({
               </span>
             </div>
             <p className="mt-1 text-[10px] text-[#6D7283]">
-              {[row.address, row.lga, row.state].filter(Boolean).join(", ")}
+              {locationLabel(row.address, row.lga, row.state)}
             </p>
           </div>
           <Badge status={row.listing_status} />
@@ -942,7 +941,7 @@ function HousingCase({
           <div>
             <h3 className="text-base font-bold">{row.listing_title}</h3>
             <p className="mt-1 text-[10px] text-[#6D7283]">
-              {[row.address, row.lga, row.state].filter(Boolean).join(", ")}
+              {locationLabel(row.address, row.lga, row.state)}
             </p>
           </div>
           <Badge status={row.listing_status} />

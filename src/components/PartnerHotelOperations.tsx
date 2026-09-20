@@ -1,3 +1,4 @@
+import { locationLabel } from "@/lib/locationPresentation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -420,7 +421,7 @@ export default function PartnerHotelOperations({
           <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Hotel control</p>
           <h2 className="mt-1 truncate text-lg font-bold">{hotel.name}</h2>
           <p className="mt-0.5 truncate text-[9px] text-[#6F7586]">
-            {[hotel.address, hotel.city, hotel.state].filter(Boolean).join(", ")} · {hotel.status === "active" ? "Live and bookable" : "Not public"}
+            {locationLabel(hotel.address, hotel.city, hotel.state)} · {hotel.status === "active" ? "Live and bookable" : "Not public"}
           </p>
         </div>
         {accessRole === "owner" ? (
