@@ -177,6 +177,13 @@ serve(async (req) => {
     }
 
     const transactionId = String(verified.data.id ?? "");
+    async function recordPaymentMode() {
+      const { error } = await admin.rpc("record_verified_payment_mode", {
+        p_reference: reference, p_transaction_id: transactionId,
+        p_domain: verified.data.domain || null,
+      });
+      if (error) throw new Error("Payment confirmed, but receipt details could not be saved. Please check again.");
+    }
     const canonicalPurpose = new Set([
       "worker_booking",
       "shared_housing_share",
@@ -229,6 +236,7 @@ serve(async (req) => {
       (payment.status === "paid" || payment.status === "completed") &&
       !canonicalPurpose
     ) {
+      await recordPaymentMode();
       return new Response(
         JSON.stringify({
           success: true,
@@ -292,6 +300,7 @@ serve(async (req) => {
           { status: 200, headers: cors },
         );
       }
+      await recordPaymentMode();
       return new Response(
         JSON.stringify({
           success: true,
@@ -317,6 +326,7 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: error.message }),
         { status: 500, headers: cors },
       );
+    await recordPaymentMode();
     return new Response(
       JSON.stringify({
         success: true,

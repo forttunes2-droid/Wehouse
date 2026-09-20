@@ -1,3 +1,5 @@
+import { displayDate } from "@/lib/displayDate";
+import DateField from "@/components/BookingDateField";
 import { useEffect, useState } from "react";
 import {
   createInspectionRequest,
@@ -245,16 +247,18 @@ export default function ListingDetail({
         );
       const next = created;
       setReservation(next);
-      if (next.status !== "payment_pending") {
+      if (!shortStay && next.status !== "payment_pending") {
         toast.success("Your reservation is already active");
         setShowPlan(false);
         await load();
         return;
       }
       const reference = String(next.payment_reference || "");
-      if (!reference)
+      if (!shortStay && !reference)
         throw new Error("Reservation payment reference is missing");
-      const { result, error } = await initializeReservationPayment(reference);
+      const { result, error } = shortStay
+        ? await initializeShortStayPayment(next.id)
+        : await initializeReservationPayment(reference);
       if (error) throw error;
       if (result?.already_paid) {
         toast.success("Reservation payment is already confirmed");
@@ -348,6 +352,7 @@ export default function ListingDetail({
   }
 
   async function resumeCheckout() {
+    if (listing?.sub_type === "short_let") return payContractRent();
     if (!reservation?.payment_reference)
       return toast.error("Payment reference is missing");
     setBusy(true);
@@ -757,7 +762,7 @@ export default function ListingDetail({
                     >
                       {busy
                         ? "Opening checkout…"
-                        : `Reserve dates · ₦${reservationFee.toLocaleString()} fee`}
+                        : `Pay for stay · ₦${(shortNights * Number(listing.price || 0) + Number(listing.security_deposit_amount || 0)).toLocaleString()}`}
                     </button>
                   </section>
                 ) : (
@@ -1118,6 +1123,15 @@ function ReservationPanel({
   onSupport: () => void;
 }) {
   const status = String(reservation?.status || "payment_pending");
+  if (shortStay)
+    return (
+      <ShortStayReservationPanel
+        reservation={reservation}
+        busy={busy}
+        onPay={onRentPay}
+        onSupport={onSupport}
+      />
+    );
   if (status === "payment_pending")
     return (
       <section className="rounded-3xl border border-amber-500/15 bg-[#11141C] p-5">
@@ -1149,15 +1163,6 @@ function ReservationPanel({
           Message WeHouse
         </button>
       </section>
-    );
-  if (shortStay)
-    return (
-      <ShortStayReservationPanel
-        reservation={reservation}
-        busy={busy}
-        onPay={onRentPay}
-        onSupport={onSupport}
-      />
     );
   if (status === "occupied")
     return (
@@ -1474,33 +1479,7 @@ function ShortStayReservationPanel({
   );
 }
 
-function DateField({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  min: string;
-  max: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label>
-      <span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span>
-      <input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40"
-      />
-    </label>
-  );
-}
+
 function isoDateOffset(days: number) {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
@@ -1514,7 +1493,7 @@ function isoDateFrom(value: string, days: number) {
 }
 function formatStayDate(value: unknown) {
   return value
-    ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString()
+    ? displayDate(String(value).slice(0, 10))
     : "—";
 }
 

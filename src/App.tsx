@@ -1158,7 +1158,10 @@ export default function App() {
     const props = { profile, savedIds, onToggleSave: toggle };
     switch (navPage) {
       case "payment_return":
-        return <PaymentReturn profile={profile} onNavigate={goTo} />;
+        return <PaymentReturn profile={profile} onNavigate={(page, id) => {
+          if (page === "my_reservations") setBookingContextId(id || null);
+          goTo(page);
+        }} />;
       case "search":
         return isUserRole ? (
           <Search

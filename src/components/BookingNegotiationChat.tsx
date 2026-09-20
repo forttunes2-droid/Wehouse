@@ -1,3 +1,4 @@
+import ReceiptAccess from "@/components/PaymentReceipt";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -1924,6 +1925,7 @@ function JobRequestDetailsSheet({
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
         <div className="mx-auto max-w-xl space-y-4">
           <JobRequestDetails booking={booking} />
+          {!isWorker && <ReceiptAccess subjectType="service" subjectId={bookingId} />}
           <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
         </div>
       </main>

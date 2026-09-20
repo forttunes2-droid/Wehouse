@@ -115,7 +115,7 @@ export function getPropertyBookingJourney(
       detail:
         "This booking has a paid status without its required Payment Protection record. Move-in and check-in stay blocked while WeHouse reconciles the payment evidence.",
       steps: [
-        reservationStep,
+        ...(shortStay ? [] : [reservationStep]),
         {
           id: "payment-protection-review",
           label: "Payment Protection review",
@@ -136,7 +136,7 @@ export function getPropertyBookingJourney(
       detail: audience === "customer"
         ? "No further property action is available from this record. Message WeHouse if you need help."
         : "This record cannot continue until its stopped or payment-review state is resolved.",
-      steps: [reservationStep, {
+      steps: [...(shortStay ? [] : [reservationStep]), {
         id: "stopped",
         label: "Journey stopped",
         detail: status.replace(/_/g, " "),
@@ -157,16 +157,14 @@ export function getPropertyBookingJourney(
             ? "Stay payment and the separately refundable caution are confirmed."
             : "Stay payment is confirmed. This Short Let has no refundable caution.",
         )
-      : feePaid
-        ? current(
+      : current(
             "Stay payment",
             rentStatus === "payment_pending"
               ? "Secure checkout started; payment is not confirmed yet."
               : cautionEnabled
                 ? "Pay the stay price and the separately refundable caution."
                 : "Pay the stay price. No refundable caution is required for this Short Let.",
-          )
-        : upcoming("Stay payment", "Available after the reservation fee is confirmed.");
+          );
     const arrivalStep = status === "occupied" || status === "completed"
       ? complete("Check-in", "Access was handed over and entry was recorded.")
       : status === "ready_for_move_in" && rentPaid
@@ -184,9 +182,7 @@ export function getPropertyBookingJourney(
       ? "completed"
       : status === "occupied"
         ? "tenancy"
-        : !feePaid
-          ? "reservation_payment"
-          : !rentPaid
+        : !rentPaid
             ? "rent_payment"
             : status === "ready_for_move_in"
               ? "handover"
@@ -195,7 +191,7 @@ export function getPropertyBookingJourney(
     return {
       action,
       ...copy,
-      steps: [reservationStep, paymentStep, arrivalStep, stayStep, finishStep],
+      steps: [paymentStep, arrivalStep, stayStep, finishStep],
       feePaid,
       rentPaid,
       inspectionStatus,
@@ -300,7 +296,7 @@ export function propertyBookingStatusLabel(
   if (status === "occupied") return shortStay ? "Checked in" : "Tenancy active";
   if (status === "completed") return shortStay ? "Stay completed" : "Tenancy completed";
   if (status === "inspection_pending") return "Inspection in progress";
-  if (status === "payment_pending") return "Reservation payment pending";
+  if (status === "payment_pending") return shortStay ? "Stay payment pending" : "Reservation payment pending";
   if (status === "payment_conflict") return "Payment needs review";
   if (status === "reserved") return "Reserved";
   if (status === "cancelled") return "Cancelled";

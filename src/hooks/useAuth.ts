@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { withTimeout } from "@/lib/withTimeout";
 import {
   supabase,
   getProfileByAuthId,
@@ -332,14 +333,20 @@ export function useAuth() {
       if (profileLoadRef.current?.authId === authId) return profileLoadRef.current.promise;
       const request = ++profileRequestRef.current;
       const isCurrentIdentity = () =>
-        confirmedAuthIdRef.current === authId && profileRequestRef.current === request;
+        aliveRef.current && confirmedAuthIdRef.current === authId && profileRequestRef.current === request;
+      const showLoadFailure = (message: string) => {
+        if (!isCurrentIdentity()) return;
+        setState((current) => preserveOnFailure && current.profile?.auth_id === authId
+          ? { ...current, isLoading: false, error: message }
+          : { page: "login", profile: null, isLoading: false, error: message, kickedOut: false });
+      };
       const task = (async () => {
         try {
           if (googlePasswordRecoveryRequested()) {
             setState({ page: "login", profile: null, isLoading: false, error: "", kickedOut: false });
             return;
           }
-          const user = suppliedUser ?? (await supabase.auth.getUser()).data?.user;
+          const user = suppliedUser ?? (await withTimeout(supabase.auth.getUser(), 20000, "Sign-in took too long. Please try again.")).data?.user;
           const email = user?.email || "";
           if(user?.email&&!user.email_confirmed_at){
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
@@ -367,23 +374,18 @@ export function useAuth() {
           if(verification?.context==='new_device'){
             const pendingSession=verification.pendingDeviceSessionId;
             if(!pendingSession)throw new Error('The pending device confirmation expired. Sign in again.');
-            const confirmed=await confirmCurrentDeviceWithGoogle(pendingSession);
+            const confirmed=await withTimeout(confirmCurrentDeviceWithGoogle(pendingSession), 20000, "Device confirmation took too long. Please try again.");
             if(confirmed.error)throw confirmed.error;
             clearGoogleVerification();
           }
-          const [profileResult, maintenanceEnabled] = await Promise.all([
+          const [profileResult, maintenanceEnabled] = await withTimeout(Promise.all([
             getProfileByAuthId(authId, email),
             maintenance(),
-          ]);
+          ]), 20000, "Your account took too long to load. Please try signing in again.");
+          if (!isCurrentIdentity()) return;
           const { profile: existing, error } = profileResult;
           if (error) {
-            if (!preserveOnFailure)
-              setState((s) => ({
-                ...s,
-                isLoading: false,
-                error:
-                  "We could not load your account. Check your connection and try again.",
-              }));
+            showLoadFailure("We could not load your account. Check your connection and try again.");
             return;
           }
           let profile = existing;
@@ -414,7 +416,8 @@ export function useAuth() {
           }
           if (verification?.context === "signup" && user?.identities?.some(identity => identity.provider === "google"))
             clearGoogleVerification();
-          const registration=await registerUserSession(profile.user_id,authId);
+          const registration=await withTimeout(registerUserSession(profile.user_id,authId), 20000, "We could not confirm this device. Please try signing in again.");
+          if (!isCurrentIdentity()) return;
           if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:profile.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
@@ -434,13 +437,7 @@ export function useAuth() {
             });
           }
         } catch (e: any) {
-          if (!preserveOnFailure && isCurrentIdentity())
-            setState((s) => ({
-              ...s,
-              isLoading: false,
-              error:
-                safeAuthMessage(e, "We couldn’t restore your session. Please sign in again."),
-            }));
+          showLoadFailure(safeAuthMessage(e, "We couldn’t restore your session. Please sign in again."));
         } finally {
           if (profileLoadRef.current?.authId === authId && profileRequestRef.current === request)
             profileLoadRef.current = null;
@@ -461,7 +458,7 @@ export function useAuth() {
         alive && restoreRequestRef.current === restoreRequest;
       setState((s) => (s.profile ? s : { ...s, page: "loading", isLoading: true }));
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error } = await withTimeout(supabase.auth.getSession(), 20000, "Sign-in took too long. Check your connection and try again.");
         if (error) throw error;
         if (!isCurrentRestore()) return;
         if (passwordRecoveryRequested() || googlePasswordRecoveryRequested() || googleVerificationCallbackFailed()) {
@@ -606,10 +603,10 @@ export function useAuth() {
       confirmedAuthIdRef.current = authId;
       setState((s) => ({ ...s, isLoading: true, error: "" }));
       try {
-        const [profileResult, maintenanceEnabled] = await Promise.all([
+        const [profileResult, maintenanceEnabled] = await withTimeout(Promise.all([
           getProfileByAuthId(authId, email),
           maintenance(),
-        ]);
+        ]), 20000, "Your account took too long to load. Please try again.");
         const { profile: byAuth, error: profileError } = profileResult;
         if (profileError) throw profileError;
         let p = byAuth;
@@ -630,7 +627,7 @@ export function useAuth() {
             await ensurePropertyPartnerRecord();
         }
         if (await allowEntry(p, maintenanceEnabled)) {
-          const registration=await registerUserSession(p.user_id,authId);
+          const registration=await withTimeout(registerUserSession(p.user_id,authId), 20000, "We could not confirm this device. Please try again.");
           if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:p.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});

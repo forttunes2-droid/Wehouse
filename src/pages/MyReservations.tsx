@@ -1,3 +1,5 @@
+import ReceiptAccess from "@/components/PaymentReceipt";
+import { displayDate, displayDateTime } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast, Toaster } from "sonner";
 import {
@@ -108,8 +110,7 @@ const STATUS_OPTIONS = [
   },
 ] as const;
 const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
-const date = (value: any) =>
-  value ? new Date(value).toLocaleDateString() : "—";
+const date = displayDate;
 const isUnpaidHousingDraft = (row: any) =>
   ["cancelled", "expired"].includes(String(row.status || "")) &&
   !row.paid_at &&
@@ -422,6 +423,7 @@ export default function MyReservations({
   }
 
   async function continueHousing(row: any) {
+    if (String(row.stay_type || row._stayKind) === "short_let") return payHousingRent(row);
     if (!row.payment_reference)
       return toast.error(
         "This reservation cannot be resumed. Start again from the apartment.",
@@ -781,10 +783,8 @@ export default function MyReservations({
       <Toaster position="top-center" richColors />
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-xl font-bold">Bookings</h1>
-          <p className="mt-1 text-[10px] text-[#74798B]">
-            Your active bookings, things that need action, and history.
-          </p>
+          <div className="flex items-center justify-between gap-3"><h1 className="text-xl font-bold">Bookings</h1><ReceiptAccess /></div>
+
         </div>
       </header>
 
@@ -1060,14 +1060,8 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
     HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
-  const checkIn = `${date(row.check_in_date || row.check_in)} from ${formatStayTime(
-    hotel.check_in_time,
-    "14:00",
-  )}`;
-  const checkOut = `${date(row.check_out_date || row.check_out)} by ${formatStayTime(
-    hotel.check_out_time,
-    "12:00",
-  )}`;
+  const checkIn = date(row.check_in_date || row.check_in);
+  const checkOut = date(row.check_out_date || row.check_out);
   const image = room.images?.[0] || hotel.images?.[0] || null;
   const next =
     row.status === "pending"
@@ -1085,7 +1079,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       status={visibleStatus}
       image={image}
       fallback="H"
-      meta={[checkIn, checkOut]}
+      meta={[`${checkIn} – ${checkOut}`]}
       next={next}
       onOpen={onOpen}
     />
@@ -1133,27 +1127,27 @@ function BookingCard({
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+          <p className="min-w-0 basis-full break-words text-base font-semibold">
             {title}
           </p>
-          <span className="shrink-0 text-[8px] font-semibold text-[#8A90A0]">
+          <span className="text-xs font-medium text-violet-200">
             {status}
           </span>
         </div>
-        <p className="mt-1 truncate text-[10px] text-[#73798A]">
+        <p className="mt-1 break-words text-sm text-[#A1A1AA]">
           {subtitle}
         </p>
         {meta.length ? (
-          <p className="mt-1.5 truncate text-[8px] text-[#62697A]">
+          <p className="mt-1.5 text-sm leading-5 text-[#A1A1AA]">
             {meta.join(" · ")}
           </p>
         ) : null}
-        <div className="mt-2 flex items-center gap-2">
-          <span className="shrink-0 text-[7px] font-bold uppercase tracking-[.12em] text-violet-300">
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="shrink-0 text-[10px] font-bold uppercase tracking-[.12em] text-violet-300">
             {eyebrow}
           </span>
-          <span className="truncate text-[8px] text-[#777D8D]">{next}</span>
+          {next !== status && <span className="text-xs text-[#A1A1AA]">{next}</span>}
         </div>
       </div>
       <span className="shrink-0 text-lg text-[#555C6D]">›</span>
@@ -1238,6 +1232,7 @@ function PropertyBookingDetail({
 
   return (
     <BookingDetailShell title={title} onBack={onBack}>
+      <ReceiptAccess subjectType="housing" subjectId={String(row.id)} />
       <section className="overflow-hidden border-y border-white/[.07] bg-[#11141C]">
         {row.listing_image ? (
           <img
@@ -1282,10 +1277,10 @@ function PropertyBookingDetail({
           ) : null}
 
           <div className="mt-4 grid grid-cols-2 gap-x-3">
-            <Info
+            {!short && <Info
               label="Reservation fee"
               value={journey.feePaid ? `Paid · ${money(row.amount)}` : money(row.amount)}
-            />
+            />}
             <Info
               label={short ? "Stay payment" : "Year 1 rent"}
               value={
@@ -1320,7 +1315,7 @@ function PropertyBookingDetail({
           !journey.rentPaid &&
           !["occupied", "completed"].includes(row.status) ? (
             <p className="mt-3 text-[9px] text-amber-300">
-              Reservation hold until {new Date(row.hold_expires_at).toLocaleString()}
+              Reservation hold until {displayDateTime(row.hold_expires_at)}
             </p>
           ) : null}
 
@@ -1500,6 +1495,7 @@ function HotelBookingDetail({
 
   return (
     <BookingDetailShell title="Hotel booking" onBack={onBack}>
+      <ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />
       <section className="overflow-hidden border-y border-white/[.07] bg-[#11141C]">
         {roomImage ? (
           <img
@@ -1695,8 +1691,14 @@ function AccommodationProtectionPanel({
         {open
           ? "Arrival issue open. The accommodation payment is frozen for WeHouse review."
           : deadline
-            ? `Protected until the arrival-issue window ends ${deadline.toLocaleString()}.`
-            : "Protected accommodation payment. Release timing is being reconciled."}
+            ? `Protected until the arrival-issue window ends ${displayDateTime(deadline)}.`
+            : protection.protection_state === "released"
+              ? "Payment released to the property."
+              : protection.protection_state === "refunded"
+                ? "Payment refunded."
+                : protection.protection_state === "protected" && !protection.checked_in_at
+                  ? "Your payment is protected. The arrival-issue window starts when you check in."
+                  : "Open the payment details or contact WeHouse to check the release status."}
       </p>
       {protection.can_report_arrival_issue ? (
         <button

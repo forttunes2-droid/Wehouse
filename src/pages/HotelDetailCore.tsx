@@ -1,3 +1,4 @@
+import DateField from "@/components/BookingDateField";
 import { useEffect, useState } from "react";
 import {
   getHotelById,
@@ -262,7 +263,7 @@ export default function HotelDetail({
               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
                 <div>
                   <span>{hotelAddress}</span>
-                  <p className="mt-1 text-[8px] text-[#62697A]">Published street address · internal entrance-location data stays private</p>
+
                 </div>
                 <a
                   href={directionsUrl(hotelAddress)}
@@ -632,33 +633,7 @@ function formatHotelTime(value: unknown, fallback: string) {
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-function DateField({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  min: string;
-  max: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label>
-      <span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span>
-      <input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40"
-      />
-    </label>
-  );
-}
+
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-white/[.05] bg-black/10 p-3">

@@ -56,14 +56,16 @@ export default function PropertyPipelineWorkspace({
   const [rows, setRows] = useState<any[]>([]),
     [loading, setLoading] = useState(true),
     [selected, setSelected] = useState<any | null>(null);
+  const [loadError, setLoadError] = useState(false);
   async function load(quiet = false) {
     if (!quiet) setLoading(true);
     const { data, error } = await supabase.rpc("get_my_property_pipeline_v2", {
       p_stage: "all",
     });
     if (error) {
-      if (!quiet) toast.error(error.message);
+      setLoadError(true);
     } else {
+      setLoadError(false);
       const nextRows = Array.isArray(data) ? data : [];
       setRows(nextRows);
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
@@ -140,7 +142,7 @@ export default function PropertyPipelineWorkspace({
             Show
           </p>
           <p className="mt-1 text-[9px] text-[#555C6D]">
-            {shown.length} {shown.length === 1 ? "record" : "records"}
+            {loadError ? "Unavailable" : `${shown.length} ${shown.length === 1 ? "record" : "records"}`}
           </p>
         </div>
         <WeHouseSelect
@@ -155,6 +157,11 @@ export default function PropertyPipelineWorkspace({
       </div>
       {loading ? (
         <Loading />
+      ) : loadError ? (
+        <div role="alert" className="py-8 text-sm text-[#A1A1AA]">
+          <p>We couldn’t load your properties. Your records have not been removed.</p>
+          <button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Try again</button>
+        </div>
       ) : shown.length === 0 ? (
         <Empty text="No properties match this stage." />
       ) : (

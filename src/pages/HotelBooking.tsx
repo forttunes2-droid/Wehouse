@@ -1,3 +1,4 @@
+import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
 import {
   createHotelBooking,
@@ -255,9 +256,6 @@ export default function HotelBooking({
   );
 }
 
-function DateField({ label, value, min, max, onChange }: { label: string; value: string; min: string; max: string; onChange: (value: string) => void }) {
-  return <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span><input type="date" value={value} min={min} max={max} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none [color-scheme:dark] focus:border-violet-500/40" /></label>;
-}
 
 function Field({ label, value, onChange, type = "text", autoComplete }: { label: string; value: string; onChange: (value: string) => void; type?: string; autoComplete?: string }) {
   return <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span><input type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40" /></label>;
