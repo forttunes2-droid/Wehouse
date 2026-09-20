@@ -1,7 +1,7 @@
 import ReceiptAccess from "@/components/PaymentReceipt";
 import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import {
   cancelReservation,
   createInspectionRequest,
@@ -780,7 +780,7 @@ export default function MyReservations({
 
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
-      <Toaster position="top-center" richColors />
+
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <div className="flex items-center justify-between gap-3"><h1 className="text-xl font-bold">Bookings</h1><ReceiptAccess /></div>

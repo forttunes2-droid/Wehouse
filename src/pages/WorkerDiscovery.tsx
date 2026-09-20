@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import {
   getCategoryWithSubcategories,
   getFeaturedWorkers,
@@ -447,7 +447,7 @@ export default function WorkerDiscovery({
       active="services"
       onNavigate={onNavigate}
     >
-      <Toaster position="top-center" richColors />
+
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         {statusWorkers.length > 0 && (
           <section>

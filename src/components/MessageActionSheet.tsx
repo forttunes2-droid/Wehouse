@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { messageMenuPosition, type MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import { Copy, Plus, Reply, Trash2 } from "lucide-react";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 type Props = {
+  anchor?: MessageMenuAnchor | null;
   mode?: "reactions" | "actions";
   currentReaction?: string | null;
   onReact: (emoji: string) => void;
@@ -24,6 +26,7 @@ function firstGrapheme(value: string) {
 
 export default function MessageActionSheet({
   mode = "reactions",
+  anchor = null,
   currentReaction,
   onReact,
   onReply,
@@ -31,15 +34,52 @@ export default function MessageActionSheet({
   onCopy,
   onClose,
 }: Props) {
+  const panelRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const [position, setPosition] = useState({ top: 12, left: 12 });
   const [moreOpen, setMoreOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
   const customEmojiRef = useRef<HTMLInputElement>(null);
 
+  useLayoutEffect(() => {
+    const positionMenu = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const rect = panel.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      setPosition(messageMenuPosition(anchor, rect.width, rect.height, {
+        width: viewport?.width || window.innerWidth,
+        height: viewport?.height || window.innerHeight,
+        top: viewport?.offsetTop || 0,
+      }));
+    };
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.visualViewport?.addEventListener("resize", positionMenu);
+    window.visualViewport?.addEventListener("scroll", positionMenu);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.visualViewport?.removeEventListener("resize", positionMenu);
+      window.visualViewport?.removeEventListener("scroll", positionMenu);
+    };
+  }, [anchor, moreOpen]);
+
   useEffect(() => {
-    const close = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [onClose]);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseRef.current();
+      if (event.key !== "Tab") return;
+      const items = panelRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled)");
+      if (!items?.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", keyboard);
+    return () => { window.removeEventListener("keydown", keyboard); previousFocus?.focus(); };
+  }, []);
 
   useEffect(() => {
     if (moreOpen) customEmojiRef.current?.focus();
@@ -53,17 +93,19 @@ export default function MessageActionSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[100050] flex items-end justify-center bg-black/55 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-[2px] sm:items-center sm:px-4"
+      className="fixed inset-0 z-[100050] bg-black/40 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <section
-        className="w-full max-w-sm"
+        ref={panelRef}
+        style={position}
+        className="fixed w-[min(340px,calc(100vw-24px))] max-h-[calc(var(--wh-visual-viewport-height,100dvh)-24px)] select-none overflow-y-auto rounded-[22px] animate-in fade-in slide-in-from-top-2 duration-150"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={mode === "reactions" ? "Choose a reaction" : "Message actions"}
+        aria-label="Message options"
+        data-opened-for={mode}
       >
-        {mode === "reactions" ? (
           <>
             <div className="flex items-center justify-between gap-0.5 rounded-[22px] border border-white/[.1] bg-[#171A22] p-1.5 shadow-2xl">
               {QUICK_EMOJIS.map((emoji) => (
@@ -126,13 +168,13 @@ export default function MessageActionSheet({
               </p>
             ) : null}
           </>
-        ) : (
-          <div className="overflow-hidden rounded-[22px] border border-white/[.1] bg-[#171A22] shadow-2xl">
+        {(onReply || onCopy || onRemove) && (
+          <div className="mt-2 overflow-hidden rounded-[22px] border border-white/[.1] bg-[#171A22] shadow-2xl">
             {onReply ? (
               <button
                 type="button"
                 onClick={onReply}
-                className="flex min-h-14 w-full items-center gap-3 border-b border-white/[.07] px-4 text-left text-xs font-semibold"
+                className="flex min-h-11 w-full items-center gap-3 border-b border-white/[.07] px-4 text-left text-xs font-semibold"
               >
                 <Reply className="h-4 w-4 text-[#AEB4C0]" />
                 Reply
@@ -142,7 +184,7 @@ export default function MessageActionSheet({
               <button
                 type="button"
                 onClick={onCopy}
-                className="flex min-h-14 w-full items-center gap-3 border-b border-white/[.07] px-4 text-left text-xs font-semibold"
+                className="flex min-h-11 w-full items-center gap-3 border-b border-white/[.07] px-4 text-left text-xs font-semibold"
               >
                 <Copy className="h-4 w-4 text-[#AEB4C0]" />
                 Copy message
@@ -152,7 +194,7 @@ export default function MessageActionSheet({
               <button
                 type="button"
                 onClick={onRemove}
-                className="flex min-h-14 w-full items-center gap-3 px-4 text-left text-xs font-semibold text-red-300"
+                className="flex min-h-11 w-full items-center gap-3 px-4 text-left text-xs font-semibold text-red-300"
               >
                 <Trash2 className="h-4 w-4" />
                 Remove from my chat

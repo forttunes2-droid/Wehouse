@@ -33,6 +33,7 @@ import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
+import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -113,6 +114,7 @@ export default function BookingNegotiationChat({
   useEffect(() => {
     rememberPrivateMessagingProfile(profile.user_id);
   }, [profile.user_id]);
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
     [messageError, setMessageError] = useState<string | null>(null),
     [booking, setBooking] = useState<Booking | null>(null),
@@ -1031,11 +1033,13 @@ export default function BookingNegotiationChat({
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
                 <MessagePress
-                  onOpen={() => {
+                  onOpen={(anchor) => {
+                    setMessageMenuAnchor(anchor);
                     setMessageMenuMode("actions");
                     setMessageMenu(msg);
                   }}
-                  onTap={() => {
+                  onTap={(anchor) => {
+                    setMessageMenuAnchor(anchor);
                     setMessageMenuMode("reactions");
                     setMessageMenu(msg);
                   }}
@@ -1409,6 +1413,7 @@ export default function BookingNegotiationChat({
       ) : null}
       {messageMenu && (
         <MessageActionSheet
+          anchor={messageMenuAnchor}
           mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
           onClose={() => setMessageMenu(null)}

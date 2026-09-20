@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { updatePrivacySettings } from '@/lib/supabase';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import AccountShell from '@/components/AccountShell';
 import type { Profile } from '@/types';
 
@@ -25,7 +25,7 @@ export default function PrivacySettings({profile,onUpdate,onBack,embedded=false}
   }
 
   const content=<>
-    {!embedded&&<Toaster position="top-center" richColors/>}
+
     {profile.role==='user'&&<section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
       <Row label="Roommate profile visibility" text="Allow compatible roommate candidates to see your roommate profile while matching is active." value={settings.privacy_profile_visible} disabled={saving==='privacy_profile_visible'} onChange={v=>void toggle('privacy_profile_visible',v)}/>
       <Row label="Roommate discovery" text="Allow your profile to participate in roommate matching when you turn matching on." value={settings.privacy_search_visible} disabled={saving==='privacy_search_visible'} onChange={v=>void toggle('privacy_search_visible',v)}/>

@@ -3,7 +3,7 @@ import { createListing, uploadListingImage, uploadListingVideo, checkDuplicateLi
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import LocationSelector from '@/legacy/LocationSelector';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import type { Profile } from '@/types';
 import MediaViewer from '@/components/MediaViewer';
 
@@ -163,7 +163,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   }
 
   const amenityOptions=['WiFi','Parking','Security','24/7 Power','Water','Air Conditioning','Furnished','Kitchen'];
-  return <div className="min-h-[100dvh] bg-[#0A0A0F] pb-24 text-white"><Toaster position="top-center" richColors/><header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[.05] bg-[#0A0A0F]/95 px-4 py-4 backdrop-blur"><button onClick={onBack} disabled={saving} className="h-10 w-10 rounded-xl bg-white/[.05] disabled:opacity-40">←</button><div><p className="text-[9px] font-semibold uppercase tracking-[.15em] text-violet-300">WEHOUSE PROPERTY</p><h1 className="text-lg font-bold">Create listing</h1><p className="text-[10px] text-[#73788A]">Media stays on this device until you submit.</p></div></header>
+  return <div className="min-h-[100dvh] bg-[#0A0A0F] pb-24 text-white"><header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[.05] bg-[#0A0A0F]/95 px-4 py-4 backdrop-blur"><button onClick={onBack} disabled={saving} className="h-10 w-10 rounded-xl bg-white/[.05] disabled:opacity-40">←</button><div><p className="text-[9px] font-semibold uppercase tracking-[.15em] text-violet-300">WEHOUSE PROPERTY</p><h1 className="text-lg font-bold">Create listing</h1><p className="text-[10px] text-[#73788A]">Media stays on this device until you submit.</p></div></header>
   <form onSubmit={submit} className="mx-auto max-w-3xl space-y-5 px-4 py-6">
    <Section title="Property owner"><label className="mb-2 block text-xs text-[#9A9CAF]">Assign Property Partner (optional)</label><select value={assignedPartnerId} onChange={e=>setAssignedPartnerId(e.target.value)} className="field"><option value="">WeHouse / internal property</option>{partners.map(p=><option key={p.user_id} value={p.user_id}>{p.full_name||p.username||p.user_id}</option>)}</select></Section>
    <Section title="Property details"><Field label="Title" value={form.title} set={v=>setForm({...form,title:v})}/><label className="block text-xs text-[#9A9CAF]">Description</label><Textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} className="field min-h-28"/><div className="grid grid-cols-2 gap-3"><select value={form.property_type} onChange={e=>setForm({...form,property_type:e.target.value as any})} className="field"><option value="apartment">Apartment</option><option value="hotel">Hotel</option></select>{form.property_type==='apartment'&&<select value={form.sub_type} onChange={e=>setForm({...form,sub_type:e.target.value as any})} className="field"><option value="long_stay">Long Let</option><option value="short_let">Short Let</option></select>}<Field label="Bedrooms" value={form.bedrooms} set={v=>setForm({...form,bedrooms:v})} type="number"/><Field label="Bathrooms" value={form.bathrooms} set={v=>setForm({...form,bathrooms:v})} type="number"/></div></Section>

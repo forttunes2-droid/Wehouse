@@ -8,7 +8,7 @@ import {
 } from "@/lib/supabase";
 import type { Hotel, HotelRoom, HotelReview } from "@/types";
 import type { HotelRatePlan, HotelVenue } from "@/types";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import {
   directionsUrl,
   getDiscoveryDistanceMap,
@@ -190,7 +190,7 @@ export default function HotelDetail({
   const hotelAddress = locationLabel(hotel.address, hotel.area, hotel.city, hotel.state);
   return (
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
-      <Toaster position="top-center" richColors />
+
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <BackButton onClick={onBack} />

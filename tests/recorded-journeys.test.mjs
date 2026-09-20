@@ -90,10 +90,11 @@ test('Marketplace work, Hotel Team and WeHouse Team stay separate', () => {
   assert.equal(workspacePresentation.workspaceGroup('hotel'),'Hotel Team');
   assert.equal(workspacePresentation.workspaceGroup('personal'),'Personal');
 });
-test('Private and WeHouse filters separate booking conversations from official support', () => {
+test('People, Bookings and WeHouse filters keep hotel and service chats out of personal conversations', () => {
   for (const kind of ['roommate','worker','hotel','support']) {
     assert.equal(inboxCategories.matchesInboxCategory(kind,'all'),true);
-    assert.equal(inboxCategories.matchesInboxCategory(kind,'private'),kind!=='support');
+    assert.equal(inboxCategories.matchesInboxCategory(kind,'people'),kind==='roommate');
+    assert.equal(inboxCategories.matchesInboxCategory(kind,'bookings'),kind==='hotel'||kind==='worker');
     assert.equal(inboxCategories.matchesInboxCategory(kind,'wehouse'),kind==='support');
   }
 });

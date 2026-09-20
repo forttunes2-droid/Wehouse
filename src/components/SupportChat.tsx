@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import BackButton from "@/components/BackButton";
+import { displayDate } from "@/lib/displayDate";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
 import { supabase } from "@/lib/supabase";
 import {
@@ -25,12 +27,14 @@ import {
   uploadSupportAttachment,
   uploadSupportDraftAttachment,
   supportContextType,
+  sanitizeSupportSnapshot,
+  findSupportThread,
+  supportDraftKey,
   type SupportCaseEvent,
   type SupportOpenContext,
   type SupportThread,
 } from "@/lib/supabase/support";
 
-const messageCache = new Map<string, SupportMessage[]>();
 
 interface ChatProfile {
   user_id: string;
@@ -88,6 +92,34 @@ export default function SupportChat({
     paths: string[];
     types: string[];
   } | null>(null);
+  const messageCache = useRef(new Map<string, SupportMessage[]>()).current;
+  const requestRef = useRef(0);
+  const activeThreadRef = useRef<string | null>(null);
+  const activeContextRef = useRef<SupportOpenContext>({});
+  const composerKey = useRef("");
+  const composer = useRef({ input, files });
+  composer.current = { input, files };
+  const sendingRef = useRef(false);
+  const drafts = useRef(new Map<string, {
+    input: string; files: File[]; attempt: typeof firstSendAttemptRef.current;
+  }>());
+  const saveDraft = useCallback(() => {
+    if (composerKey.current) drafts.current.set(composerKey.current, {
+      ...composer.current, attempt: firstSendAttemptRef.current,
+    });
+  }, []);
+  const closeConversation = useCallback(() => {
+    if (sendingRef.current) { toast("Sending your message…"); return; }
+    saveDraft();
+    requestRef.current += 1;
+    activeThreadRef.current = null;
+    setOpen(false);
+    setThread(null);
+    setPendingContext(null);
+    setMessages([]);
+    setEvents([]);
+  }, [saveDraft]);
+  useEffect(() => () => { requestRef.current += 1; }, []);
   const presentation = conversationPresentation(thread || pendingContext || {});
   const caseLocked = Boolean(
     !presentation.operational &&
@@ -96,7 +128,7 @@ export default function SupportChat({
   const caseNumber = String(thread?.context_snapshot?.case_number || "");
   const handlerLabel = thread?.assigned_staff_name
     ? `${thread.assigned_staff_name} · WeHouse`
-    : `${presentation.operator} · awaiting assignment`;
+    : "Support team";
   const visibleMessages = messages.filter(
     (message) => message.sender_role !== "system",
   );
@@ -118,11 +150,13 @@ export default function SupportChat({
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  const loadMessages = useCallback(async (id: string, quiet = false) => {
+  const loadMessages = useCallback(async (id: string, quiet = false, request = requestRef.current) => {
+    if (request !== requestRef.current || activeThreadRef.current !== id) return false;
     if (!quiet) setLoading(true);
     setLoadError("");
     const [{ messages: data, error }, { events: history, error: eventError }] =
       await Promise.all([getSupportMessages(id), getSupportCaseEvents(id)]);
+    if (request !== requestRef.current || activeThreadRef.current !== id) return false;
     if (error || eventError) {
       setLoadError("We could not load this conversation. Please try again.");
       if (!quiet) toast.error("Unable to load this conversation");
@@ -133,7 +167,7 @@ export default function SupportChat({
       setEvents(history);
       await markSupportMessagesRead(id);
     }
-    if (!quiet) setLoading(false);
+    if (!quiet && request === requestRef.current) setLoading(false);
     return !error;
   }, []);
 
@@ -141,19 +175,17 @@ export default function SupportChat({
     async (
       context?: SupportOpenContext | null,
       preferredId?: string | null,
+      request = requestRef.current,
     ) => {
-      const { conversations } = await getMySupportConversations(profile?.role || "personal");
-      const current = preferredId
-        ? conversations?.find((item) => item.conversation_id === preferredId) ||
-          null
-        : context && hasContext(context)
-          ? conversations?.find(
-              (item) =>
-                supportContextType(item) === supportContextType(context) &&
-                item.context_id === context.contextId,
-            ) || null
-          : conversations?.find((item) => supportContextType(item) === "general") ||
-            null;
+      const { conversations, error } = await getMySupportConversations(profile?.role || "personal");
+      if (request !== requestRef.current) return null;
+      if (error) {
+        setLoadError("We could not load this conversation. Please try again.");
+        return null;
+      }
+      const current = findSupportThread(conversations || [], preferredId ? { conversationId: preferredId } : context || {});
+      if (preferredId && !current) setLoadError("This conversation is unavailable in this workspace.");
+      activeThreadRef.current = current?.conversation_id || null;
       setThread(current);
       return current;
     },
@@ -162,29 +194,44 @@ export default function SupportChat({
 
   const openConversation = useCallback(
     async (context?: SupportOpenContext) => {
-      if (!profile) return;
+      if (!profile || sendingRef.current) return;
+      saveDraft();
+      const request = ++requestRef.current;
+      const requested = supportContextForWorkspace(context || {}, profile.role || "personal");
+      activeContextRef.current = requested;
+      composerKey.current = `${profile.user_id}:${profile.role || "personal"}:${supportDraftKey(requested)}`;
+      const draft = drafts.current.get(composerKey.current);
+      firstSendAttemptRef.current = draft?.attempt || null;
+      setInput(draft?.input || "");
+      setFiles(draft?.files || []);
       setOpen(true);
+      setThread(null);
+      activeThreadRef.current = null;
+      setPendingContext(hasContext(requested) ? requested : null);
       setLoadError("");
-      const cached = context?.conversationId
-        ? messageCache.get(context.conversationId)
-        : undefined;
-      setMessages(cached || []);
+      setMessages([]);
       setEvents([]);
-      setLoading(!cached);
+      setCaseAction(null);
+      setLoading(true);
 
-      const preferredId = context?.conversationId || null;
-      const current = await refreshThread(context, preferredId);
-      setPendingContext(
-        current ? null : context && hasContext(context) ? context : null,
-      );
-      if (current?.conversation_id)
-        await loadMessages(current.conversation_id, Boolean(cached));
-      else setMessages([]);
-
-      setLoading(false);
-      requestAnimationFrame(() => inputRef.current?.focus());
+      try {
+        const current = await refreshThread(requested, requested.conversationId, request);
+        if (request !== requestRef.current) return;
+        if (current?.conversation_id) {
+          setPendingContext(null);
+          const cached = messageCache.get(current.conversation_id);
+          setMessages(cached || []);
+          await loadMessages(current.conversation_id, Boolean(cached), request);
+        }
+        if (request === requestRef.current) setLoading(false);
+      } catch {
+        if (request === requestRef.current) {
+          setLoadError("We could not load this conversation. Please try again.");
+          setLoading(false);
+        }
+      }
     },
-    [profile, loadMessages, refreshThread],
+    [profile, loadMessages, refreshThread, saveDraft, messageCache],
   );
 
   useEffect(() => {
@@ -200,6 +247,7 @@ export default function SupportChat({
   useEffect(() => {
     if (!thread?.conversation_id || !open) return;
     const id = thread.conversation_id;
+    const request = requestRef.current;
     const channel = supabase
       .channel(`human-support:${id}`)
       .on(
@@ -211,8 +259,8 @@ export default function SupportChat({
           filter: `conversation_id=eq.${id}`,
         },
         () => {
-          void loadMessages(id, true);
-          void refreshThread(null, id);
+          void loadMessages(id, true, request);
+          void refreshThread(null, id, request);
         },
       )
       .subscribe();
@@ -237,138 +285,141 @@ export default function SupportChat({
   }, [open]);
 
   async function send() {
-    if (sending || (!input.trim() && !files.length && !firstSendAttemptRef.current)) return;
+    if (sendingRef.current || loading || loadError || caseLocked || (!input.trim() && !files.length && !firstSendAttemptRef.current)) return;
     if (!profile) return;
+    sendingRef.current = true;
     setSending(true);
+    const request = requestRef.current;
+    try {
 
-    const existingConversationId = thread?.conversation_id || null;
-    if (existingConversationId) {
-      const paths: string[] = [];
-      const types: string[] = [];
-      for (const file of files) {
-        const uploaded = await uploadSupportAttachment(existingConversationId, file);
-        if (uploaded.error || !uploaded.path) {
+      const existingConversationId = thread?.conversation_id || null;
+      if (existingConversationId) {
+        const paths: string[] = [];
+        const types: string[] = [];
+        for (const file of files) {
+          const uploaded = await uploadSupportAttachment(existingConversationId, file);
+          if (uploaded.error || !uploaded.path) {
+            for (const path of paths) await deleteSupportAttachment(path);
+            toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
+            return;
+          }
+          paths.push(uploaded.path);
+          types.push(file.type || "application/octet-stream");
+        }
+        const { error } = await sendSupportMessage(
+          existingConversationId,
+          input.trim(),
+          paths,
+          types,
+          null,
+        );
+        if (error) {
           for (const path of paths) await deleteSupportAttachment(path);
-          setSending(false);
-          toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
+          toast.error(error.message || "Message failed");
           return;
         }
-        paths.push(uploaded.path);
-        types.push(file.type || "application/octet-stream");
-      }
-      const { error } = await sendSupportMessage(
-        existingConversationId,
-        input.trim(),
-        paths,
-        types,
-        null,
-      );
-      if (error) {
-        for (const path of paths) await deleteSupportAttachment(path);
-        setSending(false);
-        toast.error(error.message || "Message failed");
+        setInput("");
+        setFiles([]);
+        await loadMessages(existingConversationId, true, request);
+        await refreshThread(null, existingConversationId, request);
         return;
       }
+
+      let attempt = firstSendAttemptRef.current;
+      if (!attempt) {
+        const context = supportContextForWorkspace(pendingContext || {}, profile.role || "personal");
+        const draft = await createSupportMessageDraft();
+        if (draft.error || !draft.draftId) {
+          toast.error(draft.error?.message || "Unable to prepare this WeHouse message");
+          return;
+        }
+        const paths: string[] = [];
+        const types: string[] = [];
+        for (const file of files) {
+          const uploaded = await uploadSupportDraftAttachment(
+            draft.draftId,
+            profile.user_id,
+            file,
+          );
+          if (uploaded.error || !uploaded.path) {
+            for (const path of paths) await deleteSupportAttachment(path);
+            await discardSupportMessageDraft(draft.draftId);
+            toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
+            return;
+          }
+          paths.push(uploaded.path);
+          types.push(file.type || "application/octet-stream");
+        }
+        attempt = {
+          draftId: draft.draftId,
+          content: input.trim(),
+          context,
+          paths,
+          types,
+        };
+        firstSendAttemptRef.current = attempt;
+      }
+
+      const sent =
+        attempt.context.contextType === "contextual_help" &&
+        String(attempt.context.contextSnapshot?.reason_code || "").trim()
+          ? await sendFirstContextualHelpMessage(
+              attempt.draftId,
+              attempt.context,
+              attempt.content,
+              attempt.paths,
+              attempt.types,
+            )
+          : await sendFirstWeHouseMessage(
+              attempt.draftId,
+              attempt.context,
+              attempt.content,
+              attempt.paths,
+              attempt.types,
+            );
+      let conversationId = sent.conversationId;
+      if (sent.error || !conversationId) {
+        const checked = await getSupportMessageDraftStatus(attempt.draftId);
+        if (checked.status?.state === "sent" && checked.status.conversation_id) {
+          conversationId = checked.status.conversation_id;
+        } else if (checked.error) {
+          toast.error(
+            "We could not confirm whether that message was sent. Tap Send again to reconcile the same request before creating another one.",
+          );
+          return;
+        } else {
+          for (const path of attempt.paths) await deleteSupportAttachment(path);
+          if (checked.status?.state !== "expired")
+            await discardSupportMessageDraft(attempt.draftId);
+          firstSendAttemptRef.current = null;
+          toast.error(sent.error?.message || "Message failed");
+          return;
+        }
+      }
+
+      firstSendAttemptRef.current = null;
       setInput("");
       setFiles([]);
-      setSending(false);
-      await loadMessages(existingConversationId, true);
-      void refreshThread(null, existingConversationId);
-      return;
+      setPendingContext(null);
+      await refreshThread(attempt.context, conversationId, request);
+      await loadMessages(conversationId, true, request);
+    } catch {
+      toast.error("We could not confirm the send. Try again in this conversation.");
+    } finally {
+      sendingRef.current = false;
+      if (request === requestRef.current) setSending(false);
     }
-
-    let attempt = firstSendAttemptRef.current;
-    if (!attempt) {
-      const context = supportContextForWorkspace(pendingContext || {}, profile.role || "personal");
-      const draft = await createSupportMessageDraft();
-      if (draft.error || !draft.draftId) {
-        setSending(false);
-        toast.error(draft.error?.message || "Unable to prepare this WeHouse message");
-        return;
-      }
-      const paths: string[] = [];
-      const types: string[] = [];
-      for (const file of files) {
-        const uploaded = await uploadSupportDraftAttachment(
-          draft.draftId,
-          profile.user_id,
-          file,
-        );
-        if (uploaded.error || !uploaded.path) {
-          for (const path of paths) await deleteSupportAttachment(path);
-          await discardSupportMessageDraft(draft.draftId);
-          setSending(false);
-          toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
-          return;
-        }
-        paths.push(uploaded.path);
-        types.push(file.type || "application/octet-stream");
-      }
-      attempt = {
-        draftId: draft.draftId,
-        content: input.trim(),
-        context,
-        paths,
-        types,
-      };
-      firstSendAttemptRef.current = attempt;
-    }
-
-    const sent =
-      attempt.context.contextType === "contextual_help" &&
-      String(attempt.context.contextSnapshot?.reason_code || "").trim()
-        ? await sendFirstContextualHelpMessage(
-            attempt.draftId,
-            attempt.context,
-            attempt.content,
-            attempt.paths,
-            attempt.types,
-          )
-        : await sendFirstWeHouseMessage(
-            attempt.draftId,
-            attempt.context,
-            attempt.content,
-            attempt.paths,
-            attempt.types,
-          );
-    let conversationId = sent.conversationId;
-    if (sent.error || !conversationId) {
-      const checked = await getSupportMessageDraftStatus(attempt.draftId);
-      if (checked.status?.state === "sent" && checked.status.conversation_id) {
-        conversationId = checked.status.conversation_id;
-      } else if (checked.error) {
-        setSending(false);
-        toast.error(
-          "We could not confirm whether that message was sent. Tap Send again to reconcile the same request before creating another one.",
-        );
-        return;
-      } else {
-        for (const path of attempt.paths) await deleteSupportAttachment(path);
-        if (checked.status?.state !== "expired")
-          await discardSupportMessageDraft(attempt.draftId);
-        firstSendAttemptRef.current = null;
-        setSending(false);
-        toast.error(sent.error?.message || "Message failed");
-        return;
-      }
-    }
-
-    firstSendAttemptRef.current = null;
-    setInput("");
-    setFiles([]);
-    setPendingContext(null);
-    setSending(false);
-    await loadMessages(conversationId, true);
-    await refreshThread(attempt.context, conversationId);
   }
 
   async function respondToResolution(action: "complete" | "reopen") {
     if (!thread?.conversation_id || caseAction) return;
+    const request = requestRef.current;
     setCaseAction(action);
     const result =
       action === "complete"
         ? await completeSupportCase(thread.conversation_id)
         : await reopenSupportCase(thread.conversation_id);
+    if (request !== requestRef.current) return;
     if (result.error) {
       toast.error(
         result.error.message ||
@@ -385,10 +436,10 @@ export default function SupportChat({
         : "WeHouse has been told you still need help",
     );
     await Promise.all([
-      loadMessages(thread.conversation_id, true),
-      refreshThread(null, thread.conversation_id),
+      loadMessages(thread.conversation_id, true, request),
+      refreshThread(null, thread.conversation_id, request),
     ]);
-    setCaseAction(null);
+    if (request === requestRef.current) setCaseAction(null);
   }
 
   if (!profile) return null;
@@ -398,31 +449,17 @@ export default function SupportChat({
     <div className="fixed inset-0 z-[100030] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
       <header className="shrink-0 border-b border-white/[.06] bg-[#10141B]/95 px-3 py-2.5 backdrop-blur-xl sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
-          <button
-            onClick={() => {
-              setOpen(false);
-              setFiles([]);
-              setEvents([]);
-              setPendingContext(null);
-              if (!firstSendAttemptRef.current) setInput("");
-            }}
-            aria-label="Close WeHouse conversation"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#9DA3B2] hover:bg-white/[.05]"
-          >
-            ←
-          </button>
-          <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 font-bold">
+          <BackButton onClick={closeConversation} ariaLabel="Back" />
+          <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/20 text-violet-200 font-bold">
             W
-            <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[#10141B] bg-emerald-400" />
+
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-[14px] font-semibold">
                 {presentation.operator}
               </p>
-              <span className="grid h-4 w-4 place-items-center rounded-full bg-violet-400 text-[9px] font-bold">
-                ✓
-              </span>
+
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
               {presentation.operational
@@ -442,8 +479,8 @@ export default function SupportChat({
             </p>
             <p className="mt-0.5 truncate text-[8px] text-[#687081]">
               {[
-                caseNumber ? `Case ${caseNumber}` : "Case opens when sent",
-                thread ? supportStatusLabel(thread.status) : "Not sent",
+                caseNumber ? `Case ${caseNumber}` : "",
+                thread ? supportStatusLabel(thread.status) : "New conversation",
                 presentation.meta,
               ]
                 .filter(Boolean)
@@ -472,7 +509,8 @@ export default function SupportChat({
               onOpenBooking={
                 onOpenBooking
                   ? (id) => {
-                      setOpen(false);
+                      if (sendingRef.current) return;
+                      closeConversation();
                       onOpenBooking(id);
                     }
                   : undefined
@@ -480,7 +518,8 @@ export default function SupportChat({
               onOpenListing={
                 onOpenListing
                   ? (id) => {
-                      setOpen(false);
+                      if (sendingRef.current) return;
+                      closeConversation();
                       onOpenListing(id);
                     }
                   : undefined
@@ -492,10 +531,7 @@ export default function SupportChat({
           ) : loadError ? (
             <ConversationLoadError
               text={loadError}
-              retry={() =>
-                thread?.conversation_id &&
-                void loadMessages(thread.conversation_id)
-              }
+              retry={() => void openConversation(activeContextRef.current)}
             />
           ) : visibleMessages.length === 0 ? (
             <Welcome presentation={presentation} />
@@ -517,7 +553,8 @@ export default function SupportChat({
                     handlerName={thread?.assigned_staff_name}
                     showContext={!presentation.operational}
                     onOpenListing={(listingId) => {
-                      setOpen(false);
+                      if (sendingRef.current) return;
+                      closeConversation();
                       onOpenListing?.(listingId);
                     }}
                   />
@@ -531,19 +568,13 @@ export default function SupportChat({
 
       <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         <div className="mx-auto max-w-4xl">
-          {!thread ? (
-            <FirstSendDisclosure
-              context={pendingContext}
-              presentation={presentation}
-            />
-          ) : null}
-          {pendingContext && hasContext(pendingContext) && (
-            <PendingContext
-              context={pendingContext}
-              onRemove={() => setPendingContext(null)}
-            />
+          {!loading && pendingContext && hasContext(pendingContext) && (
+            <PendingContext context={pendingContext} onRemove={
+              firstSendAttemptRef.current ? undefined : () => void openConversation({})
+            } />
           )}
 
+          {firstSendAttemptRef.current && !sending && <p role="status" className="mb-2 px-2 text-xs text-amber-200">Message not confirmed. Tap Send to retry.</p>}
           {files.length > 0 && (
             <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
               {files.map((file, index) => (
@@ -555,6 +586,8 @@ export default function SupportChat({
                     {file.name}
                   </p>
                   <button
+                    disabled={sending || Boolean(firstSendAttemptRef.current)}
+                    aria-label={`Remove ${file.name}`}
                     onClick={() =>
                       setFiles((current) =>
                         current.filter((_, i) => i !== index),
@@ -580,7 +613,7 @@ export default function SupportChat({
             />
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={caseLocked}
+              disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
               aria-label="Attach evidence"
             >
@@ -604,19 +637,21 @@ export default function SupportChat({
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) {
                     event.preventDefault();
                     void send();
                   }
                 }}
                 rows={1}
-                disabled={caseLocked}
+                disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)}
+                aria-label="Message"
+                data-chat-composer
                 placeholder={
                   caseLocked
                     ? "Use the request outcome buttons above"
                     : thread?.status === "waiting_for_user"
                       ? "Reply with the information WeHouse requested"
-                      : `Message ${presentation.operator}`
+                      : "Message WeHouse"
                 }
                 className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] leading-5 outline-none placeholder:text-[#62697A]"
               />
@@ -624,7 +659,7 @@ export default function SupportChat({
             <button
               onClick={() => void send()}
               disabled={
-                sending ||
+                sending || loading || Boolean(loadError) ||
                 caseLocked ||
                 (!input.trim() && !files.length)
               }
@@ -634,13 +669,6 @@ export default function SupportChat({
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className="mt-2 px-2 text-center text-[8px] text-[#505666]">
-            {presentation.operational
-              ? "This conversation stays with the linked record."
-              : caseNumber
-                ? `Help request ${caseNumber}`
-                : "Message WeHouse when you need help."}
-          </p>
         </div>
       </footer>
     </div>,
@@ -957,7 +985,7 @@ function LinkedOperationalContext({
   onOpenBooking?: (id: string) => void;
   onOpenListing?: (id: string) => void;
 }) {
-  const snapshot = thread.context_snapshot || {};
+  const snapshot = sanitizeSupportSnapshot(thread.context_snapshot);
   const presentation = conversationPresentation(thread);
   const contextType = supportContextType(thread);
   const reservationContext = [
@@ -990,7 +1018,7 @@ function LinkedOperationalContext({
         : rawStatus === "checked out"
           ? "Checked out"
           : rawStatus;
-  const code = String(snapshot.booking_code || snapshot.reference || "");
+  const code = String(snapshot.reference || "");
   const title = String(
     snapshot.listing_title ||
       snapshot.hotel_name ||
@@ -1057,14 +1085,14 @@ function LinkedOperationalContext({
             <p>
               <span className="text-[#555C6D]">Check-in</span>
               <br />
-              {new Date(checkIn).toLocaleDateString()}
+              {displayDate(checkIn)}
             </p>
           )}
           {checkOut && (
             <p>
               <span className="text-[#555C6D]">Check-out</span>
               <br />
-              {new Date(checkOut).toLocaleDateString()}
+              {displayDate(checkOut)}
             </p>
           )}
         </div>
@@ -1082,14 +1110,18 @@ function MessageContext({
   type?: string | null;
   onOpenListing?: (listingId: string) => void;
 }) {
-  const snap =
+  const snap = sanitizeSupportSnapshot(
     meta.context_snapshot && typeof meta.context_snapshot === "object"
       ? (meta.context_snapshot as Record<string, unknown>)
-      : {};
+      : {});
   const listingId = String(snap.listing_id || meta.listing_id || "");
-  const label = String(
-    meta.subject || type || meta.context_type || "Linked WeHouse item",
-  ).replace(/_/g, " ");
+  const label = String(snap.listing_title || snap.hotel_name || snap.service_type || meta.subject || type || "Related item").replace(/_/g, " ");
+  const facts = [
+    ["Room", snap.room_name],
+    ["Issue", snap.reason_label],
+    ["Check-in", snap.check_in ? displayDate(String(snap.check_in)) : null],
+    ["Check-out", snap.check_out ? displayDate(String(snap.check_out)) : null],
+  ].filter(([, value]) => Boolean(value));
   return (
     <div className="mb-1.5 w-full max-w-sm rounded-2xl border border-violet-500/15 bg-violet-500/[.055] p-3 text-left">
       <div className="flex items-center justify-between gap-3">
@@ -1106,113 +1138,39 @@ function MessageContext({
           </button>
         ) : null}
       </div>
-      {Object.keys(snap).length > 0 && (
-        <div className="mt-2 grid gap-1 text-[9px] text-[#8FA0B9] sm:grid-cols-2">
-          {Object.entries(snap)
-            .filter(
-              ([key]) =>
-                !["id", "listing_id", "user_id", "auth_id"].includes(key),
-            )
-            .slice(0, 6)
-            .map(([key, value]) => (
-              <p key={key} className="truncate">
-                <span className="capitalize text-[#66758C]">
-                  {key.replace(/_/g, " ")}:
-                </span>{" "}
-                {String(value ?? "")}
-              </p>
-            ))}
+      {facts.length > 0 && (
+        <div className="mt-2 grid gap-1 text-xs text-[#A5A0B3] sm:grid-cols-2">
+          {facts.map(([key, value]) => <p key={String(key)}>{String(key)}: {String(value)}</p>)}
         </div>
       )}
     </div>
   );
 }
 
-function FirstSendDisclosure({
-  context,
-  presentation,
-}: {
-  context: SupportOpenContext | null;
-  presentation: ReturnType<typeof conversationPresentation>;
+function PendingContext({ context, onRemove }: {
+  context: SupportOpenContext; onRemove?: () => void;
 }) {
-  const type = supportContextType(context || {});
-  const isReservation = [
-    "apartment_reservation",
-    "apartment_payment",
-    "reservation",
-    "hotel_booking",
-  ].includes(type);
-  const thisIs = presentation.operational
-    ? isReservation
-      ? "Reservation Operations conversation"
-      : "Property Operations conversation"
-    : "WeHouse conversation";
-  const handledBy = presentation.operational
-    ? isReservation
-      ? "Reservation Operations"
-      : "Property Operations"
-    : "WeHouse Support";
-  const linkedTo =
-    context?.subject ||
-    (context?.contextId
-      ? String(type || "WeHouse record").replace(/_/g, " ")
-      : "Your WeHouse account");
-  const sendingEffect = presentation.operational
-    ? "Creates or opens one conversation linked to this record and sends this message. It does not change payment or booking state by itself."
-    : "Creates one WeHouse help request and sends this message. It does not freeze, release, refund or transfer money by itself.";
-  const facts = [
-    ["This is", thisIs],
-    ["Handled by", handledBy],
-    ["Linked to", linkedTo],
-    ["What sending does", sendingEffect],
-  ];
+  const view = conversationPresentation(context);
+  const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);
+  const type = supportContextType(context);
+  const label = type === "hotel_property" ? "Hotel enquiry"
+    : type === "hotel_booking" ? "Hotel booking"
+    : type === "worker_booking" ? "Service booking"
+    : type === "property_listing" ? "Apartment enquiry"
+    : view.meta || "Related to";
+  const details = [snapshot.room_name, snapshot.service_type,
+    snapshot.check_in ? displayDate(String(snapshot.check_in)) : null,
+    snapshot.check_out ? displayDate(String(snapshot.check_out)) : null,
+  ].filter(Boolean).join(" · ");
   return (
-    <section className="mb-2 rounded-2xl border border-white/[.065] bg-white/[.025] p-3">
-      <p className="mb-2 text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
-        Before you send
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {facts.map(([label, value]) => (
-          <div key={label}>
-            <p className="text-[8px] font-semibold uppercase tracking-wide text-[#626A7B]">
-              {label}
-            </p>
-            <p className="mt-0.5 text-[9px] leading-4 text-[#C7CBD5]">{value}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PendingContext({
-  context,
-  onRemove,
-}: {
-  context: SupportOpenContext;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="mb-2 flex items-start gap-3 rounded-2xl border border-violet-500/15 bg-violet-500/[.055] p-3">
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">
-        ↗
-      </div>
+    <section aria-label="Conversation topic" className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] py-2 pl-3 pr-1">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] font-semibold text-violet-200">
-          {context.subject ||
-            String(context.contextType || "Linked WeHouse item").replace(
-              /_/g,
-              " ",
-            )}
-        </p>
-        <p className="mt-1 truncate text-[9px] text-[#6F7F97]">
-          This conversation will stay linked to the selected WeHouse item.
-        </p>
+        <p className="text-[11px] text-[#A5A0B3]">{label}</p>
+        <p className="truncate text-[13px] font-semibold text-violet-100">{view.title}</p>
+        {details && <p className="truncate text-xs text-[#A5A0B3]">{details}</p>}
       </div>
-      <button onClick={onRemove} className="text-[#758096]">
-        ×
-      </button>
-    </div>
+      {onRemove && <button type="button" onClick={onRemove} aria-label="Remove linked topic" className="grid h-11 w-11 shrink-0 place-items-center text-lg text-[#A5A0B3]">×</button>}
+    </section>
   );
 }
 
@@ -1222,16 +1180,16 @@ function Welcome({
   presentation: ReturnType<typeof conversationPresentation>;
 }) {
   return (
-    <div className="grid min-h-[55vh] place-items-center px-5 text-center">
+    <div className="grid min-h-48 place-items-center px-5 text-center">
       <div>
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">
           W
         </div>
         <h2 className="mt-4 text-base font-semibold">Message WeHouse</h2>
         <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#747A8B]">
           {presentation.operational
-            ? "This conversation stays attached to the record shown above, so its history and next actions remain in one place."
-            : "Send a message when you need the WeHouse team. Opening this screen alone does not create a conversation."}
+            ? `Ask the WeHouse team about ${presentation.title}.`
+            : "How can we help?"}
         </p>
       </div>
     </div>
@@ -1267,9 +1225,9 @@ function ConversationLoadError({
 
 function hasContext(value: SupportOpenContext) {
   return Boolean(
-    value.contextId ||
+    (value.contextId && !value.contextId.startsWith("workspace:")) ||
     (value.contextType && value.contextType !== "general") ||
-    (value.contextSnapshot && Object.keys(value.contextSnapshot).length),
+    (value.contextSnapshot && Object.keys(value.contextSnapshot).some(key => key !== "requester_workspace")),
   );
 }
 

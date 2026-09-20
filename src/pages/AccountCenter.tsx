@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import AccountShell, {
   AccountRow,
@@ -338,7 +338,7 @@ export default function AccountCenter({
         description="Choose where you want to work."
         onBack={() => setPanel(null)}
       >
-        <Toaster position="top-center" richColors />
+
         {workspaceAccess?.personal_workspace && onSwitchWorkspace ? (
           <AccountSection title="Personal">
             <AccountRow title="My WeHouse" detail="Your bookings, messages and saved places" icon={<PersonIcon />}
@@ -425,7 +425,7 @@ export default function AccountCenter({
         description="Choose how WeHouse should alert this account."
         onBack={() => setPanel(null)}
       >
-        <Toaster position="top-center" richColors />
+
         <AccountSection>
           <Toggle
             label="Email notifications"
@@ -483,7 +483,7 @@ export default function AccountCenter({
       description="Your details and settings."
       onBack={onBack}
     >
-      <Toaster position="top-center" richColors />
+
 
       <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
         <div className="flex items-center gap-3">

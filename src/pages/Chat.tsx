@@ -412,10 +412,10 @@ export default function Chat({
             />
           </label>
 
-          <div role="group" aria-label="Message categories" className="mt-4 flex gap-2">
-            {([['all', 'All'], ['private', 'Private'], ['wehouse', 'WeHouse']] as const).map(([value, label]) => (
+          <div role="group" aria-label="Message categories" className="mt-3 flex gap-1 overflow-x-auto">
+            {([['all', 'All'], ['people', 'People'], ['bookings', 'Bookings'], ['wehouse', 'WeHouse']] as const).map(([value, label]) => (
               <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
-                className={`min-h-11 rounded-full px-5 text-sm font-semibold ${category === value ? 'bg-violet-500/20 text-violet-200' : 'text-[#A1A7B5] hover:bg-white/[.04]'}`}>
+                className={`min-h-11 shrink-0 rounded-full px-3 text-[13px] font-semibold ${category === value ? 'bg-violet-500/20 text-violet-200' : 'text-[#A1A7B5] hover:bg-white/[.04]'}`}>
                 {label}
               </button>
             ))}
@@ -433,8 +433,9 @@ export default function Chat({
                 {query.trim()
                   ? "Try a person, hotel, service or WeHouse conversation name."
                   : category === "wehouse" ? "Your conversations with the WeHouse team appear here."
-                  : category === "private" ? "Your conversations with people, service providers and hotels appear here."
-                  : "Choose Private for personal and booking conversations, or WeHouse for help from our team."}
+                  : category === "people" ? "Your roommate conversations appear here."
+                  : category === "bookings" ? "Conversations about your hotel stays and service jobs appear here."
+                  : "Your conversations appear here, with the newest first."}
               </p>
             </div>
           ) : (
@@ -500,7 +501,7 @@ function ThreadRow({
     <button
       type="button"
       onClick={onOpen}
-      className="flex min-h-[5.5rem] w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
+      className="flex min-h-[4.5rem] w-full items-center gap-3 py-3 text-left active:bg-white/[.025]"
     >
       <Avatar
         src={view.avatar}
@@ -510,7 +511,7 @@ function ThreadRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <p
-            className={`min-w-0 flex-1 truncate text-base ${
+            className={`min-w-0 flex-1 truncate text-[14px] ${
               view.unread
                 ? "font-bold text-white"
                 : "font-semibold text-[#E6E8ED]"
@@ -529,7 +530,7 @@ function ThreadRow({
           ) : null}
         </div>
         <p
-          className={`mt-1 truncate text-sm ${
+          className={`mt-0.5 truncate text-[13px] ${
             view.unread
               ? "font-medium text-[#DADDE5]"
               : "text-[#777D8D]"
@@ -537,7 +538,7 @@ function ThreadRow({
         >
           {view.preview}
         </p>
-        <p className="mt-1 text-xs leading-5 text-[#989DAC]">
+        <p className="mt-0.5 text-[11px] leading-4 text-[#989DAC]">
           <span
             className={`font-semibold ${
               view.tone === "amber"
@@ -717,7 +718,7 @@ function Avatar({
 }) {
   return (
     <span
-      className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full text-lg font-semibold ${className}`}
+      className={`grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full text-lg font-semibold ${className}`}
     >
       {src ? (
         <img

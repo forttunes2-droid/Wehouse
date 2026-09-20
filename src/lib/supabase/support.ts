@@ -70,9 +70,50 @@ export function sanitizeSupportSnapshot(
   snapshot: Record<string, unknown> | null | undefined,
 ) {
   const source = snapshot || {};
-  return Object.fromEntries(
-    Object.entries(source).filter(([key]) => !SUPPORT_SECRET_KEYS.has(key)),
-  ) as Record<string, unknown>;
+  const sanitize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(sanitize);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value)
+      .filter(([key]) => !SUPPORT_SECRET_KEYS.has(key.toLowerCase()))
+      .map(([key, item]) => [key, sanitize(item)]));
+  };
+  return sanitize(source) as Record<string, unknown>;
+}
+
+/** Navigation identity only; server authorization remains authoritative. */
+function supportLookupIdentity(context: SupportOpenContext) {
+  const raw = supportContextType(context);
+  const snapshot = context.contextSnapshot || {};
+  const kind = ["hotel_property", "hotel_operations"].includes(raw) ? "hotel_operations"
+    : ["reservation", "apartment_payment"].includes(raw) ? "apartment_reservation"
+    : ["operational_case", "worker_booking"].includes(raw) ? "contextual_help" : raw;
+  return {
+    kind, id: context.contextId || "",
+    reason: raw === "worker_booking" ? "worker_job_issue" : String(snapshot.reason_code || ""),
+    source: raw === "worker_booking" ? "worker_job" : String(snapshot.subject_type || snapshot.source_type || ""),
+  };
+}
+
+export function supportDraftKey(context: SupportOpenContext) {
+  const identity = supportLookupIdentity(context);
+  return JSON.stringify(context.conversationId
+    ? ["conversation", context.conversationId]
+    : [identity.kind, identity.id, identity.reason, identity.kind === "contextual_help" ? identity.source : ""]);
+}
+
+export function findSupportThread(conversations: SupportThread[], context: SupportOpenContext) {
+  if (context.conversationId)
+    return conversations.find(item => item.conversation_id === context.conversationId) || null;
+  const expected = supportLookupIdentity(context);
+  return conversations.find(item => {
+    const stored = supportLookupIdentity({ contextType: supportContextType(item), contextId: item.context_id, contextSnapshot: item.context_snapshot });
+    if (stored.kind !== expected.kind) return false;
+    if (expected.kind === "general") return stored.id === expected.id;
+    if (!expected.id || stored.id !== expected.id) return false;
+    if (expected.kind === "contextual_help")
+      return stored.reason === expected.reason && (!expected.source || stored.source === expected.source);
+    return true;
+  }) || null;
 }
 
 export function supportContextType(
@@ -187,8 +228,10 @@ export function conversationPresentation(
       meta: [
         contextType === "property_inspection"
           ? "Property inspection"
-          : contextType.startsWith("hotel_")
-            ? "Hotel operations"
+          : contextType === "hotel_property"
+            ? "Hotel enquiry"
+            : contextType === "hotel_operations"
+              ? (audience === "customer" ? "Hotel enquiry" : "Hotel operations")
             : "Property enquiry",
         audience === "customer" ? "" : reference,
         status,

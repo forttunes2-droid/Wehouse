@@ -1,6 +1,6 @@
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
@@ -99,7 +99,7 @@ export default function PropertyOwnerDashboard({
   }
   return (
     <>
-      <Toaster position="top-center" richColors />
+
       <WorkspaceFrameV2
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}

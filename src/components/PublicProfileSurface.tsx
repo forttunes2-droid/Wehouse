@@ -18,6 +18,7 @@ type Props = {
   onClose: () => void;
   ariaLabel?: string;
   maxWidth?: "xl" | "4xl";
+  conversation?: boolean;
 };
 
 export default function PublicProfileSurface({
@@ -35,6 +36,7 @@ export default function PublicProfileSurface({
   onClose,
   ariaLabel,
   maxWidth = "xl",
+  conversation = false,
 }: Props) {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const width = maxWidth === "4xl" ? "max-w-4xl" : "max-w-xl";
@@ -62,10 +64,10 @@ export default function PublicProfileSurface({
     >
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#090B10]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className={`mx-auto flex ${width} items-center gap-2.5`}>
-          <BackButton onClick={onClose} />
+          <BackButton onClick={onClose} ariaLabel={conversation ? "Back to conversation" : "Back"} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{name}</p>
-            {[presence, subtitle].filter(Boolean).length ? (
+            <p className="truncate text-sm font-semibold">{conversation ? "Contact info" : name}</p>
+            {!conversation && [presence, subtitle].filter(Boolean).length ? (
               <p className="mt-0.5 truncate text-[9px] text-[#777D8D]">
                 {[presence, subtitle].filter(Boolean).join(" · ")}
               </p>
@@ -77,13 +79,13 @@ export default function PublicProfileSurface({
       <main className={`mx-auto ${width} px-5 pb-10 pt-6`}>
         <section className="relative overflow-hidden border-b border-white/[.07] pb-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full bg-violet-600/10 blur-3xl" />
-          <div className="relative flex items-center gap-4">
+          <div className={`relative flex items-center ${conversation ? "flex-col gap-3 text-center" : "gap-4"}`}>
             <button
               type="button"
               disabled={!avatar}
               onClick={() => avatar && setAvatarOpen(true)}
               aria-label={avatar ? `Preview ${name}'s profile photo` : "No profile photo"}
-              className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[28px] border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default"
+              className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default"
             >
               {avatar ? (
                 <img src={avatar} alt="" className="h-full w-full object-cover" />
@@ -92,24 +94,25 @@ export default function PublicProfileSurface({
               )}
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-2xl font-bold">{name}</h1>
+              <h1 className="truncate text-xl font-semibold">{name}</h1>
               {username ? (
                 <p className="mt-1 truncate text-[10px] text-[#767C8C]">
                   @{username.replace(/^@/, "")}
                 </p>
               ) : null}
               {subtitle ? <p className="mt-2 text-xs text-[#A5ABB8]">{subtitle}</p> : null}
+              {conversation && presence ? <p className="mt-1 text-xs text-[#A5ABB8]">{presence}</p> : null}
               {location ? <p className="mt-1 text-[10px] leading-5 text-[#7D8494]">{location}</p> : null}
               {badges ? <div className="mt-3 flex flex-wrap items-center gap-2">{badges}</div> : null}
             </div>
           </div>
-          <div className="relative mt-5 border-t border-white/[.06] pt-4">
+          {about && <div className="relative mt-5 border-t border-white/[.06] pt-4">
             <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">About</p>
             <p className="mt-2 whitespace-pre-line text-[12px] leading-6 text-[#A9AEBA]">
-              {about || "No introduction added yet."}
+              {about}
             </p>
-          </div>
-          {actions ? <div className="relative mt-4 flex gap-5 border-t border-white/[.06] pt-4">{actions}</div> : null}
+          </div>}
+          {actions ? <div className="relative mt-4 flex justify-center gap-5 border-t border-white/[.06] pt-4">{actions}</div> : null}
         </section>
         {children ? <div className="space-y-5">{children}</div> : null}
       </main>
@@ -150,7 +153,7 @@ export function PublicProfileAction({
       onClick={onClick}
       className="flex min-w-14 flex-col items-center gap-2 text-[10px] font-medium text-[#B9BDC8]"
     >
-      <span className="grid h-14 w-14 place-items-center rounded-full border border-white/[.06] bg-white/[.055] text-[#D8DAE1]">
+      <span className="grid h-11 w-11 place-items-center rounded-full border border-white/[.06] bg-white/[.055] text-[#D8DAE1]">
         {children}
       </span>
       {label}

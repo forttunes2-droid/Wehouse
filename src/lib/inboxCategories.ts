@@ -1,7 +1,9 @@
-export type InboxCategory = "all" | "private" | "wehouse";
+export type InboxCategory = "all" | "people" | "bookings" | "wehouse";
 export type InboxThreadKind = "roommate" | "worker" | "hotel" | "support";
 
-// A navigation category, not an assertion about a conversation's encryption.
 export function matchesInboxCategory(kind: InboxThreadKind, category: InboxCategory) {
-  return category === "all" || (category === "wehouse" ? kind === "support" : kind !== "support");
+  if (category === "all") return true;
+  if (category === "people") return kind === "roommate";
+  if (category === "bookings") return kind === "worker" || kind === "hotel";
+  return kind === "support";
 }

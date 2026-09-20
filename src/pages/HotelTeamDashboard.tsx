@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import AccountShell from "@/components/AccountShell";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
@@ -141,7 +141,7 @@ export default function HotelTeamDashboard({
   if (selected)
     return (
       <div className="min-h-dvh bg-[#0A0A0F] px-4 py-5 text-white sm:px-6">
-        <Toaster position="top-center" richColors />
+
         <div className="mx-auto max-w-6xl">
           <PartnerHotelOperations
             hotel={selected}
@@ -180,7 +180,7 @@ export default function HotelTeamDashboard({
       profile={profile}
       title={tab === "hotels" ? "Hotels" : showActivity ? "Activity" : "Inbox"}
     >
-      <Toaster position="top-center" richColors />
+
 
       {hasInbox && !showActivity ? (
         <div className="mb-5 grid grid-cols-2 border-b border-white/[.07]">

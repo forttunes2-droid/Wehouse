@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -185,7 +185,7 @@ function EvidenceOnlyVerification({
 
   return (
     <SimpleShell onBack={onBack}>
-      <Toaster position="top-center" richColors theme="dark" />
+
 
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
         <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICES</p>

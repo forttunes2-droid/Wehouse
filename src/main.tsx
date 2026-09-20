@@ -5,6 +5,7 @@ import './operational-workspaces.css'
 import './worker-discovery-responsive.css'
 import './chat-mobile.css'
 import App from './App.tsx'
+import { Toaster } from 'sonner'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
 import NativeSelectBridge from '@/components/NativeSelectBridge'
@@ -88,6 +89,9 @@ createRoot(rootElement).render(
       <NativeSelectBridge />
       <NativeDateBridge />
       <App />
+      <Toaster position="top-center" theme="dark" closeButton visibleToasts={1} duration={4500}
+        offset="max(12px, env(safe-area-inset-top))" mobileOffset="max(12px, env(safe-area-inset-top))"
+        style={{ zIndex: 2147483647 }} toastOptions={{ style: { background: "#17151E", color: "#F4F1F8", borderColor: "#38313F" } }} />
     </ErrorBoundary>
   </StrictMode>,
 )

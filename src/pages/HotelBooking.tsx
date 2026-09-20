@@ -7,7 +7,7 @@ import {
   quoteHotelRoomRate,
 } from "@/lib/supabase";
 import type { Hotel, HotelRatePlan, HotelRoom } from "@/types";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import BackButton from "@/components/BackButton";
 
 interface HotelBookingProps {
@@ -188,7 +188,7 @@ export default function HotelBooking({
 
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-10 text-white">
-      <Toaster position="top-center" richColors />
+
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <BackButton onClick={onBack} />

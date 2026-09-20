@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Toaster } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import StaffWorkspaceState from '@/components/StaffWorkspaceState';
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
@@ -295,7 +294,7 @@ function Workspace({
           : copy.description;
   return (
     <>
-      <Toaster position="top-center" richColors />
+
       <WorkspaceFrameV2
         label={`WEHOUSE TEAM · ${copy.title}`}
         title={activeLabel}

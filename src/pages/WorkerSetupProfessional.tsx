@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import {
   getServiceCategories,
   getServiceSubcategories,
@@ -173,7 +173,7 @@ export default function WorkerSetupProfessional({
 
   return (
     <div className="min-h-[100dvh] bg-[#090B11] pb-8 text-white">
-      <Toaster position="top-center" richColors theme="dark" />
+
       <main className="mx-auto max-w-2xl px-4 py-5 sm:px-5">
         <header className="mb-5 flex items-start gap-3 border-b border-white/[.06] pb-4">
           {onBack && <BackButton onClick={onBack} />}

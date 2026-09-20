@@ -1,6 +1,6 @@
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import { useEffect, useMemo, useState } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import BackButton from "@/components/BackButton";
 import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
@@ -198,7 +198,7 @@ export default function CreatorDashboard({
       : NOTES[tab];
   return (
     <>
-      <Toaster position="top-center" richColors />
+
       <WorkspaceFrameV2
         label="WEHOUSE · CREATOR"
         title={currentPlatform?.label || workspaceTitle}
