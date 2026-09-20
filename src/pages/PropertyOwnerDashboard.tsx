@@ -1,3 +1,4 @@
+import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -483,9 +484,7 @@ function PropertyDetails({
                 {property.title || "Property"}
               </h2>
               <p className="mt-1 break-words text-xs text-[#747689]">
-                {[property.address, property.city, property.state]
-                  .filter(Boolean)
-                  .join(", ")}
+                {locationLabel(property.address, property.city, property.state)}
               </p>
             </div>
             <Status

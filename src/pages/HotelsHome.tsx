@@ -1,3 +1,4 @@
+import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useState } from "react";
 import { getHotels } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -519,7 +520,7 @@ function HotelCard({
           <div className="min-w-0">
             <h2 className="line-clamp-2 text-[15px] font-bold">{hotel.name}</h2>
             <p className="mt-1 truncate text-[9px] text-[#6F7585]">
-              {[hotel.area, hotel.city, hotel.state].filter(Boolean).join(", ")}
+              {locationLabel(hotel.area, hotel.city, hotel.state)}
             </p>
           </div>
           {Number(hotel.rating || 0) > 0 ? (

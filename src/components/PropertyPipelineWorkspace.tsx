@@ -1,3 +1,4 @@
+import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -388,13 +389,9 @@ function CreatorHotelRecord({
                   fallback.property_address}
               </h2>
               <p className="mt-1 text-[10px] text-[#747A8A]">
-                {[
-                  hotel.address || fallback.property_address,
+                {locationLabel(hotel.address || fallback.property_address,
                   hotel.city || fallback.property_city,
-                  hotel.state || fallback.property_state,
-                ]
-                  .filter(Boolean)
-                  .join(", ")}
+                  hotel.state || fallback.property_state)}
               </p>
             </div>
             <Badge value={hotel.status || "live"} />
