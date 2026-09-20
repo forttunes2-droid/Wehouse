@@ -9,8 +9,8 @@ import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 
-const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance Operations',support:'Support Operations',security:'Security Operations',verification:'Service Provider Operations',field_officer:'Field Operations'};
-const AREA_DETAILS:Record<string,string>={operations:'Property submissions, visits and preparation',finance:'Payment reviews, payouts and financial records',support:'Ordinary WeHouse help conversations',security:'Account security signals and escalation',verification:'Service Provider applications and work evidence',field_officer:'Assigned property inspections and handovers'};
+const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance Operations',support:'Support Operations',security:'Security Operations',verification:'Worker Operations',field_officer:'Field Operations'};
+const AREA_DETAILS:Record<string,string>={operations:'Property submissions, visits and preparation',finance:'Payment reviews, payouts and financial records',support:'Ordinary WeHouse help conversations',security:'Account security signals and escalation',verification:'Worker applications and work evidence',field_officer:'Assigned property inspections and handovers'};
 type TeamMember=Profile & {work_areas:string[]};
 type RoleFilter='all'|'admin'|'staff';
 
@@ -41,6 +41,8 @@ export default function StaffListTab({profile}:{profile:Profile}){
  useEffect(()=>{setSelected(null);void load();return()=>{generation.current++;}},[profile.user_id,profile.role,profile.assigned_state,profile.assigned_lga]);
  const stateData=NIGERIA_STATES.find(x=>x.state===state);
  const shown=useMemo(()=>{const q=search.trim().toLowerCase();return team.filter(x=>(!creator||role==='all'||x.role===role)&&(!state||x.assigned_state===state)&&(!lga||x.assigned_lga===lga)&&(!q||[x.full_name,x.username,x.email,x.user_id,x.assigned_state,x.assigned_lga].filter(Boolean).join(' ').toLowerCase().includes(q)))},[team,creator,role,state,lga,search]);
+ const assignedOperations=team.filter(x=>x.role==='staff'&&Boolean(assigned[x.user_id])&&assigned[x.user_id]!=='conflict').length;
+ const needsSetup=team.filter(x=>x.role==='staff'&&(!assigned[x.user_id]||assigned[x.user_id]==='conflict')).length;
  async function applyModule(person:Profile,next:string,elevationId?:string):Promise<void>{
   const current=assigned[person.user_id]||'';
   if(next===current)return;
@@ -68,8 +70,8 @@ export default function StaffListTab({profile}:{profile:Profile}){
   <WorkspaceSectionHeading title="Team" description="People with active WeHouse team access. Open a person to manage their assigned work." />
   <div className="grid grid-cols-3 gap-2">
 <Metric label="Admins" value={team.filter(x=>x.role==='admin').length}/>
-<Metric label="Staff" value={team.filter(x=>x.role==='staff').length}/>
-<Metric label="Unassigned" value={team.filter(x=>x.role==='staff'&&!assigned[x.user_id]).length}/>
+<Metric label="Operations" value={assignedOperations}/>
+<Metric label="Needs setup" value={needsSetup}/>
 </div>
   <section className="rounded-2xl border border-white/[.06] bg-[#0D1017] p-3">
 <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search team" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151821] px-3 text-xs outline-none"/>
@@ -112,7 +114,7 @@ function Manage({person,creator,module,saving,close,saveModule,reassign}:{person
 </section>}{person.role==='staff'&&<section className="rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
 <p className="text-xs font-semibold">Work area</p>
 <p className="mt-1 text-[9px] text-[#666D7E]">Choose this person’s responsibility. It controls which work they can open.</p>
-<div className="mt-3"><WeHouseSelect value={draftModule} disabled={saving} onChange={setDraftModule} options={[{value:'',label:'No work area assigned',description:'No Operations work is available until an area is assigned'},...(module==='conflict'?[{value:'conflict',label:'Multiple assignments — choose one area'}]:[]),...Object.entries(MODULES).map(([value,label])=>({value,label,description:AREA_DETAILS[value]}))]} title="Choose work area" ariaLabel="Choose work area" className="h-11 w-full"/></div><button disabled={saving||draftModule===module||draftModule==='conflict'} onClick={()=>void saveModule(person,draftModule)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving?'Saving…':'Save work area'}</button>
+<div className="mt-3"><WeHouseSelect value={draftModule} disabled={saving} onChange={setDraftModule} options={[{value:'',label:'No work area assigned',description:'No Operations work is available until an area is assigned'},...(module==='conflict'?[{value:'conflict',label:'Multiple assignments — choose one area'}]:[]),...Object.entries(MODULES).map(([value,label])=>({value,label,description:AREA_DETAILS[value]}))]} title="Choose work area" ariaLabel="Choose work area" className="h-11 w-full"/></div><button disabled={saving||!draftModule||draftModule===module||draftModule==='conflict'} onClick={()=>void saveModule(person,draftModule)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving?'Saving…':'Save work area'}</button>
 </section>}</div>
 </aside>
 </div>}
