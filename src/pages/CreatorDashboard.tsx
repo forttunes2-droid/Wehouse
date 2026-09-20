@@ -86,8 +86,8 @@ const OPS: Array<{
   },
   {
     id: "workers",
-    label: "Service providers",
-    note: "Professional onboarding and account decisions.",
+    label: "Workers",
+    note: "Worker onboarding, review and professional accounts.",
     group: "Marketplace",
   },
   {
