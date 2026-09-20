@@ -24,7 +24,6 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import {
-  BOOKING_STATUS_LABELS,
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
