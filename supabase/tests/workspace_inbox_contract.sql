@@ -1,5 +1,13 @@
 \set ON_ERROR_STOP on
 begin;
+do $$ begin
+  if has_schema_privilege('anon','wehouse_maintenance','USAGE')
+    or has_schema_privilege('authenticated','wehouse_maintenance','USAGE')
+    or has_schema_privilege('service_role','wehouse_maintenance','USAGE')
+    or has_table_privilege('authenticated','wehouse_maintenance.test_record_resets','SELECT') then
+    raise exception 'Maintenance archive exposed to application roles';
+  end if;
+end $$;
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 ('99999999-1111-4111-8111-000000000001','inbox-a@example.invalid','inbox-a','worker',true),
