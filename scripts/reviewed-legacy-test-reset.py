@@ -143,7 +143,7 @@ create temp table wh_preserved(name text primary key,digest text) on commit drop
         'hotel_booking_messages': 'conversation_id not in (select id from wh_hotel_threads)',
         'reservations': f"id<>'{RESERVATION}'",
         'payment_protection_transactions': 'id not in (select id from wh_protection)',
-        'listings': f"current_reservation_id is distinct from '{RESERVATION}'::uuid",
+        'listings': f"current_reservation_id is distinct from '{RESERVATION}'",
     }
     for table, condition in unaffected.items():
         out.append(f"insert into wh_preserved values ('unaffected.{table}',(select md5(coalesce(string_agg(to_jsonb(t)::text,'' order by to_jsonb(t)::text),'')) from public.{table} t where {condition}));")
@@ -171,7 +171,7 @@ update listings set current_reservation_id=null,reserved_by=null,reservation_exp
     out.append(f"""do $$ begin
  if exists(select 1 from booking_payments where id in (select id from wh_payments))
    or exists(select 1 from wallets w join wh_wallet_deltas d using(id) where w.available_balance<>0 or w.pending_balance<>0)
-   or exists(select 1 from listings where current_reservation_id='{RESERVATION}' or (id in (select listing_id::uuid from wh_reservations) and status<>'available'))
+   or exists(select 1 from listings where current_reservation_id='{RESERVATION}' or (id::text in (select listing_id::text from wh_reservations) and status<>'available'))
    then raise exception 'Reset postconditions failed'; end if;
 end $$;
 select reset_id,manifest,'{mode}' as execution_mode from wehouse_maintenance.test_record_resets where reset_id='{RESET_ID}';
