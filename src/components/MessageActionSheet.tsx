@@ -36,7 +36,7 @@ export default function MessageActionSheet({
 }: Props) {
   const panelRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useLayoutEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const [position, setPosition] = useState({ top: 12, left: 12 });
   const [moreOpen, setMoreOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
