@@ -12,6 +12,8 @@ import MediaViewer from "@/components/MediaViewer";
 import { getCurrentLegalDocuments } from "@/lib/supabase/legal";
 import {
   workspaceLabel,
+  workspaceGroup,
+  WORKSPACE_GROUPS,
   type WorkspaceName,
 } from "@/lib/workspacePresentation";
 
@@ -186,7 +188,7 @@ export default function AccountCenter({
     for (const workspace of assignedWorkspaces) {
       items.push({
         role: workspace.role,
-        label: workspaceLabel(workspace.role),
+        label: workspace.role === "staff" ? "Staff" : workspace.role === "admin" ? "Admin" : workspaceLabel(workspace.role),
         detail:
           workspace.role === "hotel"
             ? "Assigned hotel access"
@@ -345,24 +347,24 @@ export default function AccountCenter({
           </AccountSection>
         ) : null}
 
-        {switchableWorkspaces.some(item => item.role !== "personal") && onSwitchWorkspace ? (
-          <AccountSection title="Workspaces">
-            {switchableWorkspaces.filter(item => item.role !== "personal").map((workspace) => (
-              <AccountRow
-                key={workspace.role}
-                title={workspace.label}
-                detail={
-                  activeWorkspace === workspace.role
-                    ? `Current · ${workspace.detail}`
-                    : workspace.detail
-                }
-                onClick={activeWorkspace === workspace.role ? undefined : () => onSwitchWorkspace(workspace.role)}
-                trailing={activeWorkspace === workspace.role ? <span className="text-xs text-violet-300">Current</span> : undefined}
-                icon={<ToolsIcon />}
-              />
-            ))}
-          </AccountSection>
-        ) : null}
+        {onSwitchWorkspace && WORKSPACE_GROUPS.map(group => {
+          const workspaces = switchableWorkspaces.filter(item => workspaceGroup(item.role) === group);
+          if (!workspaces.length) return null;
+          return (
+            <AccountSection key={group} title={group}>
+              {workspaces.map(workspace => (
+                <AccountRow
+                  key={workspace.role}
+                  title={workspace.label}
+                  detail={workspace.detail}
+                  onClick={activeWorkspace === workspace.role ? undefined : () => onSwitchWorkspace(workspace.role)}
+                  trailing={activeWorkspace === workspace.role ? <span className="text-xs text-violet-300">Current</span> : undefined}
+                  icon={<ToolsIcon />}
+                />
+              ))}
+            </AccountSection>
+          );
+        })}
 
         {canStartProfessionalOnboarding ? (
           <AccountSection title="Applications">

@@ -1,3 +1,4 @@
+import { matchesInboxCategory, type InboxCategory } from "@/lib/inboxCategories";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -100,6 +101,7 @@ export default function Chat({
   const loadVersion = useRef(0);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<InboxCategory>("all");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
   const [view, setView] = useState<"messages" | "activity">("messages");
   const {
@@ -241,11 +243,9 @@ export default function Chat({
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return threads;
-    return threads.filter((thread) =>
-      threadSearchText(thread, people, otherId).includes(needle),
-    );
-  }, [otherId, people, query, threads]);
+    return threads.filter(thread => matchesInboxCategory(thread.kind, category) &&
+      (!needle || threadSearchText(thread, people, otherId).includes(needle)));
+  }, [category, otherId, people, query, threads]);
 
   const messageUnreadCount = useMemo(
     () =>
@@ -412,6 +412,15 @@ export default function Chat({
             />
           </label>
 
+          <div role="group" aria-label="Message categories" className="mt-4 flex gap-2">
+            {([['all', 'All'], ['private', 'Private'], ['wehouse', 'WeHouse']] as const).map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
+                className={`min-h-11 rounded-full px-5 text-sm font-semibold ${category === value ? 'bg-violet-500/20 text-violet-200' : 'text-[#A1A7B5] hover:bg-white/[.04]'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           {loadError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-[#C1BBCB]"><p>{loadError}</p><button type="button" onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
           {loading ? (
             <p className="py-12 text-center text-sm text-[#A1A7B5]" role="status">Loading messages…</p>
@@ -420,10 +429,12 @@ export default function Chat({
               <p className="text-sm font-semibold">
                 {query.trim() ? "No matching messages" : "No messages yet"}
               </p>
-              <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#606676]">
                 {query.trim()
                   ? "Try a person, hotel, service or WeHouse conversation name."
-                  : "Messages appear after a roommate match, service booking, paid hotel stay or WeHouse conversation."}
+                  : category === "wehouse" ? "Your conversations with the WeHouse team appear here."
+                  : category === "private" ? "Your conversations with people, service providers and hotels appear here."
+                  : "Choose Private for personal and booking conversations, or WeHouse for help from our team."}
               </p>
             </div>
           ) : (

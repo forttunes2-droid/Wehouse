@@ -423,7 +423,7 @@ export async function confirmApartmentHandover(
 ) {
   const { data, error } = await supabase.rpc("confirm_apartment_handover", {
     p_booking_code: bookingCode,
-    p_start_date: startDate || new Date().toISOString().slice(0, 10),
+    ...(startDate ? { p_start_date: startDate } : {}),
   });
   return { reservation: (data as ReservationRecord) || null, error };
 }
@@ -458,7 +458,7 @@ export async function confirmShortStayCheckIn(
     "confirm_short_stay_check_in_by_code",
     {
       p_booking_code: bookingCode,
-      p_check_in_date: checkInDate || new Date().toISOString().slice(0, 10),
+      ...(checkInDate ? { p_check_in_date: checkInDate } : {}),
     },
   );
   return { reservation: (data as ReservationRecord) || null, error };

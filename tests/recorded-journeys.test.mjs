@@ -16,7 +16,7 @@ function moduleAt(path, dependencies = {}, globals = {}) {
   return exports;
 }
 const dates = moduleAt('src/lib/displayDate.ts');
-const lifecycle = moduleAt('src/lib/propertyBookingLifecycle.ts');
+const lifecycle = moduleAt('src/lib/propertyBookingLifecycle.ts', {'./displayDate':dates});
 test('Short Let starts with the stay payment and never asks for a reservation fee', () => {
   const row = { stay_type:'short_let', status:'payment_pending', rent_payment_status:'not_started', security_deposit_snapshot:50000 };
   const journey=lifecycle.getPropertyBookingJourney(row);
@@ -80,4 +80,26 @@ test('A stalled request times out and late completion cannot resolve the abandon
   await assert.rejects(withTimeout(late,5,'Request timed out'),/timed out/);
   resolve('late result');
   assert.equal(await withTimeout(Promise.resolve('fresh result'),50,'timeout'),'fresh result');
+});
+
+const inboxCategories = moduleAt('src/lib/inboxCategories.ts');
+const workspacePresentation = moduleAt('src/lib/workspacePresentation.ts');
+test('Marketplace work, Hotel Team and WeHouse Team stay separate', () => {
+  for (const role of ['worker','property_partner']) assert.equal(workspacePresentation.workspaceGroup(role),'Marketplace work');
+  for (const role of ['staff','admin','creator']) assert.equal(workspacePresentation.workspaceGroup(role),'WeHouse Team');
+  assert.equal(workspacePresentation.workspaceGroup('hotel'),'Hotel Team');
+  assert.equal(workspacePresentation.workspaceGroup('personal'),'Personal');
+});
+test('Private and WeHouse filters separate booking conversations from official support', () => {
+  for (const kind of ['roommate','worker','hotel','support']) {
+    assert.equal(inboxCategories.matchesInboxCategory(kind,'all'),true);
+    assert.equal(inboxCategories.matchesInboxCategory(kind,'private'),kind!=='support');
+    assert.equal(inboxCategories.matchesInboxCategory(kind,'wehouse'),kind==='support');
+  }
+});
+test('Move-in dates stay in Nigeria time even before midnight UTC', () => {
+  const instant = new Date('2026-09-23T23:30:00Z');
+  assert.equal(dates.nigeriaDate(instant),'2026-09-24');
+  assert.equal(dates.nigeriaDateTimeInput(instant),'2026-09-24T00:30');
+  assert.equal(dates.nigeriaInputToISO('2026-09-24T00:30'),instant.toISOString());
 });

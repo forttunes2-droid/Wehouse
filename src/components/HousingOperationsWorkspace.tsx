@@ -1,3 +1,4 @@
+import { displayDate, nigeriaDate } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -384,11 +385,11 @@ export default function HousingOperationsWorkspace({
                 <p className="mt-3 text-[9px] text-[#8A909F]">
                   Stay:{" "}
                   {verifiedBooking.check_in
-                    ? new Date(verifiedBooking.check_in).toLocaleDateString()
+                    ? displayDate(verifiedBooking.check_in)
                     : "—"}{" "}
                   →{" "}
                   {verifiedBooking.check_out
-                    ? new Date(verifiedBooking.check_out).toLocaleDateString()
+                    ? displayDate(verifiedBooking.check_out)
                     : "—"}{" "}
                   · {verifiedBooking.guest_count || 1} guest(s)
                 </p>
@@ -545,14 +546,8 @@ function ShortStayCase({
   back: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
-  const firstAllowed = laterDate(
-    new Date().toISOString().slice(0, 10),
-    String(row.check_in || ""),
-  );
-  const lastAllowed = previousDate(String(row.check_out || ""));
-  const [checkInDate, setCheckInDate] = useState(
-    firstAllowed <= lastAllowed ? firstAllowed : String(row.check_in || ""),
-  );
+  const checkInDate = nigeriaDate();
+  const arrivalOpen = checkInDate >= String(row.check_in || "") && checkInDate < String(row.check_out || "");
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
   >("maintenance");
@@ -560,7 +555,7 @@ function ShortStayCase({
   const canCheckIn = Boolean(
     row.current_reservation_id &&
     row.reservation_status === "ready_for_move_in" &&
-    row.reservation_fee_paid &&
+    arrivalOpen &&
     row.rent_payment_status === "paid",
   );
 
@@ -687,21 +682,9 @@ function ShortStayCase({
           <p className="mt-1 text-[10px] leading-5 text-[#788090]">
             Code{" "}
             <span className="font-bold text-emerald-200">{bookingCode}</span> is
-            verified. The date must stay inside this booking.
+            verified. Record entry only after the guest receives access today.
           </p>
-          <label className="mt-3 block">
-            <span className="mb-1 block text-[9px] text-[#757B8C]">
-              Check-in date
-            </span>
-            <input
-              type="date"
-              min={String(row.check_in)}
-              max={lastAllowed}
-              value={checkInDate}
-              onChange={(event) => setCheckInDate(event.target.value)}
-              className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs"
-            />
-          </label>
+          <p className="mt-3 text-sm">Check-in today · {displayDate(checkInDate)} (Nigeria time)</p>
           <button
             disabled={busy}
             onClick={() => void checkIn()}
@@ -714,12 +697,12 @@ function ShortStayCase({
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4">
           <h4 className="text-sm font-semibold text-amber-300">
             {bookingCode
-              ? "Payment confirmation required"
+              ? arrivalOpen ? "Stay payment required" : "Outside the booked arrival dates"
               : "Booking code required"}
           </h4>
           <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
             {bookingCode
-              ? "Check-in stays blocked until the reservation fee and full Short Let payment are confirmed."
+              ? "Check-in requires verified stay payment and arrival within the booked dates. Future dates cannot be used to check in early."
               : "Verify the code shown by the guest from Booking lookup before handing over access."}
           </p>
         </section>
@@ -784,11 +767,7 @@ function HousingCase({
   back: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
-  const [startDate, setStartDate] = useState(
-    row.requested_move_in_at
-      ? new Date(row.requested_move_in_at).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10),
-  );
+  const startDate = nigeriaDate();
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
   >("maintenance");
@@ -914,7 +893,7 @@ function HousingCase({
     if (
       !(await ask({
         title: "Complete move-in handover?",
-        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${new Date(startDate).toLocaleDateString()}.`,
+        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${displayDate(startDate)} (Nigeria time).`,
         confirmLabel: "Start tenancy",
         variant: "info",
       }))
@@ -1066,7 +1045,7 @@ function HousingCase({
             <div className="mt-3 rounded-xl bg-white/[.025] p-3">
               <SmallRow
                 label="Started"
-                value={new Date(row.tenancy_start_date).toLocaleDateString()}
+                value={displayDate(row.tenancy_start_date)}
               />
               <SmallRow
                 label="Tenancy ends"
@@ -1209,17 +1188,7 @@ function HousingCase({
             Code <span className="font-bold text-emerald-200">{verifiedCode}</span>{" "}
             has been matched. Confirm only after the customer receives the keys or access.
           </p>
-          <label className="mt-3 block">
-            <span className="mb-1 block text-[9px] text-[#757B8C]">
-              Move-in date
-            </span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-              className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs"
-            />
-          </label>
+          <p className="mt-3 text-sm">Tenancy starts today · {displayDate(startDate)} (Nigeria time)</p>
           <button
             disabled={busy}
             onClick={() => void activate()}
@@ -1353,15 +1322,6 @@ function Empty() {
     </div>
   );
 }
-function laterDate(a: string, b: string) {
-  return a > b ? a : b;
-}
-function previousDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return value;
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toISOString().slice(0, 10);
-}
 function formatDate(value?: string | null) {
-  return value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
+  return displayDate(value);
 }

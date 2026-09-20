@@ -163,7 +163,7 @@ Use explicit `interest_state` (`pending/accepted/declined/withdrawn`) and `match
 
 ### CURRENT IMPLEMENTATION
 
-There are distinct persistence families for roommate (`conversations/messages`), worker jobs (`booking_conversations/booking_messages`), hotel stays (`hotel_booking_conversations/hotel_booking_messages`), and WeHouse cases (`partner_support_conversations/partner_support_messages`). `Chat.tsx` composes personal Activity plus all four thread families into one Inbox. `CommunicationInbox.tsx` does the equivalent for partner hotel/support communication. Calls are stored separately in `private_calls` and capability-checked by context.
+There are distinct persistence families for roommate (`conversations/messages`), worker jobs (`booking_conversations/booking_messages`), hotel stays (`hotel_booking_conversations/hotel_booking_messages`), and WeHouse cases (`partner_support_conversations/partner_support_messages`). `Chat.tsx` shows All, Private (people, service providers and hotels), and WeHouse (official support) message categories. Activity is a separate nested screen. These categories do not change each thread’s encryption or access rules. `CommunicationInbox.tsx` does the equivalent for partner hotel/support communication. Calls are stored separately in `private_calls` and capability-checked by context.
 
 ### Canonical transition table
 

@@ -1,3 +1,4 @@
+import { displayDate, displayDateTime } from "./displayDate";
 export type PropertyJourneyAudience = "customer" | "operations";
 export type PropertyJourneyState = "complete" | "current" | "upcoming" | "stopped";
 export type PropertyJourneyAction =
@@ -187,7 +188,7 @@ export function getPropertyBookingJourney(
             : status === "ready_for_move_in"
               ? "handover"
               : "rent_payment";
-    const copy = shortStayCopy(action, audience, rentStatus, cautionEnabled);
+    const copy = shortStayCopy(action, audience, rentStatus, cautionEnabled, row.stay_check_in || row.check_in);
     return {
       action,
       ...copy,
@@ -248,7 +249,7 @@ export function getPropertyBookingJourney(
     : row.requested_move_in_at
       ? complete(
           operations ? "Customer move-in time" : "Move-in time",
-          `${operations ? "Customer requested" : "Requested for"} ${new Date(row.requested_move_in_at).toLocaleString()}.`,
+          `${operations ? "Customer requested" : "Requested for"} ${displayDateTime(row.requested_move_in_at, "Africa/Lagos")} WAT.`,
         )
       : action === "move_in_request"
         ? current(
@@ -285,7 +286,7 @@ export function propertyBookingStatusLabel(
   if (hasUnprotectedPaidAccommodation(row)) return "Payment needs review";
 
   if (status === "ready_for_move_in") {
-    if (shortStay) return rentPaid ? "Ready for check-in" : "Stay payment required";
+    if (shortStay) return rentPaid ? "Stay confirmed" : "Stay payment required";
     if (!rentPaid) return "Year 1 rent required";
     return row.requested_move_in_at
       ? "Move-in scheduled"
@@ -348,6 +349,7 @@ function shortStayCopy(
   audience: PropertyJourneyAudience,
   rentStatus: string,
   cautionEnabled: boolean,
+  checkIn?: string,
 ) {
   const operations = audience === "operations";
   if (action === "reservation_payment") return {
@@ -369,10 +371,10 @@ function shortStayCopy(
         : "Pay the stay price before arrival. No refundable caution is required for this Short Let.",
   };
   if (action === "handover") return {
-    title: operations ? "Verify code and check the guest in" : "Ready for check-in",
+    title: operations ? "Verify arrival and booking code" : `Check-in from ${displayDate(checkIn)}`,
     detail: operations
-      ? "Confirm the booking code and reserved dates before handing over access."
-      : "Show the booking code to Property Operations during the reserved check-in period.",
+      ? "Check in only after the guest arrives within the reserved dates. Verify the booking code before handing over access."
+      : "Arrive on your booked date and show this code to Property Operations for the keys or access. Payment confirms your dates; it does not check you in.",
   };
   if (action === "tenancy") {
     return {
