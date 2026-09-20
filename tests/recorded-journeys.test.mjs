@@ -130,3 +130,33 @@ test('Sent updates load without an invented sender foreign-key relationship', as
   assert.deepEqual(filters,[['sender_id','sender']]);
   for(const fields of selected){assert.ok(fields.includes('sender_id'));assert.doesNotMatch(fields,/[():]/);}
 });
+
+
+test('Inbox rows stay message-first instead of showing lifecycle status on every conversation', () => {
+  const source=readFileSync(new URL('../src/pages/Chat.tsx', import.meta.url),'utf8');
+  assert.doesNotMatch(source,/view\.status/);
+  assert.doesNotMatch(source,/function statusLabel\(/);
+  assert.match(source,/Search messages/);
+});
+test('Booking list keeps status in filters and details instead of a loud row label', () => {
+  const source=readFileSync(new URL('../src/pages/MyReservations.tsx', import.meta.url),'utf8');
+  assert.match(source,/All booking stages/);
+  assert.doesNotMatch(source,/status=\{visibleStatus\}/);
+  assert.doesNotMatch(source,/status=\{status\?\.label/);
+});
+test('Creator team uses Worker Operations and counts assigned operations separately from setup gaps', () => {
+  const source=readFileSync(new URL('../src/pages/StaffListTab.tsx', import.meta.url),'utf8');
+  assert.match(source,/verification:'Worker Operations'/);
+  assert.doesNotMatch(source,/Service Provider Operations/);
+  assert.match(source,/Metric label="Operations" value=\{assignedOperations\}/);
+  assert.match(source,/Metric label="Needs setup" value=\{needsSetup\}/);
+  assert.match(source,/disabled=\{saving\|\|!draftModule/);
+});
+test('Worker discovery stays publicly gated while Creator and Admin can verify eligible Workers', () => {
+  const source=readFileSync(new URL('../supabase/migrations/20260920203000_repair_team_summary_and_worker_internal_preview.sql', import.meta.url),'utf8');
+  assert.match(source,/v_internal_preview/);
+  assert.match(source,/current_actor_has_workspace\('creator',null\)/);
+  assert.match(source,/current_actor_has_workspace\('admin',null\)/);
+  assert.match(source,/if not coalesce\(v_marketplace_enabled,false\)[\s\S]*not coalesce\(v_internal_preview,false\) then/);
+  assert.doesNotMatch(source,/worker_marketplace_launch_enabled[^\n]*true/i);
+});
