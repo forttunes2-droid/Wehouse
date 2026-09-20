@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useRpcRead } from '@/hooks/useRpcRead';
 import AccountShell from '@/components/AccountShell';
 import WorkerIdentityCheck from '@/components/WorkerIdentityCheck';
 import type { Profile } from '@/types';
@@ -23,26 +22,7 @@ export default function IdentityAccessGate({
   profile: Profile;
   children: React.ReactNode;
 }) {
-  const [state, setState] = useState<Status | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase.rpc('get_my_account_identity_status');
-    if (error || !data) {
-      setState(null);
-      setLoadError(error?.message || 'Workspace identity status could not be checked');
-    } else {
-      setState(data as Status);
-      setLoadError('');
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const { data: state, loading, error: loadError, refresh } = useRpcRead<Status>('get_my_account_identity_status', profile.user_id);
 
   if (loading)
     return (

@@ -211,7 +211,7 @@ test("biometric/liveness is policy gated and recurring verification is independe
   assert.match(migration, /identity_passed/);
   assert.match(gate, /state\?\.required && !state\.gate_satisfied/);
   assert.match(review, /activation\.identity_required === true/);
-  assert.match(review, /Face\/liveness verification is not currently required/);
+  assert.doesNotMatch(review, /Face\/liveness verification is not currently required/);
 });
 
 test("browser face scores can only request independent WeHouse review", async () => {

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { workerOccupation } from "@/lib/workerTaxonomy";
 import MediaViewer from "@/components/MediaViewer";
 import VideoPlayer from "@/components/VideoPlayer";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
+import { identityReviewGateSatisfied, type IdentityReviewPolicy } from '@/lib/identityReviewPolicy';
+import { withTimeout } from '@/lib/withTimeout';
 
 type Worker = {
   user_id: string;
@@ -32,7 +34,7 @@ type Evidence = {
   years_of_experience?: number | null;
   status?: string | null;
 };
-type Identity = {
+type Identity = IdentityReviewPolicy & {
   status?: string | null;
   face_match_score?: number | null;
   liveness_score?: number | null;
@@ -42,6 +44,9 @@ type Identity = {
 };
 
 export default function StaffWorkerReviewModern() {
+  const selectionVersion = useRef(0);
+  const [detailError, setDetailError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
   const [rows, setRows] = useState<Worker[]>([]),
     [selected, setSelected] = useState<Worker | null>(null),
     [evidence, setEvidence] = useState<Evidence | null>(null),
@@ -86,10 +91,17 @@ export default function StaffWorkerReviewModern() {
     [rows, search],
   );
   async function open(worker: Worker) {
+    const request = ++selectionVersion.current;
     setSelected(worker);
+    setEvidence(null);
+    setIdentity(null);
+    setHistory([]);
+    setDetailError('');
+    setDetailLoading(true);
     setReason("");
     setNotes("");
-    const [evidenceResult, identityResult, historyResult] = await Promise.all([
+    try {
+    const [evidenceResult, identityResult, historyResult] = await withTimeout(Promise.all([
       supabase
         .from("worker_verifications")
         .select(
@@ -108,16 +120,23 @@ export default function StaffWorkerReviewModern() {
         .eq("worker_id", worker.user_id)
         .order("created_at", { ascending: false })
         .limit(12),
-    ]);
-    if (identityResult.error) toast.error(identityResult.error.message);
+    ]), 15000, 'Review details took too long. Please try again.');
+    const error = evidenceResult.error || identityResult.error || historyResult.error;
+    if (error) throw error;
+    if (request !== selectionVersion.current) return;
     setEvidence(evidenceResult.data || null);
     setIdentity((identityResult.data || null) as Identity | null);
     setHistory(historyResult.data || []);
+    } catch (cause) {
+      if (request === selectionVersion.current) setDetailError((cause as { message?: string })?.message || 'Review details could not be loaded.');
+    } finally {
+      if (request === selectionVersion.current) setDetailLoading(false);
+    }
   }
   async function act(status: "verified" | "rejected") {
-    if (!selected) return;
-    if (status === "verified" && identity?.status !== "passed")
-      return toast.error("The current private face check must pass first");
+    if (!selected || detailLoading || detailError) return;
+    if (status === "verified" && !identityReviewGateSatisfied(identity))
+      return toast.error(identity?.identity_required ? "The required identity review is incomplete" : "The identity policy could not be checked. Reload the review.");
     if (
       status === "verified" &&
       !evidence?.verification_video_url &&
@@ -137,7 +156,7 @@ export default function StaffWorkerReviewModern() {
     if (error) return toast.error(error.message);
     toast.success(
       status === "verified"
-        ? "Worker reviewed and made live"
+        ? "Professional review approved"
         : "Worker review rejected",
     );
     setSelected(null);
@@ -147,14 +166,15 @@ export default function StaffWorkerReviewModern() {
     void load();
   }
   if (selected) {
-    const identityPassed = identity?.status === "passed",
+    const identityPassed = identity?.identity_current === true,
+      identitySatisfied = identityReviewGateSatisfied(identity),
       professionalReady = Boolean(
         evidence?.verification_video_url || selected.worker_video_url,
       );
     return (
       <div className="space-y-4 pb-24">
         <button
-          onClick={() => setSelected(null)}
+          onClick={() => { selectionVersion.current++; setSelected(null); }}
           className="text-[10px] font-semibold text-violet-400"
         >
           ← Back to Worker reviews
@@ -177,16 +197,16 @@ export default function StaffWorkerReviewModern() {
             </div>
             <Status value={selected.worker_status} />
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
+          {detailLoading ? <p role="status" className="mt-4 text-sm text-[#9298A6]">Loading review details…</p> : detailError ? <div role="alert" className="mt-4 text-sm text-amber-100"><p>{detailError}</p><button type="button" onClick={() => void open(selected)} className="min-h-11 text-violet-300">Try again</button></div> : null}
+          <div className={`mt-4 grid gap-3 ${identity?.identity_required ? 'lg:grid-cols-2' : ''}`}>
+            {identity?.identity_required === true && <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold">
                     Private identity check
                   </p>
                   <p className="mt-1 text-[9px] leading-relaxed text-[#73798A]">
-                    WeHouse verifies the Worker privately with liveness and face
-                    continuity. Worker Operations never receive government ID.
+                    Review the private identity evidence separately from the service provider’s skills and work.
                   </p>
                 </div>
                 <Badge good={identityPassed}>
@@ -215,7 +235,7 @@ export default function StaffWorkerReviewModern() {
                   }
                 />
               </div>
-            </section>
+            </section>}
             <section className="rounded-2xl border border-white/[.06] bg-black/10 p-4">
               <p className="text-xs font-semibold">Professional evidence</p>
               <p className="mt-1 text-[9px] leading-relaxed text-[#73798A]">
@@ -258,12 +278,11 @@ export default function StaffWorkerReviewModern() {
               <div className="min-w-0">
                 <p className="text-xs font-semibold">Final WeHouse review</p>
                 <p className="mt-1 text-[9px] text-[#73798A]">
-                  Approval publishes the WeHouse Service Worker. Marketplace
-                  trust can grow later from real jobs and reviews.
+                  Approve the professional profile and work evidence. Public availability follows WeHouse’s marketplace controls.
                 </p>
               </div>
               <div className="flex max-w-full flex-wrap gap-2 sm:shrink-0 sm:justify-end">
-                <Badge good={identityPassed}>Identity</Badge>
+                {identity?.identity_required === true && <Badge good={identityPassed}>Identity</Badge>}
                 <Badge good={professionalReady}>Work evidence</Badge>
               </div>
             </div>
@@ -283,10 +302,10 @@ export default function StaffWorkerReviewModern() {
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button
                 onClick={() => void act("verified")}
-                disabled={saving || !identityPassed || !professionalReady}
+                disabled={saving || detailLoading || Boolean(detailError) || !identitySatisfied || !professionalReady}
                 className="min-h-11 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold disabled:opacity-35"
               >
-                Approve & publish
+                Approve review
               </button>
               <button
                 onClick={() => void act("rejected")}
@@ -335,8 +354,7 @@ export default function StaffWorkerReviewModern() {
       <div>
         <h2 className="text-lg font-bold">Worker reviews</h2>
         <p className="mt-1 text-[10px] text-[#707687]">
-          Review WeHouse Service professionals after their current private
-          identity check, verified payment and real work evidence are complete.
+          Review professional profiles and real work evidence. Onboarding and review are free.
         </p>
       </div>
       <input
