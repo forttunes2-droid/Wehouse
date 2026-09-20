@@ -73,6 +73,7 @@ insert into public.hotels(hotel_id,name,state,city,address,owner_id,status) valu
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms) values(-9991,-9991,'Deluxe',1000,2);
 insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night) values(-9991,-9991,-9991,'Room only','room_only','pay_now',false,1000);
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status) values(-9991,-9991,-9991,'repair-guest','2026-09-24','2026-09-25',1,1000,'checked_out','paid');
+insert into public.hotel_reviews(review_id,hotel_id,user_id,rating,comment) values(-9991,-9991,'repair-guest',5,'Public review');
 insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,capabilities,invited_by) values(-9991,'repair-staff','front_desk',array['room.mark_ready'],'repair-owner');
 insert into public.partner_support_conversations(id,partner_id,subject,context_type,context_id,channel_kind) values('99999999-2222-4222-8222-000000000001','repair-owner','Property inspection','property_inspection','repair-inspection','field_operations');
 insert into public.partner_support_messages(conversation_id,sender_id,content,visibility) values
@@ -127,6 +128,30 @@ do $$ begin
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000002',true);
   begin perform public.get_my_hotel_operation_snapshot(-9991); raise exception 'Revoked staff retained operations';
   exception when raise_exception then if sqlerrm<>'Active hotel ownership or team membership required' then raise; end if; end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+select set_config('request.jwt.claims','{"role":"anon"}',true);
+set local role anon;
+do $$ declare summary jsonb; begin
+  summary:=public.get_hotel_review_summary(-9991);
+  if summary is null or jsonb_array_length(summary->'reviews')<>1
+    or summary->'reviews'->0->>'comment'<>'Public review'
+    or summary->>'eligible'<>'false' then raise exception 'Public hotel reviews unavailable or anonymous review eligibility granted'; end if;
+  if summary->'reviews'->0 ? 'user_id' or summary->'reviews'->0->'profiles' ? 'email'
+    or summary ? 'bookings' then raise exception 'Private details exposed in public review projection'; end if;
+  if has_function_privilege('anon','public.get_my_hotel_operation_snapshot(integer)','execute')
+    or has_function_privilege('anon','public.get_my_pending_device_login_alert()','execute') then
+    raise exception 'Anonymous access to private operation or login endpoint';
+  end if;
+end $$;
+reset role;
+set local session_replication_role=replica;
+update public.hotels set status='inactive' where hotel_id=-9991;
+set local session_replication_role=origin;
+set local role anon;
+do $$ begin
+  if public.get_hotel_review_summary(-9991) is not null then raise exception 'Unpublished hotel reviews exposed'; end if;
 end $$;
 reset role;
 rollback;
