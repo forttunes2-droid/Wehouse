@@ -10,13 +10,13 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
   return <article className="wehouse-receipt rounded-xl bg-white p-4 text-[#18181B] sm:p-6">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E4E4E7] pb-4">
       <div><img src="/brand-mark-light.svg" alt="WeHouse" className="mb-3 h-9 w-9" /><p className="text-sm font-semibold">WeHouse</p><p className="text-xs text-[#52525B]">wehouse.com.ng</p></div>
-      <div className="text-right"><h2 className="text-lg font-bold">Payment receipt</h2><p className="mt-1 text-xs text-[#52525B]">{displayDateTime(r.paid_at)}</p></div>
+      <div className="text-right"><h2 className="text-sm font-semibold">Payment receipt</h2><p className="mt-1 text-xs text-[#52525B]">{displayDateTime(r.paid_at, "Africa/Lagos") + " WAT"}</p></div>
     </header>
-    {r.environment === "test" && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">Test payment · No real money was charged.</p>}
+    {r.environment === "test" && <p className="mt-4 rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-900">Test payment · No real money was charged.</p>}
     {r.environment === null && <p className="mt-4 text-xs text-[#52525B]">Payment mode was not recorded for this transaction.</p>}
-    <h3 className="mt-5 break-words text-lg font-bold">{r.merchant_name}</h3>
-    <p className="mt-2 text-sm text-[#52525B]">Paid by {r.payer_name}</p>
-    <dl className="mt-5 space-y-3 text-xs sm:text-sm">
+    <h3 className="mt-5 break-words text-base font-semibold">{r.merchant_name}</h3>
+    <p className="mt-1 text-xs text-[#52525B]">Paid by {r.payer_name}</p>
+    <dl className="mt-5 space-y-3 text-xs">
       <ReceiptLine label="For" value={[r.description, r.package_name].filter(Boolean).join(" · ")} />
       {r.check_in && <ReceiptLine label="Check-in" value={displayDate(r.check_in)} />}
       {r.check_out && <ReceiptLine label="Check-out" value={displayDate(r.check_out)} />}
@@ -28,7 +28,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
     </dl>
     <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-[#E4E4E7] pt-5"><span className="text-sm font-semibold">Amount paid</span><strong className="text-xl">{money(r.amount)}</strong></div>
     {r.status.includes("refund") && <p className="mt-4 text-sm font-semibold">{r.status === "refunded" ? "Refunded" : "Partially refunded"}{r.refund_processed_at ? ` · ${displayDate(r.refund_processed_at)}` : ""}</p>}
-    <footer className="mt-7 border-t border-[#E4E4E7] pt-4 text-xs leading-5 text-[#52525B]">Payment collected through WeHouse. This receipt confirms the payment recorded above; booking and refund details remain available in Bookings.</footer>
+    <footer className="mt-5 border-t border-[#E4E4E7] pt-4 text-xs leading-5 text-[#52525B]">Payment collected through WeHouse. Keep this receipt for your records.</footer>
   </article>;
 }
 
@@ -38,6 +38,16 @@ function ReceiptLine({ label, value }: { label: string; value: string }) {
 
 export function ReceiptPrintButton({ receipt }: { receipt: Receipt }) {
   const [printReady, setPrintReady] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(false);
+  async function download() {
+    setDownloading(true); setDownloadError(false);
+    try {
+      const { downloadReceiptPdf } = await import("@/lib/receiptPdf");
+      await downloadReceiptPdf(receipt);
+    } catch { setDownloadError(true); }
+    finally { setDownloading(false); }
+  }
   useEffect(() => {
     if (!printReady) return;
     const cleanup = () => { document.body.classList.remove("printing-wehouse-receipt"); setPrintReady(false); };
@@ -46,7 +56,7 @@ export function ReceiptPrintButton({ receipt }: { receipt: Receipt }) {
     const timer = window.setTimeout(() => window.print(), 100);
     return () => { window.clearTimeout(timer); window.removeEventListener("afterprint", cleanup); document.body.classList.remove("printing-wehouse-receipt"); };
   }, [printReady]);
-  return <><button type="button" onClick={() => setPrintReady(true)} className="min-h-12 rounded-xl border border-white/15 px-4 text-sm font-semibold">Print / save PDF</button>{printReady && createPortal(<div className="wehouse-print-document"><ReceiptDocument receipt={receipt} /></div>, document.body)}</>;
+  return <><div className="w-full"><div className="flex items-center justify-end gap-2"><button type="button" onClick={() => setPrintReady(true)} className="min-h-11 rounded-xl border border-white/15 px-4 text-xs font-semibold">Print</button><button type="button" onClick={() => void download()} disabled={downloading} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white disabled:opacity-60">{downloading ? "Preparing PDF…" : "Download PDF"}</button></div>{downloadError && <p role="alert" className="mt-2 text-xs text-red-300">The PDF could not be saved. Try again or use Print.</p>}</div>{printReady && createPortal(<div className="wehouse-print-document"><ReceiptDocument receipt={receipt} /></div>, document.body)}</>;
 }
 
 export default function ReceiptAccess({ subjectType, subjectId }: { subjectType?: string; subjectId?: string }) {

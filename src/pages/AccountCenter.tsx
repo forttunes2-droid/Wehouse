@@ -131,7 +131,9 @@ export default function AccountCenter({
     "U"
   )[0].toUpperCase();
 
-  const privilegedWorkspaces = workspaceAccess?.privileged_workspaces || [];
+  // A previous identity's cached response must never supply account links.
+  const ownAccess = workspaceAccess?.identity?.user_id === profile.user_id && workspaceAccess.personal_workspace;
+  const privilegedWorkspaces = ownAccess ? workspaceAccess?.privileged_workspaces || [] : [];
   const hasServiceProviderWorkspace = privilegedWorkspaces.some(
     (workspace) => workspace.role === "worker",
   );
@@ -147,7 +149,7 @@ export default function AccountCenter({
     ["hotel", "staff", "admin", "creator"].includes(workspace.role),
   );
   const canStartProfessionalOnboarding = Boolean(
-    workspaceAccess?.personal_workspace &&
+    ownAccess &&
       workspaceAccess?.identity?.account_kind === "consumer",
   );
 
@@ -157,7 +159,7 @@ export default function AccountCenter({
       label: string;
       detail: string;
     }> = [];
-    if (workspaceAccess?.personal_workspace)
+    if (ownAccess)
       items.push({
         role: "personal",
         label: "Personal",
@@ -194,7 +196,7 @@ export default function AccountCenter({
     hasServiceProviderWorkspace,
     profile.worker_status,
     serviceProviderLive,
-    workspaceAccess?.personal_workspace,
+    ownAccess,
   ]);
 
 
@@ -312,7 +314,7 @@ export default function AccountCenter({
         onBack={() => setPanel(null)}
       >
 
-        {workspaceAccess?.personal_workspace && onSwitchWorkspace ? (
+        {ownAccess && onSwitchWorkspace ? (
           <AccountSection title="Personal">
             <AccountRow title="Personal" detail="Find places, book services and meet roommates" icon={<PersonIcon />}
               onClick={activeWorkspace === 'personal' ? undefined : () => onSwitchWorkspace('personal')}
@@ -485,7 +487,7 @@ export default function AccountCenter({
         />
       ) : null}
 
-      {workspaceAccess ? (
+      {ownAccess ? (
         <AccountSection>
           <AccountRow
             title="WeHouse"

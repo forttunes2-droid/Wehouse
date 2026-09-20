@@ -330,7 +330,7 @@ export default function CommunicationsWorkspace({
           <HeaderTabs view={view} setView={setView} unread={unread} />
         )}
         <div>
-          <h2 className="text-base font-bold">New update</h2>
+          {!hideViewTabs && <h2 className="text-base font-bold">New update</h2>}
           <p className="mt-1 text-[10px] text-[#696E7F]">
             Share a WeHouse Official update with the selected audience.
           </p>

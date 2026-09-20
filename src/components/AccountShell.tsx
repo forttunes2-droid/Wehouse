@@ -27,7 +27,7 @@ export default function AccountShell({ profile, title, description, onBack, chil
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
               <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
-              <h1 className="mt-1 truncate text-xl font-bold">{title}</h1>
+              <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
               {description ? <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p> : null}
             </div>
           </div>
@@ -71,11 +71,11 @@ export function AccountRow({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       disabled={onClick ? disabled : undefined}
-      className="flex min-h-[4.25rem] w-full items-center gap-3 border-b border-white/[.05] px-4 py-3.5 text-left last:border-b-0 transition hover:bg-white/[.025] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
+      className="flex min-h-[3.75rem] w-full items-center gap-3 border-b border-white/[.05] px-4 py-3 text-left last:border-b-0 transition hover:bg-white/[.025] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
     >
       {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">{icon}</span> : null}
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold text-[#E6E8EE]">{title}</span>
+        <span className="block text-sm font-semibold text-[#E6E8EE]">{title}</span>
         {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[#989EAE]">{detail}</span> : null}
       </span>
       {trailing ?? (onClick ? <span className="text-[#565D6D]">›</span> : null)}

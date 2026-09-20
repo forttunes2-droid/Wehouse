@@ -92,10 +92,10 @@ const CreatorAuthModal = lazy(() => import("@/components/CreatorAuthModal"));
 const SupportChat = lazy(() => import("@/components/SupportChat"));
 const PrivateCallCenter = lazy(() => import("@/components/PrivateCallCenter"));
 
-function PageTransitionFallback() {
+function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => setSlow(true), 6000);
+    const timer = window.setTimeout(() => setSlow(true), 25000);
     return () => window.clearTimeout(timer);
   }, []);
   return (
@@ -110,7 +110,7 @@ function PageTransitionFallback() {
         className="h-12 w-12 rounded-[14px]"
       />
       <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
-      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#AAA3B3]">find · connect · live better</p>
+      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#AAA3B3]">{signingIn ? "Completing sign-in…" : "Opening your account…"}</p>
       {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-200 border-t-violet-600 motion-reduce:animate-none" />}
       {slow && (
         <div className="mt-5 max-w-xs">
@@ -1001,7 +1001,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     else handleSetNavPage(navPage === "hotel_detail" || navPage === "hotel_booking" ? "hotels" : "profile");
   }, [handleSetNavPage, navPage]);
 
-  if (auth.isLoading) return <PageTransitionFallback />;
+  if (auth.isLoading) return <PageTransitionFallback signingIn />;
   if (baseProfile && !workspaceReady) return workspaceError ? (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#0A0A0F] p-6 text-center text-white">
       <h1 className="text-xl font-semibold">Unable to open your account</h1>

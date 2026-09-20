@@ -28,7 +28,7 @@ export default function ManageListing({listingId,source}:Props){
    {photos.length||videos.length?<PropertyMediaCarousel images={photos} videos={videos} title={listing.title||'Published property'}/>:<div className="grid aspect-[4/3] place-items-center bg-black/30 text-[10px] text-[#666D7E]">No public gallery</div>}
    <div className="p-4 sm:p-5">
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words text-xl font-bold">{listing.title||source.property_address||'Published property'}</h2><p className="mt-1 text-[10px] text-[#73798A]">{location||'Location not recorded'}</p></div><span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/[.08] px-2.5 py-1 text-[8px] font-semibold text-emerald-300">LIVE</span></div>
-    <p className="mt-4 text-xl font-bold text-violet-200">₦{Number(listing.price||0).toLocaleString('en-NG')} <span className="text-[9px] font-medium text-[#747B8B]">/ year</span></p>
+    <p className="mt-4 text-xl font-bold text-violet-200">₦{Number(listing.price||0).toLocaleString('en-NG')} <span className="text-[9px] font-medium text-[#747B8B]">{listing.sub_type === 'short_let' ? '/ night' : '/ year'}</span></p>
     <div className="mt-4 grid grid-cols-2 gap-x-4 sm:grid-cols-4">{facts.map(([label,value])=><div key={label} className="border-t border-white/[.06] py-3"><p className="text-[8px] uppercase tracking-wide text-[#5F6677]">{label}</p><p className="mt-1 break-words text-[10px] font-semibold capitalize">{String(value)}</p></div>)}</div>
     {listing.description&&<p className="border-t border-white/[.06] pt-4 text-[10px] leading-5 text-[#969BA9]">{listing.description}</p>}
    </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
 import {
   supabase,
   signUpWithEmail,
@@ -507,9 +508,11 @@ export default function Login({
 
     setWorking(true);
     const verificationEmail = context ? email.trim().toLowerCase() : undefined;
-    const { error: googleError } = await signInWithGoogle(verificationEmail, context);
-    if (googleError) {
-      setError(friendlyError(googleError.message));
+    try {
+      const { error: googleError } = await withTimeout(signInWithGoogle(verificationEmail, context), 15000, "Google sign-in could not open. Please try again.");
+      if (googleError) throw googleError;
+    } catch (cause) {
+      setError(friendlyError(errorMessage(cause, "Google sign-in could not open")));
       setWorking(false);
     }
   }

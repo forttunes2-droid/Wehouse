@@ -108,16 +108,18 @@ test('Existing professional profiles remain visible before public approval and d
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
   }).default;
-  const render=(roles,workspace='personal')=>{stateIndex=0;return renderToStaticMarkup(Account({
+  const render=(roles,workspace='personal',accessIdentity='person-a')=>{stateIndex=0;return renderToStaticMarkup(Account({
     profile:{user_id:'person-a',role:'user',worker_status:'profile_under_review'},
-    workspaceAccess:{...access(roles),identity:{user_id:'person-a',account_kind:'consumer'}},
+    workspaceAccess:{...access(roles),identity:{user_id:accessIdentity,account_kind:'consumer'}},
     activeWorkspace:workspace,onSwitchWorkspace(){},
   }));};
   const existing=render(['worker','property_partner','hotel','admin']);
   for(const label of ['Service Provider','Property Partner','Hotel Team','WeHouse Team','Current'])assert.match(existing,new RegExp(label));
   assert.doesNotMatch(existing,/Offer services|List a property|Property Partner application/);
   const revoked=render([]);
-  assert.match(revoked,/Offer services/);assert.match(revoked,/List a property/);assert.doesNotMatch(revoked,/under WeHouse review/);
+  assert.match(revoked,/Offer services/);assert.match(revoked,/List a property/);assert.doesNotMatch(revoked,/under WeHouse review|WeHouse Team|Hotel Team/);
+  const foreign=render(['creator','admin','hotel','staff'],'personal','another-person');
+  assert.doesNotMatch(foreign,/WeHouse Team|Hotel Team|Offer services|List a property/);
   selectedPanel=null;
   const partnerAccount=render(['property_partner'],'property_partner');
   assert.match(partnerAccount,/Your properties, guests and earnings/);

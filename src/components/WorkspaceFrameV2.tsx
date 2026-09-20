@@ -73,7 +73,7 @@ export default function WorkspaceFrameV2({
                 </div>
                 <div className="mt-1 flex min-w-0 items-center gap-1">
                   {onBack && <BackButton onClick={onBack} ariaLabel={backLabel} />}
-                  <h1 className="min-w-0 break-words text-xl font-semibold">{title}</h1>
+                  <h1 className="min-w-0 break-words text-lg font-semibold">{title}</h1>
                 </div>
                 {description ? (
                   <p className={`mt-1 max-w-2xl text-xs leading-5 text-[#AAA3B3] ${compact ? "hidden sm:block" : ""}`}>{description}</p>

@@ -1,3 +1,4 @@
+import { withTimeout } from "@/lib/withTimeout";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -58,14 +59,16 @@ export default function PropertyPipelineWorkspace({
     [loading, setLoading] = useState(true),
     [selected, setSelected] = useState<any | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const loadGeneration = useRef(0);
   async function load(quiet = false) {
+    const request = ++loadGeneration.current;
     if (!quiet) setLoading(true);
-    const { data, error } = await supabase.rpc("get_my_property_pipeline_v2", {
-      p_stage: "all",
-    });
-    if (error) {
-      setLoadError(true);
-    } else {
+    try {
+      const { data, error } = await withTimeout(supabase.rpc("get_my_property_pipeline_v2", {
+        p_stage: "all",
+      }), 12000, "Properties took too long to load.");
+      if (request !== loadGeneration.current) return;
+      if (error) throw error;
       setLoadError(false);
       const nextRows = Array.isArray(data) ? data : [];
       setRows(nextRows);
@@ -77,15 +80,16 @@ export default function PropertyPipelineWorkspace({
             .some((value) => String(value) === String(initialRecordId)),
         );
         if (target) setSelected(target);
-        else if (!quiet)
-          toast.error(
-            "The linked property record is no longer available in this workspace.",
-          );
+        else if (!quiet) toast.error("The linked property record is no longer available in this workspace.");
       }
+    } catch {
+      if (request === loadGeneration.current) setLoadError(true);
+    } finally {
+      if (request === loadGeneration.current) setLoading(false);
     }
-    if (!quiet) setLoading(false);
   }
   useEffect(() => {
+    setSelected(null); setRows([]); openedTarget.current = null;
     void load();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void load(true);
@@ -97,6 +101,7 @@ export default function PropertyPipelineWorkspace({
     window.addEventListener("focus", focus);
     document.addEventListener("visibilitychange", visibility);
     return () => {
+      loadGeneration.current += 1;
       window.clearInterval(timer);
       window.removeEventListener("focus", focus);
       document.removeEventListener("visibilitychange", visibility);
@@ -109,7 +114,7 @@ export default function PropertyPipelineWorkspace({
         row={selected}
         back={() => {
           setSelected(null);
-          void load();
+          void load(true);
         }}
       />
     );

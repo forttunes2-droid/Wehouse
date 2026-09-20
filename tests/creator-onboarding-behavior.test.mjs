@@ -43,6 +43,7 @@ test('Creator read failures show retry and never invented zero counts', () => {
 test('an empty identity queue adds no face-check card, while a failed queue stays visible', () => {
   for (const error of ['', 'offline']) {
     const Queue = moduleAt('src/components/AccountIdentityReviewQueue.tsx', {
+      '@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts'),
       '@/lib/supabase': { supabase:{} }, '@/components/MediaViewer': { default:()=>null, __esModule:true },
       '@/hooks/useRpcRead': { useRpcRead:()=>({data:[],loading:false,error,refresh(){}}) },
     }).default;

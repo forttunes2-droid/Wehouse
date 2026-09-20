@@ -47,7 +47,7 @@ test('Short Let checkout bootstraps the server reference and reuses it for payme
   assert.equal(calls[0][1].p_reservation_id,'reservation-one');
   assert.equal(calls[1][1].body.reference,'WHSTAY-SERVER');
 });
-function authHarness({getSession, getProfile}) {
+function authHarness({getSession, getProfile, initialize=async()=>({error:null})}) {
   const slots=[];let cursor=0;const effects=[];let listener;
   const same=(a,b)=>a?.length===b?.length&&a.every((v,i)=>Object.is(v,b[i]));
   const react={
@@ -58,7 +58,7 @@ function authHarness({getSession, getProfile}) {
   };
   const storage={getItem:()=>null,setItem(){},removeItem(){},clear(){},length:0};
   const setting={select(){return this;},eq(){return this;},maybeSingle:async()=>({data:null})};
-  const supabase={auth:{getSession,onAuthStateChange:fn=>{listener=fn;return{data:{listener,subscription:{unsubscribe(){}}}};}},from:()=>setting};
+  const supabase={auth:{initialize,getSession,onAuthStateChange:fn=>{listener=fn;return{data:{listener,subscription:{unsubscribe(){}}}};}},from:()=>setting};
   const hook=moduleAt('src/hooks/useAuth.ts', {react,'@/lib/supabase':{supabase,getProfileByAuthId:getProfile},'@/lib/googleVerification':{readGoogleVerification:()=>null},'@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts')},{localStorage:storage,sessionStorage:storage,window:{location:{search:'',hash:''},setTimeout,clearTimeout,addEventListener(){},removeEventListener(){}},document:{addEventListener(){},removeEventListener(){},visibilityState:'visible'},navigator:{onLine:true}}).useAuth;
   return {render(){cursor=0;return hook();},effects(){effects.splice(0).forEach(fn=>fn());},event(...args){listener(...args);},close(){for(const slot of slots)slot?.cleanup?.();}};
 }
@@ -103,4 +103,30 @@ test('Move-in dates stay in Nigeria time even before midnight UTC', () => {
   assert.equal(dates.nigeriaDate(instant),'2026-09-24');
   assert.equal(dates.nigeriaDateTimeInput(instant),'2026-09-24T00:30');
   assert.equal(dates.nigeriaInputToISO('2026-09-24T00:30'),instant.toISOString());
+});
+
+test('Google callback exchange errors end loading and explain how to restart verification', async () => {
+  let sessionReads=0;
+  const h=authHarness({initialize:async()=>({error:new Error('PKCE code verifier not found')}),getSession:async()=>{sessionReads++;throw Error('Should not ignore exchange failure');},getProfile:async()=>({profile:null,error:null})});
+  h.render();h.effects();await new Promise(setImmediate);
+  const state=h.render();
+  assert.equal(state.isLoading,false);assert.equal(state.page,'login');
+  assert.match(state.error,/Google confirmation expired/);assert.equal(sessionReads,0);h.close();
+});
+test('Google callback initialization completes before the session is read', async () => {
+  let complete; let sessionReads=0;
+  const h=authHarness({initialize:()=>new Promise(resolve=>{complete=resolve;}),getSession:async()=>{sessionReads++;return{data:{session:null},error:null};},getProfile:async()=>({profile:null,error:null})});
+  h.render();h.effects();await new Promise(setImmediate);
+  assert.equal(sessionReads,0);assert.equal(h.render().isLoading,true);
+  complete({error:null});await new Promise(setImmediate);
+  assert.equal(sessionReads,1);assert.equal(h.render().isLoading,false);h.close();
+});
+test('Sent updates load without an invented sender foreign-key relationship', async () => {
+  const selected=[];const filters=[];
+  const query={select(fields){selected.push(fields);return this;},eq(...args){filters.push(args);return this;},async order(){return{data:[{id:1,title:'A published update'}],error:null};}};
+  const api=moduleAt('src/lib/supabase/announcements.ts',{'./client':{supabase:{from:()=>query}}});
+  assert.equal((await api.getAllAnnouncements()).messages[0].title,'A published update');
+  assert.equal((await api.getAnnouncementsSentBy('sender')).messages.length,1);
+  assert.deepEqual(filters,[['sender_id','sender']]);
+  for(const fields of selected){assert.ok(fields.includes('sender_id'));assert.doesNotMatch(fields,/[():]/);}
 });
