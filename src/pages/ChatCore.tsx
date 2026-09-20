@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
 import {
   deleteRoommateChatAttachment,
@@ -150,6 +151,7 @@ export default function Chat({
   onActivityUnreadChange,
 }: Props) {
   const cachedInbox = inboxCache.get(profile.user_id);
+  const [openingConversation, setOpeningConversation] = useState(Boolean(conversationId));
   const [conversations, setConversations] = useState<Conversation[]>(() => cachedInbox?.conversations || []),
     [bookingConversations, setBookingConversations] = useState<
       BookingConversation[]
@@ -245,13 +247,17 @@ export default function Chat({
     };
   }, [active, activeBooking, activeHotel]);
 
+  const inboxGeneration = useRef(0);
+  useEffect(() => () => { inboxGeneration.current += 1; }, [profile.user_id]);
   const loadInbox = useCallback(
     async (quiet = false) => {
+      const request = ++inboxGeneration.current;
       if (!quiet) setLoading(true);
+      try {
       const conversationsRequest = getConversations(profile.user_id),
         peopleRequest = getRoommateConversationPeople();
       const bookingRequest = getCommunicationBookingConversations(
-          profile.user_id,
+          profile.user_id, "personal",
         ),
         supportRequest = getMySupportConversations(),
         hotelRequest = getMyHotelConversations();
@@ -269,14 +275,15 @@ export default function Chat({
         supportResult,
         hotelResult,
         callResult,
-      ] = await Promise.all([
+      ] = await withTimeout(Promise.all([
         conversationsRequest,
         peopleRequest,
         bookingRequest,
         supportRequest,
         hotelRequest,
         callsRequest,
-      ]);
+      ]), 15000, "Messages could not be loaded.");
+      if (request !== inboxGeneration.current) return [];
       if (convResult.error && !quiet)
         toast.error(
           convResult.error.message || "Unable to load roommate conversations",
@@ -317,6 +324,10 @@ export default function Chat({
       });
       setLoading(false);
       return allRoommateRows;
+      } catch {
+        if (request === inboxGeneration.current) { setLoading(false); if (!quiet) toast.error("Messages could not be loaded. Please try again."); }
+        return [];
+      }
     },
     [profile.user_id],
   );
@@ -366,7 +377,10 @@ export default function Chat({
   }, [conversationId, inboxSecurityStatus?.state, loadInbox, profile.user_id]);
   useEffect(() => {
     if (!conversationId || inboxSecurityStatus?.state !== "ready") return;
+    let cancelled = false;
+    setOpeningConversation(true);
     void (async () => {
+      try {
       if (peerUserId) {
         const now = new Date().toISOString();
         setActive({
@@ -384,7 +398,8 @@ export default function Chat({
           subject: "Roommate Match",
         });
       }
-      const direct = await getConversationById(conversationId);
+      const direct = await withTimeout(getConversationById(conversationId), 15000, "Conversation could not be loaded.");
+      if (cancelled) return;
       if (
         !direct.error &&
         direct.conversation?.conversation_type === "roommate"
@@ -398,14 +413,16 @@ export default function Chat({
         return;
       }
       const rows = await loadInbox(true);
+      if (cancelled) return;
       const found = rows.find((row) => row.id === conversationId);
       if (found) {
         setActive(found);
         return;
       }
-      const bookingResult = await getCommunicationBookingConversations(
-        profile.user_id,
-      );
+      const bookingResult = await withTimeout(getCommunicationBookingConversations(
+        profile.user_id, "personal",
+      ), 15000, "Conversation could not be loaded.");
+      if (cancelled) return;
       const booking = (
         (bookingResult.conversations || []) as BookingConversation[]
       ).find((row) => row.conversation_id === conversationId);
@@ -415,7 +432,8 @@ export default function Chat({
           bookingId: booking.booking_id,
         });
       else {
-        const hotelResult = await getMyHotelConversations();
+        const hotelResult = await withTimeout(getMyHotelConversations(), 15000, "Conversation could not be loaded.");
+        if (cancelled) return;
         const hotel = hotelResult.conversations.find(
           (row) => row.conversation_id === conversationId,
         );
@@ -424,10 +442,13 @@ export default function Chat({
           return;
         }
         toast.error(
-          "This conversation is not available. Return to Roommates and reconnect.",
+          "This conversation is not available in your Personal inbox.",
         );
       }
+      } catch { if (!cancelled) toast.error("Conversation could not be loaded. Please try again."); }
+      finally { if (!cancelled) setOpeningConversation(false); }
     })();
+    return () => { cancelled = true; };
   }, [conversationId, inboxSecurityStatus?.state, loadInbox, peerUserId, profile.user_id]);
   useEffect(() => {
     if (!active) {
@@ -1399,15 +1420,15 @@ export default function Chat({
     return (
       <div className="grid min-h-[100dvh] place-items-center bg-[#090B10] px-6 text-center text-white">
         <div>
-          {loading ? (
+          {openingConversation ? (
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
           ) : (
             <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-[#8B91A1]">!</div>
           )}
           <p className="mt-4 text-sm font-semibold">
-            {loading ? "Opening conversation…" : "Conversation unavailable"}
+            {openingConversation ? "Opening conversation…" : "Conversation unavailable"}
           </p>
-          {!loading ? (
+          {!openingConversation ? (
             <button type="button" onClick={() => {
               onConversationClose?.();
               onNavigate("conversation");

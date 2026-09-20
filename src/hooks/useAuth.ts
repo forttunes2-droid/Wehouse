@@ -661,6 +661,7 @@ export function useAuth() {
   );
   const handleSetupComplete = useCallback(
     (p: Profile) => {
+      if (p.auth_id !== confirmedAuthIdRef.current) return;
       saveProfileSnapshot(p);
       syncIdentityNavigation(p);
       setState({

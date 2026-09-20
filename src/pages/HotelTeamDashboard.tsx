@@ -61,7 +61,7 @@ export default function HotelTeamDashboard({
   );
 
   const loadConversations = useCallback(async () => {
-    const result = await getMyHotelConversations();
+    const result = await getMyHotelConversations("hotel");
     if (!result.error) setConversations(result.conversations);
   }, []);
 

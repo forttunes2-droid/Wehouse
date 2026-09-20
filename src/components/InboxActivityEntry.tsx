@@ -1,10 +1,12 @@
 type Props = {
+  compact?: boolean;
   unread?: number;
   detail?: string;
   onOpen: () => void;
 };
 
-export default function InboxActivityEntry({ unread = 0, detail = "Booking, payment and account updates", onOpen }: Props) {
+export default function InboxActivityEntry({ compact = false, unread = 0, detail = "Booking, payment and account updates", onOpen }: Props) {
+  if (compact) return <button type="button" onClick={onOpen} className="flex min-h-11 items-center gap-2 text-sm font-semibold text-violet-300" aria-label={`Open Activity${unread ? `, ${unread} unread` : ''}`}><ActivityIcon /><span>Activity</span>{unread > 0 && <span className="rounded-full bg-violet-500 px-1.5 py-0.5 text-xs text-white">{unread > 99 ? '99+' : unread}</span>}</button>;
   return (
     <button
       type="button"

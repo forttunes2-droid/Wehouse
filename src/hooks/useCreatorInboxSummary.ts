@@ -27,7 +27,7 @@ export function useCreatorInboxSummary(
         .eq("read", false)
         .eq("workspace_scope", activityScope)
         .gte("created_at", longestActivityCutoff()),
-      getAnnouncementsForUser(userId),
+      getAnnouncementsForUser(userId, activityScope),
     ]);
     if (!isCurrent()) return;
 

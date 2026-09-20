@@ -26,7 +26,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   const [activeHotel, setActiveHotel] = useState<HotelConversation | null>(null);
 
   const loadMessages = useCallback(async () => {
-    const [hotelResult, supportResult] = await Promise.all([getMyHotelConversations(), getMySupportConversations()]);
+    const [hotelResult, supportResult] = await Promise.all([getMyHotelConversations("property_partner"), getMySupportConversations("property_partner")]);
     if (!hotelResult.error) setHotelChats(hotelResult.conversations);
     if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
   }, []);

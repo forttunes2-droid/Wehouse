@@ -43,8 +43,8 @@ export async function openHotelBookingConversation(bookingId: number) {
   return { conversationId: data as string | null, error };
 }
 
-export async function getMyHotelConversations() {
-  const { data, error } = await supabase.rpc("get_my_hotel_booking_conversations");
+export async function getMyHotelConversations(workspace: "personal" | "property_partner" | "hotel" = "personal") {
+  const { data, error } = await supabase.rpc("get_my_workspace_inbox", { p_workspace: workspace, p_kind: "hotel" });
   return {
     conversations: ((data || []) as HotelConversation[]).map((row) => ({
       ...row,

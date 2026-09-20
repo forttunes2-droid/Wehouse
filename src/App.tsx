@@ -27,8 +27,10 @@ import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
 import type { NavPage } from "@/types/nav";
 import { toast } from "sonner";
-import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import type { WorkspaceChoice } from "@/pages/AccountCenter";
 import { workspaceLabel } from "@/lib/workspacePresentation";
+import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
+import { workspaceNavigationKey } from "@/lib/workspaceSession";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -274,6 +276,10 @@ function normalizePageForRole(
 
 export default function App() {
   const auth = useAuth();
+  return <AppSession key={auth.profile?.auth_id || "signed-out"} auth={auth} />;
+}
+
+function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const [navPage, setNavPage] = useState<NavPage>("search"),
     [conversationOpen, setConversationOpen] = useState(false),
     [detailId, setDetailId] = useState<string | null>(null),
@@ -292,13 +298,11 @@ export default function App() {
     [supportUnreadCount, setSupportUnreadCount] = useState(0),
     [notificationCount, setNotificationCount] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
-    [error, setError] = useState<Error | null>(null),
-    [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess | null>(
-      null,
-    ),
-    [activeWorkspace, setActiveWorkspace] =
-      useState<WorkspaceChoice>("personal");
+    [error, setError] = useState<Error | null>(null);
   const baseProfile = auth.profile;
+  const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
+  const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
+  const navigationKey = baseProfile ? workspaceNavigationKey(baseProfile.user_id, activeWorkspace) : NAV_STORAGE_KEY;
   useEffect(() => {
     const update = (event: Event) =>
       setNestedScreen(
@@ -307,51 +311,11 @@ export default function App() {
     window.addEventListener("wehouse:nested-screen", update);
     return () => window.removeEventListener("wehouse:nested-screen", update);
   }, []);
-  useEffect(() => {
-    if (!baseProfile?.user_id) return;
-    let cancelled = false;
-    setWorkspaceAccess(null);
-    const loadWorkspaceAccess=()=>void supabase
-      .rpc("get_my_workspace_access")
-      .then(({ data, error: accessError }) => {
-        if (cancelled || accessError || !data) return;
-        const access = data as WorkspaceAccess;
-        setWorkspaceAccess(access);
-        const allowed = new Set<WorkspaceChoice>([
-          ...(access.personal_workspace ? ["personal" as const] : []),
-          ...(access.privileged_workspaces || []).map((item) => item.role),
-        ]);
-        let preferred: WorkspaceChoice | null = null;
-        try {
-          preferred = localStorage.getItem(
-            `wh_workspace_${baseProfile.user_id}`,
-          ) as WorkspaceChoice | null;
-        } catch {}
-        const legacy = ["worker", "property_partner", "staff", "admin", "creator"].includes(baseProfile.role)
-          ? (baseProfile.role as WorkspaceChoice)
-          : "personal";
-        setActiveWorkspace(
-          preferred && allowed.has(preferred)
-            ? preferred
-            : allowed.has(legacy)
-              ? legacy
-            : allowed.values().next().value || "personal",
-        );
-      });
-    loadWorkspaceAccess();
-    window.addEventListener("wehouse:workspace-access-changed",loadWorkspaceAccess);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("wehouse:workspace-access-changed",loadWorkspaceAccess);
-    };
-  }, [baseProfile?.user_id, baseProfile?.role]);
   const effectiveRole = useMemo(() => {
     if (!baseProfile) return "";
-    // Never render the personal/user workspace while privileged workspace access
-    // is still being restored. That caused the user bottom bar and user pages to
-    // flash inside Creator, Admin, Staff and Hotel sessions on refresh.
+    // Wait for confirmed access and the saved workspace before rendering any role.
     if (workspaceAccess?.identity?.user_id !== baseProfile.user_id)
-      return baseProfile.role;
+      return "";
     return activeWorkspace === "personal"
       ? "user"
       : activeWorkspace === "hotel"
@@ -397,6 +361,7 @@ export default function App() {
   );
   const navHistoryRef = useRef<NavPage[]>(["search"]),
     restoredRef = useRef(false),
+    [navigationReady, setNavigationReady] = useState(false),
     seenMessagesRef = useRef(new Map<string, string>()),
     pageScrollRef = useRef<HTMLDivElement>(null),
     pageScrollPositionsRef = useRef(new Map<NavPage, number>());
@@ -420,18 +385,25 @@ export default function App() {
         return void toast.error(
           "That workspace is not available for this account.",
         );
+      setChatConvId(null);
+      setChatPeerId(null);
+      setBookingContextId(null);
+      setRoommateContextId(null);
+      setConversationOpen(false);
+      setNestedScreen(false);
+      pageScrollPositionsRef.current.clear();
       setActiveWorkspace(workspace);
       window.dispatchEvent(new Event("wehouse:navigation"));
       try {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
       } catch {}
       const destination =
-        workspace === "personal" ? "search" : roleRootFor(workspace);
+        workspace === "personal" ? "search" : roleRootFor(workspace === "hotel" ? "hotel_staff" : workspace);
       setNavPage(destination);
       navHistoryRef.current = [destination];
       window.history.replaceState({ page: destination }, "", `#${destination}`);
       try {
-        localStorage.setItem(NAV_STORAGE_KEY, destination);
+        localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
       } catch {}
       toast.success(
         workspace === "personal"
@@ -446,14 +418,23 @@ export default function App() {
     (workspace: "worker" | "property_partner") => {
       if (!baseProfile) return;
       const destination: NavPage =
-        workspace === "worker" ? "worker_setup" : "property_partner";
+        workspace === "worker"
+          ? baseProfile.worker_status === "profile_under_review" ? "worker_dashboard" : "worker_setup"
+          : "property_partner";
+      setChatConvId(null);
+      setChatPeerId(null);
+      setBookingContextId(null);
+      setRoommateContextId(null);
+      setConversationOpen(false);
+      setNestedScreen(false);
+      pageScrollPositionsRef.current.clear();
       setActiveWorkspace(workspace);
       setNavPage(destination);
       navHistoryRef.current = [destination];
       window.dispatchEvent(new Event("wehouse:navigation"));
       try {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
-        localStorage.setItem(NAV_STORAGE_KEY, destination);
+        localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
         window.history.replaceState(
           { page: destination },
           "",
@@ -465,21 +446,21 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (auth.isLoading || restoredRef.current) return;
+    if (auth.isLoading || !workspaceReady || restoredRef.current) return;
     restoredRef.current = true;
     if (!auth.profile) return;
-    const role = auth.profile.role;
+    const role = effectiveRole;
     const hashRoute = (window.location.hash || "")
       .replace(/^#/, "")
       .split("?")[0];
     if (hashRoute === "payment-return" || hashRoute === "payment_return") {
-      queueMicrotask(() => setNavPage("payment_return"));
+      queueMicrotask(() => { setNavPage("payment_return"); setNavigationReady(true); });
       navHistoryRef.current = ["payment_return"];
       return;
     }
     let saved: NavPage | null = null;
     try {
-      const raw = localStorage.getItem(NAV_STORAGE_KEY);
+      const raw = localStorage.getItem(navigationKey);
       if (raw && isRestorable(raw)) saved = raw;
     } catch {}
     const safe = normalizePageForRole(
@@ -487,15 +468,15 @@ export default function App() {
       saved || roleRootFor(role),
       Boolean(auth.profile.profile_complete),
     );
-    queueMicrotask(() => setNavPage(safe));
+    queueMicrotask(() => { setNavPage(safe); setNavigationReady(true); });
     navHistoryRef.current = [safe];
     try {
-      localStorage.setItem(NAV_STORAGE_KEY, safe);
+      localStorage.setItem(navigationKey, safe);
       window.history.replaceState({ page: safe }, "", `#${safe}`);
     } catch {}
-  }, [auth.isLoading, auth.profile]);
+  }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey]);
   useEffect(() => {
-    if (!userRole || auth.isLoading) return;
+    if (!userRole || auth.isLoading || !navigationReady) return;
     const safe = normalizePageForRole(
       userRole,
       navPage,
@@ -505,10 +486,10 @@ export default function App() {
     setNavPage(safe);
     navHistoryRef.current = [safe];
     try {
-      localStorage.setItem(NAV_STORAGE_KEY, safe);
+      localStorage.setItem(navigationKey, safe);
       window.history.replaceState({ page: safe }, "", `#${safe}`);
     } catch {}
-  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole]);
+  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
       window.dispatchEvent(new Event("wehouse:navigation"));
@@ -532,9 +513,9 @@ export default function App() {
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
       setNavPage(safe);
-      if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
+      if (isRestorable(safe)) localStorage.setItem(navigationKey, safe);
     },
-    [baseProfile?.profile_complete, userRole, navPage],
+    [baseProfile?.profile_complete, userRole, navPage, navigationKey],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
@@ -556,11 +537,11 @@ export default function App() {
         navHistoryRef.current.length > 1
           ? [...navHistoryRef.current.slice(0, -1), safe]
           : [safe];
-      if (isRestorable(safe)) localStorage.setItem(NAV_STORAGE_KEY, safe);
+      if (isRestorable(safe)) localStorage.setItem(navigationKey, safe);
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [baseProfile?.profile_complete, userRole, navPage]);
+  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (pageScrollRef.current)
@@ -616,7 +597,7 @@ export default function App() {
           .from("conversations")
           .select("id,participant_a,unread_a,unread_b,last_message_at")
           .or(`participant_a.eq.${uid},participant_b.eq.${uid}`),
-        getCommunicationBookingConversations(uid),
+        getCommunicationBookingConversations(uid, "personal"),
         getMySupportConversations(),
         getMyHotelConversations(),
         supabase
@@ -1027,6 +1008,15 @@ export default function App() {
   }, [handleSetNavPage]);
 
   if (auth.isLoading) return <PageTransitionFallback />;
+  if (baseProfile && !workspaceReady) return workspaceError ? (
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#0A0A0F] p-6 text-center text-white">
+      <h1 className="text-xl font-semibold">Unable to open your account</h1>
+      <p className="max-w-sm text-sm text-[#B5AFC1]" role="alert">{workspaceError}</p>
+      <button onClick={() => void reloadWorkspaces()} className="min-h-11 rounded-xl bg-violet-600 px-6 font-semibold">Try again</button>
+      <button onClick={() => void auth.logout()} className="min-h-11 text-violet-300">Sign out</button>
+    </main>
+  ) : <PageTransitionFallback />;
+  if (baseProfile && !navigationReady) return <PageTransitionFallback />;
   if (auth.page === "login" && (navPage === "privacy_policy" || navPage === "terms_of_service"))
     return (
       <Suspense fallback={<RouteTransitionFallback />}>
@@ -1457,6 +1447,7 @@ export default function App() {
           onLogout={auth.logout}
         >
           <div
+            key={`${baseProfile?.user_id}:${activeWorkspace}`}
             ref={pageScrollRef}
             className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
           >
@@ -1471,6 +1462,7 @@ export default function App() {
         {supportRole && profile && (
           <Suspense fallback={null}>
             <SupportChat
+              key={`${baseProfile?.user_id}:${activeWorkspace}`}
               onOpenListing={goToDetail}
               onOpenBooking={
                 isUserRole

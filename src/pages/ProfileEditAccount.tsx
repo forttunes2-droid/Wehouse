@@ -178,7 +178,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   );
 
   return (
-    <AccountShell profile={profile} title="Edit profile" description={isUser ? 'Update what people see and the private details WeHouse uses.' : 'Update the private details for this account.'} onBack={onBack}>
+    <AccountShell profile={profile} title="Edit profile" description={isUser ? 'Your photo, name and personal details.' : 'Update the private details for this account.'} onBack={onBack}>
       <Toaster position="top-center" richColors />
       <form onSubmit={save} className="relative space-y-4" aria-busy={saving}>
         <fieldset disabled={saving} className="contents">
@@ -210,7 +210,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </>}
           <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[#6F7585]">State and Local Government set your WeHouse region. Type your actual street address below. Phone location is optional assistance; technical coordinates are not shown in the app.</p>
+            <p className="mt-1 text-[10px] text-[#6F7585]">Choose your State and Local Government, then add your street address.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street address cleared because the region changed. Type the correct address for the new region.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
               <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street address cleared because the LGA changed. Type the correct address for the new LGA.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />

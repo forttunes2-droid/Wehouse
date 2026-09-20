@@ -18,6 +18,7 @@ import {
   reopenSupportCase,
   sendFirstContextualHelpMessage,
   sendFirstWeHouseMessage,
+  supportContextForWorkspace,
   sendSupportMessage,
   supportNextStep,
   supportStatusLabel,
@@ -141,7 +142,7 @@ export default function SupportChat({
       context?: SupportOpenContext | null,
       preferredId?: string | null,
     ) => {
-      const { conversations } = await getMySupportConversations();
+      const { conversations } = await getMySupportConversations(profile?.role || "personal");
       const current = preferredId
         ? conversations?.find((item) => item.conversation_id === preferredId) ||
           null
@@ -151,12 +152,12 @@ export default function SupportChat({
                 supportContextType(item) === supportContextType(context) &&
                 item.context_id === context.contextId,
             ) || null
-          : conversations?.find((item) => item.context_type === "general") ||
+          : conversations?.find((item) => supportContextType(item) === "general") ||
             null;
       setThread(current);
       return current;
     },
-    [],
+    [profile?.role],
   );
 
   const openConversation = useCallback(
@@ -278,7 +279,7 @@ export default function SupportChat({
 
     let attempt = firstSendAttemptRef.current;
     if (!attempt) {
-      const context = pendingContext || {};
+      const context = supportContextForWorkspace(pendingContext || {}, profile.role || "personal");
       const draft = await createSupportMessageDraft();
       if (draft.error || !draft.draftId) {
         setSending(false);

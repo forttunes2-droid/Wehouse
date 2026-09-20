@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
 import {
   getAnnouncementsForUser,
@@ -52,7 +53,11 @@ type WorkPostConfirmation = {
 type ActivityFilter = "all" | "action";
 const activityCache = new Map<string, Activity[]>();
 
-export default function Notifications({
+export default function Notifications(props: Props) {
+  return <NotificationFeed key={`${props.profile.user_id}:${props.scope || "personal"}`} {...props} />;
+}
+
+function NotificationFeed({
   profile,
   onNavigate,
   embedded = false,
@@ -61,6 +66,7 @@ export default function Notifications({
   onUnreadChange,
   scope = "personal",
 }: Props) {
+  const requestVersion = useRef(0);
   const cacheKey = `${profile.user_id}:${scope}`;
   const cached = activityCache.get(cacheKey);
   const [rows, setRows] = useState<Activity[]>(cached || []),
@@ -72,7 +78,9 @@ export default function Notifications({
     [confirmBusy, setConfirmBusy] = useState(false);
 
   async function load(quiet = false) {
+    const request = ++requestVersion.current;
     if (!quiet) setLoading(true);
+    try {
     let eventQuery = supabase
       .from("notifications")
       .select(
@@ -82,13 +90,14 @@ export default function Notifications({
     eventQuery = scope === "personal"
       ? eventQuery.in("workspace_scope", ["personal", "account"])
       : eventQuery.eq("workspace_scope", scope);
-    const [eventResult, announcementResult] = await Promise.all([
+    const [eventResult, announcementResult] = await withTimeout(Promise.all([
       eventQuery
         .gte("created_at", longestActivityCutoff())
         .order("created_at", { ascending: false })
         .limit(100),
-      getAnnouncementsForUser(profile.user_id),
-    ]);
+      getAnnouncementsForUser(profile.user_id, scope),
+    ]), 15000, "Activity could not be loaded. Please try again.");
+    if (request !== requestVersion.current) return;
     const failures = [
       eventResult.error?.message,
       announcementResult.error?.message,
@@ -129,10 +138,16 @@ export default function Notifications({
       setRows(next);
       setError(failures[0] || "");
     }
-    if (!quiet) setLoading(false);
+    } catch {
+      if (request === requestVersion.current) setError("Activity could not be loaded. Please try again.");
+    } finally { if (request === requestVersion.current) setLoading(false); }
   }
 
   useEffect(() => {
+    setRows(activityCache.get(cacheKey) || []);
+    setExpanded(null);
+    setWorkPost(null);
+    setError("");
     void load(Boolean(activityCache.get(cacheKey)));
     const channel = supabase
       .channel(`activity-feed:${profile.user_id}:${scope}`)
@@ -158,6 +173,7 @@ export default function Notifications({
       )
       .subscribe();
     return () => {
+      requestVersion.current += 1;
       void supabase.removeChannel(channel);
     };
   }, [profile.user_id, scope]);

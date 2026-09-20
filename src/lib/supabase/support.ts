@@ -404,6 +404,16 @@ export async function discardSupportMessageDraft(draftId: string) {
   return { discarded: data === true, error };
 }
 
+export function supportContextForWorkspace(context: SupportOpenContext, role: string): SupportOpenContext {
+  const workspace = ['worker', 'property_partner', 'hotel'].includes(role) ? role : 'personal';
+  const general = !context.contextType || context.contextType === 'general';
+  return {
+    ...context,
+    contextId: general && !context.contextId ? `workspace:${workspace}` : context.contextId,
+    contextSnapshot: { ...context.contextSnapshot, requester_workspace: workspace },
+  };
+}
+
 export async function sendFirstWeHouseMessage(
   draftId: string,
   context: SupportOpenContext,
@@ -490,8 +500,8 @@ export async function uploadSupportDraftAttachment(
   return { path: error ? null : path, error };
 }
 
-export async function getMySupportConversations() {
-  const { data, error } = await supabase.rpc("get_my_support_conversations");
+export async function getMySupportConversations(workspace = "personal") {
+  const { data, error } = await supabase.rpc("get_my_workspace_inbox", { p_workspace: workspace === "user" ? "personal" : workspace, p_kind: "wehouse" });
   return { conversations: (data || []) as SupportThread[], error };
 }
 

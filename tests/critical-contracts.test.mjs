@@ -43,7 +43,7 @@ test('Worker job status and Payment Protection remain separate contracts',async(
 test('Worker booking reads normalize the canonical contract',()=>{
   const source=read('src/lib/supabase/worker-bookings.ts');
   assert.match(source,/normalizeWorkerBookingRow/);
-  assert.match(source,/get_my_booking_conversations_v3/);
+  assert.match(source,/get_my_workspace_inbox/);
   assert.match(source,/get_my_worker_booking_details/);
   assert.doesNotMatch(source,/payment_protected\s*:\s*\{label/,'payment_protected must not be a canonical job label');
 });
