@@ -60,11 +60,11 @@ export function useOperationsInboxSummary(
     );
 
     if (!activitySummary.error || !announcements.error) {
-      const unreadEvents = activitySummary.error ? [] : Array.from({ length: activitySummary.summary.unread });
+      const eventUnread = activitySummary.error ? 0 : activitySummary.summary.unread;
       const unreadAnnouncements = currentAnnouncements.filter(
         (delivery: any) => !delivery.read_status,
       );
-      setActivityUnread(unreadEvents.length + unreadAnnouncements.length);
+      setActivityUnread(eventUnread + unreadAnnouncements.length);
 
       const latest = [
         ...currentEvents.map((row) => ({
