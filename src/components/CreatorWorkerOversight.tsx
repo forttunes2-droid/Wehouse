@@ -71,15 +71,15 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
       p_suspended: !selected.suspended,
       p_reason: selected.suspended
         ? null
-        : reason.trim() || "Service Provider access paused by Creator oversight",
+        : reason.trim() || "Service Worker access paused by Creator oversight",
       p_creator_elevation_id: elevationId,
     });
     setActing(false);
     if (error) return toast.error(error.message);
     toast.success(
       selected.suspended
-        ? "Service Provider access restored"
-        : "Service Provider access suspended",
+        ? "Service Worker access restored"
+        : "Service Worker access suspended",
     );
     setSelected(null);
     setReason("");
@@ -109,8 +109,8 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     if (error) return toast.error(error.message);
     toast.success(
       decision === "approve"
-        ? "Service Provider approved"
-        : "Service Provider rejected",
+        ? "Service Worker approved"
+        : "Service Worker rejected",
     );
     setSelected(null);
     setReason("");
@@ -177,7 +177,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           onClick={() => setSelected(null)}
           className="text-[10px] font-semibold text-violet-400"
         >
-          ← Service Provider oversight
+          ← Service Worker oversight
         </button>
         <section className="rounded-3xl border border-white/[.06] bg-[#10131B] p-5">
           <div className="flex items-start gap-3">
@@ -187,7 +187,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
                 WEHOUSE SERVICE PROVIDER
               </p>
               <h2 className="mt-1 truncate text-lg font-bold">
-                {selected.full_name || selected.username || "Service Provider"}
+                {selected.full_name || selected.username || "Service Worker"}
               </h2>
               <p className="mt-1 truncate text-[10px] text-[#707687]">
                 {workerOccupation(selected)} ·{" "}
@@ -310,7 +310,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
                 disabled={acting}
                 className="h-11 rounded-xl bg-emerald-500 text-xs font-semibold text-[#04120A] disabled:opacity-35"
               >
-                Approve Service Provider
+                Approve Service Worker
               </button>
             </div>
           </section>
@@ -318,7 +318,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
         <section className="border-y border-white/[.06] py-4">
           <h3 className="text-sm font-semibold">Platform access</h3>
           <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
-            Suspend or restore an existing Service Provider account. This action
+            Suspend or restore an existing Service Worker account. This action
             requires fresh Creator confirmation and is audit logged.
           </p>
           {!selected.suspended && (
@@ -338,8 +338,8 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
             {acting
               ? "Updating access…"
               : selected.suspended
-                ? "Restore Service Provider access"
-                : "Suspend Service Provider access"}
+                ? "Restore Service Worker access"
+                : "Suspend Service Worker access"}
           </button>
         </section>
       </div>
@@ -348,7 +348,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold">Service Provider oversight</h2>
+        <h2 className="text-lg font-bold">Service Worker oversight</h2>
         <p className="mt-1 text-[10px] text-[#707687]">
           Onboarding, marketplace access, professional review and account
           exceptions for WeHouse Services.
@@ -357,14 +357,14 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search Service Provider, occupation, service or location"
+        placeholder="Search Service Worker, occupation, service or location"
         className="h-11 w-full rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none"
       />
       <InlineFilterChips
         value={filter}
         options={statusOptions}
         onChange={setFilter}
-        ariaLabel="Show Service Providers by lifecycle"
+        ariaLabel="Show Service Workers by lifecycle"
       />
       {loading ? (
         <Loading />
@@ -381,7 +381,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
               <Avatar worker={worker} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
-                  {worker.full_name || worker.username || "Service Provider"}
+                  {worker.full_name || worker.username || "Service Worker"}
                 </p>
                 <p className="mt-1 truncate text-[9px] text-[#686F7F]">
                   {workerOccupation(worker)} ·{" "}
@@ -464,7 +464,7 @@ function Loading() {
 function Empty() {
   return (
     <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">
-      No Service Providers match this view.
+      No Service Workers match this view.
     </div>
   );
 }
