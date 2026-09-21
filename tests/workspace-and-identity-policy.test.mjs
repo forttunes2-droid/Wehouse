@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('Personal identity can add both Service Provider and Property Partner workspaces', async () => {
+test('Personal identity can add both Service Worker and Property Partner workspaces', async () => {
   const [workspaceMigration, conflictMigration, account] = await Promise.all([
     read('supabase/migrations/20260915204500_allow_multi_professional_workspaces.sql'),
     read('supabase/migrations/20260915205500_multi_role_conflict_guards.sql'),
@@ -22,7 +22,7 @@ test('Personal identity can add both Service Provider and Property Partner works
       conflictMigration.indexOf('drop function if exists public.enforce_one_marketplace_workspace'),
   );
   assert.match(account, /title="WeHouse"/);
-  assert.match(account, /Service Provider/);
+  assert.match(account, /Service Worker/);
   assert.match(account, /title="Offer services"/);
   assert.match(account, /Property Partner/);
   assert.match(account, /title="List a property"/);
