@@ -7,7 +7,7 @@ import { hasLegalConsent } from '@/lib/legalConsent';
 import { getCurrentLegalDocuments } from './legal';
 
 // ─── AUTH HELPERS ──────────────────────────────────
-// Public signup always creates one Personal identity. Service Provider and
+// Public signup always creates one Personal identity. Service Worker and
 // Property Partner are additive workspaces requested only after the Personal
 // account exists; auth metadata is never an authority source for a workspace/role.
 export async function signUpWithEmail(
