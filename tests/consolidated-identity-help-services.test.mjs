@@ -5,12 +5,13 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("identity submission is workspace-aware and Partner gates respect the policy switch", async () => {
-  const [migration, gate, check, partner, worker] = await Promise.all([
+  const [migration, gate, check, partner, worker, verification] = await Promise.all([
     read("supabase/migrations/20260921092015_align_identity_routing_partner_gate_and_worker_services.sql"),
     read("src/components/IdentityAccessGate.tsx"),
     read("src/components/WorkerIdentityCheck.tsx"),
     read("src/pages/PropertyPartnerDashboard.tsx"),
     read("src/pages/WorkerWorkspaceModern.tsx"),
+    read("src/pages/WorkerVerificationPhase9.tsx"),
   ]);
 
   assert.match(migration, /p_challenge_result->>'workspace'/);
@@ -23,6 +24,11 @@ test("identity submission is workspace-aware and Partner gates respect the polic
   assert.match(check, /notice_version: IDENTITY_NOTICE_VERSION/);
   assert.match(partner, /workspace="property_partner"/);
   assert.match(worker, /workspace="worker"/);
+  assert.match(verification, /workspace="worker"/);
+  assert.doesNotMatch(
+    verification,
+    /<WorkerIdentityCheck\s+profile=\{profile\}\s+status=/,
+  );
 });
 
 test("Worker setup manages several canonical services and booking prefers that list", async () => {
