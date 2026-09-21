@@ -20,6 +20,14 @@ insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,
 ('team-revoked','staff','branch','Nasarawa','Lafia','revoked'),
 ('team-partner','property_partner','global',null,null,'active'),
 ('team-worker','worker','global',null,null,'active');
+insert into public.admin_team_authority(admin_user_id,can_manage_staff,created_by,updated_by)
+values('team-admin',true,'team-creator','team-creator')
+on conflict(admin_user_id) do update set can_manage_staff=true,updated_by='team-creator',updated_at=now();
+insert into public.admin_operation_limits(admin_user_id,operation,max_active,created_by,updated_by)
+values
+('team-admin','property_operations',2,'team-creator','team-creator'),
+('team-admin','finance_operations',2,'team-creator','team-creator')
+on conflict(admin_user_id,operation) do update set max_active=excluded.max_active,updated_by='team-creator',updated_at=now();
 insert into public.staff_permissions(staff_id,permission,is_active,granted_by) values('team-staff','property_operations',true,'team-creator');
 insert into public.worker_identity_checks(worker_id,account_role,status,pending_reference_photo_path) values
 ('team-partner','property_partner','pending_review','team-partner/review.jpg');
@@ -58,7 +66,7 @@ do $$ declare rows jsonb; n integer; begin
   if not rows @> '[{"user_id":"team-staff"}]'::jsonb or rows @> '[{"user_id":"team-outside"}]'::jsonb or rows @> '[{"user_id":"team-admin"}]'::jsonb then raise exception 'Admin team list escapes branch'; end if;
   begin perform public.manage_staff_permission('team-outside','finance',true,null::uuid);
     raise exception 'Admin changed another branch';
-  exception when raise_exception then if sqlerrm<>'Admin can manage only Staff in the assigned branch' then raise; end if; end;
+  exception when raise_exception then if sqlerrm<>'Admin cannot change Staff outside the granted coverage' then raise; end if; end;
   perform public.manage_staff_permission('team-staff','finance',true,null::uuid);
   rows:=public.get_my_managed_team();
   if not rows @> '[{"user_id":"team-staff","work_areas":["finance_operations"]}]'::jsonb or rows @> '[{"user_id":"team-staff","work_areas":["property_operations"]}]'::jsonb then raise exception 'Work area replacement was not atomic'; end if;
