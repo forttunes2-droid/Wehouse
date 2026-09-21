@@ -112,12 +112,12 @@ const STAFF_MODULES: Array<[StaffModule, string]> = [
   ["finance", "Finance Operations"],
   ["support", "Support Operations"],
   ["security", "Security Operations"],
-  ["verification", "Service Provider Operations"],
+  ["verification", "Worker Operations"],
   ["field_officer", "Field Operations"],
 ];
 
 const workspaceLabel = (value: string) => {
-  if (value === "worker") return "Service Provider";
+  if (value === "worker") return "Service Worker";
   if (value === "property_partner") return "Property Partner";
   if (value === "hotel_staff") return "Hotel Team";
   if (value === "staff") return "WeHouse Team";
@@ -194,7 +194,7 @@ function InternalProfileSheet({
       { id: "overview", label: "Overview" },
       { id: "workspaces", label: "Access", count: workspaces.length },
     ];
-    if (provider) next.push({ id: "professional", label: "Service Provider" });
+    if (provider) next.push({ id: "professional", label: "Service Worker" });
     if (apartments.length)
       next.push({ id: "apartments", label: "Apartments", count: apartments.length });
     if (hotels.length)
@@ -461,7 +461,7 @@ function Provider({ provider, onOpen }: { provider: ProviderRecord; onOpen: () =
         </div>
       ) : null}
       <button type="button" onClick={onOpen} className="h-11 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.07] text-[10px] font-semibold text-violet-200">
-        Open in Service Provider Operations
+        Open in Worker Operations
       </button>
     </div>
   );
@@ -556,7 +556,7 @@ function TeamAccess({ module, setModule, confirming, setConfirming, promoting, o
     <div className="space-y-4 py-5">
       <Section title="Add WeHouse Team access">
         <p className="pb-3 text-[9px] leading-5 text-[#747B8C]">
-          This does not replace the person’s Personal, Service Provider or Property Partner access. It adds one branch-scoped WeHouse Team assignment.
+          This does not replace the person’s Personal, Service Worker or Property Partner access. It adds one branch-scoped WeHouse Team assignment.
         </p>
         <select value={module} disabled={promoting} onChange={(e) => setModule(e.target.value as StaffModule)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151922] px-3 text-xs outline-none">
           {STAFF_MODULES.map(([id,label]) => <option key={id} value={id}>{label}</option>)}
