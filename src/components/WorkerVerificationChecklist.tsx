@@ -8,7 +8,7 @@ type Props = {
 export default function WorkerVerificationChecklist({ identityPassed, skillVideoSaved, identityRequired = false }: Props) {
   const items = [
     ...(identityRequired ? [{ label: 'Private identity check', done: identityPassed }] : []),
-    { label: 'Service Provider profile', done: true },
+    { label: 'Service Worker profile', done: true },
     { label: 'Skill/work video', done: skillVideoSaved },
   ];
   const firstPending = items.findIndex((item) => !item.done);
