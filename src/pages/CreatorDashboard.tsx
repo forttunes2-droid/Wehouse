@@ -961,7 +961,7 @@ const PLATFORM_SECTIONS: Array<{
   },
   {
     id: "worker_plan",
-    label: "Paid Service Provider plan",
+    label: "Paid Service Worker plan",
     note: "Plan name, prices, subscription terms and sales controls.",
   },
   {
