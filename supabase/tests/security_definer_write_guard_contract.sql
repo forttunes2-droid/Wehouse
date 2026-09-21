@@ -73,3 +73,43 @@ begin
   end if;
 end
 $$;
+
+-- Authorization and money ledgers are server-owned. A compromised browser
+-- session must not gain a direct table mutation path around the RPC guards.
+do $$
+declare
+  relation_name text;
+  browser_role text;
+  privilege_name text;
+  protected_relations text[]:=array[
+    'workspace_role_assignments',
+    'staff_permissions',
+    'activity_events',
+    'activity_event_audiences',
+    'wallets',
+    'withdrawals'
+  ];
+begin
+  foreach relation_name in array protected_relations loop
+    foreach browser_role in array array['anon','authenticated'] loop
+      foreach privilege_name in array array['INSERT','UPDATE','DELETE','TRUNCATE'] loop
+        if has_table_privilege(
+          browser_role,
+          format('public.%I',relation_name),
+          privilege_name
+        ) then
+          raise exception
+            'Browser role % retains direct % privilege on protected table %',
+            browser_role,privilege_name,relation_name;
+        end if;
+      end loop;
+    end loop;
+  end loop;
+
+  if not has_table_privilege(
+    'authenticated','public.staff_permissions','SELECT'
+  ) then
+    raise exception 'Authenticated Staff permission reads were accidentally removed';
+  end if;
+end
+$$;
