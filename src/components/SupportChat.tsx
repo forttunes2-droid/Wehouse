@@ -569,9 +569,12 @@ export default function SupportChat({
       <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         <div className="mx-auto max-w-4xl">
           {!loading && pendingContext && hasContext(pendingContext) && (
-            <PendingContext context={pendingContext} onRemove={
-              firstSendAttemptRef.current ? undefined : () => void openConversation({})
-            } />
+            <PendingContext
+              context={pendingContext}
+              onStartGeneralHelp={
+                firstSendAttemptRef.current ? undefined : () => void openConversation({})
+              }
+            />
           )}
 
           {firstSendAttemptRef.current && !sending && <p role="status" className="mb-2 px-2 text-xs text-amber-200">Message not confirmed. Tap Send to retry.</p>}
@@ -1147,8 +1150,9 @@ function MessageContext({
   );
 }
 
-function PendingContext({ context, onRemove }: {
-  context: SupportOpenContext; onRemove?: () => void;
+function PendingContext({ context, onStartGeneralHelp }: {
+  context: SupportOpenContext;
+  onStartGeneralHelp?: () => void;
 }) {
   const view = conversationPresentation(context);
   const snapshot = sanitizeSupportSnapshot(context.contextSnapshot);
@@ -1169,7 +1173,15 @@ function PendingContext({ context, onRemove }: {
         <p className="truncate text-[13px] font-semibold text-violet-100">{view.title}</p>
         {details && <p className="truncate text-xs text-[#A5A0B3]">{details}</p>}
       </div>
-      {onRemove && <button type="button" onClick={onRemove} aria-label="Remove linked topic" className="grid h-11 w-11 shrink-0 place-items-center text-lg text-[#A5A0B3]">×</button>}
+      {onStartGeneralHelp && (
+        <button
+          type="button"
+          onClick={onStartGeneralHelp}
+          className="shrink-0 rounded-full px-2 py-2 text-[9px] font-semibold text-violet-300"
+        >
+          General Help
+        </button>
+      )}
     </section>
   );
 }
