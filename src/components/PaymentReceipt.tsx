@@ -72,47 +72,45 @@ export default function ReceiptAccess({
   const [open, setOpen] = useState(false);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [selected, setSelected] = useState<Receipt | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    let current = true;
+    setOpen(false);
+    setReceipts([]);
+    setSelected(null);
+    setError(false);
+    setLoaded(false);
+    setLoading(false);
+  }, [subjectType, subjectId]);
+
+  async function loadReceipts(force = false) {
+    setOpen(true);
+    if (loaded && !force) return;
     setLoading(true);
     setError(false);
     setSelected(null);
-    getPaymentReceipts(undefined, subjectType, subjectId)
-      .then((rows) => {
-        if (!current) return;
-        setReceipts(rows);
-        if (rows.length === 1) setSelected(rows[0]);
-      })
-      .catch(() => {
-        if (current) setError(true);
-      })
-      .finally(() => {
-        if (current) setLoading(false);
-      });
-    return () => {
-      current = false;
-    };
-  }, [subjectType, subjectId, attempt]);
-
-  if (!loading && !error && receipts.length === 0) return null;
+    try {
+      const rows = await getPaymentReceipts(undefined, subjectType, subjectId);
+      setReceipts(rows);
+      setLoaded(true);
+      if (rows.length === 1) setSelected(rows[0]);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        disabled={loading}
-        className="min-h-10 px-2 text-xs font-semibold text-violet-300 disabled:opacity-45"
+        onClick={() => void loadReceipts()}
+        className="min-h-10 px-2 text-xs font-semibold text-violet-300"
       >
-        {loading
-          ? "Receipt…"
-          : receipts.length === 1
-            ? "Payment receipt"
-            : "Payment history"}
+        Receipt
       </button>
       <ReceiptViewer
         open={open}
@@ -129,7 +127,7 @@ export default function ReceiptAccess({
             <p>We couldn’t load this payment receipt.</p>
             <button
               className="min-h-11 text-violet-300"
-              onClick={() => setAttempt((value) => value + 1)}
+              onClick={() => void loadReceipts(true)}
             >
               Try again
             </button>
@@ -155,6 +153,11 @@ export default function ReceiptAccess({
                 </span>
               </button>
             ))}
+          </div>
+        ) : loaded && receipts.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-sm font-semibold">No receipt yet</p>
+            <p className="mt-2 text-xs leading-5 text-[#7D8392]">A verified payment receipt will appear here after payment is confirmed.</p>
           </div>
         ) : null}
       </ReceiptViewer>
