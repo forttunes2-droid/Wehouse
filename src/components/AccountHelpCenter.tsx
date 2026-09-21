@@ -79,7 +79,6 @@ export default function AccountHelpCenter({
   const [retry, setRetry] = useState(0);
   const [topic, setTopic] = useState<Topic | null>(null);
   const [targetId, setTargetId] = useState("");
-  const [generalReason, setGeneralReason] = useState<GeneralReason>("app_help");
   const [moneyReason, setMoneyReason] = useState<MoneyReason>("payment_issue");
   const [securityReason, setSecurityReason] = useState<SecurityReason>("account_compromise");
 
@@ -172,7 +171,7 @@ export default function AccountHelpCenter({
     );
   }
 
-  function startGeneral(reason: GeneralReason = generalReason) {
+  function startGeneral(reason: GeneralReason) {
     const account = targets.account;
     if (!account) return toast.error("Your account help link is unavailable");
     openConversation({
