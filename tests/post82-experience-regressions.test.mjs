@@ -52,6 +52,34 @@ test("workspace history and sign-in restore keep internal workspaces intentional
   assert.match(session, /\["creator", "admin", "staff"\]|\['creator', 'admin', 'staff'\]/);
 });
 
+test("Admin work areas have one owner and action-first defaults", async () => {
+  const [admin, housing] = await Promise.all([
+    read("src/pages/AdminDashboard.tsx"),
+    read("src/components/HousingOperationsWorkspace.tsx"),
+  ]);
+  assert.match(admin, /"people", "People"/);
+  assert.match(admin, /"properties", "Property Operations"/);
+  assert.match(admin, /"workers",\s*"Worker Operations"/);
+  assert.match(admin, /"security",\s*"Security Operations"/);
+  assert.match(admin, /Needs attention/);
+  assert.doesNotMatch(admin, /branchReady|BranchMissing/);
+
+  const propertiesBlock = admin.slice(
+    admin.indexOf('active === "properties"'),
+    admin.indexOf('active === "workers"'),
+  );
+  assert.match(propertiesBlock, /PropertyPipelineWorkspace/);
+  assert.doesNotMatch(propertiesBlock, /AccountIdentityReviewQueue/);
+
+  const peopleStart = admin.indexOf("function People(");
+  const peopleEnd = admin.indexOf("function Workers(", peopleStart);
+  const peopleBlock = admin.slice(peopleStart, peopleEnd);
+  assert.match(peopleBlock, /AccountIdentityReviewQueue accountRole="property_partner"/);
+
+  assert.match(housing, /useState<Filter>\("needs_action"\)/);
+  assert.doesNotMatch(housing, /available in this branch|found in this branch/);
+});
+
 test("auth and Creator legal UI hide implementation detail by default", async () => {
   const [loginCss, login, legal, help] = await Promise.all([
     read("src/pages/login.css"),
