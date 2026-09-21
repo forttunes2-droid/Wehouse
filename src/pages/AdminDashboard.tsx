@@ -77,6 +77,7 @@ export default function AdminDashboard({
       workers: 0,
       partners: 0,
       staff: 0,
+      admins: 0,
       listings: 0,
       pending_verifications: 0,
     }),
@@ -157,6 +158,7 @@ export default function AdminDashboard({
                 stats={stats}
                 profile={profile}
                 openOperation={openOperation}
+                inboxUnread={inboxSummary.totalUnread}
                 openCommunications={() => setTab("inbox")}
               />
             )}{" "}
@@ -282,17 +284,19 @@ function Overview({
   stats,
   profile,
   openOperation,
+  inboxUnread,
   openCommunications,
 }: {
   stats: any;
   profile: Profile;
   openOperation: (t: Operation) => void;
+  inboxUnread: number;
   openCommunications: () => void;
 }) {
   const cards: [string, number, Operation, string][] = [
     ["Users", stats.users || 0, "people", "Regular users"],
     ["Property Partners", stats.partners || 0, "people", "Property owners"],
-    ["Team", stats.staff || 0, "staff", "Admins and Operations members"],
+    ["Team", Number(stats.staff || 0) + Number(stats.admins || 0), "staff", "Admins and Operations members"],
     [
       "Properties",
       stats.listings || 0,
@@ -306,6 +310,25 @@ function Overview({
       `${stats.pending_verifications || 0} of ${stats.workers || 0} need review`,
     ],
   ];
+  const attention = [
+    stats.pending_verifications
+      ? {
+          key: "workers",
+          label: "Worker review",
+          detail: `${stats.pending_verifications} Worker${Number(stats.pending_verifications) === 1 ? "" : "s"} waiting for review`,
+          action: () => openOperation("workers"),
+        }
+      : null,
+    inboxUnread
+      ? {
+          key: "inbox",
+          label: "Inbox",
+          detail: `${inboxUnread} unread conversation${inboxUnread === 1 ? "" : "s"} or Activity item${inboxUnread === 1 ? "" : "s"}`,
+          action: openCommunications,
+        }
+      : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; detail: string; action: () => void }>;
+
   return (
     <div className="space-y-5">
       <section className="border-b border-white/[.07] pb-5">
@@ -315,10 +338,43 @@ function Overview({
         </h2>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">
           Admin authority follows the Creator-set State or LGA coverage;
-          Precise location improves maps and distance but never expands branch permissions.
+          Precise location improves maps and distance but never expands Admin coverage.
         </p>
       </section>
-      <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
+
+      <section>
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6D7384]">Needs attention</p>
+            <p className="mt-1 text-[10px] text-[#7B8191]">Only unresolved work that needs an Admin action appears here.</p>
+          </div>
+        </div>
+        {attention.length ? (
+          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+            {attention.map((item) => (
+              <button key={item.key} type="button" onClick={item.action} className="flex min-h-16 w-full items-center gap-4 py-3 text-left">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-[11px] font-bold text-violet-300">!</span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block text-xs font-semibold">{item.label}</strong>
+                  <span className="mt-1 block text-[9px] leading-4 text-[#707687]">{item.detail}</span>
+                </span>
+                <span className="text-[#666D7E]">›</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="border-y border-white/[.06] py-5">
+            <p className="text-xs font-semibold">Nothing urgent in this coverage</p>
+            <p className="mt-1 text-[9px] text-[#707687]">New review, security and conversation work will appear here when action is required.</p>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-2">
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6D7384]">Coverage summary</p>
+        </div>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
         {cards.map(([label, value, target, note]) => (
           <button
             key={label}
@@ -330,6 +386,7 @@ function Overview({
             <span className="text-[#666D7E]">›</span>
           </button>
         ))}
+        </div>
       </section>
       <section className="border-y border-white/[.06]">
         <button
