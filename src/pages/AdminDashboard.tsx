@@ -302,7 +302,7 @@ function Overview({
       "Workers",
       stats.workers || 0,
       "workers",
-      `${stats.pending_verifications || 0} awaiting review`,
+      `${stats.pending_verifications || 0} of ${stats.workers || 0} need review`,
     ],
   ];
   return (
