@@ -6,7 +6,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("identity submission is workspace-aware and Partner gates respect the policy switch", async () => {
   const [migration, gate, check, partner, worker, verification] = await Promise.all([
-    read("supabase/migrations/20260921093518_validate_worker_services_against_catalog.sql"),
+    read("supabase/migrations/20260921092015_align_identity_routing_partner_gate_and_worker_services.sql"),
     read("src/components/IdentityAccessGate.tsx"),
     read("src/components/WorkerIdentityCheck.tsx"),
     read("src/pages/PropertyPartnerDashboard.tsx"),
@@ -37,7 +37,7 @@ test("identity submission is workspace-aware and Partner gates respect the polic
 
 test("Worker setup manages several canonical services and booking prefers that list", async () => {
   const [migration, setup, booking, taxonomy] = await Promise.all([
-    read("supabase/migrations/20260921092015_align_identity_routing_partner_gate_and_worker_services.sql"),
+    read("supabase/migrations/20260921093518_validate_worker_services_against_catalog.sql"),
     read("src/pages/WorkerSetupProfessional.tsx"),
     read("src/components/WorkerBookingRequestSheetV2.tsx"),
     read("src/lib/workerTaxonomy.ts"),
