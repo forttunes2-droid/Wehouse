@@ -268,6 +268,7 @@ export default function WorkerVerificationPhase9({
             </Card>
             <WorkerIdentityCheck
               profile={profile}
+              workspace="worker"
               status="expired"
               onSaved={refresh}
             />
