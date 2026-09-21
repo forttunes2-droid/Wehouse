@@ -126,7 +126,14 @@ begin
   end if;
   return round(p_amount*v_percent/100,2);
 end
-$$;
+$;
+
+-- calculate_commission is an internal money helper. Keep it off the browser RPC
+-- surface even though it is SECURITY DEFINER; only trusted server-side flows may
+-- execute it.
+revoke all on function public.calculate_commission(numeric,text) from public;
+revoke execute on function public.calculate_commission(numeric,text) from anon, authenticated;
+grant execute on function public.calculate_commission(numeric,text) to service_role;
 
 create or replace function public.set_apartment_commission_on_reservation(
   p_reservation_id text
