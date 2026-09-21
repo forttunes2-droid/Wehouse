@@ -68,6 +68,19 @@ begin
     raise exception 'Canonical commission bundle is inconsistent';
   end if;
 
+  if has_function_privilege('authenticated','public.calculate_commission(numeric,text)','execute')
+     or has_function_privilege('anon','public.calculate_commission(numeric,text)','execute')
+     or not has_function_privilege('service_role','public.calculate_commission(numeric,text)','execute') then
+    raise exception 'Commission calculator execution boundary is not service-role only';
+  end if;
+end
+$;
+
+reset role;
+set local role service_role;
+
+do $
+begin
   if public.calculate_commission(10000,'short_let')<>1000
      or public.calculate_commission(10000,'long_let')<>500
      or public.calculate_commission(10000,'hotel')<>1200
@@ -85,7 +98,10 @@ begin
     end if;
   end;
 end
-$$;
+$;
+
+reset role;
+set local role authenticated;
 
 select public.creator_publish_booking_money_rules(
   '77777777-9999-4999-8999-000000000099',
