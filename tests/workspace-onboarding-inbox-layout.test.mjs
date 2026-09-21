@@ -25,7 +25,7 @@ test("professional onboarding stays inside its workspace and never traps switchi
   assert.match(owner, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
   assert.doesNotMatch(owner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
   assert.match(app, /workspaceAccess=\{workspaceAccess\}[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*onSwitchWorkspace=\{switchWorkspace\}/);
-  assert.match(frame, />\s*Switch\s*</);
+  assert.match(frame, />\s*Workspaces\s*</);
 });
 
 test("Admin and Creator expose one canonical Worker surface", async () => {
