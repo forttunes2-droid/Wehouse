@@ -73,10 +73,10 @@ const MODULE_COPY: Record<
       "Review branch authentication and session signals, then escalate verified risks to Admin or Creator.",
     workLabel: "Security Signals",
   },
-  worker_review: {
-    title: "Worker Review",
+  worker_operations: {
+    title: "Worker Operations",
     description:
-      "Review Worker onboarding, professional evidence and identity decisions from one canonical Worker record.",
+      "Review Worker onboarding, private identity checks and professional evidence from one canonical Worker record.",
     workLabel: "Workers",
   },
   field_officer: {
