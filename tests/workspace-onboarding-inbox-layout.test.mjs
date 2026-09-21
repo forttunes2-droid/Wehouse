@@ -51,8 +51,10 @@ test("growing home results become compact on phones without a tiny grid", async 
   ]);
 
   assert.match(search, /compactMobile=\{filtered\.length >= 3\}/);
-  assert.match(card, /compactMobile \? "flex gap-3 py-3 sm:block sm:py-0 sm:pb-5"/);
-  assert.match(card, /h-28 w-32 shrink-0 sm:aspect-\[4\/3\]/);
+  assert.match(card, /if \(!compactMobile\) return richCard/);
+  assert.match(card, /sm:hidden/);
+  assert.match(card, /hidden sm:block/);
+  assert.match(card, /h-28 w-32 shrink-0/);
   assert.doesNotMatch(search, /grid-cols-2[^"\n]*max-sm/);
 });
 
