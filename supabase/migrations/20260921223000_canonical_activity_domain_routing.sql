@@ -973,9 +973,19 @@ grant execute on function public.notify_hotel_booking_lifecycle() to service_rol
 -- not fabricate/delete Activity by writing arbitrary notifications.
 drop policy if exists notifications_operational_insert_canonical
 on public.notifications;
-revoke all on table public.notifications from anon;
-revoke insert,delete on table public.notifications from authenticated;
-revoke update on table public.notifications from authenticated;
+
+-- Realtime needs SELECT, but clients never create, delete, truncate or assign
+-- canonical Activity. All writes come from trusted domain transitions/RPCs.
+revoke all on table public.activity_events from anon,authenticated;
+revoke all on table public.activity_event_audiences from anon,authenticated;
+grant select on table public.activity_events to authenticated;
+grant select on table public.activity_event_audiences to authenticated;
+grant all on table public.activity_events to service_role;
+grant all on table public.activity_event_audiences to service_role;
+
+-- Legacy notifications are compatibility/delivery rows only. A signed-in
+-- recipient may read their row and update only the read state.
+revoke all on table public.notifications from anon,authenticated;
 grant select on table public.notifications to authenticated;
 grant update(read,read_at) on table public.notifications to authenticated;
 grant all on table public.notifications to service_role;
