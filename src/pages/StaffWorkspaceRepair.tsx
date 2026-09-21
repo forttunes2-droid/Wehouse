@@ -64,13 +64,13 @@ const MODULE_COPY: Record<
   },
   support: {
     title: "Support Operations",
-    description: "Handle WeHouse conversations assigned to your branch.",
+    description: "Handle WeHouse conversations assigned to your coverage.",
     workLabel: "Conversations",
   },
   security: {
     title: "Security Operations",
     description:
-      "Review branch authentication and session signals, then escalate verified risks to Admin or Creator.",
+      "Review authentication and session signals in your coverage, then escalate verified risks to Admin or Creator.",
     workLabel: "Security Signals",
   },
   worker_operations: {
@@ -104,18 +104,18 @@ export default function StaffWorkspaceRepair({
     return (
       <StaffWorkspaceState {...stateActions}
         title="Loading your workspace"
-        text="Checking your branch and work area…"
+        text="Checking your coverage and work area…"
       />
     );
   if (error)
     return <StaffWorkspaceState {...stateActions} title="Could not check your work area"
       text="WeHouse could not load your permissions. Try again to check your assignment."
       onRetry={() => { void refresh(); }} />;
-  if (!profile.assigned_state || !profile.assigned_lga)
+  if (!profile.assigned_state)
     return (
       <StaffWorkspaceState {...stateActions}
-        title="Branch assignment required"
-        text="An Admin or Creator must assign this team member to a State and LGA before work can begin."
+        title="Coverage assignment required"
+        text="An Admin or Creator must assign this team member to a State or one LGA before work can begin."
       />
     );
   if (assigned.length !== 1)
@@ -203,7 +203,7 @@ function Workspace({
       state: profile.assigned_state || "",
       lga: profile.assigned_lga || "",
     },
-    branch = [scope.lga, scope.state].filter(Boolean).join(", ");
+    coverage = scope.lga ? [scope.lga, scope.state].filter(Boolean).join(", ") : `${scope.state} State`;
   function openStaffDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (/propert|listing|inspection/.test(route)) {
@@ -235,7 +235,7 @@ function Workspace({
         profile={profile}
         module={module}
         copy={copy}
-        branch={branch}
+        branch={coverage}
         openWork={() => setTab(directConversation ? "conversations" : "work")}
         onNavigate={onNavigate}
       />
@@ -299,7 +299,7 @@ function Workspace({
       <WorkspaceFrameV2
         label={`WEHOUSE TEAM · ${copy.title}`}
         title={activeLabel}
-        description={`${activeDescription} · ${branch}`}
+        description={`${activeDescription} · ${coverage}`}
         items={items}
         active={tab}
         setActive={(id) => setTab(id as MainTab)}
@@ -590,7 +590,7 @@ function StaffHome({
         <p className="mt-2 max-w-xl text-xs leading-6 text-[#858B9B]">
           {copy.description}
         </p>
-        <p className="mt-2 text-[10px] text-[#666D7E]">Branch · {branch}</p>
+        <p className="mt-2 text-[10px] text-[#666D7E]">Coverage · {branch}</p>
       </section>
       <div className="border-y border-white/[.06]">
         <button
