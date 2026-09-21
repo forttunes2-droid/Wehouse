@@ -37,9 +37,9 @@ const NAV = [
   { id: "inbox", label: "Inbox" },
 ];
 const NOTES: Record<AdminTab, string> = {
-  overview: "Branch health and work that needs attention.",
+  overview: "Your coverage, what needs attention and where to work next.",
   operations:
-    "People, team, properties, workers, bookings and security decisions in one branch workspace.",
+    "One place for people, team, properties, Workers, bookings and security in your coverage.",
   inbox: "Assigned conversations and Activity inside your coverage.",
 };
 const OPS: [Operation, string, string][] = [
@@ -163,6 +163,7 @@ export default function AdminDashboard({
             {tab === "operations" && (
               <Operations
                 profile={profile}
+                stats={stats}
                 active={operation}
                 target={operationTarget}
                 setActive={(next) => {
@@ -296,7 +297,7 @@ function Overview({
       "Properties",
       stats.listings || 0,
       "properties",
-      "Published branch inventory",
+      "Published inventory in this coverage",
     ],
     [
       "Workers",
@@ -344,6 +345,7 @@ function Overview({
 }
 function Operations({
   profile,
+  stats,
   active,
   target,
   setActive,
@@ -351,25 +353,57 @@ function Operations({
   onRefreshStats,
 }: {
   profile: Profile;
+  stats: any;
   active: Operation | null;
   target: OperationTarget;
   setActive: (t: Operation | null) => void;
   onView: (p: Profile) => void;
   onRefreshStats: () => Promise<void> | void;
 }) {
-  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose the area you want to manage.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
+  if (!active) {
+    const counts: Partial<Record<Operation, string>> = {
+      people: `${Number(stats.users || 0) + Number(stats.partners || 0)} accounts`,
+      staff: `${Number(stats.staff || 0) + Number(stats.admins || 0)} team members`,
+      properties: `${Number(stats.listings || 0)} live properties`,
+      workers: stats.pending_verifications
+        ? `${stats.pending_verifications} of ${stats.workers || 0} need review`
+        : `${stats.workers || 0} Workers`,
+    };
+    return (
+      <div className="space-y-4">
+        <p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">
+          Choose the work area. Each record belongs to one area so the same task is not repeated in several places.
+        </p>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          {OPS.map(([id, label, note]) => (
+            <button
+              key={id}
+              onClick={() => setActive(id)}
+              className="flex min-h-[4.5rem] w-full items-center gap-4 py-3 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <strong className="block text-sm font-semibold">{label}</strong>
+                <span className="mt-1 block text-[9px] leading-4 text-[#6D7384]">{note}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                {counts[id] ? <span className="block text-[9px] font-semibold text-violet-300">{counts[id]}</span> : null}
+                <span className="mt-1 block text-[#697082]">›</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-5">
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
-        <div className="space-y-5">
-          <AccountIdentityReviewQueue accountRole="property_partner" />
-          <PropertyPipelineWorkspace
-            profile={profile}
-            initialRecordId={target?.operation === "properties" ? target.id : undefined}
-          />
-        </div>
+        <PropertyPipelineWorkspace
+          profile={profile}
+          initialRecordId={target?.operation === "properties" ? target.id : undefined}
+        />
       )}{" "}
       {active === "workers" && <Workers onChanged={onRefreshStats} />}{" "}
       {active === "bookings" && (
@@ -418,9 +452,12 @@ function People({ onView }: { onView: (p: Profile) => void }) {
   );
   return (
     <Section
-      title="People"
-      note="Workers and Operations members are managed in their dedicated areas."
+      title={role === "property_partner" ? "Property Partners" : "People"}
+      note={role === "property_partner"
+        ? "Partner account and identity review lives here. Property records stay in Property Operations."
+        : "Personal accounts in your coverage. Workers and WeHouse Team members stay in their own work areas."}
     >
+      {role === "property_partner" ? <AccountIdentityReviewQueue accountRole="property_partner" /> : null}
       <div className="flex gap-2">
         {(
           [
@@ -605,24 +642,27 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
       ) : shown.length === 0 ? (
         <Empty title="No workers" text="No workers match this view." />
       ) : (
-        <Grid>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {shown.map((w) => (
             <button
               key={w.user_id}
               onClick={() => setSelected(w)}
-              className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left"
+              className="flex min-h-[4.5rem] w-full items-center gap-3 py-3 text-left"
             >
-              <Top
-                title={w.full_name || w.username || "Worker"}
-                sub={`${workerOccupation(w)} · ${[w.local_government || w.city, w.state].filter(Boolean).join(", ")}`}
-                status={w.suspended ? "suspended" : w.worker_status}
-              />
-              <p className="mt-3 text-[9px] font-semibold text-violet-400">
-                OPEN WORKER →
-              </p>
+              <Avatar text={w.full_name || w.username || "Worker"} />
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm font-semibold">{w.full_name || w.username || "Worker"}</strong>
+                <span className="mt-1 block truncate text-[9px] text-[#707386]">
+                  {workerOccupation(w)} · {[w.local_government || w.city, w.state].filter(Boolean).join(", ")}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-[9px] capitalize text-[#8A90A0]">{String(w.suspended ? "suspended" : w.worker_status || "pending").replace(/_/g, " ")}</span>
+                <span className="mt-1 block text-violet-300">›</span>
+              </span>
             </button>
           ))}
-        </Grid>
+        </div>
       )}
     </Section>
   );
@@ -637,7 +677,7 @@ function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
-        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One branch workspace, one active filter</p></div>
+        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One booking type at a time</p></div>
         <WeHouseSelect value={domain} options={[{ value: "services", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={setDomain} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {domain === "services" ? (
@@ -666,7 +706,7 @@ function ServiceBookings() {
   return (
     <Section
       title="Worker service bookings"
-      note="Branch oversight for Worker jobs only."
+      note="Worker service bookings in your coverage."
     >
       {loading ? (
         <Loading />
@@ -676,16 +716,18 @@ function ServiceBookings() {
           text="There are no Worker service bookings in this coverage."
         />
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {rows.map((r) => (
-            <Card key={r.id}>
-              <Top
-                title={r.service_name || r.service || "Service booking"}
-                sub={`${r.booking_code || r.id} · ${dateText(r.created_at)}`}
-                status={r.status || "pending"}
-                right={r.agreed_amount ? money(r.agreed_amount) : undefined}
-              />
-            </Card>
+            <div key={r.id} className="flex min-h-[4.5rem] items-center gap-3 py-3">
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm font-semibold">{r.service_name || r.service || "Service booking"}</strong>
+                <span className="mt-1 block truncate text-[9px] text-[#707386]">{r.booking_code || r.id} · {dateText(r.created_at)}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                {r.agreed_amount ? <strong className="block text-xs">{money(r.agreed_amount)}</strong> : null}
+                <span className="mt-1 block text-[9px] capitalize text-[#8A90A0]">{String(r.status || "pending").replace(/_/g, " ")}</span>
+              </span>
+            </div>
           ))}
         </div>
       )}
