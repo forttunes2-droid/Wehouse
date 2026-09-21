@@ -155,7 +155,7 @@ begin
         and (
           v_actor.role='creator'
           or public.current_actor_in_scope(
-            l.state,coalesce(nullif(l.local_government,''),l.city)
+            l.state,l.city
           )
         )
     ),
