@@ -19,7 +19,8 @@ test("identity submission is workspace-aware and Partner gates respect the polic
   assert.match(migration, /account_identity_checks_enabled\(\)[\s\S]*account_identity_is_current/);
   assert.match(gate, /workspace: 'worker' \| 'property_partner'/);
   assert.match(check, /workspace: 'worker' \| 'property_partner'/);
-  assert.match(check, /workspace,[\s\n]*};/);
+  assert.match(check, /workspace,/);
+  assert.match(check, /notice_version: IDENTITY_NOTICE_VERSION/);
   assert.match(partner, /workspace="property_partner"/);
   assert.match(worker, /workspace="worker"/);
 });
