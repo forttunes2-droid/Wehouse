@@ -324,6 +324,7 @@ export default function WorkerVerificationPhase9({
             ) : !identityComplete ? (
               <WorkerIdentityCheck
                 profile={profile}
+                workspace="worker"
                 status={a.identity_status}
                 onSaved={refresh}
               />
