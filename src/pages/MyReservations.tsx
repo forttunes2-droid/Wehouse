@@ -24,6 +24,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import {
+  getBookingDetails,
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
@@ -147,7 +148,8 @@ export default function MyReservations({
   const [activeHousing, setActiveHousing] = useState<any | null>(null);
   const [activeHotel, setActiveHotel] = useState<any | null>(null);
   const [activeHotelChat, setActiveHotelChat] = useState<any | null>(null);
-  const [activeService, setActiveService] = useState<{
+  const [activeService, setActiveService] = useState<any | null>(null);
+  const [activeServiceChat, setActiveServiceChat] = useState<{
     conversationId: string;
     bookingId: string;
   } | null>(null);
@@ -282,10 +284,7 @@ export default function MyReservations({
     );
     if (serviceMatch) {
       openedInitialRef.current = initialBookingId;
-      setActiveService({
-        conversationId: serviceMatch.conversation_id,
-        bookingId: serviceMatch.booking_id,
-      });
+      setActiveService(serviceMatch);
       onInitialBookingConsumed?.();
       return;
     }
@@ -642,17 +641,31 @@ export default function MyReservations({
     );
   }
 
-  if (activeService)
+  if (activeServiceChat)
     return (
       <BookingNegotiationChat
-        conversationId={activeService.conversationId}
-        bookingId={activeService.bookingId}
+        conversationId={activeServiceChat.conversationId}
+        bookingId={activeServiceChat.bookingId}
         profile={profile}
         isWorker={false}
         onClose={() => {
-          setActiveService(null);
-          void load();
+          setActiveServiceChat(null);
+          void load(true);
         }}
+      />
+    );
+
+  if (activeService)
+    return (
+      <ServiceBookingDetail
+        row={activeService}
+        onBack={() => setActiveService(null)}
+        onConversation={() =>
+          setActiveServiceChat({
+            conversationId: activeService.conversation_id,
+            bookingId: activeService.booking_id,
+          })
+        }
       />
     );
 
@@ -860,12 +873,7 @@ export default function MyReservations({
                           item.row.booking_id || item.row.conversation_id
                         }
                         row={item.row}
-                        onOpen={() =>
-                          setActiveService({
-                            conversationId: item.row.conversation_id,
-                            bookingId: item.row.booking_id,
-                          })
-                        }
+                        onOpen={() => setActiveService(item.row)}
                       />
                     ),
                   )}
@@ -996,6 +1004,117 @@ function serviceNextAction(status: string) {
     refunded: "Refunded",
   };
   return labels[status] || "Open for the next action";
+}
+
+function ServiceBookingDetail({
+  row,
+  onBack,
+  onConversation,
+}: {
+  row: any;
+  onBack: () => void;
+  onConversation: () => void;
+}) {
+  const [detail, setDetail] = useState<any>(row);
+  const [loadingDetail, setLoadingDetail] = useState(true);
+
+  useEffect(() => {
+    let current = true;
+    setLoadingDetail(true);
+    void getBookingDetails(String(row.booking_id)).then(({ booking }) => {
+      if (current && booking) setDetail({ ...row, ...booking });
+    }).finally(() => {
+      if (current) setLoadingDetail(false);
+    });
+    return () => {
+      current = false;
+    };
+  }, [row.booking_id]);
+
+  const status = String(detail.booking_status || detail.status || "booking_requested");
+  const amount = Number(detail.agreed_amount || detail.negotiated_amount || 0);
+  const workerName = detail.worker_name || row.other_person_name || "WeHouse Worker";
+  const payment = detail.money_label || detail.money_state || "Not paid";
+  const next = serviceNextAction(status);
+  const scheduled = detail.scheduled_date ? date(detail.scheduled_date) : null;
+
+  return (
+    <BookingDetailShell
+      title="Service booking"
+      onBack={onBack}
+      action={<ReceiptAccess subjectType="service" subjectId={String(row.booking_id)} />}
+    >
+      <section className="border-y border-white/[.07] bg-[#11141C]">
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
+                WeHouse Service
+              </p>
+              <h2 className="mt-1 break-words text-base font-bold leading-5">
+                {detail.service_type || "Service booking"}
+              </h2>
+              <p className="mt-1 text-[10px] text-[#777D8E]">
+                {workerName}
+              </p>
+            </div>
+            <span className="shrink-0 text-[9px] font-semibold text-violet-200">
+              {serviceStatusLabel(status)}
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-x-3">
+            <Info label="Agreed amount" value={amount > 0 ? money(amount) : "Not agreed yet"} />
+            <Info label="Payment" value={payment} />
+            {scheduled ? <Info label="Date" value={scheduled} /> : null}
+            {detail.booking_code ? <Info label="Booking code" value={String(detail.booking_code)} /> : null}
+          </div>
+
+          {detail.address ? (
+            <div className="border-b border-white/[.05] py-2">
+              <p className="text-[8px] uppercase text-[#5D6272]">Service location</p>
+              <p className="mt-0.5 break-words text-[10px] leading-4 text-[#C5C8D1]">
+                {detail.address}
+              </p>
+            </div>
+          ) : null}
+
+          <section className="mt-4 border-y border-white/[.06] py-3">
+            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-[#686F80]">
+              Next step
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-[#A3A8B5]">
+              {loadingDetail ? "Checking the latest booking state…" : next || "This service booking is complete."}
+            </p>
+          </section>
+
+          <button
+            type="button"
+            onClick={onConversation}
+            className="mt-4 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
+          >
+            Open conversation
+          </button>
+        </div>
+      </section>
+    </BookingDetailShell>
+  );
+}
+
+function serviceStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    booking_requested: "Requested",
+    negotiating: "Agreeing details",
+    waiting_payment: "Payment needed",
+    confirmed: "Confirmed",
+    in_progress: "In progress",
+    completed_pending_approval: "Confirm completion",
+    approved_released: "Completed",
+    disputed: "Under review",
+    cancelled: "Cancelled",
+    refunded: "Refunded",
+  };
+  return labels[status] || "Active";
 }
 
 function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
