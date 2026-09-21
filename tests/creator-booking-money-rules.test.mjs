@@ -104,3 +104,24 @@ test("Creator property and team inboxes reconcile without fixed polling loops", 
   assert.match(communications, /table: "partner_support_conversations"/);
   assert.doesNotMatch(communications, /setInterval/);
 });
+
+
+test("Creator finance and audit use additive workspace authority", async () => {
+  const migration = await read(
+    "supabase/migrations/20260921113000_workspace_authority_for_creator_finance_audit.sql",
+  );
+
+  assert.match(
+    migration,
+    /select public\.current_actor_has_workspace\('creator',null\)/,
+  );
+  assert.match(
+    migration,
+    /commission_ledger_creator_select[\s\S]*current_actor_has_workspace\('creator',null\)/,
+  );
+  assert.match(
+    migration,
+    /admin_audit_read_canonical[\s\S]*current_actor_has_workspace\('creator',null\)/,
+  );
+  assert.doesNotMatch(migration, /p\.role='creator'|current_profile_role\(\)='creator'/);
+});
