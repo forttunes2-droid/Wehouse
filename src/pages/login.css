@@ -90,9 +90,9 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
 
 
 /* Auth motion is restrained: state changes feel connected without delaying sign-in. */
-.wh-auth-brand { animation: whAuthBrandIn 260ms cubic-bezier(.2,.7,.2,1); }
+.wh-auth-brand { animation: whAuthBrandIn 190ms cubic-bezier(.2,.7,.2,1); }
 .wh-auth-form {
-  animation: whAuthStateIn 220ms cubic-bezier(.2,.7,.2,1);
+  animation: whAuthStateIn 200ms cubic-bezier(.2,.7,.2,1);
 }
 .wh-auth-primary,
 .wh-auth-secondary {
@@ -107,7 +107,7 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes whAuthStateIn {
-  from { opacity: 0; transform: translateY(8px) scale(.992); }
+  from { opacity: 0; transform: translateY(6px) scale(.994); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
