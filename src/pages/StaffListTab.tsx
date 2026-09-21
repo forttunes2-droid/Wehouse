@@ -70,8 +70,8 @@ export default function StaffListTab({profile}:{profile:Profile}){
   <WorkspaceSectionHeading title="Team" description="People with active WeHouse team access. Open a person to manage their assigned work." />
   <div className="grid grid-cols-3 gap-2">
 <Metric label="Admins" value={team.filter(x=>x.role==='admin').length}/>
-<Metric label="Operations" value={assignedOperations}/>
-<Metric label="Needs setup" value={needsSetup}/>
+<Metric label="Assigned Staff" value={assignedOperations}/>
+<Metric label="Needs assignment" value={needsSetup}/>
 </div>
   <section className="rounded-2xl border border-white/[.06] bg-[#0D1017] p-3">
 <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search team" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151821] px-3 text-xs outline-none"/>
@@ -86,7 +86,8 @@ export default function StaffListTab({profile}:{profile:Profile}){
 </div>
 <div className="shrink-0 text-right">
 <p className="text-[9px] text-violet-300">{person.role==='admin'?'Admin':'Staff'}</p>
-<p className="mt-1 text-[8px] text-[#666D7E]">{person.role==='staff'?(assigned[person.user_id]==='conflict'?'Multiple assignments — review needed':MODULES[assigned[person.user_id]]||'No work area assigned'):'Branch administration'}</p>
+<p className="mt-1 text-[8px] text-[#666D7E]">{person.role==='staff'?(assigned[person.user_id]==='conflict'?'Multiple Operations — review needed':MODULES[assigned[person.user_id]]||'No Operation assigned'):'Branch administration'}</p>
+<p className="mt-1 text-[8px] text-[#555C6D]">{[person.assigned_lga,person.assigned_state].filter(Boolean).join(', ')||'Branch not assigned'}</p>
 </div>
 </button>)}</div>}
   {selected&&<Manage person={selected} creator={creator} module={assigned[selected.user_id]||''} saving={saving===selected.user_id} close={()=>setSelected(null)} saveModule={moduleFor} reassign={reassign}/>}
@@ -112,9 +113,9 @@ function Manage({person,creator,module,saving,close,saveModule,reassign}:{person
 </div>
 <button disabled={saving||!s||!l} onClick={()=>void reassign(person,s,l)} className="mt-2 h-10 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">Save branch</button>
 </section>}{person.role==='staff'&&<section className="rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
-<p className="text-xs font-semibold">Work area</p>
-<p className="mt-1 text-[9px] text-[#666D7E]">Choose this person’s responsibility. It controls which work they can open.</p>
-<div className="mt-3"><WeHouseSelect value={draftModule} disabled={saving} onChange={setDraftModule} options={[{value:'',label:'No work area assigned',description:'No Operations work is available until an area is assigned'},...(module==='conflict'?[{value:'conflict',label:'Multiple assignments — choose one area'}]:[]),...Object.entries(MODULES).map(([value,label])=>({value,label,description:AREA_DETAILS[value]}))]} title="Choose work area" ariaLabel="Choose work area" className="h-11 w-full"/></div><button disabled={saving||!draftModule||draftModule===module||draftModule==='conflict'} onClick={()=>void saveModule(person,draftModule)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving?'Saving…':'Save work area'}</button>
+<p className="text-xs font-semibold">Operation</p>
+<p className="mt-1 text-[9px] text-[#666D7E]">Choose the one WeHouse Operation this Staff member is responsible for.</p>
+<div className="mt-3"><WeHouseSelect value={draftModule} disabled={saving} onChange={setDraftModule} options={[{value:'',label:'No Operation assigned',description:'No internal work is available until an Operation is assigned'},...(module==='conflict'?[{value:'conflict',label:'Multiple Operations — choose one'}]:[]),...Object.entries(MODULES).map(([value,label])=>({value,label,description:AREA_DETAILS[value]}))]} title="Choose Operation" ariaLabel="Choose Operation" className="h-11 w-full"/></div><button disabled={saving||!draftModule||draftModule===module||draftModule==='conflict'} onClick={()=>void saveModule(person,draftModule)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving?'Saving…':'Save Operation'}</button>
 </section>}</div>
 </aside>
 </div>}
