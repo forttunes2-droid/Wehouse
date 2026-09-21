@@ -408,7 +408,7 @@ function AddMember({creator,adminAuthority,elevate,onClose,onAdded}:{creator:boo
     const{data,error}=await supabase.rpc('get_team_eligible_people',{p_search:value.trim()||null});
     setLoading(false);
     if(error){setPeople([]);return toast.error(error.message)}
-    setPeople(Array.isArray(data)?data as EligiblePerson:[]);
+    setPeople(Array.isArray(data)?data as EligiblePerson[]:[]);
   }
   useEffect(()=>{void loadPeople('')},[]);
   useEffect(()=>{const timer=window.setTimeout(()=>void loadPeople(query),260);return()=>window.clearTimeout(timer)},[query]);
@@ -465,7 +465,7 @@ function ActivityMini({person}:{person:TeamMember}){
   const[rows,setRows]=useState<ChangeRow[]>([]);
   useEffect(()=>{void(async()=>{
     const{data}=await supabase.rpc('creator_get_change_history',{p_search:person.email||person.user_id,p_limit:8});
-    setRows(Array.isArray(data)?data as ChangeRow:[]);
+    setRows(Array.isArray(data)?data as ChangeRow[]:[]);
   })()},[person.user_id,person.email]);
   if(!rows.length)return null;
   return <section className="mt-4 rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
