@@ -29,7 +29,7 @@ insert into public.creator_elevation_grants(
   '77777777-9999-4999-8999-000000000001',
   'creator-money-policy-session',
   array['policy_publish']::text[],
-  now(),now()+interval '10 minutes','contract'
+  now(),now()+interval '10 minutes','password'
 );
 set local session_replication_role=origin;
 
