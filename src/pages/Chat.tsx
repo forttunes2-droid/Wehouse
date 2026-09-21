@@ -623,7 +623,7 @@ function threadPresentation(
   }
   if (thread.kind === "worker") {
     return {
-      title: thread.row.other_person_name || "Service Provider",
+      title: thread.row.other_person_name || "Service Worker",
       avatar: thread.row.other_person_avatar,
       fallback: (thread.row.other_person_name || "S").slice(0, 1),
       preview: cleanEncryptedPreview(
