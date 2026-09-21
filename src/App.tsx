@@ -39,9 +39,14 @@ import {
 } from "@/lib/supabase/announcements";
 import {
   activityIsCurrent,
-  currentActivityRows,
   resolveActivityDestination,
 } from "@/lib/activityFeed";
+import {
+  getCanonicalActivity,
+  getCanonicalActivitySummary,
+  markCanonicalActivityRead,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
 
 type ConversationUnreadRow = {
   id: string;
@@ -609,7 +614,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         bookingResult,
         supportResult,
         hotelChatResult,
-        { data: activityRows },
+        activityResult,
         announcementResult,
       ] = await Promise.all([
         supabase
@@ -619,14 +624,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         getCommunicationBookingConversations(uid, "personal"),
         getMySupportConversations(),
         getMyHotelConversations(),
-        supabase
-          .from("notifications")
-          .select(
-            "id,type,title,message,read,created_at,source_type,source_id,destination_route",
-          )
-          .eq("recipient_id", uid)
-          .in("workspace_scope", ["personal", "account"])
-          .eq("read", false),
+        getCanonicalActivitySummary("personal"),
         getAnnouncementsForUser(uid),
       ]);
       if (!isCurrent()) return;
@@ -652,19 +650,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
         0,
       );
-      const activity = currentActivityRows(
-        (activityRows || []) as Array<{
-          id: string;
-          type: string;
-          title?: string | null;
-          message?: string | null;
-          read: boolean;
-          created_at: string;
-          source_type?: string | null;
-          source_id?: string | null;
-          destination_route?: string | null;
-        }>,
-      ).filter((row) => !row.read).length;
+      const activity = activityResult.error ? 0 : activityResult.summary.unread;
       const announcementUnread = (announcementResult.messages || []).filter(
         (delivery: any) => {
           const announcement = Array.isArray(delivery.announcements)
@@ -778,33 +764,40 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         },
       )
       .subscribe();
-    const officialChannel = supabase
-      .channel(`app-unread-official:${uid}`)
+    const officialChannel = subscribeToCanonicalActivity(
+      uid,
+      `app-unread-official:${uid}`,
+      async () => {
+        void count();
+      },
+    )
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${uid}`,
+          table: "activity_event_audiences",
+          filter: `recipient_user_id=eq.${uid}`,
         },
-        (payload) => {
+        async (payload) => {
           void count();
-          if (payload.eventType !== "INSERT") return;
-          const notification = payload.new as {
-            id?: string;
-            title?: string;
-            message?: string;
-            type?: string;
-            source_type?: string | null;
-            source_id?: string | null;
-            destination_route?: string | null;
-            destination_params?: Record<string, unknown> | null;
+          const audience = payload.new as {
+            activity_event_id?: string;
+            workspace?: string;
           };
-          const type = String(notification.type || "");
+          if (!audience.activity_event_id) return;
+          if (!["personal", "account"].includes(String(audience.workspace || "")))
+            return;
+          const result = await getCanonicalActivity("personal", 25);
+          if (result.error) return;
+          const event = result.rows.find(
+            (row) => row.id === audience.activity_event_id,
+          );
+          if (!event) return;
+          const type = String(event.type || "");
           if (["new_device_login", "device_confirmation_pending"].includes(type))
             return;
-          const destination = resolveActivityDestination(notification);
+          const destination = resolveActivityDestination(event);
           const opensInbox = destination.route === "conversation";
           if (
             opensInbox &&
@@ -812,25 +805,19 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           )
             return;
           if (profile.pref_push_notif === false) return;
-          const viewNotification = () => {
-            if (notification.id)
-              void supabase
-                .rpc("mark_my_notification_read", {
-                  p_notification_id: notification.id,
-                })
-                .then((result) => {
-                  if (!result.error)
-                    window.dispatchEvent(new Event("wehouse:unread-changed"));
-                });
+          const viewActivity = () => {
+            void markCanonicalActivityRead(event.id, "personal").then((result) => {
+              if (!result.error)
+                window.dispatchEvent(new Event("wehouse:unread-changed"));
+            });
             if (opensInbox) openMessages(destination.id);
             else openNotifications();
           };
-          toast(notification.title || "WeHouse update", {
-            description:
-              notification.message || "Open WeHouse to view the update.",
+          toast(event.title || "WeHouse update", {
+            description: event.message || "Open WeHouse to view the update.",
             action: {
               label: "View",
-              onClick: viewNotification,
+              onClick: viewActivity,
             },
             classNames: {
               toast:
