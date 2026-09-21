@@ -26,7 +26,8 @@ test("unsent Message WeHouse shows one named topic without internal workflow ins
   const chat = await read("src/components/SupportChat.tsx");
   assert.match(chat, /aria-label="Conversation topic"/);
   assert.match(chat, /Hotel enquiry/);
-  assert.match(chat, /Remove linked topic/);
+  assert.match(chat, /General Help/);
+  assert.doesNotMatch(chat, /Remove linked topic/);
   assert.doesNotMatch(chat, /Before you send|What sending does|FirstSendDisclosure/);
   assert.match(chat, /Attach evidence/);
 });
