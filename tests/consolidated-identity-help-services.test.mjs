@@ -29,6 +29,10 @@ test("identity submission is workspace-aware and Partner gates respect the polic
     verification,
     /<WorkerIdentityCheck\s+profile=\{profile\}\s+status=/,
   );
+  assert.match(verification, /identity_gate_satisfied/);
+  assert.match(verification, /identity_recurring_required/);
+  assert.match(verification, /identityRequired=\{a\.identity_required\}/);
+  assert.doesNotMatch(verification, /repeat the check every/);
 });
 
 test("Worker setup manages several canonical services and booking prefers that list", async () => {
