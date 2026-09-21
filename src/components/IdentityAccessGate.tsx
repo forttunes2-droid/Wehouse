@@ -18,17 +18,19 @@ type Status = {
 export default function IdentityAccessGate({
   profile,
   workspace,
+  onWorkspaceSwitch,
   children,
 }: {
   profile: Profile;
   workspace: 'worker' | 'property_partner';
+  onWorkspaceSwitch?: () => void;
   children: React.ReactNode;
 }) {
   const { data: state, loading, error: loadError, refresh } = useRpcRead<Status>('get_my_account_identity_status', profile.user_id);
 
   if (loading)
     return (
-      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Provider'}>
+      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Provider'} onWorkspaceSwitch={onWorkspaceSwitch}>
         <section role="status" aria-live="polite" className="space-y-4 py-5">
           <p className="text-sm text-[#A1A1AA]">Opening your workspace…</p>
           <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-white/[.04]" />)}</div>
@@ -45,6 +47,7 @@ export default function IdentityAccessGate({
         profile={profile}
         title="Workspace check unavailable"
         description="WeHouse could not safely confirm this workspace right now."
+        onWorkspaceSwitch={onWorkspaceSwitch}
       >
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
           <p className="text-xs leading-6 text-amber-100/80">{loadError}</p>
@@ -80,6 +83,7 @@ export default function IdentityAccessGate({
             ? `WeHouse is reviewing the private live check for this ${label} workspace.`
             : `Confirm that you are still the person using this ${label} workspace.`
         }
+        onWorkspaceSwitch={onWorkspaceSwitch}
       >
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
           <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
