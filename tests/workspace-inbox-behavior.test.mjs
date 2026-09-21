@@ -28,6 +28,13 @@ test('Navigation memory is separate for each identity and workspace', () => {
   const keys = ['person-a','person-b'].flatMap(id => ['personal','worker','creator'].map(role => session.workspaceNavigationKey(id,role)));
   assert.equal(new Set(keys).size,6);
 });
+test('Internal workspace presentation reads State and LGA from the active grant', () => {
+  const app=readFileSync(new URL('../src/App.tsx', import.meta.url),'utf8');
+  assert.match(app,/activeWorkspaceGrant = workspaceAccess\?\.privileged_workspaces\?\.find/);
+  assert.match(app,/activeWorkspaceGrant\.scope_type === "branch"/);
+  assert.match(app,/assigned_state: activeWorkspaceGrant\.state \?\? null/);
+  assert.match(app,/assigned_lga:[\s\S]*activeWorkspaceGrant\.lga \?\? null/);
+});
 function workspaceHarness() {
   const slots=[];let cursor=0;const effects=[];const requests=[];
   const same=(a,b)=>a?.length===b?.length&&a.every((v,i)=>Object.is(v,b[i]));
