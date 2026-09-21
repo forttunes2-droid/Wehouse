@@ -45,7 +45,7 @@ const NOTES: Record<AdminTab, string> = {
 const OPS: [Operation, string, string][] = [
   ["people", "People", "Regular users and Property Partners in your coverage"],
   ["staff", "Team", "Operations members in your coverage"],
-  ["properties", "Properties", "Property submissions, visits and publishing"],
+  ["properties", "Property Operations", "Property submissions, visits and publishing"],
   [
     "workers",
     "Worker Operations",
@@ -58,7 +58,7 @@ const OPS: [Operation, string, string][] = [
   ],
   [
     "security",
-    "Security",
+    "Security Operations",
     "Security Operations escalations and account decisions in your coverage",
   ],
 ];
@@ -82,17 +82,17 @@ export default function AdminDashboard({
       pending_verifications: 0,
     }),
     [viewing, setViewing] = useState<Profile | null>(null);
-  const branchReady = Boolean(profile.assigned_state),
+  const coverageReady = Boolean(profile.assigned_state),
     inboxSummary = useCreatorInboxSummary(profile.user_id, "admin");
   async function loadStats() {
-    if (!branchReady) return;
+    if (!coverageReady) return;
     const { data, error } = await supabase.rpc("admin_get_my_branch_stats");
     if (error) return void toast.error(error.message);
     setStats(data || {});
   }
   useEffect(() => {
     void loadStats();
-  }, [branchReady, profile.assigned_state, profile.assigned_lga]);
+  }, [coverageReady, profile.assigned_state, profile.assigned_lga]);
   function openOperation(next: Operation, id?: string) {
     setOperationTarget({ operation: next, id });
     setOperation(next);
@@ -134,7 +134,7 @@ export default function AdminDashboard({
         title={workspaceTitle}
         onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
         backLabel="Back to work areas"
-        description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
+        description={`${workspaceDescription}${coverageReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
         items={nav}
         active={tab}
         setActive={(id) => {
@@ -149,8 +149,8 @@ export default function AdminDashboard({
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
-        {!branchReady ? (
-          <BranchMissing />
+        {!coverageReady ? (
+          <CoverageMissing />
         ) : (
           <>
             {tab === "overview" && (
@@ -858,7 +858,7 @@ function HotelBookings() {
     </Section>
   );
 }
-function BranchMissing() {
+function CoverageMissing() {
   return (
     <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.05] p-8 text-center">
       <p className="text-sm font-semibold text-amber-300">
