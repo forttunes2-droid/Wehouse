@@ -156,14 +156,14 @@ test("Inbox surfaces do not expose a permanent PIN settings control", async () =
   assert.doesNotMatch(security, /SecureMessagesPanel/);
 });
 
-test("Service Provider and Property Partner are additive workspaces on one Personal identity", async () => {
+test("Service Worker and Property Partner are additive workspaces on one Personal identity", async () => {
   const [account, migration] = await Promise.all([
     read("src/pages/AccountCenter.tsx"),
     read("supabase/migrations/20260915204500_allow_multi_professional_workspaces.sql"),
   ]);
   assert.match(account, /title="WeHouse"/);
   assert.match(account, /title="Get started"/);
-  assert.match(account, /Service Provider/);
+  assert.match(account, /Service Worker/);
   assert.match(account, /Property Partner/);
   assert.match(account, /title="Offer services"/);
   assert.match(account, /title="List a property"/);
@@ -181,7 +181,7 @@ test("multi-role conflict guards block self-approval and self-inspection", async
   assert.match(migration, /cannot be assigned to their own customer inspection/);
 });
 
-test("Service Provider onboarding is free and paid Pro is separate from review and trust", async () => {
+test("Service Worker onboarding is free and paid Pro is separate from review and trust", async () => {
   const [activation, pro, profile, discovery, retiredPayment] = await Promise.all([
     read("src/components/WorkerActivationHome.tsx"),
     read("src/components/WorkerProPanel.tsx"),

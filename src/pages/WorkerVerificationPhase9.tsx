@@ -18,6 +18,8 @@ type Activation = {
   marketplace_enabled?: boolean;
   profile_complete: boolean;
   identity_required?: boolean;
+  identity_gate_satisfied?: boolean;
+  identity_recurring_required?: boolean;
   identity_status: string;
   identity_captured?: boolean;
   identity_passed: boolean;
@@ -44,6 +46,8 @@ const EMPTY: Activation = {
   marketplace_enabled: false,
   profile_complete: false,
   identity_required: false,
+  identity_gate_satisfied: true,
+  identity_recurring_required: false,
   identity_status: "not_started",
   identity_captured: false,
   identity_passed: false,
@@ -85,16 +89,28 @@ export default function WorkerVerificationPhase9({
     },
     [preview],
   );
-  const identityComplete = a.identity_captured === true && a.identity_passed === true,
-    complete = identityComplete && a.evidence_saved,
+  const identityEvidencePassed =
+      a.identity_captured === true &&
+      a.identity_passed === true &&
+      a.identity_current === true,
+    identitySatisfied =
+      a.identity_gate_satisfied === true ||
+      a.identity_required === false,
+    complete = identitySatisfied && a.evidence_saved,
     reviewing =
       a.worker_status === "profile_under_review" ||
       (a.submitted && a.worker_status !== "verified"),
     approvedProfile =
       a.worker_status === "verified" && profile.worker_verified === true,
-    identityExpired = approvedProfile && a.identity_captured === true && !a.identity_current,
+    identityExpired =
+      a.identity_required === true &&
+      a.identity_recurring_required === true &&
+      approvedProfile &&
+      a.identity_captured === true &&
+      !a.identity_current,
     live = Boolean(a.live),
-    repeatDays = Number(a.identity_recheck_days || 14);
+    approvedButMarketplaceClosed =
+      approvedProfile && a.marketplace_enabled === false;
   function openProfile() {
     onEditProfile();
   }
@@ -268,24 +284,36 @@ export default function WorkerVerificationPhase9({
             </Card>
             <WorkerIdentityCheck
               profile={profile}
+              workspace="worker"
               status="expired"
               onSaved={refresh}
             />
           </>
         ) : live ? (
           <Card
-            eyebrow="IDENTITY CURRENT"
+            eyebrow={a.identity_required ? "IDENTITY CURRENT" : "WORKER REVIEWED"}
             title="Your Worker account is protected"
             text={
-              a.identity_due_at
+              a.identity_recurring_required && a.identity_due_at
                 ? `Next identity check: ${formatDate(a.identity_due_at)}${a.identity_days_remaining != null ? ` · ${a.identity_days_remaining} day${a.identity_days_remaining === 1 ? "" : "s"} remaining` : ""}.`
-                : `You will be asked to repeat the check every ${repeatDays} days.`
+                : a.identity_required
+                  ? "Your private identity check is current. WeHouse only asks for another check when the approved security policy requires it."
+                  : "No routine face check is required by the current launch policy."
             }
           >
             <Status
               text="Your services are public and you can accept new work"
               good
             />
+            <Button label="Back to dashboard" onClick={onBack} />
+          </Card>
+        ) : approvedButMarketplaceClosed ? (
+          <Card
+            eyebrow="WORKER REVIEWED"
+            title="Your Worker profile is approved"
+            text="WeHouse Services public discovery is currently closed. Your approval, services, evidence and history remain saved."
+          >
+            <Status text="No new public Worker requests until the marketplace opens" good />
             <Button label="Back to dashboard" onClick={onBack} />
           </Card>
         ) : (
@@ -297,8 +325,8 @@ export default function WorkerVerificationPhase9({
             />
             {a.profile_complete && !reviewing && !approvedProfile && (
               <WorkerVerificationChecklist
-                identityPassed={identityComplete}
-                identityRequired
+                identityPassed={identityEvidencePassed}
+                identityRequired={a.identity_required}
                 skillVideoSaved={a.evidence_saved}
               />
             )}{" "}
@@ -320,9 +348,10 @@ export default function WorkerVerificationPhase9({
                   onClick={openProfile}
                 />
               </Card>
-            ) : !identityComplete ? (
+            ) : a.identity_required && !identitySatisfied ? (
               <WorkerIdentityCheck
                 profile={profile}
+                workspace="worker"
                 status={a.identity_status}
                 onSaved={refresh}
               />
@@ -341,7 +370,14 @@ export default function WorkerVerificationPhase9({
                 title="Show your real work"
                 text="Upload one short skill or completed-work video for private WeHouse review."
               >
-                <Status text="Private face check complete · onboarding is free" good />
+                <Status
+                  text={
+                    a.identity_required
+                      ? "Private identity check complete · onboarding is free"
+                      : "Identity check not required by current launch policy · onboarding is free"
+                  }
+                  good
+                />
                 <Upload
                   label={
                     certificatePath
@@ -387,7 +423,11 @@ export default function WorkerVerificationPhase9({
               <Card
                 eyebrow="3 · WEHOUSE REVIEW"
                 title="Ready for review"
-                text="Your private face check and work evidence are complete. No onboarding payment is required."
+                text={
+                  a.identity_required
+                    ? "Your private identity check and work evidence are complete. No onboarding payment is required."
+                    : "Your work evidence is complete. Identity verification is not required by the current launch policy, and there is no onboarding payment."
+                }
               >
                 <Button
                   label={busy ? "Submitting…" : "Submit to WeHouse"}

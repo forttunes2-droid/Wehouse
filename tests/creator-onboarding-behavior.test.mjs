@@ -23,13 +23,13 @@ test('identity policy allows free review without claiming a face check passed', 
 function overview(state) {
   return moduleAt('src/components/CreatorOverview.tsx', { '@/hooks/useRpcRead': { useRpcRead: () => state } }).default;
 }
-test('Creator overview keeps marketplace providers and internal team separate and opens the correct people filter', () => {
+test('Creator overview keeps Workers and internal team separate and opens the correct people filter', () => {
   const data = { accounts: 38, partners: 5, workers: 8, team: 5, apartments: 3, hotels: 1, hotel_team: 2, pending_reviews: 1, inspections: 2, payouts: 0 };
   const View = overview({ data, loading: false, error: '', refresh() {} });
   const opened = [];
   const element = View({ userId:'owner', onOpen:(...args) => opened.push(args) });
   const html = renderToStaticMarkup(element);
-  assert.match(html,/Personal accounts/); assert.match(html,/Service providers/); assert.match(html,/WeHouse team/); assert.match(html,/2 hotel team members/);
+  assert.match(html,/Personal accounts/); assert.match(html,/Workers/); assert.match(html,/WeHouse team/); assert.match(html,/2 hotel team members/);
   assert.doesNotMatch(html,/Workers &amp; internal team/);
   element.props.children.find(child => child.key === 'Property partners').props.onClick();
   element.props.children.find(child => child.key === 'WeHouse team').props.onClick();
@@ -43,6 +43,7 @@ test('Creator read failures show retry and never invented zero counts', () => {
 test('an empty identity queue adds no face-check card, while a failed queue stays visible', () => {
   for (const error of ['', 'offline']) {
     const Queue = moduleAt('src/components/AccountIdentityReviewQueue.tsx', {
+      '@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts'),
       '@/lib/supabase': { supabase:{} }, '@/components/MediaViewer': { default:()=>null, __esModule:true },
       '@/hooks/useRpcRead': { useRpcRead:()=>({data:[],loading:false,error,refresh(){}}) },
     }).default;

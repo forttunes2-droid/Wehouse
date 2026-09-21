@@ -24,9 +24,23 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user) return new Response(JSON.stringify({ success: false, error: 'Invalid or expired token' }), { status: 401, headers: cors });
 
-    const { data: profile } = await admin.from('profiles').select('user_id, role, deleted, suspended, banned').eq('auth_id', user.id).maybeSingle();
-    if (!profile || profile.deleted || profile.suspended || profile.banned || !['staff', 'admin', 'creator'].includes(profile.role)) {
-      return new Response(JSON.stringify({ success: false, error: 'Authorized WeHouse staff required' }), { status: 403, headers: cors });
+    const { data: profile } = await admin.from('profiles').select('user_id, deleted, suspended, banned').eq('auth_id', user.id).maybeSingle();
+    if (!profile || profile.deleted || profile.suspended || profile.banned) {
+      return new Response(JSON.stringify({ success: false, error: 'Active WeHouse Team account required' }), { status: 403, headers: cors });
+    }
+    const { data: grants, error: grantError } = await admin
+      .from('workspace_role_assignments')
+      .select('workspace_role')
+      .eq('user_id', profile.user_id)
+      .eq('status', 'active')
+      .is('revoked_at', null)
+      .in('workspace_role', ['admin', 'creator']);
+    if (grantError) {
+      return new Response(JSON.stringify({ success: false, error: 'Could not confirm finance authority' }), { status: 500, headers: cors });
+    }
+    const active = new Set((grants || []).map((row: { workspace_role?: string | null }) => String(row.workspace_role || '')));
+    if (!active.has('admin') && !active.has('creator')) {
+      return new Response(JSON.stringify({ success: false, error: 'Admin or Creator finance authority required' }), { status: 403, headers: cors });
     }
 
     const body = await req.json();

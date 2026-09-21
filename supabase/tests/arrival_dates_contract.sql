@@ -81,7 +81,7 @@ do $$ begin
     perform public.verify_branch_booking_code('NASWH99991');
     raise exception 'Revoked Creator retained booking-code access';
   exception when raise_exception then
-    if sqlerrm<>'Operations access required' then raise; end if;
+    if sqlerrm<>'Active WeHouse Team account required' then raise; end if;
   end;
 end; $$;
 reset role;

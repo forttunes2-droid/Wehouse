@@ -392,6 +392,7 @@ export default function Search({
                 key={listing.id}
                 listing={listing}
                 distanceKm={distance}
+                compactMobile={filtered.length >= 3}
                 onClick={() => onNavigate("detail", listing.id)}
                 isSaved={savedIds.has(listing.id)}
                 onToggleSave={(event) => {

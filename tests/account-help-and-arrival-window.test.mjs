@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("Help remains nested inside the shared Account surface across workspaces", async () => {
+test("Help remains in Account while professional onboarding stays in its workspace", async () => {
   const [account, worker, partner, help] = await Promise.all([
     read("src/pages/AccountCenter.tsx"),
     read("src/pages/WorkerWorkspaceModern.tsx"),
@@ -15,7 +15,8 @@ test("Help remains nested inside the shared Account surface across workspaces", 
   assert.match(account, /title="Help"/);
   assert.match(account, /setPanel\("help"\)/);
   assert.match(worker, /<AccountCenter/);
-  assert.match(partner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
+  assert.match(partner, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
+  assert.doesNotMatch(partner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
   assert.match(help, /get_my_workspace_help_targets/);
   assert.match(help, /Using WeHouse or my account/);
   assert.match(help, /Property or stay/);

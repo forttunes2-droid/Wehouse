@@ -20,6 +20,7 @@ import PayoutAccountManager from "@/components/PayoutAccountManager";
 import WorkerAvailabilityControl from "@/components/WorkerAvailabilityControl";
 import { useWorkerInboxSummary } from "@/hooks/useWorkerInboxSummary";
 import { useWorkerPro } from "@/hooks/useWorkerPro";
+import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
 
 type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
@@ -31,10 +32,7 @@ const LIVE_NAV = [
   { id: "account", label: "Account" },
 ];
 
-const ACTIVATION_NAV = [
-  { id: "home", label: "Home" },
-  { id: "account", label: "Account" },
-];
+const ACTIVATION_NAV = [{ id: "home", label: "Setup" }];
 
 export default function WorkerWorkspaceModern({
   profile,
@@ -67,6 +65,7 @@ export default function WorkerWorkspaceModern({
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
   const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [accountView, setAccountView] = useState<
     "account" | "profile" | "paid_tools"
   >("account");
@@ -75,7 +74,8 @@ export default function WorkerWorkspaceModern({
     (tab === "jobs" ||
       tab === "inbox" ||
       tab === "showcase" ||
-      tab === "earnings")
+      tab === "earnings" ||
+      tab === "account")
       ? "home"
       : tab;
 
@@ -94,7 +94,7 @@ export default function WorkerWorkspaceModern({
       return (
         <AccountShell
           profile={profile}
-          title="Service Provider profile"
+          title="Service Worker profile"
           description="Services, coverage and the public details customers see."
           onBack={() => setAccountView("account")}
         >
@@ -202,25 +202,53 @@ export default function WorkerWorkspaceModern({
             ? "Track each job from request to completion, including its earnings."
             : live
               ? "Manage your WeHouse Services work from one place."
-              : "Finish Service Provider onboarding before your services become public.";
+              : "Finish Service Worker onboarding before your services become public.";
 
   const workspace = (
     <WorkspaceFrameV2
-      label="WEHOUSE SERVICES · SERVICE PROVIDER"
-      title={nav.find((item) => item.id === safeTab)?.label || "Service Provider"}
+      label="WEHOUSE SERVICES · SERVICE WORKER"
+      title={nav.find((item) => item.id === safeTab)?.label || "Service Worker"}
       description={description}
       items={nav}
       active={safeTab}
       setActive={(id) => setTab(id as Tab)}
+      onWorkspaceSwitch={
+        workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined
+      }
       onLogout={onLogout}
     >
       {content}
     </WorkspaceFrameV2>
   );
+  const switcher =
+    workspaceAccess && onSwitchWorkspace ? (
+      <WorkspaceSwitchSheet
+        open={switchOpen}
+        access={workspaceAccess}
+        active={activeWorkspace}
+        onClose={() => setSwitchOpen(false)}
+        onSwitch={onSwitchWorkspace}
+      />
+    ) : null;
+
   return live ? (
-    <IdentityAccessGate profile={profile}>{workspace}</IdentityAccessGate>
+    <>
+      <IdentityAccessGate
+        profile={profile}
+        workspace="worker"
+        onWorkspaceSwitch={
+          workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined
+        }
+      >
+        {workspace}
+      </IdentityAccessGate>
+      {switcher}
+    </>
   ) : (
-    workspace
+    <>
+      {workspace}
+      {switcher}
+    </>
   );
 }
 
@@ -236,7 +264,7 @@ function ServiceProviderPaidToolsAccount({
     <AccountShell
       profile={profile}
       title="WeHouse Works"
-      description="Optional business tools for Service Providers. Review and trust are earned separately."
+      description="Optional business tools for Service Workers. Review and trust are earned separately."
       onBack={onBack}
     >
       <WorkerProPanel

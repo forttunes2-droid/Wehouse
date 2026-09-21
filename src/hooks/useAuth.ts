@@ -137,6 +137,8 @@ function publicRole(value: unknown): PublicRole | undefined {
 function safeAuthMessage(error: unknown, fallback = "We couldn’t complete sign-in. Please try again.") {
   const message = error instanceof Error ? error.message : String(error || "");
   const value = message.toLowerCase();
+  if (/pkce|code verifier|flow_state|auth code/.test(value)) return "Google confirmation expired. Start Continue with Google again in this browser.";
+  if (value.includes("google sign-in did not finish")) return "Google sign-in did not finish. Please try again.";
   if (value.includes("maintenance")) return "WeHouse is currently under maintenance. Please check back later.";
   if (value.includes("registrations") && value.includes("closed")) return "New registrations are currently closed.";
   if (value.includes("pending device") || value.includes("confirmation expired")) return "This confirmation has expired. Sign in again.";
@@ -458,6 +460,11 @@ export function useAuth() {
         alive && restoreRequestRef.current === restoreRequest;
       setState((s) => (s.profile ? s : { ...s, page: "loading", isLoading: true }));
       try {
+        // getSession does not return errors from the initial OAuth code exchange.
+        // Read the SDK's existing initialization result; never exchange the same
+        // one-use code again in a second callback handler.
+        const initialized = await withTimeout(supabase.auth.initialize(), 15000, "Google sign-in did not finish. Please try signing in again.");
+        if (initialized.error) throw initialized.error;
         const { data, error } = await withTimeout(supabase.auth.getSession(), 20000, "Sign-in took too long. Check your connection and try again.");
         if (error) throw error;
         if (!isCurrentRestore()) return;

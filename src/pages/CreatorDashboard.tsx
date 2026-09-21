@@ -21,6 +21,7 @@ import StaffListTab from "./StaffListTab";
 import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
 import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
+import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
@@ -86,8 +87,8 @@ const OPS: Array<{
   },
   {
     id: "workers",
-    label: "Service providers",
-    note: "Professional onboarding and account decisions.",
+    label: "Service Workers",
+    note: "Service Worker onboarding, review and professional accounts.",
     group: "Marketplace",
   },
   {
@@ -328,7 +329,7 @@ function Operations({
           />
         </div>
       )}
-      {active === "workers" && <div className="space-y-5"><AccountIdentityReviewQueue accountRole="worker"/><CreatorWorkerOversight userId={profile.user_id} /></div>}
+      {active === "workers" && <CreatorWorkerOversight userId={profile.user_id} />}
       {active === "bookings" && (
         <Bookings
           initialRecordId={
@@ -520,7 +521,9 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
                   {person.email}
                 </span>
                 <span className="mt-2 block text-[8px] capitalize text-[#565D6E]">
-                  {String(person.role || "user").replace(/_/g, " ")} ·{" "}
+                  {role === "property_partner"
+                    ? "Property Partner · Personal account"
+                    : "Personal account"}{" · "}
                   {[person.local_government || person.city, person.state]
                     .filter(Boolean)
                     .join(", ") || "Location not set"}
@@ -551,78 +554,16 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
   }, [view, initialRecordId]);
   async function load() {
     setLoading(true);
-    let data: any[] = [];
-    let error: any = null;
-    if (view === "apartments") {
-      const reservations = await supabase
-        .from("reservations")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      data = reservations.data || [];
-      error = reservations.error;
-      if (!error) {
-        const ids = [
-          ...new Set(data.map((row: any) => row.listing_id).filter(Boolean)),
-        ];
-        if (ids.length) {
-          const listings = await supabase
-            .from("listings")
-            .select("id,title,address,city,state,images,sub_type")
-            .in("id", ids);
-          if (listings.error) error = listings.error;
-          else {
-            const byId = new Map(
-              (listings.data || []).map((listing: any) => [
-                listing.id,
-                listing,
-              ]),
-            );
-            data = data.map((row: any) => ({
-              ...row,
-              listing: byId.get(row.listing_id) || null,
-            }));
-          }
-        }
-      }
-    } else if (view === "hotels") {
-      const result = await supabase
-        .from("hotel_bookings")
-        .select("*,hotels(name,city,state,images),hotel_rooms(room_type)")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      data = result.data || [];
-      error = result.error;
-    }
-    if (!error && data.length) {
-      const userIds = [
-        ...new Set(data.map((row: any) => row.user_id).filter(Boolean)),
-      ];
-      if (userIds.length) {
-        const profiles = await supabase
-          .from("profiles")
-          .select("user_id,full_name,username,email,phone")
-          .in("user_id", userIds);
-        if (profiles.error) error = profiles.error;
-        else {
-          const byId = new Map(
-            (profiles.data || []).map((person: any) => [
-              person.user_id,
-              person,
-            ]),
-          );
-          data = data.map((row: any) => ({
-            ...row,
-            customer: byId.get(row.user_id) || null,
-          }));
-        }
-      }
-    }
-    if (error) toast.error(error.message);
-    setRows(data);
+    const { data, error } = await supabase.rpc("creator_get_booking_records", {
+      p_kind: view,
+      p_limit: 100,
+    });
+    const next = !error && Array.isArray(data) ? data : [];
+    if (error) toast.error("Booking records could not be loaded");
+    setRows(next);
     if (!error && initialRecordId) {
-      const target = data.find((row: any) =>
-        [row.id, row.booking_id, row.reservation_id]
+      const target = next.find((row: any) =>
+        [row.id, row.booking_id]
           .filter(Boolean)
           .some((value) => String(value) === String(initialRecordId)),
       );
@@ -635,10 +576,7 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((row) => {
-      const property =
-        view === "hotels"
-          ? row.hotels?.name
-          : row.listing?.title || row.listing_title;
+      const property = row.property?.title;
       const customer =
         row.guest_name ||
         row.customer?.full_name ||
@@ -652,10 +590,8 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
           property,
           customer,
           code,
-          row.hotels?.city,
-          row.hotels?.state,
-          row.listing?.city,
-          row.listing?.state,
+          row.property?.city,
+          row.property?.state,
           row.status,
         ]
           .filter(Boolean)
@@ -677,11 +613,11 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
         <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One workspace, one active filter</p></div>
-        <WeHouseSelect value={view} options={[{ value: "worker", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
+        <WeHouseSelect value={view} options={[{ value: "worker", label: "Service Worker jobs" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {view === "worker" ? (
         <ServiceBookingOversight
-          title="Worker service bookings"
+          title="Service Worker bookings"
           note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."
         />
       ) : (
@@ -706,20 +642,11 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
           ) : (
             <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
               {shown.map((row) => {
-                const media =
-                  view === "hotels"
-                    ? row.hotels?.images?.[0]
-                    : row.listing?.images?.[0];
+                const media = row.property?.images?.[0];
                 const title =
-                  view === "hotels"
-                    ? row.hotels?.name || "Hotel booking"
-                    : row.listing?.title ||
-                      row.listing_title ||
-                      "Apartment reservation";
-                const location =
-                  view === "hotels"
-                    ? [row.hotels?.city, row.hotels?.state]
-                    : [row.listing?.city, row.listing?.state];
+                  row.property?.title ||
+                  (view === "hotels" ? "Hotel booking" : "Apartment reservation");
+                const location = [row.property?.city, row.property?.state];
                 const customer =
                   row.guest_name ||
                   row.customer?.full_name ||
@@ -801,13 +728,9 @@ function BookingRecord({
   onBack: () => void;
 }) {
   const property =
-    kind === "hotel"
-      ? row.hotels?.name || "Hotel stay"
-      : row.listing?.title || row.listing_title || "Apartment reservation";
-  const location =
-    kind === "hotel"
-      ? [row.hotels?.city, row.hotels?.state]
-      : [row.listing?.city, row.listing?.state];
+    row.property?.title ||
+    (kind === "hotel" ? "Hotel stay" : "Apartment reservation");
+  const location = [row.property?.city, row.property?.state];
   const customer =
     row.guest_name ||
     row.customer?.full_name ||
@@ -815,9 +738,7 @@ function BookingRecord({
     row.customer?.email ||
     row.user_email ||
     "Customer name unavailable";
-  const amount = Number(
-    row.total_price || row.amount || row.reservation_fee_amount || 0,
-  );
+  const amount = Number(row.amount || 0);
   const facts = [
     ["Customer", customer],
     ["Property", property],
@@ -861,13 +782,13 @@ function BookingRecord({
           </div>
         ))}
       </div>
-      {row.rent_payment_status && (
+      {row.payment_status && (
         <div className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
           <p className="text-[9px] uppercase tracking-wide text-[#686F80]">
             Payment state
           </p>
           <p className="mt-2 text-sm font-semibold capitalize">
-            {String(row.rent_payment_status).replace(/_/g, " ")}
+            {String(row.payment_status).replace(/_/g, " ")}
           </p>
         </div>
       )}
@@ -883,19 +804,17 @@ function Finance() {
     void load();
   }, [view]);
   async function load() {
+    if (view === "payouts") {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const result =
-      view === "payouts"
-        ? await supabase
-            .from("withdrawals")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(100)
-        : await supabase
-            .from("commission_ledger")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(100);
+    const result = await supabase
+      .from("commission_ledger")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
     if (result.error) toast.error(result.error.message);
     setRows(result.data || []);
     setLoading(false);
@@ -938,7 +857,13 @@ function Finance() {
 }
 
 type PlatformSection =
-  "identity" | "access" | "workers" | "worker_plan" | "properties" | "legal";
+  | "identity"
+  | "access"
+  | "booking_money"
+  | "workers"
+  | "worker_plan"
+  | "properties"
+  | "legal";
 const PLATFORM_SECTIONS: Array<{
   id: PlatformSection;
   label: string;
@@ -955,13 +880,18 @@ const PLATFORM_SECTIONS: Array<{
     note: "Maintenance mode and new-account access.",
   },
   {
+    id: "booking_money",
+    label: "Booking & money rules",
+    note: "Reservations, cancellations, deposits, commissions and protected-payment timing.",
+  },
+  {
     id: "workers",
     label: "Worker marketplace",
     note: "Onboarding, trust, occupations and services.",
   },
   {
     id: "worker_plan",
-    label: "Paid Service Provider plan",
+    label: "Paid Service Worker plan",
     note: "Plan name, prices, subscription terms and sales controls.",
   },
   {
@@ -1024,6 +954,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
           description="Platform-wide availability and account creation controls."
         />
       )}
+      {section === "booking_money" && <CreatorBookingMoneyRules />}
       {section === "workers" && (
         <div className="space-y-5">
           <CreatorSettingsTabV2

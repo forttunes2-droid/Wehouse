@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
+import { withTimeout } from "@/lib/withTimeout";
 import type { Profile } from "@/types";
 
 type LoginAlert = {
+  ownerId: string;
   notificationId: string;
   sessionId: string;
   device: string;
@@ -15,18 +17,26 @@ type LoginAlert = {
 export default function NewLoginAlert({ profile }: { profile: Profile }) {
   const [alert, setAlert] = useState<LoginAlert | null>(null);
   const generation = useRef(0);
+  const activeOwner = useRef(profile.user_id);
+  activeOwner.current = profile.user_id;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     const request = ++generation.current;
-    const { data, error: loadError } = await supabase.rpc("get_my_pending_device_login_alert");
-    if (request !== generation.current || loadError) return;
-    setError("");
-    setAlert(data as LoginAlert | null);
+    try {
+      const { data, error: loadError } = await withTimeout(supabase.rpc("get_my_pending_device_login_alert"), 12000, "Login review unavailable");
+      if (request !== generation.current) return;
+      if (loadError) throw loadError;
+      setError("");
+      setAlert(data ? { ...data as LoginAlert, ownerId: profile.user_id } : null);
+    } catch {
+      if (request === generation.current) setError("Could not refresh this login review. Try again when connected.");
+    }
   }, [profile.user_id]);
 
   useEffect(() => {
+    setAlert(null); setBusy(false); setError("");
     void load();
     const channel = supabase
       .channel(`new-login-alert:${profile.user_id}`)
@@ -47,20 +57,25 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
     if (!alert || busy) return;
     setBusy(true);
     setError("");
-    const { error: reviewError } = await supabase.rpc("review_new_device_login", {
-      p_session_id: alert.sessionId,
-      p_was_me: wasMe,
-    });
-    setBusy(false);
-    if (reviewError) {
-      setError("We couldn't update this login. Check your connection and try again.");
-      return;
+    const ownerId = profile.user_id;
+
+    try {
+      const { error: reviewError } = await withTimeout(supabase.rpc("review_new_device_login", {
+        p_session_id: alert.sessionId, p_was_me: wasMe,
+      }), 15000, "Login review timed out");
+      if (activeOwner.current !== ownerId) return;
+      if (reviewError) throw reviewError;
+      setAlert(current => current?.sessionId === alert.sessionId ? null : current);
+      setBusy(false);
+      void load();
+    } catch {
+      if (activeOwner.current === ownerId) setError("We couldn't update this login. Check your connection and try again.");
+    } finally {
+      if (activeOwner.current === ownerId) setBusy(false);
     }
-    setAlert(null);
-    void load();
   }
 
-  if (!alert || typeof document === "undefined") return null;
+  if (!alert || alert.ownerId !== profile.user_id || typeof document === "undefined") return null;
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[100200] flex justify-center px-3 pt-[max(.75rem,env(safe-area-inset-top))]">
     <section className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-amber-400/15 bg-[#11141C] text-white shadow-2xl shadow-black/70" role="region" aria-live="polite" aria-labelledby="new-login-title" aria-describedby="new-login-description">

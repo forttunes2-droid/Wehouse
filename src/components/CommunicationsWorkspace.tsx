@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { AnnouncementsTab } from "@/components/AnnouncementsTab";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
 import { supabase } from "@/lib/supabase";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
   claimCommunicationCase,
   conversationPresentation,
@@ -136,24 +137,43 @@ export default function CommunicationsWorkspace({
   }, [view, selected, profile.user_id, queue, initialConversationId]);
   useEffect(() => {
     if (view !== "inbox") return;
+    const scheduler = createRefreshScheduler(
+      async (isCurrent) => {
+        await load(true);
+        if (isCurrent() && selected?.conversation_id)
+          await refreshMessages(selected.conversation_id, true);
+      },
+      () => document.visibilityState === "visible",
+      180,
+    );
+    const reconcile = () => scheduler.request();
+    const visible = () => {
+      if (document.visibilityState === "visible") scheduler.request();
+    };
     const channel = supabase
       .channel(`support-team-inbox:${profile.user_id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partner_support_messages" },
-        () => {
-          void load(true);
-          if (selected?.conversation_id)
-            void refreshMessages(selected.conversation_id, true);
-        },
+        reconcile,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "partner_support_conversations" },
+        reconcile,
       )
       .subscribe();
-    const timer = window.setInterval(() => void load(true), 60000);
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    document.addEventListener("visibilitychange", visible);
     return () => {
-      window.clearInterval(timer);
+      scheduler.dispose();
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+      document.removeEventListener("visibilitychange", visible);
       void supabase.removeChannel(channel);
     };
-  }, [view, selected?.conversation_id, profile.user_id]);
+  }, [view, selected?.conversation_id, profile.user_id, queue]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, selected?.conversation_id]);
@@ -330,7 +350,7 @@ export default function CommunicationsWorkspace({
           <HeaderTabs view={view} setView={setView} unread={unread} />
         )}
         <div>
-          <h2 className="text-base font-bold">New update</h2>
+          {!hideViewTabs && <h2 className="text-base font-bold">New update</h2>}
           <p className="mt-1 text-[10px] text-[#696E7F]">
             Share a WeHouse Official update with the selected audience.
           </p>

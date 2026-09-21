@@ -1,12 +1,13 @@
-import { useEffect,useMemo,useState } from 'react';
+import { useEffect,useMemo,useRef,useState } from 'react';
 import { deleteAnnouncement,getAllAnnouncements,getAllUsers,getAnnouncementsSentBy,getFilteredRecipientCount,sendAnnouncement } from '@/lib/supabase';
 import { canSendAnnouncements } from '@/hooks/useAuth';
 import { useConfirm } from '@/hooks/useConfirm';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
+import { withTimeout } from '@/lib/withTimeout';
 import type { Profile } from '@/types';
 
-type Scope='all'|{state:string;lga:string};
+type Scope='all'|{state:string;lga?:string};
 type View='compose'|'history';
 type Mode='roles'|'people';
 const isCreator=(profile:Profile)=>profile.role==='creator';
@@ -19,6 +20,8 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   const[title,setTitle]=useState('');
   const[message,setMessage]=useState('');
   const[history,setHistory]=useState<any[]>([]);
+  const[historyLoading,setHistoryLoading]=useState(true);
+  const historyRequest=useRef(0);
   const[historyError,setHistoryError]=useState<string|null>(null);
   const[people,setPeople]=useState<any[]>([]);
   const[peopleError,setPeopleError]=useState<string|null>(null);
@@ -30,7 +33,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   const[sending,setSending]=useState(false);
   const{ask,dialogProps}=useConfirm();
 
-  useEffect(()=>{void loadHistory();if(canSend)void loadPeople()},[]);
+  useEffect(()=>{void loadHistory();if(canSend)void loadPeople();return()=>{historyRequest.current++;}},[profile.user_id,profile.role]);
   useEffect(()=>{
     if(!canSend||mode!=='roles')return;
     let cancelled=false;
@@ -43,10 +46,14 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   },[roles.user,roles.worker,roles.staff,roles.property_partner,mode,canSend,branchScope,profile.role]);
 
   async function loadHistory(){
-    setHistoryError(null);
-    const result=isCreator(profile)?await getAllAnnouncements():await getAnnouncementsSentBy(profile.user_id);
-    if(result.error){setHistory([]);setHistoryError(result.error.message);return}
-    setHistory(result.messages||[]);
+    const request=++historyRequest.current;
+    setHistoryError(null);setHistoryLoading(true);setHistory([]);
+    try {
+      const result=await withTimeout(isCreator(profile)?getAllAnnouncements():getAnnouncementsSentBy(profile.user_id),15000,'History could not be loaded.');
+      if(result.error)throw result.error;
+      if(request===historyRequest.current)setHistory(result.messages||[]);
+    }catch{if(request===historyRequest.current)setHistoryError('Announcement history could not be loaded.');}
+    finally{if(request===historyRequest.current)setHistoryLoading(false);}
   }
 
   async function loadPeople(){
@@ -57,7 +64,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
     if(branchScope)list=list.filter((u:any)=>{
       const state=u.role==='staff'?u.assigned_state:u.state;
       const lga=u.role==='staff'?u.assigned_lga:(u.local_government||u.city);
-      return state===scope.state&&lga===scope.lga;
+      return state===scope.state&&(!scope.lga||lga===scope.lga);
     });
     setPeople(list);
   }
@@ -108,10 +115,10 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
 
   return <div className="min-w-0 space-y-4">
     <ConfirmDialog {...dialogProps}/>
-    {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga}, {scope.state}.</div>}
+    {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga?scope.lga+', '+scope.state:scope.state+' State'}.</div>}
     <div className="flex gap-6 border-b border-white/[.06]">
       <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Compose</button>
-      <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Sent · {history.length}</button>
+      <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Sent{!historyLoading&&!historyError?` · ${history.length}`:''}</button>
     </div>
 
     {view==='compose'&&canSend&&<section className="overflow-hidden">
@@ -152,8 +159,9 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
     {view==='compose'&&!canSend&&<div className="rounded-2xl border border-white/[.06] p-8 text-center text-sm text-[#6D7182]">This role cannot publish announcements.</div>}
 
     {view==='history'&&<div className="space-y-3">
-      {historyError&&<div className="rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-xs text-red-300">Could not load announcement history: {historyError}</div>}
-      {!historyError&&!history.length&&<div className="rounded-2xl border border-dashed border-white/[.08] p-10 text-center text-sm text-[#6D7182]">No announcements sent yet.</div>}
+      {historyError&&<div className="rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-xs text-red-300">{historyError}<button type="button" onClick={()=>void loadHistory()} className="block min-h-11 font-semibold text-violet-300">Try again</button></div>}
+      {historyLoading&&<p role="status" className="py-6 text-xs text-[#9298A6]">Loading sent updates…</p>}
+      {!historyLoading&&!historyError&&!history.length&&<div className="rounded-2xl border border-dashed border-white/[.08] p-10 text-center text-sm text-[#6D7182]">No announcements sent yet.</div>}
       {history.map(row=><AnnouncementCard key={row.id} row={row} canDelete={canSend} onDelete={()=>void remove(Number(row.id))}/>) }
     </div>}
   </div>;

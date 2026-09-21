@@ -18,7 +18,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
   const groups: { title: string; note: string; destination: Destination; id?: string; values: [string, number][] }[] = [
     { title: 'Personal accounts', note: 'Everyone keeps their own Personal account.', destination: 'people', values: [['Accounts', data.accounts]] },
     { title: 'Property partners', note: 'People and businesses offering accommodation.', destination: 'people', id: 'property_partner', values: [['Partners', data.partners]] },
-    { title: 'Service providers', note: `${data.pending_reviews} professional reviews waiting`, destination: 'workers', values: [['Providers', data.workers]] },
+    { title: 'Service Workers', note: `${data.pending_reviews} Service Worker reviews waiting`, destination: 'workers', values: [['Service Workers', data.workers]] },
     { title: 'WeHouse team', note: 'Admins and assigned WeHouse team members.', destination: 'team', values: [['Members', data.team]] },
     { title: 'Properties & hotels', note: `${data.inspections} active inspections · ${data.hotel_team} hotel team members`, destination: 'properties', values: [['Apartments', data.apartments], ['Hotels', data.hotels]] },
     { title: 'Payout requests', note: 'Requests awaiting review or processing.', destination: 'finance', values: [['Requests', data.payouts]] },

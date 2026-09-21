@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import StaffWorkspaceState from '@/components/StaffWorkspaceState';
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
@@ -12,6 +12,7 @@ import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import StaffSecurityOverviewV2 from "@/components/StaffSecurityOverviewV2";
 import StaffActivityTrailV2 from "@/components/StaffActivityTrailV2";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
+import InboxActivityEntry from "@/components/InboxActivityEntry";
 import { useStaffPermissions } from "@/hooks/useStaffPermissions";
 import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
 import type { Profile } from "@/types";
@@ -21,7 +22,7 @@ type Module =
   | "finance"
   | "support"
   | "security"
-  | "verification"
+  | "worker_operations"
   | "field_officer";
 type MainTab = "home" | "work" | "bookings" | "conversations";
 type WorkView =
@@ -43,7 +44,7 @@ const MODULES: Module[] = [
   "finance",
   "support",
   "security",
-  "verification",
+  "worker_operations",
   "field_officer",
 ];
 const MODULE_COPY: Record<
@@ -63,19 +64,19 @@ const MODULE_COPY: Record<
   },
   support: {
     title: "Support Operations",
-    description: "Handle WeHouse conversations assigned to your branch.",
+    description: "Handle WeHouse conversations assigned to your coverage.",
     workLabel: "Conversations",
   },
   security: {
     title: "Security Operations",
     description:
-      "Review branch authentication and session signals, then escalate verified risks to Admin or Creator.",
+      "Review authentication and session signals in your coverage, then escalate verified risks to Admin or Creator.",
     workLabel: "Security Signals",
   },
-  verification: {
+  worker_operations: {
     title: "Worker Operations",
     description:
-      "Review Worker onboarding, professional evidence and the permitted account decision.",
+      "Review Worker onboarding, private identity checks and professional evidence from one canonical Worker record.",
     workLabel: "Workers",
   },
   field_officer: {
@@ -103,18 +104,18 @@ export default function StaffWorkspaceRepair({
     return (
       <StaffWorkspaceState {...stateActions}
         title="Loading your workspace"
-        text="Checking your branch and work area…"
+        text="Checking your coverage and work area…"
       />
     );
   if (error)
     return <StaffWorkspaceState {...stateActions} title="Could not check your work area"
       text="WeHouse could not load your permissions. Try again to check your assignment."
       onRetry={() => { void refresh(); }} />;
-  if (!profile.assigned_state || !profile.assigned_lga)
+  if (!profile.assigned_state)
     return (
       <StaffWorkspaceState {...stateActions}
-        title="Branch assignment required"
-        text="An Admin or Creator must assign this team member to a State and LGA before work can begin."
+        title="Coverage assignment required"
+        text="An Admin or Creator must assign this team member to a State or one LGA before work can begin."
       />
     );
   if (assigned.length !== 1)
@@ -202,7 +203,7 @@ function Workspace({
       state: profile.assigned_state || "",
       lga: profile.assigned_lga || "",
     },
-    branch = [scope.lga, scope.state].filter(Boolean).join(", ");
+    coverage = scope.lga ? [scope.lga, scope.state].filter(Boolean).join(", ") : `${scope.state} State`;
   function openStaffDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (/propert|listing|inspection/.test(route)) {
@@ -234,7 +235,7 @@ function Workspace({
         profile={profile}
         module={module}
         copy={copy}
-        branch={branch}
+        branch={coverage}
         openWork={() => setTab(directConversation ? "conversations" : "work")}
         onNavigate={onNavigate}
       />
@@ -257,11 +258,11 @@ function Workspace({
     );
   else if (tab === "conversations" && directConversation)
     content = (
-      <SupportInbox profile={profile} scope={scope} initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
+      <SupportInbox profile={profile} scope={scope} summary={inboxSummary} initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
     );
   else if (tab === "conversations" && module === "field_officer")
     content = (
-      <SupportInbox profile={profile} scope={scope} queue="field_operations" initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
+      <SupportInbox profile={profile} scope={scope} summary={inboxSummary} queue="field_operations" initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
     );
   else if (tab === "conversations")
     content = (
@@ -298,7 +299,7 @@ function Workspace({
       <WorkspaceFrameV2
         label={`WEHOUSE TEAM · ${copy.title}`}
         title={activeLabel}
-        description={`${activeDescription} · ${branch}`}
+        description={`${activeDescription} · ${coverage}`}
         items={items}
         active={tab}
         setActive={(id) => setTab(id as MainTab)}
@@ -327,7 +328,7 @@ function ModuleWork({
 }) {
   if (module === "field_officer")
     return <StaffInspectionWorkspaceV2 profile={profile} />;
-  if (module === "verification") return <StaffWorkerReviewModern />;
+  if (module === "worker_operations") return <StaffWorkerReviewModern />;
   if (module === "security")
     return (
       <div className="space-y-5">
@@ -390,85 +391,152 @@ function OperationsInbox({
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
+  const [activityOpen, setActivityOpen] = useState(false);
+
   function navigate(page: string, id?: string) {
     if (/operations_properties|staff_inspections|inspection|propert/.test(page))
       return openProperties(id);
     onNavigate?.(page, id);
   }
-  return (
-    <div className="space-y-8">
-      <section>
-        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
-          <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Branch work updates linked to their records.</p></div>
-          {summary.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.activityUnread} new</span> : null}
+
+  useEffect(() => {
+    if (initialConversationId) setActivityOpen(false);
+  }, [initialConversationId]);
+
+  if (activityOpen) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 border-b border-white/[.06] pb-3">
+          <button
+            type="button"
+            onClick={() => setActivityOpen(false)}
+            className="grid h-10 w-10 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]"
+            aria-label="Back to Inbox messages"
+          >
+            ←
+          </button>
+          <div>
+            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
+              Inbox
+            </p>
+            <h2 className="text-sm font-semibold">Activity</h2>
+          </div>
         </div>
         <Notifications
           profile={profile}
           scope="staff"
           embedded
-          compact
-          previewLimit={3}
           onUnreadChange={summary.refresh}
           onNavigate={navigate}
         />
-      </section>
-      <section>
-        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
-          <div><h2 className="text-xs font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Assigned property and Operations conversations.</p></div>
-          {summary.messageUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.messageUnread} new</span> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-2">
+        <div>
+          <h2 className="text-xs font-semibold">Messages</h2>
+          <p className="mt-0.5 text-[9px] text-[#707687]">
+            Assigned property conversations.
+          </p>
         </div>
-        <CommunicationsWorkspace
-          profile={profile}
-          scope={scope}
-          forcedView="inbox"
-          hideViewTabs
-          queue="operations"
-          initialConversationId={initialConversationId}
-          onOpenContext={navigate}
-          onUnreadChange={summary.refresh}
+        <InboxActivityEntry
+          compact
+          unread={summary.activityUnread}
+          onOpen={() => setActivityOpen(true)}
         />
-      </section>
+      </div>
+      <CommunicationsWorkspace
+        profile={profile}
+        scope={scope}
+        forcedView="inbox"
+        hideViewTabs
+        queue="operations"
+        initialConversationId={initialConversationId}
+        onOpenContext={navigate}
+        onUnreadChange={summary.refresh}
+      />
     </div>
   );
 }
 function SupportInbox({
   profile,
   scope,
+  summary,
   queue = "support",
   initialConversationId,
   onNavigate,
 }: {
   profile: Profile;
   scope: { state: string; lga: string };
+  summary: ReturnType<typeof useOperationsInboxSummary>;
   queue?: "support" | "field_operations";
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
-  return (
-    <div className="space-y-8">
-      <section>
-        <div className="mb-3 border-b border-white/[.06] pb-3"><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Official updates for this work area.</p></div>
+  const [activityOpen, setActivityOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialConversationId) setActivityOpen(false);
+  }, [initialConversationId]);
+
+  if (activityOpen) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 border-b border-white/[.06] pb-3">
+          <button
+            type="button"
+            onClick={() => setActivityOpen(false)}
+            className="grid h-10 w-10 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]"
+            aria-label="Back to Inbox messages"
+          >
+            ←
+          </button>
+          <div>
+            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
+              Inbox
+            </p>
+            <h2 className="text-sm font-semibold">Activity</h2>
+          </div>
+        </div>
         <Notifications
           profile={profile}
           scope="staff"
           embedded
-          compact
-          previewLimit={3}
+          onUnreadChange={summary.refresh}
           onNavigate={(page, id) => onNavigate?.(page, id)}
         />
-      </section>
-      <section>
-        <div className="mb-3 border-b border-white/[.06] pb-3"><h2 className="text-xs font-semibold">Messages</h2><p className="mt-1 text-[9px] text-[#707687]">Assigned conversations in one queue.</p></div>
-          <CommunicationsWorkspace
-            profile={profile}
-            scope={scope}
-            forcedView="inbox"
-            hideViewTabs
-            queue={queue}
-            initialConversationId={initialConversationId}
-            onOpenContext={(page, id)=>onNavigate?.(page, id)}
-          />
-      </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-2">
+        <div>
+          <h2 className="text-xs font-semibold">Messages</h2>
+          <p className="mt-0.5 text-[9px] text-[#707687]">
+            Assigned conversations in this Operation.
+          </p>
+        </div>
+        <InboxActivityEntry
+          compact
+          unread={summary.activityUnread}
+          onOpen={() => setActivityOpen(true)}
+        />
+      </div>
+      <CommunicationsWorkspace
+        profile={profile}
+        scope={scope}
+        forcedView="inbox"
+        hideViewTabs
+        queue={queue}
+        initialConversationId={initialConversationId}
+        onOpenContext={(page, id) => onNavigate?.(page, id)}
+        onUnreadChange={summary.refresh}
+      />
     </div>
   );
 }
@@ -522,7 +590,7 @@ function StaffHome({
         <p className="mt-2 max-w-xl text-xs leading-6 text-[#858B9B]">
           {copy.description}
         </p>
-        <p className="mt-2 text-[10px] text-[#666D7E]">Branch · {branch}</p>
+        <p className="mt-2 text-[10px] text-[#666D7E]">Coverage · {branch}</p>
       </section>
       <div className="border-y border-white/[.06]">
         <button

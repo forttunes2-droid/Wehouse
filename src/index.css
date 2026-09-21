@@ -75,15 +75,17 @@
 /* Opacity leaves fixed dialogs anchored to the viewport during navigation. */
 .page-transition,
 .wh-panel-enter {
-  animation: whPageEnter 160ms ease-out;
+  animation: whPageEnter 190ms cubic-bezier(.2,.7,.2,1);
 }
 
 @keyframes whPageEnter {
   from {
     opacity: 0;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -315,25 +317,6 @@ label:has(> div > select[aria-label="Local Government"]) select {
     transform: translateY(-1px);
   }
 }
-/* Reservation journeys are image-led, not a stack of dashboard cards. */
-article:has(button[aria-label="Preview reservation property photos"]) {
-  border: 1px solid rgba(255,255,255,.075) !important;
-  border-radius: 28px;
-  background: linear-gradient(155deg, rgba(20,24,34,.98), rgba(12,14,20,.98));
-  padding: 16px !important;
-  box-shadow: 0 24px 70px rgba(0,0,0,.24);
-  overflow: hidden;
-}
-article:has(button[aria-label="Preview reservation property photos"]) button[aria-label="Preview reservation property photos"] {
-  width: 104px;
-  height: 104px;
-  border-radius: 22px;
-  box-shadow: 0 14px 32px rgba(0,0,0,.3);
-}
-article:has(button[aria-label="Preview reservation property photos"]) button {
-  border-radius: 16px;
-}
-
 /* Keep maps inside the same visual system as the rest of WeHouse. */
 .leaflet-container {
   background: #11151d;
@@ -390,6 +373,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   body.printing-wehouse-receipt { background: white !important; }
   body.printing-wehouse-receipt > * { display: none !important; }
   body.printing-wehouse-receipt > .wehouse-print-document { display: block !important; color: #18181b; }
-  .wehouse-print-document .wehouse-receipt { border-radius: 0; max-width: 190mm; margin: 0 auto; }
-  @page { size: A4; margin: 16mm; }
+  .wehouse-print-document .wehouse-receipt { border-radius: 0; max-width: 96mm; margin: 0 auto; padding: 8mm !important; }
+  @page { size: 105mm 148mm; margin: 6mm; }
 }

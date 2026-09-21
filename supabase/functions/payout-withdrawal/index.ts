@@ -83,29 +83,34 @@ serve(async (req) => {
     if (authError || !user) return json({ success: false, error: "Invalid or expired session" }, 401);
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("user_id,role,deleted,suspended,banned")
+      .select("user_id,deleted,suspended,banned")
       .eq("auth_id", user.id)
       .maybeSingle();
     if (profileError) return json({ success: false, error: "Could not load finance account" }, 500);
-    if (!profile || !["staff", "admin", "creator"].includes(profile.role) || profile.deleted || profile.suspended || profile.banned)
+    if (!profile || profile.deleted || profile.suspended || profile.banned)
       return json({ success: false, error: "Active finance team account required" }, 403);
-    if (profile.role === "staff") {
-      const { data: permission } = await admin
-        .from("staff_permissions")
-        .select("staff_id")
-        .eq("staff_id", profile.user_id)
-        .eq("permission", "finance")
-        .eq("is_active", true)
-        .maybeSingle();
-      if (!permission) return json({ success: false, error: "Finance permission required" }, 403);
-    }
+
+    const { data: grants, error: grantReadError } = await admin
+      .from("workspace_role_assignments")
+      .select("workspace_role")
+      .eq("user_id", profile.user_id)
+      .eq("status", "active")
+      .is("revoked_at", null)
+      .in("workspace_role", ["creator", "admin", "staff", "finance_operations"]);
+    if (grantReadError) return json({ success: false, error: "Could not confirm finance authority" }, 500);
+    const activeGrants = new Set((grants || []).map((row: { workspace_role?: string | null }) => String(row.workspace_role || "")));
+    const isCreator = activeGrants.has("creator");
+    const isAdmin = activeGrants.has("admin");
+    const isFinanceStaff = activeGrants.has("staff") && activeGrants.has("finance_operations");
+    if (!isCreator && !isAdmin && !isFinanceStaff)
+      return json({ success: false, error: "Active Finance Operations access required" }, 403);
 
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "").trim();
     const withdrawalId = String(body?.withdrawal_id || "").trim();
     if (!withdrawalId) return json({ success: false, error: "Withdrawal ID is required" }, 400);
 
-    if (profile.role === "creator" && ["approve", "reject"].includes(action)) {
+    if (isCreator && ["approve", "reject"].includes(action)) {
       const creatorElevationId = String(body?.creator_elevation_id || "").trim();
       const sessionId = jwtSessionId(token);
       if (

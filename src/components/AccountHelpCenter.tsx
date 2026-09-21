@@ -211,7 +211,7 @@ export default function AccountHelpCenter({
 
   function startJob() {
     const target = jobTargets.find((item) => key(item) === targetId);
-    if (!target) return toast.error("Choose the Service Provider record first");
+    if (!target) return toast.error("Choose the Service Worker record first");
     if (target.subject_type === "worker") {
       openConversation({
         subject: target.label,
@@ -391,11 +391,11 @@ export default function AccountHelpCenter({
 
           {topic === "job" ? (
             <TargetPicker
-              title="Which Service Provider record?"
+              title="Which Service Worker record?"
               targets={jobTargets}
               value={targetId}
               setValue={setTargetId}
-              empty="No Service Provider profile or job is linked to this identity yet."
+              empty="No Service Worker profile or job is linked to this identity yet."
               action={startJob}
             />
           ) : null}

@@ -1,3 +1,4 @@
+import { withTimeout } from "@/lib/withTimeout";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -17,6 +18,7 @@ import {
   removePublishedCandidateCopies,
 } from "@/lib/supabase/listings";
 import { propertyLifecycleLabel } from "@/lib/status";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 type Stage =
   | "all"
   | "access_required"
@@ -58,14 +60,16 @@ export default function PropertyPipelineWorkspace({
     [loading, setLoading] = useState(true),
     [selected, setSelected] = useState<any | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const loadGeneration = useRef(0);
   async function load(quiet = false) {
+    const request = ++loadGeneration.current;
     if (!quiet) setLoading(true);
-    const { data, error } = await supabase.rpc("get_my_property_pipeline_v2", {
-      p_stage: "all",
-    });
-    if (error) {
-      setLoadError(true);
-    } else {
+    try {
+      const { data, error } = await withTimeout(supabase.rpc("get_my_property_pipeline_v2", {
+        p_stage: "all",
+      }), 12000, "Properties took too long to load.");
+      if (request !== loadGeneration.current) return;
+      if (error) throw error;
       setLoadError(false);
       const nextRows = Array.isArray(data) ? data : [];
       setRows(nextRows);
@@ -77,29 +81,51 @@ export default function PropertyPipelineWorkspace({
             .some((value) => String(value) === String(initialRecordId)),
         );
         if (target) setSelected(target);
-        else if (!quiet)
-          toast.error(
-            "The linked property record is no longer available in this workspace.",
-          );
+        else if (!quiet) toast.error("The linked property record is no longer available in this workspace.");
       }
+    } catch {
+      if (request === loadGeneration.current) setLoadError(true);
+    } finally {
+      if (request === loadGeneration.current) setLoading(false);
     }
-    if (!quiet) setLoading(false);
   }
   useEffect(() => {
+    setSelected(null); setRows([]); openedTarget.current = null;
     void load();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load(true);
-    }, 15000);
-    const focus = () => void load(true);
-    const visibility = () => {
-      if (document.visibilityState === "visible") void load(true);
+    const scheduler = createRefreshScheduler(
+      async () => {
+        await load(true);
+      },
+      () => document.visibilityState === "visible",
+      220,
+    );
+    const reconcile = () => scheduler.request();
+    const visible = () => {
+      if (document.visibilityState === "visible") scheduler.request();
     };
-    window.addEventListener("focus", focus);
-    document.addEventListener("visibilitychange", visibility);
+    const channel = supabase
+      .channel(`property-pipeline:${profile.user_id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inspection_requests" },
+        reconcile,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "listings" },
+        reconcile,
+      )
+      .subscribe();
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    document.addEventListener("visibilitychange", visible);
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", focus);
-      document.removeEventListener("visibilitychange", visibility);
+      loadGeneration.current += 1;
+      scheduler.dispose();
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+      document.removeEventListener("visibilitychange", visible);
+      void supabase.removeChannel(channel);
     };
   }, [profile.user_id, initialRecordId]);
   if (selected)
@@ -109,7 +135,7 @@ export default function PropertyPipelineWorkspace({
         row={selected}
         back={() => {
           setSelected(null);
-          void load();
+          void load(true);
         }}
       />
     );

@@ -31,14 +31,14 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
 .wh-auth-brand { text-align: left; }
 .wh-auth-wordmark { display: flex; align-items: center; gap: 12px; }
 .wh-auth-wordmark img { width: 44px; height: 44px; }
-.wh-auth-wordmark p { font-size: 25px; letter-spacing: -.035em; }
+.wh-auth-wordmark p { font-size: 22px; letter-spacing: -.035em; }
 .wh-auth-tagline { margin-top: 12px; color: var(--auth-muted); font-size: 13px; line-height: 1.5; }
 
 .wh-auth-content { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .wh-auth-form, .wh-auth-legal { width: 100%; max-width: 392px; margin-inline: auto; }
 .wh-auth-form { overflow-wrap: anywhere; }
-.wh-auth-form h1 { font-size: clamp(28px, 5vw, 32px); line-height: 1.2; letter-spacing: -.04em; }
-.wh-auth-mode-signup .wh-auth-form h1 { font-size: clamp(24px, 5vw, 30px); }
+.wh-auth-form h1 { font-size: clamp(22px, 5vw, 26px); line-height: 1.2; letter-spacing: -.04em; }
+.wh-auth-mode-signup .wh-auth-form h1 { font-size: clamp(22px, 5vw, 26px); }
 .wh-auth-mode-choose .wh-auth-form { margin-block: auto; padding-block: 8px 48px; }
 .wh-auth-legal { margin-top: auto; padding-top: 32px; }
 
@@ -74,4 +74,27 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   .wh-auth-header { padding-bottom: 24px; }
   .wh-auth-mode-choose .wh-auth-form { margin-block: 0; padding-block: 0; }
   .wh-auth-legal { padding-top: 24px; }
+}
+
+
+/* Auth motion is restrained: state changes feel connected without delaying sign-in. */
+.wh-auth-form {
+  animation: whAuthStateIn 200ms cubic-bezier(.2,.7,.2,1);
+}
+.wh-auth-primary,
+.wh-auth-secondary {
+  transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease, opacity 160ms ease;
+}
+.wh-auth-primary:active,
+.wh-auth-secondary:active {
+  transform: scale(.985);
+}
+@keyframes whAuthStateIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wh-auth-form { animation: none; }
+  .wh-auth-primary,
+  .wh-auth-secondary { transition: none; }
 }

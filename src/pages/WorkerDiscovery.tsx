@@ -24,6 +24,7 @@ import { workerServiceNames } from "@/lib/workerTaxonomy";
 import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } from "@/lib/workerIdentity";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
+import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
 type ActiveBooking = { worker_id?: string | null };
@@ -82,6 +83,8 @@ export default function WorkerDiscovery({
   onNavigate = () => {},
   preSelectedCategory,
 }: Props) {
+  const { getBoolean, loading: settingsLoading } = usePlatformSettings();
+  const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
   const savedState = profile?.state || "",
     savedCity = profile?.local_government || profile?.city || userCity || "";
   const [workers, setWorkers] = useState<Profile[]>([]),
@@ -529,14 +532,18 @@ export default function WorkerDiscovery({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold">
-              {loading
+              {loading || settingsLoading
                 ? "Finding Workers…"
-                : `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`}
+                : marketplaceEnabled
+                  ? `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`
+                  : "WeHouse Services"}
             </p>
             <p className="mt-1 text-[9px] text-[#666D7E]">
-              {state
-                ? `Searching ${[city, state].filter(Boolean).join(", ")}`
-                : "Choose State and LGA in filters."}
+              {!marketplaceEnabled && !settingsLoading
+                ? "The public Worker marketplace is currently closed."
+                : state
+                  ? `Searching ${[city, state].filter(Boolean).join(", ")}`
+                  : "Choose State and LGA in filters."}
             </p>
           </div>
           {(search || filterCount) && (
@@ -549,10 +556,15 @@ export default function WorkerDiscovery({
             </button>
           )}
         </div>
-        {loading ? (
+        {loading || settingsLoading ? (
           <div className="grid min-h-56 place-items-center">
             <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
           </div>
+        ) : !marketplaceEnabled ? (
+          <DiscoveryEmpty
+            title="WeHouse Services is not open yet"
+            text="Reviewed Workers are being prepared for public discovery. Your search and saved location are not the reason no Workers are showing."
+          />
         ) : shown.length === 0 ? (
           <DiscoveryEmpty
             title="No Worker matches this search"

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
 import {
   supabase,
   signUpWithEmail,
@@ -507,9 +508,11 @@ export default function Login({
 
     setWorking(true);
     const verificationEmail = context ? email.trim().toLowerCase() : undefined;
-    const { error: googleError } = await signInWithGoogle(verificationEmail, context);
-    if (googleError) {
-      setError(friendlyError(googleError.message));
+    try {
+      const { error: googleError } = await withTimeout(signInWithGoogle(verificationEmail, context), 15000, "Google sign-in could not open. Please try again.");
+      if (googleError) throw googleError;
+    } catch (cause) {
+      setError(friendlyError(errorMessage(cause, "Google sign-in could not open")));
       setWorking(false);
     }
   }
@@ -684,7 +687,7 @@ export default function Login({
       <main className={`wh-auth-layout wh-auth-mode-${mode}`}>
         <header className="wh-auth-header"><Brand /></header>
         <section className="wh-auth-content">
-        <div className="wh-auth-form">
+        <div key={mode} className="wh-auth-form">
         {isTestEnvironment ? <p className="mb-6 border-l-2 border-violet-400 pl-3 text-sm leading-6 text-[var(--auth-muted)]">Test preview · Live accounts don’t work here. <a href="https://www.wehouse.com.ng/" className="text-violet-300 underline underline-offset-4">Open live WeHouse</a></p> : null}
         {kickedOut ? (
           <Notice tone="warning" title="This device was signed out">
@@ -697,7 +700,7 @@ export default function Login({
         {mode === "choose" ? (
           <div>
             <div className="mb-8">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Welcome</h1>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Welcome</h1>
             </div>
             <button
               type="button"
@@ -728,7 +731,7 @@ export default function Login({
             <div className="pb-4">
               <div className="flex items-center gap-2">
               <BackButton onClick={() => { setMode('choose'); setPassword(''); setConfirmPassword(''); clearMessages(); }} ariaLabel="Back to welcome" />
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">
                 {mode === "signup" ? "Create your account" : "Welcome back"}
               </h1>
               </div>
@@ -782,7 +785,7 @@ export default function Login({
         {mode === "verify_email" ? (
           <div className="space-y-4">
             <section className="pb-4">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Confirm your email</h1>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Confirm your email</h1>
               <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                 Use the Google account for <span className="break-words font-medium text-[var(--auth-ink)]">{email.trim()}</span> to confirm it belongs to you.
               </p>
@@ -813,7 +816,7 @@ export default function Login({
         {mode === "confirm_device" && deviceDetails ? (
           <div className="space-y-4">
             <section className="pb-4">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Confirm this device</h1>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Confirm this device</h1>
               <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                 Use the Google account for <span className="break-words font-medium text-[var(--auth-ink)]">{email.trim()}</span> to approve this sign-in.
               </p>
@@ -846,7 +849,7 @@ export default function Login({
         {mode === "google_mismatch" ? (
           <div className="space-y-4">
             <div role="alert" className="pb-4">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Choose the matching account</h1>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Choose the matching account</h1>
               <p className="mt-3 break-words text-sm leading-6 text-[var(--auth-muted)]">
                 This step can verify only <strong className="text-[var(--auth-ink)]">{loginIdentifier || email}</strong>. <strong className="text-[var(--auth-ink)]">{googleMismatchEmail || "The selected Google account"}</strong> was rejected and no account details were changed.
               </p>
@@ -873,7 +876,7 @@ export default function Login({
         {mode === "forgot" ? (
           <form onSubmit={(event) => void handleForgot(event)} className="space-y-4">
             <div className="mb-5">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Reset your password</h1>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Reset your password</h1>
               <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                 Enter your username or email. You’ll confirm with the Google account linked to WeHouse.
               </p>
@@ -907,7 +910,7 @@ export default function Login({
         {mode === "recover" ? (
           <form onSubmit={(event) => void handleRecovery(event)} className="space-y-4">
             <div className="mb-5">
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight">Choose a new password</h1>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Choose a new password</h1>
               <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
                 Confirmed as <span className="font-semibold text-[var(--auth-ink)]">{loginIdentifier || email}</span>. Choose a new password.
               </p>

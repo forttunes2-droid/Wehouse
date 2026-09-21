@@ -199,13 +199,9 @@ export default function WorkerPublicProfileV2({
           <div className="mt-3 flex flex-wrap gap-2">{skills.map((skill) => <span key={skill} className="rounded-full bg-white/[.045] px-2.5 py-1.5 text-[9px] text-[#BCC0CA]">{skill}</span>)}</div>
         </section>
       ) : null}
-      <section>
-        <div className="mb-3"><h2 className="text-sm font-bold">Showcase</h2></div>
-        {loading ? (
-          <div className="min-h-24" role="status" aria-label="Loading work posts" />
-        ) : workPosts.length === 0 ? (
-          <Empty text="This worker has not published any work posts yet." />
-        ) : (
+      {!loading && workPosts.length > 0 ? (
+        <section>
+          <div className="mb-3"><h2 className="text-sm font-bold">Showcase</h2></div>
           <div className="-mx-4 grid grid-cols-2 gap-0.5 bg-white/[.08] sm:mx-0 sm:grid-cols-3 sm:overflow-hidden sm:rounded-2xl">
             {workPosts.map((post) => (
               <article key={post.id} className="group relative aspect-square min-w-0 overflow-hidden bg-black [content-visibility:auto]">
@@ -222,8 +218,8 @@ export default function WorkerPublicProfileV2({
               </article>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      ) : null}
       {reviews.length > 0 ? <section>
         <div className="mb-3 flex items-end justify-between gap-3">
           <div><h2 className="text-sm font-bold">Customer reviews</h2><p className="mt-1 text-[9px] text-[#666D7E]">Verified reviews from completed WeHouse jobs.</p></div>
@@ -274,9 +270,6 @@ function Media({ post, className }: { post: Post; className: string }) {
 }
 function reactionTotal(counts?: Record<string, number>) {
   return Object.values(counts || {}).reduce((total, value) => total + Number(value || 0), 0);
-}
-function Empty({ text }: { text: string }) {
-  return <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center text-[10px] text-[#666D7E]">{text}</div>;
 }
 function ProfileFact({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0 border-r border-white/[.06] px-3 py-4 text-center last:border-r-0"><p className="truncate text-[10px] font-semibold text-[#D5D8E0]">{value}</p><p className="mt-1 text-[8px] text-[#666D7E]">{label}</p></div>;

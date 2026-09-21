@@ -88,12 +88,13 @@ export default function WorkerBookingRequestSheetV2({
         setServicesLoading(false);
         return;
       }
-      const specific = [
-        ...((data || []) as Array<{ service_name: string | null }>).map((row) =>
-          String(row.service_name || "").trim(),
-        ),
-        ...skills.map((item) => item.trim()),
-      ].filter(Boolean);
+      const canonical = ((data || []) as Array<{ service_name: string | null }>)
+        .map((row) => String(row.service_name || "").trim())
+        .filter(Boolean);
+      const specific = (canonical.length
+        ? canonical
+        : skills.map((item) => item.trim())
+      ).filter(Boolean);
       const seen = new Set<string>();
       const unique = specific.filter((item) => {
         const key = item.toLowerCase();

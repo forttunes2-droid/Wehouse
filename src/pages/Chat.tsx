@@ -22,6 +22,7 @@ import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 
 type Props = {
   profile: Profile;
@@ -63,20 +64,30 @@ type Thread =
 type ActiveTarget = {
   conversationId: string;
   peerUserId?: string | null;
+  kind?: "roommate" | "worker" | "hotel";
+  bookingId?: string;
+  hotelConversation?: HotelConversation;
 } | null;
 
 type ThreadView = {
   title: string;
   avatar?: string | null;
   fallback: string;
-  kind: string;
   preview: string;
   context: string;
-  status: string;
   time: string;
   unread: number;
   tone: "violet" | "amber" | "emerald" | "blue";
 };
+
+type InboxListSnapshot = {
+  conversations: Conversation[];
+  bookingConversations: BookingConversation[];
+  hotelConversations: HotelConversation[];
+  supportThreads: SupportThread[];
+  people: Record<string, Person>;
+};
+const inboxListCache = new Map<string, InboxListSnapshot>();
 
 export default function Chat({
   profile,
@@ -88,16 +99,23 @@ export default function Chat({
   onActivityUnreadChange,
   conversationOnly = false,
 }: Props) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const cachedInbox = inboxListCache.get(profile.user_id);
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => cachedInbox?.conversations || [],
+  );
   const [bookingConversations, setBookingConversations] = useState<
     BookingConversation[]
-  >([]);
+  >(() => cachedInbox?.bookingConversations || []);
   const [hotelConversations, setHotelConversations] = useState<
     HotelConversation[]
-  >([]);
-  const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
-  const [people, setPeople] = useState<Record<string, Person>>({});
-  const [loading, setLoading] = useState(!conversationId);
+  >(() => cachedInbox?.hotelConversations || []);
+  const [supportThreads, setSupportThreads] = useState<SupportThread[]>(
+    () => cachedInbox?.supportThreads || [],
+  );
+  const [people, setPeople] = useState<Record<string, Person>>(
+    () => cachedInbox?.people || {},
+  );
+  const [loading, setLoading] = useState(!conversationId && !cachedInbox);
   const loadVersion = useRef(0);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
@@ -138,17 +156,37 @@ export default function Chat({
       if (request !== loadVersion.current) return;
       const failed = [roommateResult, peopleResult, bookingResult, hotelResult, supportResult].some(result => result.error);
       setLoadError(failed ? "Some messages could not be loaded. Please try again." : "");
-      if (!roommateResult.error) setConversations(
-        (roommateResult.conversations || []).filter(
-          (row) => row.conversation_type === "roommate",
-        ),
-      );
-      if (!peopleResult.error) setPeople(peopleResult.people || {});
-      if (!bookingResult.error) setBookingConversations(
-        (bookingResult.conversations || []) as BookingConversation[],
-      );
-      if (!hotelResult.error) setHotelConversations(hotelResult.conversations || []);
-      if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
+      const previous = inboxListCache.get(profile.user_id);
+      const nextConversations = roommateResult.error
+        ? previous?.conversations || []
+        : (roommateResult.conversations || []).filter(
+            (row) => row.conversation_type === "roommate",
+          );
+      const nextPeople = peopleResult.error
+        ? previous?.people || {}
+        : peopleResult.people || {};
+      const nextBookings = bookingResult.error
+        ? previous?.bookingConversations || []
+        : (bookingResult.conversations || []) as BookingConversation[];
+      const nextHotels = hotelResult.error
+        ? previous?.hotelConversations || []
+        : hotelResult.conversations || [];
+      const nextSupport = supportResult.error
+        ? previous?.supportThreads || []
+        : supportResult.conversations || [];
+
+      setConversations(nextConversations);
+      setPeople(nextPeople);
+      setBookingConversations(nextBookings);
+      setHotelConversations(nextHotels);
+      setSupportThreads(nextSupport);
+      inboxListCache.set(profile.user_id, {
+        conversations: nextConversations,
+        bookingConversations: nextBookings,
+        hotelConversations: nextHotels,
+        supportThreads: nextSupport,
+        people: nextPeople,
+      });
       } catch {
         if (request === loadVersion.current) setLoadError('Messages could not be loaded. Please try again.');
       } finally { if (request === loadVersion.current) setLoading(false); }
@@ -164,34 +202,53 @@ export default function Chat({
       view !== "messages"
     )
       return;
-    void load();
+
+    const scheduler = createRefreshScheduler(
+      async () => {
+        await load(true);
+      },
+      () => document.visibilityState === "visible",
+      180,
+    );
+    scheduler.request();
+
     const channel = supabase
       .channel(`inbox-list:${profile.user_id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        () => void load(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "booking_messages" },
-        () => void load(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "hotel_booking_messages" },
-        () => void load(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partner_support_messages" },
-        () => void load(true),
+        scheduler.request,
       )
-      .subscribe();
-    const timer = window.setInterval(() => void load(true), 30_000);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") scheduler.request();
+      });
+
+    const reconcile = () => {
+      if (document.visibilityState === "visible") scheduler.request();
+    };
+    window.addEventListener("focus", reconcile);
+    document.addEventListener("visibilitychange", reconcile);
+
     return () => {
       loadVersion.current += 1;
-      window.clearInterval(timer);
+      scheduler.dispose();
+      window.removeEventListener("focus", reconcile);
+      document.removeEventListener("visibilitychange", reconcile);
       void supabase.removeChannel(channel);
     };
   }, [
@@ -247,18 +304,6 @@ export default function Chat({
       (!needle || threadSearchText(thread, people, otherId).includes(needle)));
   }, [category, otherId, people, query, threads]);
 
-  const messageUnreadCount = useMemo(
-    () =>
-      threads.reduce(
-        (sum, thread) =>
-          sum +
-          (threadPresentation(thread, people, profile.user_id).unread > 0
-            ? 1
-            : 0),
-        0,
-      ),
-    [people, profile.user_id, threads],
-  );
 
   const target =
     activeTarget || (conversationId ? { conversationId, peerUserId } : null);
@@ -280,6 +325,9 @@ export default function Chat({
         onNavigate={onNavigate}
         conversationId={target.conversationId}
         peerUserId={target.peerUserId}
+        initialKind={target.kind}
+        initialBookingId={target.bookingId}
+        initialHotelConversation={target.hotelConversation}
         onConversationClose={() => {
           if (activeTarget) {
             setActiveTarget(null);
@@ -319,6 +367,7 @@ export default function Chat({
       setActiveTarget({
         conversationId: roommate.id,
         peerUserId: otherId(roommate),
+        kind: "roommate",
       });
       return true;
     }
@@ -328,7 +377,11 @@ export default function Chat({
     );
     if (booking) {
       setView("messages");
-      setActiveTarget({ conversationId: booking.conversation_id });
+      setActiveTarget({
+        conversationId: booking.conversation_id,
+        bookingId: booking.booking_id,
+        kind: "worker",
+      });
       return true;
     }
     const hotel = hotelConversations.find(
@@ -337,7 +390,11 @@ export default function Chat({
     );
     if (hotel) {
       setView("messages");
-      setActiveTarget({ conversationId: hotel.conversation_id });
+      setActiveTarget({
+        conversationId: hotel.conversation_id,
+        kind: "hotel",
+        hotelConversation: hotel,
+      });
       return true;
     }
     return false;
@@ -401,7 +458,6 @@ export default function Chat({
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
         <section className="pt-4">
           <h2 className="sr-only">Messages</h2>
-          {messageUnreadCount > 0 && <p className="mb-3 text-xs text-violet-300">{messageUnreadCount} unread conversation{messageUnreadCount === 1 ? '' : 's'}</p>}
           <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
             <SearchIcon />
             <input
@@ -459,14 +515,25 @@ export default function Chat({
                       );
                       return;
                     }
-                    setActiveTarget({
-                      conversationId:
-                        thread.kind === "roommate"
-                          ? thread.row.id
-                          : thread.row.conversation_id,
-                      peerUserId:
-                        thread.kind === "roommate" ? otherId(thread.row) : null,
-                    });
+                    setActiveTarget(
+                      thread.kind === "roommate"
+                        ? {
+                            conversationId: thread.row.id,
+                            peerUserId: otherId(thread.row),
+                            kind: "roommate",
+                          }
+                        : thread.kind === "worker"
+                          ? {
+                              conversationId: thread.row.conversation_id,
+                              bookingId: thread.row.booking_id,
+                              kind: "worker",
+                            }
+                          : {
+                              conversationId: thread.row.conversation_id,
+                              kind: "hotel",
+                              hotelConversation: thread.row,
+                            },
+                    );
                   }}
                 />
               ))}
@@ -522,45 +589,30 @@ function ThreadRow({
           {view.time ? (
             <span
               className={`shrink-0 text-[11px] ${
-                view.unread ? "text-violet-300" : "text-[#9B9FAE]"
+                view.unread ? "text-violet-300" : "text-[#8A90A0]"
               }`}
             >
               {view.time}
             </span>
           ) : null}
         </div>
-        <p
-          className={`mt-0.5 truncate text-[13px] ${
-            view.unread
-              ? "font-medium text-[#DADDE5]"
-              : "text-[#777D8D]"
-          }`}
-        >
-          {view.preview}
-        </p>
-        <p className="mt-0.5 text-[11px] leading-4 text-[#989DAC]">
-          <span
-            className={`font-semibold ${
-              view.tone === "amber"
-                ? "text-violet-300"
-                : view.tone === "emerald"
-                  ? "text-violet-300"
-                  : view.tone === "blue"
-                    ? "text-violet-300"
-                    : "text-violet-300"
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          <p
+            className={`min-w-0 flex-1 truncate text-[13px] ${
+              view.unread
+                ? "font-medium text-[#DADDE5]"
+                : "text-[#7D8392]"
             }`}
           >
-            {view.kind}
-          </span>
-          {view.context ? ` · ${view.context}` : ""}
-          {view.status ? ` · ${view.status}` : ""}
-        </p>
+            {view.preview}
+          </p>
+          {view.unread > 0 ? (
+            <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold text-white">
+              {view.unread > 99 ? "99+" : view.unread}
+            </span>
+          ) : null}
+        </div>
       </div>
-      {view.unread > 0 ? (
-        <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold">
-          {view.unread > 99 ? "99+" : view.unread}
-        </span>
-      ) : null}
     </button>
   );
 }
@@ -586,12 +638,10 @@ function threadPresentation(
       title: peer?.name || peer?.username || "Roommate",
       avatar: peer?.avatar || null,
       fallback: (peer?.name || peer?.username || "R").slice(0, 1),
-      kind: "Roommate",
       preview: cleanEncryptedPreview(
         thread.row.last_message || "Start the conversation",
       ),
       context: "Matched",
-      status: "",
       time: formatListTime(thread.time),
       unread,
       tone: "violet",
@@ -599,17 +649,15 @@ function threadPresentation(
   }
   if (thread.kind === "worker") {
     return {
-      title: thread.row.other_person_name || "Service Provider",
+      title: thread.row.other_person_name || "Service Worker",
       avatar: thread.row.other_person_avatar,
       fallback: (thread.row.other_person_name || "S").slice(0, 1),
-      kind: "Service",
       preview: cleanEncryptedPreview(
         thread.row.last_message ||
           thread.row.service_type ||
           "Service conversation",
       ),
       context: thread.row.service_type || "WeHouse Services",
-      status: statusLabel(thread.row.booking_status) || "Requested",
       time: formatListTime(
         thread.row.last_message_time || thread.row.updated_at,
       ),
@@ -622,7 +670,6 @@ function threadPresentation(
       title: thread.row.other_party_label || thread.row.hotel_name || "Hotel",
       avatar: thread.row.hotel_image,
       fallback: "H",
-      kind: "Stay",
       preview: thread.row.last_message || "Stay conversation",
       context: [
         thread.row.room_name,
@@ -630,7 +677,6 @@ function threadPresentation(
       ]
         .filter(Boolean)
         .join(" · "),
-      status: statusLabel(thread.row.booking_status) || "Stay",
       time: formatListTime(
         thread.row.last_message_time || thread.row.updated_at,
       ),
@@ -643,10 +689,8 @@ function threadPresentation(
     title: presentation.title,
     avatar: null,
     fallback: "W",
-    kind: "WeHouse",
     preview: thread.row.last_message || presentation.operator,
     context: presentation.meta || "WeHouse conversation",
-    status: statusLabel(thread.row.status) || "Open",
     time: formatListTime(
       thread.row.last_message_time || thread.row.created_at,
     ),
@@ -763,38 +807,6 @@ function formatListTime(value?: string | null) {
   return date.toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 }
 
-function statusLabel(value?: string | null) {
-  const labels: Record<string, string> = {
-    booking_requested: "Requested",
-    negotiating: "Agreeing details",
-    waiting_payment: "Waiting payment",
-    confirmed: "Paid",
-    pending: "Waiting confirmation",
-    payment_pending: "Waiting payment",
-    paid: "Paid",
-    checked_in: "Checked in",
-    checked_out: "Checked out",
-    expired: "Expired",
-    payment_conflict: "Payment review",
-    in_progress: "In progress",
-    completed_pending_approval: "Review work",
-    approved_released: "Completed",
-    disputed: "WeHouse review",
-    cancelled: "Cancelled",
-    refunded: "Refunded",
-    open: "Open",
-    waiting_for_user: "Your reply needed",
-    waiting_for_staff: "WeHouse reviewing",
-    resolved: "Resolved",
-    closed: "Closed",
-  };
-  return (
-    labels[String(value || "")] ||
-    String(value || "")
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase())
-  );
-}
 
 function SearchIcon() {
   return (

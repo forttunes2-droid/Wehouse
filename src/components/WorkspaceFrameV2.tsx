@@ -12,6 +12,7 @@ type Props = {
   active: string;
   setActive: (id: string) => void;
   onAccount?: () => void;
+  onWorkspaceSwitch?: () => void;
   onLogout: () => void;
   compact?: boolean;
   immersive?: boolean;
@@ -29,6 +30,7 @@ export default function WorkspaceFrameV2({
   active,
   setActive,
   onAccount,
+  onWorkspaceSwitch,
   onLogout,
   compact = false,
   immersive = false,
@@ -73,18 +75,29 @@ export default function WorkspaceFrameV2({
                 </div>
                 <div className="mt-1 flex min-w-0 items-center gap-1">
                   {onBack && <BackButton onClick={onBack} ariaLabel={backLabel} />}
-                  <h1 className="min-w-0 break-words text-xl font-semibold">{title}</h1>
+                  <h1 className="min-w-0 break-words text-lg font-semibold">{title}</h1>
                 </div>
                 {description ? (
                   <p className={`mt-1 max-w-2xl text-xs leading-5 text-[#AAA3B3] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
                 ) : null}
               </div>
-              {onAccount ? (
-                <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[10px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
-                  <NavIcon id="account" />
-                  <span>Account</span>
-                </button>
-              ) : null}
+              <div className="flex shrink-0 items-center gap-3">
+                {onWorkspaceSwitch ? (
+                  <button
+                    type="button"
+                    onClick={onWorkspaceSwitch}
+                    className="min-h-10 px-1 text-[10px] font-semibold text-violet-300 transition hover:text-violet-200"
+                  >
+                    Switch
+                  </button>
+                ) : null}
+                {onAccount ? (
+                  <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[10px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
+                    <NavIcon id="account" />
+                    <span>Account</span>
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <nav className="hidden gap-5 overflow-x-auto sm:flex" aria-label="Workspace sections">

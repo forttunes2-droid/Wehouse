@@ -42,7 +42,7 @@ export default function ServiceProviderVerification(props: Props) {
     return (
       <SimpleShell onBack={props.onBack}>
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[11px] leading-5 text-amber-100/80">
-          {error || 'Service Provider onboarding could not be loaded.'}
+          {error || 'Service Worker onboarding could not be loaded.'}
           <button type="button" onClick={() => void refresh()} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] font-semibold text-white">Try again</button>
         </section>
       </SimpleShell>
@@ -171,24 +171,24 @@ function EvidenceOnlyVerification({
 
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
         <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICES</p>
-        <h2 className="mt-1 text-base font-semibold">Service Provider onboarding is free</h2>
+        <h2 className="mt-1 text-base font-semibold">Service Worker onboarding is free</h2>
         <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
           Complete your professional profile, add a short work video and submit it to WeHouse for review.
         </p>
       </section>
 
       {!activation.profile_complete ? (
-        <Card title="Complete your Service Provider profile" text="Add your service, experience, price and service area first.">
+        <Card title="Complete your Service Worker profile" text="Add your service, experience, price and service area first.">
           <PrimaryButton label="Continue profile setup" onClick={onEditProfile} />
         </Card>
       ) : reviewed ? (
         <Card title="WeHouse review complete" text="Your professional profile and work evidence have been reviewed.">
-          <PrimaryButton label="Back to Service Provider workspace" onClick={onBack} />
+          <PrimaryButton label="Back to Service Worker workspace" onClick={onBack} />
         </Card>
       ) : reviewing ? (
         <Card title="Review in progress" text="WeHouse is reviewing the professional evidence you submitted.">
           <div className="rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2.5 text-[9px] text-[#8990A0]">Your profile remains private until the review is completed.</div>
-          <PrimaryButton label="Back to Service Provider workspace" onClick={onBack} secondary />
+          <PrimaryButton label="Back to Service Worker workspace" onClick={onBack} secondary />
         </Card>
       ) : !activation.evidence_saved ? (
         <Card title="Show your real work" text="Upload one short skill or completed-work video for private WeHouse review. A certificate is optional.">
@@ -218,7 +218,7 @@ function SimpleShell({ children, onBack }: { children: React.ReactNode; onBack: 
           <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07]" aria-label="Back">←</button>
           <div>
             <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE · SERVICES</p>
-            <h1 className="mt-1 text-lg font-bold">Service Provider review</h1>
+            <h1 className="mt-1 text-lg font-bold">Service Worker review</h1>
           </div>
         </div>
       </header>

@@ -24,7 +24,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import {
-  BOOKING_STATUS_LABELS,
+  getBookingDetails,
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
@@ -148,7 +148,8 @@ export default function MyReservations({
   const [activeHousing, setActiveHousing] = useState<any | null>(null);
   const [activeHotel, setActiveHotel] = useState<any | null>(null);
   const [activeHotelChat, setActiveHotelChat] = useState<any | null>(null);
-  const [activeService, setActiveService] = useState<{
+  const [activeService, setActiveService] = useState<any | null>(null);
+  const [activeServiceChat, setActiveServiceChat] = useState<{
     conversationId: string;
     bookingId: string;
   } | null>(null);
@@ -283,10 +284,7 @@ export default function MyReservations({
     );
     if (serviceMatch) {
       openedInitialRef.current = initialBookingId;
-      setActiveService({
-        conversationId: serviceMatch.conversation_id,
-        bookingId: serviceMatch.booking_id,
-      });
+      setActiveService(serviceMatch);
       onInitialBookingConsumed?.();
       return;
     }
@@ -643,17 +641,31 @@ export default function MyReservations({
     );
   }
 
-  if (activeService)
+  if (activeServiceChat)
     return (
       <BookingNegotiationChat
-        conversationId={activeService.conversationId}
-        bookingId={activeService.bookingId}
+        conversationId={activeServiceChat.conversationId}
+        bookingId={activeServiceChat.bookingId}
         profile={profile}
         isWorker={false}
         onClose={() => {
-          setActiveService(null);
-          void load();
+          setActiveServiceChat(null);
+          void load(true);
         }}
+      />
+    );
+
+  if (activeService)
+    return (
+      <ServiceBookingDetail
+        row={activeService}
+        onBack={() => setActiveService(null)}
+        onConversation={() =>
+          setActiveServiceChat({
+            conversationId: activeService.conversation_id,
+            bookingId: activeService.booking_id,
+          })
+        }
       />
     );
 
@@ -783,13 +795,13 @@ export default function MyReservations({
 
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center justify-between gap-3"><h1 className="text-xl font-bold">Bookings</h1><ReceiptAccess /></div>
+          <div className="flex items-center justify-between gap-3"><h1 className="text-lg font-bold tracking-tight">Bookings</h1><ReceiptAccess /></div>
 
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-2 border-b border-white/[.07] pb-4">
+      <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+        <div className="grid grid-cols-2 gap-2 border-b border-white/[.06] pb-3">
           <WeHouseSelect
             value={view}
             options={VIEW_OPTIONS}
@@ -824,7 +836,7 @@ export default function MyReservations({
         ) : sections.length === 0 ? (
           <Empty view={view} statusView={statusView} />
         ) : (
-          <div className="mt-4 space-y-5">
+          <div className="mt-3 space-y-4">
             {sections.map((section) => (
               <section key={section.id}>
                 <div className={statusView === "all" ? "flex items-center justify-between pb-2" : "sr-only"}>
@@ -861,12 +873,7 @@ export default function MyReservations({
                           item.row.booking_id || item.row.conversation_id
                         }
                         row={item.row}
-                        onOpen={() =>
-                          setActiveService({
-                            conversationId: item.row.conversation_id,
-                            bookingId: item.row.booking_id,
-                          })
-                        }
+                        onOpen={() => setActiveService(item.row)}
                       />
                     ),
                   )}
@@ -968,14 +975,12 @@ function BookingSourceNotice({
 }
 
 function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
-  const status = BOOKING_STATUS_LABELS[row.booking_status];
   const amount = Number(row.negotiated_amount || 0);
   return (
     <BookingCard
       eyebrow="WeHouse Service"
       title={row.service_type || "Service request"}
       subtitle={row.other_person_name || "WeHouse professional"}
-      status={status?.label || "Status unavailable"}
       image={null}
       fallback="⌁"
       meta={amount > 0 ? [money(amount)] : []}
@@ -1001,11 +1006,121 @@ function serviceNextAction(status: string) {
   return labels[status] || "Open for the next action";
 }
 
+function ServiceBookingDetail({
+  row,
+  onBack,
+  onConversation,
+}: {
+  row: any;
+  onBack: () => void;
+  onConversation: () => void;
+}) {
+  const [detail, setDetail] = useState<any>(row);
+  const [loadingDetail, setLoadingDetail] = useState(true);
+
+  useEffect(() => {
+    let current = true;
+    setLoadingDetail(true);
+    void getBookingDetails(String(row.booking_id)).then(({ booking }) => {
+      if (current && booking) setDetail({ ...row, ...booking });
+    }).finally(() => {
+      if (current) setLoadingDetail(false);
+    });
+    return () => {
+      current = false;
+    };
+  }, [row.booking_id]);
+
+  const status = String(detail.booking_status || detail.status || "booking_requested");
+  const amount = Number(detail.agreed_amount || detail.negotiated_amount || 0);
+  const workerName = detail.worker_name || row.other_person_name || "WeHouse Worker";
+  const payment = detail.money_label || detail.money_state || "Not paid";
+  const next = serviceNextAction(status);
+  const scheduled = detail.scheduled_date ? date(detail.scheduled_date) : null;
+
+  return (
+    <BookingDetailShell
+      title="Service booking"
+      onBack={onBack}
+      action={<ReceiptAccess subjectType="service" subjectId={String(row.booking_id)} />}
+    >
+      <section className="border-y border-white/[.07] bg-[#11141C]">
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
+                WeHouse Service
+              </p>
+              <h2 className="mt-1 break-words text-base font-bold leading-5">
+                {detail.service_type || "Service booking"}
+              </h2>
+              <p className="mt-1 text-[10px] text-[#777D8E]">
+                {workerName}
+              </p>
+            </div>
+            <span className="shrink-0 text-[9px] font-semibold text-violet-200">
+              {serviceStatusLabel(status)}
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-x-3">
+            <Info label="Agreed amount" value={amount > 0 ? money(amount) : "Not agreed yet"} />
+            <Info label="Payment" value={payment} />
+            {scheduled ? <Info label="Date" value={scheduled} /> : null}
+            {detail.booking_code ? <Info label="Booking code" value={String(detail.booking_code)} /> : null}
+          </div>
+
+          {detail.address ? (
+            <div className="border-b border-white/[.05] py-2">
+              <p className="text-[8px] uppercase text-[#5D6272]">Service location</p>
+              <p className="mt-0.5 break-words text-[10px] leading-4 text-[#C5C8D1]">
+                {detail.address}
+              </p>
+            </div>
+          ) : null}
+
+          <section className="mt-4 border-y border-white/[.06] py-3">
+            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-[#686F80]">
+              Next step
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-[#A3A8B5]">
+              {loadingDetail ? "Checking the latest booking state…" : next || "This service booking is complete."}
+            </p>
+          </section>
+
+          <button
+            type="button"
+            onClick={onConversation}
+            className="mt-4 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
+          >
+            Open conversation
+          </button>
+        </div>
+      </section>
+    </BookingDetailShell>
+  );
+}
+
+function serviceStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    booking_requested: "Requested",
+    negotiating: "Agreeing details",
+    waiting_payment: "Payment needed",
+    confirmed: "Confirmed",
+    in_progress: "In progress",
+    completed_pending_approval: "Confirm completion",
+    approved_released: "Completed",
+    disputed: "Under review",
+    cancelled: "Cancelled",
+    refunded: "Refunded",
+  };
+  return labels[status] || "Active";
+}
+
 function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const short = row.stay_type === "short_let";
   const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
-  const visibleStatus = propertyBookingStatusLabel(row);
   const nextSummary =
     row.status === "occupied"
       ? short
@@ -1043,19 +1158,16 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       eyebrow={short ? "Short Let" : "Long Let"}
       title={row.listing_title || "Apartment reservation"}
       subtitle={row.listing_location || "WeHouse apartment"}
-      status={visibleStatus}
       image={row.listing_image || null}
       fallback="⌂"
       meta={dates}
-      next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? "" : journey.title)}
+      next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? propertyBookingStatusLabel(row) : journey.title)}
       onOpen={onOpen}
     />
   );
 }
 
 function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
-  const visibleStatus =
-    HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
   const checkIn = date(row.check_in_date || row.check_in);
@@ -1068,13 +1180,12 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
         ? `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
         : row.status === "checked_in"
           ? `Check-out ${checkOut} by ${formatStayTime(hotel.check_out_time, "12:00")} (hotel local time)`
-          : "";
+          : HOTEL_STATUS[String(row.status || "")] || "";
   return (
     <BookingCard
       eyebrow="Hotel"
       title={hotel.name || row.hotel_name || "Hotel reservation"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
-      status={visibleStatus}
       image={image}
       fallback="H"
       meta={[`${checkIn} – ${checkOut}`]}
@@ -1088,7 +1199,6 @@ function BookingCard({
   eyebrow,
   title,
   subtitle,
-  status,
   image,
   fallback,
   meta,
@@ -1098,7 +1208,6 @@ function BookingCard({
   eyebrow: string;
   title: string;
   subtitle: string;
-  status: string;
   image: string | null;
   fallback: string;
   meta: string[];
@@ -1109,7 +1218,7 @@ function BookingCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
+      className="flex w-full items-center gap-3 py-3 text-left transition-[background,transform] duration-150 active:scale-[.995] active:bg-white/[.025]"
     >
       {image ? (
         <img
@@ -1117,38 +1226,33 @@ function BookingCard({
           alt=""
           loading="lazy"
           decoding="async"
-          className="h-14 w-16 shrink-0 rounded-xl object-cover"
+          className="h-12 w-14 shrink-0 rounded-xl object-cover"
         />
       ) : (
-        <div className="grid h-14 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-base font-bold text-violet-300">
+        <div className="grid h-12 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-sm font-bold text-violet-300">
           {fallback}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-          <p className="min-w-0 basis-full break-words text-base font-semibold">
-            {title}
-          </p>
-          <span className="text-xs font-medium text-violet-200">
-            {status}
-          </span>
-        </div>
-        <p className="mt-1 break-words text-sm text-[#A1A1AA]">
+        <p className="break-words text-sm font-semibold leading-5">
+          {title}
+        </p>
+        <p className="mt-0.5 break-words text-[10px] leading-4 text-[#858B9A]">
           {subtitle}
         </p>
         {meta.length ? (
-          <p className="mt-1.5 text-sm leading-5 text-[#A1A1AA]">
+          <p className="mt-1 text-[10px] leading-4 text-[#8A909F]">
             {meta.join(" · ")}
           </p>
         ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="shrink-0 text-[10px] font-bold uppercase tracking-[.12em] text-violet-300">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="shrink-0 text-[8px] font-bold uppercase tracking-[.12em] text-violet-300">
             {eyebrow}
           </span>
-          {next !== status && <span className="text-xs text-[#A1A1AA]">{next}</span>}
+          {next ? <span className="text-[9px] leading-4 text-[#858B9A]">{next}</span> : null}
         </div>
       </div>
-      <span className="shrink-0 text-lg text-[#555C6D]">›</span>
+      <span className="shrink-0 text-base text-[#4F5666]">›</span>
     </button>
   );
 }
@@ -1230,8 +1334,11 @@ function PropertyBookingDetail({
     (journey.rentPaid && ["handover", "tenancy"].includes(journey.action));
 
   return (
-    <BookingDetailShell title={title} onBack={onBack}>
-      <ReceiptAccess subjectType="housing" subjectId={String(row.id)} />
+    <BookingDetailShell
+      title={title}
+      onBack={onBack}
+      action={<ReceiptAccess subjectType="housing" subjectId={String(row.id)} />}
+    >
       <section className="overflow-hidden border-y border-white/[.07] bg-[#11141C]">
         {row.listing_image ? (
           <img
@@ -1239,16 +1346,16 @@ function PropertyBookingDetail({
             alt={row.listing_title || "Apartment"}
             loading="lazy"
             decoding="async"
-            className="aspect-[16/9] w-full object-cover"
+            className="aspect-[16/7] max-h-52 w-full object-cover"
           />
         ) : null}
-        <div className="p-5">
+        <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
                 {short ? "Short Let" : "Long Let"}
               </p>
-              <h2 className="mt-1 break-words text-xl font-bold">
+              <h2 className="mt-1 break-words text-base font-bold leading-5">
                 {row.listing_title || "Apartment booking"}
               </h2>
               <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
@@ -1378,15 +1485,17 @@ function PropertyBookingDetail({
           )}
 
           {journey.action === "handover" && row.booking_code ? (
-            <div className="mt-5 border-y border-emerald-500/20 bg-emerald-500/[.035] py-4 text-center">
-              <p className="text-[8px] uppercase tracking-[.16em] text-emerald-300">
-                Show Property Operations
-              </p>
-              <p className="mt-2 text-xl font-bold tracking-[.14em]">
+            <div className="mt-4 flex items-center justify-between gap-3 border-y border-emerald-500/15 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[8px] uppercase tracking-[.14em] text-emerald-300">
+                  Handover code
+                </p>
+                <p className="mt-0.5 text-[8px] leading-4 text-[#6F7B72]">
+                  Show only to Property Operations during verified handover.
+                </p>
+              </div>
+              <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-emerald-200">
                 {row.booking_code}
-              </p>
-              <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#7C887F]">
-                Access is handed over only after the code, property, identity and payment match.
               </p>
             </div>
           ) : null}
@@ -1493,8 +1602,11 @@ function HotelBookingDetail({
                 : "Open this booking for its latest state.";
 
   return (
-    <BookingDetailShell title="Hotel booking" onBack={onBack}>
-      <ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />
+    <BookingDetailShell
+      title="Hotel booking"
+      onBack={onBack}
+      action={<ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />}
+    >
       <section className="overflow-hidden border-y border-white/[.07] bg-[#11141C]">
         {roomImage ? (
           <img
@@ -1502,16 +1614,16 @@ function HotelBookingDetail({
             alt={`${room} at ${name}`}
             loading="lazy"
             decoding="async"
-            className="aspect-[16/10] w-full object-cover"
+            className="aspect-[16/7] max-h-52 w-full object-cover"
           />
         ) : null}
-        <div className="p-5">
+        <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">
                 Hotel
               </p>
-              <h2 className="mt-1 text-xl font-bold">{name}</h2>
+              <h2 className="mt-1 text-base font-bold leading-5">{name}</h2>
               <p className="mt-1 text-[10px] text-[#777D8E]">
                 {room} · {packageName}
               </p>
@@ -1527,16 +1639,9 @@ function HotelBookingDetail({
           </div>
 
           {showCode ? (
-            <div className="mt-4 border-y border-violet-500/20 bg-violet-500/[.04] py-3">
-              <p className="text-[8px] uppercase tracking-wide text-[#777D8E]">
-                Check-in code
-              </p>
-              <p className="mt-1 text-lg font-bold tracking-[.12em] text-violet-200">
-                {row.booking_code}
-              </p>
-              <p className="mt-1 text-[8px] text-[#777D8E]">
-                Show this only to authorized hotel staff at arrival.
-              </p>
+            <div className="mt-3 flex items-center justify-between gap-3 border-y border-violet-500/15 py-2.5">
+              <div className="min-w-0"><p className="text-[8px] uppercase tracking-wide text-[#777D8E]">Check-in code</p><p className="mt-0.5 text-[8px] text-[#666D7D]">Show only to authorised hotel staff.</p></div>
+              <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-violet-200">{row.booking_code}</p>
             </div>
           ) : null}
 
@@ -1545,14 +1650,14 @@ function HotelBookingDetail({
               href={directionsUrl(hotelAddress)}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 flex min-h-11 items-center justify-center border-y border-violet-500/20 text-[10px] font-semibold text-violet-300"
+              className="mt-3 inline-flex min-h-10 items-center text-[10px] font-semibold text-violet-300"
             >
               Open road directions
             </a>
           ) : null}
 
-          <p className="mt-4 text-xs text-[#A1A1AA]">Arrival and departure times use the hotel’s local time.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <p className="mt-3 text-[9px] leading-4 text-[#747A89]">Times use the hotel’s local time.</p>
+          <div className="mt-2 grid grid-cols-2 gap-x-3">
             <Info
               label="Check-in"
               value={`${date(row.check_in_date || row.check_in)} from ${formatStayTime(
@@ -1573,7 +1678,7 @@ function HotelBookingDetail({
             <Info label="Package" value={packageName} />
           </div>
 
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="text-[9px] font-semibold uppercase tracking-wide text-[#777D8E]">
               Stay journey
             </p>
@@ -1616,7 +1721,7 @@ function HotelBookingDetail({
           </div>
 
           {(row.total_price || row.total_amount || row.amount) != null ? (
-            <p className="mt-4 text-base font-bold">
+            <p className="mt-3 text-sm font-bold">
               {money(row.total_price || row.total_amount || row.amount)}
             </p>
           ) : null}
@@ -1788,10 +1893,12 @@ function ArrivalIssueDialog({
 function BookingDetailShell({
   title,
   onBack,
+  action,
   children,
 }: {
   title: string;
   onBack: () => void;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -1806,16 +1913,17 @@ function BookingDetailShell({
   }, []);
   return (
     <div className="min-h-[100dvh] bg-[#090B10] text-white">
-      <header className="sticky top-0 z-40 flex min-h-16 items-center gap-3 border-b border-white/[.06] bg-[#090B10]/95 px-4 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-white/[.06] bg-[#090B10]/95 px-3 backdrop-blur-xl">
         <BackButton onClick={onBack} />
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">
+        <div className="min-w-0 flex-1">
+          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-400">
             Bookings
           </p>
-          <h1 className="text-sm font-semibold">{title}</h1>
+          <h1 className="truncate text-sm font-semibold">{title}</h1>
         </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </header>
-      <main className="mx-auto max-w-3xl p-4 sm:p-6">{children}</main>
+      <main className="wh-panel-enter mx-auto max-w-2xl px-0 py-0 sm:px-4 sm:py-4">{children}</main>
     </div>
   );
 }
@@ -1834,9 +1942,9 @@ function hotelPaymentLabel(value: any) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-white/[.05] py-2.5">
+    <div className="border-b border-white/[.05] py-2">
       <p className="text-[8px] uppercase text-[#5D6272]">{label}</p>
-      <p className="mt-1 truncate text-[10px] font-semibold text-[#C5C8D1]">
+      <p className="mt-0.5 truncate text-[10px] font-semibold text-[#C5C8D1]">
         {value}
       </p>
     </div>
