@@ -61,11 +61,26 @@ begin
   if rules#>>'{active,future_long_let_installments,value,enabled}'<>'false' then
     raise exception 'Long Let installments are enabled at launch';
   end if;
-  if rules#>>'{active,commission_short_let,value,percent}'<>'10'
-     or rules#>>'{active,commission_long_let,value,percent}'<>'5'
-     or rules#>>'{active,commission_hotel,value,percent}'<>'12'
-     or rules#>>'{active,commission_worker,value,percent}'<>'8' then
-    raise exception 'Canonical commission bundle is inconsistent';
+  if (rules#>>'{active,commission_short_let,value,percent}') is distinct from '10'
+     or (rules#>>'{active,commission_long_let,value,percent}') is distinct from '5'
+     or (rules#>>'{active,commission_hotel,value,percent}') is distinct from '12'
+     or (rules#>>'{active,commission_worker,value,percent}') is distinct from '8' then
+    raise exception 'Canonical commission bundle is missing or inconsistent';
+  end if;
+
+  if (
+    select count(*)
+    from public.creator_policy_versions policy
+    where policy.policy_key=any(array[
+      'commission_short_let','commission_long_let','commission_hotel','commission_worker'
+    ])
+      and policy.scope_type='global'
+      and policy.scope_key='*'
+      and policy.status='active'
+      and policy.effective_from<=now()
+      and (policy.effective_until is null or policy.effective_until>now())
+  )<>4 then
+    raise exception 'Canonical commission policies are not all effective';
   end if;
 
   if has_function_privilege('authenticated','public.calculate_commission(numeric,text)','execute')
