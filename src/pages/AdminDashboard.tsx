@@ -571,7 +571,6 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
       title="Workers"
       note="Worker lifecycle review lives here. Availability is controlled only by the Worker and is not part of this filter."
     >
-      <AccountIdentityReviewQueue accountRole="worker" />
       <InlineFilterChips
         value={filter}
         options={statusOptions}
