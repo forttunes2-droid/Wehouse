@@ -18,6 +18,7 @@ import {
   removePublishedCandidateCopies,
 } from "@/lib/supabase/listings";
 import { propertyLifecycleLabel } from "@/lib/status";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 type Stage =
   | "all"
   | "access_required"
@@ -91,20 +92,40 @@ export default function PropertyPipelineWorkspace({
   useEffect(() => {
     setSelected(null); setRows([]); openedTarget.current = null;
     void load();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load(true);
-    }, 15000);
-    const focus = () => void load(true);
-    const visibility = () => {
-      if (document.visibilityState === "visible") void load(true);
+    const scheduler = createRefreshScheduler(
+      async () => {
+        await load(true);
+      },
+      () => document.visibilityState === "visible",
+      220,
+    );
+    const reconcile = () => scheduler.request();
+    const visible = () => {
+      if (document.visibilityState === "visible") scheduler.request();
     };
-    window.addEventListener("focus", focus);
-    document.addEventListener("visibilitychange", visibility);
+    const channel = supabase
+      .channel(`property-pipeline:${profile.user_id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inspection_requests" },
+        reconcile,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "listings" },
+        reconcile,
+      )
+      .subscribe();
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    document.addEventListener("visibilitychange", visible);
     return () => {
       loadGeneration.current += 1;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", focus);
-      document.removeEventListener("visibilitychange", visibility);
+      scheduler.dispose();
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+      document.removeEventListener("visibilitychange", visible);
+      void supabase.removeChannel(channel);
     };
   }, [profile.user_id, initialRecordId]);
   if (selected)
