@@ -144,13 +144,16 @@ test('Booking list keeps status in filters and details instead of a loud row lab
   assert.doesNotMatch(source,/status=\{visibleStatus\}/);
   assert.doesNotMatch(source,/status=\{status\?\.label/);
 });
-test('Creator team uses Worker Operations and counts assigned operations separately from setup gaps', () => {
+test('Creator Team uses canonical Operations, explicit coverage and capacity', () => {
   const source=readFileSync(new URL('../src/pages/StaffListTab.tsx', import.meta.url),'utf8');
-  assert.match(source,/worker_operations:'Worker Operations'/);
+  assert.match(source,/id:'worker_operations',label:'Worker Operations'/);
   assert.doesNotMatch(source,/Service Provider Operations/);
-  assert.match(source,/Metric label="Assigned Staff" value=\{assignedOperations\}/);
-  assert.match(source,/Metric label="Needs assignment" value=\{needsSetup\}/);
-  assert.match(source,/disabled=\{saving\|\|!draftModule/);
+  assert.match(source,/Metric label="Operations" value=\{staff\.length\}/);
+  assert.match(source,/Metric label="Needs review" value=\{needsSetup\}/);
+  assert.match(source,/Whole State/);
+  assert.match(source,/One LGA/);
+  assert.match(source,/Operation limits/);
+  assert.match(source,/creator_set_admin_authority/);
 });
 test('Worker discovery stays publicly gated while Creator and Admin can verify eligible Workers', () => {
   const source=readFileSync(new URL('../supabase/migrations/20260920203000_repair_team_summary_and_worker_internal_preview.sql', import.meta.url),'utf8');
