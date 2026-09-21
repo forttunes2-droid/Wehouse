@@ -14,22 +14,22 @@ export default function PropertyBookingJourney({
 }) {
   const journey = getPropertyBookingJourney(row, inspection, audience);
   return (
-    <section className="border-y border-white/[.07] py-5">
+    <section className="border-y border-white/[.07] py-4">
       <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
         {audience === "operations"
           ? "Operations handover record"
           : `Reservation to ${String(row.stay_type || row._stayKind) === "short_let" ? "checkout" : "tenancy"}`}
       </p>
-      <h2 className="mt-2 text-base font-bold">{journey.title}</h2>
-      <p className={`mt-1 max-w-xl leading-5 text-[#858A99] text-sm`}>
+      <h2 className="mt-1.5 text-sm font-bold">{journey.title}</h2>
+      <p className={`mt-1 max-w-xl text-[10px] leading-4 text-[#858A99]`}>
         {journey.detail}
       </p>
-      <ol className="mt-5 space-y-0">
+      <ol className="mt-4 space-y-0">
         {journey.steps.map((step, index) => (
           <li
             key={step.id}
             aria-current={step.state === "current" ? "step" : undefined}
-            className="relative flex gap-3 pb-4 last:pb-0"
+            className="relative flex gap-2.5 pb-3 last:pb-0"
           >
             {index < journey.steps.length - 1 && (
               <span
@@ -53,14 +53,14 @@ export default function PropertyBookingJourney({
             </span>
             <div className="min-w-0 pt-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <p className={`text-sm font-semibold ${step.state === "current" ? "text-white" : step.state === "complete" ? "text-emerald-200" : step.state === "stopped" ? "text-amber-200" : "text-[#777D8D]"}`}>
+                <p className={`text-[11px] font-semibold ${step.state === "current" ? "text-white" : step.state === "complete" ? "text-emerald-200" : step.state === "stopped" ? "text-amber-200" : "text-[#777D8D]"}`}>
                   {step.label}
                 </p>
                 {step.optional && (
                   <span className="text-[7px] uppercase tracking-wide text-[#616777]">Optional</span>
                 )}
               </div>
-              <p className={`mt-1 text-[#767C8C] text-xs leading-5`}>{step.detail}</p>
+              <p className={`mt-0.5 text-[9px] leading-4 text-[#767C8C]`}>{step.detail}</p>
             </div>
           </li>
         ))}
