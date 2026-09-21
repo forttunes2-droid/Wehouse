@@ -18,6 +18,7 @@ import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
+import InboxActivityEntry from "@/components/InboxActivityEntry";
 import AdminSecurityCases from "@/components/AdminSecurityCases";
 
 type AdminTab = "overview" | "operations" | "inbox";
@@ -212,45 +213,67 @@ function AdminInbox({
   onNavigate: (page: string, id?: string) => void;
   initialConversationId?: string;
 }) {
-  return (
-    <div className="space-y-8">
-      <section>
-        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
-          <div>
-            <h2 className="text-xs font-semibold">Activity</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">Branch updates linked to the record that caused them.</p>
+  const [activityOpen, setActivityOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialConversationId) setActivityOpen(false);
+  }, [initialConversationId]);
+
+  if (activityOpen) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 border-b border-white/[.06] pb-3">
+          <button
+            type="button"
+            onClick={() => setActivityOpen(false)}
+            className="grid h-10 w-10 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]"
+            aria-label="Back to Inbox messages"
+          >
+            ←
+          </button>
+          <div className="min-w-0">
+            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
+              Inbox
+            </p>
+            <h2 className="text-sm font-semibold">Activity</h2>
           </div>
-          {summary.activityUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.activityUnread} new</span> : null}
         </div>
         <Notifications
           profile={profile}
           scope="admin"
           embedded
-          compact
-          previewLimit={3}
           onUnreadChange={summary.setActivityUnread}
           onNavigate={onNavigate}
         />
-      </section>
-      <section>
-        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
-          <div>
-            <h2 className="text-xs font-semibold">Messages</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">Every assigned branch conversation, in one queue.</p>
-          </div>
-          {summary.messageUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{summary.messageUnread} new</span> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-2">
+        <div>
+          <h2 className="text-xs font-semibold">Messages</h2>
+          <p className="mt-0.5 text-[9px] text-[#707687]">
+            Assigned branch conversations.
+          </p>
         </div>
-        <CommunicationsWorkspace
-          profile={profile}
-          scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }}
-          forcedView="inbox"
-          hideViewTabs
-          queue="all"
-          initialConversationId={initialConversationId}
-          onOpenContext={onNavigate}
-          onUnreadChange={summary.setMessageUnread}
+        <InboxActivityEntry
+          compact
+          unread={summary.activityUnread}
+          onOpen={() => setActivityOpen(true)}
         />
-      </section>
+      </div>
+      <CommunicationsWorkspace
+        profile={profile}
+        scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }}
+        forcedView="inbox"
+        hideViewTabs
+        queue="all"
+        initialConversationId={initialConversationId}
+        onOpenContext={onNavigate}
+        onUnreadChange={summary.setMessageUnread}
+      />
     </div>
   );
 }
