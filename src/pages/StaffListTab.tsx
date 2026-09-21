@@ -123,7 +123,7 @@ export default function StaffListTab({profile}:{profile:Profile}){
         authority=authorityResult.data as AdminAuthority;
       }
       if(request!==generation.current)return;
-      setTeam(Array.isArray(teamResult.data)?teamResult.data as TeamMember:[]);
+      setTeam(Array.isArray(teamResult.data)?teamResult.data as TeamMember[]:[]);
       setOwnAuthority(authority);
     }catch(error){
       if(request===generation.current){
@@ -257,7 +257,7 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
     if(!creator||person.role!=='admin')return;
     void(async()=>{
       const{data,error}=await supabase.rpc('get_admin_team_authority',{p_admin_user_id:person.user_id});
-      if(error)return toast.error(error.message);
+      if(error){toast.error(error.message);return;}
       const next=data as AdminAuthority;
       setAuthority(next);setScopeType(next.scope_type);setState(next.state||'');setLga(next.lga||'');setCanManage(Boolean(next.can_manage_staff));
       setLimits(Object.fromEntries(OPERATION_IDS.map(id=>[id,Number(next.limits?.[id]?.max||0)])) as Record<OperationId,number>);
@@ -271,13 +271,13 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
     if(creator)args.p_creator_elevation_id=elevationId;
     const{error}=await supabase.rpc('manage_staff_permission',args);
     setSaving(false);
-    if(error)return toast.error(error.message);
+    if(error){toast.error(error.message);return;}
     toast.success('Operation updated');
     await onChanged();
   }
   function submitOperation(){
     if(creator){elevate(id=>saveOperation(id));return}
-    if(!adminAuthority?.can_manage_staff)return toast.error('Creator has not enabled Team management for this Admin');
+    if(!adminAuthority?.can_manage_staff){toast.error('Creator has not enabled Team management for this Admin');return;}
     void saveOperation();
   }
   async function saveCoverage(elevationId:string){
@@ -289,7 +289,7 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
       p_creator_elevation_id:elevationId,
     });
     setSaving(false);
-    if(error)return toast.error(error.message);
+    if(error){toast.error(error.message);return;}
     toast.success(scopeType==='state'?'State coverage saved':'LGA coverage saved');
     await onChanged();
   }
@@ -306,7 +306,7 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
       p_creator_elevation_id:elevationId,
     });
     setSaving(false);
-    if(error)return toast.error(error.message);
+    if(error){toast.error(error.message);return;}
     toast.success('Admin authority updated');
     await onChanged();
   }
@@ -316,7 +316,7 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
       p_target_user_id:person.user_id,p_new_role:'user',p_state:null,p_lga:null,p_module:null,p_creator_elevation_id:elevationId,
     });
     setSaving(false);
-    if(error)return toast.error(error.message);
+    if(error){toast.error(error.message);return;}
     toast.success('WeHouse Team access removed');
     await onChanged();
   }
@@ -407,7 +407,7 @@ function AddMember({creator,adminAuthority,elevate,onClose,onAdded}:{creator:boo
     setLoading(true);
     const{data,error}=await supabase.rpc('get_team_eligible_people',{p_search:value.trim()||null});
     setLoading(false);
-    if(error){setPeople([]);return toast.error(error.message)}
+    if(error){setPeople([]);toast.error(error.message);return;}
     setPeople(Array.isArray(data)?data as EligiblePerson[]:[]);
   }
   useEffect(()=>{void loadPeople('')},[]);
@@ -426,7 +426,7 @@ function AddMember({creator,adminAuthority,elevate,onClose,onAdded}:{creator:boo
         p_target_user_id:selected.user_id,p_new_role:teamRole,p_state:state,p_lga:scopeType==='branch'?lga:null,p_module:teamRole==='staff'?operation:null,p_creator_elevation_id:elevationId,
       });
       setSaving(false);
-      if(error)return toast.error(error.message);
+      if(error){toast.error(error.message);return;}
       toast.success(teamRole==='admin'?'Admin workspace granted. Configure authority next.':'Operations access granted');
       await onAdded();
       return;
@@ -435,7 +435,7 @@ function AddMember({creator,adminAuthority,elevate,onClose,onAdded}:{creator:boo
       p_target_user_id:selected.user_id,p_module:operation,p_scope_type:scopeType,p_state:state,p_lga:scopeType==='branch'?lga:null,
     });
     setSaving(false);
-    if(error)return toast.error(error.message);
+    if(error){toast.error(error.message);return;}
     toast.success('Operations access granted');
     await onAdded();
   }
