@@ -106,6 +106,8 @@ export default function PropertyOwnerDashboard({
     <>
 
       <WorkspaceFrameV2
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}
         items={TABS.map((item) => ({
