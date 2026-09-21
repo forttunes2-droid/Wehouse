@@ -80,6 +80,39 @@ test("Admin work areas have one owner and action-first defaults", async () => {
   assert.doesNotMatch(housing, /available in this branch|found in this branch/);
 });
 
+test("visible Activity surfaces use the canonical event model", async () => {
+  const [page, creator, worker, partner, operations, app, migration] = await Promise.all([
+    read("src/pages/Notifications.tsx"),
+    read("src/hooks/useCreatorInboxSummary.ts"),
+    read("src/hooks/useWorkerInboxSummary.ts"),
+    read("src/hooks/usePartnerInboxSummary.ts"),
+    read("src/hooks/useOperationsInboxSummary.ts"),
+    read("src/App.tsx"),
+    read("supabase/migrations/20260921223000_canonical_activity_domain_routing.sql"),
+  ]);
+
+  for (const source of [page, creator, worker, partner, operations]) {
+    assert.match(source, /getCanonicalActivity|getCanonicalActivitySummary/);
+    assert.doesNotMatch(source, /\.from\(["']notifications["']\)/);
+  }
+  assert.match(app, /getCanonicalActivitySummary\("personal"\)/);
+  assert.match(app, /activity_event_audiences/);
+  const personalCount = app.slice(
+    app.indexOf("async function loadCounts"),
+    app.indexOf("const toggle =", app.indexOf("async function loadCounts")),
+  );
+  assert.doesNotMatch(personalCount, /\.from\(["']notifications["']\)/);
+
+  assert.match(migration, /private\.fanout_team_activity/);
+  assert.match(migration, /worker\.review_submitted/);
+  assert.match(migration, /finance\.withdrawal_review_required/);
+  assert.match(migration, /property\.access_review\.action_required/);
+  assert.match(migration, /hotel\.stay_confirmed/);
+  assert.match(migration, /case\.action_required/);
+  assert.match(migration, /revoke all on table public\.activity_events from anon,authenticated/);
+  assert.match(migration, /revoke all on table public\.notifications from anon,authenticated/);
+});
+
 test("auth and Creator legal UI hide implementation detail by default", async () => {
   const [loginCss, login, legal, help] = await Promise.all([
     read("src/pages/login.css"),
