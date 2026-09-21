@@ -154,3 +154,11 @@ test("auth and Creator legal UI hide implementation detail by default", async ()
   assert.doesNotMatch(help, /eyebrow="Finance Operations"/);
   assert.doesNotMatch(help, /eyebrow="Security Operations"/);
 });
+
+
+test("frontend chart theming has no raw HTML injection sink", async () => {
+  const chart = await read("src/components/ui/chart.tsx");
+  assert.doesNotMatch(chart, /dangerouslySetInnerHTML/);
+  assert.match(chart, /safeChartCssValue/);
+  assert.match(chart, /return <style>\{css\}<\/style>/);
+});
