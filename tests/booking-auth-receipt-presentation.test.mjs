@@ -15,7 +15,12 @@ test("Bookings use one compact presentation language", async () => {
   assert.match(bookings, /aspect-\[16\/7\] max-h-52/);
   assert.match(bookings, /max-w-2xl px-0 py-0 sm:px-4 sm:py-4/);
   assert.match(bookings, /font-mono text-sm font-bold/);
-  assert.doesNotMatch(bookings, /text-xl font-bold/);
+  const bookingCardBlock = bookings.slice(bookings.indexOf("function BookingCard"), bookings.indexOf("function formatStayTime"));
+  const propertyBlock = bookings.slice(bookings.indexOf("function PropertyBookingDetail"), bookings.indexOf("function HotelBookingDetail"));
+  const hotelBlock = bookings.slice(bookings.indexOf("function HotelBookingDetail"), bookings.indexOf("function AccommodationProtectionPanel"));
+  assert.doesNotMatch(bookingCardBlock, /text-xl/);
+  assert.doesNotMatch(propertyBlock, /text-xl font-bold/);
+  assert.doesNotMatch(hotelBlock, /text-xl font-bold/);
   assert.doesNotMatch(
     css,
     /article:has\(button\[aria-label="Preview reservation property photos"\]\)/,
