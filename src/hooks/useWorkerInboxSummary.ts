@@ -1,10 +1,10 @@
 import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
+import { activityIsCurrent } from "@/lib/activityFeed";
 import {
-  activityIsCurrent,
-  currentActivityRows,
-  longestActivityCutoff,
-} from "@/lib/activityFeed";
+  getCanonicalActivitySummary,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser } from "@/lib/supabase/announcements";
 import { getMySupportConversations } from "@/lib/supabase/support";
@@ -19,15 +19,7 @@ export function useWorkerInboxSummary(userId: string) {
     const [jobs, support, events, announcements] = await Promise.all([
       getCommunicationBookingConversations(userId),
       getMySupportConversations("worker"),
-      supabase
-        .from("notifications")
-        .select(
-          "type,title,message,source_type,destination_route,created_at,read",
-        )
-        .eq("recipient_id", userId)
-        .eq("workspace_scope", "worker")
-        .eq("read", false)
-        .gte("created_at", longestActivityCutoff()),
+      getCanonicalActivitySummary("worker"),
       getAnnouncementsForUser(userId, "worker"),
     ]);
     if (!isCurrent()) return;
@@ -48,14 +40,7 @@ export function useWorkerInboxSummary(userId: string) {
       setChatUnread(jobThreads + supportThreads);
     }
 
-    const eventUnread = events.error
-      ? 0
-      : currentActivityRows(
-          (events.data || []).map((row) => ({
-            ...row,
-            source: "event" as const,
-          })),
-        ).length;
+    const eventUnread = events.error ? 0 : events.summary.unread;
     const announcementUnread = announcements.error
       ? 0
       : (announcements.messages || []).filter((delivery: any) => {
@@ -80,8 +65,11 @@ export function useWorkerInboxSummary(userId: string) {
 
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`worker-inbox-summary:${userId}`)
+    const channel = subscribeToCanonicalActivity(
+      userId,
+      `worker-inbox-summary:${userId}`,
+      () => void refresh(),
+    )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "booking_messages" },
@@ -92,16 +80,7 @@ export function useWorkerInboxSummary(userId: string) {
         { event: "*", schema: "public", table: "partner_support_messages" },
         () => void refresh(),
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${userId}`,
-        },
-        () => void refresh(),
-      )
+
       .on(
         "postgres_changes",
         {
