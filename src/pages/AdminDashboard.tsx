@@ -59,7 +59,7 @@ const OPS: [Operation, string, string][] = [
   [
     "security",
     "Security",
-    "Security Operations escalations and branch account decisions",
+    "Security Operations escalations and account decisions in your coverage",
   ],
 ];
 export default function AdminDashboard({
