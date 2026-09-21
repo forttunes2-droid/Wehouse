@@ -108,7 +108,7 @@ test("Creator property and team inboxes reconcile without fixed polling loops", 
 
 test("Creator finance and audit use additive workspace authority", async () => {
   const migration = await read(
-    "supabase/migrations/20260921113000_workspace_authority_for_creator_finance_audit.sql",
+    "supabase/migrations/20260921113500_workspace_authority_for_creator_finance_audit.sql",
   );
 
   assert.match(
