@@ -55,7 +55,10 @@ test("Receipts are compact and do not print as A4", async () => {
 
   assert.match(receipt, /Amount paid/);
   assert.match(receipt, /text-2xl tracking-tight/);
-  assert.match(receipt, />Receipts<\/button>/);
+  assert.match(receipt, /Payment receipt/);
+  assert.match(receipt, /Payment history/);
+  assert.match(receipt, /receipts\.length === 0\) return null/);
+  assert.doesNotMatch(receipt, />Receipts<\/button>/);
   assert.match(css, /@page \{ size: 105mm 148mm; margin: 6mm; \}/);
   assert.doesNotMatch(css, /@page \{ size: A4/);
 });
