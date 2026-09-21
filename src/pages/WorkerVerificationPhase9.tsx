@@ -18,6 +18,8 @@ type Activation = {
   marketplace_enabled?: boolean;
   profile_complete: boolean;
   identity_required?: boolean;
+  identity_gate_satisfied?: boolean;
+  identity_recurring_required?: boolean;
   identity_status: string;
   identity_captured?: boolean;
   identity_passed: boolean;
