@@ -220,7 +220,7 @@ returns integer
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public','private'
-as $
+as $$
 declare
   v_member record;
   v_count integer:=0;
@@ -243,7 +243,7 @@ begin
   end loop;
   return v_count;
 end
-$;
+$$;
 
 create or replace function private.resolve_subject_activity(
   p_subject_type text,
@@ -546,7 +546,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public','private'
-as $
+as $$
 declare
   v_stage text:=lower(coalesce(new.lifecycle_stage,''));
   v_event_id uuid;
@@ -599,14 +599,14 @@ begin
   );
   return new;
 end
-$;
+$$;
 
 create or replace function public.notify_reservation_operations_activity()
 returns trigger
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public','private'
-as $
+as $$
 declare
   v_listing public.listings;
   v_event_id uuid;
@@ -702,7 +702,7 @@ begin
 
   return new;
 end
-$;
+$$;
 
 drop trigger if exists reservations_operations_activity on public.reservations;
 create trigger reservations_operations_activity
@@ -716,7 +716,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public','private'
-as $
+as $$
 declare
   v_wallet public.wallets;
   v_owner public.profiles;
@@ -760,7 +760,7 @@ begin
   end if;
   return new;
 end
-$;
+$$;
 
 drop trigger if exists withdrawal_canonical_activity on public.withdrawals;
 create trigger withdrawal_canonical_activity
@@ -773,7 +773,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public','private'
-as $
+as $$
 declare
   v_requester public.profiles;
   v_event_id uuid;
@@ -848,7 +848,7 @@ begin
   );
   return new;
 end
-$;
+$$;
 
 drop trigger if exists operational_case_canonical_activity on public.operational_cases;
 create trigger operational_case_canonical_activity
@@ -861,7 +861,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public','private'
-as $
+as $$
 declare
   v_hotel public.hotels;
   v_event_id uuid;
@@ -918,7 +918,7 @@ begin
   end if;
   return new;
 end
-$;
+$$;
 
 revoke all on function public.get_my_canonical_activity_v2(text,integer)
 from public,anon;
