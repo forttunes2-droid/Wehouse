@@ -30,7 +30,7 @@ export default function IdentityAccessGate({
 
   if (loading)
     return (
-      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Provider'} onWorkspaceSwitch={onWorkspaceSwitch}>
+      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Worker'} onWorkspaceSwitch={onWorkspaceSwitch}>
         <section role="status" aria-live="polite" className="space-y-4 py-5">
           <p className="text-sm text-[#A1A1AA]">Opening your workspace…</p>
           <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-white/[.04]" />)}</div>
@@ -67,7 +67,7 @@ export default function IdentityAccessGate({
   // no face prompt is shown and existing workspace authority remains intact.
   if (state?.required && !state.gate_satisfied) {
     const partner = workspace === 'property_partner';
-    const label = partner ? 'Property Partner' : 'Service Provider';
+    const label = partner ? 'Property Partner' : 'Service Worker';
     const protectedWork = partner
       ? 'property requests, listings and earnings'
       : 'jobs, showcase and earnings';
