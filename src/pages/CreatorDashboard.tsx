@@ -328,7 +328,7 @@ function Operations({
           />
         </div>
       )}
-      {active === "workers" && <div className="space-y-5"><AccountIdentityReviewQueue accountRole="worker"/><CreatorWorkerOversight userId={profile.user_id} /></div>}
+      {active === "workers" && <CreatorWorkerOversight userId={profile.user_id} />}
       {active === "bookings" && (
         <Bookings
           initialRecordId={
