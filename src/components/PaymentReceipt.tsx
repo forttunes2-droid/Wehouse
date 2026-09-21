@@ -62,28 +62,104 @@ export function ReceiptPrintButton({ receipt }: { receipt: Receipt }) {
   return <><div className="w-full"><div className="flex items-center justify-end gap-2"><button type="button" onClick={() => setPrintReady(true)} className="min-h-11 rounded-xl border border-white/15 px-4 text-xs font-semibold">Print</button><button type="button" onClick={() => void download()} disabled={downloading} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white disabled:opacity-60">{downloading ? "Preparing PDF…" : "Download PDF"}</button></div>{downloadError && <p role="alert" className="mt-2 text-xs text-red-300">The PDF could not be saved. Try again or use Print.</p>}</div>{printReady && createPortal(<div className="wehouse-print-document"><ReceiptDocument receipt={receipt} /></div>, document.body)}</>;
 }
 
-export default function ReceiptAccess({ subjectType, subjectId }: { subjectType?: string; subjectId?: string }) {
+export default function ReceiptAccess({
+  subjectType,
+  subjectId,
+}: {
+  subjectType?: string;
+  subjectId?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [selected, setSelected] = useState<Receipt | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
-    if (!open) return;
     let current = true;
-    setLoading(true); setError(false); setSelected(null);
-    getPaymentReceipts(undefined, subjectType, subjectId).then(rows => {
-      if (current) { setReceipts(rows); if (rows.length === 1) setSelected(rows[0]); }
-    }).catch(() => { if (current) setError(true); }).finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [open, subjectType, subjectId, attempt]);
-  return <>
-    <button type="button" onClick={() => setOpen(true)} className="min-h-10 px-2 text-xs font-semibold text-violet-300">Receipts</button>
-    <ReceiptViewer open={open} onClose={() => setOpen(false)} receipt={selected} onList={receipts.length > 1 ? () => setSelected(null) : undefined}>
-      {loading ? <p role="status" className="py-6 text-sm">Loading receipts…</p> : error ? <div role="alert"><p>We couldn’t load your receipts.</p><button className="min-h-11 text-violet-300" onClick={() => setAttempt(value => value + 1)}>Try again</button></div> : receipts.length ? <div>{receipts.map(receipt => <button key={receipt.id} onClick={() => setSelected(receipt)} className="block min-h-16 w-full border-b border-white/10 py-3 text-left"><span className="block text-sm font-semibold">{receipt.merchant_name}</span><span className="mt-1 block text-xs text-[#A1A1AA]">{receipt.description} · {displayDate(receipt.paid_at)}</span></button>)}</div> : <p className="py-6 text-sm text-[#A1A1AA]">No verified payments yet. A receipt will appear here after payment is confirmed.</p>}
-    </ReceiptViewer>
-  </>;
+    setLoading(true);
+    setError(false);
+    setSelected(null);
+    getPaymentReceipts(undefined, subjectType, subjectId)
+      .then((rows) => {
+        if (!current) return;
+        setReceipts(rows);
+        if (rows.length === 1) setSelected(rows[0]);
+      })
+      .catch(() => {
+        if (current) setError(true);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [subjectType, subjectId, attempt]);
+
+  if (!loading && !error && receipts.length === 0) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={loading}
+        className="min-h-10 px-2 text-xs font-semibold text-violet-300 disabled:opacity-45"
+      >
+        {loading
+          ? "Receipt…"
+          : receipts.length === 1
+            ? "Payment receipt"
+            : "Payment history"}
+      </button>
+      <ReceiptViewer
+        open={open}
+        onClose={() => setOpen(false)}
+        receipt={selected}
+        onList={receipts.length > 1 ? () => setSelected(null) : undefined}
+      >
+        {loading ? (
+          <p role="status" className="py-6 text-sm">
+            Loading receipt…
+          </p>
+        ) : error ? (
+          <div role="alert">
+            <p>We couldn’t load this payment receipt.</p>
+            <button
+              className="min-h-11 text-violet-300"
+              onClick={() => setAttempt((value) => value + 1)}
+            >
+              Try again
+            </button>
+          </div>
+        ) : receipts.length > 1 ? (
+          <div>
+            {receipts.map((receipt) => (
+              <button
+                key={receipt.id}
+                onClick={() => setSelected(receipt)}
+                className="block min-h-16 w-full border-b border-white/10 py-3 text-left"
+              >
+                <span className="block text-sm font-semibold">
+                  {receipt.description || receipt.merchant_name}
+                </span>
+                <span className="mt-1 block text-xs text-[#A1A1AA]">
+                  {new Intl.NumberFormat("en-NG", {
+                    style: "currency",
+                    currency: receipt.currency || "NGN",
+                  }).format(receipt.amount)}
+                  {" · "}
+                  {displayDate(receipt.paid_at)}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </ReceiptViewer>
+    </>
+  );
 }
 
 export function ReceiptViewer({ open, onClose, receipt, onList, children }: { open: boolean; onClose: () => void; receipt: Receipt | null; onList?: () => void; children?: React.ReactNode }) {
