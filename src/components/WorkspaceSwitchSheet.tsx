@@ -62,7 +62,7 @@ export default function WorkspaceSwitchSheet({
               workspace === "personal"
                 ? "Explore, bookings, Inbox and Account"
                 : granted?.lga
-                  ? \`\${granted.lga}\${granted.state ? \`, \${granted.state}\` : ""}\`
+                  ? `${granted.lga}${granted.state ? `, ${granted.state}` : ""}`
                   : workspace === "worker"
                     ? "Your services and Worker activity"
                     : workspace === "property_partner"
@@ -79,11 +79,11 @@ export default function WorkspaceSwitchSheet({
                 }}
                 className="flex min-h-14 w-full items-center gap-3 px-1 py-2.5 text-left disabled:cursor-default"
               >
-                <span className={\`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-[11px] font-bold \${
+                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-[11px] font-bold ${
                   current
                     ? "border-violet-500/30 bg-violet-500/15 text-violet-200"
                     : "border-white/[.06] bg-white/[.025] text-[#858C9B]"
-                }\`}>
+                }`}>
                   {workspaceLabel(workspace).slice(0, 1)}
                 </span>
                 <span className="min-w-0 flex-1">
