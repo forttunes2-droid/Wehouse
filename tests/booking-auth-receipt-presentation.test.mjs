@@ -42,8 +42,9 @@ test("Login motion is subtle and respects reduced motion", async () => {
 
   assert.match(login, /<div key=\{mode\} className="wh-auth-form">/);
   assert.doesNotMatch(login, /text-\[28px\]/);
-  assert.match(css, /whAuthStateIn 200ms/);
-  assert.match(css, /translateY\(6px\)/);
+  assert.match(css, /whAuthStateIn 220ms/);
+  assert.match(css, /translateY\(8px\)/);
+  assert.match(css, /scale\(\.992\)/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
@@ -56,9 +57,10 @@ test("Receipts are compact and do not print as A4", async () => {
   assert.match(receipt, /Amount paid/);
   assert.match(receipt, /text-2xl tracking-tight/);
   assert.match(receipt, /Payment receipt/);
-  assert.match(receipt, /Payment history/);
-  assert.match(receipt, /receipts\.length === 0\) return null/);
-  assert.doesNotMatch(receipt, />Receipts<\/button>/);
+  assert.match(receipt, /onClick=\{\(\) => void loadReceipts\(\)\}/);
+  assert.match(receipt, />\s*Receipt\s*<\/button>/);
+  assert.doesNotMatch(receipt, />Payment history<\/button>/);
+  assert.doesNotMatch(receipt, /receipts\.length === 0\) return null/);
   assert.match(css, /@page \{ size: 105mm 148mm; margin: 6mm; \}/);
   assert.doesNotMatch(css, /@page \{ size: A4/);
 });
