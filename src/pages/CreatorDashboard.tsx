@@ -21,6 +21,7 @@ import StaffListTab from "./StaffListTab";
 import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
 import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
+import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
@@ -938,7 +939,13 @@ function Finance() {
 }
 
 type PlatformSection =
-  "identity" | "access" | "workers" | "worker_plan" | "properties" | "legal";
+  | "identity"
+  | "access"
+  | "booking_money"
+  | "workers"
+  | "worker_plan"
+  | "properties"
+  | "legal";
 const PLATFORM_SECTIONS: Array<{
   id: PlatformSection;
   label: string;
@@ -953,6 +960,11 @@ const PLATFORM_SECTIONS: Array<{
     id: "access",
     label: "Access & registration",
     note: "Maintenance mode and new-account access.",
+  },
+  {
+    id: "booking_money",
+    label: "Booking & money rules",
+    note: "Reservations, cancellations, deposits, commissions and protected-payment timing.",
   },
   {
     id: "workers",
@@ -1024,6 +1036,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
           description="Platform-wide availability and account creation controls."
         />
       )}
+      {section === "booking_money" && <CreatorBookingMoneyRules />}
       {section === "workers" && (
         <div className="space-y-5">
           <CreatorSettingsTabV2
