@@ -10,5 +10,5 @@ type Props = {
 };
 
 export default function PropertyPartnerDashboard(props: Props) {
-  return <IdentityAccessGate profile={props.profile}><PropertyOwnerDashboard {...props} /></IdentityAccessGate>;
+  return <IdentityAccessGate profile={props.profile} workspace="property_partner"><PropertyOwnerDashboard {...props} /></IdentityAccessGate>;
 }
