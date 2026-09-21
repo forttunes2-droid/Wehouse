@@ -9,6 +9,8 @@ export type ActivityFeedRow = {
   destination_params?: Record<string, unknown> | null;
   created_at: string;
   read?: boolean;
+  action_required?: boolean;
+  resolved_at?: string | null;
   source?: "event" | "announcement";
 };
 
@@ -34,8 +36,10 @@ export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "sour
 }
 
 export function activityNeedsAction(
-  row: Pick<ActivityFeedRow, "type" | "title" | "message" | "source_type" | "destination_route">,
+  row: Pick<ActivityFeedRow, "type" | "title" | "message" | "source_type" | "destination_route" | "action_required" | "resolved_at">,
 ) {
+  if (row.action_required === true) return !row.resolved_at;
+  if (row.resolved_at) return false;
   const value = [
     row.type,
     row.title,
