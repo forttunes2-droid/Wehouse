@@ -139,57 +139,125 @@ export default function Chat({
     async (quiet = false) => {
       const request = ++loadVersion.current;
       if (!quiet) setLoading(true);
-      try {
-      const [
-        roommateResult,
-        peopleResult,
-        bookingResult,
-        hotelResult,
-        supportResult,
-      ] = await withTimeout(Promise.all([
-        getConversations(profile.user_id),
-        getRoommateConversationPeople(),
-        getCommunicationBookingConversations(profile.user_id, "personal"),
-        getMyHotelConversations(),
-        getMySupportConversations(),
-      ]), 15000, "Messages took too long to load. Please try again.");
-      if (request !== loadVersion.current) return;
-      const failed = [roommateResult, peopleResult, bookingResult, hotelResult, supportResult].some(result => result.error);
-      setLoadError(failed ? "Some messages could not be loaded. Please try again." : "");
-      const previous = inboxListCache.get(profile.user_id);
-      const nextConversations = roommateResult.error
-        ? previous?.conversations || []
-        : (roommateResult.conversations || []).filter(
-            (row) => row.conversation_type === "roommate",
-          );
-      const nextPeople = peopleResult.error
-        ? previous?.people || {}
-        : peopleResult.people || {};
-      const nextBookings = bookingResult.error
-        ? previous?.bookingConversations || []
-        : (bookingResult.conversations || []) as BookingConversation[];
-      const nextHotels = hotelResult.error
-        ? previous?.hotelConversations || []
-        : hotelResult.conversations || [];
-      const nextSupport = supportResult.error
-        ? previous?.supportThreads || []
-        : supportResult.conversations || [];
+      setLoadError("");
 
-      setConversations(nextConversations);
-      setPeople(nextPeople);
-      setBookingConversations(nextBookings);
-      setHotelConversations(nextHotels);
-      setSupportThreads(nextSupport);
-      inboxListCache.set(profile.user_id, {
-        conversations: nextConversations,
-        bookingConversations: nextBookings,
-        hotelConversations: nextHotels,
-        supportThreads: nextSupport,
-        people: nextPeople,
-      });
-      } catch {
-        if (request === loadVersion.current) setLoadError('Messages could not be loaded. Please try again.');
-      } finally { if (request === loadVersion.current) setLoading(false); }
+      const previous = inboxListCache.get(profile.user_id);
+      const next: InboxListSnapshot = {
+        conversations: previous?.conversations || [],
+        bookingConversations: previous?.bookingConversations || [],
+        hotelConversations: previous?.hotelConversations || [],
+        supportThreads: previous?.supportThreads || [],
+        people: previous?.people || {},
+      };
+      let finished = 0;
+      let failed = 0;
+
+      const publish = () => {
+        if (request !== loadVersion.current) return;
+        finished += 1;
+        setConversations(next.conversations);
+        setBookingConversations(next.bookingConversations);
+        setHotelConversations(next.hotelConversations);
+        setSupportThreads(next.supportThreads);
+        setPeople(next.people);
+        inboxListCache.set(profile.user_id, { ...next });
+        // Paint the first available source immediately. Remaining sources
+        // reconcile in place instead of blocking the whole Inbox.
+        if (!quiet && finished === 1) setLoading(false);
+        if (finished === 5) {
+          setLoading(false);
+          setLoadError(
+            failed
+              ? "Some messages could not be refreshed. Showing what is available."
+              : "",
+          );
+        }
+      };
+
+      const tasks = [
+        (async () => {
+          try {
+            const result = await withTimeout(
+              getConversations(profile.user_id),
+              8000,
+              "Roommate messages took too long to refresh.",
+            );
+            if (result.error) failed += 1;
+            else
+              next.conversations = (result.conversations || []).filter(
+                (row) => row.conversation_type === "roommate",
+              );
+          } catch {
+            failed += 1;
+          } finally {
+            publish();
+          }
+        })(),
+        (async () => {
+          try {
+            const result = await withTimeout(
+              getRoommateConversationPeople(),
+              8000,
+              "Conversation profiles took too long to refresh.",
+            );
+            if (result.error) failed += 1;
+            else next.people = result.people || {};
+          } catch {
+            failed += 1;
+          } finally {
+            publish();
+          }
+        })(),
+        (async () => {
+          try {
+            const result = await withTimeout(
+              getCommunicationBookingConversations(profile.user_id, "personal"),
+              8000,
+              "Service messages took too long to refresh.",
+            );
+            if (result.error) failed += 1;
+            else
+              next.bookingConversations =
+                (result.conversations || []) as BookingConversation[];
+          } catch {
+            failed += 1;
+          } finally {
+            publish();
+          }
+        })(),
+        (async () => {
+          try {
+            const result = await withTimeout(
+              getMyHotelConversations(),
+              8000,
+              "Hotel messages took too long to refresh.",
+            );
+            if (result.error) failed += 1;
+            else next.hotelConversations = result.conversations || [];
+          } catch {
+            failed += 1;
+          } finally {
+            publish();
+          }
+        })(),
+        (async () => {
+          try {
+            const result = await withTimeout(
+              getMySupportConversations(),
+              8000,
+              "WeHouse messages took too long to refresh.",
+            );
+            if (result.error) failed += 1;
+            else next.supportThreads = result.conversations || [];
+          } catch {
+            failed += 1;
+          } finally {
+            publish();
+          }
+        })(),
+      ];
+
+      await Promise.allSettled(tasks);
     },
     [profile.user_id],
   );
