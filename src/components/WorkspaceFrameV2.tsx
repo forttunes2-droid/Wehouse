@@ -88,7 +88,7 @@ export default function WorkspaceFrameV2({
                     onClick={onWorkspaceSwitch}
                     className="min-h-10 px-1 text-[10px] font-semibold text-violet-300 transition hover:text-violet-200"
                   >
-                    Switch
+                    Workspaces
                   </button>
                 ) : null}
                 {onAccount ? (
