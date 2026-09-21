@@ -24,6 +24,7 @@ type Props = {
   onLogout: () => void;
   onNavigate: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
+  onWorkspaceSwitch?: () => void;
 };
 const money = (value: number) =>
   `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -49,6 +50,7 @@ export default function PropertyOwnerDashboard({
   profile,
   onLogout,
   onNavigate,
+  onWorkspaceSwitch,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const [propertyTargetId, setPropertyTargetId] = useState<
@@ -116,7 +118,7 @@ export default function PropertyOwnerDashboard({
         }))}
         active={tab}
         setActive={(id) => setTab(id as PartnerTab)}
-        onAccount={() => onNavigate("profile")}
+        onWorkspaceSwitch={onWorkspaceSwitch}
         onLogout={onLogout}
         compact={tab === "communication"}
         immersive={tab === "properties" && nestedPropertyView}
