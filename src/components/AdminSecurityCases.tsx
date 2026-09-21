@@ -100,11 +100,11 @@ export default function AdminSecurityCases({
     <div className="space-y-5">
       <section className="border-b border-white/[.07] pb-4">
         <p className="text-[9px] font-bold uppercase tracking-[.16em] text-red-300">
-          Branch security decisions
+          Security decisions
         </p>
         <h2 className="mt-2 text-xl font-bold">Security Operations escalations</h2>
         <p className="mt-2 max-w-2xl text-[10px] leading-5 text-[#777E8F]">
-          Security Operations investigates and records the case. Branch Admin can
+          Security Operations investigates and records the case. Admin can
           review the account, temporarily restrict access when necessary, or resolve
           the case without an account restriction. Every decision requires a reason.
         </p>
@@ -116,11 +116,11 @@ export default function AdminSecurityCases({
       </section>
 
       {loading ? (
-        <Empty text="Loading branch security cases…" />
+        <Empty text="Loading security cases…" />
       ) : error ? (
         <Empty text={`Security cases could not load: ${error}`} />
       ) : openRows.length === 0 ? (
-        <Empty text="No open Security Operations cases need branch Admin attention." />
+        <Empty text="No open Security Operations cases need Admin attention." />
       ) : (
         <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {openRows.map((row) => {
