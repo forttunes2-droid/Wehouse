@@ -14,7 +14,6 @@ values
 ('identity-partner','worker','global',null,null,'active'),
 ('identity-partner','property_partner','global',null,null,'active'),
 ('identity-workerops','staff','branch','Nasarawa','Lafia','active'),
-('identity-workerops','worker_operations','branch','Nasarawa','Lafia','active'),
 ('identity-propertyops','staff','branch','Nasarawa','Lafia','active'),
 ('identity-propertyops','property_operations','branch','Nasarawa','Lafia','active'),
 ('services-worker','worker','global',null,null,'active');
@@ -29,6 +28,11 @@ values
 ('77777777-5555-4555-8555-000000000001','77777777-4444-4444-8444-000000000001','Test Electrical Installation',true),
 ('77777777-5555-4555-8555-000000000002','77777777-4444-4444-8444-000000000001','Test Socket Repair',true),
 ('77777777-5555-4555-8555-000000000003','77777777-4444-4444-8444-000000000002','Test CCTV Installation',true);
+
+insert into public.staff_permissions(staff_id,permission,granted_by,granted_at,is_active)
+values
+('identity-workerops','worker_review','identity-workerops',now(),true),
+('identity-propertyops','property_operations','identity-propertyops',now(),true);
 
 insert into public.worker_identity_checks(worker_id,account_role,status,pending_reference_photo_path,submitted_at)
 values('identity-partner','property_partner','pending_review','identity-partner/pending.jpg',now());
@@ -56,7 +60,7 @@ select set_config('request.jwt.claim.sub','77777777-3333-4333-8333-000000000002'
 do $$
 begin
   if public.current_actor_can_review_account_identity('identity-partner') then
-    raise exception 'Worker Operations received a Property Partner identity review';
+    raise exception 'Worker Review received a Property Partner identity review';
   end if;
 end;
 $$;
@@ -80,7 +84,7 @@ select set_config('request.jwt.claim.sub','77777777-3333-4333-8333-000000000002'
 do $$
 begin
   if not public.current_actor_can_review_account_identity('identity-partner') then
-    raise exception 'Worker Operations could not review Worker identity';
+    raise exception 'Worker Review could not review Worker identity';
   end if;
 end;
 $$;
