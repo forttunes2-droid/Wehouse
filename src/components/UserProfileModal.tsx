@@ -89,6 +89,15 @@ type SelectedRecord =
   | { kind: "apartment"; row: ApartmentRecord }
   | { kind: "hotel"; row: HotelRecord };
 
+interface UserProfileModalProps {
+  user: Profile | null;
+  adminProfile?: Profile | null;
+  onClose: () => void;
+  onPromote?: () => void;
+  onNavigate?: (page: string, id?: string) => void;
+  onGoToChat?: (convId?: string) => void;
+}
+
 const workspaceLabel = (value: string) => {
   if (value === "worker") return "Service Worker";
   if (value === "property_partner") return "Property Partner";
@@ -106,9 +115,7 @@ export default function UserProfileModal(props: UserProfileModalProps) {
 
 function InternalProfileSheet({
   user,
-  adminProfile,
   onClose,
-  onPromote,
   onNavigate,
 }: UserProfileModalProps & { user: Profile }) {
   const [record, setRecord] = useState<InternalProfileRecord | null>(null);
