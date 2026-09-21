@@ -21,7 +21,7 @@ type Module =
   | "finance"
   | "support"
   | "security"
-  | "verification"
+  | "worker_review"
   | "field_officer";
 type MainTab = "home" | "work" | "bookings" | "conversations";
 type WorkView =
@@ -43,7 +43,7 @@ const MODULES: Module[] = [
   "finance",
   "support",
   "security",
-  "verification",
+  "worker_review",
   "field_officer",
 ];
 const MODULE_COPY: Record<
@@ -75,7 +75,7 @@ const MODULE_COPY: Record<
   verification: {
     title: "Worker Operations",
     description:
-      "Review Worker onboarding, professional evidence and the permitted account decision.",
+      "Review Worker onboarding, professional evidence and identity decisions from one canonical Worker record.",
     workLabel: "Workers",
   },
   field_officer: {
@@ -327,7 +327,7 @@ function ModuleWork({
 }) {
   if (module === "field_officer")
     return <StaffInspectionWorkspaceV2 profile={profile} />;
-  if (module === "verification") return <StaffWorkerReviewModern />;
+  if (module === "worker_review") return <StaffWorkerReviewModern />;
   if (module === "security")
     return (
       <div className="space-y-5">
