@@ -114,7 +114,7 @@ test('Existing professional profiles remain visible before public approval and d
     activeWorkspace:workspace,onSwitchWorkspace(){},
   }));};
   const existing=render(['worker','property_partner','hotel','admin']);
-  for(const label of ['Service Provider','Property Partner','Hotel Team','WeHouse Team','Current'])assert.match(existing,new RegExp(label));
+  for(const label of ['Service Worker','Property Partner','Hotel Team','WeHouse Team','Current'])assert.match(existing,new RegExp(label));
   assert.doesNotMatch(existing,/Offer services|List a property|Property Partner application/);
   const revoked=render([]);
   assert.match(revoked,/Offer services/);assert.match(revoked,/List a property/);assert.doesNotMatch(revoked,/under WeHouse review|WeHouse Team|Hotel Team/);
