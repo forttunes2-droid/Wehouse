@@ -7,11 +7,12 @@ type Props = {
   title: string;
   description?: string;
   onBack?: () => void;
+  onWorkspaceSwitch?: () => void;
   children: React.ReactNode;
   workspace?: WorkspaceName;
 };
 
-export default function AccountShell({ profile, title, description, onBack, children, workspace }: Props) {
+export default function AccountShell({ profile, title, description, onBack, onWorkspaceSwitch, children, workspace }: Props) {
   const role = String(profile.role || 'user');
   const roleLabel = workspace ? workspaceLabel(workspace).toUpperCase() : role === 'property_partner'
     ? 'PROPERTY PARTNER'
@@ -30,6 +31,15 @@ export default function AccountShell({ profile, title, description, onBack, chil
               <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
               {description ? <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p> : null}
             </div>
+            {onWorkspaceSwitch ? (
+              <button
+                type="button"
+                onClick={onWorkspaceSwitch}
+                className="min-h-10 shrink-0 px-1 text-[10px] font-semibold text-violet-300"
+              >
+                Switch
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
