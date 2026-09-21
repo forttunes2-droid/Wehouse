@@ -18,11 +18,22 @@ begin
     and has_function_privilege('authenticated',p.oid,'EXECUTE')
     and pg_get_functiondef(p.oid) ~* '(insert|update|delete|truncate)[[:space:]]+'
     and p.oid::regprocedure::text <> 'begin_identity_provider_password_recovery(text,text)'
-    and pg_get_functiondef(p.oid) !~* (
-      'auth\\.uid|current_profile_user_id|current_actor|_current_|is_current_|' ||
-      'creator_has_|user_has_active_workspace|current_staff_has_permission|' ||
-      'hotel_actor_has_capability|verify_|actor_can_|_admin_dashboard_actor'
-    );
+    and position('auth.uid' in lower(pg_get_functiondef(p.oid)))=0
+    and position('auth.jwt' in lower(pg_get_functiondef(p.oid)))=0
+    and position('current_profile_user_id' in lower(pg_get_functiondef(p.oid)))=0
+    and position('current_actor' in lower(pg_get_functiondef(p.oid)))=0
+    and position('_current_' in lower(pg_get_functiondef(p.oid)))=0
+    and position('is_current_' in lower(pg_get_functiondef(p.oid)))=0
+    and position('creator_has_' in lower(pg_get_functiondef(p.oid)))=0
+    and position('user_has_active_workspace' in lower(pg_get_functiondef(p.oid)))=0
+    and position('current_staff_has_permission' in lower(pg_get_functiondef(p.oid)))=0
+    and position('hotel_actor_has_capability' in lower(pg_get_functiondef(p.oid)))=0
+    and position('verify_' in lower(pg_get_functiondef(p.oid)))=0
+    and position('actor_can_' in lower(pg_get_functiondef(p.oid)))=0
+    and position('_admin_dashboard_actor' in lower(pg_get_functiondef(p.oid)))=0
+    and position('can_access_' in lower(pg_get_functiondef(p.oid)))=0
+    and position('can_current_actor' in lower(pg_get_functiondef(p.oid)))=0
+    and position('require_' in lower(pg_get_functiondef(p.oid)))=0;
 
   if bad is not null then
     raise exception 'Write-capable SECURITY DEFINER RPC lacks visible authorization path: %',bad;
