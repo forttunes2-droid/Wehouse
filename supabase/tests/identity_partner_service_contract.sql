@@ -19,6 +19,17 @@ values
 ('identity-propertyops','property_operations','branch','Nasarawa','Lafia','active'),
 ('services-worker','worker','global',null,null,'active');
 
+insert into public.service_categories(id,name,is_active)
+values
+('77777777-4444-4444-8444-000000000001','Test Home Repairs',true),
+('77777777-4444-4444-8444-000000000002','Test Technology',true);
+
+insert into public.service_subcategories(id,category_id,name,is_active)
+values
+('77777777-5555-4555-8555-000000000001','77777777-4444-4444-8444-000000000001','Test Electrical Installation',true),
+('77777777-5555-4555-8555-000000000002','77777777-4444-4444-8444-000000000001','Test Socket Repair',true),
+('77777777-5555-4555-8555-000000000003','77777777-4444-4444-8444-000000000002','Test CCTV Installation',true);
+
 insert into public.worker_identity_checks(worker_id,account_role,status,pending_reference_photo_path,submitted_at)
 values('identity-partner','property_partner','pending_review','identity-partner/pending.jpg',now());
 
@@ -89,9 +100,9 @@ declare result jsonb; n integer; skills jsonb;
 begin
   result:=public.set_my_worker_services(
     '[
-      {"category":"Home repairs","name":"Electrical installation","price":5000,"price_type":"starting_from"},
-      {"category":"Home repairs","name":"Socket repair","price":3000,"price_type":"starting_from"},
-      {"category":"Technology","name":"CCTV installation","price":8000,"price_type":"starting_from"}
+      {"category":"Test Home Repairs","name":"Test Electrical Installation","price":5000,"price_type":"starting_from"},
+      {"category":"Test Home Repairs","name":"Test Socket Repair","price":3000,"price_type":"starting_from"},
+      {"category":"Test Technology","name":"Test CCTV Installation","price":8000,"price_type":"starting_from"}
     ]'::jsonb
   );
   if (result->>'count')::integer<>3 then
@@ -106,8 +117,25 @@ begin
   select worker_skills into skills
   from public.profiles
   where user_id='services-worker';
-  if not (skills ? 'Electrical installation' and skills ? 'CCTV installation') then
+  if not (skills ? 'Test Electrical Installation' and skills ? 'Test CCTV Installation') then
     raise exception 'Worker search metadata was not synchronized';
+  end if;
+
+  begin
+    perform public.set_my_worker_services(
+      '[{"category":"Made Up","name":"Invented Service","price":1,"price_type":"fixed"}]'::jsonb
+    );
+    raise exception 'Arbitrary service was accepted';
+  exception
+    when others then
+      if sqlerrm='Arbitrary service was accepted' then raise; end if;
+  end;
+
+  select count(*) into n
+  from public.worker_services
+  where worker_id='services-worker';
+  if n<>3 then
+    raise exception 'Invalid service attempt changed the canonical service list';
   end if;
 end;
 $$;
