@@ -22,6 +22,7 @@ import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 
 type Props = {
   profile: Profile;
@@ -76,6 +77,15 @@ type ThreadView = {
   tone: "violet" | "amber" | "emerald" | "blue";
 };
 
+type InboxListSnapshot = {
+  conversations: Conversation[];
+  bookingConversations: BookingConversation[];
+  hotelConversations: HotelConversation[];
+  supportThreads: SupportThread[];
+  people: Record<string, Person>;
+};
+const inboxListCache = new Map<string, InboxListSnapshot>();
+
 export default function Chat({
   profile,
   onNavigate,
@@ -86,16 +96,23 @@ export default function Chat({
   onActivityUnreadChange,
   conversationOnly = false,
 }: Props) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const cachedInbox = inboxListCache.get(profile.user_id);
+  const [conversations, setConversations] = useState<Conversation[]>(
+    () => cachedInbox?.conversations || [],
+  );
   const [bookingConversations, setBookingConversations] = useState<
     BookingConversation[]
-  >([]);
+  >(() => cachedInbox?.bookingConversations || []);
   const [hotelConversations, setHotelConversations] = useState<
     HotelConversation[]
-  >([]);
-  const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
-  const [people, setPeople] = useState<Record<string, Person>>({});
-  const [loading, setLoading] = useState(!conversationId);
+  >(() => cachedInbox?.hotelConversations || []);
+  const [supportThreads, setSupportThreads] = useState<SupportThread[]>(
+    () => cachedInbox?.supportThreads || [],
+  );
+  const [people, setPeople] = useState<Record<string, Person>>(
+    () => cachedInbox?.people || {},
+  );
+  const [loading, setLoading] = useState(!conversationId && !cachedInbox);
   const loadVersion = useRef(0);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
@@ -136,17 +153,37 @@ export default function Chat({
       if (request !== loadVersion.current) return;
       const failed = [roommateResult, peopleResult, bookingResult, hotelResult, supportResult].some(result => result.error);
       setLoadError(failed ? "Some messages could not be loaded. Please try again." : "");
-      if (!roommateResult.error) setConversations(
-        (roommateResult.conversations || []).filter(
-          (row) => row.conversation_type === "roommate",
-        ),
-      );
-      if (!peopleResult.error) setPeople(peopleResult.people || {});
-      if (!bookingResult.error) setBookingConversations(
-        (bookingResult.conversations || []) as BookingConversation[],
-      );
-      if (!hotelResult.error) setHotelConversations(hotelResult.conversations || []);
-      if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
+      const previous = inboxListCache.get(profile.user_id);
+      const nextConversations = roommateResult.error
+        ? previous?.conversations || []
+        : (roommateResult.conversations || []).filter(
+            (row) => row.conversation_type === "roommate",
+          );
+      const nextPeople = peopleResult.error
+        ? previous?.people || {}
+        : peopleResult.people || {};
+      const nextBookings = bookingResult.error
+        ? previous?.bookingConversations || []
+        : (bookingResult.conversations || []) as BookingConversation[];
+      const nextHotels = hotelResult.error
+        ? previous?.hotelConversations || []
+        : hotelResult.conversations || [];
+      const nextSupport = supportResult.error
+        ? previous?.supportThreads || []
+        : supportResult.conversations || [];
+
+      setConversations(nextConversations);
+      setPeople(nextPeople);
+      setBookingConversations(nextBookings);
+      setHotelConversations(nextHotels);
+      setSupportThreads(nextSupport);
+      inboxListCache.set(profile.user_id, {
+        conversations: nextConversations,
+        bookingConversations: nextBookings,
+        hotelConversations: nextHotels,
+        supportThreads: nextSupport,
+        people: nextPeople,
+      });
       } catch {
         if (request === loadVersion.current) setLoadError('Messages could not be loaded. Please try again.');
       } finally { if (request === loadVersion.current) setLoading(false); }
@@ -162,34 +199,53 @@ export default function Chat({
       view !== "messages"
     )
       return;
-    void load();
+
+    const scheduler = createRefreshScheduler(
+      async () => {
+        await load(true);
+      },
+      () => document.visibilityState === "visible",
+      180,
+    );
+    scheduler.request();
+
     const channel = supabase
       .channel(`inbox-list:${profile.user_id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        () => void load(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "booking_messages" },
-        () => void load(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "hotel_booking_messages" },
-        () => void load(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partner_support_messages" },
-        () => void load(true),
+        scheduler.request,
       )
-      .subscribe();
-    const timer = window.setInterval(() => void load(true), 30_000);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") scheduler.request();
+      });
+
+    const reconcile = () => {
+      if (document.visibilityState === "visible") scheduler.request();
+    };
+    window.addEventListener("focus", reconcile);
+    document.addEventListener("visibilitychange", reconcile);
+
     return () => {
       loadVersion.current += 1;
-      window.clearInterval(timer);
+      scheduler.dispose();
+      window.removeEventListener("focus", reconcile);
+      document.removeEventListener("visibilitychange", reconcile);
       void supabase.removeChannel(channel);
     };
   }, [
