@@ -321,13 +321,26 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         ? "hotel_staff"
         : activeWorkspace;
   }, [baseProfile, activeWorkspace, workspaceAccess]);
-  const profile = useMemo(
-    () =>
-      baseProfile
-        ? { ...baseProfile, role: effectiveRole as typeof baseProfile.role }
-        : null,
-    [baseProfile, effectiveRole],
+  const activeWorkspaceGrant = workspaceAccess?.privileged_workspaces?.find(
+    (item) => item.role === activeWorkspace,
   );
+  const profile = useMemo(() => {
+    if (!baseProfile) return null;
+    const internalWorkspace = ["staff", "admin", "creator"].includes(activeWorkspace);
+    return {
+      ...baseProfile,
+      role: effectiveRole as typeof baseProfile.role,
+      ...(internalWorkspace && activeWorkspaceGrant
+        ? {
+            assigned_state: activeWorkspaceGrant.state ?? null,
+            assigned_lga:
+              activeWorkspaceGrant.scope_type === "branch"
+                ? activeWorkspaceGrant.lga ?? null
+                : null,
+          }
+        : {}),
+    };
+  }, [baseProfile, effectiveRole, activeWorkspace, activeWorkspaceGrant]);
   const canList = canCreateListings(effectiveRole),
     isCreator = checkCreator(effectiveRole),
     userRole = effectiveRole,
