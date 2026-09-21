@@ -146,10 +146,10 @@ test('Booking list keeps status in filters and details instead of a loud row lab
 });
 test('Creator team uses Worker Operations and counts assigned operations separately from setup gaps', () => {
   const source=readFileSync(new URL('../src/pages/StaffListTab.tsx', import.meta.url),'utf8');
-  assert.match(source,/verification:'Worker Operations'/);
+  assert.match(source,/worker_operations:'Worker Operations'/);
   assert.doesNotMatch(source,/Service Provider Operations/);
-  assert.match(source,/Metric label="Operations" value=\{assignedOperations\}/);
-  assert.match(source,/Metric label="Needs setup" value=\{needsSetup\}/);
+  assert.match(source,/Metric label="Assigned Staff" value=\{assignedOperations\}/);
+  assert.match(source,/Metric label="Needs assignment" value=\{needsSetup\}/);
   assert.match(source,/disabled=\{saving\|\|!draftModule/);
 });
 test('Worker discovery stays publicly gated while Creator and Admin can verify eligible Workers', () => {
