@@ -9,9 +9,10 @@ interface ListingCardProps {
   isSaved?: boolean;
   onToggleSave?: (event: React.MouseEvent) => void;
   distanceKm?: number | null;
+  compactMobile?: boolean;
 }
 
-export default function ListingCard({ listing, onClick, isSaved, onToggleSave, distanceKm }: ListingCardProps) {
+export default function ListingCard({ listing, onClick, isSaved, onToggleSave, distanceKm, compactMobile = false }: ListingCardProps) {
   const imageUrl = listing.images?.[0] || 'https://placehold.co/600x400/1A1A24/5C5E72?text=No+Image';
   const listingStatus: ListingStatus = listing.status || 'available';
   const rawStatus = String(listing.status || 'available');
@@ -27,16 +28,27 @@ export default function ListingCard({ listing, onClick, isSaved, onToggleSave, d
   const primary = media[0] || imageUrl;
   const displayTitle = listingDisplayTitle(listing);
 
-  return <article onClick={onClick} className="group cursor-pointer border-b border-white/[.07] pb-5">
-    <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#141720]">
+  return <article
+    onClick={onClick}
+    className={`group cursor-pointer border-b border-white/[.07] ${
+      compactMobile ? "flex gap-3 py-3 sm:block sm:py-0 sm:pb-5" : "pb-5"
+    }`}
+  >
+    <div
+      className={`relative overflow-hidden rounded-2xl bg-[#141720] ${
+        compactMobile
+          ? "h-28 w-32 shrink-0 sm:aspect-[4/3] sm:h-auto sm:w-full"
+          : "aspect-[4/3]"
+      }`}
+    >
       <img src={primary} alt={displayTitle} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" decoding="async"/>
       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10"/>
-      <div className="absolute left-2.5 top-2.5 z-10"><span className={`rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase backdrop-blur-md ${statusBg} ${statusText} ${statusBorder}`}>{statusLabel}</span></div>
+      <div className={`absolute left-2.5 top-2.5 z-10 ${compactMobile ? "hidden sm:block" : ""}`}><span className={`rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase backdrop-blur-md ${statusBg} ${statusText} ${statusBorder}`}>{statusLabel}</span></div>
       {onToggleSave ? <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggleSave(event); }} aria-label={isSaved ? 'Remove apartment from Saved' : 'Save apartment'} aria-pressed={isSaved} className="absolute right-2.5 top-2.5 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/45 backdrop-blur-md active:scale-95"><Heart filled={Boolean(isSaved)} /></button> : null}
       <div className="absolute bottom-2.5 left-2.5 z-10"><span className="text-base font-bold">{priceDisplay}</span><span className="ml-1 text-[9px] text-white/65">{priceUnit}</span></div>
       {media.length + Number(listing.videos?.length || 0) > 1 ? <span className="absolute bottom-2.5 right-2.5 z-10 rounded-full bg-black/55 px-2 py-1 text-[8px] font-semibold">{media.length} photos{listing.videos?.length ? ` · ${listing.videos.length} video${listing.videos.length === 1 ? '' : 's'}` : ''}</span> : null}
     </div>
-    <div className="px-1 pt-3">
+    <div className={compactMobile ? "min-w-0 flex-1 px-0 pt-0.5 sm:px-1 sm:pt-3" : "px-1 pt-3"}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0"><p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">{listing.sub_type === 'short_let' ? 'Short Let' : 'Long Let'}</p><h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3><p className="mt-1 truncate text-[10px] text-[#686F80]">{locationLabel(listing.address, listing.city, listing.state) || 'Location unavailable'}</p></div>
         <div className="shrink-0 text-right text-[9px] text-[#9BA0AF]">{listing.bedrooms > 0 ? <p>{listing.bedrooms} bed · {listing.bathrooms || 0} bath</p> : null}{distanceKm != null && Number.isFinite(distanceKm) ? <p className="mt-1 text-violet-300">{distanceKm < 1 ? `${Math.max(1, Math.round(distanceKm * 1000))} m` : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`} away</p> : null}</div>
