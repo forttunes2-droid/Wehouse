@@ -37,6 +37,8 @@ export default function PropertyPartnerDashboard(props: Props) {
           open={switchOpen}
           access={props.workspaceAccess}
           active={props.activeWorkspace}
+          identityName={props.profile.full_name || props.profile.username}
+          identityAvatar={props.profile.avatar_url}
           onClose={() => setSwitchOpen(false)}
           onSwitch={props.onSwitchWorkspace}
         />
