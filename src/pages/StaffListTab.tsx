@@ -9,8 +9,8 @@ import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 
-const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance Operations',support:'Support Operations',security:'Security Operations',worker_review:'Worker Review',field_officer:'Field Operations'};
-const AREA_DETAILS:Record<string,string>={operations:'Property submissions, visits and preparation',finance:'Payment reviews, payouts and financial records',support:'Ordinary WeHouse help conversations',security:'Account security signals and escalation',worker_review:'Worker applications, identity review and professional evidence',field_officer:'Assigned property inspections and handovers'};
+const MODULES:Record<string,string>={operations:'Property Operations',finance:'Finance Operations',support:'Support Operations',security:'Security Operations',worker_operations:'Worker Operations',field_officer:'Field Operations'};
+const AREA_DETAILS:Record<string,string>={operations:'Property submissions, visits and preparation',finance:'Payment reviews, payouts and financial records',support:'Ordinary WeHouse help conversations',security:'Account security signals and escalation',worker_operations:'Worker onboarding, identity checks and professional evidence',field_officer:'Assigned property inspections and handovers'};
 type TeamMember=Profile & {work_areas:string[]};
 type RoleFilter='all'|'admin'|'staff';
 
