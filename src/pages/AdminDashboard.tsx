@@ -40,11 +40,11 @@ const NOTES: Record<AdminTab, string> = {
   overview: "Branch health and work that needs attention.",
   operations:
     "People, team, properties, workers, bookings and security decisions in one branch workspace.",
-  inbox: "Assigned branch conversations and Activity that require awareness.",
+  inbox: "Assigned conversations and Activity inside your coverage.",
 };
 const OPS: [Operation, string, string][] = [
-  ["people", "People", "Regular users and Property Partners in this branch"],
-  ["staff", "Team", "Admins and Operations members in this branch"],
+  ["people", "People", "Regular users and Property Partners in your coverage"],
+  ["staff", "Team", "Operations members in your coverage"],
   ["properties", "Properties", "Property submissions, visits and publishing"],
   [
     "workers",
@@ -81,7 +81,7 @@ export default function AdminDashboard({
       pending_verifications: 0,
     }),
     [viewing, setViewing] = useState<Profile | null>(null);
-  const branchReady = Boolean(profile.assigned_state && profile.assigned_lga),
+  const branchReady = Boolean(profile.assigned_state),
     inboxSummary = useCreatorInboxSummary(profile.user_id, "admin");
   async function loadStats() {
     if (!branchReady) return;
@@ -129,11 +129,11 @@ export default function AdminDashboard({
     <>
 
       <WorkspaceFrameV2
-        label={`WEHOUSE TEAM · BRANCH ADMIN · ${profile.assigned_lga || "UNASSIGNED"}`}
+        label={`WEHOUSE TEAM · ${profile.assigned_lga ? "LGA ADMIN" : "STATE ADMIN"} · ${profile.assigned_lga || profile.assigned_state || "UNASSIGNED"}`}
         title={workspaceTitle}
         onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
         backLabel="Back to work areas"
-        description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga}, ${profile.assigned_state}` : " · Branch assignment required"}`}
+        description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
         items={nav}
         active={tab}
         setActive={(id) => {
@@ -255,7 +255,7 @@ function AdminInbox({
         <div>
           <h2 className="text-xs font-semibold">Messages</h2>
           <p className="mt-0.5 text-[9px] text-[#707687]">
-            Assigned branch conversations.
+            Assigned conversations in your coverage.
           </p>
         </div>
         <InboxActivityEntry
@@ -266,7 +266,7 @@ function AdminInbox({
       </div>
       <CommunicationsWorkspace
         profile={profile}
-        scope={{ state: profile.assigned_state!, lga: profile.assigned_lga! }}
+        scope={{ state: profile.assigned_state!, lga: profile.assigned_lga || "" }}
         forcedView="inbox"
         hideViewTabs
         queue="all"
@@ -308,12 +308,12 @@ function Overview({
   return (
     <div className="space-y-5">
       <section className="border-b border-white/[.07] pb-5">
-        <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-violet-300">Branch workspace</p>
+        <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-violet-300">Coverage</p>
         <h2 className="mt-2 text-2xl font-bold lg:text-3xl">
-          {profile.assigned_lga}, {profile.assigned_state}
+          {profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}
         </h2>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">
-          Admin manages only this branch. Property authority follows State/LGA;
+          Admin authority follows the Creator-set State or LGA coverage;
           Precise location improves maps and distance but never expands branch permissions.
         </p>
       </section>
@@ -335,7 +335,7 @@ function Overview({
           onClick={openCommunications}
           className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"
         >
-          <span><strong className="block text-sm">Inbox</strong><span className="mt-1 block text-[10px] text-[#727587]">Contextual branch conversations and official Activity.</span></span>
+          <span><strong className="block text-sm">Inbox</strong><span className="mt-1 block text-[10px] text-[#727587]">Contextual conversations and official Activity for this coverage.</span></span>
           <span className="text-[#666D7E]">›</span>
         </button>
       </section>
@@ -436,7 +436,7 @@ function People({ onView }: { onView: (p: Profile) => void }) {
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search this branch"
+        placeholder="Search this coverage"
         className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs"
       />
       {loading ? (
@@ -444,7 +444,7 @@ function People({ onView }: { onView: (p: Profile) => void }) {
       ) : filtered.length === 0 ? (
         <Empty
           title="No matching accounts"
-          text="Nothing in this branch matches the filter."
+          text="Nothing in this coverage matches the filter."
         />
       ) : (
         <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
@@ -673,7 +673,7 @@ function ServiceBookings() {
       ) : rows.length === 0 ? (
         <Empty
           title="No service bookings"
-          text="There are no Worker service bookings in this branch."
+          text="There are no Worker service bookings in this coverage."
         />
       ) : (
         <div className="space-y-3">
@@ -719,7 +719,7 @@ function HotelBookings() {
       ) : rows.length === 0 ? (
         <Empty
           title="No hotel stays"
-          text="There are no hotel reservations in this branch."
+          text="There are no hotel reservations in this coverage."
         />
       ) : (
         <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
@@ -763,11 +763,10 @@ function BranchMissing() {
   return (
     <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.05] p-8 text-center">
       <p className="text-sm font-semibold text-amber-300">
-        Branch assignment required
+        Coverage assignment required
       </p>
       <p className="mx-auto mt-2 max-w-md text-[10px] text-[#777B8D]">
-        Creator must assign this Admin to a State and LGA before branch
-        operations become available.
+        Creator must assign this Admin to a State or one LGA before operations become available.
       </p>
     </div>
   );
