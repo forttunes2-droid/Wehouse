@@ -886,11 +886,6 @@ function Section({
     </div>
   );
 }
-function Grid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{children}</div>
-  );
-}
 function Card({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4">
