@@ -130,6 +130,8 @@ export default function AdminDashboard({
     <>
 
       <WorkspaceFrameV2
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
         label={`WEHOUSE TEAM · ${profile.assigned_lga ? "LGA ADMIN" : "STATE ADMIN"} · ${profile.assigned_lga || profile.assigned_state || "UNASSIGNED"}`}
         title={workspaceTitle}
         onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
