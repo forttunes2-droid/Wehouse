@@ -4,7 +4,11 @@ import { supabase } from "@/lib/supabase";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
 import { getAnnouncementsForUser } from "@/lib/supabase/announcements";
-import { activityIsCurrent, currentActivityRows, longestActivityCutoff } from "@/lib/activityFeed";
+import { activityIsCurrent } from "@/lib/activityFeed";
+import {
+  getCanonicalActivitySummary,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
 
 export function usePartnerInboxSummary(userId: string) {
   const [chatUnread, setChatUnread] = useState(0);
@@ -14,16 +18,14 @@ export function usePartnerInboxSummary(userId: string) {
     const [wehouse, hotels, events, announcements] = await Promise.all([
       getMySupportConversations("property_partner"),
       getMyHotelConversations("property_partner"),
-      supabase.from("notifications").select("type,title,message,source_type,destination_route,created_at,read").eq("recipient_id", userId).eq("workspace_scope", "partner").eq("read", false).gte("created_at", longestActivityCutoff()),
+      getCanonicalActivitySummary("partner"),
       getAnnouncementsForUser(userId, "partner"),
     ]);
     if (!isCurrent()) return;
     const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).filter((row) => Number(row.unread_count || 0) > 0).length;
     const hotelUnread = hotels.error ? 0 : hotels.conversations.filter((row) => Number(row.unread_count || 0) > 0).length;
     setChatUnread(wehouseUnread + hotelUnread);
-    const eventUnread = currentActivityRows(
-      (events.data || []).map((row) => ({ ...row, source: "event" as const })),
-    ).length;
+    const eventUnread = events.error ? 0 : events.summary.unread;
     const announcementUnread = (announcements.messages || []).filter((delivery: any) => {
       const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
       return !delivery.read_status && activityIsCurrent({ type: "announcement", source: "announcement", created_at: announcement?.created_at || delivery.delivered_at });
@@ -35,10 +37,13 @@ export function usePartnerInboxSummary(userId: string) {
 
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase.channel(`partner-inbox-summary:${userId}`)
+    const channel = subscribeToCanonicalActivity(
+      userId,
+      `partner-inbox-summary:${userId}`,
+      () => void refresh(),
+    )
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, () => void refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "hotel_booking_messages" }, () => void refresh())
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` }, () => void refresh())
       .on("postgres_changes", { event: "*", schema: "public", table: "announcement_recipients", filter: `user_id=eq.${userId}` }, () => void refresh())
       .subscribe((status) => {
         if (status === "SUBSCRIBED") refresh();
