@@ -409,11 +409,21 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       try {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
       } catch {}
-      const destination =
-        workspace === "personal" ? "search" : roleRootFor(workspace === "hotel" ? "hotel_staff" : workspace);
+      const targetRole =
+        workspace === "personal" ? "user" : workspace === "hotel" ? "hotel_staff" : workspace;
+      let remembered: NavPage | null = null;
+      try {
+        const value = localStorage.getItem(workspaceNavigationKey(baseProfile.user_id, workspace));
+        if (value && isRestorable(value)) remembered = value;
+      } catch {}
+      const destination = normalizePageForRole(
+        targetRole,
+        remembered || roleRootFor(targetRole),
+        Boolean(baseProfile.profile_complete),
+      );
       setNavPage(destination);
       navHistoryRef.current = [destination];
-      window.history.replaceState({ page: destination }, "", `#${destination}`);
+      window.history.replaceState({ page: destination, workspace }, "", `#${destination}`);
       try {
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
       } catch {}
@@ -443,7 +453,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
         window.history.replaceState(
-          { page: destination },
+          { page: destination, workspace },
           "",
           `#${destination}`,
         );
@@ -479,7 +489,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
-      window.history.replaceState({ page: safe }, "", `#${safe}`);
+      window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey]);
   useEffect(() => {
@@ -514,20 +524,22 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         // The signed-out landing page has no router state until its first link.
         // Preserve it so Back from a public legal page returns to sign-in.
         if (!window.history.state?.page) {
-          window.history.replaceState({ page: current || "search" }, "");
+          window.history.replaceState({ page: current || "search", workspace: activeWorkspace }, "");
         }
-        window.history.pushState({ page: safe }, "", `#${safe}`);
+        window.history.pushState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
       setNavPage(safe);
       if (isRestorable(safe)) localStorage.setItem(navigationKey, safe);
     },
-    [baseProfile?.profile_complete, userRole, navPage, navigationKey],
+    [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
-      const s = e.state as { page?: NavPage } | null;
+      const s = e.state as { page?: NavPage; workspace?: WorkspaceChoice } | null;
       if (!s?.page) return;
+      // Browser Back must never silently change persona. Workspace switching is
+      // deliberate; old history entries are normalized inside the current workspace.
       const safe = normalizePageForRole(
         userRole,
         s.page,
@@ -538,7 +550,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         pageScrollRef.current?.scrollTop || 0,
       );
       if (safe !== s.page)
-        window.history.replaceState({ page: safe }, "", `#${safe}`);
+        window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
       setNavPage(safe);
       navHistoryRef.current =
         navHistoryRef.current.length > 1
