@@ -1115,6 +1115,9 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isHotelTeamRole)
