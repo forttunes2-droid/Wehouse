@@ -17,16 +17,18 @@ type Status = {
 
 export default function IdentityAccessGate({
   profile,
+  workspace,
   children,
 }: {
   profile: Profile;
+  workspace: 'worker' | 'property_partner';
   children: React.ReactNode;
 }) {
   const { data: state, loading, error: loadError, refresh } = useRpcRead<Status>('get_my_account_identity_status', profile.user_id);
 
   if (loading)
     return (
-      <AccountShell profile={profile} title={profile.role === 'property_partner' ? 'Property Partner' : 'Service Provider'}>
+      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Provider'}>
         <section role="status" aria-live="polite" className="space-y-4 py-5">
           <p className="text-sm text-[#A1A1AA]">Opening your workspace…</p>
           <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-white/[.04]" />)}</div>
@@ -61,7 +63,7 @@ export default function IdentityAccessGate({
   // server decides whether the approved policy gate is enabled. When disabled,
   // no face prompt is shown and existing workspace authority remains intact.
   if (state?.required && !state.gate_satisfied) {
-    const partner = profile.role === 'property_partner';
+    const partner = workspace === 'property_partner';
     const label = partner ? 'Property Partner' : 'Service Provider';
     const protectedWork = partner
       ? 'property requests, listings and earnings'
@@ -93,6 +95,7 @@ export default function IdentityAccessGate({
         </section>
         <WorkerIdentityCheck
           profile={profile}
+          workspace={workspace}
           status={
             pending
               ? 'pending_review'
