@@ -218,7 +218,7 @@ export default function WorkerWorkspaceModern({
     </WorkspaceFrameV2>
   );
   return live ? (
-    <IdentityAccessGate profile={profile}>{workspace}</IdentityAccessGate>
+    <IdentityAccessGate profile={profile} workspace="worker">{workspace}</IdentityAccessGate>
   ) : (
     workspace
   );
