@@ -169,7 +169,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     });
   }, [rows, search, filter]);
 
-  if (listError) return <section role="alert" className="rounded-xl border border-amber-500/20 p-4"><p className="text-sm text-amber-100">Service providers could not be loaded.</p><button type="button" onClick={() => void load()} className="min-h-11 text-violet-300">Try again</button></section>;
+  if (listError) return <section role="alert" className="rounded-xl border border-amber-500/20 p-4"><p className="text-sm text-amber-100">Service Workers could not be loaded.</p><button type="button" onClick={() => void load()} className="min-h-11 text-violet-300">Try again</button></section>;
   if (selected)
     return (
       <div className="space-y-4">
@@ -184,7 +184,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
             <Avatar worker={selected} />
             <div className="min-w-0 flex-1">
               <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
-                WEHOUSE SERVICE PROVIDER
+                WEHOUSE SERVICE WORKER
               </p>
               <h2 className="mt-1 truncate text-lg font-bold">
                 {selected.full_name || selected.username || "Service Worker"}
