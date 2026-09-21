@@ -27,12 +27,16 @@ export default function WorkspaceSwitchSheet({
   active,
   onClose,
   onSwitch,
+  identityName,
+  identityAvatar,
 }: {
   open: boolean;
   access?: WorkspaceAccess | null;
   active?: WorkspaceChoice;
   onClose: () => void;
   onSwitch: (workspace: WorkspaceChoice) => void;
+  identityName?: string | null;
+  identityAvatar?: string | null;
 }) {
   if (!open) return null;
 
@@ -57,14 +61,23 @@ export default function WorkspaceSwitchSheet({
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
         <div className="flex items-start justify-between gap-3 pb-4">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
-              WEHOUSE
-            </p>
-            <h2 className="mt-1 text-base font-semibold">Your workspaces</h2>
-            <p className="mt-1 max-w-xs text-[10px] leading-5 text-[#777E8E]">
-              Switch context deliberately. Your Personal identity and permissions stay unchanged.
-            </p>
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-violet-500/[.10] text-sm font-bold text-violet-200">
+              {identityAvatar ? (
+                <img src={identityAvatar} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span>{String(identityName || "W").trim().charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
+                WEHOUSE
+              </p>
+              <h2 className="mt-1 truncate text-base font-semibold">{identityName || "Your workspaces"}</h2>
+              <p className="mt-1 max-w-xs text-[10px] leading-5 text-[#777E8E]">
+                One identity. Switch context deliberately; your profile and permissions stay unchanged.
+              </p>
+            </div>
           </div>
           <button
             type="button"
