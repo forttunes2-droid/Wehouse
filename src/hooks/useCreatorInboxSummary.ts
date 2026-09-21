@@ -1,10 +1,10 @@
 import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
+import { activityIsCurrent } from "@/lib/activityFeed";
 import {
-  activityIsCurrent,
-  currentActivityRows,
-  longestActivityCutoff,
-} from "@/lib/activityFeed";
+  getCanonicalActivitySummary,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser } from "@/lib/supabase/announcements";
 import { getSupportInbox } from "@/lib/supabase/support";
@@ -20,13 +20,7 @@ export function useCreatorInboxSummary(
     if (!userId) return;
     const [support, events, announcements] = await Promise.all([
       getSupportInbox("all"),
-      supabase
-        .from("notifications")
-        .select("type,title,message,source_type,destination_route,created_at,read")
-        .eq("recipient_id", userId)
-        .eq("read", false)
-        .eq("workspace_scope", activityScope)
-        .gte("created_at", longestActivityCutoff()),
+      getCanonicalActivitySummary(activityScope),
       getAnnouncementsForUser(userId, activityScope),
     ]);
     if (!isCurrent()) return;
@@ -39,9 +33,7 @@ export function useCreatorInboxSummary(
       );
     }
     if (!events.error || !announcements.error) {
-      const eventUnread = currentActivityRows(
-        (events.data || []).map((row) => ({ ...row, source: "event" as const })),
-      ).length;
+      const eventUnread = events.summary.unread;
       const announcementUnread = (announcements.messages || []).filter(
         (delivery: any) => {
           const announcement = Array.isArray(delivery.announcements)
@@ -65,18 +57,11 @@ export function useCreatorInboxSummary(
 
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`creator-inbox-summary:${activityScope}:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${userId}`,
-        },
-        () => void refresh(),
-      )
+    const channel = subscribeToCanonicalActivity(
+      userId,
+      `creator-inbox-summary:${activityScope}:${userId}`,
+      () => void refresh(),
+    )
       .on(
         "postgres_changes",
         {
