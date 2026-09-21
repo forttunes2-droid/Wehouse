@@ -69,6 +69,9 @@ type Props = {
   onNavigate: (page: string, id?: string) => void;
   conversationId?: string | null;
   peerUserId?: string | null;
+  initialKind?: "roommate" | "worker" | "hotel";
+  initialBookingId?: string;
+  initialHotelConversation?: HotelConversation;
   onConversationClose?: () => void;
   chatUnreadCount?: number;
   activityUnreadCount?: number;
@@ -146,6 +149,9 @@ export default function Chat({
   profile,
   conversationId,
   peerUserId,
+  initialKind,
+  initialBookingId,
+  initialHotelConversation,
   onConversationClose,
   onNavigate,
   activityUnreadCount = 0,
@@ -380,6 +386,30 @@ export default function Chat({
   useEffect(() => {
     if (!conversationId || inboxSecurityStatus?.state !== "ready") return;
     let cancelled = false;
+
+    if (initialKind === "worker" && initialBookingId) {
+      setActive(null);
+      setActiveHotel(null);
+      setActiveBooking({
+        conversationId,
+        bookingId: initialBookingId,
+      });
+      setOpeningConversation(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (initialKind === "hotel" && initialHotelConversation) {
+      setActive(null);
+      setActiveBooking(null);
+      setActiveHotel({ conversation: initialHotelConversation });
+      setOpeningConversation(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setOpeningConversation(true);
     void (async () => {
       try {
@@ -451,7 +481,16 @@ export default function Chat({
       finally { if (!cancelled) setOpeningConversation(false); }
     })();
     return () => { cancelled = true; };
-  }, [conversationId, inboxSecurityStatus?.state, loadInbox, peerUserId, profile.user_id]);
+  }, [
+    conversationId,
+    inboxSecurityStatus?.state,
+    initialBookingId,
+    initialHotelConversation,
+    initialKind,
+    loadInbox,
+    peerUserId,
+    profile.user_id,
+  ]);
   useEffect(() => {
     if (!active) {
       setMessages([]);
