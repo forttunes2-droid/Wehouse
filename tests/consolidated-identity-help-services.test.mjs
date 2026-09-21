@@ -5,8 +5,9 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("identity submission is workspace-aware and Partner gates respect the policy switch", async () => {
-  const [migration, gate, check, partner, worker, verification] = await Promise.all([
+  const [migration, capability, gate, check, partner, worker, verification] = await Promise.all([
     read("supabase/migrations/20260921092015_align_identity_routing_partner_gate_and_worker_services.sql"),
+    read("supabase/migrations/20260921100753_worker_review_capability_not_workspace.sql"),
     read("src/components/IdentityAccessGate.tsx"),
     read("src/components/WorkerIdentityCheck.tsx"),
     read("src/pages/PropertyPartnerDashboard.tsx"),
@@ -15,8 +16,9 @@ test("identity submission is workspace-aware and Partner gates respect the polic
   ]);
 
   assert.match(migration, /p_challenge_result->>'workspace'/);
-  assert.match(migration, /pending_role='worker'.*workspace_role='worker_operations'/s);
-  assert.match(migration, /pending_role='property_partner'.*workspace_role='property_operations'/s);
+  assert.match(capability, /pending_role='worker'[\s\S]*current_staff_has_permission\('worker_review'\)/);
+  assert.match(capability, /pending_role='property_partner'[\s\S]*current_staff_has_permission\('property_operations'\)/);
+  assert.doesNotMatch(capability, /workspace_role='worker_operations'.*pending_role='worker'/s);
   assert.match(migration, /account_identity_checks_enabled\(\)[\s\S]*account_identity_is_current/);
   assert.match(gate, /workspace: 'worker' \| 'property_partner'/);
   assert.match(check, /workspace: 'worker' \| 'property_partner'/);
