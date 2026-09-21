@@ -504,9 +504,9 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
-      window.history.replaceState({ page: safe }, "", `#${safe}`);
+      window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
     } catch {}
-  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey]);
+  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey, activeWorkspace]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
       window.dispatchEvent(new Event("wehouse:navigation"));
@@ -549,7 +549,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         navPage,
         pageScrollRef.current?.scrollTop || 0,
       );
-      if (safe !== s.page)
+      if (safe !== s.page || s.workspace !== activeWorkspace)
         window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
       setNavPage(safe);
       navHistoryRef.current =
@@ -560,7 +560,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey]);
+  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (pageScrollRef.current)
