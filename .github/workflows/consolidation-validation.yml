@@ -77,6 +77,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_dashboard_identity_contract.sql
       - name: Exercise team grants and private evidence access
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/team_evidence_contract.sql
+      - name: Exercise team scope and Operation capacity
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/team_scope_capacity_contract.sql
       - name: Exercise identity routing, Partner gate and Worker services
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/identity_partner_service_contract.sql
       - name: Exercise Worker Operations and Admin canonical identity
