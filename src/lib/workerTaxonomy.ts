@@ -46,7 +46,27 @@ export function workerOccupation(worker: {
 export function workerServiceNames(worker: {
   worker_occupation?: string | null;
   worker_skills?: string[] | null;
+  services?: Array<{
+    name?: string | null;
+    service_name?: string | null;
+  }> | null;
 }) {
+  const canonical = Array.isArray(worker.services)
+    ? worker.services
+        .map((service) =>
+          String(service?.name || service?.service_name || "").trim(),
+        )
+        .filter(Boolean)
+    : [];
+  if (canonical.length) {
+    return canonical.filter(
+      (value, index, all) =>
+        all.findIndex(
+          (item) => item.toLowerCase() === value.toLowerCase(),
+        ) === index,
+    );
+  }
+
   const occupation = workerOccupation(worker).toLowerCase();
   const values = Array.isArray(worker.worker_skills) ? [...worker.worker_skills] : [];
   const legacyService = String(worker.worker_occupation || "").trim();
