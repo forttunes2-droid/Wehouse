@@ -168,7 +168,7 @@ export default function AccountCenter({
     if (hasServiceProviderWorkspace)
       items.push({
         role: "worker",
-        label: "Service Provider",
+        label: "Service Worker",
         detail: serviceProviderLive ? "Jobs, Showcase and earnings" : serviceProviderStatusText(profile.worker_status),
       });
     if (hasPartnerWorkspace)
@@ -280,7 +280,7 @@ export default function AccountCenter({
     window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
     toast.success(
       workspace === "worker"
-        ? "Service Provider onboarding started"
+        ? "Service Worker onboarding started"
         : "Property Partner onboarding started",
     );
     onWorkspaceActivated?.(workspace);
@@ -346,7 +346,7 @@ export default function AccountCenter({
             {!hasServiceProviderWorkspace ? (
               <AccountRow
                 title="Offer services"
-                detail="Create your Service Provider profile"
+                detail="Create your Service Worker profile"
                 onClick={() => void startProfessionalOnboarding("worker")}
                 disabled={activatingWorkspace !== null}
                 icon={<PersonIcon />}
@@ -501,7 +501,7 @@ export default function AccountCenter({
       <AccountSection title="Account">
         {isServiceProvider ? (
           <AccountRow
-            title="Service Provider profile"
+            title="Service Worker profile"
             detail="Services, coverage, pricing and the public details customers see"
             onClick={onGoToProfileEdit}
             icon={<PersonIcon />}
@@ -510,7 +510,7 @@ export default function AccountCenter({
         {onGoToWorkerPaidTools ? (
           <AccountRow
             title="Paid tools"
-            detail="Optional business tools for your Service Provider workspace"
+            detail="Optional business tools for your Service Worker workspace"
             onClick={onGoToWorkerPaidTools}
             icon={<ToolsIcon />}
           />
@@ -598,10 +598,10 @@ export default function AccountCenter({
 
 function serviceProviderStatusText(status?: string | null) {
   if (status === "profile_under_review")
-    return "Your Service Provider profile is under WeHouse review.";
+    return "Your Service Worker profile is under WeHouse review.";
   if (status === "pending")
     return "Finish your services, coverage and required onboarding steps.";
-  return "Continue your Service Provider onboarding.";
+  return "Continue your Service Worker onboarding.";
 }
 
 function Toggle({
