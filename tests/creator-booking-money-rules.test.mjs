@@ -86,3 +86,21 @@ test("Creator apartment and hotel bookings use one server projection", async () 
   assert.match(migration, /'property',jsonb_build_object/);
   assert.match(migration, /'customer',jsonb_build_object/);
 });
+
+
+test("Creator property and team inboxes reconcile without fixed polling loops", async () => {
+  const [properties, communications] = await Promise.all([
+    read("src/components/PropertyPipelineWorkspace.tsx"),
+    read("src/components/CommunicationsWorkspace.tsx"),
+  ]);
+
+  assert.match(properties, /createRefreshScheduler/);
+  assert.match(properties, /table: "inspection_requests"/);
+  assert.match(properties, /table: "listings"/);
+  assert.doesNotMatch(properties, /setInterval/);
+
+  assert.match(communications, /createRefreshScheduler/);
+  assert.match(communications, /table: "partner_support_messages"/);
+  assert.match(communications, /table: "partner_support_conversations"/);
+  assert.doesNotMatch(communications, /setInterval/);
+});
