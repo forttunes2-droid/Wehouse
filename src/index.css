@@ -371,8 +371,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .wehouse-print-document { display: none; }
 @media print {
   body.printing-wehouse-receipt { background: white !important; }
-  body.printing-wehouse-receipt > * { display: none !important; }
-  body.printing-wehouse-receipt > .wehouse-print-document { display: block !important; color: #18181b; }
-  .wehouse-print-document .wehouse-receipt { border-radius: 0; max-width: 96mm; margin: 0 auto; padding: 8mm !important; }
+  body.printing-wehouse-receipt * { visibility: hidden !important; }
+  body.printing-wehouse-receipt > .wehouse-print-document,
+  body.printing-wehouse-receipt > .wehouse-print-document * { visibility: visible !important; }
+  body.printing-wehouse-receipt > .wehouse-print-document {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    color: #18181b;
+  }
+  .wehouse-print-document .wehouse-receipt {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-width: 93mm;
+    margin: 0 auto;
+    padding: 5mm !important;
+  }
   @page { size: 105mm 148mm; margin: 6mm; }
 }
