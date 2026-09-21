@@ -75,3 +75,26 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   .wh-auth-mode-choose .wh-auth-form { margin-block: 0; padding-block: 0; }
   .wh-auth-legal { padding-top: 24px; }
 }
+
+
+/* Auth motion is restrained: state changes feel connected without delaying sign-in. */
+.wh-auth-form {
+  animation: whAuthStateIn 200ms cubic-bezier(.2,.7,.2,1);
+}
+.wh-auth-primary,
+.wh-auth-secondary {
+  transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease, opacity 160ms ease;
+}
+.wh-auth-primary:active,
+.wh-auth-secondary:active {
+  transform: scale(.985);
+}
+@keyframes whAuthStateIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wh-auth-form { animation: none; }
+  .wh-auth-primary,
+  .wh-auth-secondary { transition: none; }
+}
