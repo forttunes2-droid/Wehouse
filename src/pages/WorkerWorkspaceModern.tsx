@@ -94,7 +94,7 @@ export default function WorkerWorkspaceModern({
       return (
         <AccountShell
           profile={profile}
-          title="Service Provider profile"
+          title="Service Worker profile"
           description="Services, coverage and the public details customers see."
           onBack={() => setAccountView("account")}
         >
@@ -202,12 +202,12 @@ export default function WorkerWorkspaceModern({
             ? "Track each job from request to completion, including its earnings."
             : live
               ? "Manage your WeHouse Services work from one place."
-              : "Finish Service Provider onboarding before your services become public.";
+              : "Finish Service Worker onboarding before your services become public.";
 
   const workspace = (
     <WorkspaceFrameV2
       label="WEHOUSE SERVICES · SERVICE PROVIDER"
-      title={nav.find((item) => item.id === safeTab)?.label || "Service Provider"}
+      title={nav.find((item) => item.id === safeTab)?.label || "Service Worker"}
       description={description}
       items={nav}
       active={safeTab}
@@ -264,7 +264,7 @@ function ServiceProviderPaidToolsAccount({
     <AccountShell
       profile={profile}
       title="WeHouse Works"
-      description="Optional business tools for Service Providers. Review and trust are earned separately."
+      description="Optional business tools for Service Workers. Review and trust are earned separately."
       onBack={onBack}
     >
       <WorkerProPanel
