@@ -37,7 +37,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
                 onClick={onWorkspaceSwitch}
                 className="min-h-10 shrink-0 px-1 text-[10px] font-semibold text-violet-300"
               >
-                Switch
+                Workspaces
               </button>
             ) : null}
           </div>
