@@ -106,7 +106,7 @@ test("visible Activity surfaces use the canonical event model", async () => {
   assert.match(migration, /private\.fanout_team_activity/);
   assert.match(migration, /worker\.review_submitted/);
   assert.match(migration, /finance\.withdrawal_review_required/);
-  assert.match(migration, /property\.access_review\.action_required/);
+  assert.match(migration, /'property\.'\|\|v_stage\|\|'\.action_required'/);
   assert.match(migration, /hotel\.stay_confirmed/);
   assert.match(migration, /case\.action_required/);
   assert.match(migration, /revoke all on table public\.activity_events from anon,authenticated/);
