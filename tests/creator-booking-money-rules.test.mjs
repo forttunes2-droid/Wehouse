@@ -61,7 +61,7 @@ test("money policy editor preserves launch product boundaries", async () => {
   assert.match(editor, /Service Worker/);
   assert.match(editor, /Security deposit/);
   assert.match(editor, /Off at launch/);
-  assert.match(editor, /Existing bookings keep the rules they accepted/);
+  assert.match(editor, /Existing\s+bookings keep the rules they accepted/);
   assert.match(editor, /Refundable Short Let security deposits are excluded/);
   assert.doesNotMatch(editor, /escrow/i);
 });
