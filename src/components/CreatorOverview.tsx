@@ -3,7 +3,7 @@ import { useRpcRead } from '@/hooks/useRpcRead';
 type Summary = {
   accounts: number; partners: number; workers: number; team: number;
   apartments: number; hotels: number; hotel_team: number;
-  pending_reviews: number; inspections: number; payouts: number;
+  pending_reviews: number; workers_reviewed?: number; workers_under_review?: number; workers_onboarding?: number; inspections: number; payouts: number;
 };
 type Destination = 'people' | 'team' | 'properties' | 'workers' | 'finance';
 
@@ -18,7 +18,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
   const groups: { title: string; note: string; destination: Destination; id?: string; values: [string, number][] }[] = [
     { title: 'Personal accounts', note: 'Everyone keeps their own Personal account.', destination: 'people', values: [['Accounts', data.accounts]] },
     { title: 'Property partners', note: 'People and businesses offering accommodation.', destination: 'people', id: 'property_partner', values: [['Partners', data.partners]] },
-    { title: 'Service Workers', note: `${data.pending_reviews} Service Worker reviews waiting`, destination: 'workers', values: [['Service Workers', data.workers]] },
+    { title: 'Service Workers', note: data.pending_reviews ? `${data.pending_reviews} of ${data.workers} need review` : 'No Worker reviews waiting', destination: 'workers', values: [['Total', data.workers], ['Reviewed', data.workers_reviewed || 0], ['In review', data.workers_under_review || 0]] },
     { title: 'WeHouse team', note: 'Admins and assigned WeHouse team members.', destination: 'team', values: [['Members', data.team]] },
     { title: 'Properties & hotels', note: `${data.inspections} active inspections · ${data.hotel_team} hotel team members`, destination: 'properties', values: [['Apartments', data.apartments], ['Hotels', data.hotels]] },
     { title: 'Payout requests', note: 'Requests awaiting review or processing.', destination: 'finance', values: [['Requests', data.payouts]] },
