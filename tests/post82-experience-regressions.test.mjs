@@ -81,7 +81,7 @@ test("Admin work areas have one owner and action-first defaults", async () => {
 });
 
 test("one canonical profile photo follows the identity across workspaces", async () => {
-  const [app, frame, account, switcher, worker, partner, creator, admin, staff] =
+  const [app, frame, account, switcher, worker, partner, hotel, creator, admin, staff] =
     await Promise.all([
       read("src/App.tsx"),
       read("src/components/WorkspaceFrameV2.tsx"),
@@ -89,6 +89,7 @@ test("one canonical profile photo follows the identity across workspaces", async
       read("src/components/WorkspaceSwitchSheet.tsx"),
       read("src/pages/WorkerWorkspaceModern.tsx"),
       read("src/pages/PropertyOwnerDashboard.tsx"),
+      read("src/pages/HotelTeamDashboard.tsx"),
       read("src/pages/CreatorDashboard.tsx"),
       read("src/pages/AdminDashboard.tsx"),
       read("src/pages/StaffWorkspaceRepair.tsx"),
@@ -104,6 +105,8 @@ test("one canonical profile photo follows the identity across workspaces", async
     assert.match(source, /identityAvatar=\{profile\.avatar_url\}/);
     assert.match(source, /identityName=\{profile\.full_name \|\| profile\.username\}/);
   }
+  assert.match(hotel, /<AccountShell/);
+  assert.match(hotel, /profile=\{profile\}/);
 });
 
 test("visible Activity surfaces use the canonical event model", async () => {
