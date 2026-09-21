@@ -1363,15 +1363,17 @@ function PropertyBookingDetail({
           )}
 
           {journey.action === "handover" && row.booking_code ? (
-            <div className="mt-5 border-y border-emerald-500/20 bg-emerald-500/[.035] py-4 text-center">
-              <p className="text-[8px] uppercase tracking-[.16em] text-emerald-300">
-                Show Property Operations
-              </p>
-              <p className="mt-2 text-xl font-bold tracking-[.14em]">
+            <div className="mt-4 flex items-center justify-between gap-3 border-y border-emerald-500/15 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[8px] uppercase tracking-[.14em] text-emerald-300">
+                  Handover code
+                </p>
+                <p className="mt-0.5 text-[8px] leading-4 text-[#6F7B72]">
+                  Show only to Property Operations during verified handover.
+                </p>
+              </div>
+              <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-emerald-200">
                 {row.booking_code}
-              </p>
-              <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#7C887F]">
-                Access is handed over only after the code, property, identity and payment match.
               </p>
             </div>
           ) : null}
