@@ -67,6 +67,7 @@ type ChatMessage = {
   decryption_failed?: boolean;
   reply_to_id?: string | null;
   created_at: string;
+  delivery_state?: "sending" | "failed";
 };
 type Booking = {
   user_id: string;
@@ -372,6 +373,7 @@ export default function BookingNegotiationChat({
           reply_to_id: replyTarget?.id || null,
           is_read: false,
           created_at: new Date().toISOString(),
+          delivery_state: "sending",
         },
       ]);
     const paths: string[] = [],
@@ -1094,7 +1096,13 @@ export default function BookingNegotiationChat({
                               : "ml-1 text-violet-100/50"
                           }
                         >
-                          {msg.is_read ? "✓✓" : "✓"}
+                          {msg.delivery_state === "sending"
+                            ? " · Sending…"
+                            : msg.delivery_state === "failed"
+                              ? " · Not sent"
+                              : msg.is_read
+                                ? " ✓✓"
+                                : " ✓"}
                         </span>
                       )}
                     </p>
