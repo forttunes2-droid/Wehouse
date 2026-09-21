@@ -43,8 +43,8 @@ test("Login motion is subtle and respects reduced motion", async () => {
   assert.match(login, /<div key=\{mode\} className="wh-auth-form">/);
   assert.doesNotMatch(login, /text-\[28px\]/);
   assert.match(css, /whAuthStateIn 200ms/);
-  assert.match(css, /translateY\(8px\)/);
-  assert.match(css, /scale\(\.992\)/);
+  assert.match(css, /translateY\(6px\)/);
+  assert.match(css, /scale\(\.994\)/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
