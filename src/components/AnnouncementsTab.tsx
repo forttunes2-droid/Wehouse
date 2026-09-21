@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Profile } from '@/types';
 
-type Scope='all'|{state:string;lga:string};
+type Scope='all'|{state:string;lga?:string};
 type View='compose'|'history';
 type Mode='roles'|'people';
 const isCreator=(profile:Profile)=>profile.role==='creator';
@@ -64,7 +64,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
     if(branchScope)list=list.filter((u:any)=>{
       const state=u.role==='staff'?u.assigned_state:u.state;
       const lga=u.role==='staff'?u.assigned_lga:(u.local_government||u.city);
-      return state===scope.state&&lga===scope.lga;
+      return state===scope.state&&(!scope.lga||lga===scope.lga);
     });
     setPeople(list);
   }
@@ -115,7 +115,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
 
   return <div className="min-w-0 space-y-4">
     <ConfirmDialog {...dialogProps}/>
-    {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga}, {scope.state}.</div>}
+    {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga?scope.lga+', '+scope.state:scope.state+' State'}.</div>}
     <div className="flex gap-6 border-b border-white/[.06]">
       <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Compose</button>
       <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Sent{!historyLoading&&!historyError?` · ${history.length}`:''}</button>
