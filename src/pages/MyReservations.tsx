@@ -782,13 +782,13 @@ export default function MyReservations({
 
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center justify-between gap-3"><h1 className="text-xl font-bold">Bookings</h1><ReceiptAccess /></div>
+          <div className="flex items-center justify-between gap-3"><h1 className="text-lg font-bold tracking-tight">Bookings</h1><ReceiptAccess /></div>
 
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-2 border-b border-white/[.07] pb-4">
+      <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+        <div className="grid grid-cols-2 gap-2 border-b border-white/[.06] pb-3">
           <WeHouseSelect
             value={view}
             options={VIEW_OPTIONS}
@@ -823,7 +823,7 @@ export default function MyReservations({
         ) : sections.length === 0 ? (
           <Empty view={view} statusView={statusView} />
         ) : (
-          <div className="mt-4 space-y-5">
+          <div className="mt-3 space-y-4">
             {sections.map((section) => (
               <section key={section.id}>
                 <div className={statusView === "all" ? "flex items-center justify-between pb-2" : "sr-only"}>
@@ -1099,7 +1099,7 @@ function BookingCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 py-3.5 text-left active:bg-white/[.025]"
+      className="flex w-full items-center gap-3 py-3 text-left transition-[background,transform] duration-150 active:scale-[.995] active:bg-white/[.025]"
     >
       {image ? (
         <img
@@ -1107,33 +1107,33 @@ function BookingCard({
           alt=""
           loading="lazy"
           decoding="async"
-          className="h-14 w-16 shrink-0 rounded-xl object-cover"
+          className="h-12 w-14 shrink-0 rounded-xl object-cover"
         />
       ) : (
-        <div className="grid h-14 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-base font-bold text-violet-300">
+        <div className="grid h-12 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-sm font-bold text-violet-300">
           {fallback}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="break-words text-base font-semibold">
+        <p className="break-words text-sm font-semibold leading-5">
           {title}
         </p>
-        <p className="mt-1 break-words text-sm text-[#A1A1AA]">
+        <p className="mt-0.5 break-words text-[10px] leading-4 text-[#858B9A]">
           {subtitle}
         </p>
         {meta.length ? (
-          <p className="mt-1.5 text-sm leading-5 text-[#A1A1AA]">
+          <p className="mt-1 text-[10px] leading-4 text-[#8A909F]">
             {meta.join(" · ")}
           </p>
         ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="shrink-0 text-[10px] font-bold uppercase tracking-[.12em] text-violet-300">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="shrink-0 text-[8px] font-bold uppercase tracking-[.12em] text-violet-300">
             {eyebrow}
           </span>
-          {next ? <span className="text-xs text-[#A1A1AA]">{next}</span> : null}
+          {next ? <span className="text-[9px] leading-4 text-[#858B9A]">{next}</span> : null}
         </div>
       </div>
-      <span className="shrink-0 text-lg text-[#555C6D]">›</span>
+      <span className="shrink-0 text-base text-[#4F5666]">›</span>
     </button>
   );
 }
@@ -1224,16 +1224,16 @@ function PropertyBookingDetail({
             alt={row.listing_title || "Apartment"}
             loading="lazy"
             decoding="async"
-            className="aspect-[16/9] w-full object-cover"
+            className="aspect-[16/7] max-h-52 w-full object-cover"
           />
         ) : null}
-        <div className="p-5">
+        <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
                 {short ? "Short Let" : "Long Let"}
               </p>
-              <h2 className="mt-1 break-words text-xl font-bold">
+              <h2 className="mt-1 break-words text-base font-bold leading-5">
                 {row.listing_title || "Apartment booking"}
               </h2>
               <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
@@ -1487,16 +1487,16 @@ function HotelBookingDetail({
             alt={`${room} at ${name}`}
             loading="lazy"
             decoding="async"
-            className="aspect-[16/10] w-full object-cover"
+            className="aspect-[16/7] max-h-52 w-full object-cover"
           />
         ) : null}
-        <div className="p-5">
+        <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">
                 Hotel
               </p>
-              <h2 className="mt-1 text-xl font-bold">{name}</h2>
+              <h2 className="mt-1 text-base font-bold leading-5">{name}</h2>
               <p className="mt-1 text-[10px] text-[#777D8E]">
                 {room} · {packageName}
               </p>
@@ -1512,16 +1512,9 @@ function HotelBookingDetail({
           </div>
 
           {showCode ? (
-            <div className="mt-4 border-y border-violet-500/20 bg-violet-500/[.04] py-3">
-              <p className="text-[8px] uppercase tracking-wide text-[#777D8E]">
-                Check-in code
-              </p>
-              <p className="mt-1 text-lg font-bold tracking-[.12em] text-violet-200">
-                {row.booking_code}
-              </p>
-              <p className="mt-1 text-[8px] text-[#777D8E]">
-                Show this only to authorized hotel staff at arrival.
-              </p>
+            <div className="mt-3 flex items-center justify-between gap-3 border-y border-violet-500/15 py-2.5">
+              <div className="min-w-0"><p className="text-[8px] uppercase tracking-wide text-[#777D8E]">Check-in code</p><p className="mt-0.5 text-[8px] text-[#666D7D]">Show only to authorised hotel staff.</p></div>
+              <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-violet-200">{row.booking_code}</p>
             </div>
           ) : null}
 
@@ -1530,14 +1523,14 @@ function HotelBookingDetail({
               href={directionsUrl(hotelAddress)}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 flex min-h-11 items-center justify-center border-y border-violet-500/20 text-[10px] font-semibold text-violet-300"
+              className="mt-3 inline-flex min-h-10 items-center text-[10px] font-semibold text-violet-300"
             >
               Open road directions
             </a>
           ) : null}
 
-          <p className="mt-4 text-xs text-[#A1A1AA]">Arrival and departure times use the hotel’s local time.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <p className="mt-3 text-[9px] leading-4 text-[#747A89]">Times use the hotel’s local time.</p>
+          <div className="mt-2 grid grid-cols-2 gap-x-3">
             <Info
               label="Check-in"
               value={`${date(row.check_in_date || row.check_in)} from ${formatStayTime(
@@ -1558,7 +1551,7 @@ function HotelBookingDetail({
             <Info label="Package" value={packageName} />
           </div>
 
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="text-[9px] font-semibold uppercase tracking-wide text-[#777D8E]">
               Stay journey
             </p>
@@ -1601,7 +1594,7 @@ function HotelBookingDetail({
           </div>
 
           {(row.total_price || row.total_amount || row.amount) != null ? (
-            <p className="mt-4 text-base font-bold">
+            <p className="mt-3 text-sm font-bold">
               {money(row.total_price || row.total_amount || row.amount)}
             </p>
           ) : null}
@@ -1791,7 +1784,7 @@ function BookingDetailShell({
   }, []);
   return (
     <div className="min-h-[100dvh] bg-[#090B10] text-white">
-      <header className="sticky top-0 z-40 flex min-h-16 items-center gap-3 border-b border-white/[.06] bg-[#090B10]/95 px-4 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-white/[.06] bg-[#090B10]/95 px-3 backdrop-blur-xl">
         <BackButton onClick={onBack} />
         <div>
           <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">
@@ -1800,7 +1793,7 @@ function BookingDetailShell({
           <h1 className="text-sm font-semibold">{title}</h1>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl p-4 sm:p-6">{children}</main>
+      <main className="wh-panel-enter mx-auto max-w-2xl px-0 py-0 sm:px-4 sm:py-4">{children}</main>
     </div>
   );
 }
@@ -1819,9 +1812,9 @@ function hotelPaymentLabel(value: any) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-white/[.05] py-2.5">
+    <div className="border-b border-white/[.05] py-2">
       <p className="text-[8px] uppercase text-[#5D6272]">{label}</p>
-      <p className="mt-1 truncate text-[10px] font-semibold text-[#C5C8D1]">
+      <p className="mt-0.5 truncate text-[10px] font-semibold text-[#C5C8D1]">
         {value}
       </p>
     </div>
