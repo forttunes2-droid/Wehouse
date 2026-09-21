@@ -25,6 +25,7 @@ const CENTER_YAW_MAX = 0.18;
 const TURN_YAW_MIN = 0.3;
 const STABLE_FRAMES = 2;
 const CHECK_TIMEOUT_MS = 30000;
+const IDENTITY_NOTICE_VERSION = '2026-09-21-v1';
 
 const STEP_LABELS: Record<ChallengeStep, string> = {
   center_start: 'Look straight',
@@ -370,6 +371,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
       anchor_similarity: anchorSimilarity,
       recent_similarity: recentSimilarity,
       workspace,
+      notice_version: IDENTITY_NOTICE_VERSION,
     };
 
     const { error } = await supabase.rpc('complete_my_account_identity_check', {
@@ -427,7 +429,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
           <div className="border-b border-white/[.06] pb-4">
             <p className="text-xs font-semibold text-white">Private identity check</p>
             <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">
-              WeHouse uses a live camera check to confirm that a real person is operating this account. We save a private identity reference for future identity checks. It is never shown on your public profile and can only be accessed by authorised WeHouse reviewers.
+              WeHouse uses a live camera check to confirm that a real person is operating this account. We save a private identity reference for account security and future identity checks when needed. It is never shown on your public profile and can only be accessed by authorised WeHouse reviewers.
             </p>
             <p className="mt-2 text-[9px] leading-relaxed text-[#6F7686]">
               The live check also screens for liveness and spoofing. We do not save the live camera session as a video.
