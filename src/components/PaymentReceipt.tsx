@@ -7,16 +7,20 @@ import { getPaymentReceipts, type PaymentReceipt as Receipt } from "@/lib/supaba
 
 export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
   const money = (value: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: r.currency || "NGN" }).format(value);
-  return <article className="wehouse-receipt rounded-xl bg-white p-4 text-[#18181B] sm:p-6">
+  return <article className="wehouse-receipt rounded-xl bg-white p-4 text-[#18181B] sm:p-5">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E4E4E7] pb-4">
-      <div><img src="/brand-mark-light.svg" alt="WeHouse" className="mb-3 h-9 w-9" /><p className="text-sm font-semibold">WeHouse</p><p className="text-xs text-[#52525B]">wehouse.com.ng</p></div>
+      <div><img src="/brand-mark-light.svg" alt="WeHouse" className="mb-2 h-7 w-7" /><p className="text-xs font-semibold">WeHouse</p><p className="text-[10px] text-[#52525B]">wehouse.com.ng</p></div>
       <div className="text-right"><h2 className="text-sm font-semibold">Payment receipt</h2><p className="mt-1 text-xs text-[#52525B]">{displayDateTime(r.paid_at, "Africa/Lagos") + " WAT"}</p></div>
     </header>
     {r.environment === "test" && <p className="mt-4 rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-900">Test payment · No real money was charged.</p>}
     {r.environment === null && <p className="mt-4 text-xs text-[#52525B]">Payment mode was not recorded for this transaction.</p>}
-    <h3 className="mt-5 break-words text-base font-semibold">{r.merchant_name}</h3>
-    <p className="mt-1 text-xs text-[#52525B]">Paid by {r.payer_name}</p>
-    <dl className="mt-5 space-y-3 text-xs">
+    <div className="mt-4 border-b border-[#E4E4E7] pb-4">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-[#71717A]">Amount paid</p>
+      <strong className="mt-1 block text-2xl tracking-tight">{money(r.amount)}</strong>
+    </div>
+    <h3 className="mt-4 break-words text-sm font-semibold">{r.merchant_name}</h3>
+    <p className="mt-1 text-[10px] text-[#52525B]">Paid by {r.payer_name}</p>
+    <dl className="mt-4 space-y-2.5 text-[11px]">
       <ReceiptLine label="For" value={[r.description, r.package_name].filter(Boolean).join(" · ")} />
       {r.check_in && <ReceiptLine label="Check-in" value={displayDate(r.check_in)} />}
       {r.check_out && <ReceiptLine label="Check-out" value={displayDate(r.check_out)} />}
@@ -26,7 +30,6 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
       <ReceiptLine label="Payment provider" value="Paystack" />
       <div className="border-t border-[#E4E4E7] pt-3"><dt className="text-[#52525B]">Payment reference</dt><dd className="mt-1 break-all font-mono text-[11px] leading-5">{r.reference}</dd></div>
     </dl>
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-[#E4E4E7] pt-5"><span className="text-sm font-semibold">Amount paid</span><strong className="text-xl">{money(r.amount)}</strong></div>
     {r.status.includes("refund") && <p className="mt-4 text-sm font-semibold">{r.status === "refunded" ? "Refunded" : "Partially refunded"}{r.refund_processed_at ? ` · ${displayDate(r.refund_processed_at)}` : ""}</p>}
     <footer className="mt-5 border-t border-[#E4E4E7] pt-4 text-xs leading-5 text-[#52525B]">Payment collected through WeHouse. Keep this receipt for your records.</footer>
   </article>;
@@ -76,7 +79,7 @@ export default function ReceiptAccess({ subjectType, subjectId }: { subjectType?
     return () => { current = false; };
   }, [open, subjectType, subjectId, attempt]);
   return <>
-    <button type="button" onClick={() => setOpen(true)} className="min-h-11 px-2 text-sm font-semibold text-violet-300">Payment receipts</button>
+    <button type="button" onClick={() => setOpen(true)} className="min-h-10 px-2 text-xs font-semibold text-violet-300">Receipts</button>
     <ReceiptViewer open={open} onClose={() => setOpen(false)} receipt={selected} onList={receipts.length > 1 ? () => setSelected(null) : undefined}>
       {loading ? <p role="status" className="py-6 text-sm">Loading receipts…</p> : error ? <div role="alert"><p>We couldn’t load your receipts.</p><button className="min-h-11 text-violet-300" onClick={() => setAttempt(value => value + 1)}>Try again</button></div> : receipts.length ? <div>{receipts.map(receipt => <button key={receipt.id} onClick={() => setSelected(receipt)} className="block min-h-16 w-full border-b border-white/10 py-3 text-left"><span className="block text-sm font-semibold">{receipt.merchant_name}</span><span className="mt-1 block text-xs text-[#A1A1AA]">{receipt.description} · {displayDate(receipt.paid_at)}</span></button>)}</div> : <p className="py-6 text-sm text-[#A1A1AA]">No verified payments yet. A receipt will appear here after payment is confirmed.</p>}
     </ReceiptViewer>
