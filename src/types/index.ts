@@ -757,7 +757,7 @@ export type StaffPermission =
   | "finance"
   | "support"
   | "security"
-  | "worker_review"
+  | "worker_operations"
   | "field_officer"
   | "admin";
 
@@ -766,7 +766,7 @@ export const STAFF_PERMISSION_LABELS: Record<StaffPermission, string> = {
   finance: "Finance",
   support: "Customer Support",
   security: "Security Operations",
-  worker_review: "Worker Review",
+  worker_operations: "Worker Operations",
   field_officer: "Field Operations",
   admin: "Admin",
 };
@@ -776,7 +776,7 @@ export const STAFF_PERMISSION_ICONS: Record<StaffPermission, string> = {
   finance: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
   support: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
   security: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
-  worker_review:
+  worker_operations:
     "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 0 0 1.24-.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24A3.42 3.42 0 0 1 14.4 2.01 3.42 3.42 0 0 1 17 3.388a3.42 3.42 0 0 0 1.24.12 3.42 3.42 0 0 0 2.604-2.604 3.42 3.42 0 0 0 .12-1.24 3.42 3.42 0 0 1 3.388-3.388 3.42 3.42 0 0 1 2.568 1.932 3.42 3.42 0 0 0 2.604 2.604 3.42 3.42 0 0 0 1.24.12M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0",
   field_officer:
     "M17.657 16.657L13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0zM15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
