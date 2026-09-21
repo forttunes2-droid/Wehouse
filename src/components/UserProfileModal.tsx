@@ -12,8 +12,7 @@ type SectionKey =
   | "apartments"
   | "hotels"
   | "hotel_team"
-  | "wehouse_team"
-  | "access";
+  | "wehouse_team";
 
 type WorkspaceRecord = {
   role: string;
@@ -90,32 +89,6 @@ type SelectedRecord =
   | { kind: "apartment"; row: ApartmentRecord }
   | { kind: "hotel"; row: HotelRecord };
 
-type StaffModule =
-  | "operations"
-  | "finance"
-  | "support"
-  | "security"
-  | "verification"
-  | "field_officer";
-
-interface UserProfileModalProps {
-  user: Profile | null;
-  adminProfile?: Profile | null;
-  onClose: () => void;
-  onPromote?: () => void;
-  onNavigate?: (page: string, id?: string) => void;
-  onGoToChat?: (convId?: string) => void;
-}
-
-const STAFF_MODULES: Array<[StaffModule, string]> = [
-  ["operations", "Property Operations"],
-  ["finance", "Finance Operations"],
-  ["support", "Support Operations"],
-  ["security", "Security Operations"],
-  ["verification", "Worker Operations"],
-  ["field_officer", "Field Operations"],
-];
-
 const workspaceLabel = (value: string) => {
   if (value === "worker") return "Service Worker";
   if (value === "property_partner") return "Property Partner";
@@ -143,9 +116,6 @@ function InternalProfileSheet({
   const [section, setSection] = useState<SectionKey>("overview");
   const [selected, setSelected] = useState<SelectedRecord | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const [adminModule, setAdminModule] = useState<StaffModule>("operations");
-  const [confirming, setConfirming] = useState(false);
-  const [promoting, setPromoting] = useState(false);
 
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -184,11 +154,6 @@ function InternalProfileSheet({
   const hotelTeam = record?.hotel_team || [];
   const wehouseTeam = record?.wehouse_team || [];
   const provider = record?.service_provider || null;
-  const isAdminActor = adminProfile?.role === "admin";
-  const targetHasAdminOrCreator = wehouseTeam.some((item) =>
-    ["admin", "creator"].includes(item.role),
-  );
-
   const sections = useMemo(() => {
     const next: Array<{ id: SectionKey; label: string; count?: number }> = [
       { id: "overview", label: "Overview" },
@@ -203,16 +168,12 @@ function InternalProfileSheet({
       next.push({ id: "hotel_team", label: "Hotel Team", count: hotelTeam.length });
     if (wehouseTeam.length)
       next.push({ id: "wehouse_team", label: "WeHouse Team", count: wehouseTeam.length });
-    if (isAdminActor && !targetHasAdminOrCreator)
-      next.push({ id: "access", label: "Team access" });
     return next;
   }, [
     apartments.length,
     hotelTeam.length,
     hotels.length,
-    isAdminActor,
     provider,
-    targetHasAdminOrCreator,
     wehouseTeam.length,
     workspaces.length,
   ]);
@@ -229,24 +190,6 @@ function InternalProfileSheet({
         ? "Suspended"
         : "Active";
 
-  async function appointToTeam() {
-    setPromoting(true);
-    const { data, error } = await supabase.rpc("admin_appoint_staff", {
-      p_target_user_id: user.user_id,
-      p_module: adminModule,
-    });
-    setPromoting(false);
-    setConfirming(false);
-    if (error || !data)
-      return toast.error(error?.message || "The team assignment was not completed");
-    toast.success("WeHouse Team access assigned");
-    onPromote?.();
-    const refreshed = await supabase.rpc("get_internal_profile_record", {
-      p_target_user_id: user.user_id,
-    });
-    if (!refreshed.error) setRecord((refreshed.data || {}) as InternalProfileRecord);
-    setSection("wehouse_team");
-  }
 
   function openOperations(kind: "apartment" | "hotel", id: string) {
     onNavigate?.("operations_properties", id);
@@ -352,17 +295,8 @@ function InternalProfileSheet({
             <HotelList rows={hotels} onOpen={(row) => setSelected({ kind: "hotel", row })} />
           ) : section === "hotel_team" ? (
             <HotelTeam rows={hotelTeam} onOpenHotel={(hotelId) => openOperations("hotel", String(hotelId))} />
-          ) : section === "wehouse_team" ? (
-            <WeHouseTeam rows={wehouseTeam} />
           ) : (
-            <TeamAccess
-              module={adminModule}
-              setModule={setAdminModule}
-              confirming={confirming}
-              setConfirming={setConfirming}
-              promoting={promoting}
-              onConfirm={() => void appointToTeam()}
-            />
+            <WeHouseTeam rows={wehouseTeam} />
           )}
         </div>
       </aside>
@@ -540,39 +474,6 @@ function PropertyDetail({ selected, onBack, onOpenOperations }: { selected: Sele
       <button type="button" onClick={() => onOpenOperations(id)} className="h-11 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.07] text-[10px] font-semibold text-violet-200">
         Open in Property Operations
       </button>
-    </div>
-  );
-}
-
-function TeamAccess({ module, setModule, confirming, setConfirming, promoting, onConfirm }: {
-  module: StaffModule;
-  setModule: (value: StaffModule) => void;
-  confirming: boolean;
-  setConfirming: (value: boolean) => void;
-  promoting: boolean;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="space-y-4 py-5">
-      <Section title="Add WeHouse Team access">
-        <p className="pb-3 text-[9px] leading-5 text-[#747B8C]">
-          This does not replace the person’s Personal, Service Worker or Property Partner access. It adds one branch-scoped WeHouse Team assignment.
-        </p>
-        <select value={module} disabled={promoting} onChange={(e) => setModule(e.target.value as StaffModule)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151922] px-3 text-xs outline-none">
-          {STAFF_MODULES.map(([id,label]) => <option key={id} value={id}>{label}</option>)}
-        </select>
-        {!confirming ? (
-          <button type="button" onClick={() => setConfirming(true)} className="mt-3 h-11 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.07] text-[10px] font-semibold text-violet-200">Continue</button>
-        ) : (
-          <div className="mt-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.04] p-3">
-            <p className="text-[9px] leading-5 text-amber-100">Confirm this internal assignment. The server still checks your Admin branch and authority.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={promoting} onClick={() => setConfirming(false)} className="h-10 rounded-xl border border-white/[.08] text-[9px] font-semibold">Cancel</button>
-              <button type="button" disabled={promoting} onClick={onConfirm} className="h-10 rounded-xl bg-violet-500 text-[9px] font-semibold">{promoting ? "Assigning…" : "Assign access"}</button>
-            </div>
-          </div>
-        )}
-      </Section>
     </div>
   );
 }
