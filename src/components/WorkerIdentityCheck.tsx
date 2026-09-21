@@ -6,6 +6,7 @@ import type { Profile } from '@/types';
 
 type Props = {
   profile: Profile;
+  workspace: 'worker' | 'property_partner';
   status?: string | null;
   rejectionReason?: string | null;
   onSaved: () => Promise<void> | void;
@@ -32,8 +33,8 @@ const STEP_LABELS: Record<ChallengeStep, string> = {
   center_end: 'Look straight again',
 };
 
-export default function WorkerIdentityCheck({ profile, status, rejectionReason, onSaved }: Props) {
-  const identityLabel=profile.role==='property_partner'?'Property Partner':'Worker';
+export default function WorkerIdentityCheck({ profile, workspace, status, rejectionReason, onSaved }: Props) {
+  const identityLabel = workspace === 'property_partner' ? 'Property Partner' : 'Worker';
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const humanRef = useRef<any>(null);
@@ -368,6 +369,7 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       recorded_video: false,
       anchor_similarity: anchorSimilarity,
       recent_similarity: recentSimilarity,
+      workspace,
     };
 
     const { error } = await supabase.rpc('complete_my_account_identity_check', {
@@ -423,13 +425,18 @@ export default function WorkerIdentityCheck({ profile, status, rejectionReason, 
       {(stage === 'intro' || stage === 'loading') && (
         <div className="space-y-4 p-4 sm:p-5">
           <div className="border-b border-white/[.06] pb-4">
-            <p className="text-xs font-semibold text-white">One guided live check</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">{status === 'due' ? 'WeHouse compares this live check with your original anchor and latest approved reference. A fresh still becomes the latest reference only after WeHouse review.' : <>The camera captures the private reference from the live session, then asks you to turn naturally. There is no separate selfie upload and no liveness video is saved.</>}</p>
+            <p className="text-xs font-semibold text-white">Private identity check</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">
+              WeHouse uses a live camera check to confirm that a real person is operating this account. We save a private identity reference for future identity checks. It is never shown on your public profile and can only be accessed by authorised WeHouse reviewers.
+            </p>
+            <p className="mt-2 text-[9px] leading-relaxed text-[#6F7686]">
+              The live check also screens for liveness and spoofing. We do not save the live camera session as a video.
+            </p>
           </div>
 
           <label className="flex items-start gap-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
             <input type="checkbox" checked={consent} disabled={stage === 'loading'} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-violet-500" />
-            <span className="text-[9px] leading-relaxed text-[#808796]">I understand that my reference selfie is stored privately for {identityLabel} identity checks. The live camera check is analyzed in real time, a still may update my latest reference only after review, and no liveness video is saved.</span>
+            <span className="text-[9px] leading-relaxed text-[#808796]">I agree to this private identity check for my {identityLabel} workspace.</span>
           </label>
 
           {status === 'due' ? <button onClick={() => void loadStoredReference()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Opening securely…' : 'Start live face check'}</button> : <button onClick={() => void startEnrollmentCheck()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Preparing live check…' : 'Start live face check'}</button>}
