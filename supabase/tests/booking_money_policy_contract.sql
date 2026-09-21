@@ -74,12 +74,12 @@ begin
     raise exception 'Commission calculator execution boundary is not service-role only';
   end if;
 end
-$;
+$$;
 
 reset role;
 set local role service_role;
 
-do $
+do $$
 begin
   if public.calculate_commission(10000,'short_let')<>1000
      or public.calculate_commission(10000,'long_let')<>500
@@ -98,7 +98,7 @@ begin
     end if;
   end;
 end
-$;
+$$;
 
 reset role;
 set local role authenticated;
