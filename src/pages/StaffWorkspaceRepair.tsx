@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import StaffWorkspaceState from '@/components/StaffWorkspaceState';
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
