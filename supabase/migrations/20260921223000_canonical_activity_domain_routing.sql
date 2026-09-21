@@ -123,7 +123,8 @@ begin
   on conflict(activity_event_id,recipient_user_id,workspace) do update set
     domain=excluded.domain,
     state_scope=excluded.state_scope,
-    action_required=excluded.action_required;
+    action_required=excluded.action_required,
+    resolved_at=null;
 end
 $$;
 
@@ -209,6 +210,40 @@ begin
   return v_count;
 end
 $$;
+
+create or replace function private.fanout_hotel_activity(
+  p_event_id uuid,
+  p_hotel_id integer,
+  p_action_required boolean default false
+)
+returns integer
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','private'
+as $
+declare
+  v_member record;
+  v_count integer:=0;
+begin
+  for v_member in
+    select distinct member.member_user_id
+    from public.hotel_team_members member
+    join public.profiles p on p.user_id=member.member_user_id
+    where member.hotel_id=p_hotel_id
+      and member.status='active'
+      and member.revoked_at is null
+      and not coalesce(p.deleted,false)
+      and not coalesce(p.suspended,false)
+      and not coalesce(p.banned,false)
+  loop
+    perform private.add_activity_audience(
+      p_event_id,v_member.member_user_id,'hotel','hotel',null,p_action_required
+    );
+    v_count:=v_count+1;
+  end loop;
+  return v_count;
+end
+$;
 
 create or replace function private.resolve_subject_activity(
   p_subject_type text,
@@ -383,7 +418,7 @@ begin
   into v_state from public.profiles p where p.user_id=new.recipient_id;
 
   v_event_id:=private.upsert_activity_event(
-    'notification:'||new.id,
+    coalesce(nullif(btrim(new.event_key),''),'notification:'||new.id),
     new.type,
     coalesce(nullif(btrim(new.source_type),''),'notification'),
     coalesce(nullif(btrim(new.source_id),''),nullif(btrim(new.related_id),''),new.id::text),
@@ -506,6 +541,381 @@ after update of status,submitted_at,reviewed_at
 on public.worker_verifications
 for each row execute function public.emit_worker_review_activity();
 
+create or replace function public.notify_property_operations_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','private'
+as $
+declare
+  v_stage text:=lower(coalesce(new.lifecycle_stage,''));
+  v_event_id uuid;
+  v_title text;
+begin
+  if tg_op='UPDATE' and new.lifecycle_stage is not distinct from old.lifecycle_stage then
+    return new;
+  end if;
+
+  perform private.resolve_subject_activity(
+    'inspection_request',new.id::text,null,'property_operations'
+  );
+
+  if v_stage not in (
+    'access_review','inspection_ready','awaiting_review','listing_prepared'
+  ) then
+    return new;
+  end if;
+
+  v_title:=case v_stage
+    when 'access_review' then 'Access evidence needs review'
+    when 'inspection_ready' then 'Property needs a field assignment'
+    when 'awaiting_review' then 'Field evidence needs review'
+    else 'Listing is ready for publication review'
+  end;
+
+  v_event_id:=private.upsert_activity_event(
+    'operations_property:'||new.id::text||':'||v_stage,
+    'property.'||v_stage||'.action_required',
+    'inspection_request',
+    new.id::text,
+    coalesce(new.owner_id,new.approved_by),
+    v_title,
+    concat_ws(' · ',nullif(new.property_display_name,''),nullif(new.property_address,''),nullif(new.request_code,'')),
+    'operations_properties',
+    jsonb_build_object(
+      'inspection_id',new.id,
+      'request_code',new.request_code,
+      'lifecycle_stage',v_stage
+    ),
+    coalesce(new.updated_at,now())
+  );
+
+  perform private.fanout_team_activity(
+    v_event_id,
+    'property_operations',
+    new.property_state,
+    new.property_city,
+    true
+  );
+  return new;
+end
+$;
+
+create or replace function public.notify_reservation_operations_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','private'
+as $
+declare
+  v_listing public.listings;
+  v_event_id uuid;
+begin
+  select * into v_listing
+  from public.listings listing
+  where listing.id::text=new.listing_id or listing.listing_id=new.listing_id
+  limit 1;
+  if v_listing is null then return new; end if;
+
+  if new.status<>'inspection_pending' then
+    perform private.resolve_subject_activity(
+      'reservation',new.id,'reservation.inspection_coordination','property_operations'
+    );
+  end if;
+  if new.status<>'payment_conflict' then
+    perform private.resolve_subject_activity(
+      'reservation',new.id,'reservation.payment_conflict','finance_operations'
+    );
+  end if;
+  if new.requested_move_in_at is null
+     or new.verified_handover_at is not null
+     or new.status in ('occupied','completed','cancelled','refunded') then
+    perform private.resolve_subject_activity(
+      'reservation',new.id,'reservation.move_in_requested','property_operations'
+    );
+  end if;
+
+  if new.status='inspection_pending'
+     and (tg_op='INSERT' or old.status is distinct from new.status) then
+    v_event_id:=private.upsert_activity_event(
+      'operations_reservation:'||new.id||':inspection_pending',
+      'reservation.inspection_coordination',
+      'reservation',new.id,new.user_id,
+      'Inspection request needs coordination',
+      coalesce(v_listing.title,'Apartment')||' · assign or continue the requested visit.',
+      'operations_bookings',
+      jsonb_build_object(
+        'reservation_id',new.id,'listing_id',v_listing.id::text,
+        'workflow_state','inspection_pending'
+      ),
+      coalesce(new.updated_at,now())
+    );
+    perform private.fanout_team_activity(
+      v_event_id,'property_operations',v_listing.state,v_listing.city,true
+    );
+  end if;
+
+  if new.status='payment_conflict'
+     and (tg_op='INSERT' or old.status is distinct from new.status) then
+    v_event_id:=private.upsert_activity_event(
+      'operations_reservation:'||new.id||':payment_conflict',
+      'reservation.payment_conflict',
+      'reservation',new.id,new.user_id,
+      'Reservation payment needs review',
+      coalesce(v_listing.title,'Apartment')||' · payment must be reviewed before this reservation can continue.',
+      'operations_bookings',
+      jsonb_build_object(
+        'reservation_id',new.id,'listing_id',v_listing.id::text,
+        'workflow_state','payment_conflict'
+      ),
+      coalesce(new.updated_at,now())
+    );
+    perform private.fanout_team_activity(
+      v_event_id,'finance_operations',v_listing.state,v_listing.city,true
+    );
+  end if;
+
+  if new.requested_move_in_at is not null
+     and new.verified_handover_at is null
+     and (
+       tg_op='INSERT'
+       or old.requested_move_in_at is distinct from new.requested_move_in_at
+     ) then
+    v_event_id:=private.upsert_activity_event(
+      'operations_reservation:'||new.id||':move_in_requested:'||new.requested_move_in_at::text,
+      'reservation.move_in_requested',
+      'reservation',new.id,new.user_id,
+      'Customer selected a move-in time',
+      coalesce(v_listing.title,'Apartment')||' · prepare the verified handover.',
+      'operations_bookings',
+      jsonb_build_object(
+        'reservation_id',new.id,'listing_id',v_listing.id::text,
+        'requested_move_in_at',new.requested_move_in_at
+      ),
+      coalesce(new.move_in_requested_at,new.updated_at,now())
+    );
+    perform private.fanout_team_activity(
+      v_event_id,'property_operations',v_listing.state,v_listing.city,true
+    );
+  end if;
+
+  return new;
+end
+$;
+
+drop trigger if exists reservations_operations_activity on public.reservations;
+create trigger reservations_operations_activity
+after insert or update of
+  status,rent_payment_status,rent_paid_at,requested_move_in_at,verified_handover_at
+on public.reservations
+for each row execute function public.notify_reservation_operations_activity();
+
+create or replace function public.emit_withdrawal_review_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','private'
+as $
+declare
+  v_wallet public.wallets;
+  v_owner public.profiles;
+  v_event_id uuid;
+begin
+  select * into v_wallet from public.wallets where id=new.wallet_id;
+  if v_wallet.id is null then return new; end if;
+  select * into v_owner from public.profiles where user_id=v_wallet.owner_id limit 1;
+  if v_owner.user_id is null then return new; end if;
+
+  if new.status<>'awaiting_review' then
+    perform private.resolve_subject_activity(
+      'withdrawal',new.id::text,'finance.withdrawal_review_required','finance_operations'
+    );
+  end if;
+
+  if new.status='awaiting_review'
+     and (tg_op='INSERT' or old.status is distinct from new.status) then
+    v_event_id:=private.upsert_activity_event(
+      'withdrawal_review:'||new.id::text,
+      'finance.withdrawal_review_required',
+      'withdrawal',new.id::text,v_wallet.owner_id,
+      'Withdrawal needs review',
+      coalesce(v_owner.full_name,v_owner.username,'Account')||
+        ' requested a withdrawal of ₦'||trim(to_char(new.amount,'FM999,999,999,990.00'))||'.',
+      'finance',
+      jsonb_build_object(
+        'withdrawal_id',new.id,
+        'owner_id',v_wallet.owner_id,
+        'owner_type',v_wallet.owner_type
+      ),
+      coalesce(new.updated_at,new.created_at,now())
+    );
+    perform private.fanout_team_activity(
+      v_event_id,'finance_operations',v_owner.state,
+      coalesce(nullif(v_owner.local_government,''),v_owner.city),true
+    );
+  end if;
+  return new;
+end
+$;
+
+drop trigger if exists withdrawal_canonical_activity on public.withdrawals;
+create trigger withdrawal_canonical_activity
+after insert or update of status
+on public.withdrawals
+for each row execute function public.emit_withdrawal_review_activity();
+
+create or replace function public.emit_operational_case_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','private'
+as $
+declare
+  v_requester public.profiles;
+  v_event_id uuid;
+  v_lga text;
+  v_route text;
+begin
+  select * into v_requester
+  from public.profiles where user_id=new.requester_user_id limit 1;
+  v_lga:=coalesce(nullif(v_requester.local_government,''),nullif(v_requester.city,''));
+
+  if new.status in ('resolved','closed') then
+    perform private.resolve_subject_activity(
+      'operational_case',new.operational_case_id::text,
+      'case.action_required',new.owning_domain
+    );
+    return new;
+  end if;
+
+  if new.owning_domain not in (
+    'property_operations','field_operations','worker_operations',
+    'finance_operations','security_operations','support'
+  ) then return new; end if;
+
+  if tg_op='UPDATE'
+     and new.status is not distinct from old.status
+     and new.assigned_user_id is not distinct from old.assigned_user_id
+     and new.priority is not distinct from old.priority then
+    return new;
+  end if;
+
+  -- Ordinary support conversations already live in Inbox. Activity is for
+  -- escalated/actionable operational work, not every support message.
+  if new.owning_domain='support'
+     and new.priority not in ('high','urgent')
+     and new.status<>'decision_ready' then
+    return new;
+  end if;
+
+  v_route:=case new.owning_domain
+    when 'property_operations' then 'operations_properties'
+    when 'field_operations' then 'staff_inspections'
+    when 'worker_operations' then 'operations_workers'
+    when 'finance_operations' then 'finance'
+    when 'security_operations' then 'security'
+    else 'operations_inbox'
+  end;
+
+  v_event_id:=private.upsert_activity_event(
+    'operational_case:'||new.operational_case_id::text||':'||new.status,
+    'case.action_required',
+    'operational_case',new.operational_case_id::text,new.requester_user_id,
+    case
+      when new.owning_domain='security_operations' then 'Security case needs attention'
+      when new.owning_domain='finance_operations' then 'Finance case needs attention'
+      else 'Operational case needs attention'
+    end,
+    'Case #'||new.case_number::text||' · '||replace(new.reason_code,'_',' '),
+    v_route,
+    jsonb_build_object(
+      'case_id',new.operational_case_id,
+      'case_number',new.case_number,
+      'context_type',new.owning_domain,
+      'subject_type',new.subject_type,
+      'subject_id',new.subject_id
+    ),
+    coalesce(new.updated_at,new.created_at,now())
+  );
+
+  perform private.fanout_team_activity(
+    v_event_id,new.owning_domain,
+    coalesce(new.state_scope,v_requester.state),v_lga,true
+  );
+  return new;
+end
+$;
+
+drop trigger if exists operational_case_canonical_activity on public.operational_cases;
+create trigger operational_case_canonical_activity
+after insert or update of status,assigned_user_id,priority
+on public.operational_cases
+for each row execute function public.emit_operational_case_activity();
+
+create or replace function public.notify_hotel_booking_lifecycle()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public','private'
+as $
+declare
+  v_hotel public.hotels;
+  v_event_id uuid;
+begin
+  select * into v_hotel from public.hotels where hotel_id=new.hotel_id;
+  if v_hotel.hotel_id is null then return new; end if;
+
+  if new.status='confirmed' and new.payment_status='paid'
+     and (tg_op='INSERT'
+       or old.status is distinct from new.status
+       or old.payment_status is distinct from new.payment_status) then
+    v_event_id:=private.upsert_activity_event(
+      'hotel_booking:'||new.booking_id||':confirmed',
+      'hotel.stay_confirmed',
+      'hotel_booking',new.booking_id::text,new.user_id,
+      'Hotel stay confirmed',
+      v_hotel.name||' · '||to_char(new.check_in,'Mon DD')||' to '||to_char(new.check_out,'Mon DD')||'.',
+      'my_reservations',
+      jsonb_build_object('bookingId',new.booking_id,'hotelId',new.hotel_id),
+      coalesce(new.updated_at,new.created_at,now())
+    );
+    perform private.add_activity_audience(
+      v_event_id,new.user_id,'personal','hotel',v_hotel.state,false
+    );
+    if v_hotel.owner_id is not null then
+      perform private.add_activity_audience(
+        v_event_id,v_hotel.owner_id,'partner','hotel',v_hotel.state,false
+      );
+    end if;
+    perform private.fanout_hotel_activity(v_event_id,new.hotel_id,true);
+    return new;
+  end if;
+
+  if tg_op='UPDATE' and new.status is distinct from old.status
+     and new.status in ('checked_in','checked_out') then
+    v_event_id:=private.upsert_activity_event(
+      'hotel_booking:'||new.booking_id||':'||new.status,
+      case when new.status='checked_in'
+        then 'hotel.checked_in' else 'hotel.checked_out' end,
+      'hotel_booking',new.booking_id::text,new.user_id,
+      case when new.status='checked_in'
+        then 'Hotel check-in completed' else 'Hotel checkout completed' end,
+      case when new.status='checked_in'
+        then 'You are checked in at '||v_hotel.name||'.'
+        else 'Your stay at '||v_hotel.name||' is complete.' end,
+      'my_reservations',
+      jsonb_build_object('bookingId',new.booking_id,'hotelId',new.hotel_id),
+      coalesce(new.updated_at,now())
+    );
+    perform private.add_activity_audience(
+      v_event_id,new.user_id,'personal','hotel',v_hotel.state,false
+    );
+    perform private.fanout_hotel_activity(v_event_id,new.hotel_id,false);
+  end if;
+  return new;
+end
+$;
+
 revoke all on function public.get_my_canonical_activity_v2(text,integer)
 from public,anon;
 grant execute on function public.get_my_canonical_activity_v2(text,integer)
@@ -537,6 +947,23 @@ revoke all on function private.fanout_team_activity(
 revoke all on function private.resolve_subject_activity(
   text,text,text,text
 ) from public,anon,authenticated;
+revoke all on function private.fanout_hotel_activity(uuid,integer,boolean)
+from public,anon,authenticated;
+revoke all on function public.notify_property_operations_activity()
+from public,anon,authenticated;
+revoke all on function public.notify_reservation_operations_activity()
+from public,anon,authenticated;
+revoke all on function public.emit_withdrawal_review_activity()
+from public,anon,authenticated;
+revoke all on function public.emit_operational_case_activity()
+from public,anon,authenticated;
+revoke all on function public.notify_hotel_booking_lifecycle()
+from public,anon,authenticated;
+grant execute on function public.notify_property_operations_activity() to service_role;
+grant execute on function public.notify_reservation_operations_activity() to service_role;
+grant execute on function public.emit_withdrawal_review_activity() to service_role;
+grant execute on function public.emit_operational_case_activity() to service_role;
+grant execute on function public.notify_hotel_booking_lifecycle() to service_role;
 
 -- Clients may read their own legacy delivery rows and mark them read, but may
 -- not fabricate/delete Activity by writing arbitrary notifications.
