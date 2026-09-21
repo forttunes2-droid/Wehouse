@@ -53,7 +53,7 @@ export default function WorkspaceSwitchSheet({
       role="presentation"
     >
       <section
-        className="w-full rounded-t-[28px] border border-white/[.08] bg-[#0F1219] px-4 pb-[max(1.1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-w-md sm:rounded-[24px] sm:p-4"
+        className="wh-panel-enter w-full rounded-t-[28px] border border-white/[.08] bg-[#0F1219] px-4 pb-[max(1.1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-w-md sm:rounded-[24px] sm:p-4"
         role="dialog"
         aria-modal="true"
         aria-label="Switch workspace"
@@ -119,7 +119,7 @@ export default function WorkspaceSwitchSheet({
                   onClose();
                   onSwitch(workspace);
                 }}
-                className={`flex min-h-[68px] w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${current
+                className={`flex min-h-[68px] w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-[background-color,border-color,transform] duration-200 ease-out active:scale-[.99] ${current
                   ? "border-violet-500/30 bg-violet-500/[.09]"
                   : "border-white/[.06] bg-white/[.018] active:bg-white/[.05]"
                 } disabled:cursor-default`}
