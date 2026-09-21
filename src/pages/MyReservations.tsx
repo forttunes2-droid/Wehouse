@@ -1215,8 +1215,11 @@ function PropertyBookingDetail({
     (journey.rentPaid && ["handover", "tenancy"].includes(journey.action));
 
   return (
-    <BookingDetailShell title={title} onBack={onBack}>
-      <ReceiptAccess subjectType="housing" subjectId={String(row.id)} />
+    <BookingDetailShell
+      title={title}
+      onBack={onBack}
+      action={<ReceiptAccess subjectType="housing" subjectId={String(row.id)} />}
+    >
       <section className="overflow-hidden border-y border-white/[.07] bg-[#11141C]">
         {row.listing_image ? (
           <img
@@ -1480,8 +1483,11 @@ function HotelBookingDetail({
                 : "Open this booking for its latest state.";
 
   return (
-    <BookingDetailShell title="Hotel booking" onBack={onBack}>
-      <ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />
+    <BookingDetailShell
+      title="Hotel booking"
+      onBack={onBack}
+      action={<ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />}
+    >
       <section className="overflow-hidden border-y border-white/[.07] bg-[#11141C]">
         {roomImage ? (
           <img
@@ -1768,10 +1774,12 @@ function ArrivalIssueDialog({
 function BookingDetailShell({
   title,
   onBack,
+  action,
   children,
 }: {
   title: string;
   onBack: () => void;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -1788,12 +1796,13 @@ function BookingDetailShell({
     <div className="min-h-[100dvh] bg-[#090B10] text-white">
       <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-white/[.06] bg-[#090B10]/95 px-3 backdrop-blur-xl">
         <BackButton onClick={onBack} />
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-400">
+        <div className="min-w-0 flex-1">
+          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-400">
             Bookings
           </p>
-          <h1 className="text-sm font-semibold">{title}</h1>
+          <h1 className="truncate text-sm font-semibold">{title}</h1>
         </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </header>
       <main className="wh-panel-enter mx-auto max-w-2xl px-0 py-0 sm:px-4 sm:py-4">{children}</main>
     </div>
