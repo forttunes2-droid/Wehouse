@@ -87,8 +87,8 @@ const OPS: Array<{
   },
   {
     id: "workers",
-    label: "Workers",
-    note: "Worker onboarding, review and professional accounts.",
+    label: "Service Workers",
+    note: "Service Worker onboarding, review and professional accounts.",
     group: "Marketplace",
   },
   {
@@ -521,7 +521,9 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
                   {person.email}
                 </span>
                 <span className="mt-2 block text-[8px] capitalize text-[#565D6E]">
-                  {String(person.role || "user").replace(/_/g, " ")} ·{" "}
+                  {role === "property_partner"
+                    ? "Property Partner · Personal account"
+                    : "Personal account"}{" · "}
                   {[person.local_government || person.city, person.state]
                     .filter(Boolean)
                     .join(", ") || "Location not set"}
@@ -611,11 +613,11 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
         <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One workspace, one active filter</p></div>
-        <WeHouseSelect value={view} options={[{ value: "worker", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
+        <WeHouseSelect value={view} options={[{ value: "worker", label: "Service Worker jobs" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {view === "worker" ? (
         <ServiceBookingOversight
-          title="Worker service bookings"
+          title="Service Worker bookings"
           note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."
         />
       ) : (
@@ -802,19 +804,17 @@ function Finance() {
     void load();
   }, [view]);
   async function load() {
+    if (view === "payouts") {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const result =
-      view === "payouts"
-        ? await supabase
-            .from("withdrawals")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(100)
-        : await supabase
-            .from("commission_ledger")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(100);
+    const result = await supabase
+      .from("commission_ledger")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
     if (result.error) toast.error(result.error.message);
     setRows(result.data || []);
     setLoading(false);
