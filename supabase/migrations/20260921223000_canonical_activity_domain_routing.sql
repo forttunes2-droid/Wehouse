@@ -610,7 +610,13 @@ as $
 declare
   v_listing public.listings;
   v_event_id uuid;
+  v_status_changed boolean:=true;
+  v_move_in_changed boolean:=true;
 begin
+  if tg_op='UPDATE' then
+    v_status_changed:=old.status is distinct from new.status;
+    v_move_in_changed:=old.requested_move_in_at is distinct from new.requested_move_in_at;
+  end if;
   select * into v_listing
   from public.listings listing
   where listing.id::text=new.listing_id or listing.listing_id=new.listing_id
@@ -635,8 +641,7 @@ begin
     );
   end if;
 
-  if new.status='inspection_pending'
-     and (tg_op='INSERT' or old.status is distinct from new.status) then
+  if new.status='inspection_pending' and v_status_changed then
     v_event_id:=private.upsert_activity_event(
       'operations_reservation:'||new.id||':inspection_pending',
       'reservation.inspection_coordination',
@@ -655,8 +660,7 @@ begin
     );
   end if;
 
-  if new.status='payment_conflict'
-     and (tg_op='INSERT' or old.status is distinct from new.status) then
+  if new.status='payment_conflict' and v_status_changed then
     v_event_id:=private.upsert_activity_event(
       'operations_reservation:'||new.id||':payment_conflict',
       'reservation.payment_conflict',
@@ -677,10 +681,7 @@ begin
 
   if new.requested_move_in_at is not null
      and new.verified_handover_at is null
-     and (
-       tg_op='INSERT'
-       or old.requested_move_in_at is distinct from new.requested_move_in_at
-     ) then
+     and v_move_in_changed then
     v_event_id:=private.upsert_activity_event(
       'operations_reservation:'||new.id||':move_in_requested:'||new.requested_move_in_at::text,
       'reservation.move_in_requested',
@@ -720,7 +721,11 @@ declare
   v_wallet public.wallets;
   v_owner public.profiles;
   v_event_id uuid;
+  v_status_changed boolean:=true;
 begin
+  if tg_op='UPDATE' then
+    v_status_changed:=old.status is distinct from new.status;
+  end if;
   select * into v_wallet from public.wallets where id=new.wallet_id;
   if v_wallet.id is null then return new; end if;
   select * into v_owner from public.profiles where user_id=v_wallet.owner_id limit 1;
@@ -732,8 +737,7 @@ begin
     );
   end if;
 
-  if new.status='awaiting_review'
-     and (tg_op='INSERT' or old.status is distinct from new.status) then
+  if new.status='awaiting_review' and v_status_changed then
     v_event_id:=private.upsert_activity_event(
       'withdrawal_review:'||new.id::text,
       'finance.withdrawal_review_required',
