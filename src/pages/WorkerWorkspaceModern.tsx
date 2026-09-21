@@ -206,7 +206,7 @@ export default function WorkerWorkspaceModern({
 
   const workspace = (
     <WorkspaceFrameV2
-      label="WEHOUSE SERVICES · SERVICE PROVIDER"
+      label="WEHOUSE SERVICES · SERVICE WORKER"
       title={nav.find((item) => item.id === safeTab)?.label || "Service Worker"}
       description={description}
       items={nav}
