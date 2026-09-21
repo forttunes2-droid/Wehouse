@@ -6,7 +6,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("identity submission is workspace-aware and Partner gates respect the policy switch", async () => {
   const [migration, gate, check, partner, worker, verification] = await Promise.all([
-    read("supabase/migrations/20260921092015_align_identity_routing_partner_gate_and_worker_services.sql"),
+    read("supabase/migrations/20260921093518_validate_worker_services_against_catalog.sql"),
     read("src/components/IdentityAccessGate.tsx"),
     read("src/components/WorkerIdentityCheck.tsx"),
     read("src/pages/PropertyPartnerDashboard.tsx"),
@@ -41,6 +41,9 @@ test("Worker setup manages several canonical services and booking prefers that l
 
   assert.match(migration, /create or replace function public\.set_my_worker_services/);
   assert.match(migration, /jsonb_array_length\(p_services\)>10/);
+  assert.match(migration, /service_categories/);
+  assert.match(migration, /service_subcategories/);
+  assert.match(migration, /Choose an active WeHouse service from the approved catalog/);
   assert.match(setup, /Services you offer/);
   assert.match(setup, /set_my_worker_services/);
   assert.match(setup, /Add service/);
