@@ -72,8 +72,8 @@ const MODULE_COPY: Record<
       "Review branch authentication and session signals, then escalate verified risks to Admin or Creator.",
     workLabel: "Security Signals",
   },
-  verification: {
-    title: "Worker Operations",
+  worker_review: {
+    title: "Worker Review",
     description:
       "Review Worker onboarding, professional evidence and identity decisions from one canonical Worker record.",
     workLabel: "Workers",
