@@ -28,9 +28,10 @@ export function normalizeStaffPermission(value: string | null | undefined): Staf
     support: 'support',
     security: 'security',
     security_operations: 'security',
-    verification: 'verification',
-    worker_verification: 'verification',
-    worker_operations: 'verification',
+    worker_review: 'worker_review',
+    verification: 'worker_review',
+    worker_verification: 'worker_review',
+    worker_operations: 'worker_review',
     field_officer: 'field_officer',
     field_operation: 'field_officer',
     field_operations: 'field_officer',
@@ -126,8 +127,8 @@ export async function getStaffByPermission(
       ? 'property_operations'
       : permission === 'field_officer'
         ? 'field_operations'
-        : permission === 'verification'
-          ? 'worker_operations'
+        : permission === 'worker_review'
+          ? 'worker_review'
           : permission === 'finance'
             ? 'finance_operations'
             : permission === 'security'
