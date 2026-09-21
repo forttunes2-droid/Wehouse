@@ -64,6 +64,9 @@ type Thread =
 type ActiveTarget = {
   conversationId: string;
   peerUserId?: string | null;
+  kind?: "roommate" | "worker" | "hotel";
+  bookingId?: string;
+  hotelConversation?: HotelConversation;
 } | null;
 
 type ThreadView = {
@@ -322,6 +325,9 @@ export default function Chat({
         onNavigate={onNavigate}
         conversationId={target.conversationId}
         peerUserId={target.peerUserId}
+        initialKind={target.kind}
+        initialBookingId={target.bookingId}
+        initialHotelConversation={target.hotelConversation}
         onConversationClose={() => {
           if (activeTarget) {
             setActiveTarget(null);
@@ -361,6 +367,7 @@ export default function Chat({
       setActiveTarget({
         conversationId: roommate.id,
         peerUserId: otherId(roommate),
+        kind: "roommate",
       });
       return true;
     }
@@ -370,7 +377,11 @@ export default function Chat({
     );
     if (booking) {
       setView("messages");
-      setActiveTarget({ conversationId: booking.conversation_id });
+      setActiveTarget({
+        conversationId: booking.conversation_id,
+        bookingId: booking.booking_id,
+        kind: "worker",
+      });
       return true;
     }
     const hotel = hotelConversations.find(
@@ -379,7 +390,11 @@ export default function Chat({
     );
     if (hotel) {
       setView("messages");
-      setActiveTarget({ conversationId: hotel.conversation_id });
+      setActiveTarget({
+        conversationId: hotel.conversation_id,
+        kind: "hotel",
+        hotelConversation: hotel,
+      });
       return true;
     }
     return false;
@@ -500,14 +515,25 @@ export default function Chat({
                       );
                       return;
                     }
-                    setActiveTarget({
-                      conversationId:
-                        thread.kind === "roommate"
-                          ? thread.row.id
-                          : thread.row.conversation_id,
-                      peerUserId:
-                        thread.kind === "roommate" ? otherId(thread.row) : null,
-                    });
+                    setActiveTarget(
+                      thread.kind === "roommate"
+                        ? {
+                            conversationId: thread.row.id,
+                            peerUserId: otherId(thread.row),
+                            kind: "roommate",
+                          }
+                        : thread.kind === "worker"
+                          ? {
+                              conversationId: thread.row.conversation_id,
+                              bookingId: thread.row.booking_id,
+                              kind: "worker",
+                            }
+                          : {
+                              conversationId: thread.row.conversation_id,
+                              kind: "hotel",
+                              hotelConversation: thread.row,
+                            },
+                    );
                   }}
                 />
               ))}
