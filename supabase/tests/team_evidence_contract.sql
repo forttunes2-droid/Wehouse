@@ -66,7 +66,7 @@ do $$ declare rows jsonb; n integer; begin
   if not rows @> '[{"user_id":"team-staff"}]'::jsonb or rows @> '[{"user_id":"team-outside"}]'::jsonb or rows @> '[{"user_id":"team-admin"}]'::jsonb then raise exception 'Admin team list escapes branch'; end if;
   begin perform public.manage_staff_permission('team-outside','finance',true,null::uuid);
     raise exception 'Admin changed another branch';
-  exception when raise_exception then if sqlerrm<>'Admin cannot change Staff outside the granted coverage' then raise; end if; end;
+  exception when raise_exception then if sqlerrm<>'Admin cannot assign Staff outside the granted coverage' then raise; end if; end;
   perform public.manage_staff_permission('team-staff','finance',true,null::uuid);
   rows:=public.get_my_managed_team();
   if not rows @> '[{"user_id":"team-staff","work_areas":["finance_operations"]}]'::jsonb or rows @> '[{"user_id":"team-staff","work_areas":["property_operations"]}]'::jsonb then raise exception 'Work area replacement was not atomic'; end if;
