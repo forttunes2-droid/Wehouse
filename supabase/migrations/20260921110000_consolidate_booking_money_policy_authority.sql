@@ -452,6 +452,8 @@ begin
     from public.creator_policy_versions
     where scope_type='global' and scope_key='*'
       and status='active'
+      and effective_from<=now()
+      and (effective_until is null or effective_until>now())
       and policy_key=any(array[
         'short_let_reservation_hold','short_let_cancellation',
         'short_let_caution_cap','caution_claim_windows',
@@ -863,6 +865,34 @@ begin
         'schema',jsonb_build_object('type','feature_policy'),
         'disclosure','Long Let installments are unavailable at launch.',
         'reason','Disable Long Let installments for launch'
+      ),
+      jsonb_build_object(
+        'key','commission_short_let',
+        'value',jsonb_build_object('percent',10),
+        'schema',jsonb_build_object('type','percent'),
+        'disclosure','WeHouse commission on Short Let accommodation value.',
+        'reason','Canonical Short Let commission'
+      ),
+      jsonb_build_object(
+        'key','commission_long_let',
+        'value',jsonb_build_object('percent',5),
+        'schema',jsonb_build_object('type','percent'),
+        'disclosure','WeHouse commission on Long Let eligible rent value.',
+        'reason','Canonical Long Let commission'
+      ),
+      jsonb_build_object(
+        'key','commission_hotel',
+        'value',jsonb_build_object('percent',12),
+        'schema',jsonb_build_object('type','percent'),
+        'disclosure','WeHouse commission on Hotel booking value.',
+        'reason','Canonical Hotel commission'
+      ),
+      jsonb_build_object(
+        'key','commission_worker',
+        'value',jsonb_build_object('percent',8),
+        'schema',jsonb_build_object('type','percent'),
+        'disclosure','WeHouse commission on Service Worker booking value.',
+        'reason','Canonical Service Worker commission'
       )
     ))
   loop
@@ -914,6 +944,8 @@ select
 from public.creator_policy_versions policy
 where policy.policy_key='commission_worker'
   and policy.scope_type='global' and policy.scope_key='*' and policy.status='active'
+  and policy.effective_from<=now()
+  and (policy.effective_until is null or policy.effective_until>now())
 order by policy.effective_from desc limit 1
 on conflict(key) do update set
   value=excluded.value,description=excluded.description,
@@ -930,6 +962,8 @@ select
 from public.creator_policy_versions policy
 where policy.policy_key='commission_hotel'
   and policy.scope_type='global' and policy.scope_key='*' and policy.status='active'
+  and policy.effective_from<=now()
+  and (policy.effective_until is null or policy.effective_until>now())
 order by policy.effective_from desc limit 1
 on conflict(key) do update set
   value=excluded.value,description=excluded.description,
