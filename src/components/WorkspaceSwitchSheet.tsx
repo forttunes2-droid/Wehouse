@@ -1,5 +1,25 @@
+import {
+  BriefcaseBusiness,
+  Building2,
+  Crown,
+  Hotel,
+  ShieldCheck,
+  UserRound,
+  Wrench,
+} from "lucide-react";
 import { workspaceLabel } from "@/lib/workspacePresentation";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+
+function WorkspaceIcon({ workspace }: { workspace: WorkspaceChoice }) {
+  const common = { size: 18, strokeWidth: 1.8 };
+  if (workspace === "personal") return <UserRound {...common} />;
+  if (workspace === "worker") return <Wrench {...common} />;
+  if (workspace === "property_partner") return <Building2 {...common} />;
+  if (workspace === "hotel") return <Hotel {...common} />;
+  if (workspace === "creator") return <Crown {...common} />;
+  if (workspace === "admin") return <ShieldCheck {...common} />;
+  return <BriefcaseBusiness {...common} />;
+}
 
 export default function WorkspaceSwitchSheet({
   open,
@@ -24,35 +44,39 @@ export default function WorkspaceSwitchSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[100060] flex items-end bg-black/70 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-5"
+      className="fixed inset-0 z-[100060] flex items-end bg-black/75 backdrop-blur-[3px] sm:items-center sm:justify-center sm:p-5"
       onClick={onClose}
       role="presentation"
     >
       <section
-        className="w-full rounded-t-[26px] border border-white/[.08] bg-[#11131A] p-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-md sm:rounded-[22px] sm:pb-3"
+        className="w-full rounded-t-[28px] border border-white/[.08] bg-[#0F1219] px-4 pb-[max(1.1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-w-md sm:rounded-[24px] sm:p-4"
         role="dialog"
         aria-modal="true"
         aria-label="Switch workspace"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-1 pb-2">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
+        <div className="flex items-start justify-between gap-3 pb-4">
           <div>
-            <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+            <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
               WEHOUSE
             </p>
-            <h2 className="mt-0.5 text-sm font-semibold">Switch workspace</h2>
+            <h2 className="mt-1 text-base font-semibold">Your workspaces</h2>
+            <p className="mt-1 max-w-xs text-[10px] leading-5 text-[#777E8E]">
+              Switch context deliberately. Your Personal identity and permissions stay unchanged.
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-full bg-white/[.045] text-[#8B91A0]"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.045] text-[#9399A7]"
             aria-label="Close workspace switcher"
           >
             ×
           </button>
         </div>
 
-        <div className="divide-y divide-white/[.055]">
+        <div className="space-y-2">
           {allowed.map((workspace) => {
             const current = workspace === active;
             const granted = (access?.privileged_workspaces || []).find(
@@ -60,14 +84,19 @@ export default function WorkspaceSwitchSheet({
             );
             const detail =
               workspace === "personal"
-                ? "Explore, bookings, Inbox and Account"
+                ? "Explore, Bookings, Inbox and your personal Account"
                 : granted?.lga
-                  ? `${granted.lga}${granted.state ? `, ${granted.state}` : ""}`
-                  : workspace === "worker"
-                    ? "Your services and Worker activity"
-                    : workspace === "property_partner"
-                      ? "Your properties and partner activity"
-                      : "Your assigned WeHouse access";
+                  ? `${granted.lga}${granted.state ? `, ${granted.state}` : ""} · One LGA`
+                  : granted?.state
+                    ? `${granted.state} · Whole State`
+                    : workspace === "worker"
+                      ? "Your services, jobs and professional profile"
+                      : workspace === "property_partner"
+                        ? "Properties, guests, earnings and partner work"
+                        : workspace === "hotel"
+                          ? "Your assigned hotel operations"
+                          : "Your assigned WeHouse work";
+
             return (
               <button
                 key={workspace}
@@ -77,30 +106,41 @@ export default function WorkspaceSwitchSheet({
                   onClose();
                   onSwitch(workspace);
                 }}
-                className="flex min-h-14 w-full items-center gap-3 px-1 py-2.5 text-left disabled:cursor-default"
+                className={`flex min-h-[68px] w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${current
+                  ? "border-violet-500/30 bg-violet-500/[.09]"
+                  : "border-white/[.06] bg-white/[.018] active:bg-white/[.05]"
+                } disabled:cursor-default`}
               >
-                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-[11px] font-bold ${
-                  current
-                    ? "border-violet-500/30 bg-violet-500/15 text-violet-200"
-                    : "border-white/[.06] bg-white/[.025] text-[#858C9B]"
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[14px] ${current
+                  ? "bg-violet-500/16 text-violet-200"
+                  : "bg-white/[.045] text-[#9AA0AE]"
                 }`}>
-                  {workspaceLabel(workspace).slice(0, 1)}
+                  <WorkspaceIcon workspace={workspace} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-semibold text-[#E4E7ED]">
-                    {workspaceLabel(workspace)}
+                  <span className="flex items-center gap-2">
+                    <strong className="truncate text-[12px] text-[#EAEBF0]">
+                      {workspaceLabel(workspace)}
+                    </strong>
+                    {current ? (
+                      <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[8px] font-semibold text-violet-200">
+                        CURRENT
+                      </span>
+                    ) : null}
                   </span>
-                  <span className="mt-0.5 block truncate text-[9px] text-[#686F7F]">
+                  <span className="mt-1 block truncate text-[9px] leading-4 text-[#747B8B]">
                     {detail}
                   </span>
                 </span>
-                <span className={current ? "text-[9px] font-semibold text-violet-300" : "text-[#555C6D]"}>
-                  {current ? "Current" : "›"}
-                </span>
+                {!current ? <span className="text-lg text-[#596071]">›</span> : null}
               </button>
             );
           })}
         </div>
+
+        <p className="px-1 pt-4 text-[9px] leading-4 text-[#626979]">
+          Switching workspace changes what you are working on. It does not promote your account, widen coverage or combine Personal and work records.
+        </p>
       </section>
     </div>
   );
