@@ -65,3 +65,24 @@ test("money policy editor preserves launch product boundaries", async () => {
   assert.match(editor, /Refundable Short Let security deposits are excluded/);
   assert.doesNotMatch(editor, /escrow/i);
 });
+
+
+test("Creator apartment and hotel bookings use one server projection", async () => {
+  const [dashboard, migration] = await Promise.all([
+    read("src/pages/CreatorDashboard.tsx"),
+    read("supabase/migrations/20260921111500_creator_booking_projection.sql"),
+  ]);
+
+  const start = dashboard.indexOf("function Bookings(");
+  const end = dashboard.indexOf("function BookingRecord(", start);
+  const bookings = dashboard.slice(start, end);
+
+  assert.match(bookings, /creator_get_booking_records/);
+  assert.doesNotMatch(bookings, /\.from\("reservations"\)/);
+  assert.doesNotMatch(bookings, /\.from\("hotel_bookings"\)/);
+  assert.doesNotMatch(bookings, /\.from\("profiles"\)/);
+  assert.match(migration, /current_actor_has_workspace\('creator',null\)/);
+  assert.match(migration, /revoke all on function public\.creator_get_booking_records\(text,integer\)[\s\S]*from public,anon/);
+  assert.match(migration, /'property',jsonb_build_object/);
+  assert.match(migration, /'customer',jsonb_build_object/);
+});
