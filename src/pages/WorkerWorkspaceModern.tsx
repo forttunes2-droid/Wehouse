@@ -228,6 +228,8 @@ export default function WorkerWorkspaceModern({
         open={switchOpen}
         access={workspaceAccess}
         active={activeWorkspace}
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
         onClose={() => setSwitchOpen(false)}
         onSwitch={onSwitchWorkspace}
       />
