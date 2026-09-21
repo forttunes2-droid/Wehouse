@@ -21,7 +21,7 @@ type Module =
   | "finance"
   | "support"
   | "security"
-  | "worker_review"
+  | "worker_operations"
   | "field_officer";
 type MainTab = "home" | "work" | "bookings" | "conversations";
 type WorkView =
@@ -43,7 +43,7 @@ const MODULES: Module[] = [
   "finance",
   "support",
   "security",
-  "worker_review",
+  "worker_operations",
   "field_officer",
 ];
 const MODULE_COPY: Record<
@@ -327,7 +327,7 @@ function ModuleWork({
 }) {
   if (module === "field_officer")
     return <StaffInspectionWorkspaceV2 profile={profile} />;
-  if (module === "worker_review") return <StaffWorkerReviewModern />;
+  if (module === "worker_operations") return <StaffWorkerReviewModern />;
   if (module === "security")
     return (
       <div className="space-y-5">
