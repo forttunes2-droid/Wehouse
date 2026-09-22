@@ -89,52 +89,42 @@
   }
 }
 
-/* Shell first, then content. The small title motion is on text only;
-   the content container fades without becoming a fixed-position ancestor. */
+/* Workspace arrival is one transition, not a route fade multiplied by another
+   header/content fade. Navigation is immediately available; content follows by
+   only 30ms. Only heading text moves, never a fixed-position ancestor. */
+.page-transition.wh-workspace-enter { animation: none; }
 .wh-workspace-enter [data-workspace-frame="v2"] > header {
   animation: whWorkspaceHeaderIn 180ms ease-out;
 }
 .wh-workspace-enter [data-workspace-frame="v2"] > header h1 {
-  animation: whWorkspaceTitleIn 220ms cubic-bezier(.2,.75,.2,1);
+  animation: whWorkspaceTitleIn 200ms cubic-bezier(.2,.75,.2,1);
 }
 .wh-workspace-enter [data-workspace-frame="v2"] > main,
 .wh-workspace-enter > div > main {
-  animation: whWorkspaceContentIn 280ms 40ms cubic-bezier(.2,.75,.2,1) backwards;
+  animation: whWorkspaceContentIn 220ms 30ms cubic-bezier(.2,.75,.2,1) backwards;
 }
-@keyframes whWorkspaceHeaderIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes whWorkspaceHeaderIn { from { opacity: .65; } to { opacity: 1; } }
 @keyframes whWorkspaceTitleIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+  from { transform: translateY(4px); }
+  to { transform: none; }
 }
-@keyframes whWorkspaceContentIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes whWorkspaceContentIn { from { opacity: .35; } to { opacity: 1; } }
 
+/* This is a real waiting state, not a splash screen to be played before the app.
+   Keep the shell still. Each placeholder fades once with at most a 60ms stagger;
+   resolving auth can replace it immediately, including before animation ends. */
 .wh-auth-to-app-brand {
-  animation: whAuthToAppBrand 260ms cubic-bezier(.2,.75,.2,1) both;
+  animation: whAuthToAppBrand 180ms ease-out;
 }
-.wh-auth-to-app-shell {
-  transform-origin: center top;
-  animation: whAuthToAppShell 420ms 80ms cubic-bezier(.2,.75,.2,1) both;
-}
+.wh-auth-to-app-shell { animation: none; }
 .wh-auth-to-app-shell > * {
-  animation: whAuthToAppPiece 360ms cubic-bezier(.2,.75,.2,1) both;
+  animation: whAuthToAppPiece 180ms ease-out backwards;
 }
-.wh-auth-to-app-shell > *:nth-child(2) { animation-delay: 45ms; }
-.wh-auth-to-app-shell > *:nth-child(3) { animation-delay: 90ms; }
-.wh-auth-to-app-shell > *:nth-child(4) { animation-delay: 135ms; }
-.wh-auth-to-app-shell > *:nth-child(5) { animation-delay: 180ms; }
-.wh-auth-to-app-shell > *:nth-child(6) { animation-delay: 225ms; }
-@keyframes whAuthToAppBrand {
-  from { opacity: 0; transform: translateY(-6px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes whAuthToAppShell {
-  from { opacity: 0; transform: translateY(12px) scale(.985);  }
-  to { opacity: 1; transform: translateY(0) scale(1);  }
-}
-@keyframes whAuthToAppPiece {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+.wh-auth-to-app-shell > *:nth-child(2) { animation-delay: 20ms; }
+.wh-auth-to-app-shell > *:nth-child(3) { animation-delay: 40ms; }
+.wh-auth-to-app-shell > *:nth-child(n+4) { animation-delay: 60ms; }
+@keyframes whAuthToAppBrand { from { opacity: .65; } to { opacity: 1; } }
+@keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   .page-transition, .wh-panel-enter,

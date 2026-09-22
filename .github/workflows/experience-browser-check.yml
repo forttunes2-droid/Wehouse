@@ -38,6 +38,7 @@ jobs:
           python tests/browser/welcome-layout.py
           python tests/browser/communication-stability.py
           python tests/browser/overview_arrival.py
+          python tests/browser/login_entry.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

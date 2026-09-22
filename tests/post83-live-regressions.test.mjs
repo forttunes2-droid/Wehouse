@@ -34,18 +34,20 @@ test("Operations chat is projected by one server bundle with internal notes sepa
   assert.match(migration, /current_actor_can_access_operational_conversation/);
 });
 
-test("Login keeps a bounded, aligned composition and workspaces enter in stages", () => {
+test("Login keeps a bounded, aligned composition and one restrained workspace entrance", () => {
   const login = read("src/pages/login.css");
   const css = read("src/index.css");
   const app = read("src/App.tsx");
   assert.match(login, /@media \(min-width: 760px\)/);
   assert.doesNotMatch(login, /grid-template-columns/);
   assert.match(login, /max-width: 480px/);
+  assert.doesNotMatch(login, /backdrop-filter:\s*blur/);
   assert.match(css, /whWorkspaceHeaderIn/);
   assert.match(css, /whWorkspaceContentIn/);
   assert.match(app, /wh-workspace-enter/);
   assert.match(app, /wh-auth-to-app-shell/);
-  assert.match(css, /whAuthToAppShell/);
+  assert.match(css, /\.wh-auth-to-app-shell\s*\{\s*animation: none;/);
+  assert.match(css, /\.page-transition\.wh-workspace-enter\s*\{\s*animation: none;/);
   assert.match(css, /whAuthToAppPiece/);
   assert.match(css, /prefers-reduced-motion/);
 });
