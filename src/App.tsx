@@ -1,3 +1,4 @@
+import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
   useState,
@@ -109,7 +110,7 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
       role="status"
       aria-label="Loading WeHouse"
     >
-      <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col">
+      <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-md flex-col">
         <div className="wh-auth-to-app-brand flex items-center gap-3 pt-3">
           <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
           <div>
@@ -118,7 +119,7 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
           </div>
         </div>
         {!slow ? (
-          <div className="wh-auth-to-app-shell mt-10 flex-1">
+          <div className="wh-auth-to-app-shell mt-10 flex flex-1 flex-col">
             <div className="h-3 w-28 rounded-full bg-white/[.08]" />
             <div className="mt-3 h-7 w-48 rounded-xl bg-white/[.055]" />
             <div className="mt-8 grid grid-cols-2 gap-3">
@@ -128,7 +129,7 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
             <div className="mt-3 h-20 rounded-[20px] bg-white/[.035]" />
             <div className="mt-3 h-16 rounded-[18px] bg-white/[.03]" />
             <div className="mt-auto flex justify-around border-t border-white/[.05] pb-2 pt-4">
-              {[0,1,2,3,4].map((item) => <span key={item} className="h-8 w-8 rounded-full bg-white/[.045]" />)}
+              {[0,1,2,3].map((item) => <span key={item} className="h-8 w-8 rounded-full bg-white/[.045]" />)}
             </div>
           </div>
         ) : (
@@ -433,14 +434,11 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       } catch {}
       const targetRole =
         workspace === "personal" ? "user" : workspace === "hotel" ? "hotel_staff" : workspace;
-      let remembered: NavPage | null = null;
-      try {
-        const value = localStorage.getItem(workspaceNavigationKey(baseProfile.user_id, workspace));
-        if (value && isRestorable(value)) remembered = value;
-      } catch {}
+      // An explicit switch enters the workspace itself. Restoring Account here
+      // hid Personal navigation and left the root-level Back button pointing at itself.
       const destination = normalizePageForRole(
         targetRole,
-        remembered || roleRootFor(targetRole),
+        workspaceEntryPage(targetRole),
         Boolean(baseProfile.profile_complete),
       );
       setNavPage(destination);
@@ -1027,8 +1025,8 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     );
   const subpageBack = useCallback(() => {
     if (navHistoryRef.current.length > 1) window.history.back();
-    else handleSetNavPage(navPage === "hotel_detail" || navPage === "hotel_booking" ? "hotels" : "profile");
-  }, [handleSetNavPage, navPage]);
+    else handleSetNavPage(accountBackPage(navPage, roleRoot()));
+  }, [handleSetNavPage, navPage, roleRoot]);
 
   if (auth.isLoading) return <PageTransitionFallback signingIn />;
   if (baseProfile && !workspaceReady) return workspaceError ? (

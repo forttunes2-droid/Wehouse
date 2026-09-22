@@ -44,6 +44,7 @@ class Scenario:
         self.calls.append((name, args))
         data, status = [], 200
         if name == 'get_my_workspace_access': data = ACCESS
+        elif name == 'get_my_pending_device_login_alert': data = None
         elif name == 'creator_get_dashboard_summary': data = {key: 0 for key in ['accounts','partners','workers','team','apartments','hotels','hotel_team','pending_reviews','inspections','payouts']}
         elif name == 'support_inbox': data = ROWS
         elif name == 'get_operational_conversation_bundle':
@@ -79,6 +80,15 @@ async def run(browser):
         except Exception as error:
             results.append({'test': name, 'passed': False, 'error': str(error)})
             print('FAIL', name, str(error), flush=True)
+            for index, context in enumerate(browser.contexts):
+                for page_index, page in enumerate(context.pages):
+                    try:
+                        await page.screenshot(path=str(OUT/f'failure-{len(results)}-{index}-{page_index}.png'))
+                    except Exception:
+                        pass
+        finally:
+            for context in list(browser.contexts):
+                await context.close()
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT/'results.json').write_text(json.dumps(results, indent=2))
 
@@ -157,15 +167,19 @@ async def run(browser):
     await check('Welcome composition fits phone, tablet and wide desktop',login_layout)
 
     async def arrival():
-        s=Scenario(); context,page=await s.page(browser,'arrival',reduced=True)
-        await expect(page.locator('.wh-auth-to-app-shell')).to_be_visible()
-        await expect(page.locator('.wh-auth-to-app-brand')).to_have_css('animation-name','none')
-        await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
-        await expect(page.get_by_role('button',name='Open workspaces')).to_be_visible()
-        await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform','none')
-        await page.screenshot(path=str(OUT/'creator-reduced-motion.png'))
-        assert not s.errors,s.errors
-        await context.close()
+        for reduced in [False, True]:
+            s=Scenario(); context,page=await s.page(browser,'arrival',reduced=reduced)
+            await expect(page.locator('.wh-auth-to-app-shell')).to_be_visible()
+            if reduced:
+                await expect(page.locator('.wh-auth-to-app-brand')).to_have_css('animation-name','none')
+            await page.screenshot(path=str(OUT/f'arrival-shell-{reduced}.png'))
+            await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
+            await expect(page.get_by_role('button',name='Open workspaces')).to_be_visible()
+            await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform','none')
+            await page.wait_for_timeout(400)
+            await page.screenshot(path=str(OUT/f'creator-arrival-{reduced}.png'))
+            assert not s.errors,s.errors
+            await context.close()
     await check('Post-sign-in shell resolves without retaining transformed ancestors',arrival)
     assert all(item['passed'] for item in results), 'Browser regression checks failed; see test-results/experience/results.json'
 
