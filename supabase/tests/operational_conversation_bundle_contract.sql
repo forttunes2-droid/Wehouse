@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 begin;
 
-do $
+do $$
 begin
   if to_regclass('public.partner_support_messages_conversation_created_idx') is null then
     raise exception 'Operational message ordering index is missing';
@@ -10,7 +10,7 @@ begin
     raise exception 'Operational unread-message index is missing';
   end if;
 end
-$;
+$$;
 
 set local session_replication_role=replica;
 
