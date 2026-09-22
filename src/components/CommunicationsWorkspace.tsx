@@ -1196,9 +1196,7 @@ function Bubble({
   const fromWeHouse = ["staff", "admin", "creator"].includes(
     String(msg.sender_role || ""),
   );
-  const sender = fromWeHouse
-    ? `${mine ? "You" : msg.sender_name || "WeHouse team"} · WeHouse`
-    : msg.sender_name || requesterName;
+  const sender = msg.sender_name || requesterName;
   return (
     <div className={`flex ${fromWeHouse ? "justify-end" : "justify-start"}`}>
       <div
@@ -1207,11 +1205,11 @@ function Bubble({
         {Object.keys(meta).length > 0 && (
           <ContextCard meta={meta} type={msg.action_type} />
         )}
-        <p
-          className={`mb-1 px-1 text-[11px] font-medium ${fromWeHouse ? "text-right text-violet-200/75" : "text-[#838A9B]"}`}
-        >
-          {sender}
-        </p>
+        {!fromWeHouse ? (
+          <p className="mb-1 px-1 text-[9px] font-medium text-[#838A9B]">
+            {sender}
+          </p>
+        ) : null}
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
         >
