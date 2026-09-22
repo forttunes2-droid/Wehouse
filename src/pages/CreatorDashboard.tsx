@@ -5,6 +5,7 @@ import InboxActivityEntry from "@/components/InboxActivityEntry";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
+import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
 import BackButton from "@/components/BackButton";
 import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
@@ -27,6 +28,7 @@ import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import type { Profile } from "@/types";
+import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 
 type Tab = "overview" | "operations" | "inbox";
 type Operation =
@@ -45,6 +47,9 @@ type Props = {
   onLogout: () => void;
   onNavigate?: (page: string, id?: string) => void;
   onGoToChat?: (id?: string) => void;
+  workspaceAccess?: WorkspaceAccess | null;
+  activeWorkspace?: WorkspaceChoice;
+  onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 };
 type OperationTarget = { operation: Operation; id?: string } | null;
 
@@ -137,6 +142,9 @@ export default function CreatorDashboard({
   onLogout,
   onNavigate,
   onGoToChat,
+  workspaceAccess,
+  activeWorkspace = "creator",
+  onSwitchWorkspace,
 }: Props) {
   const [tab, setTab] = useState<Tab>("overview");
   const [operation, setOperation] = useState<Operation | null>(null);
@@ -144,6 +152,7 @@ export default function CreatorDashboard({
   const [operationTarget, setOperationTarget] = useState<OperationTarget>(null);
   const [inboxTargetId, setInboxTargetId] = useState<string | undefined>();
   const [viewing, setViewing] = useState<Profile | null>(null);
+  const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
   const inboxSummary = useCreatorInboxSummary(profile.user_id, "creator");
 
   function openOperation(next: Operation, id?: string) {
@@ -226,6 +235,7 @@ export default function CreatorDashboard({
           }
         }}
         onAccount={onNavigate ? () => onNavigate("profile") : undefined}
+        onWorkspaceSwitch={workspaceAccess && onSwitchWorkspace ? () => setWorkspaceSwitcherOpen(true) : undefined}
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
@@ -254,6 +264,17 @@ export default function CreatorDashboard({
           />
         )}
       </WorkspaceFrameV2>
+      {workspaceAccess && onSwitchWorkspace ? (
+        <WorkspaceSwitchSheet
+          open={workspaceSwitcherOpen}
+          access={workspaceAccess}
+          active={activeWorkspace}
+          onClose={() => setWorkspaceSwitcherOpen(false)}
+          onSwitch={onSwitchWorkspace}
+          identityName={profile.full_name || profile.username}
+          identityAvatar={profile.avatar_url}
+        />
+      ) : null}
       {viewing && (
         <UserProfileModal
           user={viewing}
