@@ -43,9 +43,16 @@ test("Login motion is subtle and respects reduced motion", async () => {
   assert.match(login, /<div key=\{mode\} className="wh-auth-form">/);
   assert.doesNotMatch(login, /text-\[28px\]/);
   assert.match(css, /whAuthStateIn 200ms/);
-  assert.match(css, /translateY\(6px\)/);
-  assert.match(css, /scale\(\.994\)/);
+  // Only the changed form rises; the retired whole-form scale is not required.
+  // Browser tests separately inspect real computed styles and reduced motion.
+  const entrance = css.slice(css.indexOf("@keyframes whAuthStateIn"), css.indexOf("@media (prefers-reduced-motion"));
+  assert.match(entrance, /translateY\(4px\)/);
+  assert.match(entrance, /to\s*\{\s*opacity:\s*1;\s*transform:\s*none/);
+  assert.doesNotMatch(entrance, /scale\(/);
   assert.match(css, /prefers-reduced-motion: reduce/);
+  const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion"));
+  assert.match(reduced, /\.wh-auth-form\s*\{\s*animation:\s*none/);
+  assert.match(reduced, /:active\s*\{\s*transform:\s*none/);
 });
 
 test("Receipts are compact and do not print as A4", async () => {
