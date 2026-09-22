@@ -59,15 +59,11 @@ jobs:
             curl --fail --silent http://127.0.0.1:4173/tests/browser/experience.html >/dev/null && break
             sleep 1
           done
-          python tests/browser/experience.py
-          python tests/browser/welcome-layout.py
-          python tests/browser/communication-stability.py
-          python tests/browser/overview_arrival.py
-          python tests/browser/login_entry.py
-          python tests/browser/profile_help.py
-          python tests/browser/message_swipe.py
-          python tests/browser/entry_help_availability.py
-          python tests/browser/property_routing.py
+          failed=0
+          for test in property_routing experience welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
+            python "tests/browser/$test.py" || failed=1
+          done
+          test "$failed" = 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
