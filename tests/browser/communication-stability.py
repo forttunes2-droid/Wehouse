@@ -3,7 +3,7 @@ import asyncio
 import json
 import re
 from playwright.async_api import async_playwright, expect
-from experience import Scenario, BASE, OUT, A
+from experience import Scenario, BASE, OUT, A, open_account_workspaces
 
 class SendingScenario(Scenario):
     async def route(self, route):
@@ -27,8 +27,8 @@ async def main():
             s=Scenario()
             context,page=await s.page(browser,'creator',seed={'wh_navigation_experience-creator:personal':'profile'})
             try:
-                await page.get_by_role('button',name='Open workspaces').click()
-                await page.get_by_role('dialog',name='Switch workspace').get_by_role('button',name=re.compile('Personal')).click()
+                await open_account_workspaces(page)
+                await page.get_by_role('button',name=re.compile('^Personal')).click()
                 await expect(page.get_by_role('button',name='Explore',exact=True)).to_be_visible()
                 await page.get_by_role('button',name='Account',exact=True).click()
                 await expect(page).to_have_url(re.compile('#profile$'))

@@ -70,6 +70,13 @@ class Scenario:
         await page.goto(f'{BASE}/tests/browser/experience.html?fixture={mode}')
         return context, page
 
+async def open_account_workspaces(page):
+    await page.get_by_role('button', name='Account', exact=True).filter(visible=True).click()
+    await expect(page.get_by_role('heading', name='Account', exact=True)).to_be_visible()
+    await expect(page.get_by_role('button', name='Open workspaces', exact=True)).to_have_count(0)
+    await page.get_by_role('button', name=re.compile(r'^WeHouse')).click()
+    await expect(page.get_by_role('heading', name='WeHouse', exact=True)).to_be_visible()
+
 async def run(browser):
     results = []
     async def check(name, fn):
@@ -95,8 +102,8 @@ async def run(browser):
     async def navigation():
         s = Scenario()
         context, page = await s.page(browser, 'creator', seed={'wh_navigation_experience-creator:personal':'profile'})
-        await page.get_by_role('button', name='Open workspaces').click()
-        await page.get_by_role('dialog', name='Switch workspace').get_by_role('button', name=re.compile('Personal')).click()
+        await open_account_workspaces(page)
+        await page.get_by_role('button', name=re.compile('^Personal')).click()
         await expect(page).to_have_url(re.compile('#search$'))
         await expect(page.get_by_role('button', name='Explore', exact=True)).to_be_visible()
         await page.get_by_role('button', name='Account', exact=True).click()
@@ -174,7 +181,8 @@ async def run(browser):
                 await expect(page.locator('.wh-auth-to-app-brand')).to_have_css('animation-name','none')
             await page.screenshot(path=str(OUT/f'arrival-shell-{reduced}.png'))
             await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
-            await expect(page.get_by_role('button',name='Open workspaces')).to_be_visible()
+            await expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
+            await expect(page.get_by_role('button',name='Open workspaces')).to_have_count(0)
             await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform','none')
             await page.wait_for_timeout(400)
             await page.screenshot(path=str(OUT/f'creator-arrival-{reduced}.png'))

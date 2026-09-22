@@ -20,7 +20,7 @@ CREATE OR REPLACE FUNCTION public.current_actor_hotel_capabilities(p_hotel_id in
    and member.status='active' and member.revoked_at is null
   where hotel.hotel_id=p_hotel_id
     and actor.user_id is not null
-    and ((hotel.owner_id=actor.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=actor.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or member.id is not null)
+    and ((hotel.owner_id=actor.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=actor.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or (hotel.owner_id is distinct from actor.user_id and member.id is not null))
   limit 1
 $$;
 
@@ -32,7 +32,7 @@ CREATE OR REPLACE FUNCTION public.current_actor_hotel_role(p_hotel_id integer) R
   from public.profiles p join public.hotels h on h.hotel_id=p_hotel_id
   left join public.hotel_team_members tm on tm.hotel_id=h.hotel_id and tm.member_user_id=p.user_id and tm.status='active' and tm.revoked_at is null
   where p.auth_id=auth.uid()::text and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
-    and ((h.owner_id=p.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=p.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or tm.id is not null) limit 1
+    and ((h.owner_id=p.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=p.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or (h.owner_id is distinct from p.user_id and tm.id is not null)) limit 1
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_my_hotel_operations() RETURNS jsonb

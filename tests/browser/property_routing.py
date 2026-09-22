@@ -66,6 +66,9 @@ async def main():
      await expect(page.get_by_role('button',name='Workspaces',exact=True)).to_have_count(0)
      await nav('Account'); await expect(page.get_by_role('heading',name='Account',exact=True)).to_be_visible()
      assert await page.evaluate('window.__navigation')=='profile'
+     await page.get_by_role('button',name=re.compile('^WeHouse')).click()
+     await page.get_by_role('button',name=re.compile('^Personal')).click()
+     assert await page.evaluate('window.__workspaceSwitch')=='personal'
      await page.goto(BASE+'/tests/browser/property-routing.html')
      await select('Filter by property type','Hotels')
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()

@@ -18,6 +18,7 @@ insert into public.hotels(hotel_id,name,state,city,owner_id,status) values
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms) values
 (-8661,-8661,'Standard',20000,2),(-8662,-8661,'Deluxe',30000,1),(-8663,-8662,'Other room',20000,1);
 insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,status,capabilities,invited_by) values
+(-8661,'property-route-owner','front_desk','active',array['stay.read'],'property-route-owner'),
 (-8661,'property-route-desk','front_desk','active',array['stay.read'],'property-route-owner'),
 (-8661,'property-route-rooms','front_desk','active',array['room.mark_ready'],'property-route-owner');
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status) values

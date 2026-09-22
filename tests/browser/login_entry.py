@@ -142,7 +142,8 @@ async def run(browser):
                 assert not timings, timings
             # Readiness, not an animation timer, decides when the real workspace appears.
             await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
-            await expect(page.get_by_role('button', name='Open workspaces')).to_be_visible()
+            await expect(page.get_by_role('heading', name='Overview', exact=True)).to_be_visible()
+            await expect(page.get_by_role('button', name='Open workspaces')).to_have_count(0)
             await expect(shell).to_have_count(0)
             await expect(page.locator('.page-transition.wh-workspace-enter')).to_have_css('animation-name', 'none')
             await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform', 'none')
