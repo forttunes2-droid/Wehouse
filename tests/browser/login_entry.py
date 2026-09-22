@@ -9,6 +9,12 @@ from playwright.async_api import async_playwright, expect
 from experience import OUT, Scenario
 
 
+def password_input(page):
+    # PasswordField's wrapping label includes the Show/Hide control text.
+    # The stable autocomplete contract targets the input through either state.
+    return page.locator('input[autocomplete="current-password"]')
+
+
 async def no_overflow(page):
     dimensions = await page.evaluate('({viewport:innerWidth,content:document.documentElement.scrollWidth})')
     assert dimensions['content'] <= dimensions['viewport'] + 1, dimensions
@@ -56,12 +62,12 @@ async def run(browser):
             await page.get_by_role('button', name='Sign in', exact=True).click()
             await expect(page.get_by_role('heading', name='Welcome back', exact=True)).to_be_visible()
             await page.get_by_label('Username or email', exact=True).fill('layout-check@example.invalid')
-            await page.get_by_label('Password', exact=True).fill('Test-only-password')
+            await password_input(page).fill('Test-only-password')
             await expect(page.get_by_role('button', name='Sign in', exact=True)).to_be_enabled()
             await page.get_by_role('button', name='Show password', exact=True).click()
-            await expect(page.get_by_label('Password', exact=True)).to_have_attribute('type', 'text')
+            await expect(password_input(page)).to_have_attribute('type', 'text')
             await page.get_by_role('button', name='Hide password', exact=True).click()
-            await expect(page.get_by_label('Password', exact=True)).to_have_attribute('type', 'password')
+            await expect(password_input(page)).to_have_attribute('type', 'password')
             await no_overflow(page)
             await page.screenshot(path=str(OUT / f'signin-repaired-{width}.png'), full_page=True)
             await page.get_by_role('button', name='Back to welcome', exact=True).click()
@@ -79,9 +85,9 @@ async def run(browser):
         context, page = await scenario.page(browser, 'login', 390, 844)
         await page.get_by_role('button', name='Sign in', exact=True).click()
         await page.get_by_label('Username or email', exact=True).fill('layout-check@example.invalid')
-        await page.get_by_label('Password', exact=True).fill('Test-only-password')
+        await password_input(page).fill('Test-only-password')
         await page.set_viewport_size({'width': 390, 'height': 360})
-        await page.get_by_label('Password', exact=True).focus()
+        await password_input(page).focus()
         submit = page.get_by_role('button', name='Sign in', exact=True)
         await submit.scroll_into_view_if_needed()
         await expect(submit).to_be_in_viewport()
