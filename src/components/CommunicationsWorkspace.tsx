@@ -523,7 +523,6 @@ export default function CommunicationsWorkspace({
                   <Bubble
                     key={msg.id}
                     msg={msg}
-                    mine={msg.sender_id === profile.user_id}
                     requesterName={requesterLabel}
                   />
                 ))}
@@ -1154,11 +1153,9 @@ function InternalNotes({ notes }: { notes: any[] }) {
 
 function Bubble({
   msg,
-  mine,
   requesterName,
 }: {
   msg: any;
-  mine: boolean;
   requesterName: string;
 }) {
   const meta = msg.action_metadata || {};
