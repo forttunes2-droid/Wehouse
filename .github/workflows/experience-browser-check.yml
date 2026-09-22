@@ -15,12 +15,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Package the reviewed source for isolated QA
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build isolated review surfaces
+        run: npm run build
+        env:
+          VERCEL_ENV: preview
+      - name: Package reproducible QA inputs
         run: |
           mkdir -p /tmp/wehouse-qa
           git archive --format=tar.gz -o /tmp/wehouse-qa/reviewed-source.tar.gz HEAD
+          tar -czf /tmp/wehouse-qa/browser-toolchain.tar.gz node_modules dist
       - uses: actions/upload-artifact@v4
         with:
           name: experience-reviewed-source
-          path: /tmp/wehouse-qa/reviewed-source.tar.gz
+          path: /tmp/wehouse-qa/*.tar.gz
           retention-days: 1
