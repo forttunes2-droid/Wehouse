@@ -1,0 +1,109 @@
+diff --git a/src/components/PartnerSubmittedRequests.tsx b/src/components/PartnerSubmittedRequests.tsx
+index b600d27..1ef7683 100644
+--- a/src/components/PartnerSubmittedRequests.tsx
++++ b/src/components/PartnerSubmittedRequests.tsx
+@@ -1,3 +1,3 @@
+-import { matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
++import { matchesPropertyRecord, propertyRecordKey, propertyRecordTitle } from "@/lib/propertyNavigation";
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import { toast } from "sonner";
+@@ -190,5 +190,5 @@ export default function PartnerSubmittedRequests({
+         detail: {
+           category: "property_submission_help",
+-          subject: request.property_display_name || request.hotel_program?.name || request.property_address || "Property submission",
++          subject: propertyRecordTitle(request, "Property submission"),
+           contextType: "contextual_help",
+           contextId: request.id,
+@@ -278,7 +278,5 @@ export default function PartnerSubmittedRequests({
+                     <div className="flex items-start justify-between gap-2">
+                       <p className="truncate text-xs font-semibold">
+-                        {request.property_address ||
+-                          request.property_type ||
+-                          "Property"}
++                        {propertyRecordTitle(request)}
+                       </p>
+                       <Status request={request} />
+@@ -365,5 +363,5 @@ function RequestDetail({
+           <PropertyMediaCarousel
+             images={images}
+-            title={request.property_address || "Submitted property"}
++            title={propertyRecordTitle(request, "Submitted property")}
+           />
+         ) : (
+@@ -379,5 +377,5 @@ function RequestDetail({
+               </p>
+               <h2 className="mt-2 text-xl font-bold">
+-                {request.property_address || "Submitted property"}
++                {propertyRecordTitle(request, "Submitted property")}
+               </h2>
+               <p className="mt-1 text-[10px] text-[#747789]">
+diff --git a/src/components/PropertyPipelineWorkspace.tsx b/src/components/PropertyPipelineWorkspace.tsx
+index 40818ca..1bbceeb 100644
+--- a/src/components/PropertyPipelineWorkspace.tsx
++++ b/src/components/PropertyPipelineWorkspace.tsx
+@@ -1,4 +1,4 @@
+ import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+-import { matchesPropertyRecord } from "@/lib/propertyNavigation";
++import { matchesPropertyRecord, propertyRecordTitle } from "@/lib/propertyNavigation";
+ import { withTimeout } from "@/lib/withTimeout";
+ import { locationLabel } from "@/lib/locationPresentation";
+@@ -219,5 +219,5 @@ export default function PropertyPipelineWorkspace({
+               <div className="min-w-0 flex-1">
+                 <p className="truncate text-sm font-semibold">
+-                  {r.property_address || r.request_code}
++                  {propertyRecordTitle(r)}
+                 </p>
+                 <p className="mt-1 truncate text-[9px] text-[#6D7182]">
+@@ -279,5 +279,5 @@ function Case({
+           <div className="min-w-0">
+             <p className="truncate text-sm font-semibold">
+-              {row.property_address || "Property workflow"}
++              {propertyRecordTitle(row, "Property workflow")}
+             </p>
+             <p className="truncate text-[8px] text-[#666D7E]">
+@@ -528,7 +528,5 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
+           </p>
+           <h3 className="mt-1 text-base font-bold">
+-            {hotel
+-              ? row.hotel_program?.name || row.property_address
+-              : row.property_address}
++            {propertyRecordTitle(row)}
+           </h3>
+           <p className="mt-1 text-[10px] text-[#6D7182]">
+diff --git a/src/lib/propertyNavigation.ts b/src/lib/propertyNavigation.ts
+index 14d8182..0008575 100644
+--- a/src/lib/propertyNavigation.ts
++++ b/src/lib/propertyNavigation.ts
+@@ -33,2 +33,10 @@ export function hotelPaymentLabel(status: string, paymentStatus: string) {
+   return "Awaiting payment";
+ }
++
++/** The same display identity is used before and after publication. Codes identify
++ * records in secondary details; they must not replace a property's actual name. */
++export function propertyRecordTitle(row: Record<string, any>, fallback = "Property") {
++  return [row.hotel?.name, row.listing?.title, row.property_display_name,
++    row.hotel_program?.name, row.name, row.title, row.property_address]
++    .find(value => typeof value === "string" && value.trim())?.trim() || fallback;
++}
+diff --git a/tests/property-workspace-routing.test.mjs b/tests/property-workspace-routing.test.mjs
+index 0fa1d6f..2cae765 100644
+--- a/tests/property-workspace-routing.test.mjs
++++ b/tests/property-workspace-routing.test.mjs
+@@ -87,2 +87,17 @@ test('hotel sections separate daily work from setup and team, retaining capabili
+   assert.doesNotMatch(source, /External payment timing can be mapped/);
+ });
++
++
++test('property names stay consistent across submission, publication and internal views', () => {
++  const hotel = { name: 'Test Lodge' };
++  assert.equal(nav.propertyRecordTitle(hotel), 'Test Lodge');
++  assert.equal(nav.propertyRecordTitle({ hotel, property_address: 'Test road' }), 'Test Lodge');
++  assert.equal(nav.propertyRecordTitle({ property_display_name: 'Test Lodge', property_address: 'Test road' }), 'Test Lodge');
++  assert.equal(nav.propertyRecordTitle({ hotel_program: hotel, property_address: 'Test road' }), 'Test Lodge');
++  assert.equal(nav.propertyRecordTitle({ hotel, property_display_name: 'Old name' }), 'Test Lodge');
++  assert.equal(nav.propertyRecordTitle({ listing: { title: 'Oak apartment' }, property_address: 'Test road' }), 'Oak apartment');
++  assert.equal(nav.propertyRecordTitle({ property_display_name: '  ', name: 123, property_address: ' Test road ' }), 'Test road');
++  assert.equal(nav.propertyRecordTitle({ request_code: 'WHIR-TEST-ONLY' }), 'Property');
++  assert.equal(nav.propertyRecordTitle({}, 'Submitted property'), 'Submitted property');
++  for (const path of ['src/components/PartnerSubmittedRequests.tsx', 'src/components/PropertyPipelineWorkspace.tsx']) assert.match(read(path), /propertyRecordTitle\(/);
++});
