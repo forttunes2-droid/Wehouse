@@ -27,6 +27,8 @@ import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import type { Profile } from "@/types";
+import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
+import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 
 type Tab = "overview" | "operations" | "inbox";
 type Operation =
@@ -45,6 +47,9 @@ type Props = {
   onLogout: () => void;
   onNavigate?: (page: string, id?: string) => void;
   onGoToChat?: (id?: string) => void;
+  workspaceAccess?: WorkspaceAccess | null;
+  activeWorkspace?: WorkspaceChoice;
+  onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 };
 type OperationTarget = { operation: Operation; id?: string } | null;
 
@@ -137,8 +142,12 @@ export default function CreatorDashboard({
   onLogout,
   onNavigate,
   onGoToChat,
+  workspaceAccess,
+  activeWorkspace,
+  onSwitchWorkspace,
 }: Props) {
   const [tab, setTab] = useState<Tab>("overview");
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [operation, setOperation] = useState<Operation | null>(null);
   const [platformSection, setPlatformSection] = useState<PlatformSection | null>(null);
   const [operationTarget, setOperationTarget] = useState<OperationTarget>(null);
@@ -226,6 +235,7 @@ export default function CreatorDashboard({
           }
         }}
         onAccount={onNavigate ? () => onNavigate("profile") : undefined}
+        onWorkspaceSwitch={workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined}
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
@@ -254,6 +264,17 @@ export default function CreatorDashboard({
           />
         )}
       </WorkspaceFrameV2>
+      {workspaceAccess && onSwitchWorkspace ? (
+        <WorkspaceSwitchSheet
+          open={switchOpen}
+          access={workspaceAccess}
+          active={activeWorkspace}
+          identityName={profile.full_name || profile.username}
+          identityAvatar={profile.avatar_url}
+          onClose={() => setSwitchOpen(false)}
+          onSwitch={onSwitchWorkspace}
+        />
+      ) : null}
       {viewing && (
         <UserProfileModal
           user={viewing}
