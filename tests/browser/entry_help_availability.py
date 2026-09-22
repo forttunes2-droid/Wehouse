@@ -52,11 +52,12 @@ async def main():
             page.on('pageerror', lambda error: scenario.errors.append(str(error)))
             async def route(req_route):
                 if '/rest/v1/rpc/get_my_workspace_help_targets' in req_route.request.url:
+                    requested_projection = projection.copy()
                     await help_ready.wait()
                     data = {'account': {'subject_type':'account','subject_id':'qa-self','label':'My account'},
                             'reservations':[{'subject_type':'long_let','subject_id':'old-attempt','context_type':'apartment_reservation','label':'Old unpaid attempt','detail':'cancelled'}]}
-                    if projection['valid']: data['payment_targets'] = []
-                    if projection['malformed']: data['reservations'] = {'invalid': 'not an array'}
+                    if requested_projection['valid']: data['payment_targets'] = []
+                    if requested_projection['malformed']: data['reservations'] = {'invalid': 'not an array'}
                     return await req_route.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
                 return await scenario.route(req_route)
             await page.route('**/*', route)
@@ -72,11 +73,18 @@ async def main():
             await page.screenshot(path=str(OUT/'help-unavailable-not-empty.png'))
             projection['valid'] = True
             projection['malformed'] = True
-            await page.get_by_role('button', name='Try again', exact=True).click()
+            # Observe the retry response, not the previous render's alert.
+            async with page.expect_response(lambda response: '/rest/v1/rpc/get_my_workspace_help_targets' in response.url) as malformed_retry:
+                await page.get_by_role('button', name='Try again', exact=True).click()
+            malformed_response = await malformed_retry.value
+            assert isinstance((await malformed_response.json())['reservations'], dict)
             await expect(page.get_by_role('alert')).to_contain_text("We couldn't load your help options.")
             assert not scenario.errors, scenario.errors
             projection['malformed'] = False
-            await page.get_by_role('button', name='Try again', exact=True).click()
+            async with page.expect_response(lambda response: '/rest/v1/rpc/get_my_workspace_help_targets' in response.url) as valid_retry:
+                await page.get_by_role('button', name='Try again', exact=True).click()
+            valid_response = await valid_retry.value
+            assert isinstance((await valid_response.json())['reservations'], list)
             await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
             await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_be_visible()
             await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_be_disabled()
