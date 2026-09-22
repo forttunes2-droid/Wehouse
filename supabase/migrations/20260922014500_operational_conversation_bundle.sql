@@ -1,5 +1,15 @@
 begin;
 
+-- Keep operational thread reads proportional to the selected conversation.
+-- The bundle orders messages by created_at and read reconciliation filters the
+-- unread subset, so both access paths get conversation-focused indexes.
+create index if not exists partner_support_messages_conversation_created_idx
+  on public.partner_support_messages(conversation_id, created_at);
+
+create index if not exists partner_support_messages_unread_conversation_idx
+  on public.partner_support_messages(conversation_id, sender_id)
+  where not coalesce(is_read,false);
+
 -- Internal operations need a server-owned read model that keeps customer chat,
 -- internal notes and case history separate. The previous client stitched two
 -- RPCs together and mixed internal notes into the customer message stream.
