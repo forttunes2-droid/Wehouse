@@ -63,38 +63,31 @@ test("Admin work areas have one owner and action-first defaults", async () => {
   assert.match(admin, /"security",\s*"Security Operations"/);
   assert.match(admin, /Needs attention/);
   assert.doesNotMatch(admin, /branchReady|BranchMissing/);
-
-  const propertiesBlock = admin.slice(
-    admin.indexOf('active === "properties"'),
-    admin.indexOf('active === "workers"'),
-  );
+  const propertiesBlock = admin.slice(admin.indexOf('active === "properties"'), admin.indexOf('active === "workers"'));
   assert.match(propertiesBlock, /PropertyPipelineWorkspace/);
   assert.doesNotMatch(propertiesBlock, /AccountIdentityReviewQueue/);
-
   const peopleStart = admin.indexOf("function People(");
   const peopleEnd = admin.indexOf("function Workers(", peopleStart);
   const peopleBlock = admin.slice(peopleStart, peopleEnd);
   assert.match(peopleBlock, /AccountIdentityReviewQueue accountRole="property_partner"/);
-
   assert.match(housing, /useState<Filter>\("needs_action"\)/);
   assert.doesNotMatch(housing, /available in this branch|found in this branch/);
 });
 
 test("one canonical profile photo follows the identity across workspaces", async () => {
-  const [app, frame, account, switcher, worker, partner, hotel, creator, admin, staff] =
-    await Promise.all([
-      read("src/App.tsx"),
-      read("src/components/WorkspaceFrameV2.tsx"),
-      read("src/components/AccountShell.tsx"),
-      read("src/components/WorkspaceSwitchSheet.tsx"),
-      read("src/pages/WorkerWorkspaceModern.tsx"),
-      read("src/pages/PropertyOwnerDashboard.tsx"),
-      read("src/pages/HotelTeamDashboard.tsx"),
-      read("src/pages/CreatorDashboard.tsx"),
-      read("src/pages/AdminDashboard.tsx"),
-      read("src/pages/StaffWorkspaceRepair.tsx"),
-    ]);
-
+  const [app, frame, account, switcher, worker, partner, hotel, creator, admin, staff] = await Promise.all([
+    read("src/App.tsx"),
+    read("src/components/WorkspaceFrameV2.tsx"),
+    // The identity card owns the photo. AccountShell is navigation only.
+    read("src/pages/AccountCenter.tsx"),
+    read("src/components/WorkspaceSwitchSheet.tsx"),
+    read("src/pages/WorkerWorkspaceModern.tsx"),
+    read("src/pages/PropertyOwnerDashboard.tsx"),
+    read("src/pages/HotelTeamDashboard.tsx"),
+    read("src/pages/CreatorDashboard.tsx"),
+    read("src/pages/AdminDashboard.tsx"),
+    read("src/pages/StaffWorkspaceRepair.tsx"),
+  ]);
   assert.match(app, /\.\.\.baseProfile/);
   assert.match(app, /userAvatar=\{profile\?\.avatar_url/);
   assert.match(frame, /identityAvatar/);
@@ -111,27 +104,19 @@ test("one canonical profile photo follows the identity across workspaces", async
 
 test("visible Activity surfaces use the canonical event model", async () => {
   const [page, creator, worker, partner, operations, app, migration] = await Promise.all([
-    read("src/pages/Notifications.tsx"),
-    read("src/hooks/useCreatorInboxSummary.ts"),
-    read("src/hooks/useWorkerInboxSummary.ts"),
-    read("src/hooks/usePartnerInboxSummary.ts"),
-    read("src/hooks/useOperationsInboxSummary.ts"),
-    read("src/App.tsx"),
+    read("src/pages/Notifications.tsx"), read("src/hooks/useCreatorInboxSummary.ts"),
+    read("src/hooks/useWorkerInboxSummary.ts"), read("src/hooks/usePartnerInboxSummary.ts"),
+    read("src/hooks/useOperationsInboxSummary.ts"), read("src/App.tsx"),
     read("supabase/migrations/20260921223000_canonical_activity_domain_routing.sql"),
   ]);
-
   for (const source of [page, creator, worker, partner, operations]) {
     assert.match(source, /getCanonicalActivity|getCanonicalActivitySummary/);
     assert.doesNotMatch(source, /\.from\(["']notifications["']\)/);
   }
   assert.match(app, /getCanonicalActivitySummary\("personal"\)/);
   assert.match(app, /activity_event_audiences/);
-  const personalCount = app.slice(
-    app.indexOf("async function loadCounts"),
-    app.indexOf("const toggle =", app.indexOf("async function loadCounts")),
-  );
+  const personalCount = app.slice(app.indexOf("async function loadCounts"), app.indexOf("const toggle =", app.indexOf("async function loadCounts")));
   assert.doesNotMatch(personalCount, /\.from\(["']notifications["']\)/);
-
   assert.match(migration, /private\.fanout_team_activity/);
   assert.match(migration, /worker\.review_submitted/);
   assert.match(migration, /finance\.withdrawal_review_required/);
@@ -144,10 +129,8 @@ test("visible Activity surfaces use the canonical event model", async () => {
 
 test("auth and Creator legal UI hide implementation detail by default", async () => {
   const [loginCss, login, legal, help] = await Promise.all([
-    read("src/pages/login.css"),
-    read("src/pages/Login.tsx"),
-    read("src/components/CreatorLegalDocuments.tsx"),
-    read("src/components/AccountHelpCenter.tsx"),
+    read("src/pages/login.css"), read("src/pages/Login.tsx"),
+    read("src/components/CreatorLegalDocuments.tsx"), read("src/components/AccountHelpCenter.tsx"),
   ]);
   assert.doesNotMatch(loginCss, /wh-auth-mode-choose \.wh-auth-form \{ margin-block: auto/);
   assert.match(login, />Welcome<\/h1>/);
@@ -158,7 +141,6 @@ test("auth and Creator legal UI hide implementation detail by default", async ()
   assert.doesNotMatch(help, /eyebrow="Finance Operations"/);
   assert.doesNotMatch(help, /eyebrow="Security Operations"/);
 });
-
 
 test("frontend chart theming has no raw HTML injection sink", async () => {
   const chart = await read("src/components/ui/chart.tsx");
