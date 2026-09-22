@@ -55,7 +55,8 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     setTargetId("");
     void withTimeout(supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace }), 15000, 'Help timed out').then(({ data, error }) => {
       if (cancelled) return;
-      setLoadError(Boolean(error));
+      // An older or malformed projection is unavailable, not an empty payment history.
+      setLoadError(Boolean(error) || !Array.isArray(data?.payment_targets));
       setTargets((data || {}) as HelpTargets);
       setLoading(false);
     }).catch(() => {

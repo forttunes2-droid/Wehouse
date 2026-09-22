@@ -66,6 +66,7 @@ jobs:
           python tests/browser/login_entry.py
           python tests/browser/profile_help.py
           python tests/browser/message_swipe.py
+          python tests/browser/entry_help_availability.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

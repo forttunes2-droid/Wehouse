@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: [
     { find: '@/hooks/useAuth', replacement: path.resolve(__dirname, 'authFixture.tsx') },
+    { find: '@/lib/supabase/client', replacement: path.resolve(__dirname, 'environmentPresentationFixture.ts') },
     { find: '@', replacement: path.resolve(root, 'src') },
   ] },
   define: {
