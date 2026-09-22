@@ -105,25 +105,38 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
   }, []);
   return (
     <div
-      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0E0C12] px-6 py-10 text-center text-[#F6F2FC]"
+      className="wh-launch-screen"
       role="status"
       aria-label="Loading WeHouse"
     >
-      <img
-        src="/app-icon.svg?v=3"
-        alt=""
-        className="h-12 w-12 rounded-[14px]"
-      />
-      <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
-      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#AAA3B3]">{signingIn ? "Completing sign-in…" : "Opening your account…"}</p>
-      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-200 border-t-violet-600 motion-reduce:animate-none" />}
-      {slow && (
-        <div className="mt-5 max-w-xs">
-          <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
-          <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+      <div className="wh-launch-glow" aria-hidden="true" />
+      <div className="wh-launch-lockup">
+        <div className="wh-launch-mark-wrap">
+          <span className="wh-launch-ring" aria-hidden="true" />
+          <img
+            src="/app-icon.svg?v=3"
+            alt=""
+            className="wh-launch-mark"
+          />
         </div>
-      )}
+        <div className="wh-launch-copy">
+          <p className="wh-launch-wordmark">WeHouse</p>
+          <p className="wh-launch-message">
+            {signingIn ? "Welcome back" : "Opening your space"}
+          </p>
+        </div>
+        {!slow ? (
+          <div className="wh-launch-progress" aria-hidden="true">
+            <span />
+          </div>
+        ) : (
+          <div className="mt-6 max-w-xs text-center">
+            <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
+            <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1089,6 +1102,9 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
             goTo(p as NavPage);
           }}
           onGoToChat={goToChat}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isAdminRole)
