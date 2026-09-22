@@ -89,8 +89,28 @@
   }
 }
 
+/* A newly entered workspace reveals in two restrained beats: shell, then content.
+   This keeps the Daily Flutter-style sense of arrival without turning WeHouse
+   into a demo animation. */
+.wh-workspace-enter [data-workspace-frame="v2"] > header {
+  animation: whWorkspaceHeaderIn 240ms cubic-bezier(.2,.75,.2,1) both;
+}
+.wh-workspace-enter [data-workspace-frame="v2"] > main {
+  animation: whWorkspaceContentIn 320ms 55ms cubic-bezier(.2,.75,.2,1) both;
+}
+@keyframes whWorkspaceHeaderIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes whWorkspaceContentIn {
+  from { opacity: 0; transform: translateY(9px) scale(.996); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .page-transition, .wh-panel-enter { animation: none; }
+  .page-transition, .wh-panel-enter,
+  .wh-workspace-enter [data-workspace-frame="v2"] > header,
+  .wh-workspace-enter [data-workspace-frame="v2"] > main { animation: none; }
   [data-sonner-toast] { transition: none !important; animation: none !important; }
 }
 
