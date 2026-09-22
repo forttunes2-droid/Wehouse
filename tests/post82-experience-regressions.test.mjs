@@ -165,3 +165,55 @@ test("frontend chart theming has no raw HTML injection sink", async () => {
   assert.match(chart, /safeChartCssValue/);
   assert.match(chart, /return <style>\{css\}<\/style>/);
 });
+
+
+test("Creator exposes Personal through the canonical workspace switcher", async () => {
+  const [app, creator, account] = await Promise.all([
+    read("src/App.tsx"),
+    read("src/pages/CreatorDashboard.tsx"),
+    read("src/pages/AccountCenter.tsx"),
+  ]);
+  const creatorCall = app.slice(
+    app.indexOf("<CreatorDashboard"),
+    app.indexOf("/>", app.indexOf("<CreatorDashboard")) + 2,
+  );
+  assert.match(creatorCall, /workspaceAccess={workspaceAccess}/);
+  assert.match(creatorCall, /activeWorkspace={activeWorkspace}/);
+  assert.match(creatorCall, /onSwitchWorkspace={switchWorkspace}/);
+  assert.match(creator, /WorkspaceSwitchSheet/);
+  assert.match(creator, /onWorkspaceSwitch={workspaceAccess && onSwitchWorkspace/);
+  assert.match(account, /onWorkspaceSwitch={ownAccess && onSwitchWorkspace/);
+});
+
+test("operations conversation opens from messages, not audit history and read receipt latency", async () => {
+  const communications = await read("src/components/CommunicationsWorkspace.tsx");
+  const refreshStart = communications.indexOf("async function refreshMessages");
+  const refreshEnd = communications.indexOf("\n  useEffect", refreshStart);
+  const refresh = communications.slice(refreshStart, refreshEnd);
+  assert.match(refresh, /const historyRequest = getSupportCaseEvents\(id\)/);
+  assert.match(refresh, /await getSupportMessages\(id\)/);
+  assert.ok(
+    refresh.indexOf("setLoadingThread(false)") < refresh.indexOf("await historyRequest"),
+    "message thread should become usable before case history finishes",
+  );
+  assert.match(refresh, /void markSupportMessagesRead\(id\)/);
+  assert.match(communications, /mine \? "justify-end" : "justify-start"/);
+  assert.doesNotMatch(communications, /function ContextCard/);
+});
+
+test("login and first app paint use responsive WeHouse presentation", async () => {
+  const [login, css, app, indexCss] = await Promise.all([
+    read("src/pages/Login.tsx"),
+    read("src/pages/login.css"),
+    read("src/App.tsx"),
+    read("src/index.css"),
+  ]);
+  assert.doesNotMatch(login, /One WeHouse account/);
+  assert.match(login, /Sign in, or continue securely with Google/);
+  assert.match(css, /grid-template-columns:\s*minmax\(220px, \.78fr\) minmax\(360px, 1fr\)/);
+  assert.match(css, /max-width:\s*900px/);
+  assert.match(app, /wh-launch-screen/);
+  assert.match(app, /wh-launch-progress/);
+  assert.match(indexCss, /@keyframes whLaunchMark/);
+  assert.match(indexCss, /@keyframes whLaunchProgress/);
+});
