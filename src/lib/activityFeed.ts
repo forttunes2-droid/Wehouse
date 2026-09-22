@@ -55,6 +55,7 @@ export function activityNeedsAction(
 export type ActivityDestination = {
   route: string;
   id?: string;
+  hotelId?: string;
 };
 
 function value(params: Record<string, unknown>, keys: string[]) {
@@ -168,6 +169,15 @@ export function resolveActivityDestination(
   const lifecycleBookingId =
     explicitBookingId ||
     (/booking|reservation/.test(sourceType) ? row.source_id || undefined : undefined);
+
+  const hotelId = value(params, ["hotel_id", "hotelId"]);
+  if (lifecycleBookingId && /hotel/.test(`${type} ${sourceType}`) &&
+      !/(^|[._])(message|reply|chat)([._]|$)/.test(type)) {
+    return { route: "hotel_booking", id: String(lifecycleBookingId), ...(hotelId ? { hotelId } : {}) };
+  }
+  if (hotelId && /hotel_detail|propert|inspection/.test(route) && !/inspection/.test(sourceType)) {
+    return { route: "hotel_detail", id: hotelId };
+  }
 
   // Booking events sometimes carry both the parent property and the exact
   // reservation. The reservation owns the action; the property is only its

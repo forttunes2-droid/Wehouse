@@ -1,7 +1,10 @@
+import { hotelInventorySummary, matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
+import type { ActivityDestination } from "@/lib/activityFeed";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getMyHotelOperations, getMyHotelOperationSnapshot } from "@/lib/supabase/hotels";
+import { getMyHotelOperations, getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
@@ -50,64 +53,50 @@ export default function PropertyOwnerDashboard({
   profile,
   onLogout,
   onNavigate,
-  onWorkspaceSwitch,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const [propertyTargetId, setPropertyTargetId] = useState<
     string | undefined
   >();
   const [propertyReservationId, setPropertyReservationId] = useState<string>();
+  const [returnToActivity, setReturnToActivity] = useState(false);
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
   const inbox = usePartnerInboxSummary(profile.user_id);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
-  async function openActivityDestination(page: string, id?: string) {
+  async function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
-    if (/booking|reservation|handover|operations_bookings/.test(route) && id) {
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("id,listing_id")
-        .eq("id", id)
-        .maybeSingle();
-      if (!error && data?.listing_id) {
-        setPropertyTargetId(String(data.listing_id));
-        setPropertyReservationId(String(data.id));
-        setTab("properties");
-        return;
-      }
+    if (route === "hotel_booking" && id) {
       try {
-        const hotels = await getMyHotelOperations();
-        if (hotels.error) throw hotels.error;
-        for (const hotel of hotels.data.filter((row: any) => row.access_role === "owner")) {
-          const snapshot = await getMyHotelOperationSnapshot(hotel.hotel_id);
-          if (snapshot.bookings.some((booking: { booking_id: number }) => String(booking.booking_id) === id)) {
-            setPropertyTargetId(`hotel:${hotel.hotel_id}`);
-            setPropertyReservationId(undefined);
-            setTab("properties");
-            return;
-          }
-        }
-      } catch { toast.error("Hotel information could not be loaded. Please try again."); return; }
-      toast.error("The linked reservation could not be opened.");
+        const target = await getMyHotelBookingTarget(id);
+        if (destination?.hotelId && String(target.hotel_id) !== destination.hotelId) throw new Error("Mismatched hotel");
+        setPropertyTargetId(propertyRecordKey("hotel", target.hotel_id));
+        setPropertyReservationId(String(target.booking_id));
+        setReturnToActivity(true);
+      } catch { toast.error("This hotel stay is unavailable or outside your current access. Please refresh and try again."); }
+      return;
+    }
+    if (/booking|reservation|handover|operations_bookings/.test(route) && id) {
+      const { data, error } = await supabase.from("reservations").select("id,listing_id").eq("id", id).maybeSingle();
+      if (error || !data?.listing_id) { toast.error("The linked reservation could not be opened."); return; }
+      setPropertyTargetId(propertyRecordKey("listing", data.listing_id));
+      setPropertyReservationId(String(data.id)); setReturnToActivity(true);
       return;
     }
     if (/propert|listing|inspection|hotel_detail/.test(route)) {
-      setPropertyTargetId(route === "hotel_detail" && id ? `hotel:${id.replace(/^hotel:/, "")}` : id);
-      setPropertyReservationId(undefined);
-      setTab("properties");
-      return;
+      setPropertyTargetId(route === "hotel_detail" && id ? propertyRecordKey("hotel", id) : id);
+      setPropertyReservationId(undefined); setReturnToActivity(true); return;
     }
-    if (/finance|earning|payment|wallet/.test(route)) {
-      setTab("finance");
-      return;
-    }
+    if (/finance|earning|payment|wallet/.test(route)) { setTab("finance"); return; }
     onNavigate(page, id);
+  }
+  function closeActivityRecord() {
+    setPropertyTargetId(undefined); setPropertyReservationId(undefined);
+    if (returnToActivity) setTab("communication");
   }
   return (
     <>
 
       <WorkspaceFrameV2
-        identityName={profile.full_name || profile.username}
-        identityAvatar={profile.avatar_url}
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}
         items={TABS.map((item) => ({
@@ -119,11 +108,11 @@ export default function PropertyOwnerDashboard({
               : undefined,
         }))}
         active={tab}
-        setActive={(id) => setTab(id as PartnerTab)}
-        onWorkspaceSwitch={onWorkspaceSwitch}
+        setActive={(id) => { setReturnToActivity(false); setPropertyTargetId(undefined); setPropertyReservationId(undefined); setTab(id as PartnerTab); }}
+        onAccount={() => onNavigate("profile")}
         onLogout={onLogout}
         compact={tab === "communication"}
-        immersive={tab === "properties" && nestedPropertyView}
+        immersive={(tab === "properties" && nestedPropertyView) || (tab === "communication" && Boolean(propertyTargetId))}
       >
         {tab === "properties" && (
           <PropertiesWorkspace
@@ -131,16 +120,20 @@ export default function PropertyOwnerDashboard({
             initialRecordId={propertyTargetId}
             initialReservationId={propertyReservationId}
             onNestedChange={setNestedPropertyView}
+            onTargetClose={closeActivityRecord}
           />
         )}{" "}
         {tab === "communication" && (
-          <CommunicationInbox
-            profile={profile}
-            onNavigate={openActivityDestination}
-            chatUnread={inbox.chatUnread}
-            activityUnread={inbox.activityUnread}
-          />
-        )}{" "}
+          <>
+            <div hidden={Boolean(propertyTargetId)} inert={Boolean(propertyTargetId)}>
+              <CommunicationInbox profile={profile} onNavigate={openActivityDestination}
+                initialActivity={returnToActivity} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
+            </div>
+            {propertyTargetId ? <PropertiesWorkspace key={propertyTargetId + (propertyReservationId || "")}
+              profile={profile} initialRecordId={propertyTargetId} initialReservationId={propertyReservationId}
+              onTargetClose={closeActivityRecord} /> : null}
+          </>
+        )}
         {tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
     </>
@@ -151,12 +144,16 @@ function PropertiesWorkspace({
   initialRecordId,
   initialReservationId,
   onNestedChange,
+  onTargetClose,
 }: {
   profile: Profile;
   initialRecordId?: string;
   initialReservationId?: string;
   onNestedChange?: (nested: boolean) => void;
+  onTargetClose?: () => void;
 }) {
+  const [publishedTarget, setPublishedTarget] = useState<string>();
+  const recordTarget = publishedTarget || initialRecordId;
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
@@ -168,10 +165,10 @@ function PropertiesWorkspace({
     }
   }, [initialRecordId]);
   useEffect(() => {
-    if (!initialReservationId) return;
-    setAssetKind("apartment");
+    if (!initialReservationId && !initialRecordId?.startsWith("listing:")) return;
+    setAssetKind(initialRecordId?.startsWith("hotel:") ? "hotel" : "apartment");
     setFilter("public");
-  }, [initialReservationId]);
+  }, [initialReservationId, initialRecordId]);
   useEffect(() => {
     onNestedChange?.(viewingDetail || creating);
     return () => onNestedChange?.(false);
@@ -200,12 +197,13 @@ function PropertiesWorkspace({
           </div>
         </div>
       )}
-      {filter === "public" ? (
+      {filter === "public" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
-          assetKind={assetKind}
-          initialRecordId={initialRecordId}
+          assetKind={recordTarget?.startsWith("hotel:") ? "hotel" : recordTarget?.startsWith("listing:") ? "apartment" : assetKind}
+          initialRecordId={recordTarget}
           initialReservationId={initialReservationId}
+          onTargetClose={() => { setPublishedTarget(undefined); onTargetClose?.(); }}
           onDetailChange={setViewingDetail}
         />
       ) : (
@@ -215,6 +213,7 @@ function PropertiesWorkspace({
           initialRecordId={initialRecordId}
           onDetailChange={setViewingDetail}
           onCreationChange={setCreating}
+          onOpenPublished={setPublishedTarget}
           assetKind={assetKind}
         />
       )}
@@ -227,12 +226,14 @@ function PropertiesTab({
   initialRecordId,
   initialReservationId,
   onDetailChange,
+  onTargetClose,
 }: {
   profile: Profile;
   assetKind: PartnerAssetKind;
   initialRecordId?: string;
   initialReservationId?: string;
   onDetailChange?: (open: boolean) => void;
+  onTargetClose?: () => void;
 }) {
   const openedTarget = useRef<string | null>(null);
   const [assets, setAssets] = useState<any[]>([]),
@@ -276,9 +277,7 @@ function PropertiesTab({
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
         const target = nextAssets.find((asset: any) =>
-          [asset.id, asset.listing_id, asset.hotel_id, `hotel:${asset.hotel_id}`]
-            .filter(Boolean)
-            .some((value) => String(value) === String(initialRecordId)),
+          matchesPropertyRecord(asset, initialRecordId),
         );
         if (target) setSelected(target);
         else toast.error("The linked property is no longer available.");
@@ -299,7 +298,8 @@ function PropertiesTab({
         hotel={selected}
         accessRole="owner"
         profile={profile}
-        onBack={() => setSelected(null)}
+        initialBookingId={initialReservationId}
+        onBack={() => { setSelected(null); onTargetClose?.(); }}
       />
     );
   if (selected)
@@ -308,7 +308,7 @@ function PropertiesTab({
         property={selected}
         profile={profile}
         initialReservationId={initialReservationId}
-        onBack={() => setSelected(null)}
+        onBack={() => { setSelected(null); onTargetClose?.(); }}
       />
     );
   return (
@@ -384,23 +384,6 @@ function PropertiesTab({
     </section>
   );
 }
-function hotelInventorySummary(property: any) {
-  const rooms = Array.isArray(property.hotel_rooms) ? property.hotel_rooms : [];
-  const units = rooms.reduce(
-    (sum: number, room: { total_rooms?: number | null }) =>
-      sum + Number(room.total_rooms || 0),
-    0,
-  );
-  const startingRate = rooms.reduce(
-    (lowest: number, room: { price_per_night?: number | null }) => {
-      const rate = Number(room.price_per_night || 0);
-      return rate > 0 && (!lowest || rate < lowest) ? rate : lowest;
-    },
-    0,
-  );
-  const roomLabel = `${rooms.length} room ${rooms.length === 1 ? "type" : "types"} · ${units} ${units === 1 ? "room" : "rooms"}`;
-  return startingRate ? `${roomLabel} · from ${money(startingRate)}` : roomLabel;
-}
 function PropertyDetails({
   property,
   profile,
@@ -412,6 +395,7 @@ function PropertyDetails({
   initialReservationId?: string;
   onBack: () => void;
 }) {
+  const closeRecord = useRecordScreenBack(onBack);
   const [stays, setStays] = useState<any[]>([]);
   const [loadingStays, setLoadingStays] = useState(true);
   const orderedStays = useMemo(() => {
@@ -472,7 +456,7 @@ function PropertyDetails({
   return (
     <div className="space-y-5">
       <button
-        onClick={onBack}
+        onClick={closeRecord}
         className="text-xs text-[#888A9B] hover:text-white"
       >
         ← Back to properties

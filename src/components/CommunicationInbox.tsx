@@ -1,3 +1,5 @@
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import type { ActivityDestination } from "@/lib/activityFeed";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Notifications from "@/pages/Notifications";
 import type { Profile } from "@/types";
@@ -10,7 +12,8 @@ import InboxActivityEntry from "@/components/InboxActivityEntry";
 
 type Props = {
   profile: Profile;
-  onNavigate?: (page: string, id?: string) => void;
+  onNavigate?: (page: string, id?: string, destination?: ActivityDestination) => void;
+  initialActivity?: boolean;
   chatUnread?: number;
   activityUnread?: number;
 };
@@ -18,8 +21,9 @@ type InboxItem =
   | { kind: "hotel"; id: string; time: string; thread: HotelConversation }
   | { kind: "support"; id: string; time: string; thread: SupportThread };
 
-export default function CommunicationInbox({ profile, onNavigate = () => {}, chatUnread = 0, activityUnread = 0 }: Props) {
-  const [showActivity, setShowActivity] = useState(false);
+export default function CommunicationInbox({ profile, onNavigate = () => {}, chatUnread = 0, activityUnread = 0, initialActivity = false }: Props) {
+  const [showActivity, setShowActivity] = useState(initialActivity);
+  const closeActivity = useRecordScreenBack(() => setShowActivity(false), showActivity);
   const [query, setQuery] = useState("");
   const [hotelChats, setHotelChats] = useState<HotelConversation[]>([]);
   const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
@@ -61,17 +65,17 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     if (!value) return true;
     const source = item.kind === "hotel"
       ? [item.thread.guest_name, item.thread.hotel_name, item.thread.room_name, item.thread.last_message]
-      : (() => { const presentation = conversationPresentation(item.thread, "operations"); return [presentation.title, presentation.meta, item.thread.last_message]; })();
+      : (() => { const presentation = conversationPresentation(item.thread, "customer"); return [presentation.title, presentation.meta, item.thread.last_message]; })();
     return source.filter(Boolean).join(" ").toLowerCase().includes(value);
   }).sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()), [filter, hotelChats, query, supportThreads]);
 
-  function openActivityDestination(page: string, id?: string) {
+  function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (["conversation", "conversations", "message", "messages", "chat"].includes(route)) {
-      const hotel = hotelChats.find((thread) => String(thread.conversation_id) === String(id || "") || String(thread.booking_id) === String(id || ""));
-      if (hotel) { setShowActivity(false); setActiveHotel(hotel); return; }
+      const hotel = hotelChats.find((thread) => String(thread.conversation_id) === String(id || ""));
+      if (hotel) { setActiveHotel(hotel); return; }
     }
-    onNavigate(page, id);
+    onNavigate(page, id, destination);
   }
 
   function openSupport(thread: SupportThread) {
@@ -86,7 +90,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     return (
       <div className="min-h-[65dvh]">
         <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
-          <button type="button" onClick={() => setShowActivity(false)} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
+          <button type="button" onClick={closeActivity} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
           <div><h2 className="text-sm font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#6F7586]">Property, booking, payment and account updates.</p></div>
         </header>
         <Notifications profile={profile} scope="partner" embedded onNavigate={openActivityDestination} />
@@ -129,7 +133,7 @@ function HotelRow({ thread, onOpen }: { thread: HotelConversation; onOpen: () =>
 }
 
 function SupportRow({ thread, onOpen }: { thread: SupportThread; onOpen: () => void }) {
-  const presentation = conversationPresentation(thread, "operations");
+  const presentation = conversationPresentation(thread, "customer");
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-white/[.025]">
     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-300">W</div>
     <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{presentation.title}</p><span className="text-[7px] font-semibold text-violet-300">WEHOUSE</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[#777C8D]"}`}>{thread.last_message || presentation.operator}</p><p className="mt-0.5 truncate text-[8px] text-[#5F6474]">{presentation.meta || "Property and account support"}</p></div>

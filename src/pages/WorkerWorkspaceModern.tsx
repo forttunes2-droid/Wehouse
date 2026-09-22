@@ -217,6 +217,7 @@ export default function WorkerWorkspaceModern({
       onWorkspaceSwitch={
         workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined
       }
+      onAccount={!live ? () => onNavigate?.("profile") : undefined}
       onLogout={onLogout}
     >
       {content}

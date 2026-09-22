@@ -1,3 +1,6 @@
+import { propertyRecordKey } from "@/lib/propertyNavigation";
+import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
@@ -114,6 +117,7 @@ export default function UserProfileModal(props: UserProfileModalProps) {
 
 function InternalProfileSheet({
   user,
+  adminProfile,
   onClose,
   onNavigate,
 }: UserProfileModalProps & { user: Profile }) {
@@ -124,6 +128,8 @@ function InternalProfileSheet({
   const [section, setSection] = useState<SectionKey>("overview");
   const [selected, setSelected] = useState<SelectedRecord | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [operationTarget, setOperationTarget] = useState<string>();
+  const closeOperation = useRecordScreenBack(() => setOperationTarget(undefined), Boolean(operationTarget));
 
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -206,9 +212,16 @@ function InternalProfileSheet({
 
 
   function openOperations(kind: "apartment" | "hotel", id: string) {
-    onNavigate?.("operations_properties", id);
-    onClose();
+    const target = propertyRecordKey(kind === "hotel" ? "hotel" : "listing", id);
+    if (adminProfile) setOperationTarget(target);
+    else { onNavigate?.("operations_properties", target); onClose(); }
   }
+
+  if (operationTarget && adminProfile) return createPortal(
+    <div role="dialog" aria-modal="true" aria-label="Property record" className="fixed inset-0 z-[100010] overflow-y-auto bg-[#0A0A0F] p-4 text-white sm:p-6">
+      <div className="mx-auto max-w-6xl"><PropertyPipelineWorkspace profile={adminProfile} initialRecordId={operationTarget} onExitRecord={closeOperation} /></div>
+    </div>, document.body,
+  );
 
   const sheet = (
     <div

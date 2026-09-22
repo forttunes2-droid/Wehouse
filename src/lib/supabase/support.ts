@@ -146,7 +146,7 @@ export function conversationPresentation(
   if (["property_listing", "property_inspection", "hotel_property", "hotel_operations"].includes(contextType))
     return {
       kind: "property_operations",
-      title: String(snapshot.listing_title || snapshot.hotel_name || linkedLabel || rawSubject || "Property")
+      title: String(snapshot.listing_title || snapshot.hotel_name || snapshot.property_display_name || linkedLabel || snapshot.property_address || (/^(property inspection|inspection)\s+(WHIR|[0-9a-f]{8})/i.test(rawSubject) ? "Property inspection" : rawSubject) || "Property")
         .replace(/^(question about|inspection help)\s*·\s*/i, ""),
       operator: operatorForAudience("WeHouse Property Operations"),
       meta: [contextType === "property_inspection" ? "Property inspection"
@@ -177,7 +177,7 @@ export function conversationPresentation(
           : domain === "property_operations" ? "WeHouse Property Operations" : "WeHouse Support";
     return {
       kind: "support",
-      title: linkedLabel || rawSubject || String(snapshot.reason_label || "WeHouse"),
+      title: linkedLabel || String(snapshot.property_display_name || "").trim() || rawSubject || String(snapshot.reason_label || "WeHouse"),
       operator: operatorForAudience(operator),
       meta: [String(snapshot.reason_label || rawSubject || "Help"), status].filter(Boolean).join(" · "),
       operational: false,

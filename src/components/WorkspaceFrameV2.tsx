@@ -28,13 +28,10 @@ export default function WorkspaceFrameV2({
   title,
   description,
   labelBadge,
-  identityName,
-  identityAvatar,
   items,
   active,
   setActive,
   onAccount,
-  onWorkspaceSwitch,
   onLogout,
   compact = false,
   immersive = false,
@@ -86,30 +83,6 @@ export default function WorkspaceFrameV2({
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {(identityAvatar || identityName) ? (
-                  <button
-                    type="button"
-                    onClick={onWorkspaceSwitch || onAccount}
-                    disabled={!onAccount && !onWorkspaceSwitch}
-                    className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-violet-500/[.10] text-[11px] font-bold text-violet-200 disabled:cursor-default"
-                    aria-label={onWorkspaceSwitch ? "Open workspaces" : onAccount ? "Open account" : "Your profile"}
-                  >
-                    {identityAvatar ? (
-                      <img src={identityAvatar} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span>{String(identityName || "W").trim().charAt(0).toUpperCase()}</span>
-                    )}
-                  </button>
-                ) : null}
-                {onWorkspaceSwitch ? (
-                  <button
-                    type="button"
-                    onClick={onWorkspaceSwitch}
-                    className="min-h-10 px-1 text-[10px] font-semibold text-violet-300 transition hover:text-violet-200"
-                  >
-                    Workspaces
-                  </button>
-                ) : null}
                 {onAccount ? (
                   <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[10px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
                     <NavIcon id="account" />

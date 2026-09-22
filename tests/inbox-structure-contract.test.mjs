@@ -74,7 +74,11 @@ test("Staff Inbox does not claim work merely by viewing it", async () => {
 
 test("Hotel Team has one Inbox surface with guest conversations and nested Activity", async () => {
   const source = await read("src/pages/HotelTeamDashboard.tsx");
-  assert.match(source, /\[\['hotels', 'Hotels'\], \['inbox', 'Inbox'\]\]/);
+  assert.match(source, /id: "hotels", label: "Hotels"/);
+  assert.match(source, /id: "inbox", label: "Inbox"/);
+  assert.match(source, /<WorkspaceFrameV2/);
+  assert.match(source, /scope="hotel"/);
+  assert.doesNotMatch(source, /scope="hotel_staff"/);
   assert.match(source, /getMyHotelConversations/);
   assert.match(source, /<InboxActivityEntry/);
   assert.match(source, /<Notifications/);

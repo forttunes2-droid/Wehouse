@@ -1,5 +1,7 @@
+import { hotelPaymentLabel } from "@/lib/propertyNavigation";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { locationLabel } from "@/lib/locationPresentation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
@@ -44,6 +46,7 @@ type Props = {
   accessRole: HotelAccessRole;
   onBack: () => void;
   profile?: Profile;
+  initialBookingId?: string;
 };
 type Room = HotelRoom & { rate_plans?: HotelRatePlan[] };
 type Booking = {
@@ -152,7 +155,12 @@ export default function PartnerHotelOperations({
   accessRole,
   onBack,
   profile,
+  initialBookingId,
 }: Props) {
+  const closeRecord = useRecordScreenBack(onBack);
+  const [section, setSection] = useState(initialBookingId ? "reservations" : "overview");
+  const [focusedBooking, setFocusedBooking] = useState(initialBookingId);
+  const loadGeneration = useRef(0);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
@@ -193,32 +201,52 @@ export default function PartnerHotelOperations({
   const canManageRoomFacts =
     hotel.status !== "active" && canManageInventory && canManageRates;
 
-  const load = useCallback(
-    async (quiet = false) => {
-      if (!quiet) setLoading(true);
-      try {
-        const [snapshot, chatResult] = await Promise.all([
-          getMyHotelOperationSnapshot(hotel.hotel_id),
-          canMessageGuests ? getMyHotelConversations(accessRole === "owner" ? "property_partner" : "hotel")
-            : Promise.resolve({ conversations: [], error: null }),
-        ]);
-        setRooms(snapshot.rooms || []);
-        setBookings(snapshot.bookings || []);
-        setInventory(snapshot.inventory || []);
-        setRoomUnits(snapshot.room_units || []);
-        setVenues(snapshot.venues || []);
-        setLiveCapabilities(snapshot.capabilities || []);
-        if (chatResult.error) throw chatResult.error;
-        setHotelChats((chatResult.conversations || []).filter(row => Number(row.hotel_id) === Number(hotel.hotel_id)));
-        setLoadError("");
-      } catch {
-        setLoadError("Hotel information could not be refreshed. Check your connection and try again.");
-      } finally {
-        if (!quiet) setLoading(false);
+  const sections = [
+    { id: "overview", label: "Overview" },
+    ...(canReadStays ? [{ id: "reservations", label: "Reservations" }] : []),
+    ...(canManageRoomFacts || canManageRates ? [{ id: "rooms", label: "Rooms and packages" }] : []),
+    ...(canManageInventory || canMarkRoomsReady ? [{ id: "availability", label: "Availability" }] : []),
+    { id: "details", label: "Property details" },
+    ...(canManageTeam ? [{ id: "team", label: "Team" }] : []),
+  ];
+  const visibleSection = sections.some(item => item.id === section) ? section : "overview";
+  const load = useCallback(async (quiet = false) => {
+    const generation = ++loadGeneration.current;
+    if (!quiet) setLoading(true);
+    try {
+      const snapshot = await getMyHotelOperationSnapshot(hotel.hotel_id, initialBookingId);
+      if (generation !== loadGeneration.current) return;
+      const currentCapabilities = snapshot.capabilities || [];
+      setRooms(snapshot.rooms || []); setBookings(currentCapabilities.includes("stay.read") ? snapshot.bookings || [] : []);
+      setInventory(snapshot.inventory || []); setRoomUnits(snapshot.room_units || []);
+      setVenues(snapshot.venues || []); setLiveCapabilities(currentCapabilities); setHotelChats([]);
+      setLoadError(""); setLoading(false);
+      if (currentCapabilities.includes("stay.message")) {
+        const chats = await getMyHotelConversations(accessRole === "owner" ? "property_partner" : "hotel");
+        if (generation !== loadGeneration.current) return;
+        if (chats.error) { setLoadError("Guest conversations could not be refreshed. Try again before messaging."); return; }
+        setHotelChats(chats.conversations.filter(row => Number(row.hotel_id) === Number(hotel.hotel_id)));
       }
-    },
-    [accessRole, canMessageGuests, canReadStays, hotel.hotel_id, hotel.timezone],
-  );
+    } catch {
+      if (generation !== loadGeneration.current) return;
+      // Do not leave private stay/team information displayed after revoked access.
+      setBookings([]); setHotelChats([]); setRoomUnits([]); setRooms([]); setVenues([]); setInventory([]);
+      setLiveCapabilities([]); setActiveChat(null); setEditingRoom(null); setEditingRate(null); setEditingVenue(null);
+      setLoadError("Hotel information is unavailable or your access has changed. Please try again.");
+    } finally { if (generation === loadGeneration.current) setLoading(false); }
+  }, [accessRole, hotel.hotel_id, initialBookingId]);
+
+  useEffect(() => {
+    if (!initialBookingId) return;
+    setFocusedBooking(initialBookingId); setSection("reservations");
+    setReservationFilter("all"); setReservationQuery("");
+  }, [initialBookingId]);
+  useEffect(() => {
+    const reconcile = () => { if (document.visibilityState !== "hidden") void load(true); };
+    window.addEventListener("focus", reconcile);
+    document.addEventListener("visibilitychange", reconcile);
+    return () => { window.removeEventListener("focus", reconcile); document.removeEventListener("visibilitychange", reconcile); };
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -276,6 +304,7 @@ export default function PartnerHotelOperations({
       )
       .subscribe();
     return () => {
+      loadGeneration.current++;
       void supabase.removeChannel(channel);
     };
   }, [hotel.hotel_id, load]);
@@ -305,7 +334,7 @@ export default function PartnerHotelOperations({
     [bookings, date],
   );
   const available = rooms.reduce((sum, room) => {
-    const override = inventory.find((row) => row.room_id === room.room_id);
+    const override = inventory.find((row) => row.room_id === room.room_id && row.inventory_date === date);
     const reserved = activeBookings.filter(
       (row) =>
         row.room_id === room.room_id &&
@@ -318,6 +347,7 @@ export default function PartnerHotelOperations({
     return sum + Math.max(0, sellable - reserved);
   }, 0);
   const filteredBookings = bookings.filter((row) => {
+    if (focusedBooking && String(row.booking_id) !== focusedBooking) return false;
     if (reservationFilter !== "all" && row.status !== reservationFilter)
       return false;
     const query = reservationQuery.trim().toLowerCase();
@@ -379,9 +409,9 @@ export default function PartnerHotelOperations({
   return (
     <div className="space-y-8 pb-8">
       <header className="flex items-center gap-3 border-b border-white/[.07] pb-4">
-        <BackButton onClick={onBack} />
+        <BackButton onClick={closeRecord} />
         <div className="min-w-0 flex-1">
-          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Hotel control</p>
+          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Hotel</p>
           <h2 className="mt-1 truncate text-lg font-bold">{hotel.name}</h2>
           <p className="mt-0.5 truncate text-[9px] text-[#6F7586]">
             {locationLabel(hotel.address, hotel.city, hotel.state)} · {hotel.status === "active" ? "Live and bookable" : "Not public"}
@@ -392,13 +422,16 @@ export default function PartnerHotelOperations({
         ) : null}
       </header>
 
-      {hotel.images?.length ? (
+      <nav aria-label="Hotel sections" className="flex gap-4 overflow-x-auto border-b border-white/[.08]">
+        {sections.map(item => <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined} onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }} className={`min-h-11 shrink-0 border-b-2 text-xs font-semibold ${visibleSection === item.id ? "border-violet-400 text-violet-300" : "border-transparent text-[#8B91A0]"}`}>{item.label}</button>)}
+      </nav>
+      {visibleSection === "details" && (hotel.images?.length ? (
         <section className="-mx-4 sm:mx-0">
           <PropertyMediaCarousel images={hotel.images} title={hotel.name} />
         </section>
       ) : (
         <section className="grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-white/[.08] text-[9px] text-[#656C7C]">No hotel gallery is published yet</section>
-      )}
+      ))}
 
       {hotel.status !== "active" ? (
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.045] p-4">
@@ -407,14 +440,14 @@ export default function PartnerHotelOperations({
         </section>
       ) : null}
 
-      <HotelStayPolicy hotel={hotel} editable={canManagePolicy} />
+      {visibleSection === "details" ? <HotelStayPolicy hotel={hotel} editable={canManagePolicy} /> : null}
 
       {loadError && <div role="alert" className="mb-4 rounded-xl border border-amber-400/20 p-3 text-sm text-amber-100"><p>{loadError}</p><button onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
       {loading ? (
         <div className="min-h-44" role="status" aria-label="Loading hotel operation" />
       ) : (
         <>
-          <section>
+          {visibleSection === "overview" && canReadStays ? <section>
             <div className="flex items-end justify-between gap-3">
               <div><h3 className="text-sm font-semibold">Today at the hotel</h3><p className="mt-1 text-[9px] text-[#707687]">Expired payment holds are excluded from sellable-room totals.</p></div>
               <span className={`rounded-full px-2.5 py-1 text-[8px] font-semibold ${metrics.attention ? "bg-amber-500/10 text-amber-200" : "bg-emerald-500/10 text-emerald-300"}`}>{metrics.attention ? `${metrics.attention} needs action` : "Up to date"}</span>
@@ -429,9 +462,11 @@ export default function PartnerHotelOperations({
               ].map(([label, value]) => <div key={String(label)} className="bg-[#0A0A0F] p-4"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-[8px] text-[#72798A]">{label}</p></div>)}
             </div>
             <TodayRooms rooms={rooms} bookings={bookings} inventory={inventory} roomUnits={roomUnits} timeZone={hotel.timezone || "Africa/Lagos"} />
-          </section>
+          </section> : null}
 
-          {canReadStays || canMarkRoomsReady ? (
+          {visibleSection === "overview" && !canReadStays ? <p className="text-sm text-[#A1A6B5]">Use the hotel sections to manage the work assigned to you.</p> : null}
+
+          {(visibleSection === "overview" || visibleSection === "availability") && (canReadStays || canMarkRoomsReady) ? (
             <RoomUnitBoard
               units={roomUnits}
               rooms={rooms}
@@ -440,7 +475,7 @@ export default function PartnerHotelOperations({
             />
           ) : null}
 
-          {canManageRoomFacts || canManageRates ? (
+          {visibleSection === "rooms" && (canManageRoomFacts || canManageRates) ? (
             <section id="rooms-and-rates" className="scroll-mt-20">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div><h3 className="text-base font-bold">Rooms and packages</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Rates and packages may change for future bookings. Verified room identity, capacity and public media return through WeHouse review after publication.</p></div>
@@ -455,26 +490,27 @@ export default function PartnerHotelOperations({
             </section>
           ) : null}
 
-          {canManageInventory ? (
+          {visibleSection === "availability" && canManageInventory ? (
             <section id="availability" className="scroll-mt-20">
               <div className="mb-4"><h3 className="text-base font-bold">Availability and daily pricing</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Set sellable rooms for a date range. Confirmed reservations and active payment holds are deducted automatically.</p></div>
               <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
-                {rooms.map((room) => <AvailabilityRow key={room.room_id} room={room} inventory={inventory.find((row) => row.room_id === room.room_id)} onSaved={() => load(true)} />)}
+                {rooms.map((room) => <AvailabilityRow key={room.room_id} room={room} inventory={inventory.find((row) => row.room_id === room.room_id && row.inventory_date === date)} onSaved={() => load(true)} />)}
                 {rooms.length === 0 ? <Empty text="Add a room type before setting availability." /> : null}
               </div>
             </section>
           ) : null}
 
-          {canManagePolicy ? (
+          {visibleSection === "details" && canManagePolicy ? (
             <section id="hotel-venues" className="scroll-mt-20">
               <div className="mb-4 flex items-start justify-between gap-4"><div><h3 className="text-base font-bold">Restaurants and hotel facilities</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Operating hours and package access may be maintained here. Adding or removing a verified facility after publication requires WeHouse review.</p></div>{hotel.status !== "active" ? <button type="button" onClick={() => setEditingVenue("new")} className="shrink-0 rounded-xl border border-violet-500/25 px-3 py-2.5 text-[9px] font-semibold text-violet-200">Add place</button> : null}</div>
               {venues.length ? <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{venues.map((venue) => <button type="button" key={venue.venue_id} onClick={() => setEditingVenue(venue)} className="flex w-full items-start justify-between gap-4 py-3 text-left"><span><span className="block text-xs font-semibold">{venue.name}</span><span className="mt-1 block text-[9px] capitalize text-[#747B8C]">{venue.kind}{venue.opening_hours ? ` · ${venue.opening_hours}` : ""}</span>{venue.package_notes ? <span className="mt-1 block text-[8px] text-emerald-300">Package access: {venue.package_notes}</span> : null}</span><span className={`rounded-full px-2 py-1 text-[8px] ${venue.active ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#73798A]"}`}>{venue.active ? "Shown" : "Hidden"}</span></button>)}</div> : <Empty text="No named hotel places yet." />}
             </section>
           ) : null}
 
-          {canReadStays ? (
+          {visibleSection === "reservations" && canReadStays ? (
             <section id="reservations" className="scroll-mt-20">
-              <div className="mb-4"><h3 className="text-base font-bold">Reservations and guests</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Every row identifies the hotel, room, package, dates, guest, verified payment and next valid action.</p></div>
+              <div className="mb-4"><h3 className="text-base font-bold">Reservations and guests</h3><p className="mt-1 text-[9px] leading-5 text-[#707687]">Manage arrivals, stays and departures.</p></div>
+              {focusedBooking ? <div className="mb-3 flex items-center justify-between gap-3 text-xs"><p>{bookings.some(row => String(row.booking_id) === focusedBooking) ? "Linked reservation" : "The linked reservation is unavailable or outside your current access."}</p><button className="min-h-11 shrink-0 text-violet-300" onClick={() => setFocusedBooking(undefined)}>Show all reservations</button></div> : null}
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]"><input value={reservationQuery} onChange={(event) => setReservationQuery(event.target.value)} placeholder="Search guest, room, package or booking code" className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/35" /><WeHouseSelect value={reservationFilter} options={[{ value: "all", label: "All reservations" },{ value: "pending", label: "Payment holds" },{ value: "confirmed", label: "Confirmed stays" },{ value: "checked_in", label: "Checked in" },{ value: "checked_out", label: "Checked out" },{ value: "payment_conflict", label: "Payment review" },{ value: "cancelled", label: "Cancelled" }]} onChange={setReservationFilter} eyebrow="Reservations" title="Filter reservations" ariaLabel="Filter hotel reservations" /></div>
               <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
                 {filteredBookings.map((row) => <ReservationRow key={row.booking_id} hotelName={hotel.name} hotel={hotel} row={row} busy={busy} readyRoomAvailable={roomUnits.some((unit) => unit.room_id === row.room_id && unit.status === "ready" && !unit.current_booking_id)} chat={hotelChats.find((item) => Number(item.booking_id) === Number(row.booking_id))} canMessage={canMessageGuests} canCheckIn={capabilities.has("stay.check_in") && capabilities.has("stay.assign_unit")} canCheckOut={capabilities.has("stay.check_out")} onChat={setActiveChat} transition={transition} />)}
@@ -483,7 +519,7 @@ export default function PartnerHotelOperations({
             </section>
           ) : null}
 
-          {canManageTeam ? <section id="hotel-team" className="scroll-mt-20"><HotelTeam hotelId={hotel.hotel_id} grantableCapabilities={[...capabilities]} /></section> : null}
+          {visibleSection === "team" && canManageTeam ? <section id="hotel-team" className="scroll-mt-20"><HotelTeam hotelId={hotel.hotel_id} grantableCapabilities={[...capabilities]} /></section> : null}
         </>
       )}
 
@@ -653,7 +689,7 @@ function RoomUnitRow({ unit, roomName, editable, onSaved }: { unit: HotelRoomUni
 
 function TodayRooms({ rooms, bookings, inventory, roomUnits, timeZone }: { rooms: Room[]; bookings: Booking[]; inventory: Inventory[]; roomUnits: HotelRoomUnit[]; timeZone: string }) {
   const date = today(timeZone);
-  return <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rooms.map((room) => { const override = inventory.find((row) => row.room_id === room.room_id); const liveHolds = bookings.filter((row) => row.room_id === room.room_id && row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() > Date.now() && row.check_in <= date && row.check_out > date).length; const occupied = bookings.filter((row) => row.room_id === room.room_id && ["confirmed", "checked_in"].includes(row.status) && row.check_in <= date && row.check_out > date).length; const operationalUnits = roomUnits.filter((unit) => unit.room_id === room.room_id && !["maintenance", "out_of_service"].includes(unit.status)).length; const offered = override?.closed ? 0 : (override?.available_quantity ?? room.total_rooms); const sellable = Math.min(offered, operationalUnits); return <div key={room.room_id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#686F80]">{occupied} confirmed/staying · {liveHolds} active hold · {operationalUnits}/{room.total_rooms} operational</p></div><div className="text-right"><p className="text-sm font-bold">{Math.max(0, sellable - occupied - liveHolds)} sellable</p>{override?.closed ? <p className="text-[8px] text-amber-300">Sales closed today</p> : operationalUnits < room.total_rooms ? <p className="text-[8px] text-amber-300">Maintenance reduces capacity</p> : null}</div></div>; })}{rooms.length === 0 ? <Empty text="No room inventory has been added." /> : null}</div>;
+  return <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rooms.map((room) => { const override = inventory.find((row) => row.room_id === room.room_id && row.inventory_date === date); const liveHolds = bookings.filter((row) => row.room_id === room.room_id && row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() > Date.now() && row.check_in <= date && row.check_out > date).length; const occupied = bookings.filter((row) => row.room_id === room.room_id && ["confirmed", "checked_in"].includes(row.status) && row.check_in <= date && row.check_out > date).length; const operationalUnits = roomUnits.filter((unit) => unit.room_id === room.room_id && !["maintenance", "out_of_service"].includes(unit.status)).length; const offered = override?.closed ? 0 : (override?.available_quantity ?? room.total_rooms); const sellable = Math.min(offered, operationalUnits); return <div key={room.room_id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#686F80]">{occupied} confirmed/staying · {liveHolds} active hold · {operationalUnits}/{room.total_rooms} operational</p></div><div className="text-right"><p className="text-sm font-bold">{Math.max(0, sellable - occupied - liveHolds)} sellable</p>{override?.closed ? <p className="text-[8px] text-amber-300">Sales closed today</p> : operationalUnits < room.total_rooms ? <p className="text-[8px] text-amber-300">Maintenance reduces capacity</p> : null}</div></div>; })}{rooms.length === 0 ? <Empty text="No room inventory has been added." /> : null}</div>;
 }
 
 function RoomRow({ room, canEditRoom, canManageRates, onEdit, onRate }: { room: Room; canEditRoom: boolean; canManageRates: boolean; onEdit: () => void; onRate: (plan?: HotelRatePlan) => void }) {
@@ -678,7 +714,7 @@ function RoomEditor({ hotelId, room, close, saved }: { hotelId: number; room?: R
 function RatePlanEditor({ room, plan, close, saved }: { room: Room; plan?: HotelRatePlan; close: () => void; saved: () => Promise<void> }) {
   const [form, setForm] = useState({ name: plan?.name || "", description: plan?.description || "", price: plan ? String(plan.price_per_night) : String(room.price_per_night), meal: plan?.meal_plan || "room_only", refundable: plan?.refundable || false, cancellation: plan?.cancellation_hours ? String(plan.cancellation_hours) : "24", features: (plan?.included_features || []).join(", "), active: plan?.active ?? true }); const [busy, setBusy] = useState(false);
   async function save() { if (!form.name.trim() || Number(form.price) <= 0) return toast.error("Package name and nightly price are required"); setBusy(true); const result = await partnerSaveHotelRatePlan({ rate_plan_id: plan?.rate_plan_id, hotel_id: room.hotel_id, room_id: room.room_id, name: form.name.trim(), description: form.description.trim() || null, meal_plan: form.meal as HotelRatePlan["meal_plan"], payment_timing: "pay_now", refundable: form.refundable, cancellation_hours: form.refundable ? Number(form.cancellation) : null, price_per_night: Number(form.price), included_features: words(form.features), active: form.active }); setBusy(false); if (result.error) return toast.error(result.error.message); toast.success(plan ? "Package updated" : "Package added"); await saved(); }
-  return <Sheet title={plan ? "Edit room package" : "Add room package"} subtitle={`${room.room_type} · guests choose one package before dates and payment.`} close={close}><div className="grid gap-3 sm:grid-cols-2"><Field label="Package name" value={form.name} set={(value) => setForm({ ...form, name: value })} placeholder="VIP with breakfast" /><Field label="Nightly price" value={form.price} set={(value) => setForm({ ...form, price: value })} type="number" /><label><span className="mb-1 block text-[8px] text-[#686E7E]">Meal plan</span><select value={form.meal} onChange={(event) => setForm({ ...form, meal: event.target.value as HotelRatePlan["meal_plan"] })} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs"><option value="room_only">Room only</option><option value="breakfast">Breakfast included</option><option value="half_board">Breakfast + one meal</option><option value="full_board">All daily meals</option><option value="all_inclusive">All inclusive</option></select></label><label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.08] px-3 text-[9px]"><input type="checkbox" checked={form.refundable} onChange={(event) => setForm({ ...form, refundable: event.target.checked })} className="accent-violet-500" />Refundable package</label>{form.refundable ? <Field label="Cancel up to hours before arrival" value={form.cancellation} set={(value) => setForm({ ...form, cancellation: value })} type="number" /> : null}<Field label="Included features (comma separated)" value={form.features} set={(value) => setForm({ ...form, features: value })} placeholder="Airport pickup, lounge access" /><label className="sm:col-span-2"><span className="mb-1 block text-[8px] text-[#686E7E]">Package description</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none" /></label>{plan ? <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.08] px-3 text-[9px]"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="accent-violet-500" />Visible and bookable</label> : null}</div><p className="mt-3 rounded-xl bg-white/[.025] p-3 text-[8px] leading-4 text-[#737A8A]">WeHouse secure payment is used for current packages. External payment timing can be mapped later through a hotel booking-system integration without changing room IDs.</p><button type="button" onClick={() => void save()} disabled={busy} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy ? "Saving package…" : "Save package"}</button></Sheet>;
+  return <Sheet title={plan ? "Edit room package" : "Add room package"} subtitle={`${room.room_type} · guests choose one package before dates and payment.`} close={close}><div className="grid gap-3 sm:grid-cols-2"><Field label="Package name" value={form.name} set={(value) => setForm({ ...form, name: value })} placeholder="VIP with breakfast" /><Field label="Nightly price" value={form.price} set={(value) => setForm({ ...form, price: value })} type="number" /><label><span className="mb-1 block text-[8px] text-[#686E7E]">Meal plan</span><select value={form.meal} onChange={(event) => setForm({ ...form, meal: event.target.value as HotelRatePlan["meal_plan"] })} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs"><option value="room_only">Room only</option><option value="breakfast">Breakfast included</option><option value="half_board">Breakfast + one meal</option><option value="full_board">All daily meals</option><option value="all_inclusive">All inclusive</option></select></label><label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.08] px-3 text-[9px]"><input type="checkbox" checked={form.refundable} onChange={(event) => setForm({ ...form, refundable: event.target.checked })} className="accent-violet-500" />Refundable package</label>{form.refundable ? <Field label="Cancel up to hours before arrival" value={form.cancellation} set={(value) => setForm({ ...form, cancellation: value })} type="number" /> : null}<Field label="Included features (comma separated)" value={form.features} set={(value) => setForm({ ...form, features: value })} placeholder="Airport pickup, lounge access" /><label className="sm:col-span-2"><span className="mb-1 block text-[8px] text-[#686E7E]">Package description</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none" /></label>{plan ? <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.08] px-3 text-[9px]"><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="accent-violet-500" />Visible and bookable</label> : null}</div><p className="mt-3 rounded-xl bg-white/[.025] p-3 text-[8px] leading-4 text-[#737A8A]">Guests pay securely through WeHouse. Package changes apply to future bookings.</p><button type="button" onClick={() => void save()} disabled={busy} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy ? "Saving package…" : "Save package"}</button></Sheet>;
 }
 
 function VenueEditor({ hotelId, venue, factsLocked, close, saved }: { hotelId: number; venue?: HotelVenue; factsLocked: boolean; close: () => void; saved: () => Promise<void> }) {
@@ -721,7 +757,7 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
           <p className="mt-1 text-[9px] text-[#6C7282]">{row.guest_count} guest{row.guest_count === 1 ? "" : "s"} · {new Date(`${row.check_in}T00:00:00`).toLocaleDateString()} from {formatHotelTime(hotel.check_in_time || "14:00")}</p>
           <p className="mt-1 text-[9px] text-[#6C7282]">Checkout {new Date(`${row.check_out}T00:00:00`).toLocaleDateString()} by {formatHotelTime(hotel.check_out_time || "12:00")}</p>
         </div>
-        <div className="shrink-0 text-right"><Status value={effectiveStatus} /><p className="mt-2 text-xs font-bold">{money(row.total_price)}</p><p className={`mt-1 text-[8px] ${row.payment_status === "paid" ? "text-emerald-300" : "text-amber-200"}`}>{row.payment_status === "paid" ? "Payment verified" : holdExpired ? "No active payment" : "Awaiting payment"}</p></div>
+        <div className="shrink-0 text-right"><Status value={effectiveStatus} /><p className="mt-2 text-xs font-bold">{money(row.total_price)}</p><p className={`mt-1 text-[8px] ${row.payment_status === "paid" ? "text-emerald-300" : "text-amber-200"}`}>{hotelPaymentLabel(effectiveStatus, row.payment_status)}</p></div>
       </div>
       <p className="mt-3 text-[9px] text-[#858B9A]">{next}</p>
       {row.special_requests ? <div className="mt-3 rounded-xl bg-white/[.025] p-3"><p className="text-[8px] font-bold uppercase tracking-wide text-[#666D7E]">Guest request</p><p className="mt-1 text-[9px] leading-4 text-[#9AA0AF]">{row.special_requests}</p></div> : null}

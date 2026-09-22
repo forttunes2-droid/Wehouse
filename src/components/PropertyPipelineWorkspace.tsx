@@ -1,3 +1,5 @@
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { matchesPropertyRecord } from "@/lib/propertyNavigation";
 import { withTimeout } from "@/lib/withTimeout";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
@@ -50,15 +52,18 @@ function stageLabel(value: string) {
 export default function PropertyPipelineWorkspace({
   profile,
   initialRecordId,
+  onExitRecord,
 }: {
   profile: Profile;
   initialRecordId?: string;
+  onExitRecord?: () => void;
 }) {
   const openedTarget = useRef<string | null>(null);
   const [stage, setStage] = useState<Stage>("all");
   const [rows, setRows] = useState<any[]>([]),
     [loading, setLoading] = useState(true),
     [selected, setSelected] = useState<any | null>(null);
+  const closeRecord = useRecordScreenBack(() => { setSelected(null); void load(true); }, Boolean(selected) && !onExitRecord);
   const [loadError, setLoadError] = useState(false);
   const loadGeneration = useRef(0);
   async function load(quiet = false) {
@@ -76,9 +81,7 @@ export default function PropertyPipelineWorkspace({
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
         const target = nextRows.find((row: any) =>
-          [row.id, row.draft_listing_id, row.listing?.id]
-            .filter(Boolean)
-            .some((value) => String(value) === String(initialRecordId)),
+          matchesPropertyRecord(row, initialRecordId),
         );
         if (target) setSelected(target);
         else if (!quiet) toast.error("The linked property record is no longer available in this workspace.");
@@ -134,8 +137,8 @@ export default function PropertyPipelineWorkspace({
         profile={profile}
         row={selected}
         back={() => {
-          setSelected(null);
-          void load(true);
+          if (onExitRecord) { onExitRecord(); return; }
+          closeRecord();
         }}
       />
     );
@@ -147,6 +150,7 @@ export default function PropertyPipelineWorkspace({
         );
   return (
     <div className="space-y-5">
+      {onExitRecord ? <button onClick={onExitRecord} className="min-h-11 text-sm text-violet-300">← Back to profile</button> : null}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-bold">Property records</h3>
@@ -367,19 +371,11 @@ function CreatorHotelRecord({
   useEffect(() => {
     let active = true;
     void (async () => {
-      const [hotelResult, roomResult] = await Promise.all([
-        supabase
-          .from("hotels")
-          .select("*")
-          .eq("hotel_id", hotelId)
-          .maybeSingle(),
-        getHotelRooms(hotelId),
-      ]);
+      const { data, error } = await supabase.rpc("get_my_property_hotel_record", { p_hotel_id: hotelId });
       if (!active) return;
-      if (hotelResult.error) toast.error(hotelResult.error.message);
-      if (roomResult.error) toast.error(roomResult.error.message);
-      setHotel(hotelResult.data || fallback.hotel || null);
-      setRooms(roomResult.rooms || []);
+      if (error) toast.error("The hotel record is unavailable or outside your current coverage.");
+      setHotel(error ? null : data);
+      setRooms(error ? [] : data?.hotel_rooms || []);
       setLoading(false);
     })();
     return () => {

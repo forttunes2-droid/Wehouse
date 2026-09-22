@@ -4,7 +4,7 @@ import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
 
-test("Creator exposes the canonical workspace switcher instead of trapping identity in Account", () => {
+test("Creator preserves Account workspace access without duplicating its shortcut in the shared header", () => {
   const creator = read("src/pages/CreatorDashboard.tsx");
   const app = read("src/App.tsx");
   const frame = read("src/components/WorkspaceFrameV2.tsx");
@@ -12,7 +12,9 @@ test("Creator exposes the canonical workspace switcher instead of trapping ident
   assert.match(creator, /onWorkspaceSwitch=/);
   assert.match(creator, /workspaceAccess/);
   assert.match(app, /<CreatorDashboard[\s\S]*workspaceAccess=\{workspaceAccess\}[\s\S]*onSwitchWorkspace=\{switchWorkspace\}/);
-  assert.match(frame, /onClick=\{onWorkspaceSwitch \|\| onAccount\}/);
+  assert.doesNotMatch(frame, /onClick=\{onWorkspaceSwitch \|\| onAccount\}/);
+  assert.match(frame, /onClick=\{goAccount\}/);
+  assert.match(creator, /onAccount=/);
 });
 
 test("Operations chat is projected by one server bundle with internal notes separated", () => {

@@ -14,6 +14,7 @@ import {
 import type { Profile } from "@/types";
 import { toast } from "sonner";
 import {
+  type ActivityDestination,
   activityDestinationLabel,
   activityIsCurrent,
   activityNeedsAction,
@@ -26,7 +27,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
   profile: Profile;
-  onNavigate: (page: string, id?: string) => void;
+  onNavigate: (page: string, id?: string, destination?: ActivityDestination) => void;
   embedded?: boolean;
   previewLimit?: number;
   compact?: boolean;
@@ -253,7 +254,7 @@ function NotificationFeed({
     }
     const destination = resolveActivityDestination(row);
     if (destination.route)
-      onNavigate(destination.route, destination.id);
+      onNavigate(destination.route, destination.id, destination);
     else setExpanded((current) => (current === row.id ? null : row.id));
   }
 
