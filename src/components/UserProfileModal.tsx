@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import MediaViewer from "@/components/MediaViewer";
@@ -120,6 +119,8 @@ function InternalProfileSheet({
 }: UserProfileModalProps & { user: Profile }) {
   const [record, setRecord] = useState<InternalProfileRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const [section, setSection] = useState<SectionKey>("overview");
   const [selected, setSelected] = useState<SelectedRecord | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -135,6 +136,7 @@ function InternalProfileSheet({
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setLoadError("");
     setSection("overview");
     setSelected(null);
     void (async () => {
@@ -143,7 +145,12 @@ function InternalProfileSheet({
       });
       if (!active) return;
       if (error) {
-        toast.error(error.message || "This account record could not be opened");
+        const message = String(error.message || "");
+        setLoadError(
+          /outside|scope|workspace required/i.test(message)
+            ? "This profile is outside your current work coverage."
+            : "Profile details could not be loaded. Your access has not changed.",
+        );
         setRecord(null);
       } else {
         setRecord((data || {}) as InternalProfileRecord);
@@ -153,7 +160,7 @@ function InternalProfileSheet({
     return () => {
       active = false;
     };
-  }, [user.user_id]);
+  }, [user.user_id, reloadKey]);
 
   const workspaces = record?.workspaces || [];
   const apartments = record?.apartments || [];
@@ -274,7 +281,12 @@ function InternalProfileSheet({
           {loading ? (
             <Empty text="Loading account record…" />
           ) : !record ? (
-            <Empty text="This account record is unavailable to your current workspace." />
+            <div className="my-5 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
+              <p className="text-[11px] font-semibold text-[#D8DAE2]">{loadError || "Profile details are unavailable."}</p>
+              <button type="button" onClick={() => setReloadKey((value) => value + 1)} className="mt-4 min-h-10 rounded-xl border border-violet-500/20 px-4 text-[10px] font-semibold text-violet-300">
+                Try again
+              </button>
+            </div>
           ) : selected ? (
             <PropertyDetail
               selected={selected}

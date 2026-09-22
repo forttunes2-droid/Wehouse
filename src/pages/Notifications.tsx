@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
 import {
+  getCanonicalActivity,
+  markAllCanonicalActivityRead,
+  markCanonicalActivityRead,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
+import {
   getAnnouncementsForUser,
   markAnnouncementRead,
 } from "@/lib/supabase/announcements";
@@ -12,7 +18,6 @@ import {
   activityIsCurrent,
   activityNeedsAction,
   currentActivityRows,
-  longestActivityCutoff,
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -41,6 +46,9 @@ type Activity = {
   source_id?: string | null;
   destination_route?: string | null;
   destination_params?: Record<string, unknown> | null;
+  action_required?: boolean;
+  resolved_at?: string | null;
+  workspace?: string;
 };
 type WorkPostConfirmation = {
   id: string;
@@ -81,20 +89,8 @@ function NotificationFeed({
     const request = ++requestVersion.current;
     if (!quiet) setLoading(true);
     try {
-    let eventQuery = supabase
-      .from("notifications")
-      .select(
-        "id,type,title,message,read,created_at,source_type,source_id,destination_route,destination_params,workspace_scope",
-      )
-      .eq("recipient_id", profile.user_id);
-    eventQuery = scope === "personal"
-      ? eventQuery.in("workspace_scope", ["personal", "account"])
-      : eventQuery.eq("workspace_scope", scope);
     const [eventResult, announcementResult] = await withTimeout(Promise.all([
-      eventQuery
-        .gte("created_at", longestActivityCutoff())
-        .order("created_at", { ascending: false })
-        .limit(100),
+      getCanonicalActivity(scope, 100),
       getAnnouncementsForUser(profile.user_id, scope),
     ]), 15000, "Activity could not be loaded. Please try again.");
     if (request !== requestVersion.current) return;
@@ -105,7 +101,7 @@ function NotificationFeed({
     if (failures.length === 2) setError(failures.join(" · "));
     else {
       const events = currentActivityRows(
-        ((eventResult.data || []) as Omit<Activity, "source">[]).map((row) => ({
+        ((eventResult.rows || []) as Omit<Activity, "source">[]).map((row) => ({
           ...row,
           source: "event" as const,
         })),
@@ -149,18 +145,11 @@ function NotificationFeed({
     setWorkPost(null);
     setError("");
     void load(Boolean(activityCache.get(cacheKey)));
-    const channel = supabase
-      .channel(`activity-feed:${profile.user_id}:${scope}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${profile.user_id}`,
-        },
-        () => void load(true),
-      )
+    const channel = subscribeToCanonicalActivity(
+      profile.user_id,
+      `activity-feed:${profile.user_id}:${scope}`,
+      () => void load(true),
+    )
       .on(
         "postgres_changes",
         {
@@ -206,9 +195,10 @@ function NotificationFeed({
             Number(row.sourceNumericId),
             profile.user_id,
           )
-        : await supabase.rpc("mark_my_notification_read", {
-            p_notification_id: row.id.replace("event:", ""),
-          });
+        : await markCanonicalActivityRead(
+            row.id.replace("event:", ""),
+            scope,
+          );
     if (result.error) {
       toast.error(
         result.error.message || "Activity could not be marked as read",
@@ -288,21 +278,17 @@ function NotificationFeed({
     const unreadAnnouncements = rows.filter(
       (row) => !row.read && row.source === "announcement",
     );
-    const [eventResults, announcementResults] = await Promise.all([
-      Promise.all(
-        unreadEvents.map((row) =>
-          supabase.rpc("mark_my_notification_read", {
-            p_notification_id: row.id.replace("event:", ""),
-          }),
-        ),
-      ),
+    const [eventResult, announcementResults] = await Promise.all([
+      unreadEvents.length
+        ? markAllCanonicalActivityRead(scope)
+        : Promise.resolve({ count: 0, error: null }),
       Promise.all(
         unreadAnnouncements.map((row) =>
           markAnnouncementRead(Number(row.sourceNumericId), profile.user_id),
         ),
       ),
     ]);
-    const eventError = eventResults.find((result) => result.error)?.error;
+    const eventError = eventResult.error;
     const announcementError = announcementResults.find(
       (result) => result.error,
     )?.error;

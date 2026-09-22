@@ -8,6 +8,8 @@ type Props = {
   title: string;
   description?: string;
   labelBadge?: React.ReactNode;
+  identityName?: string | null;
+  identityAvatar?: string | null;
   items: Item[];
   active: string;
   setActive: (id: string) => void;
@@ -26,6 +28,8 @@ export default function WorkspaceFrameV2({
   title,
   description,
   labelBadge,
+  identityName,
+  identityAvatar,
   items,
   active,
   setActive,
@@ -81,14 +85,29 @@ export default function WorkspaceFrameV2({
                   <p className={`mt-1 max-w-2xl text-xs leading-5 text-[#AAA3B3] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
                 ) : null}
               </div>
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex shrink-0 items-center gap-2">
+                {(identityAvatar || identityName) ? (
+                  <button
+                    type="button"
+                    onClick={onAccount || onWorkspaceSwitch}
+                    disabled={!onAccount && !onWorkspaceSwitch}
+                    className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-violet-500/[.10] text-[11px] font-bold text-violet-200 disabled:cursor-default"
+                    aria-label={onAccount ? "Open account" : onWorkspaceSwitch ? "Open workspaces" : "Your profile"}
+                  >
+                    {identityAvatar ? (
+                      <img src={identityAvatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span>{String(identityName || "W").trim().charAt(0).toUpperCase()}</span>
+                    )}
+                  </button>
+                ) : null}
                 {onWorkspaceSwitch ? (
                   <button
                     type="button"
                     onClick={onWorkspaceSwitch}
                     className="min-h-10 px-1 text-[10px] font-semibold text-violet-300 transition hover:text-violet-200"
                   >
-                    Switch
+                    Workspaces
                   </button>
                 ) : null}
                 {onAccount ? (

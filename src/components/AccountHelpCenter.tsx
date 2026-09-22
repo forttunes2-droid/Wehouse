@@ -79,7 +79,6 @@ export default function AccountHelpCenter({
   const [retry, setRetry] = useState(0);
   const [topic, setTopic] = useState<Topic | null>(null);
   const [targetId, setTargetId] = useState("");
-  const [generalReason, setGeneralReason] = useState<GeneralReason>("app_help");
   const [moneyReason, setMoneyReason] = useState<MoneyReason>("payment_issue");
   const [securityReason, setSecurityReason] = useState<SecurityReason>("account_compromise");
 
@@ -172,16 +171,16 @@ export default function AccountHelpCenter({
     );
   }
 
-  function startGeneral() {
+  function startGeneral(reason: GeneralReason) {
     const account = targets.account;
     if (!account) return toast.error("Your account help link is unavailable");
     openConversation({
-      subject: generalReason === "account_access" ? "Account access" : "Using WeHouse",
-      category: generalReason,
+      subject: reason === "account_access" ? "Account access" : "Using WeHouse",
+      category: reason,
       contextType: "contextual_help",
       contextId: account.subject_id,
       contextSnapshot: {
-        reason_code: generalReason,
+        reason_code: reason,
         subject_type: "account",
         source_type: "account",
         source_id: account.subject_id,
@@ -211,7 +210,7 @@ export default function AccountHelpCenter({
 
   function startJob() {
     const target = jobTargets.find((item) => key(item) === targetId);
-    if (!target) return toast.error("Choose the Service Worker record first");
+    if (!target) return toast.error("Choose the job or Worker profile first");
     if (target.subject_type === "worker") {
       openConversation({
         subject: target.label,
@@ -348,7 +347,7 @@ export default function AccountHelpCenter({
       profile={profile}
       workspace={workspace}
       title="Help"
-      description="What do you need help with?"
+      description="Choose what you need help with. WeHouse links the right booking, job or account only when it is relevant."
       onBack={topic ? () => { setTopic(null); setTargetId(''); } : onBack}
     >
       {loadError ? <div role="alert" className="rounded-2xl border border-white/10 p-4 text-sm"><p>We couldn't load your help options.</p><button className="mt-3 min-h-11 text-violet-300" onClick={() => setRetry(value => value + 1)}>Try again</button></div> : !topic ? (
@@ -362,20 +361,10 @@ export default function AccountHelpCenter({
           ) : null}
 
           {topic === "general" ? (
-            <>
-              <WeHouseSelect
-                value={generalReason}
-                options={[
-                  { value: "app_help", label: "Using WeHouse" },
-                  { value: "account_access", label: "Account access" },
-                ]}
-                onChange={(value) => setGeneralReason(value as GeneralReason)}
-                eyebrow="Help"
-                title="What do you need help with?"
-                ariaLabel="Choose general help reason"
-              />
-              <PrimaryButton onClick={startGeneral} disabled={loading || !targets.account}>Message WeHouse</PrimaryButton>
-            </>
+            <AccountSection>
+              <AccountRow title="Using WeHouse" detail="Something in the app is confusing or not working" onClick={() => startGeneral("app_help")} />
+              <AccountRow title="Account access" detail="Sign-in, profile or account access problem" onClick={() => startGeneral("account_access")} />
+            </AccountSection>
           ) : null}
 
           {topic === "property" ? (
@@ -391,11 +380,11 @@ export default function AccountHelpCenter({
 
           {topic === "job" ? (
             <TargetPicker
-              title="Which Service Worker record?"
+              title="Which job or Worker profile?"
               targets={jobTargets}
               value={targetId}
               setValue={setTargetId}
-              empty="No Service Worker profile or job is linked to this identity yet."
+              empty="No job or Worker profile is linked to this account yet."
               action={startJob}
             />
           ) : null}
@@ -412,7 +401,7 @@ export default function AccountHelpCenter({
                   setMoneyReason(value as MoneyReason);
                   setTargetId("");
                 }}
-                eyebrow="Finance Operations"
+                eyebrow="Payment help"
                 title="What happened?"
                 ariaLabel="Choose finance help reason"
               />
@@ -439,7 +428,7 @@ export default function AccountHelpCenter({
                   setSecurityReason(value as SecurityReason);
                   setTargetId("");
                 }}
-                eyebrow="Security Operations"
+                eyebrow="Safety & security"
                 title="What happened?"
                 ariaLabel="Choose security help reason"
               />
@@ -452,7 +441,7 @@ export default function AccountHelpCenter({
                     setValue={setTargetId}
                     allowAccount
                   />
-                  <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse Security</PrimaryButton>
+                  <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse</PrimaryButton>
                 </>
               ) : (
                 <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse Security</PrimaryButton>

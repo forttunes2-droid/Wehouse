@@ -795,7 +795,7 @@ export default function MyReservations({
 
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
-          <div className="flex items-center justify-between gap-3"><h1 className="text-lg font-bold tracking-tight">Bookings</h1><ReceiptAccess /></div>
+          <h1 className="text-lg font-bold tracking-tight">Bookings</h1>
 
         </div>
       </header>

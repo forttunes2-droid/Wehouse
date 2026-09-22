@@ -699,15 +699,17 @@ export default function Login({
 
         {mode === "choose" ? (
           <div>
-            <div className="mb-8">
-              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Welcome</h1>
+            <div className="mb-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-violet-300">One WeHouse account</p>
+              <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight">Welcome to WeHouse</h1>
+              <p className="mt-2 text-sm leading-6 text-[var(--auth-muted)]">Your homes, services, messages and workspaces stay connected here.</p>
             </div>
             <button
               type="button"
               onClick={() => { setMode("signin"); clearMessages(); }}
               className={primaryAction}
             >
-              Sign in
+              Sign in to WeHouse
             </button>
             <Divider />
             <button

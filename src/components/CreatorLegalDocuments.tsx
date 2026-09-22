@@ -32,6 +32,8 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
   const [reviewReference, setReviewReference] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
+  const [editing, setEditing] = useState<DocumentKind | null>(null);
+  const [showChecklist, setShowChecklist] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -80,7 +82,8 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
     const current = editors[kind].body.trim();
     if (current && current !== legalReviewDrafts[kind].trim() && !window.confirm("Replace the unsaved editor text with the WeHouse lawyer-review draft?")) return;
     update(kind, { body: legalReviewDrafts[kind], draft: null });
-    toast.success("Lawyer-review draft loaded. It is not public.");
+    setEditing(kind);
+    toast.success("Review draft loaded privately. Nothing was published.");
   }
 
   async function saveDraft(kind: DocumentKind) {
@@ -148,63 +151,106 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
     );
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
       <div>
         {!embedded && <h2 className="text-base font-bold">Legal documents</h2>}
-        <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#73798A]">
-          Save drafts here. Publication requires a legal-review reference and a fresh Creator security check. A draft is never shown to users.
+        <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#858B9A]">
+          These are the Privacy Policy and Terms users can read. Prepare a private draft, have it reviewed, then publish a new version. Existing accepted versions are never silently rewritten.
         </p>
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+
+      <div className="grid gap-3 xl:grid-cols-2">
         {(["privacy", "terms"] as const).map((kind) => {
           const editor = editors[kind];
+          const isEditing = editing === kind;
+          const status = editor.draft
+            ? "Draft saved"
+            : editor.publishedVersion
+              ? "Published"
+              : "Not prepared";
           return (
-            <article key={kind} className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 sm:p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold">{kind === "privacy" ? "Privacy Policy" : "Terms of Service"}</p>
-                  <p className="mt-1 text-[9px] text-[#686F80]">
-                    {editor.draft ? `Draft v${editor.draft.version}` : "No saved draft"} · {editor.publishedVersion ? `Published v${editor.publishedVersion}` : "Nothing published"}
-                  </p>
-                </div>
-                <span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${editor.draft ? "bg-amber-500/10 text-amber-300" : "bg-white/[.04] text-[#747A89]"}`}>
-                  {editor.draft ? "DRAFT" : "NOT READY"}
-                </span>
-              </div>
-              <button type="button" onClick={() => loadLawyerDraft(kind)} className="mt-4 min-h-10 w-full rounded-xl border border-violet-500/20 bg-violet-500/[.05] px-3 text-[10px] font-semibold text-violet-200">Load lawyer-review draft</button>
-              <label className="mt-4 block text-[9px] text-[#777E8E]">
-                Title
-                <input value={editor.title} onChange={(event) => update(kind, { title: event.target.value, draft: null })} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white outline-none" />
-              </label>
-              <label className="mt-3 block text-[9px] text-[#777E8E]">
-                Full reviewed document
-                <textarea rows={13} value={editor.body} onChange={(event) => update(kind, { body: event.target.value, draft: null })} className="mt-1.5 w-full resize-y rounded-xl border border-white/[.08] bg-[#171A23] p-3 text-xs leading-5 text-white outline-none" />
-              </label>
-              <button type="button" onClick={() => void saveDraft(kind)} disabled={busy === kind} className="mt-3 h-11 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">
-                {busy === kind ? "Saving draft…" : "Save private draft"}
-              </button>
-              {editor.draft ? (
-                <div className="mt-4 space-y-2 border-t border-white/[.06] pt-4">
-                  <input value={reviewReference} onChange={(event) => setReviewReference(event.target.value)} placeholder="Legal review reference" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Creator password" className="h-11 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
-                    <input inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Authenticator (if enabled)" className="h-11 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
+            <article key={kind} className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">{kind === "privacy" ? "Privacy Policy" : "Terms of Service"}</p>
+                    <p className="mt-1 text-[9px] leading-4 text-[#777E8E]">
+                      {editor.publishedVersion ? `Published v${editor.publishedVersion}` : "No public version"}
+                      {editor.draft ? ` · Private draft v${editor.draft.version}` : ""}
+                    </p>
                   </div>
-                  <button type="button" onClick={() => void publish(kind)} disabled={publishing === kind} className="h-11 w-full rounded-xl border border-emerald-500/20 bg-emerald-500/[.08] text-[10px] font-semibold text-emerald-300 disabled:opacity-40">
-                    {publishing === kind ? "Confirming…" : "Publish reviewed version"}
-                  </button>
+                  <span className={`rounded-full px-2.5 py-1 text-[8px] font-semibold ${editor.draft ? "bg-amber-500/10 text-amber-300" : editor.publishedVersion ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#858B9A]"}`}>
+                    {status}
+                  </span>
                 </div>
-              ) : null}
+
+                {!isEditing ? (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => setEditing(kind)} className="h-11 rounded-xl bg-violet-500 text-[10px] font-semibold text-white">
+                      {editor.draft ? "Open private draft" : "Prepare document"}
+                    </button>
+                    <button type="button" onClick={() => loadLawyerDraft(kind)} className="h-11 rounded-xl border border-white/[.08] bg-white/[.025] text-[10px] font-semibold text-[#C9CBD4]">
+                      Use WeHouse review draft
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-3 border-t border-white/[.06] pt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold">Private editor</p>
+                        <p className="mt-1 text-[9px] text-[#6F7687]">Saving does not make this public.</p>
+                      </div>
+                      <button type="button" onClick={() => setEditing(null)} className="min-h-9 px-2 text-[10px] font-semibold text-violet-300">Close editor</button>
+                    </div>
+                    <label className="block text-[9px] text-[#777E8E]">
+                      Title
+                      <input value={editor.title} onChange={(event) => update(kind, { title: event.target.value, draft: null })} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white outline-none" />
+                    </label>
+                    <label className="block text-[9px] text-[#777E8E]">
+                      Document text
+                      <textarea rows={11} value={editor.body} onChange={(event) => update(kind, { body: event.target.value, draft: null })} className="mt-1.5 w-full resize-y rounded-xl border border-white/[.08] bg-[#171A23] p-3 text-xs leading-5 text-white outline-none" />
+                    </label>
+                    <button type="button" onClick={() => void saveDraft(kind)} disabled={busy === kind} className="h-11 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">
+                      {busy === kind ? "Saving…" : "Save private draft"}
+                    </button>
+
+                    {editor.draft ? (
+                      <section className="space-y-2 rounded-xl border border-emerald-500/10 bg-emerald-500/[.025] p-3">
+                        <div>
+                          <p className="text-[10px] font-semibold text-emerald-200">Ready for reviewed publication</p>
+                          <p className="mt-1 text-[9px] leading-4 text-[#7B8291]">Publish only after legal review. The reference records who or what review you relied on.</p>
+                        </div>
+                        <input value={reviewReference} onChange={(event) => setReviewReference(event.target.value)} placeholder="Legal review reference" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Creator password" className="h-11 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
+                          <input inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Authenticator" className="h-11 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
+                        </div>
+                        <button type="button" onClick={() => void publish(kind)} disabled={publishing === kind} className="h-11 w-full rounded-xl border border-emerald-500/20 bg-emerald-500/[.08] text-[10px] font-semibold text-emerald-300 disabled:opacity-40">
+                          {publishing === kind ? "Confirming…" : "Publish reviewed version"}
+                        </button>
+                      </section>
+                    ) : null}
+                  </div>
+                )}
+              </div>
             </article>
           );
         })}
       </div>
-      <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4 sm:p-5">
-        <h3 className="text-sm font-semibold">Internal launch documents still required</h3>
-        <p className="mt-1 text-[9px] leading-4 text-[#707687]">These are working records for WeHouse and the lawyer. They are not user terms.</p>
-        <div className="mt-3 divide-y divide-white/[.05] border-y border-white/[.05]">
-          {legalLaunchChecklist.map((item) => <p key={item} className="py-3 text-[10px] leading-5 text-[#A2A7B5]">{item}</p>)}
-        </div>
+
+      <section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">
+        <button type="button" onClick={() => setShowChecklist((value) => !value)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 text-left sm:px-5">
+          <span>
+            <strong className="block text-sm">Before public launch</strong>
+            <span className="mt-1 block text-[9px] leading-4 text-[#707687]">Internal records for WeHouse and legal review. Users do not see these as Terms.</span>
+          </span>
+          <span className="text-[#747B8B]">{showChecklist ? "−" : "+"}</span>
+        </button>
+        {showChecklist ? (
+          <div className="divide-y divide-white/[.05] border-t border-white/[.05] px-4 sm:px-5">
+            {legalLaunchChecklist.map((item) => <p key={item} className="py-3 text-[10px] leading-5 text-[#A2A7B5]">{item}</p>)}
+          </div>
+        ) : null}
       </section>
     </section>
   );

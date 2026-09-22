@@ -17,10 +17,10 @@ function moduleAt(path, dependencies = {}, globals = {}) {
 }
 const session = moduleAt('src/lib/workspaceSession.ts');
 const access = roles => ({ identity: { user_id: 'person-a' }, personal_workspace: true, privileged_workspaces: roles.map(role => ({role})) });
-test('Refresh restores the selected permitted workspace; revoked grants fall back to Personal', () => {
+test('Refresh restores a selected workspace and internal accounts do not fall into Personal by default', () => {
   assert.equal(session.resolveWorkspace(access(['worker','creator']), 'person-a', 'worker'), 'worker');
-  assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', 'worker'), 'personal');
-  assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', null), 'personal');
+  assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', 'worker'), 'creator');
+  assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', null), 'creator');
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-b', 'creator'), null);
   assert.equal(session.resolveWorkspace({...access(['creator']),personal_workspace:false}, 'person-a', 'creator'), null);
 });
@@ -53,9 +53,9 @@ function workspaceHarness() {
 test('An older workspace response cannot replace a newer access decision', async () => {
   const h=workspaceHarness();let state=h.render();h.effects();assert.equal(state.access,null);
   const retry=state.reload();h.requests[1]({data:access(['creator']),error:null});await retry;
-  assert.equal(h.render().active,'personal');
+  assert.equal(h.render().active,'creator');
   h.requests[0]({data:access(['worker']),error:null});await new Promise(setImmediate);
-  assert.equal(h.render().active,'personal');h.close();
+  assert.equal(h.render().active,'creator');h.close();
 });
 test('An account change rejects the old account response and clears its access', async () => {
   const h=workspaceHarness();h.render();h.effects();h.render('person-b');h.effects();

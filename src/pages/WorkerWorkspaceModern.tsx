@@ -206,6 +206,8 @@ export default function WorkerWorkspaceModern({
 
   const workspace = (
     <WorkspaceFrameV2
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
       label="WEHOUSE SERVICES · SERVICE WORKER"
       title={nav.find((item) => item.id === safeTab)?.label || "Service Worker"}
       description={description}
@@ -226,6 +228,8 @@ export default function WorkerWorkspaceModern({
         open={switchOpen}
         access={workspaceAccess}
         active={activeWorkspace}
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
         onClose={() => setSwitchOpen(false)}
         onSwitch={onSwitchWorkspace}
       />

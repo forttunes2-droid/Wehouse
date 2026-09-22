@@ -5,24 +5,30 @@ import type { PaymentReceipt } from "./supabase/receipts";
 
 /** Loaded only on download. All amounts and identities come from the receipt RPC. */
 export function buildReceiptPdf(r: PaymentReceipt) {
-  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const PAGE_WIDTH = 105;
+  const PAGE_HEIGHT = 148;
+  const MARGIN = 10;
+  const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+  const FOOTER_Y = PAGE_HEIGHT - 6;
+  const PAGE_BREAK_Y = PAGE_HEIGHT - 18;
+  const doc = new jsPDF({ unit: "mm", format: [PAGE_WIDTH, PAGE_HEIGHT], orientation: "portrait", compress: true });
   doc.addFileToVFS("WeHouseReceipt.ttf", font);
   doc.addFont("WeHouseReceipt.ttf", "WeHouseReceipt", "normal");
   doc.setFont("WeHouseReceipt");
   doc.setProperties({ title: `WeHouse payment receipt ${r.reference}`, author: "WeHouse" });
   const money = (value: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: r.currency || "NGN" }).format(value);
-  let y = 24;
-  const write = (value: string, size = 10, color = "#25232B", x = 20, width = 170) => {
+  let y = 14;
+  const write = (value: string, size = 10, color = "#25232B", x = MARGIN, width = CONTENT_WIDTH) => {
     doc.setFontSize(size);
     doc.setTextColor(color);
     const lines: string[] = doc.splitTextToSize(value, width);
     for (const line of lines) {
-      if (y > 269) { doc.addPage(); y = 24; }
+      if (y > PAGE_BREAK_Y) { doc.addPage([PAGE_WIDTH, PAGE_HEIGHT], "portrait"); y = 14; }
       doc.text(line, x, y);
       y += size * 0.46;
     }
   };
-  const rule = () => { doc.setDrawColor("#E5E2EA"); doc.line(20, y, 190, y); y += 9; };
+  const rule = () => { doc.setDrawColor("#E5E2EA"); doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y); y += 7; };
   write("WeHouse", 18, "#5E39A8");
   write("PAYMENT RECEIPT", 9, "#77717D");
   y += 6;
@@ -41,7 +47,7 @@ export function buildReceiptPdf(r: PaymentReceipt) {
   y += 8;
   rule();
   const field = (label: string, value: string) => {
-    if (y > 250) { doc.addPage(); y = 24; }
+    if (y > PAGE_BREAK_Y - 10) { doc.addPage([PAGE_WIDTH, PAGE_HEIGHT], "portrait"); y = 14; }
     write(label, 9, "#77717D");
     write(value || "—", 11);
     y += 5;
@@ -55,14 +61,14 @@ export function buildReceiptPdf(r: PaymentReceipt) {
   if (Number(r.deposit_amount) > 0) field("Refundable caution", money(Number(r.deposit_amount)));
   field("Payment provider", "Paystack");
   field("Payment reference", r.reference);
-  if (y > 240) { doc.addPage(); y = 24; }
+  if (y > PAGE_BREAK_Y - 14) { doc.addPage([PAGE_WIDTH, PAGE_HEIGHT], "portrait"); y = 14; }
   rule();
   write("Payment collected through WeHouse. Keep this receipt for your records.", 9, "#77717D");
   write("wehouse.com.ng", 9, "#5E39A8");
   const count = doc.getNumberOfPages();
   for (let page = 1; page <= count; page++) {
     doc.setPage(page); doc.setFontSize(8); doc.setTextColor("#77717D");
-    doc.text(`WeHouse · Payment receipt     ${page} / ${count}`, 20, 286);
+    doc.text(`WeHouse · Receipt  ${page}/${count}`, MARGIN, FOOTER_Y);
   }
   return doc;
 }

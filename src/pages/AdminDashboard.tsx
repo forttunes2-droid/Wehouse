@@ -37,15 +37,15 @@ const NAV = [
   { id: "inbox", label: "Inbox" },
 ];
 const NOTES: Record<AdminTab, string> = {
-  overview: "Branch health and work that needs attention.",
+  overview: "Your coverage, what needs attention and where to work next.",
   operations:
-    "People, team, properties, workers, bookings and security decisions in one branch workspace.",
+    "One place for people, team, properties, Workers, bookings and security in your coverage.",
   inbox: "Assigned conversations and Activity inside your coverage.",
 };
 const OPS: [Operation, string, string][] = [
   ["people", "People", "Regular users and Property Partners in your coverage"],
   ["staff", "Team", "Operations members in your coverage"],
-  ["properties", "Properties", "Property submissions, visits and publishing"],
+  ["properties", "Property Operations", "Property submissions, visits and publishing"],
   [
     "workers",
     "Worker Operations",
@@ -58,7 +58,7 @@ const OPS: [Operation, string, string][] = [
   ],
   [
     "security",
-    "Security",
+    "Security Operations",
     "Security Operations escalations and account decisions in your coverage",
   ],
 ];
@@ -77,21 +77,22 @@ export default function AdminDashboard({
       workers: 0,
       partners: 0,
       staff: 0,
+      admins: 0,
       listings: 0,
       pending_verifications: 0,
     }),
     [viewing, setViewing] = useState<Profile | null>(null);
-  const branchReady = Boolean(profile.assigned_state),
+  const coverageReady = Boolean(profile.assigned_state),
     inboxSummary = useCreatorInboxSummary(profile.user_id, "admin");
   async function loadStats() {
-    if (!branchReady) return;
+    if (!coverageReady) return;
     const { data, error } = await supabase.rpc("admin_get_my_branch_stats");
     if (error) return void toast.error(error.message);
     setStats(data || {});
   }
   useEffect(() => {
     void loadStats();
-  }, [branchReady, profile.assigned_state, profile.assigned_lga]);
+  }, [coverageReady, profile.assigned_state, profile.assigned_lga]);
   function openOperation(next: Operation, id?: string) {
     setOperationTarget({ operation: next, id });
     setOperation(next);
@@ -129,11 +130,13 @@ export default function AdminDashboard({
     <>
 
       <WorkspaceFrameV2
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
         label={`WEHOUSE TEAM · ${profile.assigned_lga ? "LGA ADMIN" : "STATE ADMIN"} · ${profile.assigned_lga || profile.assigned_state || "UNASSIGNED"}`}
         title={workspaceTitle}
         onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
         backLabel="Back to work areas"
-        description={`${workspaceDescription}${branchReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
+        description={`${workspaceDescription}${coverageReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
         items={nav}
         active={tab}
         setActive={(id) => {
@@ -148,8 +151,8 @@ export default function AdminDashboard({
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
-        {!branchReady ? (
-          <BranchMissing />
+        {!coverageReady ? (
+          <CoverageMissing />
         ) : (
           <>
             {tab === "overview" && (
@@ -157,12 +160,14 @@ export default function AdminDashboard({
                 stats={stats}
                 profile={profile}
                 openOperation={openOperation}
+                inboxUnread={inboxSummary.totalUnread}
                 openCommunications={() => setTab("inbox")}
               />
             )}{" "}
             {tab === "operations" && (
               <Operations
                 profile={profile}
+                stats={stats}
                 active={operation}
                 target={operationTarget}
                 setActive={(next) => {
@@ -281,30 +286,51 @@ function Overview({
   stats,
   profile,
   openOperation,
+  inboxUnread,
   openCommunications,
 }: {
   stats: any;
   profile: Profile;
   openOperation: (t: Operation) => void;
+  inboxUnread: number;
   openCommunications: () => void;
 }) {
   const cards: [string, number, Operation, string][] = [
     ["Users", stats.users || 0, "people", "Regular users"],
     ["Property Partners", stats.partners || 0, "people", "Property owners"],
-    ["Team", stats.staff || 0, "staff", "Admins and Operations members"],
+    ["Team", Number(stats.staff || 0) + Number(stats.admins || 0), "staff", "Admins and Operations members"],
     [
       "Properties",
       stats.listings || 0,
       "properties",
-      "Published branch inventory",
+      "Published inventory in this coverage",
     ],
     [
       "Workers",
       stats.workers || 0,
       "workers",
-      `${stats.pending_verifications || 0} awaiting review`,
+      `${stats.pending_verifications || 0} of ${stats.workers || 0} need review`,
     ],
   ];
+  const attention = [
+    stats.pending_verifications
+      ? {
+          key: "workers",
+          label: "Worker review",
+          detail: `${stats.pending_verifications} Worker${Number(stats.pending_verifications) === 1 ? "" : "s"} waiting for review`,
+          action: () => openOperation("workers"),
+        }
+      : null,
+    inboxUnread
+      ? {
+          key: "inbox",
+          label: "Inbox",
+          detail: `${inboxUnread} unread conversation${inboxUnread === 1 ? "" : "s"} or Activity item${inboxUnread === 1 ? "" : "s"}`,
+          action: openCommunications,
+        }
+      : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; detail: string; action: () => void }>;
+
   return (
     <div className="space-y-5">
       <section className="border-b border-white/[.07] pb-5">
@@ -314,10 +340,43 @@ function Overview({
         </h2>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">
           Admin authority follows the Creator-set State or LGA coverage;
-          Precise location improves maps and distance but never expands branch permissions.
+          Precise location improves maps and distance but never expands Admin coverage.
         </p>
       </section>
-      <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
+
+      <section>
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6D7384]">Needs attention</p>
+            <p className="mt-1 text-[10px] text-[#7B8191]">Only unresolved work that needs an Admin action appears here.</p>
+          </div>
+        </div>
+        {attention.length ? (
+          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+            {attention.map((item) => (
+              <button key={item.key} type="button" onClick={item.action} className="flex min-h-16 w-full items-center gap-4 py-3 text-left">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-[11px] font-bold text-violet-300">!</span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block text-xs font-semibold">{item.label}</strong>
+                  <span className="mt-1 block text-[9px] leading-4 text-[#707687]">{item.detail}</span>
+                </span>
+                <span className="text-[#666D7E]">›</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="border-y border-white/[.06] py-5">
+            <p className="text-xs font-semibold">Nothing urgent in this coverage</p>
+            <p className="mt-1 text-[9px] text-[#707687]">New review, security and conversation work will appear here when action is required.</p>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-2">
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6D7384]">Coverage summary</p>
+        </div>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
         {cards.map(([label, value, target, note]) => (
           <button
             key={label}
@@ -329,6 +388,7 @@ function Overview({
             <span className="text-[#666D7E]">›</span>
           </button>
         ))}
+        </div>
       </section>
       <section className="border-y border-white/[.06]">
         <button
@@ -344,6 +404,7 @@ function Overview({
 }
 function Operations({
   profile,
+  stats,
   active,
   target,
   setActive,
@@ -351,25 +412,57 @@ function Operations({
   onRefreshStats,
 }: {
   profile: Profile;
+  stats: any;
   active: Operation | null;
   target: OperationTarget;
   setActive: (t: Operation | null) => void;
   onView: (p: Profile) => void;
   onRefreshStats: () => Promise<void> | void;
 }) {
-  if (!active) return <div className="space-y-4"><p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">Choose the area you want to manage.</p><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{OPS.map(([id,label,note])=><button key={id} onClick={()=>setActive(id)} className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"><span><strong className="block text-sm">{label}</strong><span className="mt-1 block text-[9px] text-[#6D7384]">{note}</span></span><span className="text-[#697082]">›</span></button>)}</div></div>;
+  if (!active) {
+    const counts: Partial<Record<Operation, string>> = {
+      people: `${Number(stats.users || 0) + Number(stats.partners || 0)} accounts`,
+      staff: `${Number(stats.staff || 0) + Number(stats.admins || 0)} team members`,
+      properties: `${Number(stats.listings || 0)} live properties`,
+      workers: stats.pending_verifications
+        ? `${stats.pending_verifications} of ${stats.workers || 0} need review`
+        : `${stats.workers || 0} Workers`,
+    };
+    return (
+      <div className="space-y-4">
+        <p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">
+          Choose the work area. Each record belongs to one area so the same task is not repeated in several places.
+        </p>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          {OPS.map(([id, label, note]) => (
+            <button
+              key={id}
+              onClick={() => setActive(id)}
+              className="flex min-h-[4.5rem] w-full items-center gap-4 py-3 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <strong className="block text-sm font-semibold">{label}</strong>
+                <span className="mt-1 block text-[9px] leading-4 text-[#6D7384]">{note}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                {counts[id] ? <span className="block text-[9px] font-semibold text-violet-300">{counts[id]}</span> : null}
+                <span className="mt-1 block text-[#697082]">›</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-5">
       {active === "people" && <People onView={onView} />}{" "}
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
-        <div className="space-y-5">
-          <AccountIdentityReviewQueue accountRole="property_partner" />
-          <PropertyPipelineWorkspace
-            profile={profile}
-            initialRecordId={target?.operation === "properties" ? target.id : undefined}
-          />
-        </div>
+        <PropertyPipelineWorkspace
+          profile={profile}
+          initialRecordId={target?.operation === "properties" ? target.id : undefined}
+        />
       )}{" "}
       {active === "workers" && <Workers onChanged={onRefreshStats} />}{" "}
       {active === "bookings" && (
@@ -418,9 +511,12 @@ function People({ onView }: { onView: (p: Profile) => void }) {
   );
   return (
     <Section
-      title="People"
-      note="Workers and Operations members are managed in their dedicated areas."
+      title={role === "property_partner" ? "Property Partners" : "People"}
+      note={role === "property_partner"
+        ? "Partner account and identity review lives here. Property records stay in Property Operations."
+        : "Personal accounts in your coverage. Workers and WeHouse Team members stay in their own work areas."}
     >
+      {role === "property_partner" ? <AccountIdentityReviewQueue accountRole="property_partner" /> : null}
       <div className="flex gap-2">
         {(
           [
@@ -605,24 +701,27 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
       ) : shown.length === 0 ? (
         <Empty title="No workers" text="No workers match this view." />
       ) : (
-        <Grid>
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {shown.map((w) => (
             <button
               key={w.user_id}
               onClick={() => setSelected(w)}
-              className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4 text-left"
+              className="flex min-h-[4.5rem] w-full items-center gap-3 py-3 text-left"
             >
-              <Top
-                title={w.full_name || w.username || "Worker"}
-                sub={`${workerOccupation(w)} · ${[w.local_government || w.city, w.state].filter(Boolean).join(", ")}`}
-                status={w.suspended ? "suspended" : w.worker_status}
-              />
-              <p className="mt-3 text-[9px] font-semibold text-violet-400">
-                OPEN WORKER →
-              </p>
+              <Avatar text={w.full_name || w.username || "Worker"} />
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm font-semibold">{w.full_name || w.username || "Worker"}</strong>
+                <span className="mt-1 block truncate text-[9px] text-[#707386]">
+                  {workerOccupation(w)} · {[w.local_government || w.city, w.state].filter(Boolean).join(", ")}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-[9px] capitalize text-[#8A90A0]">{String(w.suspended ? "suspended" : w.worker_status || "pending").replace(/_/g, " ")}</span>
+                <span className="mt-1 block text-violet-300">›</span>
+              </span>
             </button>
           ))}
-        </Grid>
+        </div>
       )}
     </Section>
   );
@@ -637,7 +736,7 @@ function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
-        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One branch workspace, one active filter</p></div>
+        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One booking type at a time</p></div>
         <WeHouseSelect value={domain} options={[{ value: "services", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={setDomain} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {domain === "services" ? (
@@ -666,7 +765,7 @@ function ServiceBookings() {
   return (
     <Section
       title="Worker service bookings"
-      note="Branch oversight for Worker jobs only."
+      note="Worker service bookings in your coverage."
     >
       {loading ? (
         <Loading />
@@ -676,16 +775,18 @@ function ServiceBookings() {
           text="There are no Worker service bookings in this coverage."
         />
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {rows.map((r) => (
-            <Card key={r.id}>
-              <Top
-                title={r.service_name || r.service || "Service booking"}
-                sub={`${r.booking_code || r.id} · ${dateText(r.created_at)}`}
-                status={r.status || "pending"}
-                right={r.agreed_amount ? money(r.agreed_amount) : undefined}
-              />
-            </Card>
+            <div key={r.id} className="flex min-h-[4.5rem] items-center gap-3 py-3">
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-sm font-semibold">{r.service_name || r.service || "Service booking"}</strong>
+                <span className="mt-1 block truncate text-[9px] text-[#707386]">{r.booking_code || r.id} · {dateText(r.created_at)}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                {r.agreed_amount ? <strong className="block text-xs">{money(r.agreed_amount)}</strong> : null}
+                <span className="mt-1 block text-[9px] capitalize text-[#8A90A0]">{String(r.status || "pending").replace(/_/g, " ")}</span>
+              </span>
+            </div>
           ))}
         </div>
       )}
@@ -759,7 +860,7 @@ function HotelBookings() {
     </Section>
   );
 }
-function BranchMissing() {
+function CoverageMissing() {
   return (
     <div className="rounded-3xl border border-amber-500/20 bg-amber-500/[0.05] p-8 text-center">
       <p className="text-sm font-semibold text-amber-300">
@@ -785,11 +886,6 @@ function Section({
       <WorkspaceSectionHeading title={title} description={note} />
       {children}
     </div>
-  );
-}
-function Grid({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{children}</div>
   );
 }
 function Card({ children }: { children: React.ReactNode }) {

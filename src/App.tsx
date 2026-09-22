@@ -39,9 +39,14 @@ import {
 } from "@/lib/supabase/announcements";
 import {
   activityIsCurrent,
-  currentActivityRows,
   resolveActivityDestination,
 } from "@/lib/activityFeed";
+import {
+  getCanonicalActivity,
+  getCanonicalActivitySummary,
+  markCanonicalActivityRead,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
 
 type ConversationUnreadRow = {
   id: string;
@@ -409,11 +414,21 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       try {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
       } catch {}
-      const destination =
-        workspace === "personal" ? "search" : roleRootFor(workspace === "hotel" ? "hotel_staff" : workspace);
+      const targetRole =
+        workspace === "personal" ? "user" : workspace === "hotel" ? "hotel_staff" : workspace;
+      let remembered: NavPage | null = null;
+      try {
+        const value = localStorage.getItem(workspaceNavigationKey(baseProfile.user_id, workspace));
+        if (value && isRestorable(value)) remembered = value;
+      } catch {}
+      const destination = normalizePageForRole(
+        targetRole,
+        remembered || roleRootFor(targetRole),
+        Boolean(baseProfile.profile_complete),
+      );
       setNavPage(destination);
       navHistoryRef.current = [destination];
-      window.history.replaceState({ page: destination }, "", `#${destination}`);
+      window.history.replaceState({ page: destination, workspace }, "", `#${destination}`);
       try {
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
       } catch {}
@@ -443,7 +458,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
         window.history.replaceState(
-          { page: destination },
+          { page: destination, workspace },
           "",
           `#${destination}`,
         );
@@ -479,7 +494,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
-      window.history.replaceState({ page: safe }, "", `#${safe}`);
+      window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey]);
   useEffect(() => {
@@ -494,9 +509,9 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
-      window.history.replaceState({ page: safe }, "", `#${safe}`);
+      window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
     } catch {}
-  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey]);
+  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey, activeWorkspace]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
       window.dispatchEvent(new Event("wehouse:navigation"));
@@ -514,20 +529,22 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         // The signed-out landing page has no router state until its first link.
         // Preserve it so Back from a public legal page returns to sign-in.
         if (!window.history.state?.page) {
-          window.history.replaceState({ page: current || "search" }, "");
+          window.history.replaceState({ page: current || "search", workspace: activeWorkspace }, "");
         }
-        window.history.pushState({ page: safe }, "", `#${safe}`);
+        window.history.pushState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
       setNavPage(safe);
       if (isRestorable(safe)) localStorage.setItem(navigationKey, safe);
     },
-    [baseProfile?.profile_complete, userRole, navPage, navigationKey],
+    [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
-      const s = e.state as { page?: NavPage } | null;
+      const s = e.state as { page?: NavPage; workspace?: WorkspaceChoice } | null;
       if (!s?.page) return;
+      // Browser Back must never silently change persona. Workspace switching is
+      // deliberate; old history entries are normalized inside the current workspace.
       const safe = normalizePageForRole(
         userRole,
         s.page,
@@ -537,8 +554,8 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         navPage,
         pageScrollRef.current?.scrollTop || 0,
       );
-      if (safe !== s.page)
-        window.history.replaceState({ page: safe }, "", `#${safe}`);
+      if (safe !== s.page || s.workspace !== activeWorkspace)
+        window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
       setNavPage(safe);
       navHistoryRef.current =
         navHistoryRef.current.length > 1
@@ -548,7 +565,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey]);
+  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (pageScrollRef.current)
@@ -597,7 +614,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         bookingResult,
         supportResult,
         hotelChatResult,
-        { data: activityRows },
+        activityResult,
         announcementResult,
       ] = await Promise.all([
         supabase
@@ -607,14 +624,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         getCommunicationBookingConversations(uid, "personal"),
         getMySupportConversations(),
         getMyHotelConversations(),
-        supabase
-          .from("notifications")
-          .select(
-            "id,type,title,message,read,created_at,source_type,source_id,destination_route",
-          )
-          .eq("recipient_id", uid)
-          .in("workspace_scope", ["personal", "account"])
-          .eq("read", false),
+        getCanonicalActivitySummary("personal"),
         getAnnouncementsForUser(uid),
       ]);
       if (!isCurrent()) return;
@@ -640,19 +650,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
         0,
       );
-      const activity = currentActivityRows(
-        (activityRows || []) as Array<{
-          id: string;
-          type: string;
-          title?: string | null;
-          message?: string | null;
-          read: boolean;
-          created_at: string;
-          source_type?: string | null;
-          source_id?: string | null;
-          destination_route?: string | null;
-        }>,
-      ).filter((row) => !row.read).length;
+      const activity = activityResult.error ? 0 : activityResult.summary.unread;
       const announcementUnread = (announcementResult.messages || []).filter(
         (delivery: any) => {
           const announcement = Array.isArray(delivery.announcements)
@@ -766,33 +764,40 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         },
       )
       .subscribe();
-    const officialChannel = supabase
-      .channel(`app-unread-official:${uid}`)
+    const officialChannel = subscribeToCanonicalActivity(
+      uid,
+      `app-unread-official:${uid}`,
+      async () => {
+        void count();
+      },
+    )
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${uid}`,
+          table: "activity_event_audiences",
+          filter: `recipient_user_id=eq.${uid}`,
         },
-        (payload) => {
+        async (payload) => {
           void count();
-          if (payload.eventType !== "INSERT") return;
-          const notification = payload.new as {
-            id?: string;
-            title?: string;
-            message?: string;
-            type?: string;
-            source_type?: string | null;
-            source_id?: string | null;
-            destination_route?: string | null;
-            destination_params?: Record<string, unknown> | null;
+          const audience = payload.new as {
+            activity_event_id?: string;
+            workspace?: string;
           };
-          const type = String(notification.type || "");
+          if (!audience.activity_event_id) return;
+          if (!["personal", "account"].includes(String(audience.workspace || "")))
+            return;
+          const result = await getCanonicalActivity("personal", 25);
+          if (result.error) return;
+          const event = result.rows.find(
+            (row) => row.id === audience.activity_event_id,
+          );
+          if (!event) return;
+          const type = String(event.type || "");
           if (["new_device_login", "device_confirmation_pending"].includes(type))
             return;
-          const destination = resolveActivityDestination(notification);
+          const destination = resolveActivityDestination(event);
           const opensInbox = destination.route === "conversation";
           if (
             opensInbox &&
@@ -800,25 +805,19 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           )
             return;
           if (profile.pref_push_notif === false) return;
-          const viewNotification = () => {
-            if (notification.id)
-              void supabase
-                .rpc("mark_my_notification_read", {
-                  p_notification_id: notification.id,
-                })
-                .then((result) => {
-                  if (!result.error)
-                    window.dispatchEvent(new Event("wehouse:unread-changed"));
-                });
+          const viewActivity = () => {
+            void markCanonicalActivityRead(event.id, "personal").then((result) => {
+              if (!result.error)
+                window.dispatchEvent(new Event("wehouse:unread-changed"));
+            });
             if (opensInbox) openMessages(destination.id);
             else openNotifications();
           };
-          toast(notification.title || "WeHouse update", {
-            description:
-              notification.message || "Open WeHouse to view the update.",
+          toast(event.title || "WeHouse update", {
+            description: event.message || "Open WeHouse to view the update.",
             action: {
               label: "View",
-              onClick: viewNotification,
+              onClick: viewActivity,
             },
             classNames: {
               toast:

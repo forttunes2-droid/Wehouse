@@ -94,3 +94,122 @@ export async function createRoomInterest(userId: string, listingId: string, mess
     .maybeSingle();
   return { interest: data as RoomInterest | null, error };
 }
+
+
+// ─── CANONICAL ACTIVITY FEED ───────────────────────
+// activity_events + activity_event_audiences are the durable source of truth.
+// Legacy notifications are only a compatibility/delivery layer.
+
+export type ActivityWorkspace =
+  | "personal"
+  | "account"
+  | "worker"
+  | "partner"
+  | "property_partner"
+  | "hotel"
+  | "staff"
+  | "admin"
+  | "creator"
+  | "property_operations"
+  | "field_operations"
+  | "worker_operations"
+  | "finance_operations"
+  | "security_operations"
+  | "support";
+
+export type CanonicalActivityRow = {
+  id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  read: boolean;
+  created_at: string;
+  source_type: string | null;
+  source_id: string | null;
+  destination_route: string | null;
+  destination_params: Record<string, unknown> | null;
+  workspace: string;
+  action_required: boolean;
+  resolved_at: string | null;
+};
+
+export type CanonicalActivitySummary = {
+  unread: number;
+  needs_action: number;
+  latest_at: string | null;
+};
+
+export async function getCanonicalActivity(
+  workspace: ActivityWorkspace | string,
+  limit = 100,
+) {
+  const { data, error } = await supabase.rpc("get_my_canonical_activity_v2", {
+    p_workspace: workspace,
+    p_limit: limit,
+  });
+  return {
+    rows: (Array.isArray(data) ? data : []) as CanonicalActivityRow[],
+    error,
+  };
+}
+
+export async function getCanonicalActivitySummary(
+  workspace: ActivityWorkspace | string,
+) {
+  const { data, error } = await supabase.rpc(
+    "get_my_canonical_activity_summary",
+    { p_workspace: workspace },
+  );
+  const value = (data || {}) as Partial<CanonicalActivitySummary>;
+  return {
+    summary: {
+      unread: Number(value.unread || 0),
+      needs_action: Number(value.needs_action || 0),
+      latest_at: value.latest_at ? String(value.latest_at) : null,
+    },
+    error,
+  };
+}
+
+export async function markCanonicalActivityRead(
+  activityEventId: string,
+  workspace: ActivityWorkspace | string,
+) {
+  const { data, error } = await supabase.rpc(
+    "mark_my_canonical_activity_read",
+    {
+      p_activity_event_id: activityEventId,
+      p_workspace: workspace,
+    },
+  );
+  return { read: Boolean(data), error };
+}
+
+export async function markAllCanonicalActivityRead(
+  workspace: ActivityWorkspace | string,
+) {
+  const { data, error } = await supabase.rpc(
+    "mark_all_my_canonical_activity_read",
+    { p_workspace: workspace },
+  );
+  return { count: Number(data || 0), error };
+}
+
+export function subscribeToCanonicalActivity(
+  userId: string,
+  channelName: string,
+  onChange: () => void,
+) {
+  return supabase
+    .channel(channelName)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "activity_event_audiences",
+        filter: `recipient_user_id=eq.${userId}`,
+      },
+      onChange,
+    );
+}

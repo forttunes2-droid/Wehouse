@@ -83,6 +83,12 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/identity_partner_service_contract.sql
       - name: Exercise Worker Operations and Admin canonical identity
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_operations_and_admin_identity_contract.sql
+      - name: Exercise post-82 profile and Worker summary repair
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/post82_profile_summary_contract.sql
+      - name: Exercise canonical Activity routing and least privilege
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/canonical_activity_domain_contract.sql
+      - name: Exercise privileged RPC write guards
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/security_definer_write_guard_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_authority_contract.sql
       - name: Exercise recorded Creator and receipt journeys as authenticated users

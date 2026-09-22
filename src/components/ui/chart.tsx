@@ -34,6 +34,21 @@ function useChart() {
   return context
 }
 
+function safeChartCssToken(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "")
+}
+
+function safeChartCssValue(value: string | undefined) {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed || /[{};<>]/.test(trimmed)) return null
+  return trimmed
+}
+
+function safeChartSelectorValue(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\r\n]/g, "")
+}
+
 function ChartContainer({
   id,
   className,
@@ -78,28 +93,30 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+  const selectorId = safeChartSelectorValue(id)
+  const css = Object.entries(THEMES)
+    .map(
+      ([theme, prefix]) => `
+${prefix} [data-chart="${selectorId}"] {
 ${colorConfig
   .map(([key, itemConfig]) => {
-    const color =
+    const safeKey = safeChartCssToken(key)
+    const color = safeChartCssValue(
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+        itemConfig.color
+    )
+    return safeKey && color ? `  --color-${safeKey}: ${color};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `
-          )
-          .join("\n"),
-      }}
-    />
-  )
+    )
+    .join("\n")
+
+  // Render CSS as a React text node rather than raw HTML. This preserves the
+  // chart theme variables without creating an HTML injection sink.
+  return <style>{css}</style>
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip

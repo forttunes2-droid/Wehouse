@@ -51,7 +51,7 @@ export default function HousingOperationsWorkspace({
   const openedTarget = useRef<string | null>(null);
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("needs_action");
   const [selected, setSelected] = useState<any | null>(null);
   const [bookingCode, setBookingCode] = useState("");
   const [search, setSearch] = useState("");
@@ -105,7 +105,7 @@ export default function HousingOperationsWorkspace({
       if (target) setSelected(target);
       else
         toast.error(
-          "The linked booking is no longer available in this branch.",
+          "The linked booking is no longer available in your coverage.",
         );
     }
     setLoading(false);
@@ -153,7 +153,7 @@ export default function HousingOperationsWorkspace({
     if (!data) {
       setVerifiedBooking(null);
       setVerifiedMoveInCode(null);
-      setLookupError("No booking with that code was found in this branch.");
+      setLookupError("No booking with that code was found in your coverage.");
       return;
     }
     setVerifiedBooking(data);
@@ -277,7 +277,7 @@ export default function HousingOperationsWorkspace({
           Enter the code shown by the customer
         </h4>
         <p className="mt-1 text-[9px] leading-5 text-[#747A8B]">
-          The code opens one matching booking in this branch. Compare the
+          The code opens one matching booking in your coverage. Compare the
           displayed customer, property, status and payment before handing over
           access. It does not confirm ownership or publish a property.
         </p>
@@ -1102,7 +1102,7 @@ function HousingCase({
             Property Operations owns this case. Assign the officer who will support the physical handover; the customer, property, payment and messages stay in this same conversation.
           </p>
           {assignmentLoading ? (
-            <p className="mt-3 text-[9px] text-[#73798A]">Loading branch officers…</p>
+            <p className="mt-3 text-[9px] text-[#73798A]">Loading available Field Operations…</p>
           ) : handoverAssigned ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.05] p-3">
               <div>
@@ -1316,7 +1316,7 @@ function Empty() {
       </p>
       <p className="mt-1 text-[9px] text-[#626778]">
         Try another search or status. New records appear after a real
-        reservation reaches branch operations.
+        reservation reaches Property Operations.
       </p>
     </div>
   );

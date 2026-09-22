@@ -1,10 +1,11 @@
 import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
+import { activityIsCurrent } from "@/lib/activityFeed";
 import {
-  activityIsCurrent,
-  currentActivityRows,
-  longestActivityCutoff,
-} from "@/lib/activityFeed";
+  getCanonicalActivity,
+  getCanonicalActivitySummary,
+  subscribeToCanonicalActivity,
+} from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser } from "@/lib/supabase/announcements";
 import { getSupportInbox } from "@/lib/supabase/support";
@@ -25,14 +26,10 @@ export function useOperationsInboxSummary(
       queue
         ? getSupportInbox(queue)
         : Promise.resolve({ conversations: [], error: null }),
-      supabase
-        .from("notifications")
-        .select(
-          "type,title,source_type,destination_route,created_at,read,workspace_scope",
-        )
-        .eq("recipient_id", userId)
-        .eq("workspace_scope", activityScope)
-        .gte("created_at", longestActivityCutoff()),
+      Promise.all([
+        getCanonicalActivitySummary(activityScope),
+        getCanonicalActivity(activityScope, 1),
+      ]),
       getAnnouncementsForUser(userId, activityScope),
     ]);
     if (!isCurrent()) return;
@@ -45,9 +42,10 @@ export function useOperationsInboxSummary(
       );
     }
 
-    const currentEvents = currentActivityRows(
-      (events.data || []).map((row) => ({ ...row, source: "event" as const })),
-    );
+    const [activitySummary, activityFeed] = events;
+    const currentEvents = activityFeed.error
+      ? []
+      : activityFeed.rows.map((row) => ({ ...row, source: "event" as const }));
     const currentAnnouncements = (announcements.messages || []).filter(
       (delivery: any) => {
         const announcement = Array.isArray(delivery.announcements)
@@ -61,12 +59,12 @@ export function useOperationsInboxSummary(
       },
     );
 
-    if (!events.error || !announcements.error) {
-      const unreadEvents = currentEvents.filter((row) => !row.read);
+    if (!activitySummary.error || !announcements.error) {
+      const eventUnread = activitySummary.error ? 0 : activitySummary.summary.unread;
       const unreadAnnouncements = currentAnnouncements.filter(
         (delivery: any) => !delivery.read_status,
       );
-      setActivityUnread(unreadEvents.length + unreadAnnouncements.length);
+      setActivityUnread(eventUnread + unreadAnnouncements.length);
 
       const latest = [
         ...currentEvents.map((row) => ({
@@ -94,18 +92,11 @@ export function useOperationsInboxSummary(
 
   useEffect(() => {
     if (!userId) return;
-    const channel = supabase
-      .channel(`operations-inbox-summary:${activityScope}:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_id=eq.${userId}`,
-        },
-        () => void refresh(),
-      )
+    const channel = subscribeToCanonicalActivity(
+      userId,
+      `operations-inbox-summary:${activityScope}:${userId}`,
+      () => void refresh(),
+    )
       .on(
         "postgres_changes",
         {

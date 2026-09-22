@@ -204,6 +204,8 @@ export default function CreatorDashboard({
     <>
 
       <WorkspaceFrameV2
+        identityName={profile.full_name || profile.username}
+        identityAvatar={profile.avatar_url}
         label="WEHOUSE · CREATOR"
         title={currentPlatform?.label || workspaceTitle}
         description={currentPlatform?.note || workspaceDescription}
