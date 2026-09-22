@@ -56,7 +56,7 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
 .wh-auth-mode-choose .wh-auth-header { padding-bottom: 28px; }
 .wh-auth-mode-choose .wh-auth-legal { margin-top: 24px; padding-top: 0; }
 .wh-auth-mode-choose .wh-auth-form { margin-block: 0; padding: 22px 20px; }
-.wh-auth-mode-choose .wh-auth-form > div > div:first-child p:last-child { max-width: 29ch; }
+.wh-auth-mode-choose .wh-auth-form > div > div:first-child p:last-child { max-width: none; text-wrap: balance; }
 .wh-auth-legal { margin-top: auto; padding-top: 24px; }
 
 .wh-auth-primary { background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; box-shadow: 0 10px 28px rgb(109 40 217 / 20%); }
@@ -90,7 +90,7 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   .wh-auth-content { flex: 0; }
   .wh-auth-form { padding: 28px; }
   .wh-auth-mode-choose .wh-auth-form { padding: 28px; }
-  .wh-auth-legal { margin-top: 24px; padding-top: 0; }
+  .wh-auth-legal { padding-top: 0; margin-top: 24px; }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
@@ -100,20 +100,15 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   .wh-auth-legal { padding-top: 24px; }
 }
 
-
 /* Auth motion is restrained: state changes feel connected without delaying sign-in. */
 .wh-auth-brand { animation: whAuthBrandIn 190ms cubic-bezier(.2,.7,.2,1); }
-.wh-auth-form {
-  animation: whAuthStateIn 200ms cubic-bezier(.2,.7,.2,1);
-}
+.wh-auth-form { animation: whAuthStateIn 200ms cubic-bezier(.2,.7,.2,1); }
 .wh-auth-primary,
 .wh-auth-secondary {
   transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease, opacity 160ms ease;
 }
 .wh-auth-primary:active,
-.wh-auth-secondary:active {
-  transform: scale(.985);
-}
+.wh-auth-secondary:active { transform: scale(.985); }
 @keyframes whAuthBrandIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
