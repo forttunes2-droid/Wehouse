@@ -19,18 +19,25 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - name: Build isolated review surfaces
-        run: npm run build
-        env:
-          VERCEL_ENV: preview
-      - name: Package reproducible QA inputs
-        run: |
-          mkdir -p /tmp/wehouse-qa
-          git archive --format=tar.gz -o /tmp/wehouse-qa/reviewed-source.tar.gz HEAD
-          tar -czf /tmp/wehouse-qa/browser-toolchain.tar.gz node_modules dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-python@v5
         with:
-          name: experience-reviewed-source
-          path: /tmp/wehouse-qa/*.tar.gz
-          retention-days: 1
+          python-version: '3.12'
+      - run: npm ci
+      - run: pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Run isolated browser interactions
+        run: |
+          node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/tests/browser/experience.html >/dev/null && break
+            sleep 1
+          done
+          python tests/browser/experience.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experience-browser-results
+          path: test-results/experience
+          retention-days: 7
