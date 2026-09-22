@@ -6,85 +6,106 @@ type Props = {
   onOpen: (anchor: DOMRect) => void;
   onTap?: (anchor: DOMRect) => void;
   onReply?: () => void;
+  replyDirection?: "left" | "right";
 };
 
-export default function MessagePress({
-  children,
-  className = "",
-  onOpen,
-  onTap,
-  onReply,
-}: Props) {
+const INTERACTIVE = "button,a,input,textarea,select,audio,video,[contenteditable=true]";
+const THRESHOLD = 54;
+type Gesture = { id: number; x: number; y: number; direction: number; axis: "pending" | "horizontal" | "vertical"; distance: number };
+
+/** Reply moves inward from the rendered message side. All chat types share this
+ * gesture; no caller needs a second, conflicting touch handler. An explicit
+ * direction is available for a surface that does not use start/end alignment. */
+export default function MessagePress({ children, className = "", onOpen, onTap, onReply, replyDirection }: Props) {
   const timer = useRef<number | null>(null);
-  const origin = useRef({ x: 0, y: 0 });
+  const gesture = useRef<Gesture | null>(null);
   const opened = useRef(false);
   const dragged = useRef(false);
   const [translate, setTranslate] = useState(0);
 
-  function cancel() {
+  function cancelTimer() {
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = null;
   }
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
+
   function start(event: PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button,a,input,textarea,audio,video")) return;
-    const element = event.currentTarget;
+    if (!event.isPrimary || event.button !== 0) return;
     opened.current = false;
     dragged.current = false;
-    origin.current = { x: event.clientX, y: event.clientY };
-    cancel();
+    if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
+    const element = event.currentTarget;
+    cancelTimer();
+    opened.current = false;
+    dragged.current = false;
+    setTranslate(0);
+    // Start/end is already the common layout contract used by roommate,
+    // service and hotel messages. Read physical alignment, not profile roles.
+    const endAligned = window.getComputedStyle(element).justifyContent === "flex-end";
+    const direction = replyDirection ? (replyDirection === "left" ? -1 : 1) : (endAligned ? -1 : 1);
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, direction, axis: "pending", distance: 0 };
+    element.setPointerCapture?.(event.pointerId);
     timer.current = window.setTimeout(() => {
+      if (!gesture.current || gesture.current.axis !== "pending") return;
       opened.current = true;
       timer.current = null;
       navigator.vibrate?.(18);
       onOpen(element.getBoundingClientRect());
     }, 420);
   }
+
   function move(event: PointerEvent<HTMLDivElement>) {
-    const dx = event.clientX - origin.current.x,
-      dy = event.clientY - origin.current.y;
-    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
-      cancel();
-      setTranslate(0);
-      return;
-    }
-    if (onReply && Math.abs(dx) > 8) {
-      cancel();
+    const current = gesture.current;
+    if (!current || current.id !== event.pointerId || opened.current) return;
+    const dx = event.clientX - current.x, dy = event.clientY - current.y;
+    if (current.axis === "pending") {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) <= 8) return;
+      cancelTimer();
       dragged.current = true;
-      const distance = Math.min(72, Math.abs(dx) * 0.72);
-      setTranslate(Math.sign(dx) * distance);
+      current.axis = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
     }
+    // Once vertical scrolling starts it cannot turn into a reply gesture.
+    if (current.axis !== "horizontal" || !onReply) return;
+    if (event.cancelable) event.preventDefault();
+    const inward = Math.max(0, dx * current.direction);
+    current.distance = Math.min(72, inward * 0.72);
+    setTranslate(current.direction * current.distance);
   }
-  function finish() {
-    cancel();
-    if (Math.abs(translate) >= 54 && onReply) {
+
+  function finish(event: PointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = gesture.current;
+    if (!current || current.id !== event.pointerId) return;
+    cancelTimer();
+    gesture.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!cancelled && !opened.current && current.axis === "horizontal" && current.distance >= THRESHOLD && onReply) {
+      opened.current = true;
       navigator.vibrate?.(12);
       onReply();
-      opened.current = true;
     }
     setTranslate(0);
   }
 
   return (
     <div
-      className={`relative touch-pan-y select-none ${className}`}
+      className={`relative min-w-0 select-none ${className}`}
+      style={{ touchAction: "pan-y pinch-zoom", overscrollBehaviorX: "contain", overflowX: "clip", overflowY: "visible", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
+      data-reply-gesture="inward"
       onPointerDown={start}
       onPointerMove={move}
-      onPointerUp={finish}
-      onPointerCancel={() => {
-        cancel();
-        setTranslate(0);
-      }}
+      onPointerUp={(event) => finish(event)}
+      onPointerCancel={(event) => finish(event, true)}
+      onLostPointerCapture={(event) => finish(event, true)}
       onContextMenu={(event) => {
+        if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
         event.preventDefault();
-        cancel();
+        cancelTimer();
+        if (opened.current) return;
         opened.current = true;
         onOpen(event.currentTarget.getBoundingClientRect());
       }}
       onClick={(event) => {
-        if (opened.current || dragged.current || !onTap) return;
-        const target = event.target as HTMLElement;
-        if (target.closest("button,a,input,textarea,audio,video")) return;
+        if (opened.current || dragged.current || !onTap || (event.target as HTMLElement).closest(INTERACTIVE)) return;
         onTap(event.currentTarget.getBoundingClientRect());
       }}
       onClickCapture={(event) => {
@@ -92,20 +113,15 @@ export default function MessagePress({
         event.preventDefault();
         event.stopPropagation();
         opened.current = false;
+        dragged.current = false;
       }}
     >
       {onReply && translate !== 0 ? (
-        <span
-          aria-hidden="true"
-          className={`pointer-events-none absolute ${translate > 0 ? "left-1" : "right-1"} grid h-8 w-8 place-items-center rounded-full bg-violet-500 text-sm text-white transition-opacity ${Math.abs(translate) >= 54 ? "opacity-100" : "opacity-45"}`}
-        >
+        <span aria-hidden="true" className={`pointer-events-none absolute top-1/2 -translate-y-1/2 ${translate > 0 ? "left-1" : "right-1"} grid h-8 w-8 place-items-center rounded-full bg-violet-500/20 text-sm text-violet-200 ${Math.abs(translate) >= THRESHOLD ? "opacity-100" : "opacity-45"}`}>
           ↩
         </span>
       ) : null}
-      <div
-        style={{ transform: `translateX(${translate}px)` }}
-        className="transition-[transform] duration-75"
-      >
+      <div style={{ transform: `translateX(${translate}px)`, justifyContent: "inherit" }} className="flex w-full min-w-0 items-center transition-transform duration-75 motion-reduce:transition-none">
         {children}
       </div>
     </div>
