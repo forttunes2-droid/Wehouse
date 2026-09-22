@@ -434,6 +434,7 @@ export default function AccountCenter({
       workspace={activeWorkspace}
       description="Your details and settings."
       onBack={onBack}
+      onWorkspaceSwitch={ownAccess && onSwitchWorkspace ? () => setPanel("workspaces") : undefined}
     >
 
 
