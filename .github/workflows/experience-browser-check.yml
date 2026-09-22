@@ -1,0 +1,26 @@
+name: Experience browser check
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: experience-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Package the reviewed source for isolated QA
+        run: |
+          mkdir -p /tmp/wehouse-qa
+          git archive --format=tar.gz -o /tmp/wehouse-qa/reviewed-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experience-reviewed-source
+          path: /tmp/wehouse-qa/reviewed-source.tar.gz
+          retention-days: 1
