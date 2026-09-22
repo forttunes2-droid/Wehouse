@@ -1159,37 +1159,6 @@ function Bubble({
   requesterName: string;
 }) {
   const meta = msg.action_metadata || {};
-  const internal = msg.visibility === "internal";
-  if (internal) {
-    return (
-      <div className="mx-auto my-3 max-w-2xl rounded-2xl border border-amber-500/15 bg-amber-500/[.055] px-4 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-amber-300">Internal work note · {msg.sender_name || "WeHouse team"}</p>
-        {msg.content && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E2DED3]">{msg.content}</p>}
-        {(msg.attachments || []).map((path: string, i: number) => <SecureSupportAttachment key={`${msg.id}-${path}`} path={path} type={msg.attachment_types?.[i] || ""} />)}
-        <p className="mt-2 text-[10px] text-amber-200/50">{new Date(msg.created_at).toLocaleString()}</p>
-      </div>
-    );
-  }
-  if (msg.action_type === "status_change") {
-    return (
-      <div className="mx-auto my-3 max-w-md rounded-2xl border border-violet-500/15 bg-violet-500/[.055] px-4 py-3 text-center">
-        <p className="text-[9px] font-semibold text-violet-200">
-          {caseEventLabel(String(meta.event_type || "request_updated"))}
-        </p>
-        {msg.content ? (
-          <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#B1B5C1]">
-            {msg.content}
-          </p>
-        ) : null}
-        <p className="mt-1 text-[8px] text-[#606778]">
-          {new Date(msg.created_at).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      </div>
-    );
-  }
   const fromWeHouse = ["staff", "admin", "creator"].includes(
     String(msg.sender_role || ""),
   );
