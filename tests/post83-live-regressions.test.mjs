@@ -24,6 +24,9 @@ test("Operations chat is projected by one server bundle with internal notes sepa
   assert.doesNotMatch(communications, /getSupportMessages\(id\).*getSupportCaseEvents/s);
   assert.match(communications, /InternalNotes/);
   assert.match(communications, /ThreadSkeleton/);
+  assert.match(communications, /ConversationListSkeleton/);
+  assert.match(communications, /listLoadedRef/);
+  assert.doesNotMatch(communications, /h-7 w-7 animate-spin rounded-full border-2 border-violet-500/);
   assert.doesNotMatch(communications, /Internal work note · \{msg\.sender_name/);
   assert.doesNotMatch(communications, /mine=\{msg\.sender_id/);
   assert.match(migration, /m\.visibility='internal'/);
