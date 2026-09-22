@@ -456,15 +456,15 @@ export default function SupportChat({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[14px] font-semibold">
-                {presentation.operator}
-              </p>
+              <h1 className="truncate text-[14px] font-semibold">
+                {presentation.title}
+              </h1>
 
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
               {presentation.operational
-                ? presentation.meta || "Linked to this WeHouse record"
-                : handlerLabel}
+                ? [presentation.operator, presentation.meta].filter(Boolean).join(" · ")
+                : `${presentation.operator} · ${handlerLabel}`}
             </p>
           </div>
         </div>
@@ -1135,7 +1135,7 @@ function MessageContext({
           <button
             type="button"
             onClick={() => onOpenListing(listingId)}
-            className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200"
+            className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-300"
           >
             View apartment →
           </button>
@@ -1177,9 +1177,10 @@ function PendingContext({ context, onStartGeneralHelp }: {
         <button
           type="button"
           onClick={onStartGeneralHelp}
+          aria-label="Change topic to General Help"
           className="shrink-0 rounded-full px-2 py-2 text-[9px] font-semibold text-violet-300"
         >
-          General Help
+          Change topic
         </button>
       )}
     </section>
