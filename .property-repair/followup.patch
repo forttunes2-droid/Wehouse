@@ -1,0 +1,144 @@
+diff --git a/.github/workflows/experience-browser-check.yml b/.github/workflows/experience-browser-check.yml
+index 1c6fc8b..e3d8e88 100644
+--- a/.github/workflows/experience-browser-check.yml
++++ b/.github/workflows/experience-browser-check.yml
+@@ -60,13 +60,9 @@ jobs:
+             sleep 1
+           done
+-          python tests/browser/experience.py
+-          python tests/browser/welcome-layout.py
+-          python tests/browser/communication-stability.py
+-          python tests/browser/overview_arrival.py
+-          python tests/browser/login_entry.py
+-          python tests/browser/profile_help.py
+-          python tests/browser/message_swipe.py
+-          python tests/browser/entry_help_availability.py
+-          python tests/browser/property_routing.py
++          failed=0
++          for test in property_routing experience welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
++            python "tests/browser/$test.py" || failed=1
++          done
++          test "$failed" = 0
+       - uses: actions/upload-artifact@v4
+         if: always()
+diff --git a/supabase/migrations/20260922170000_property_workspace_routing.sql b/supabase/migrations/20260922170000_property_workspace_routing.sql
+index 3d3fbd3..35bc0ca 100644
+--- a/supabase/migrations/20260922170000_property_workspace_routing.sql
++++ b/supabase/migrations/20260922170000_property_workspace_routing.sql
+@@ -21,5 +21,5 @@ CREATE OR REPLACE FUNCTION public.current_actor_hotel_capabilities(p_hotel_id in
+   where hotel.hotel_id=p_hotel_id
+     and actor.user_id is not null
+-    and ((hotel.owner_id=actor.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=actor.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or member.id is not null)
++    and ((hotel.owner_id=actor.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=actor.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or (hotel.owner_id is distinct from actor.user_id and member.id is not null))
+   limit 1
+ $$;
+@@ -33,5 +33,5 @@ CREATE OR REPLACE FUNCTION public.current_actor_hotel_role(p_hotel_id integer) R
+   left join public.hotel_team_members tm on tm.hotel_id=h.hotel_id and tm.member_user_id=p.user_id and tm.status='active' and tm.revoked_at is null
+   where p.auth_id=auth.uid()::text and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
+-    and ((h.owner_id=p.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=p.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or tm.id is not null) limit 1
++    and ((h.owner_id=p.user_id and exists(select 1 from public.workspace_role_assignments w where w.user_id=p.user_id and w.workspace_role='property_partner' and w.status='active' and w.revoked_at is null)) or (h.owner_id is distinct from p.user_id and tm.id is not null)) limit 1
+ $$;
+ 
+diff --git a/supabase/tests/property_workspace_routing_contract.sql b/supabase/tests/property_workspace_routing_contract.sql
+index 29b2065..ed1be26 100644
+--- a/supabase/tests/property_workspace_routing_contract.sql
++++ b/supabase/tests/property_workspace_routing_contract.sql
+@@ -19,4 +19,5 @@ insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_
+ (-8661,-8661,'Standard',20000,2),(-8662,-8661,'Deluxe',30000,1),(-8663,-8662,'Other room',20000,1);
+ insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,status,capabilities,invited_by) values
++(-8661,'property-route-owner','front_desk','active',array['stay.read'],'property-route-owner'),
+ (-8661,'property-route-desk','front_desk','active',array['stay.read'],'property-route-owner'),
+ (-8661,'property-route-rooms','front_desk','active',array['room.mark_ready'],'property-route-owner');
+diff --git a/tests/browser/communication-stability.py b/tests/browser/communication-stability.py
+index 9f4bf01..f0ed760 100644
+--- a/tests/browser/communication-stability.py
++++ b/tests/browser/communication-stability.py
+@@ -4,5 +4,5 @@ import json
+ import re
+ from playwright.async_api import async_playwright, expect
+-from experience import Scenario, BASE, OUT, A
++from experience import Scenario, BASE, OUT, A, open_account_workspaces
+ 
+ class SendingScenario(Scenario):
+@@ -28,6 +28,6 @@ async def main():
+             context,page=await s.page(browser,'creator',seed={'wh_navigation_experience-creator:personal':'profile'})
+             try:
+-                await page.get_by_role('button',name='Open workspaces').click()
+-                await page.get_by_role('dialog',name='Switch workspace').get_by_role('button',name=re.compile('Personal')).click()
++                await open_account_workspaces(page)
++                await page.get_by_role('button',name=re.compile('^Personal')).click()
+                 await expect(page.get_by_role('button',name='Explore',exact=True)).to_be_visible()
+                 await page.get_by_role('button',name='Account',exact=True).click()
+diff --git a/tests/browser/experience.py b/tests/browser/experience.py
+index 45e3341..8aab596 100644
+--- a/tests/browser/experience.py
++++ b/tests/browser/experience.py
+@@ -71,4 +71,11 @@ class Scenario:
+         return context, page
+ 
++async def open_account_workspaces(page):
++    await page.get_by_role('button', name='Account', exact=True).filter(visible=True).click()
++    await expect(page.get_by_role('heading', name='Account', exact=True)).to_be_visible()
++    await expect(page.get_by_role('button', name='Open workspaces', exact=True)).to_have_count(0)
++    await page.get_by_role('button', name=re.compile(r'^WeHouse')).click()
++    await expect(page.get_by_role('heading', name='WeHouse', exact=True)).to_be_visible()
++
+ async def run(browser):
+     results = []
+@@ -96,6 +103,6 @@ async def run(browser):
+         s = Scenario()
+         context, page = await s.page(browser, 'creator', seed={'wh_navigation_experience-creator:personal':'profile'})
+-        await page.get_by_role('button', name='Open workspaces').click()
+-        await page.get_by_role('dialog', name='Switch workspace').get_by_role('button', name=re.compile('Personal')).click()
++        await open_account_workspaces(page)
++        await page.get_by_role('button', name=re.compile('^Personal')).click()
+         await expect(page).to_have_url(re.compile('#search$'))
+         await expect(page.get_by_role('button', name='Explore', exact=True)).to_be_visible()
+@@ -175,5 +182,6 @@ async def run(browser):
+             await page.screenshot(path=str(OUT/f'arrival-shell-{reduced}.png'))
+             await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
+-            await expect(page.get_by_role('button',name='Open workspaces')).to_be_visible()
++            await expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
++            await expect(page.get_by_role('button',name='Open workspaces')).to_have_count(0)
+             await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform','none')
+             await page.wait_for_timeout(400)
+diff --git a/tests/browser/login_entry.py b/tests/browser/login_entry.py
+index 7e53592..02c92af 100644
+--- a/tests/browser/login_entry.py
++++ b/tests/browser/login_entry.py
+@@ -143,5 +143,6 @@ async def run(browser):
+             # Readiness, not an animation timer, decides when the real workspace appears.
+             await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
+-            await expect(page.get_by_role('button', name='Open workspaces')).to_be_visible()
++            await expect(page.get_by_role('heading', name='Overview', exact=True)).to_be_visible()
++            await expect(page.get_by_role('button', name='Open workspaces')).to_have_count(0)
+             await expect(shell).to_have_count(0)
+             await expect(page.locator('.page-transition.wh-workspace-enter')).to_have_css('animation-name', 'none')
+diff --git a/tests/browser/property-routing.tsx b/tests/browser/property-routing.tsx
+index abba6d1..4af9b4e 100644
+--- a/tests/browser/property-routing.tsx
++++ b/tests/browser/property-routing.tsx
+@@ -17,8 +17,8 @@ function Fixture() {
+  useEffect(() => { history.replaceState({ page: mode, workspace: mode === 'team' ? 'hotel' : mode === 'creator' ? 'creator' : 'property_partner' }, ''); }, []);
+  const navigate = (page: string) => { (window as any).__navigation = page; if (page === 'profile') setAccount(true); };
+- if (account) return <AccountCenter profile={partner} activeWorkspace={mode === 'team' ? 'hotel_staff' : 'property_partner'} onBack={() => setAccount(false)}
++ if (account) return <AccountCenter profile={partner} activeWorkspace={mode === 'team' ? 'hotel' : 'property_partner'} onBack={() => setAccount(false)}
+  onGoToSaved={noop} onGoToPrivacy={noop} onGoToSecurity={noop} onGoToProfileEdit={noop}
+- onWorkspaceSwitch={() => { (window as any).__workspaceSwitch = true; }}
+- workspaceAccess={{ identity: { user_id: partner.user_id }, personal_workspace: true, privileged_workspaces: [] }} />;
++ onSwitchWorkspace={workspace => { (window as any).__workspaceSwitch = workspace; }}
++ workspaceAccess={{ identity: { user_id: partner.user_id }, personal_workspace: true, privileged_workspaces: [{ role: mode === 'team' ? 'hotel' : 'property_partner' }] }} />;
+  if (mode === 'creator') return <main className="min-h-screen bg-[#0A0A0F] p-6 text-white">
+  <h1>Creator property review</h1><button onClick={() => setPerson(true)}>View partner</button>
+diff --git a/tests/browser/property_routing.py b/tests/browser/property_routing.py
+index 96f276d..f4377cc 100644
+--- a/tests/browser/property_routing.py
++++ b/tests/browser/property_routing.py
+@@ -67,4 +67,7 @@ async def main():
+      await nav('Account'); await expect(page.get_by_role('heading',name='Account',exact=True)).to_be_visible()
+      assert await page.evaluate('window.__navigation')=='profile'
++     await page.get_by_role('button',name=re.compile('^WeHouse')).click()
++     await page.get_by_role('button',name=re.compile('^Personal')).click()
++     assert await page.evaluate('window.__workspaceSwitch')=='personal'
+      await page.goto(BASE+'/tests/browser/property-routing.html')
+      await select('Filter by property type','Hotels')

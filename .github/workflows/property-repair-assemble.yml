@@ -1,0 +1,43 @@
+name: Commit reviewed property validation follow-up
+on:
+  push:
+    branches: [codex/property-workspace-routing-20260922]
+    paths: [.property-repair/followup.patch]
+permissions:
+  contents: write
+concurrency:
+  group: reviewed-property-repair-assembly
+  cancel-in-progress: false
+jobs:
+  assemble:
+    if: github.repository == 'forttunes2-droid/Wehouse' && github.ref == 'refs/heads/codex/property-workspace-routing-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify and commit reviewed follow-up
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, pathlib, subprocess
+          patch = pathlib.Path('.property-repair/followup.patch').read_bytes()
+          assert hashlib.sha256(patch).hexdigest() == '2553b1d00984451d8e2874d353cd8e04fb34380e7253300fdbe5142a1594cdcb'
+          allowed = {'.github/workflows/experience-browser-check.yml','supabase/migrations/20260922170000_property_workspace_routing.sql','supabase/tests/property_workspace_routing_contract.sql','tests/browser/communication-stability.py','tests/browser/experience.py','tests/browser/login_entry.py','tests/browser/property-routing.tsx','tests/browser/property_routing.py'}
+          paths = {line.split(b' b/',1)[1].decode() for line in patch.splitlines() if line.startswith(b'diff --git ')}
+          assert paths == allowed
+          subprocess.run(['git','apply','--check','-'],input=patch,check=True)
+          subprocess.run(['git','apply','-'],input=patch,check=True)
+          PY
+          git restore --source=HEAD -- .github/workflows
+          git rm -r .property-repair
+          git add supabase tests
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Verify Account-based workspace switching and deny revoked-owner fallback'
+          REMOTE_SHA=$(git ls-remote origin refs/heads/codex/property-workspace-routing-20260922 | cut -f1)
+          test "$REMOTE_SHA" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/codex/property-workspace-routing-20260922
