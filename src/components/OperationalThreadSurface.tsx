@@ -15,7 +15,7 @@ export default function OperationalThreadSurface({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
-  close.current = onClose;
+  useEffect(() => { close.current = onClose; }, [onClose]);
   const afterClose = useRef<(() => void) | undefined>(undefined);
   const lifecycle = useRef(0);
   const [viewport, setViewport] = useState(() => ({
@@ -101,7 +101,14 @@ export default function OperationalThreadSurface({
     <div ref={root} role="dialog" aria-modal="true" aria-label="WeHouse conversation"
       tabIndex={-1} className="fixed inset-x-0 z-[1000] bg-[#0E1219] text-white outline-none"
       style={{ top: viewport.top, height: viewport.height }}>
-      {children(dismiss)}
+      <ThreadContents render={children} onDismiss={dismiss} />
     </div>, document.body,
   );
+}
+
+function ThreadContents({ render, onDismiss }: {
+  render: (dismiss: Dismiss) => ReactNode;
+  onDismiss: Dismiss;
+}) {
+  return <>{render(onDismiss)}</>;
 }
