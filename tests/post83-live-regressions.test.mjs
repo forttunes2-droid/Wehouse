@@ -45,3 +45,10 @@ test("Login widens into a balanced desktop composition and workspaces enter in s
   assert.match(css, /whAuthToAppPiece/);
   assert.match(css, /prefers-reduced-motion/);
 });
+
+
+test("coordinated release starts after the verified PR83 production boundary", () => {
+  const release = read("scripts/coordinated-database-release.py");
+  assert.match(release, /20260921235500/);
+  assert.match(release, /Partial post-baseline rollout detected/);
+});
