@@ -119,18 +119,26 @@ export default function CommunicationsWorkspace({
   }
   async function refreshMessages(id: string, quiet = false) {
     if (!quiet) setLoadingThread(true);
-    const [{ messages: data, error }, { events: history, error: eventError }] =
-      await Promise.all([getSupportMessages(id), getSupportCaseEvents(id)]);
-    if ((error || eventError) && !quiet)
-      toast.error(
-        (error || eventError)?.message || "Unable to open conversation",
-      );
-    if (!error && !eventError) {
+
+    // Start record history in parallel, but never hold the visible conversation
+    // behind operational/audit metadata. The message stream is the first paint.
+    const historyRequest = getSupportCaseEvents(id);
+    const { messages: data, error } = await getSupportMessages(id);
+
+    if (error) {
+      if (!quiet) toast.error(error.message || "Unable to open conversation");
+    } else {
       setMessages(data || []);
-      setEvents(history);
     }
-    await markSupportMessagesRead(id);
     if (!quiet) setLoadingThread(false);
+
+    // Read receipts and case history reconcile after the thread is already
+    // usable. Neither is allowed to turn opening a conversation into a spinner.
+    void markSupportMessagesRead(id);
+    const { events: history, error: eventError } = await historyRequest;
+    if (!eventError) setEvents(history);
+    else if (!quiet)
+      toast.error(eventError.message || "Conversation history could not be refreshed");
   }
   useEffect(() => {
     if (view === "inbox" && !selected) void load();
@@ -1163,23 +1171,20 @@ function Bubble({
     String(msg.sender_role || ""),
   );
   const sender = fromWeHouse
-    ? `${mine ? "You" : msg.sender_name || "WeHouse team"} · WeHouse`
+    ? `${msg.sender_name || "WeHouse team"} · WeHouse`
     : msg.sender_name || requesterName;
   return (
-    <div className={`flex ${fromWeHouse ? "justify-end" : "justify-start"}`}>
+    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
-        className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${fromWeHouse ? "items-end" : "items-start"}`}
+        className={`flex max-w-[84%] flex-col sm:max-w-[72%] ${mine ? "items-end" : "items-start"}`}
       >
-        {Object.keys(meta).length > 0 && (
-          <ContextCard meta={meta} type={msg.action_type} />
-        )}
-        <p
-          className={`mb-1 px-1 text-[11px] font-medium ${fromWeHouse ? "text-right text-violet-200/75" : "text-[#838A9B]"}`}
-        >
-          {sender}
-        </p>
+        {!mine ? (
+          <p className="mb-1 px-1 text-[10px] font-medium text-[#838A9B]">
+            {sender}
+          </p>
+        ) : null}
         <div
-          className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
+          className={`rounded-[20px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
         >
           {(msg.attachments || []).map((path: string, i: number) => (
             <SecureSupportAttachment
@@ -1194,7 +1199,7 @@ function Bubble({
             </p>
           )}
           <p
-            className={`mt-1 text-[10px] ${fromWeHouse ? "text-violet-100/70" : "text-[#747B8C]"}`}
+            className={`mt-1 text-[9px] ${mine ? "text-violet-100/65" : "text-[#747B8C]"}`}
           >
             {new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",
