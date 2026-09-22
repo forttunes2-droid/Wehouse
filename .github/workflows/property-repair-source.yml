@@ -8,15 +8,24 @@ permissions:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Archive tracked source only
-        run: git archive --format=tar HEAD | gzip > "$RUNNER_TEMP/wehouse-property-source.tar.gz"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Archive tracked source and isolated test dependencies
+        run: |
+          git archive --format=tar HEAD | gzip > "$RUNNER_TEMP/wehouse-property-source.tar.gz"
+          tar -czf "$RUNNER_TEMP/wehouse-property-dependencies.tar.gz" node_modules
       - uses: actions/upload-artifact@v4
         with:
           name: wehouse-property-source
-          path: ${{ runner.temp }}/wehouse-property-source.tar.gz
+          path: |
+            ${{ runner.temp }}/wehouse-property-source.tar.gz
+            ${{ runner.temp }}/wehouse-property-dependencies.tar.gz
           retention-days: 1
