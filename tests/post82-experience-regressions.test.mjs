@@ -150,7 +150,8 @@ test("auth and Creator legal UI hide implementation detail by default", async ()
     read("src/components/AccountHelpCenter.tsx"),
   ]);
   assert.doesNotMatch(loginCss, /wh-auth-mode-choose \.wh-auth-form \{ margin-block: auto/);
-  assert.match(login, /Welcome to WeHouse/);
+  assert.match(login, />Welcome<\/h1>/);
+  assert.match(login, /Sign in or create your WeHouse account\./);
   assert.match(legal, /Before public launch/);
   assert.match(legal, /Private editor/);
   assert.match(legal, /showChecklist/);
