@@ -31,24 +31,15 @@ export default function AccountShell({ profile, title, description, onBack, onWo
               <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
               {description ? <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p> : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-violet-500/[.10] text-[11px] font-bold text-violet-200" aria-label="Your profile">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span>{String(profile.full_name || profile.username || "W").trim().charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              {onWorkspaceSwitch ? (
-                <button
-                  type="button"
-                  onClick={onWorkspaceSwitch}
-                  className="min-h-10 shrink-0 px-1 text-[10px] font-semibold text-violet-300"
-                >
-                  Workspaces
-                </button>
-              ) : null}
-            </div>
+            {onWorkspaceSwitch ? (
+              <button
+                type="button"
+                onClick={onWorkspaceSwitch}
+                className="min-h-10 shrink-0 px-1 text-[10px] font-semibold text-violet-300"
+              >
+                Workspaces
+              </button>
+            ) : null}
           </div>
         </div>
       </header>

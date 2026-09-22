@@ -1,0 +1,75 @@
+name: Experience browser check
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: experience-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Retain exact reviewed source
+        run: |
+          python - <<'PY'
+          import pathlib, subprocess, tarfile
+          output = pathlib.Path('test-results/review-source')
+          output.mkdir(parents=True, exist_ok=True)
+          (output / 'reviewed-commit.txt').write_text(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))
+          prefixes = ('src/', 'tests/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
+          configs = {'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.app.json', 'tailwind.config.js', 'tailwind.config.ts', 'postcss.config.js', 'postcss.config.cjs', 'eslint.config.js', 'index.html'}
+          names = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          with tarfile.open(output / 'review-source.tar.gz', 'w:gz') as bundle:
+              for name in names:
+                  path = pathlib.Path(name)
+                  if not name or not path.is_file() or path.is_symlink():
+                      continue
+                  if any(part.startswith('.env') for part in path.parts):
+                      continue
+                  if name.startswith(prefixes) or name in configs:
+                      bundle.add(path, arcname=name, recursive=False)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-source
+          path: test-results/review-source
+          retention-days: 3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Run isolated browser interactions
+        run: |
+          node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/tests/browser/experience.html >/dev/null && break
+            sleep 1
+          done
+          python tests/browser/experience.py
+          python tests/browser/welcome-layout.py
+          python tests/browser/communication-stability.py
+          python tests/browser/overview_arrival.py
+          python tests/browser/login_entry.py
+          python tests/browser/profile_help.py
+          python tests/browser/message_swipe.py
+          python tests/browser/entry_help_availability.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experience-browser-results
+          path: test-results/experience
+          retention-days: 7

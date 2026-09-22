@@ -1,3 +1,5 @@
+import OperationalThreadSurface from "@/components/OperationalThreadSurface";
+import { withTimeout } from "@/lib/withTimeout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnnouncementsTab } from "@/components/AnnouncementsTab";
@@ -8,9 +10,8 @@ import {
   claimCommunicationCase,
   conversationPresentation,
   deleteSupportAttachment,
-  getSupportCaseEvents,
+  getOperationalConversationBundle,
   getSupportInbox,
-  getSupportMessages,
   markSupportMessagesRead,
   sendSupportMessage,
   supportNextStep,
@@ -63,9 +64,12 @@ export default function CommunicationsWorkspace({
     [rows, setRows] = useState<any[]>([]),
     [loadingList, setLoadingList] = useState(true),
     [loadingThread, setLoadingThread] = useState(false),
+    [listError, setListError] = useState(""),
+    [threadError, setThreadError] = useState(""),
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState<any | null>(null),
     [messages, setMessages] = useState<any[]>([]),
+    [internalNotes, setInternalNotes] = useState<any[]>([]),
     [events, setEvents] = useState<SupportCaseEvent[]>([]),
     [input, setInput] = useState(""),
     [sending, setSending] = useState(false),
@@ -77,71 +81,98 @@ export default function CommunicationsWorkspace({
   const fileRef = useRef<HTMLInputElement>(null),
     bottomRef = useRef<HTMLDivElement>(null),
     inputRef = useRef<HTMLTextAreaElement>(null),
-    openedInitialRef = useRef<string | null>(null);
+    openedInitialRef = useRef<string | null>(null),
+    listLoadedRef = useRef(false),
+    selectedIdRef = useRef<string | null>(null),
+    listRequestRef = useRef(0),
+    threadRequestRef = useRef(0),
+    scopeEpochRef = useRef(0),
+    selectionRef = useRef(0),
+    receiptRef = useRef(""),
+    scrollRef = useRef<HTMLElement>(null),
+    stickToBottomRef = useRef(true);
+  useEffect(() => {
+    scopeEpochRef.current += 1;
+    listLoadedRef.current = false;
+    selectedIdRef.current = null;
+    setRows([]); setSelected(null); setMessages([]); setInternalNotes([]); setEvents([]);
+    setListError(""); setThreadError("");
+    return () => { scopeEpochRef.current += 1; listRequestRef.current += 1; threadRequestRef.current += 1; };
+  }, [profile.user_id, queue]);
   useEffect(() => {
     if (forcedView) setView(forcedView);
   }, [forcedView]);
   async function load(quiet = false) {
-    if (!quiet) setLoadingList(true);
-    const { conversations, error } = await getSupportInbox(queue);
-    if (error && !quiet)
-      toast.error(
-        error.message ||
-          `Unable to load ${queue === "reservation_operations" ? "Operations" : "WeHouse"} inbox`,
-      );
-    if (!error) {
+    const request = ++listRequestRef.current;
+    const epoch = scopeEpochRef.current;
+    const current = () => request === listRequestRef.current && epoch === scopeEpochRef.current;
+    const blockList = !quiet && !listLoadedRef.current;
+    if (blockList) setLoadingList(true);
+    try {
+      const { conversations, error } = await withTimeout(getSupportInbox(queue), 15000, "Your inbox could not be loaded. Try again.");
+      if (!current()) return;
+      if (error) throw error;
       const next = conversations || [];
-      setRows(next);
-      setSelected((current: any | null) =>
-        current
-          ? next.find(
-              (row: any) => row.conversation_id === current.conversation_id,
-            ) || current
-          : current,
-      );
-      if (
-        initialConversationId &&
-        openedInitialRef.current !== initialConversationId
-      ) {
-        const target = next.find(
-          (row: any) =>
-            String(row.conversation_id) === String(initialConversationId),
-        );
+      setRows(next); setListError("");
+      setSelected((row: any | null) => row ? next.find((item: any) => item.conversation_id === row.conversation_id) || row : null);
+      listLoadedRef.current = true;
+      if (initialConversationId && openedInitialRef.current !== initialConversationId) {
+        const target = next.find((row: any) => String(row.conversation_id) === String(initialConversationId));
         openedInitialRef.current = initialConversationId;
         if (target) void open(target);
-        else if (!quiet)
-          toast.error(
-            "The linked conversation is no longer available in this inbox.",
-          );
+        else toast.error("The linked conversation is no longer available in this inbox.");
       }
+    } catch (cause) {
+      if (current()) setListError((cause as Error)?.message || "Your inbox could not be loaded. Try again.");
+    } finally {
+      if (current()) setLoadingList(false);
     }
-    if (!quiet) setLoadingList(false);
   }
   async function refreshMessages(id: string, quiet = false) {
+    const request = ++threadRequestRef.current;
+    const epoch = scopeEpochRef.current;
+    const current = () => request === threadRequestRef.current && epoch === scopeEpochRef.current && selectedIdRef.current === id;
     if (!quiet) setLoadingThread(true);
-    const [{ messages: data, error }, { events: history, error: eventError }] =
-      await Promise.all([getSupportMessages(id), getSupportCaseEvents(id)]);
-    if ((error || eventError) && !quiet)
-      toast.error(
-        (error || eventError)?.message || "Unable to open conversation",
-      );
-    if (!error && !eventError) {
-      setMessages(data || []);
-      setEvents(history);
+    try {
+      const { bundle, error } = await withTimeout(getOperationalConversationBundle(id), 15000, "This conversation could not be loaded. Try again.");
+      if (!current()) return;
+      if (error) throw error;
+      setMessages(bundle.messages || []);
+      setInternalNotes(bundle.internal_notes || []);
+      setEvents(bundle.events || []);
+      setThreadError("");
+      // A read failure, superseded request, or closed screen cannot mark anything read.
+      // Receipt writes do not delay painting, and a receipt event cannot create a loop.
+      const unread = bundle.messages.filter((message: any) => !message.is_read && message.sender_id !== profile.user_id);
+      const receiptKey = `${id}:${unread.map((message: any) => message.id).join(",")}`;
+      if (unread.length && receiptRef.current !== receiptKey) {
+        receiptRef.current = receiptKey;
+        void markSupportMessagesRead(id).then(({ error: readError }) => {
+          if (readError && receiptRef.current === receiptKey) receiptRef.current = "";
+        }).catch(() => { if (receiptRef.current === receiptKey) receiptRef.current = ""; });
+      }
+    } catch (cause) {
+      if (current()) {
+        setMessages([]); setInternalNotes([]); setEvents([]);
+        setThreadError((cause as Error)?.message || "This conversation could not be loaded. Try again.");
+      }
+    } finally {
+      if (current()) setLoadingThread(false);
     }
-    await markSupportMessagesRead(id);
-    if (!quiet) setLoadingThread(false);
   }
   useEffect(() => {
-    if (view === "inbox" && !selected) void load();
+    if (view === "inbox" && !selected) void load(listLoadedRef.current);
   }, [view, selected, profile.user_id, queue, initialConversationId]);
   useEffect(() => {
     if (view !== "inbox") return;
     const scheduler = createRefreshScheduler(
       async (isCurrent) => {
-        await load(true);
-        if (isCurrent() && selected?.conversation_id)
-          await refreshMessages(selected.conversation_id, true);
+        if (!isCurrent()) return;
+        // A slow list must not hold up the thread that is already open.
+        await Promise.allSettled([
+          load(true),
+          ...(selectedIdRef.current ? [refreshMessages(selectedIdRef.current, true)] : []),
+        ]);
       },
       () => document.visibilityState === "visible",
       180,
@@ -175,19 +206,31 @@ export default function CommunicationsWorkspace({
     };
   }, [view, selected?.conversation_id, profile.user_id, queue]);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, selected?.conversation_id]);
+    if (loadingThread || !stickToBottomRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [messages, loadingThread]);
+  function closeThread() {
+    selectionRef.current += 1;
+    selectedIdRef.current = null;
+    threadRequestRef.current += 1;
+    setSelected(null); setMessages([]); setEvents([]); setInternalNotes([]);
+    setFiles([]); setInput(""); setCaseAction(null); setCaseNote("");
+    setThreadError(""); setLoadingThread(false); setSending(false); setUpdatingCase(false);
+  }
   async function open(row: any) {
-    setSelected(row);
-    setFiles([]);
-    setInput("");
-    setEvents([]);
-    setCaseAction(null);
-    setCaseNote("");
+    selectionRef.current += 1;
+    selectedIdRef.current = row.conversation_id;
+    stickToBottomRef.current = true;
+    setSelected(row); setMessages([]); setEvents([]); setInternalNotes([]);
+    setFiles([]); setInput(""); setCaseAction(null); setCaseNote("");
+    setThreadError(""); setSending(false); setUpdatingCase(false);
     setMessageVisibility("customer");
     await refreshMessages(row.conversation_id);
-    void load(true);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    // No automatic composer focus: the recording showed the keyboard opening
+    // and pushing the entire Inbox before the person chose to write anything.
   }
   function addFiles(list: FileList | null) {
     if (!list) return;
@@ -211,104 +254,80 @@ export default function CommunicationsWorkspace({
     if (fileRef.current) fileRef.current.value = "";
   }
   async function reply() {
-    if (!selected || sending || (!input.trim() && !files.length)) return;
+    if (!selected || sending || loadingThread || threadError || (!input.trim() && !files.length)) return;
+    const targetId = selected.conversation_id;
+    const selection = selectionRef.current;
+    const epoch = scopeEpochRef.current;
+    const current = () => selectedIdRef.current === targetId && selectionRef.current === selection && epoch === scopeEpochRef.current;
+    const body = input.trim(), visibility = messageVisibility, attachments = [...files];
+    const paths: string[] = [], types: string[] = [];
+    let sent = false;
     setSending(true);
-    const paths: string[] = [],
-      types: string[] = [];
-    for (const file of files) {
-      const uploaded = await uploadSupportAttachment(
-        selected.conversation_id,
-        file,
-      );
-      if (uploaded.error || !uploaded.path) {
-        for (const path of paths) await deleteSupportAttachment(path);
-        setSending(false);
-        return toast.error(
-          uploaded.error?.message || `Could not upload ${file.name}`,
-        );
+    try {
+      for (const file of attachments) {
+        const uploaded = await uploadSupportAttachment(targetId, file);
+        if (uploaded.error || !uploaded.path) throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
+        paths.push(uploaded.path);
+        types.push(file.type || "application/octet-stream");
       }
-      paths.push(uploaded.path);
-      types.push(file.type || "application/octet-stream");
+      // The captured recipient/body cannot become a different thread mid-send.
+      const { error } = await sendSupportMessage(targetId, body, paths, types, null, visibility);
+      if (error) throw error;
+      sent = true;
+      if (!current()) return;
+      stickToBottomRef.current = true;
+      setInput(""); setFiles([]);
+      await refreshMessages(targetId, true);
+      void load(true);
+    } catch (cause) {
+      if (!sent) await Promise.allSettled(paths.map(path => deleteSupportAttachment(path)));
+      if (current()) toast.error((cause as Error)?.message || "Unable to send reply");
+    } finally {
+      if (current()) setSending(false);
     }
-    const { error } = await sendSupportMessage(
-      selected.conversation_id,
-      input.trim(),
-      paths,
-      types,
-      null,
-      messageVisibility,
-    );
-    if (error) {
-      for (const path of paths) await deleteSupportAttachment(path);
-      setSending(false);
-      return toast.error(error.message || "Unable to send reply");
-    }
-    setSending(false);
-    setInput("");
-    setFiles([]);
-    await refreshMessages(selected.conversation_id, true);
-    void load(true);
   }
   async function takeConversation() {
     if (!selected || updatingCase || profile.role !== "staff") return;
+    const target = selected, selection = selectionRef.current, epoch = scopeEpochRef.current;
+    const current = () => selection === selectionRef.current && epoch === scopeEpochRef.current;
     setUpdatingCase(true);
-    const claimed = await claimCommunicationCase(selected.conversation_id);
-    if (claimed.error) {
-      setUpdatingCase(false);
-      toast.error(claimed.error.message || "This work could not be assigned");
-      return;
+    try {
+      const claimed = await claimCommunicationCase(selected.conversation_id);
+      if (claimed.error) throw claimed.error;
+      if (!current()) return;
+      toast.success(conversationPresentation(target, presentationAudience).operational ? "Assignment taken" : "Request assigned to you");
+      await load(true);
+    } catch (cause) {
+      if (current()) toast.error((cause as Error)?.message || "This work could not be assigned");
+    } finally {
+      if (current()) setUpdatingCase(false);
     }
-    toast.success(
-      conversationPresentation(selected, presentationAudience).operational
-        ? "Assignment taken"
-        : "Request assigned to you",
-    );
-    await load(true);
-    setUpdatingCase(false);
   }
 
   async function updateCase(action: CaseAction) {
-    if (!selected || updatingCase) return;
-    const noteRequired = ["request_info", "escalate", "resolve"].includes(
-      action,
-    );
-    if (noteRequired && !caseNote.trim()) {
-      toast.error(
-        action === "request_info"
-          ? "Say exactly what information the requester must provide"
-          : action === "escalate"
-            ? "Add the reason for escalation"
-            : "Explain the outcome before resolving",
-      );
+    if (!selected || updatingCase || loadingThread || threadError) return;
+    if (["request_info", "escalate", "resolve"].includes(action) && !caseNote.trim()) {
+      toast.error(action === "request_info" ? "Say exactly what information the requester must provide" : action === "escalate" ? "Add the reason for escalation" : "Explain the outcome before resolving");
       return;
     }
+    const targetId = selected.conversation_id, selection = selectionRef.current, epoch = scopeEpochRef.current;
+    const current = () => selection === selectionRef.current && epoch === scopeEpochRef.current;
     setUpdatingCase(true);
-    const { error } = await transitionSupportCase(
-      selected.conversation_id,
-      action,
-      caseNote.trim(),
-    );
-    if (error) {
-      setUpdatingCase(false);
-      toast.error(error.message || "Could not update this request");
-      return;
+    try {
+      const { error } = await transitionSupportCase(targetId, action, caseNote.trim());
+      if (error) throw error;
+      if (!current()) return;
+      const nextStatus: Record<CaseAction, string> = { start: "in_progress", request_info: "waiting_for_user", escalate: "escalated", resolve: "resolved", close: "closed" };
+      setSelected((row: any | null) => row?.conversation_id === targetId ? { ...row, status: nextStatus[action] } : row);
+      setCaseAction(null); setCaseNote("");
+      toast.success(caseActionConfirmation(action));
+      await refreshMessages(targetId, true);
+      void load(true);
+    } catch (cause) {
+      if (current()) toast.error((cause as Error)?.message || "Could not update this request");
+    } finally {
+      if (current()) setUpdatingCase(false);
     }
-    const nextStatus: Record<CaseAction, string> = {
-      start: "in_progress",
-      request_info: "waiting_for_user",
-      escalate: "escalated",
-      resolve: "resolved",
-      close: "closed",
-    };
-    setSelected((current: any | null) =>
-      current ? { ...current, status: nextStatus[action] } : current,
-    );
-    setCaseAction(null);
-    setCaseNote("");
-    setUpdatingCase(false);
-    toast.success(caseActionConfirmation(action));
-    await refreshMessages(selected.conversation_id, true);
-    void load(true);
   }
   const reservationQueue =
       queue === "reservation_operations" || queue === "operations",
@@ -377,24 +396,19 @@ export default function CommunicationsWorkspace({
       profile.role === "staff" && !selected.assigned_staff_id;
     const caseNumber = String(selected.context_snapshot?.case_number || "");
     const conversationLocked = Boolean(
-      !staffOwnsConversation ||
+      loadingThread || threadError || !staffOwnsConversation ||
         (!selectedPresentation.operational &&
           (selected.status === "resolved" || selected.status === "closed")),
     );
     return (
-      <div className="-mx-4 flex min-h-[calc(100dvh-13.5rem)] flex-col overflow-hidden border-y border-white/[.06] bg-[#0E1219] sm:mx-0 sm:min-h-[70vh] sm:rounded-2xl sm:border">
+      <OperationalThreadSurface conversationId={selected.conversation_id} onClose={closeThread}>
+      {(dismiss) => (
+      <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden bg-[#0E1219]">
         <header className="flex items-center gap-3 border-b border-white/[.06] px-3 py-3 sm:px-4">
           <button
             type="button"
             aria-label="Back to conversations"
-            onClick={() => {
-              setSelected(null);
-              setMessages([]);
-              setEvents([]);
-              setFiles([]);
-              setCaseAction(null);
-              setCaseNote("");
-            }}
+            onClick={() => dismiss()}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#9DA3B2] hover:bg-white/[.05]"
           >
             ←
@@ -496,7 +510,7 @@ export default function CommunicationsWorkspace({
             {onOpenContext && (
               <button
                 type="button"
-                onClick={() => onOpenContext(destination.page, destination.id)}
+                onClick={() => dismiss(() => onOpenContext(destination.page, destination.id))}
                 className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[11px] font-semibold"
               >
                 {selectedPresentation.kind === "reservation"
@@ -508,15 +522,23 @@ export default function CommunicationsWorkspace({
             )}
           </div>
         )}
-        <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+        {internalNotes.length > 0 ? <InternalNotes notes={internalNotes} /> : null}
+        <main ref={scrollRef} onScroll={() => {
+          const element = scrollRef.current;
+          if (element) stickToBottomRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+        }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
           <div className="mx-auto max-w-4xl">
             {loadingThread ? (
-              <div className="grid min-h-72 place-items-center">
-                <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+              <ThreadSkeleton />
+            ) : threadError ? (
+              <div className="grid min-h-52 place-items-center text-center">
+                <div><p role="alert" className="text-sm text-[#AAA3B3]">{threadError}</p>
+                  <button type="button" onClick={() => void refreshMessages(selected.conversation_id)} className="mt-4 min-h-11 rounded-xl bg-violet-600 px-5 text-sm font-semibold">Try again</button>
+                </div>
               </div>
             ) : messages.length === 0 ? (
               <div className="grid min-h-72 place-items-center text-center text-[11px] text-[#747A8B]">
-                No messages yet.
+                No customer messages yet.
               </div>
             ) : (
               <div className="space-y-3.5">
@@ -524,7 +546,6 @@ export default function CommunicationsWorkspace({
                   <Bubble
                     key={msg.id}
                     msg={msg}
-                    mine={msg.sender_id === profile.user_id}
                     requesterName={requesterLabel}
                   />
                 ))}
@@ -533,7 +554,7 @@ export default function CommunicationsWorkspace({
             <div ref={bottomRef} />
           </div>
         </main>
-        <footer className="border-t border-white/[.06] bg-[#10141B] p-2.5 sm:p-3">
+        <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B] p-2.5 pb-[max(.625rem,env(safe-area-inset-bottom))] sm:p-3">
           <div className="mx-auto mb-2 flex max-w-4xl gap-2">
             <button
               type="button"
@@ -637,6 +658,8 @@ export default function CommunicationsWorkspace({
           </p>
         </footer>
       </div>
+      )}
+      </OperationalThreadSurface>
     );
   }
 
@@ -660,11 +683,13 @@ export default function CommunicationsWorkspace({
           className="h-11 w-full rounded-2xl border border-white/[.07] bg-[#141820] pl-9 pr-3 text-xs outline-none focus:border-violet-500/35"
         />
       </div>
+      {listError ? <div className="rounded-xl border border-white/10 p-4">
+        <p role="alert" className="text-sm text-[#AAA3B3]">{listError}</p>
+        <button type="button" onClick={() => void load()} className="mt-2 min-h-11 text-sm font-semibold text-violet-300">Try again</button>
+      </div> : null}
       {loadingList ? (
-        <div className="grid min-h-40 place-items-center">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-        </div>
-      ) : shown.length === 0 ? (
+        <ConversationListSkeleton />
+      ) : listError && !rows.length ? null : shown.length === 0 ? (
         <div className="grid min-h-36 place-items-center border-y border-white/[.06] px-5 text-center">
           <div>
             <p className="text-sm font-semibold">No conversations</p>
@@ -1118,66 +1143,83 @@ function publicRole(role?: string) {
   if (role === "property_partner") return "Property Partner";
   return String(role || "user").replace(/_/g, " ");
 }
+function ConversationListSkeleton() {
+  return (
+    <div className="border-y border-white/[.06]" aria-label="Loading conversations">
+      {[0,1,2].map((item) => (
+        <div key={item} className="flex items-center gap-3 px-4 py-3.5">
+          <div className="h-12 w-12 shrink-0 rounded-full bg-white/[.05] shimmer" />
+          <div className="min-w-0 flex-1">
+            <div className="h-3 w-28 rounded-full bg-white/[.06] shimmer" />
+            <div className="mt-2 h-2.5 w-[72%] rounded-full bg-white/[.04] shimmer" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThreadSkeleton() {
+  return (
+    <div className="min-h-72 space-y-4 pt-2" aria-label="Loading conversation">
+      <div className="h-14 w-[58%] rounded-[18px] rounded-bl-md bg-white/[.045] shimmer" />
+      <div className="ml-auto h-12 w-[42%] rounded-[18px] rounded-br-md bg-violet-500/[.10] shimmer" />
+      <div className="h-16 w-[66%] rounded-[18px] rounded-bl-md bg-white/[.045] shimmer" />
+    </div>
+  );
+}
+
+function InternalNotes({ notes }: { notes: any[] }) {
+  const latest = notes[notes.length - 1];
+  return (
+    <details className="max-h-[30%] shrink-0 overflow-y-auto border-b border-white/[.06] bg-amber-500/[.025] px-4 py-2.5">
+      <summary className="cursor-pointer list-none text-[10px] font-semibold text-amber-200/90">
+        Internal notes · {notes.length}
+        <span className="ml-2 font-normal text-amber-100/45">
+          {latest?.sender_name ? `Latest by ${latest.sender_name}` : "WeHouse team only"}
+        </span>
+      </summary>
+      <div className="mx-auto mt-2 max-w-4xl space-y-2 pb-1">
+        {notes.map((note) => (
+          <div key={note.id} className="rounded-xl border border-amber-500/10 bg-black/10 px-3 py-2">
+            <div className="flex items-center justify-between gap-3 text-[8px] text-amber-100/45">
+              <span className="truncate">{note.sender_name || "WeHouse team"}</span>
+              <span>{new Date(note.created_at).toLocaleString()}</span>
+            </div>
+            {note.content ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[#C8C1B3]">{note.content}</p> : null}
+            {(note.attachments || []).map((path: string, index: number) => <SecureSupportAttachment key={path} path={path} type={note.attachment_types?.[index] || ""} />)}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function Bubble({
   msg,
-  mine,
   requesterName,
 }: {
   msg: any;
-  mine: boolean;
   requesterName: string;
 }) {
   const meta = msg.action_metadata || {};
-  const internal = msg.visibility === "internal";
-  if (internal) {
-    return (
-      <div className="mx-auto my-3 max-w-2xl rounded-2xl border border-amber-500/15 bg-amber-500/[.055] px-4 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-amber-300">Internal work note · {msg.sender_name || "WeHouse team"}</p>
-        {msg.content && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#E2DED3]">{msg.content}</p>}
-        {(msg.attachments || []).map((path: string, i: number) => <SecureSupportAttachment key={`${msg.id}-${path}`} path={path} type={msg.attachment_types?.[i] || ""} />)}
-        <p className="mt-2 text-[10px] text-amber-200/50">{new Date(msg.created_at).toLocaleString()}</p>
-      </div>
-    );
-  }
-  if (msg.action_type === "status_change") {
-    return (
-      <div className="mx-auto my-3 max-w-md rounded-2xl border border-violet-500/15 bg-violet-500/[.055] px-4 py-3 text-center">
-        <p className="text-[9px] font-semibold text-violet-200">
-          {caseEventLabel(String(meta.event_type || "request_updated"))}
-        </p>
-        {msg.content ? (
-          <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#B1B5C1]">
-            {msg.content}
-          </p>
-        ) : null}
-        <p className="mt-1 text-[8px] text-[#606778]">
-          {new Date(msg.created_at).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      </div>
-    );
-  }
-  const fromWeHouse = ["staff", "admin", "creator"].includes(
-    String(msg.sender_role || ""),
-  );
-  const sender = fromWeHouse
-    ? `${mine ? "You" : msg.sender_name || "WeHouse team"} · WeHouse`
-    : msg.sender_name || requesterName;
+  // Direction is assigned by the server from this conversation's participants,
+  // not from a legacy profile role that may also have a Personal workspace.
+  const fromWeHouse = msg.sender_side === "wehouse";
+  const sender = msg.sender_name || requesterName;
   return (
     <div className={`flex ${fromWeHouse ? "justify-end" : "justify-start"}`}>
       <div
         className={`flex max-w-[88%] flex-col sm:max-w-[72%] ${fromWeHouse ? "items-end" : "items-start"}`}
       >
-        {Object.keys(meta).length > 0 && (
+        {Object.keys(meta).length > 0 && msg.action_type && msg.action_type !== "message" && (
           <ContextCard meta={meta} type={msg.action_type} />
         )}
-        <p
-          className={`mb-1 px-1 text-[11px] font-medium ${fromWeHouse ? "text-right text-violet-200/75" : "text-[#838A9B]"}`}
-        >
-          {sender}
-        </p>
+        {!fromWeHouse ? (
+          <p className="mb-1 px-1 text-[9px] font-medium text-[#838A9B]">
+            {sender}
+          </p>
+        ) : null}
         <div
           className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
         >

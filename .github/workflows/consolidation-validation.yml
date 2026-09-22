@@ -87,6 +87,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/post82_profile_summary_contract.sql
       - name: Exercise canonical Activity routing and least privilege
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/canonical_activity_domain_contract.sql
+      - name: Exercise operational conversation lane separation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operational_conversation_bundle_contract.sql
       - name: Exercise privileged RPC write guards
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/security_definer_write_guard_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
@@ -95,6 +97,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recorded_journeys_contract.sql
       - name: Exercise workspace inbox separation and revocation
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_inbox_contract.sql
+      - name: Exercise Help payment eligibility and workspace isolation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_help_payment_contract.sql
       - name: Exercise hotel and property first-send workspace routing
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_topic_workspace_contract.sql
       - name: Verify signup hook through Supabase Auth
