@@ -105,25 +105,42 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
   }, []);
   return (
     <div
-      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0E0C12] px-6 py-10 text-center text-[#F6F2FC]"
+      className="wh-auth-to-app min-h-[100dvh] bg-[#0A0A0F] px-4 py-5 text-[#F6F2FC]"
       role="status"
       aria-label="Loading WeHouse"
     >
-      <img
-        src="/app-icon.svg?v=3"
-        alt=""
-        className="h-12 w-12 rounded-[14px]"
-      />
-      <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
-      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#AAA3B3]">{signingIn ? "Completing sign-in…" : "Opening your account…"}</p>
-      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-200 border-t-violet-600 motion-reduce:animate-none" />}
-      {slow && (
-        <div className="mt-5 max-w-xs">
-          <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
-          <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+      <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col">
+        <div className="wh-auth-to-app-brand flex items-center gap-3 pt-3">
+          <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
+          <div>
+            <p className="text-base font-semibold tracking-tight">WeHouse</p>
+            <p className="mt-0.5 text-[10px] text-[#777E8E]">{signingIn ? "Signing you in" : "Opening your account"}</p>
+          </div>
         </div>
-      )}
+        {!slow ? (
+          <div className="wh-auth-to-app-shell mt-10 flex-1">
+            <div className="h-3 w-28 rounded-full bg-white/[.08]" />
+            <div className="mt-3 h-7 w-48 rounded-xl bg-white/[.055]" />
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <div className="h-24 rounded-[20px] bg-white/[.045]" />
+              <div className="h-24 rounded-[20px] bg-violet-500/[.08]" />
+            </div>
+            <div className="mt-3 h-20 rounded-[20px] bg-white/[.035]" />
+            <div className="mt-3 h-16 rounded-[18px] bg-white/[.03]" />
+            <div className="mt-auto flex justify-around border-t border-white/[.05] pb-2 pt-4">
+              {[0,1,2,3,4].map((item) => <span key={item} className="h-8 w-8 rounded-full bg-white/[.045]" />)}
+            </div>
+          </div>
+        ) : (
+          <div className="grid flex-1 place-items-center text-center">
+            <div className="max-w-xs">
+              <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
+              <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
+              <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
