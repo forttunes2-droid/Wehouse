@@ -75,13 +75,13 @@
 /* Opacity leaves fixed dialogs anchored to the viewport during navigation. */
 .page-transition,
 .wh-panel-enter {
-  animation: whPageEnter 190ms cubic-bezier(.2,.7,.2,1);
+  animation: whPageEnter 220ms cubic-bezier(.2,.72,.2,1);
 }
 
 @keyframes whPageEnter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
@@ -89,8 +89,119 @@
   }
 }
 
+/* WeHouse launch choreography: branded motion, not a generic spinner. */
+.wh-launch-screen {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(124, 92, 255, .13), transparent 17rem),
+    #0e0c12;
+  color: #f6f2fc;
+}
+.wh-launch-glow {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: min(72vw, 34rem);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(124, 92, 255, .12), transparent 68%);
+  filter: blur(18px);
+  transform: translate(-50%, -50%) scale(.72);
+  animation: whLaunchGlow 720ms cubic-bezier(.2,.75,.2,1) both;
+}
+.wh-launch-lockup {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+}
+.wh-launch-mark-wrap {
+  position: relative;
+  display: grid;
+  height: 72px;
+  width: 72px;
+  place-items: center;
+}
+.wh-launch-ring {
+  position: absolute;
+  inset: -6px;
+  border: 1px solid rgba(167, 139, 250, .22);
+  border-radius: 22px;
+  opacity: 0;
+  animation: whLaunchRing 620ms 80ms cubic-bezier(.2,.75,.2,1) both;
+}
+.wh-launch-mark {
+  height: 56px;
+  width: 56px;
+  border-radius: 17px;
+  animation: whLaunchMark 420ms cubic-bezier(.18,.82,.24,1) both;
+}
+.wh-launch-copy {
+  animation: whLaunchCopy 360ms 120ms cubic-bezier(.2,.72,.2,1) both;
+}
+.wh-launch-wordmark {
+  margin-top: 16px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+.wh-launch-message {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #aaa3b3;
+}
+.wh-launch-progress {
+  position: relative;
+  width: 74px;
+  height: 2px;
+  margin-top: 20px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.07);
+  animation: whLaunchCopy 300ms 180ms ease both;
+}
+.wh-launch-progress > span {
+  position: absolute;
+  inset-block: 0;
+  width: 34px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #a78bfa, transparent);
+  animation: whLaunchProgress 900ms ease-in-out infinite;
+}
+@keyframes whLaunchMark {
+  from { opacity: 0; transform: translateY(10px) scale(.82); filter: blur(5px); }
+  65% { opacity: 1; transform: translateY(-1px) scale(1.035); filter: blur(0); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes whLaunchRing {
+  from { opacity: 0; transform: scale(.7); }
+  55% { opacity: .9; }
+  to { opacity: .25; transform: scale(1); }
+}
+@keyframes whLaunchGlow {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.72); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes whLaunchCopy {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes whLaunchProgress {
+  from { transform: translateX(-38px); }
+  to { transform: translateX(78px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .page-transition, .wh-panel-enter { animation: none; }
+  .page-transition, .wh-panel-enter,
+  .wh-launch-glow, .wh-launch-ring, .wh-launch-mark,
+  .wh-launch-copy, .wh-launch-progress, .wh-launch-progress > span { animation: none; }
   [data-sonner-toast] { transition: none !important; animation: none !important; }
 }
 
