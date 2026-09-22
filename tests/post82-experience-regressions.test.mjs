@@ -186,7 +186,10 @@ test("Creator exposes Personal through the canonical workspace switcher", async 
 });
 
 test("operations conversation opens from messages, not audit history and read receipt latency", async () => {
-  const communications = await read("src/components/CommunicationsWorkspace.tsx");
+  const [communications, indexes] = await Promise.all([
+    read("src/components/CommunicationsWorkspace.tsx"),
+    read("supabase/migrations/20260922010500_support_message_thread_indexes.sql"),
+  ]);
   const refreshStart = communications.indexOf("async function refreshMessages");
   const refreshEnd = communications.indexOf("\n  useEffect", refreshStart);
   const refresh = communications.slice(refreshStart, refreshEnd);
@@ -199,6 +202,9 @@ test("operations conversation opens from messages, not audit history and read re
   assert.match(refresh, /void markSupportMessagesRead\(id\)/);
   assert.match(communications, /mine \? "justify-end" : "justify-start"/);
   assert.doesNotMatch(communications, /function ContextCard/);
+  assert.match(indexes, /partner_support_messages_conversation_created_idx/);
+  assert.match(indexes, /\(conversation_id, created_at\)/);
+  assert.match(indexes, /partner_support_messages_unread_conversation_idx/);
 });
 
 test("login and first app paint use responsive WeHouse presentation", async () => {
