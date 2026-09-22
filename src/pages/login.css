@@ -22,7 +22,7 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   min-width: 0;
   min-height: 100vh;
   min-height: 100svh;
@@ -50,16 +50,13 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
 }
 .wh-auth-form h1 { max-width: 18ch; font-size: clamp(20px, 4.6vw, 25px); line-height: 1.18; letter-spacing: -.035em; }
 .wh-auth-mode-signup .wh-auth-form h1 { font-size: clamp(22px, 5vw, 26px); }
-/* Welcome has a deliberate middle, not a small card stuck below the logo. */
-.wh-auth-mode-choose .wh-auth-content {
-  display: grid;
-  grid-template-rows: minmax(min-content, 1fr) auto;
-  gap: 24px;
-  padding-top: 12px;
-}
-.wh-auth-mode-choose .wh-auth-form { align-self: center; margin-block: 0; padding: 24px 22px; }
-.wh-auth-mode-choose .wh-auth-form > div > div:first-child p:last-child { max-width: 29ch; text-wrap: pretty; }
-.wh-auth-mode-choose .wh-auth-legal { margin-top: 0; padding-top: 0; }
+/* The welcome screen is one composed group, not a card stranded at the top. */
+.wh-auth-layout.wh-auth-mode-choose { justify-content: center; }
+.wh-auth-mode-choose .wh-auth-content { flex: 0; }
+.wh-auth-mode-choose .wh-auth-header { padding-bottom: 28px; }
+.wh-auth-mode-choose .wh-auth-legal { margin-top: 24px; padding-top: 0; }
+.wh-auth-mode-choose .wh-auth-form { margin-block: 0; padding: 22px 20px; }
+.wh-auth-mode-choose .wh-auth-form > div > div:first-child p:last-child { max-width: 29ch; }
 .wh-auth-legal { margin-top: auto; padding-top: 24px; }
 
 .wh-auth-primary { background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; box-shadow: 0 10px 28px rgb(109 40 217 / 20%); }
@@ -81,52 +78,25 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
 .wh-keyboard-open .wh-auth-legal { padding-top: 16px; }
 
 @media (min-width: 760px) {
-  .wh-auth-screen { display: grid; place-items: center; padding: 44px 28px; }
+  .wh-auth-screen { display: grid; place-items: center; padding: 40px 24px; }
   .wh-auth-layout {
-    display: grid;
-    grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
-    align-items: center;
-    column-gap: clamp(38px, 7vw, 84px);
-    width: min(920px, 100%);
-    max-width: 920px;
-    min-height: min(650px, calc(100svh - 88px));
-    padding: 34px 28px;
+    width: min(480px, 100%);
+    max-width: 480px;
+    min-height: 0;
+    padding: 28px 24px;
   }
-  .wh-auth-header {
-    width: 100%;
-    max-width: 300px;
-    margin: 0;
-    padding: 0;
-    align-self: center;
-  }
-  .wh-auth-wordmark { gap: 10px; }
-  .wh-auth-wordmark img { width: 40px; height: 40px; }
-  .wh-auth-wordmark p { font-size: 21px; }
-  .wh-auth-tagline { max-width: 22rem; margin-top: 10px; font-size: 12px; }
-  .wh-auth-content {
-    width: 100%;
-    max-width: 430px;
-    justify-self: end;
-    align-self: center;
-  }
-  .wh-auth-form, .wh-auth-legal { max-width: 430px; }
-  .wh-auth-mode-choose .wh-auth-content { display: flex; padding-top: 0; gap: 0; }
+  .wh-auth-header, .wh-auth-form, .wh-auth-legal { max-width: 430px; }
+  .wh-auth-header { padding-bottom: 28px; }
+  .wh-auth-content { flex: 0; }
+  .wh-auth-form { padding: 28px; }
   .wh-auth-mode-choose .wh-auth-form { padding: 28px; }
-  .wh-auth-mode-choose .wh-auth-legal { margin-top: 24px; }
   .wh-auth-legal { margin-top: 24px; padding-top: 0; }
-}
-
-@media (min-width: 1180px) {
-  .wh-auth-layout {
-    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
-    column-gap: 96px;
-  }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
   .wh-auth-layout { padding-top: max(20px, env(safe-area-inset-top, 0px)); }
   .wh-auth-header { padding-bottom: 24px; }
-  .wh-auth-mode-choose .wh-auth-form { margin-block: 0; padding-block: 20px; }
+  .wh-auth-layout.wh-auth-mode-choose { justify-content: flex-start; }
   .wh-auth-legal { padding-top: 24px; }
 }
 
@@ -157,4 +127,5 @@ body.wh-auth-open #root { background-color: #0e0c12 !important; color-scheme: da
   .wh-auth-form { animation: none; }
   .wh-auth-primary,
   .wh-auth-secondary { transition: none; }
+  .wh-auth-primary:active, .wh-auth-secondary:active { transform: none; }
 }

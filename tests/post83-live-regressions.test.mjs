@@ -34,12 +34,13 @@ test("Operations chat is projected by one server bundle with internal notes sepa
   assert.match(migration, /current_actor_can_access_operational_conversation/);
 });
 
-test("Login widens into a balanced desktop composition and workspaces enter in stages", () => {
+test("Login keeps a bounded, aligned composition and workspaces enter in stages", () => {
   const login = read("src/pages/login.css");
   const css = read("src/index.css");
   const app = read("src/App.tsx");
-  assert.match(login, /@media \(min-width: 760px\)[\s\S]*grid-template-columns/);
-  assert.match(login, /max-width: 920px/);
+  assert.match(login, /@media \(min-width: 760px\)/);
+  assert.doesNotMatch(login, /grid-template-columns/);
+  assert.match(login, /max-width: 480px/);
   assert.match(css, /whWorkspaceHeaderIn/);
   assert.match(css, /whWorkspaceContentIn/);
   assert.match(app, /wh-workspace-enter/);
