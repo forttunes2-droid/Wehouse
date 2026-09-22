@@ -34,7 +34,7 @@ test("fallback Help keeps payment and safety with the linked property or job own
   assert.match(help, /\["apartment_reservation", "hotel_booking", "worker_booking"\]/);
   assert.match(help, /openLinkedJourney\(target, "payment_issue", "Payment issue"\)/);
   assert.match(help, /openLinkedJourney\(target, "safety_threat", "Safety concern"\)/);
-  assert.match(help, /Finance is the direct/);
+  assert.match(help, /moneyReason === "payment_issue" && openLinkedJourney\(target, "payment_issue", "Payment issue"\)\) return/);
   assert.match(help, /moneyReason === "payout_issue" \? "payout"/);
   assert.match(help, /contextType: "contextual_help"/);
 });
@@ -65,7 +65,6 @@ test("discovery distance is server-computed and directions use the written addre
     read("src/pages/HotelDetailExperience.tsx"),
   ]);
   assert.match(hook, /supabase\.rpc\("get_my_discovery_distances"/);
-  assert.match(hook, /export function directionsUrl\(address: string\)/);
   assert.match(homes, /getDiscoveryDistanceMap/);
   assert.doesNotMatch(homes, /Number\(listing\.gps_latitude\)/);
   assert.match(hotels, /getDiscoveryDistanceMap/);
@@ -74,6 +73,7 @@ test("discovery distance is server-computed and directions use the written addre
   assert.doesNotMatch(listing, /directionsUrl\(destination\.lat/);
   assert.match(hotel, /directionsUrl\(locationLabel\(hotel\.address/);
   assert.doesNotMatch(hotel, /directionsUrl\(exactDestination\.lat/);
+  assert.match(hook, /export function directionsUrl\(address: string\)/);
 });
 
 test("human location UI is address-only and manual address remains authoritative", async () => {
@@ -93,8 +93,8 @@ test("human location UI is address-only and manual address remains authoritative
   assert.doesNotMatch(picker, /Adjust entrance on map/i);
   assert.doesNotMatch(picker, /Edit pin/i);
   assert.match(submission, /const hasCoordinates = value\.latitude != null && value\.longitude != null/);
-  assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
   assert.match(profile, /label="Street address"/);
   assert.match(profile, /preciseLocation\?\.address\?\.trim\(\) \|\| 'Not added'/);
   assert.match(profile, /Choose your State and Local Government, then add your street address/);
+  assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
 });

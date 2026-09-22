@@ -36,13 +36,18 @@ export default function PublicProfileSurface({
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
+  const returnFocus = useRef<HTMLElement | null>(null);
   const controller = useRef<ReturnType<typeof bindProfileScreenHistory> | null>(null);
   useEffect(() => { close.current = onClose; }, [onClose]);
   const dismiss = useCallback(() => controller.current?.dismiss(), []);
 
   useEffect(() => {
     const app = document.getElementById("root");
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // StrictMode replays this effect after the dialog has already taken focus.
+    // Capture the real opener once, not the dialog from the second effect run.
+    if (!returnFocus.current && document.activeElement instanceof HTMLElement) {
+      returnFocus.current = document.activeElement;
+    }
     if (profileLocks++ === 0) {
       originalOverflow = document.body.style.overflow;
       originalInert = app?.inert || false;
@@ -80,7 +85,8 @@ export default function PublicProfileSurface({
         window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: false } }));
       }
       queueMicrotask(() => {
-        if (previousFocus?.isConnected && !previousFocus.closest('[inert]')) previousFocus.focus({ preventScroll: true });
+        const opener = returnFocus.current;
+        if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
       });
     };
   }, [id]);

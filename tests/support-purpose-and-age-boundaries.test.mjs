@@ -1,36 +1,71 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import vm from "node:vm";
+import ts from "typescript";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("Worker job Message WeHouse belongs to Worker Operations while direct job chat stays separate", async () => {
+async function supportModule() {
+  const calls = [];
+  const exports = {};
+  const code = ts.transpileModule(await read("src/lib/supabase/support.ts"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  vm.runInNewContext(code, { exports, require(name) {
+    if (name === "./client") return { supabase: { async rpc(name, args) {
+      calls.push({ name, args: JSON.parse(JSON.stringify(args)) });
+      return { data: { conversation_id: "test-conversation" }, error: null };
+    } } };
+    if (name === "@/lib/propertyBookingLifecycle") return { propertyBookingStatusLabel: () => "Status unavailable" };
+    throw new Error(`Unexpected dependency ${name}`);
+  } });
+  return { ...exports, calls };
+}
+
+test("Worker job keeps Worker Operations routing without naming an internal department as the customer contact", async () => {
   const [support, jobChat, atomic] = await Promise.all([
-    read("src/lib/supabase/support.ts"),
+    supportModule(),
     read("src/components/BookingNegotiationChat.tsx"),
     read("supabase/migrations/20260916123000_atomic_wehouse_first_send_and_support_storage.sql"),
   ]);
-  const workerStart = support.indexOf('if (contextType === "worker_booking")');
-  const workerEnd = support.indexOf('return {\n    kind: "support",', workerStart);
-  const workerBlock = support.slice(workerStart, workerEnd);
-  assert.match(workerBlock, /operator: "WeHouse Worker Operations"/);
-  assert.match(workerBlock, /operational: true/);
+  const context = { contextType: "worker_booking", contextId: "job-1", subject: "Service question" };
+  const customer = support.conversationPresentation(context);
+  const operations = support.conversationPresentation(context, "operations");
+  assert.equal(customer.operator, "WeHouse");
+  assert.equal(customer.operational, true);
+  assert.equal(operations.operator, "WeHouse Worker Operations");
+  await support.createSupportConversation(context);
+  assert.equal(support.calls[0].name, "open_contextual_case_conversation");
+  assert.equal(support.calls[0].args.p_reason_code, "worker_job_issue");
+  assert.equal(support.calls[0].args.p_subject_type, "worker_job");
+  assert.equal(support.calls[0].args.p_subject_id, "job-1");
   assert.match(jobChat, /contextType: "worker_booking"/);
   assert.match(jobChat, /category: "service_booking_help"/);
-  assert.match(support, /p_reason_code: "worker_job_issue"/);
-  assert.match(support, /p_subject_type: "worker_job"/);
   assert.match(atomic, /v_context='worker_booking'[\s\S]*open_contextual_case_conversation\([\s\S]*'worker_job_issue','worker_job'/);
 });
 
-test("Property Message WeHouse is owned by Property Operations", async () => {
-  const support = await read("src/lib/supabase/support.ts");
-  const reservationStart = support.indexOf("if (reservation)");
-  const propertyStart = support.indexOf('if (\n    [\n      "property_listing"');
-  const workerStart = support.indexOf('if (contextType === "worker_booking")');
-  assert.ok(reservationStart >= 0 && propertyStart > reservationStart && workerStart > propertyStart);
-  assert.match(support.slice(reservationStart, propertyStart), /operator: "WeHouse Property Operations"/);
-  assert.match(support.slice(propertyStart, workerStart), /operator: "WeHouse Property Operations"/);
-  assert.match(support.slice(workerStart), /operator: "WeHouse Support"/);
+test("Property Message WeHouse retains Property Operations authority and canonical property/booking routes", async () => {
+  const support = await supportModule();
+  for (const contextType of ["apartment_reservation", "hotel_booking", "property_listing", "property_inspection", "hotel_property", "hotel_operations"]) {
+    const context = { contextType, contextId: "1", contextSnapshot: { linked_label: "Test property" } };
+    assert.equal(support.conversationPresentation(context).operator, "WeHouse");
+    assert.equal(support.conversationPresentation(context).title, "Test property");
+    assert.equal(support.conversationPresentation(context, "operations").operator, "WeHouse Property Operations");
+    assert.equal(support.conversationPresentation(context, "operations").operational, true);
+  }
+  assert.equal(support.conversationPresentation({}).operator, "WeHouse");
+  assert.equal(support.conversationPresentation({}, "operations").operator, "WeHouse Support");
+  for (const contextType of ["apartment_reservation", "hotel_booking", "property_listing", "hotel_property"])
+    await support.createSupportConversation({ contextType, contextId: "1" });
+  assert.deepEqual(support.calls.map(call => call.name), [
+    "open_my_reservation_conversation", "open_my_reservation_conversation",
+    "open_property_operations_conversation", "open_property_operations_conversation",
+  ]);
+  assert.equal(support.calls[0].args.p_context_type, "apartment_reservation");
+  assert.equal(support.calls[1].args.p_context_type, "hotel_booking");
+  assert.equal(support.calls[2].args.p_subject_type, "listing");
+  assert.equal(support.calls[3].args.p_subject_type, "hotel_property");
 });
 
 test("Hotel guest chat stays separate while Message WeHouse preserves the canonical booking thread", async () => {
