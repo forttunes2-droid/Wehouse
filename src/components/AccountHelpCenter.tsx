@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import AccountShell, { AccountRow, AccountSection } from "@/components/AccountShell";
 import type { WorkspaceName } from "@/lib/workspacePresentation";
 import { withTimeout } from "@/lib/withTimeout";
-import { helpTargetKey, helpTargetLabel, paymentHelpTargets, type HelpTarget } from "@/lib/helpTargets";
+import { helpTargetKey, helpTargetLabel, paymentHelpTargets, isHelpTargetsResponse, type HelpTarget } from "@/lib/helpTargets";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -56,8 +56,10 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     void withTimeout(supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace }), 15000, 'Help timed out').then(({ data, error }) => {
       if (cancelled) return;
       // An older or malformed projection is unavailable, not an empty payment history.
-      setLoadError(Boolean(error) || !Array.isArray(data?.payment_targets));
-      setTargets((data || {}) as HelpTargets);
+      const usable = !error && isHelpTargetsResponse(data);
+      setLoadError(!usable);
+      // Never let a malformed list crash rendering before the retry UI appears.
+      setTargets(usable ? data as HelpTargets : {});
       setLoading(false);
     }).catch(() => {
       if (cancelled) return;
@@ -196,7 +198,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     </div> : !topic ? <AccountSection>
       {topics.map(item => <AccountRow key={item.id} title={item.title} detail={item.detail} onClick={() => resetTopic(item.id)} />)}
     </AccountSection> : <div className="space-y-4">
-      {loading ? <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-5 text-xs text-[#8E95A6]">Loading your WeHouse records…</div> : null}
+      {loading ? <div role="status" className="rounded-2xl border border-white/[.06] bg-[#11141C] p-5 text-xs text-[#8E95A6]">Loading your help options…</div> : <>
       {topic === "general" ? <AccountSection>
         <AccountRow title="Using WeHouse" detail="Something in the app is confusing or not working" onClick={() => startGeneral("app_help")} />
         <AccountRow title="Account access" detail="Sign-in, profile or account access problem" onClick={() => startGeneral("account_access")} />
@@ -226,6 +228,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
           targets={safetyTargets} value={targetId} setValue={setTargetId} allowAccount /> : null}
         <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse</PrimaryButton>
       </> : null}
+      </>}
     </div>}
   </AccountShell>;
 }

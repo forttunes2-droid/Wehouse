@@ -30,3 +30,32 @@ export function helpTargetLabel(target: HelpTarget) {
 export function paymentHelpTargets(targets: { payment_targets?: HelpTarget[] }) {
   return Array.isArray(targets.payment_targets) ? targets.payment_targets : [];
 }
+
+const HELP_LISTS = [
+  "worker_jobs", "withdrawals", "reservations", "hotel_bookings",
+  "property_requests", "properties", "hotels", "partner_reservations",
+  "partner_hotel_bookings", "payment_targets",
+] as const;
+
+function isHelpTarget(value: unknown): value is HelpTarget {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  if (!["subject_type", "subject_id", "label"].every(key =>
+    typeof item[key] === "string" && (item[key] as string).trim().length > 0)) return false;
+  return ["context_type", "detail", "status", "stay_type", "updated_at",
+    "record_date", "record_reference"].every(key => item[key] == null || typeof item[key] === "string");
+}
+
+/** A successful HTTP response is not necessarily a usable Help projection.
+ * Missing/invalid records must reach the retry UI, not look like empty history
+ * or throw while constructing the record selectors. Authorization remains on
+ * the server; this only validates the response shape used by the UI. */
+export function isHelpTargetsResponse(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Record<string, unknown>;
+  if (!isHelpTarget(data.account) || data.account.subject_type !== "account"
+    || !Array.isArray(data.payment_targets)) return false;
+  if (data.worker_profile != null && !isHelpTarget(data.worker_profile)) return false;
+  return HELP_LISTS.every(key => data[key] == null
+    || (Array.isArray(data[key]) && data[key].every(isHelpTarget)));
+}

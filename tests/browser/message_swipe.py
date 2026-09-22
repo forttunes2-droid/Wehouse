@@ -18,6 +18,7 @@ async def swipe(page, session, side, dx, dy=0, cancel=False, hold=0, capture=Non
     for step in range(1,9):
         await session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':point(x+dx*step/8,y+dy*step/8)})
         await page.wait_for_timeout(18)
+        assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth'), 'Gesture exposed horizontal page overflow'
     if capture:
         await page.screenshot(path=str(OUT/capture))
         assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth'), 'Swipe exposed horizontal page overflow'
@@ -53,6 +54,10 @@ async def main():
                         await swipe(page,session,side,direction*100,cancel=True)
                         await expect(page.get_by_label('Reply count')).to_have_text('0')
                     await page.get_by_role('button',name='Reset gesture result').click()
+                    await swipe(page,session,'incoming',0,dy=-110)
+                    await expect(page.get_by_label('Reply count')).to_have_text('0')
+                    assert await page.evaluate('window.scrollY > 0'), 'Message must permit vertical page scrolling'
+                    await page.evaluate('window.scrollTo({top:0,behavior:"instant"})')
                     await swipe(page,session,'incoming',0,hold=470)
                     await expect(page.get_by_label('Action count')).to_have_text('1')
                     await expect(page.get_by_label('Reply count')).to_have_text('0')
@@ -60,7 +65,7 @@ async def main():
                     await expect(page.get_by_label('Voice plays')).to_have_text('1')
                     assert not errors,errors
                     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
-                    results.append({'width':width,'passed':True,'checks':['inward only','threshold','cancel','long press','embedded controls','no horizontal overflow']})
+                    results.append({'width':width,'passed':True,'checks':['inward only','threshold','cancel','long press','embedded controls','vertical scrolling','no horizontal overflow throughout both directions']})
                     print('PASS native touch reply gesture',width,flush=True)
                 except Exception as error:
                     results.append({'width':width,'passed':False,'error':str(error),'page_errors':errors})

@@ -47,21 +47,35 @@ async def main():
             scenario = Scenario()
             context = await browser.new_context(viewport={'width':390,'height':844}, service_workers='block')
             page = await context.new_page()
-            projection = {'valid': False}
+            projection = {'valid': False, 'malformed': False}
+            help_ready = asyncio.Event()
             page.on('pageerror', lambda error: scenario.errors.append(str(error)))
             async def route(req_route):
                 if '/rest/v1/rpc/get_my_workspace_help_targets' in req_route.request.url:
+                    await help_ready.wait()
                     data = {'account': {'subject_type':'account','subject_id':'qa-self','label':'My account'},
                             'reservations':[{'subject_type':'long_let','subject_id':'old-attempt','context_type':'apartment_reservation','label':'Old unpaid attempt','detail':'cancelled'}]}
                     if projection['valid']: data['payment_targets'] = []
+                    if projection['malformed']: data['reservations'] = {'invalid': 'not an array'}
                     return await req_route.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
                 return await scenario.route(req_route)
             await page.route('**/*', route)
             await page.goto(BASE+'/tests/browser/profile-help.html?mode=help')
+            await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
+            await expect(page.get_by_role('status')).to_contain_text('Loading your help options')
+            await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_have_count(0)
+            await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_have_count(0)
+            await page.screenshot(path=str(OUT/'help-loading-not-empty.png'))
+            help_ready.set()
             await expect(page.get_by_role('alert')).to_contain_text("We couldn't load your help options.")
             await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_have_count(0)
             await page.screenshot(path=str(OUT/'help-unavailable-not-empty.png'))
             projection['valid'] = True
+            projection['malformed'] = True
+            await page.get_by_role('button', name='Try again', exact=True).click()
+            await expect(page.get_by_role('alert')).to_contain_text("We couldn't load your help options.")
+            assert not scenario.errors, scenario.errors
+            projection['malformed'] = False
             await page.get_by_role('button', name='Try again', exact=True).click()
             await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
             await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_be_visible()
@@ -69,7 +83,7 @@ async def main():
             await expect(page.get_by_role('alert')).to_have_count(0)
             await page.screenshot(path=str(OUT/'help-verified-empty-payments.png'))
             assert not scenario.errors, scenario.errors
-            results.append({'passed':True, 'check':'Missing projection shows recoverable error; verified empty payments remain distinct'})
+            results.append({'passed':True, 'check':'Loading never claims empty; malformed lists remain retryable; verified empty payments remain distinct'})
             print('PASS Help availability and retry', flush=True)
             await context.close()
         except Exception as error:
