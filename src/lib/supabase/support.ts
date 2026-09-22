@@ -557,6 +557,38 @@ export async function getSupportMessages(conversationId: string) {
   return { messages: data || [], error };
 }
 
+export type OperationalConversationBundle = {
+  conversation?: {
+    conversation_id?: string;
+    subject?: string | null;
+    status?: string | null;
+    context_type?: string | null;
+    context_id?: string | null;
+    context_snapshot?: Record<string, unknown>;
+    case_number?: string | null;
+  };
+  messages: any[];
+  internal_notes: any[];
+  events: SupportCaseEvent[];
+};
+
+export async function getOperationalConversationBundle(conversationId: string) {
+  const { data, error } = await supabase.rpc("get_operational_conversation_bundle", {
+    p_conversation_id: conversationId,
+  });
+  const value = (data || {}) as Partial<OperationalConversationBundle>;
+  return {
+    bundle: {
+      conversation: value.conversation || {},
+      messages: Array.isArray(value.messages) ? value.messages : [],
+      internal_notes: Array.isArray(value.internal_notes) ? value.internal_notes : [],
+      events: Array.isArray(value.events) ? value.events : [],
+    } as OperationalConversationBundle,
+    error,
+  };
+}
+
+
 export async function getSupportCaseEvents(conversationId: string) {
   const { data, error } = await supabase.rpc("get_my_support_case_events", {
     p_conversation_id: conversationId,
