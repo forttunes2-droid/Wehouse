@@ -86,3 +86,18 @@ test('hotel sections separate daily work from setup and team, retaining capabili
   assert.match(source, /row.inventory_date === date/);
   assert.doesNotMatch(source, /External payment timing can be mapped/);
 });
+
+
+test('property names stay consistent across submission, publication and internal views', () => {
+  const hotel = { name: 'Test Lodge' };
+  assert.equal(nav.propertyRecordTitle(hotel), 'Test Lodge');
+  assert.equal(nav.propertyRecordTitle({ hotel, property_address: 'Test road' }), 'Test Lodge');
+  assert.equal(nav.propertyRecordTitle({ property_display_name: 'Test Lodge', property_address: 'Test road' }), 'Test Lodge');
+  assert.equal(nav.propertyRecordTitle({ hotel_program: hotel, property_address: 'Test road' }), 'Test Lodge');
+  assert.equal(nav.propertyRecordTitle({ hotel, property_display_name: 'Old name' }), 'Test Lodge');
+  assert.equal(nav.propertyRecordTitle({ listing: { title: 'Oak apartment' }, property_address: 'Test road' }), 'Oak apartment');
+  assert.equal(nav.propertyRecordTitle({ property_display_name: '  ', name: 123, property_address: ' Test road ' }), 'Test road');
+  assert.equal(nav.propertyRecordTitle({ request_code: 'WHIR-TEST-ONLY' }), 'Property');
+  assert.equal(nav.propertyRecordTitle({}, 'Submitted property'), 'Submitted property');
+  for (const path of ['src/components/PartnerSubmittedRequests.tsx', 'src/components/PropertyPipelineWorkspace.tsx']) assert.match(read(path), /propertyRecordTitle\(/);
+});

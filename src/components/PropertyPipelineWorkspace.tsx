@@ -1,5 +1,5 @@
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
-import { matchesPropertyRecord } from "@/lib/propertyNavigation";
+import { matchesPropertyRecord, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { withTimeout } from "@/lib/withTimeout";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
@@ -218,7 +218,7 @@ export default function PropertyPipelineWorkspace({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
-                  {r.property_address || r.request_code}
+                  {propertyRecordTitle(r)}
                 </p>
                 <p className="mt-1 truncate text-[9px] text-[#6D7182]">
                   {r.property_city}, {r.property_state} ·{" "}
@@ -278,7 +278,7 @@ function Case({
           </button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">
-              {row.property_address || "Property workflow"}
+              {propertyRecordTitle(row, "Property workflow")}
             </p>
             <p className="truncate text-[8px] text-[#666D7E]">
               {row.request_code} · {stageLabel(stage)}
@@ -527,9 +527,7 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
             {hotel ? "Hotel programme" : "Apartment property"}
           </p>
           <h3 className="mt-1 text-base font-bold">
-            {hotel
-              ? row.hotel_program?.name || row.property_address
-              : row.property_address}
+            {propertyRecordTitle(row)}
           </h3>
           <p className="mt-1 text-[10px] text-[#6D7182]">
             {row.property_city}, {row.property_state} · {row.request_code}

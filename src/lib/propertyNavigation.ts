@@ -32,3 +32,11 @@ export function hotelPaymentLabel(status: string, paymentStatus: string) {
   if (["cancelled", "expired"].includes(status)) return "No active payment";
   return "Awaiting payment";
 }
+
+/** The same display identity is used before and after publication. Codes identify
+ * records in secondary details; they must not replace a property's actual name. */
+export function propertyRecordTitle(row: Record<string, any>, fallback = "Property") {
+  return [row.hotel?.name, row.listing?.title, row.property_display_name,
+    row.hotel_program?.name, row.name, row.title, row.property_address]
+    .find(value => typeof value === "string" && value.trim())?.trim() || fallback;
+}

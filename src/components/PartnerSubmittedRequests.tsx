@@ -1,4 +1,4 @@
-import { matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
+import { matchesPropertyRecord, propertyRecordKey, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
@@ -189,7 +189,7 @@ export default function PartnerSubmittedRequests({
       new CustomEvent("openSupportChat", {
         detail: {
           category: "property_submission_help",
-          subject: request.property_display_name || request.hotel_program?.name || request.property_address || "Property submission",
+          subject: propertyRecordTitle(request, "Property submission"),
           contextType: "contextual_help",
           contextId: request.id,
           contextSnapshot: {
@@ -277,9 +277,7 @@ export default function PartnerSubmittedRequests({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-xs font-semibold">
-                        {request.property_address ||
-                          request.property_type ||
-                          "Property"}
+                        {propertyRecordTitle(request)}
                       </p>
                       <Status request={request} />
                     </div>
@@ -364,7 +362,7 @@ function RequestDetail({
         {images.length > 0 ? (
           <PropertyMediaCarousel
             images={images}
-            title={request.property_address || "Submitted property"}
+            title={propertyRecordTitle(request, "Submitted property")}
           />
         ) : (
           <div className="grid aspect-[16/8] place-items-center bg-gradient-to-br from-violet-500/10 to-transparent text-[10px] text-[#696D7D]">
@@ -378,7 +376,7 @@ function RequestDetail({
                 {request.request_code || "Property request"}
               </p>
               <h2 className="mt-2 text-xl font-bold">
-                {request.property_address || "Submitted property"}
+                {propertyRecordTitle(request, "Submitted property")}
               </h2>
               <p className="mt-1 text-[10px] text-[#747789]">
                 {[request.property_city, request.property_state]
