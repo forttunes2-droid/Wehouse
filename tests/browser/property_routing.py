@@ -55,7 +55,9 @@ async def main():
     async def fits():
      assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), await page.evaluate('[document.documentElement.scrollWidth, innerWidth]')
     async def nav(label):
-     await page.get_by_role('button',name=label,exact=True).filter(visible=True).click()
+     # Counts are part of the accessible name before the label on mobile and after it on desktop.
+     name=re.compile(r'^(?:\d+\+?\s*)?'+re.escape(label)+r'(?:\s*\d+\+?)?$')
+     await page.get_by_role('button',name=name).filter(visible=True).click()
     async def select(label,option):
      await page.get_by_role('button',name=label,exact=True).click()
      await page.get_by_role('dialog').get_by_role('button',name=option,exact=True).click()
