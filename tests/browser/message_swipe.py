@@ -40,6 +40,7 @@ async def main():
                 try:
                     await page.goto(BASE+'/tests/browser/message-swipe.html')
                     await expect(page.get_by_role('heading',name='Message gestures')).to_be_visible()
+                    assert await page.evaluate('document.documentElement.scrollHeight > innerHeight'), 'Fixture must have scrollable content'
                     for side,direction in [('incoming',1),('outgoing',-1)]:
                         await page.get_by_role('button',name='Reset gesture result').click()
                         # Outward travel must neither move the page nor select Reply.

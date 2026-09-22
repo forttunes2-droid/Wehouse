@@ -25,7 +25,8 @@ function GestureFixture() {
         </MessagePress>
       </section>)}
     </div>
-    <div aria-hidden="true" className="h-[900px]" />
+    {/* Test-only arbitrary Tailwind classes are not scanned by the production config. */}
+    <div aria-hidden="true" style={{ height: 900 }} />
   </main>;
 }
 createRoot(document.getElementById('root')!).render(<StrictMode><GestureFixture /></StrictMode>);
