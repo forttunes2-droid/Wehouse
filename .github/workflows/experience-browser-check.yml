@@ -36,6 +36,7 @@ jobs:
           done
           python tests/browser/experience.py
           python tests/browser/welcome-layout.py
+          python tests/browser/communication-stability.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

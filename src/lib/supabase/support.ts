@@ -576,15 +576,12 @@ export async function getOperationalConversationBundle(conversationId: string) {
   const { data, error } = await supabase.rpc("get_operational_conversation_bundle", {
     p_conversation_id: conversationId,
   });
-  const value = (data || {}) as Partial<OperationalConversationBundle>;
+  const value = data as Partial<OperationalConversationBundle> | null;
+  const valid = value && value.conversation?.conversation_id === conversationId
+    && Array.isArray(value.messages) && Array.isArray(value.internal_notes) && Array.isArray(value.events);
   return {
-    bundle: {
-      conversation: value.conversation || {},
-      messages: Array.isArray(value.messages) ? value.messages : [],
-      internal_notes: Array.isArray(value.internal_notes) ? value.internal_notes : [],
-      events: Array.isArray(value.events) ? value.events : [],
-    } as OperationalConversationBundle,
-    error,
+    bundle: valid ? value as OperationalConversationBundle : { messages: [], internal_notes: [], events: [] },
+    error: error || (valid ? null : new Error("The conversation response was incomplete. Please try again.")),
   };
 }
 
