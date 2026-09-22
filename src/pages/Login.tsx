@@ -700,9 +700,8 @@ export default function Login({
         {mode === "choose" ? (
           <div>
             <div className="mb-6">
-              <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-violet-300">One WeHouse account</p>
-              <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight">Welcome to WeHouse</h1>
-              <p className="mt-2 text-sm leading-6 text-[var(--auth-muted)]">One account for your home, work and messages.</p>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Welcome</h1>
+              <p className="mt-2 text-sm leading-6 text-[var(--auth-muted)]">Sign in or create your WeHouse account.</p>
             </div>
             <button
               type="button"
