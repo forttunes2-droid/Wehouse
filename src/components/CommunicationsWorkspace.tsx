@@ -77,12 +77,14 @@ export default function CommunicationsWorkspace({
   const fileRef = useRef<HTMLInputElement>(null),
     bottomRef = useRef<HTMLDivElement>(null),
     inputRef = useRef<HTMLTextAreaElement>(null),
-    openedInitialRef = useRef<string | null>(null);
+    openedInitialRef = useRef<string | null>(null),
+    listLoadedRef = useRef(false);
   useEffect(() => {
     if (forcedView) setView(forcedView);
   }, [forcedView]);
   async function load(quiet = false) {
-    if (!quiet) setLoadingList(true);
+    const blockList = !quiet && !listLoadedRef.current;
+    if (blockList) setLoadingList(true);
     const { conversations, error } = await getSupportInbox(queue);
     if (error && !quiet)
       toast.error(
@@ -115,7 +117,8 @@ export default function CommunicationsWorkspace({
           );
       }
     }
-    if (!quiet) setLoadingList(false);
+    listLoadedRef.current = true;
+    if (blockList) setLoadingList(false);
   }
   async function refreshMessages(id: string, quiet = false) {
     if (!quiet) setLoadingThread(true);
@@ -132,7 +135,7 @@ export default function CommunicationsWorkspace({
     if (!quiet) setLoadingThread(false);
   }
   useEffect(() => {
-    if (view === "inbox" && !selected) void load();
+    if (view === "inbox" && !selected) void load(listLoadedRef.current);
   }, [view, selected, profile.user_id, queue, initialConversationId]);
   useEffect(() => {
     if (view !== "inbox") return;
@@ -659,9 +662,7 @@ export default function CommunicationsWorkspace({
         />
       </div>
       {loadingList ? (
-        <div className="grid min-h-40 place-items-center">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-        </div>
+        <ConversationListSkeleton />
       ) : shown.length === 0 ? (
         <div className="grid min-h-36 place-items-center border-y border-white/[.06] px-5 text-center">
           <div>
@@ -1116,6 +1117,22 @@ function publicRole(role?: string) {
   if (role === "property_partner") return "Property Partner";
   return String(role || "user").replace(/_/g, " ");
 }
+function ConversationListSkeleton() {
+  return (
+    <div className="border-y border-white/[.06]" aria-label="Loading conversations">
+      {[0,1,2].map((item) => (
+        <div key={item} className="flex items-center gap-3 px-4 py-3.5">
+          <div className="h-12 w-12 shrink-0 rounded-full bg-white/[.05] shimmer" />
+          <div className="min-w-0 flex-1">
+            <div className="h-3 w-28 rounded-full bg-white/[.06] shimmer" />
+            <div className="mt-2 h-2.5 w-[72%] rounded-full bg-white/[.04] shimmer" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ThreadSkeleton() {
   return (
     <div className="min-h-72 space-y-4 pt-2" aria-label="Loading conversation">
