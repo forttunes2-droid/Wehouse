@@ -1211,29 +1211,6 @@ function Bubble({
     </div>
   );
 }
-function ContextCard({ meta, type }: { meta: any; type?: string }) {
-  const ref = meta.context_id,
-    label = String(
-      meta.subject || type || meta.context_type || "Linked item",
-    ).replace(/_/g, " ");
-  return (
-    <div className="mb-1.5 flex items-center gap-3 rounded-xl border border-violet-500/15 bg-violet-500/[.055] px-3 py-2">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-500/12 text-[10px] text-violet-200">
-        ↗
-      </span>
-      <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <p className="truncate text-[10px] font-semibold capitalize text-violet-200">
-          {label}
-        </p>
-        {ref && (
-          <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-1 text-[8px] text-violet-300">
-            Ref {String(ref).slice(0, 18)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
 function Avatar({ name, compact = false }: { name?: string; compact?: boolean }) {
   return (
     <div
