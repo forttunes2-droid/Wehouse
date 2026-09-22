@@ -8,9 +8,8 @@ import {
   claimCommunicationCase,
   conversationPresentation,
   deleteSupportAttachment,
-  getSupportCaseEvents,
+  getOperationalConversationBundle,
   getSupportInbox,
-  getSupportMessages,
   markSupportMessagesRead,
   sendSupportMessage,
   supportNextStep,
@@ -66,6 +65,7 @@ export default function CommunicationsWorkspace({
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState<any | null>(null),
     [messages, setMessages] = useState<any[]>([]),
+    [internalNotes, setInternalNotes] = useState<any[]>([]),
     [events, setEvents] = useState<SupportCaseEvent[]>([]),
     [input, setInput] = useState(""),
     [sending, setSending] = useState(false),
@@ -119,17 +119,16 @@ export default function CommunicationsWorkspace({
   }
   async function refreshMessages(id: string, quiet = false) {
     if (!quiet) setLoadingThread(true);
-    const [{ messages: data, error }, { events: history, error: eventError }] =
-      await Promise.all([getSupportMessages(id), getSupportCaseEvents(id)]);
-    if ((error || eventError) && !quiet)
-      toast.error(
-        (error || eventError)?.message || "Unable to open conversation",
-      );
-    if (!error && !eventError) {
-      setMessages(data || []);
-      setEvents(history);
+    const { bundle, error } = await getOperationalConversationBundle(id);
+    if (error && !quiet)
+      toast.error(error.message || "Unable to open conversation");
+    if (!error) {
+      setMessages(bundle.messages || []);
+      setInternalNotes(bundle.internal_notes || []);
+      setEvents(bundle.events || []);
     }
-    await markSupportMessagesRead(id);
+    // Reading a thread must never delay the visible conversation.
+    void markSupportMessagesRead(id);
     if (!quiet) setLoadingThread(false);
   }
   useEffect(() => {
@@ -182,6 +181,7 @@ export default function CommunicationsWorkspace({
     setFiles([]);
     setInput("");
     setEvents([]);
+    setInternalNotes([]);
     setCaseAction(null);
     setCaseNote("");
     setMessageVisibility("customer");
@@ -508,15 +508,14 @@ export default function CommunicationsWorkspace({
             )}
           </div>
         )}
+        {internalNotes.length > 0 ? <InternalNotes notes={internalNotes} /> : null}
         <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
           <div className="mx-auto max-w-4xl">
             {loadingThread ? (
-              <div className="grid min-h-72 place-items-center">
-                <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-              </div>
+              <ThreadSkeleton />
             ) : messages.length === 0 ? (
               <div className="grid min-h-72 place-items-center text-center text-[11px] text-[#747A8B]">
-                No messages yet.
+                No customer messages yet.
               </div>
             ) : (
               <div className="space-y-3.5">
@@ -1118,6 +1117,41 @@ function publicRole(role?: string) {
   if (role === "property_partner") return "Property Partner";
   return String(role || "user").replace(/_/g, " ");
 }
+function ThreadSkeleton() {
+  return (
+    <div className="min-h-72 space-y-4 pt-2" aria-label="Loading conversation">
+      <div className="h-14 w-[58%] rounded-[18px] rounded-bl-md bg-white/[.045] shimmer" />
+      <div className="ml-auto h-12 w-[42%] rounded-[18px] rounded-br-md bg-violet-500/[.10] shimmer" />
+      <div className="h-16 w-[66%] rounded-[18px] rounded-bl-md bg-white/[.045] shimmer" />
+    </div>
+  );
+}
+
+function InternalNotes({ notes }: { notes: any[] }) {
+  const latest = notes[notes.length - 1];
+  return (
+    <details className="border-b border-white/[.06] bg-amber-500/[.025] px-4 py-2.5">
+      <summary className="cursor-pointer list-none text-[10px] font-semibold text-amber-200/90">
+        Internal notes · {notes.length}
+        <span className="ml-2 font-normal text-amber-100/45">
+          {latest?.sender_name ? `Latest by ${latest.sender_name}` : "WeHouse team only"}
+        </span>
+      </summary>
+      <div className="mx-auto mt-2 max-w-4xl space-y-2 pb-1">
+        {notes.map((note) => (
+          <div key={note.id} className="rounded-xl border border-amber-500/10 bg-black/10 px-3 py-2">
+            <div className="flex items-center justify-between gap-3 text-[8px] text-amber-100/45">
+              <span className="truncate">{note.sender_name || "WeHouse team"}</span>
+              <span>{new Date(note.created_at).toLocaleString()}</span>
+            </div>
+            {note.content ? <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#C8C1B3]">{note.content}</p> : null}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function Bubble({
   msg,
   mine,
