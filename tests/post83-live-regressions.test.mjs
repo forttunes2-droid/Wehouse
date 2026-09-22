@@ -24,6 +24,8 @@ test("Operations chat is projected by one server bundle with internal notes sepa
   assert.doesNotMatch(communications, /getSupportMessages\(id\).*getSupportCaseEvents/s);
   assert.match(communications, /InternalNotes/);
   assert.match(communications, /ThreadSkeleton/);
+  assert.doesNotMatch(communications, /Internal work note · \{msg\.sender_name/);
+  assert.doesNotMatch(communications, /mine=\{msg\.sender_id/);
   assert.match(migration, /m\.visibility='internal'/);
   assert.match(migration, /coalesce\(m\.action_type,''\)<>'status_change'/);
   assert.match(migration, /current_actor_can_access_operational_conversation/);
@@ -38,5 +40,8 @@ test("Login widens into a balanced desktop composition and workspaces enter in s
   assert.match(css, /whWorkspaceHeaderIn/);
   assert.match(css, /whWorkspaceContentIn/);
   assert.match(app, /wh-workspace-enter/);
+  assert.match(app, /wh-auth-to-app-shell/);
+  assert.match(css, /whAuthToAppShell/);
+  assert.match(css, /whAuthToAppPiece/);
   assert.match(css, /prefers-reduced-motion/);
 });
