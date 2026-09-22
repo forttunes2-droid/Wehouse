@@ -1089,6 +1089,9 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
             goTo(p as NavPage);
           }}
           onGoToChat={goToChat}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isAdminRole)
@@ -1458,7 +1461,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           <div
             key={`${baseProfile?.user_id}:${activeWorkspace}`}
             ref={pageScrollRef}
-            className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
+            className="page-transition wh-workspace-enter min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
           >
             {renderPage()}
           </div>
