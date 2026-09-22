@@ -1,0 +1,45 @@
+name: Commit reviewed property repair
+on:
+  push:
+    branches: [codex/property-workspace-routing-20260922]
+    paths: [.property-repair/**]
+permissions:
+  contents: write
+concurrency:
+  group: reviewed-property-repair-assembly
+  cancel-in-progress: false
+jobs:
+  assemble:
+    if: github.repository == 'forttunes2-droid/Wehouse' && github.ref == 'refs/heads/codex/property-workspace-routing-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify and apply the exact locally reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, hashlib, lzma, pathlib, subprocess
+          payload = ''.join(pathlib.Path(f'.property-repair/{i}.b64').read_text().strip() for i in range(5))
+          patch = lzma.decompress(base64.b64decode(payload, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'f94175ee7690634aef9fac72766d79a67b73e6f01bc1e5df80043ddeb718532b'
+          allowed = {'.github/workflows/consolidation-validation.yml', '.github/workflows/experience-browser-check.yml', 'src/components/CommunicationInbox.tsx', 'src/components/PartnerHotelOperations.tsx', 'src/components/PartnerSubmittedRequests.tsx', 'src/components/PropertyPipelineWorkspace.tsx', 'src/components/UserProfileModal.tsx', 'src/components/WorkspaceFrameV2.tsx', 'src/hooks/useRecordScreenBack.ts', 'src/lib/activityFeed.ts', 'src/lib/propertyNavigation.ts', 'src/lib/supabase/hotels.ts', 'src/lib/supabase/support.ts', 'src/pages/HotelTeamDashboard.tsx', 'src/pages/Notifications.tsx', 'src/pages/PropertyOwnerDashboard.tsx', 'src/pages/WorkerWorkspaceModern.tsx', 'supabase/migrations/20260922170000_property_workspace_routing.sql', 'supabase/tests/canonical_activity_domain_contract.sql', 'supabase/tests/property_workspace_routing_contract.sql', 'supabase/tests/recorded_journeys_contract.sql', 'tests/account-help-and-arrival-window.test.mjs', 'tests/browser/property-routing.html', 'tests/browser/property-routing.tsx', 'tests/browser/property_routing.py', 'tests/inbox-structure-contract.test.mjs', 'tests/post82-experience-regressions.test.mjs', 'tests/post83-live-regressions.test.mjs', 'tests/property-workspace-routing.test.mjs', 'tests/workspace-onboarding-inbox-layout.test.mjs'}
+          paths = {line.split(b' b/', 1)[1].decode() for line in patch.splitlines() if line.startswith(b'diff --git ')}
+          assert paths == allowed, (paths - allowed, allowed - paths)
+          subprocess.run(['git', 'apply', '--check', '--unidiff-zero', '-'], input=patch, check=True)
+          subprocess.run(['git', 'apply', '--unidiff-zero', '-'], input=patch, check=True)
+          PY
+          # Workflow edits are committed separately through the authorized connector.
+          git restore --source=HEAD -- .github/workflows
+          git rm -r .property-repair
+          git add src supabase tests
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Repair canonical property routing hotel operations and scoped Activity'
+          REMOTE_SHA=$(git ls-remote origin refs/heads/codex/property-workspace-routing-20260922 | cut -f1)
+          test "$REMOTE_SHA" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/codex/property-workspace-routing-20260922
