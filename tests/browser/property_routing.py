@@ -75,6 +75,7 @@ async def main():
      await select('Filter by property type','Hotels')
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
      await expect(page.get_by_role('navigation',name='Hotel sections')).to_be_visible()
+     await expect(page.get_by_role('heading',name='Today at the hotel',exact=True)).to_be_visible()
      await expect(page.get_by_role('heading',name='Hotel team',exact=True)).to_have_count(0)
      await page.get_by_role('button',name='Back',exact=True).click()
      await expect(page.get_by_role('button',name='Filter properties by status')).to_contain_text('All')
@@ -83,7 +84,12 @@ async def main():
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
      sections=page.get_by_role('navigation',name='Hotel sections')
      await expect(sections.get_by_role('button')).to_have_count(6)
-     await fits(); await page.screenshot(path=str(OUT/f'property-hotel-overview-{width}.png'))
+     # A navigation-only screenshot can pass while the actual hotel surface is blank.
+     # Wait for the authorized snapshot and assert its inventory before capturing evidence.
+     await expect(page.get_by_role('heading',name='Today at the hotel',exact=True)).to_be_visible()
+     await expect(page.get_by_role('status',name='Loading hotel operation',exact=True)).to_have_count(0)
+     await expect(page.get_by_text('Rooms available',exact=True).locator('..').get_by_text('3',exact=True)).to_be_visible()
+     await fits(); await page.screenshot(path=str(OUT/f'property-hotel-overview-{width}.png'),full_page=True)
      await sections.get_by_role('button',name='Reservations',exact=True).click()
      await expect(page.get_by_text('Guest Forty Two',exact=True)).to_be_visible()
      await expect(page.get_by_text('No active payment',exact=True)).to_be_visible()
@@ -114,7 +120,7 @@ async def main():
      await page.get_by_role('button',name=re.compile('Activity')).filter(visible=True).click()
      await page.get_by_role('button',name=re.compile('New paid hotel stay')).click()
      await expect(page.get_by_text('Guest Forty Two',exact=True)).to_be_visible()
-     denied=True; await page.evaluate('window.dispatchEvent(new Event("focus"))')
+     denied=True; await page.evaluate('window.dispatchEvent(new Event('focus'))')
      await expect(page.get_by_text('Guest Forty Two',exact=True)).to_have_count(0)
      await expect(page.get_by_text(re.compile('your access has changed'))).to_be_visible(); denied=False
      mode='team'
@@ -141,7 +147,7 @@ async def main():
      await expect(page.get_by_role('button',name='Open in Property Operations',exact=True)).to_be_visible()
      assert await page.evaluate('history.state.workspace')=='creator'
      assert not errors,errors
-     results.append({'viewport':[width,height],'passed':True,'checks':['Account reachable/no duplicate avatar or switcher','All and Live same hotel manager','inventory from server projection','hotel sections permission-scoped','cancelled unpaid copy','property title not inspection code','exact stay target not chat','button and browser Back retain Activity and workspace','access re-fetch clears private guest data','hotel read-only team Activity','Creator scoped hotel and Back to partner profile'],'page_errors':errors})
+     results.append({'viewport':[width,height],'passed':True,'checks':['Account reachable/no duplicate avatar or switcher','All and Live same hotel manager','rendered overview and actual available-room total before screenshot','inventory from server projection','hotel sections permission-scoped','cancelled unpaid copy','property title not inspection code','exact stay target not chat','button and browser Back retain Activity and workspace','access re-fetch clears private guest data','hotel read-only team Activity','Creator scoped hotel and Back to partner profile'],'page_errors':errors})
      print('PASS property workspace browser',width,flush=True)
     except Exception as error:
      results.append({'viewport':[width,height],'passed':False,'error':str(error),'page_errors':errors,'calls':calls})
