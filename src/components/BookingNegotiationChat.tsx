@@ -1,4 +1,4 @@
-import MessageMedia, { PendingMessageMedia } from "@/components/MessageMedia";
+import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -61,6 +61,9 @@ type ChatMessage = {
   sender_name?: string | null;
   content: string;
   attachments?: string[] | null;
+  attachment_types?: string[];
+  attachment_names?: string[];
+  attachment_failed?: boolean;
   is_read?: boolean | null;
   reactions?: Record<string, string>;
   decryption_failed?: boolean;
@@ -1076,9 +1079,8 @@ export default function BookingNegotiationChat({
                           </div>
                         ) : null;
                       })()}
-                    {msg.attachments?.map((url: string, i: number) => (
-                      <BookingAttachment key={`${msg.id}-${i}`} url={url} />
-                    ))}
+                    <MessageMedia items={(msg.attachments || []).map((url, i) => ({url, type: msg.attachment_types?.[i], name: msg.attachment_names?.[i]}))} />
+                    {msg.attachment_failed && <AttachmentState error />}
                     {msg.content && <MessageContent content={msg.content} />}
                     <p
                       className={`mt-1 text-[8px] ${mine ? "text-violet-100/70" : "text-[#5C6070]"}`}
