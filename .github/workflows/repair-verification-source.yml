@@ -1,0 +1,35 @@
+name: Repair verification source snapshot
+on:
+  push:
+    branches: [codex/property-workspace-routing-20260922]
+    paths: [.github/workflows/repair-verification-source.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Export tracked source and isolated test dependencies
+        run: |
+          git rev-parse HEAD > "$RUNNER_TEMP/repair-source-commit.txt"
+          git archive --format=tar HEAD | gzip > "$RUNNER_TEMP/wehouse-repair-source.tar.gz"
+          tar -czf "$RUNNER_TEMP/wehouse-repair-dependencies.tar.gz" node_modules
+          sha256sum package-lock.json > "$RUNNER_TEMP/repair-lockfile-sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wehouse-repair-verification-source
+          path: |
+            ${{ runner.temp }}/wehouse-repair-source.tar.gz
+            ${{ runner.temp }}/wehouse-repair-dependencies.tar.gz
+            ${{ runner.temp }}/repair-source-commit.txt
+            ${{ runner.temp }}/repair-lockfile-sha256.txt
+          retention-days: 1
