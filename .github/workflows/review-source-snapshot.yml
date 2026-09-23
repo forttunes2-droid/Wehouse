@@ -1,0 +1,21 @@
+name: Temporary source review snapshot
+on:
+  push:
+    branches: [codex/property-workspace-routing-20260922]
+    paths: [.github/workflows/review-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export tracked source only
+        run: git archive --format=tar.gz --output=/tmp/wehouse-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wehouse-source-review
+          path: /tmp/wehouse-source.tar.gz
+          retention-days: 1
