@@ -115,13 +115,13 @@ grant execute on function private.can_access_chat_cipher_object(text,boolean) to
 grant usage on schema private to authenticated;
 drop policy if exists chat_cipher_media_insert on storage.objects;
 create policy chat_cipher_media_insert on storage.objects for insert to authenticated
- with check(bucket_id='chat-files' and private.can_access_chat_cipher_object(name,true) and owner=auth.uid());
+ with check(bucket_id='chat-files' and private.can_access_chat_cipher_object(name,true) and owner_id=auth.uid()::text);
 drop policy if exists chat_cipher_media_read on storage.objects;
 create policy chat_cipher_media_read on storage.objects for select to authenticated
  using(bucket_id='chat-files' and private.can_access_chat_cipher_object(name,false));
 drop policy if exists chat_cipher_media_delete_own on storage.objects;
 create policy chat_cipher_media_delete_own on storage.objects for delete to authenticated
- using(bucket_id='chat-files' and private.can_access_chat_cipher_object(name,false) and owner=auth.uid());
+ using(bucket_id='chat-files' and private.can_access_chat_cipher_object(name,false) and owner_id=auth.uid()::text);
 -- No UPDATE policy: do not let another participant replace a sent ciphertext.
 
 create or replace function private.guard_private_chat_media_reference()

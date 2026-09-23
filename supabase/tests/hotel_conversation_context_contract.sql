@@ -221,7 +221,7 @@ insert into public.booking_conversations(id,booking_id,user_id,worker_id) values
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
 set local role authenticated;
-insert into storage.objects(bucket_id,name,owner,metadata) values
+insert into storage.objects(bucket_id,name,owner_id,metadata) values
 ('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/room.bin','88999999-0000-4000-8000-000000000002','{"mimetype":"application/octet-stream","size":86}'),
 ('chat-files','e2ee/worker/88999999-5000-4000-8000-000000000001/voice.bin','88999999-0000-4000-8000-000000000002','{"mimetype":"application/octet-stream","size":200}');
 do $$ declare p text; c uuid; k text; item jsonb; begin
@@ -257,7 +257,7 @@ set local role authenticated;
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='chat-files' and name like '%88999999%') then raise exception 'Unrelated Creator read private media'; end if;
  begin
-  insert into storage.objects(bucket_id,name,owner,metadata) values('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/attack.bin',auth.uid(),'{"mimetype":"application/octet-stream","size":100}');
+  insert into storage.objects(bucket_id,name,owner_id,metadata) values('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/attack.bin',auth.uid()::text,'{"mimetype":"application/octet-stream","size":100}');
   raise exception 'Unrelated identity uploaded into a private conversation';
  exception when insufficient_privilege then null; end;
 end $$;
@@ -270,7 +270,7 @@ set local role authenticated;
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='chat-files' and name like '%88999999%') then raise exception 'Blocked connection retained new Storage access'; end if;
  begin
-  insert into storage.objects(bucket_id,name,owner,metadata) values('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/blocked.bin',auth.uid(),'{"mimetype":"application/octet-stream","size":100}');
+  insert into storage.objects(bucket_id,name,owner_id,metadata) values('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/blocked.bin',auth.uid()::text,'{"mimetype":"application/octet-stream","size":100}');
   raise exception 'Blocked connection uploaded media';
  exception when insufficient_privilege then null; end;
 end $$;
