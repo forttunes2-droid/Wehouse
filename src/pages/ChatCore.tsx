@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
-import { acknowledgeChatMessage, reconcileChatMessages } from "@/lib/chatMessageReconciliation";
+import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
+import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
 import SharedPropertyCard from "@/components/SharedPropertyCard";
 import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, parsePropertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -83,7 +84,7 @@ type Props = {
 };
 type Person = Pick<RoommatePeer, "name" | "avatar"> &
   Partial<RoommatePeer> & { username?: string | null; lga?: string | null };
-type RoommateMessage = Message & {
+type RoommateMessage = Message & MessageSyncState & {
   attachments?: string[];
   attachment_types?: string[];
   reply_to_id?: string | null;
@@ -199,6 +200,7 @@ export default function Chat({
     Record<string, PrivateCall>
   >(() => cachedInbox?.recentRoommateCalls || {});
   const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
+  const ownMessageUrls = useMessageObjectUrls(messages);
   const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
   const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
     null,
@@ -215,21 +217,14 @@ export default function Chat({
   const activeRef = useRef<Conversation | null>(null);
   const messageLoadGeneration = useRef(0);
   const sendingRef = useRef(false);
-  const optimisticObjectUrls = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const currentIdentityRef = useRef(profile.user_id);
   const composerRef = useRef({ input, files, propertyDraft });
   useEffect(() => { composerRef.current = { input, files, propertyDraft }; }, [input, files, propertyDraft]);
   useEffect(() => {
     mountedRef.current = true; currentIdentityRef.current = profile.user_id;
-    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; optimisticObjectUrls.current.forEach(url => URL.revokeObjectURL(url)); optimisticObjectUrls.current.clear(); };
+    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; };
   }, [profile.user_id]);
-  useEffect(() => {
-    const used = new Set(messages.flatMap(message => message.attachments || []));
-    for (const url of optimisticObjectUrls.current) if (!used.has(url)) {
-      URL.revokeObjectURL(url); optimisticObjectUrls.current.delete(url);
-    }
-  }, [messages]);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
@@ -369,22 +364,26 @@ export default function Chat({
       const request = ++messageLoadGeneration.current;
       const current = () => mountedRef.current && currentIdentityRef.current === profile.user_id && request === messageLoadGeneration.current && activeRef.current?.id === id;
       if (!quiet) setLoadingMessages(true);
+      const startedAt = Date.now();
+      // Calls are supplementary and must not hold up readable chat.
+      void withTimeout(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100), 12000, "Calls took too long")
+        .then(result => { if (current() && !result.error) setActiveCalls((result.data || []) as PrivateCall[]); }).catch(() => undefined);
       try {
-        // Call history is secondary. A slow calls query must not hide messages.
-        void withTimeout(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100), 12000, "Calls took too long")
-          .then(result => { if (current() && !result.error) setActiveCalls((result.data || []) as PrivateCall[]); })
-          .catch(() => undefined);
-        const result = await withTimeout(getMessages(id, otherId(currentActive)), 18000, "Messages took too long to load. Please try again.");
-        if (!current()) return;
+        const result = await withTimeout(getMessages(id, otherId(currentActive), rows => {
+          if (!current()) return;
+          setMessages(old => reconcileChatMessages(old, rows as RoommateMessage[], startedAt));
+          setLoadingMessages(false);
+        }), 18000, "Messages took too long to load. Please try again.");
+        if (!current()) { for (const row of (result.messages || []) as RoommateMessage[]) for (const url of row.attachments || []) if (url.startsWith('blob:')) URL.revokeObjectURL(url); return; }
         if (result.error) throw result.error;
-        setMessages(previous => reconcileChatMessages(previous, (result.messages || []) as RoommateMessage[]));
-        setLoadingMessages(false);
-        // Acknowledgements never hold the composer or the visible history open.
-        void Promise.all([
+        setMessages(old => reconcileChatMessages(old, result.messages as RoommateMessage[], startedAt));
+        void Promise.allSettled([
           markMessagesSeen(id),
-          supabase.from("notifications").update({ read: true }).eq("recipient_id", profile.user_id).eq("related_id", id),
-        ]).catch(() => undefined);
+          Promise.resolve(supabase.from("notifications").update({ read: true }).eq("recipient_id", profile.user_id).eq("related_id", id)),
+        ]);
+
       } catch (error) {
+        if (current() && /permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((error as { message?: string })?.message || error))) setMessages([]);
         if (current() && !quiet) toast.error(error instanceof Error ? error.message : "Unable to open conversation. Please try again.");
       } finally { if (current()) setLoadingMessages(false); }
     },
@@ -676,9 +675,9 @@ export default function Chat({
     const content = shared ? propertyShareMessage(shared, note) : note;
     const queuedFiles = [...files];
     const replyTarget = replyingTo;
-    const optimisticId = `pending-${Date.now()}`;
+    const optimisticId = `pending-${crypto.randomUUID()}`;
     const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
-    optimisticUrls.forEach(url => optimisticObjectUrls.current.add(url));
+    ownMessageUrls(optimisticUrls);
     setSending(true);
     setInput("");
     setPropertyDraft(null);
@@ -706,6 +705,7 @@ export default function Chat({
         metadata_ciphertext: string;
         metadata_iv: string;
       }> = [];
+    let accepted = false;
     try {
       for (const file of queuedFiles) {
         const uploaded = await uploadRoommateChatAttachment(
@@ -729,16 +729,16 @@ export default function Chat({
       );
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
+      accepted = true;
       if (shared) clearPropertyShare(profile.user_id, active.id);
       if (stillHere()) {
-        // Invalidate snapshots started before the write acknowledgement.
-        messageLoadGeneration.current++;
-        setMessages(current => acknowledgeChatMessage(current, optimisticId, result.message!.id));
+        setMessages(old => acknowledgeChatMessage(old, optimisticId, String(result.message!.id)));
         setSending(false);
         void loadRoommateMessages(target.id, true);
       }
       if (mountedRef.current) void loadInbox(true);
     } catch (error: unknown) {
+      if (accepted) return;
       if (stillHere()) {
         const hasNewDraft = Boolean(composerRef.current.input.trim() || composerRef.current.files.length || composerRef.current.propertyDraft);
         setMessages(current => hasNewDraft ? current.map(message => message.id === optimisticId ? { ...message, delivery_state: "failed" } : message) : current.filter(message => message.id !== optimisticId));
@@ -760,7 +760,7 @@ export default function Chat({
         );
       } else toast.error(message);
     } finally {
-      // Object URLs are released only after the visible local bubble is replaced.
+      if (!stillHere()) optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
       sendingRef.current = false;
       if (mountedRef.current) setSending(false);
     }
@@ -2035,7 +2035,9 @@ function RoommateBubble({
             </p>
           </div>
         )}
-        {(msg.attachments || []).map((url, index) => (
+        {msg.media_loading && <p role="status" className="text-sm opacity-80">Loading attachment…</p>}
+      {msg.media_error && <p className="text-sm opacity-80">An attachment could not be loaded.</p>}
+      {(msg.attachments || []).map((url, index) => (
           <PrivateAttachment
             key={`${msg.id}-${index}`}
             url={url}

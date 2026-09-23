@@ -6,9 +6,16 @@ import type { WorkspaceAccess, WorkspaceChoice } from '@/pages/AccountCenter';
 
 export function useWorkspaceAccess(userId?: string) {
   const [access, setAccess] = useState<WorkspaceAccess | null>(null);
-  const [active, setActive] = useState<WorkspaceChoice>('personal');
+  const [active, setActiveState] = useState<WorkspaceChoice>('personal');
   const [error, setError] = useState('');
   const generation = useRef(0);
+  const selection = useRef<{ userId: string; workspace: WorkspaceChoice } | null>(null);
+  const setActive = useCallback((workspace: WorkspaceChoice) => {
+    if (!userId) return;
+    selection.current = { userId, workspace };
+    setActiveState(workspace);
+    try { localStorage.setItem(workspaceStorageKey(userId), workspace); } catch { /* The in-memory selection still works. */ }
+  }, [userId]);
   const reload = useCallback(async () => {
     const request = ++generation.current;
     setAccess(null);
@@ -19,10 +26,12 @@ export function useWorkspaceAccess(userId?: string) {
       if (request !== generation.current) return;
       if (result.error || !result.data) throw new Error('Your workspaces could not be loaded. Please try again.');
       let preferred: string | null = null;
-      try { preferred = localStorage.getItem(workspaceStorageKey(userId)); } catch { /* Storage can be disabled. */ }
+      if (selection.current?.userId === userId) preferred = selection.current.workspace;
+      else try { preferred = localStorage.getItem(workspaceStorageKey(userId)); } catch { /* Storage can be disabled. */ }
       const workspace = resolveWorkspace(result.data as WorkspaceAccess, userId, preferred);
       if (!workspace) throw new Error('Your account access could not be confirmed. Please sign in again.');
-      setActive(workspace);
+      selection.current = { userId, workspace };
+      setActiveState(workspace);
       setAccess(result.data as WorkspaceAccess);
     } catch (cause) {
       if (request === generation.current) setError(cause instanceof Error ? cause.message : 'Your workspaces could not be loaded.');

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import BackButton from "@/components/BackButton";
+import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 import MediaViewer from "@/components/MediaViewer";
 import { bindProfileScreenHistory, isTopProfileScreen } from "@/lib/profileScreenHistory";
 
@@ -23,9 +24,6 @@ type Props = {
   suspended?: boolean;
 };
 
-let profileLocks = 0;
-let originalOverflow = "";
-let originalInert = false;
 
 export default function PublicProfileSurface({
   name, username, avatar, subtitle, location, presence, about, badges, actions,
@@ -42,23 +40,19 @@ export default function PublicProfileSurface({
   const dismiss = useCallback(() => controller.current?.dismiss(), []);
 
   useEffect(() => {
-    const app = document.getElementById("root");
+    const element = root.current;
+    if (!element) return;
+    const release = isolateDialog(element);
     // StrictMode replays this effect after the dialog has already taken focus.
     // Capture the real opener once, not the dialog from the second effect run.
     if (!returnFocus.current && document.activeElement instanceof HTMLElement) {
       returnFocus.current = document.activeElement;
     }
-    if (profileLocks++ === 0) {
-      originalOverflow = document.body.style.overflow;
-      originalInert = app?.inert || false;
-      document.body.style.overflow = "hidden";
-      if (app) app.inert = true;
-      window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: true } }));
-    }
+    window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: true } }));
     const history = bindProfileScreenHistory(window, id, () => close.current());
     controller.current = history;
     const keydown = (event: KeyboardEvent) => {
-      if (!isTopProfileScreen(id)) return;
+      if (!isTopProfileScreen(id) || !isTopDialog(element)) return;
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); history.dismiss(); return; }
       if (event.key !== "Tab") return;
       const focusable = Array.from(root.current?.querySelectorAll<HTMLElement>(
@@ -72,18 +66,14 @@ export default function PublicProfileSurface({
         event.preventDefault(); first.focus();
       }
     };
-    const element = root.current;
-    element?.addEventListener("keydown", keydown);
+    element.addEventListener("keydown", keydown);
     element?.focus({ preventScroll: true });
     return () => {
       history.dispose();
       if (controller.current === history) controller.current = null;
       element?.removeEventListener("keydown", keydown);
-      if (--profileLocks === 0) {
-        document.body.style.overflow = originalOverflow;
-        if (app) app.inert = originalInert;
-        window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: false } }));
-      }
+      release();
+      window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')) } }));
       queueMicrotask(() => {
         const opener = returnFocus.current;
         if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });

@@ -28,6 +28,7 @@ import type {
 } from "@/types";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import BackButton from "@/components/BackButton";
+import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 
 type HotelAccessRole = "owner" | "manager" | "front_desk" | "staff";
 type HotelCapability =
@@ -482,7 +483,7 @@ export default function PartnerHotelOperations({
       {editingRoom ? <RoomEditor hotelId={hotel.hotel_id} room={editingRoom === "new" ? undefined : editingRoom} close={() => setEditingRoom(null)} saved={async () => { setEditingRoom(null); await load(true); }} /> : null}
       {editingRate ? <RatePlanEditor room={editingRate.room} plan={editingRate.plan} close={() => setEditingRate(null)} saved={async () => { setEditingRate(null); await load(true); }} /> : null}
       {editingVenue ? <VenueEditor hotelId={hotel.hotel_id} factsLocked={hotel.status === "active"} venue={editingVenue === "new" ? undefined : editingVenue} close={() => setEditingVenue(null)} saved={async () => { setEditingVenue(null); await load(true); }} /> : null}
-      {activeChat && profile ? <HotelBookingChat bookingId={activeChat.booking_id} conversationId={activeChat.conversation_id} profile={profile} title={activeChat.guest_name || "Guest"} subtitle={`${hotel.name} · Paid stay`} readOnly={!['confirmed','checked_in'].includes(activeChat.booking_status)} onClose={() => setActiveChat(null)} onUpdated={() => void load(true)} /> : null}
+      {activeChat && profile ? <HotelBookingChat specialRequest={canReadStays ? bookings.find(row => row.booking_id === activeChat.booking_id)?.special_requests : undefined} hotelView bookingId={activeChat.booking_id} conversationId={activeChat.conversation_id} profile={profile} title={activeChat.guest_name || "Guest"} subtitle={`${hotel.name} · Paid stay`} readOnly={!['confirmed','checked_in'].includes(activeChat.booking_status)} onClose={() => setActiveChat(null)} onUpdated={() => void load(true)} /> : null}
     </div>
   );
 }
@@ -720,7 +721,7 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
         <div className="shrink-0 text-right"><Status value={effectiveStatus} /><p className="mt-2 text-xs font-bold">{money(row.total_price)}</p><p className={`mt-1 text-sm ${row.payment_status === "paid" ? "text-emerald-300" : "text-amber-200"}`}>{hotelPaymentLabel(effectiveStatus, row.payment_status)}</p></div>
       </div>
       <p className="mt-3 text-sm text-[#858B9A]">{next}</p>
-      {row.special_requests ? <div className="mt-3 rounded-xl bg-white/[.025] p-3"><p className="text-sm font-bold uppercase tracking-wide text-[#666D7E]">Guest request</p><p className="mt-1 text-sm leading-4 text-[#9AA0AF]">{row.special_requests}</p></div> : null}
+      <HotelSpecialRequest request={row.special_requests} hotelView />
       <div className="mt-3 flex flex-wrap gap-2">
         {guestChatWritable || guestChatReadable ? <button onClick={() => onChat({ ...(chat || { booking_id: row.booking_id }), guest_name: row.guest_name || row.profiles?.username || "Guest", booking_status: row.status })} className="h-10 flex-1 rounded-xl border border-violet-500/20 bg-violet-500/[.07] px-3 text-sm font-semibold text-violet-200">{guestChatReadable ? "View message history" : chat ? `Guest messages${chat.unread_count > 0 ? ` · ${chat.unread_count} new` : ""}` : "Message guest"}</button> : null}
         {canCheckIn ? <button disabled={busy} onClick={() => void transition(row, "checked_in")} className="h-10 flex-1 rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">Check in guest</button> : null}

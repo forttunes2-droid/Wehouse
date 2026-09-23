@@ -274,13 +274,13 @@ function normalizePageForRole(
     page === "payment_return"
   )
     return page;
+  if (ACCOUNT_PAGES.has(page)) return page;
   if (role === "worker" && !workerProfileComplete)
     return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
       page,
     )
       ? page
       : "worker_dashboard";
-  if (ACCOUNT_PAGES.has(page)) return page;
   if (role === "creator")
     return page === "creator" || page === "new_listing" ? page : "creator";
   if (role === "admin")
@@ -1250,6 +1250,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "account":
         return (
           <AccountCenter
+            key={`${profile.user_id}:${activeWorkspace}`}
             profile={profile}
             onBack={subpageBack}
             onGoToSaved={() => goTo("saved")}

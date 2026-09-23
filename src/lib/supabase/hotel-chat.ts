@@ -54,24 +54,21 @@ export async function getMyHotelConversations(workspace: "personal" | "property_
   };
 }
 
-export async function getHotelMessages(conversationId: string) {
-  const { data, error } = await supabase.rpc("get_hotel_booking_messages", {
-    p_conversation_id: conversationId,
-  });
+export async function getHotelMessages(conversationId: string, onTextReady?: (messages: HotelMessage[]) => void) {
+  const { data, error } = await supabase.rpc("get_hotel_booking_messages", { p_conversation_id: conversationId });
   if (error) return { messages: [] as HotelMessage[], error };
-  const messages = await Promise.all(
-    ((data || []) as HotelMessage[]).map(async (message) => {
-      const attachments = await Promise.all(
-        (message.attachments || []).map(async (path) => {
-          const { data: signed } = await supabase.storage
-            .from("hotel-chat-files")
-            .createSignedUrl(path, 300);
-          return signed?.signedUrl || "";
-        }),
-      );
-      return { ...message, attachments: attachments.filter(Boolean) };
-    }),
-  );
+  const rows = (data || []) as HotelMessage[];
+  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })));
+  const messages = await Promise.all(rows.map(async message => {
+    const files = await Promise.all((message.attachments || []).map(async (path, index) => {
+      try {
+        const { data: signed, error } = await supabase.storage.from("hotel-chat-files").createSignedUrl(path, 300);
+        return error || !signed?.signedUrl ? null : { url: signed.signedUrl, type: message.attachment_types?.[index] || '' };
+      } catch { return null; }
+    }));
+    const available = files.filter((file): file is {url: string; type: string} => Boolean(file));
+    return { ...message, attachments: available.map(file => file.url), attachment_types: available.map(file => file.type), media_loading: false, media_error: available.length !== files.length };
+  }));
   return { messages, error: null };
 }
 

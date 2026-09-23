@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { messageMenuPosition, type MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import { Copy, Plus, Reply, Trash2 } from "lucide-react";
@@ -35,8 +37,7 @@ export default function MessageActionSheet({
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLElement>(null);
-  const onCloseRef = useRef(onClose);
-  useLayoutEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  const dialogRef = useDialogInteraction(onClose);
   const [position, setPosition] = useState({ top: 12, left: 12 });
   const [moreOpen, setMoreOpen] = useState(false);
   const [customEmoji, setCustomEmoji] = useState("");
@@ -65,21 +66,6 @@ export default function MessageActionSheet({
     };
   }, [anchor, moreOpen]);
 
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    const keyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCloseRef.current();
-      if (event.key !== "Tab") return;
-      const items = panelRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled)");
-      if (!items?.length) return;
-      const first = items[0], last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    window.addEventListener("keydown", keyboard);
-    return () => { window.removeEventListener("keydown", keyboard); previousFocus?.focus(); };
-  }, []);
 
   useEffect(() => {
     if (moreOpen) customEmojiRef.current?.focus();
@@ -91,8 +77,8 @@ export default function MessageActionSheet({
     onReact(reaction);
   }
 
-  return (
-    <div
+  return createPortal(
+    <div ref={dialogRef} tabIndex={-1}
       className="fixed inset-0 z-[100050] bg-black/40 backdrop-blur-[2px]"
       onClick={onClose}
     >
@@ -203,6 +189,6 @@ export default function MessageActionSheet({
           </div>
         )}
       </section>
-    </div>
+    </div>, document.body
   );
 }

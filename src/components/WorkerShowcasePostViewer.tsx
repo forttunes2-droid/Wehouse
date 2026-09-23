@@ -1,3 +1,5 @@
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -71,13 +73,8 @@ export default function WorkerShowcasePostViewer({
     setCommentsLoaded(true);
   }, [post.id]);
 
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
+  const dismiss = useRecordScreenBack(onClose);
+  const dialogRef = useDialogInteraction(dismiss);
 
   function openComments() {
     setCommentsOpen(true);
@@ -120,7 +117,7 @@ export default function WorkerShowcasePostViewer({
   }
 
   return createPortal(
-    <div
+    <div ref={dialogRef} tabIndex={-1}
       className="fixed inset-0 z-[100200] isolate h-[100dvh] overflow-hidden bg-[#090B12] text-white"
       role="dialog"
       aria-modal="true"
@@ -131,7 +128,7 @@ export default function WorkerShowcasePostViewer({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[42%] bg-gradient-to-t from-black/95 via-black/48 to-transparent" />
 
       <BackButton
-        onClick={onClose}
+        onClick={dismiss}
         className="!absolute !left-3 !top-[max(.75rem,env(safe-area-inset-top))] !ml-0 !h-11 !w-11 !rounded-full !bg-black/45 !text-white backdrop-blur-md"
       />
       {ownerActions ? (

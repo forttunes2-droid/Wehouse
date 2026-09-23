@@ -25,27 +25,30 @@ export async function getRoommateConversationPeople(){
   return{people,error};
 }
 
-export async function getMessages(conversationId:string,peerUserId?:string|null){
+export async function getMessages(conversationId:string,peerUserId?:string|null,onTextReady?:(messages:Message[])=>void){
   if(peerUserId)preparePrivateConversation('roommate',conversationId,peerUserId);
   const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'roommate',p_conversation_id:conversationId});
   if(error||!data)return{messages:(data||[]) as Message[],error};
-  const messages=await Promise.all((data as any[]).map(async row=>{
-    let content=String(row.legacy_content||'');
-    let decryptionFailed=false;
+  const rows=data as any[];
+  const text=await Promise.all(rows.map(async row=>{
+    let content=String(row.legacy_content||'');let decryptionFailed=false;
     if(row.ciphertext&&row.encryption_iv&&peerUserId){
       try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
-    const attachments:string[]=[];const attachmentTypes:string[]=[];
+    return{...row,content,decryption_failed:decryptionFailed,conversation_id:conversationId,seen:Boolean(row.is_read),attachments:[],attachment_types:[],reply_to_id:row.reply_to_id||null,reactions:row.reactions||{},media_loading:Boolean(row.legacy_attachments?.length||row.encrypted_attachments?.length)} as Message;
+  }));
+  onTextReady?.(text);
+  const messages=await Promise.all(rows.map(async(row,index)=>{
+    const attachments:string[]=[];const attachmentTypes:string[]=[];let failed=false;
     const legacyPaths=Array.isArray(row.legacy_attachments)?row.legacy_attachments.filter(Boolean):[];
     for(let index=0;index<legacyPaths.length;index++){
-      const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(legacyPaths[index],300);
-      if(!signedError&&signed?.signedUrl){
-        attachments.push(signed.signedUrl);
-        attachmentTypes.push(row.legacy_attachment_types?.[index]||'');
-      }
+      try{const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(legacyPaths[index],300);
+        if(signedError||!signed?.signedUrl)throw signedError||new Error('Attachment unavailable');
+        attachments.push(signed.signedUrl);attachmentTypes.push(row.legacy_attachment_types?.[index]||'');
+      }catch{failed=true}
     }
-    if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
-    return{...row,content,decryption_failed:decryptionFailed,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes,reply_to_id:row.reply_to_id||null,reactions:row.reactions||{}} as Message;
+    if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{failed=true}}
+    return{...text[index],attachments,attachment_types:attachmentTypes,media_loading:false,media_error:failed} as Message;
   }));
   return{messages,error};
 }

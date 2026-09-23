@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { withTimeout } from "@/lib/withTimeout";
-import { acknowledgeChatMessage, reconcileChatMessages } from "@/lib/chatMessageReconciliation";
+import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
@@ -35,13 +36,15 @@ type Props = {
   profile: Profile;
   title: string;
   subtitle?: string;
+  specialRequest?: string | null;
+  hotelView?: boolean;
   readOnly?: boolean;
   onClose: () => void;
   onUpdated?: () => void;
 };
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
-type LocalHotelMessage = HotelMessage & { delivery_state?: "sending" };
+type LocalHotelMessage = HotelMessage & MessageSyncState;
 
 export default function HotelBookingChat({
   bookingId,
@@ -50,20 +53,11 @@ export default function HotelBookingChat({
   title,
   subtitle = "Hotel team · Booking conversation",
   readOnly = false,
+  specialRequest,
+  hotelView = false,
   onClose,
   onUpdated,
 }: Props) {
-  const dismiss = useRecordScreenBack(onClose);
-  const dialogRef = useDialogInteraction(dismiss);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-  const loadGeneration = useRef(0);
-  const sendingRef = useRef(false);
-  const localUrls = useRef(new Set<string>());
-  const onUpdatedRef = useRef(onUpdated);
-  useEffect(() => { onUpdatedRef.current = onUpdated; }, [onUpdated]);
-  const activeConversation = useRef(initialConversationId || "");
-  const activeIdentity = useRef(profile.user_id);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [conversationId, setConversationId] = useState(
     initialConversationId || "",
@@ -72,7 +66,6 @@ export default function HotelBookingChat({
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [sending, setSending] = useState(false);
   const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
   const [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions");
@@ -86,66 +79,64 @@ export default function HotelBookingChat({
   } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
-  const composer = useRef({ input, files });
-  useEffect(() => { composer.current = { input, files }; }, [input, files]);
-  useEffect(() => {
-    const visible = new Set(messages.flatMap(message => message.attachments || []));
-    for (const url of localUrls.current) if (!visible.has(url)) {
-      URL.revokeObjectURL(url); localUrls.current.delete(url);
-    }
-  }, [messages]);
   const messageById = useMemo(
     () => new Map(messages.map((message) => [message.id, message])),
     [messages],
   );
 
+  const onCloseRef = useRef(onClose), updatedRef = useRef(onUpdated);
+  onCloseRef.current = onClose; updatedRef.current = onUpdated;
+  const dismiss = useRecordScreenBack(() => onCloseRef.current());
+  const dialogRef = useDialogInteraction(dismiss);
+  const generation = useRef(0), requestNumber = useRef(0), sendingRef = useRef(false);
+  const activeId = useRef(initialConversationId || '');
+  const draftRef = useRef({ input, files }); draftRef.current = { input, files };
+  const localUrls = useRef(new Set<string>());
+  const [loadError, setLoadError] = useState('');
   const load = useCallback(async (id: string, quiet = false) => {
-    const generation = ++loadGeneration.current;
-    const current = () => generation === loadGeneration.current && activeConversation.current === id;
-    if (!quiet) { setLoading(true); setLoadError(""); }
+    const session = generation.current, request = ++requestNumber.current, startedAt = Date.now();
+    const current = () => session === generation.current && request === requestNumber.current && activeId.current === id;
+    if (!quiet) setLoading(true);
+    setLoadError('');
     try {
-      const result = await withTimeout(getHotelMessages(id), 15000, "Hotel messages took too long to load");
+      const result = await withTimeout(getHotelMessages(id, rows => {
+        if (!current()) return;
+        setMessages(old => reconcileChatMessages(old, rows, startedAt)); setLoading(false);
+      }), 18000, 'Hotel messages took too long to refresh.');
       if (!current()) return;
       if (result.error) throw result.error;
-      setLoadError("");
-      setMessages(previous => reconcileChatMessages(previous, result.messages));
+      setMessages(old => reconcileChatMessages(old, result.messages, startedAt));
+      // Read receipts never block readable messages.
       void markHotelMessagesRead(id).catch(() => undefined);
-    } catch (error) {
-      if (current() && !quiet) setLoadError(error instanceof Error ? error.message : "Hotel messages could not be loaded");
+    } catch (cause) {
+      if (!current()) return;
+      if (/permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((cause as {message?: string})?.message || cause))) setMessages([]);
+      setLoadError('Messages could not be refreshed. Please try again.');
     } finally { if (current()) setLoading(false); }
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    activeIdentity.current = profile.user_id;
-    setMessages([]); setInput(""); setFiles([]); setReplyingTo(null);
-    setConversationId(initialConversationId || "");
-    activeConversation.current = initialConversationId || "";
-    setLoading(true);
+    const session = ++generation.current;
+    activeId.current = initialConversationId || '';
+    setConversationId(initialConversationId || ''); setMessages([]); setInput(''); setFiles([]); setReplyingTo(null); setLoading(true); setLoadError('');
+    sendingRef.current = false; setSending(false);
     void (async () => {
-      let id = initialConversationId || "";
-      if (!id) {
-        const opened = await withTimeout(openHotelBookingConversation(bookingId), 15000, "Hotel conversation took too long to open");
-        if (cancelled) return;
-        if (opened.error || !opened.conversationId) {
-          toast.error(opened.error?.message || "Hotel chat is unavailable");
-          onCloseRef.current();
-          return;
+      try {
+        let id = initialConversationId || '';
+        if (!id) {
+          const opened = await withTimeout(openHotelBookingConversation(bookingId), 15000, 'Hotel chat took too long to open.');
+          if (session !== generation.current) return;
+          if (opened.error || !opened.conversationId) throw opened.error || new Error('Hotel chat unavailable');
+          id = opened.conversationId;
         }
-        id = opened.conversationId;
-        setConversationId(id);
+        if (session !== generation.current) return;
+        activeId.current = id; setConversationId(id); await load(id);
+      } catch {
+        if (session === generation.current) { setLoading(false); setLoadError('Hotel chat could not be opened. Return to the reservation and try again.'); }
       }
-      activeConversation.current = id;
-      await load(id);
-    })().catch(error => {
-      if (!cancelled) {
-        setLoading(false);
-        toast.error(error instanceof Error ? error.message : "Hotel chat could not be opened");
-        onCloseRef.current();
-      }
-    });
+    })();
     return () => {
-      cancelled = true; loadGeneration.current++; activeConversation.current = ""; activeIdentity.current = "";
+      generation.current++; requestNumber.current++; activeId.current = '';
       for (const url of localUrls.current) URL.revokeObjectURL(url);
       localUrls.current.clear();
     };
@@ -153,25 +144,10 @@ export default function HotelBookingChat({
 
   useEffect(() => {
     if (!conversationId) return;
-    const channel = supabase
-      .channel(`hotel-booking-chat:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "hotel_booking_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () => {
-          void load(conversationId, true);
-          onUpdatedRef.current?.();
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    const channel = supabase.channel(`hotel-booking-chat:${conversationId}`).on('postgres_changes', {
+      event: '*', schema: 'public', table: 'hotel_booking_messages', filter: `conversation_id=eq.${conversationId}`,
+    }, () => { void load(conversationId, true); updatedRef.current?.(); }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
   }, [conversationId, load]);
 
   useEffect(() => {
@@ -195,10 +171,10 @@ export default function HotelBookingChat({
   }
 
   async function send() {
-    if (!conversationId || readOnly || loading || sendingRef.current || (!input.trim() && !files.length)) return;
+    if (!conversationId || readOnly || loading || sendingRef.current || sending || (!input.trim() && !files.length)) return;
+    const session = generation.current;
+    const stillHere = () => session === generation.current && activeId.current === conversationId;
     sendingRef.current = true;
-    const target = conversationId;
-    const isCurrent = () => activeConversation.current === target && activeIdentity.current === profile.user_id;
     setSending(true);
     const paths: string[] = [];
     const types: string[] = [];
@@ -225,6 +201,7 @@ export default function HotelBookingChat({
       created_at: new Date().toISOString(),
       delivery_state: "sending",
     }]);
+    let accepted = false;
     try {
       for (const file of queuedFiles) {
         const uploaded = await uploadHotelChatAttachment(
@@ -247,28 +224,28 @@ export default function HotelBookingChat({
         replyTarget?.id || null,
       );
       if (result.error || !result.messageId)
-        throw new Error(result.error?.message || "Message acknowledgement was not received. Check this conversation before trying again.");
-      if (isCurrent()) {
-        loadGeneration.current++;
-        setMessages(current => acknowledgeChatMessage(current, optimisticId, result.messageId!));
+        throw new Error(result.error?.message || "Message could not be sent");
+      accepted = true;
+      if (stillHere()) {
+        setMessages(old => acknowledgeChatMessage(old, optimisticId, result.messageId!));
         setSending(false);
-        void load(target, true);
-        onUpdatedRef.current?.();
+        // Refresh failure is not send failure: never delete an accepted upload.
+        void load(conversationId, true);
+        updatedRef.current?.();
       }
     } catch (error) {
-      if (!isCurrent()) return;
-      setMessages((current) => current.filter((message) => message.id !== optimisticId));
-      void Promise.all(paths.map((path) => deleteHotelChatAttachment(path))).catch(() => undefined);
-      if (!composer.current.input && !composer.current.files.length) {
-        setInput(text); setFiles(queuedFiles); setReplyingTo(replyTarget);
+      if (accepted) return;
+      // Only upload/send failure reaches here, not an optional refresh.
+      if (stillHere()) {
+        const newDraft = Boolean(draftRef.current.input.trim() || draftRef.current.files.length);
+        setMessages(current => newDraft ? current.map(row => row.id === optimisticId ? {...row, delivery_state: 'failed'} : row) : current.filter(row => row.id !== optimisticId));
+        if (!newDraft) { setInput(text); setFiles(queuedFiles); setReplyingTo(replyTarget); }
+        toast.error(error instanceof Error ? error.message : 'Message could not be sent');
       }
-      toast.error(
-        error instanceof Error ? error.message : "Message could not be sent",
-      );
+      await Promise.allSettled(paths.map(path => deleteHotelChatAttachment(path)));
     } finally {
-      sendingRef.current = false;
-      if (isCurrent()) setSending(false);
-      else optimisticUrls.forEach(url => { URL.revokeObjectURL(url); localUrls.current.delete(url); });
+      if (stillHere()) { sendingRef.current = false; setSending(false); }
+      else { optimisticUrls.forEach(url => URL.revokeObjectURL(url)); }
     }
   }
 
@@ -309,12 +286,12 @@ export default function HotelBookingChat({
   }
 
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Hotel conversation" className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
       <header className="shrink-0 border-b border-white/[.07] bg-[#0E1118]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
-            H
+            {title.trim().charAt(0).toUpperCase() || "H"}
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-semibold">{title}</h1>
@@ -327,25 +304,20 @@ export default function HotelBookingChat({
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
-          <div className="mx-auto mb-4 max-w-sm border-y border-white/[.06] py-3 text-center text-xs leading-4 text-[#717788]">
-            Use this conversation for arrival, the room and the stay. For
-            payment or booking changes, open the booking and choose Get help
-            from WeHouse.
-          </div>
+          {specialRequest?.trim() && <details className="mb-4 border-y border-white/10 py-2"><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-violet-200">Special request</summary><HotelSpecialRequest request={specialRequest} hotelView={hotelView} inConversation /></details>}
+          {loadError && <div role="alert" className="mb-3 text-sm text-amber-200"><p>{loadError}</p>{conversationId && <button type="button" className="min-h-11 underline" onClick={() => void load(conversationId, true)}>Try again</button>}</div>}
           {loading ? (
             <div
               className="min-h-48"
               role="status"
               aria-label="Loading hotel messages"
             />
-          ) : loadError ? (
-            <div role="alert" className="py-10 text-center text-sm text-[#AAA3B3]"><p>{loadError}</p><button type="button" onClick={() => void load(conversationId)} className="mt-3 min-h-11 font-semibold text-violet-300">Try again</button></div>
           ) : messages.length === 0 ? (
             <div className="py-16 text-center">
               <p className="text-sm font-semibold">
                 Start the hotel conversation
               </p>
-              <p className="mt-2 text-xs text-[#6E7484]">
+              <p className="mt-2 text-sm text-[#6E7484]">
                 Ask about arrival, the room or your stay.
               </p>
             </div>
@@ -376,7 +348,7 @@ export default function HotelBookingChat({
                     setMessageMenuMode("reactions");
                     setMessageMenu(message);
                   }}
-                  onReply={() => setReplyingTo(message)}
+                  onReply={() => { if (!message.delivery_state) setReplyingTo(message); }}
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   <div className="max-w-[84%]">
@@ -416,6 +388,8 @@ export default function HotelBookingChat({
                           {message.content}
                         </p>
                       )}
+                      {message.media_loading && <p role="status" className="text-sm opacity-80">Loading attachment…</p>}
+                      {message.media_error && <p className="text-sm opacity-80">An attachment could not be loaded.</p>}
                       {(message.attachments || []).map((src, index) => {
                         const type = message.attachment_types?.[index] || "";
                         return type.startsWith("image/") ? (
@@ -449,7 +423,7 @@ export default function HotelBookingChat({
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
-                        {mine ? message.delivery_state === "sending" ? " · Sending…" : message.is_read ? " · Read" : " · Sent" : ""}
+                        {mine ? message.delivery_state === "sending" ? " · Sending…" : message.delivery_state === "failed" ? " · Not sent" : message.is_read ? " · Read" : " · Sent" : ""}
                       </span>
                     </div>
                     {Object.keys(counts).length > 0 && (
@@ -479,7 +453,7 @@ export default function HotelBookingChat({
       <footer className="shrink-0 border-t border-white/[.07] bg-[#0E1118] px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5">
         <div className="mx-auto max-w-3xl">
           {readOnly ? (
-            <p className="py-2 text-center text-xs text-[#73798A]">
+            <p className="py-2 text-center text-sm text-[#73798A]">
               This stay has ended. Its conversation is kept as read-only history.
             </p>
           ) : <>
@@ -526,7 +500,7 @@ export default function HotelBookingChat({
                     ? "yourself"
                     : replyingTo.sender_name}
                 </p>
-                <p className="mt-0.5 truncate text-xs text-[#A1A6B4]">
+                <p className="mt-0.5 truncate text-sm text-[#A1A6B4]">
                   {replyingTo.content ||
                     (replyingTo.attachments?.length ? "Attachment" : "Message")}
                 </p>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 import { createPortal } from "react-dom";
 import VideoPlayer from "@/components/VideoPlayer";
 
@@ -29,6 +30,7 @@ type MediaViewerProps = MediaViewerSharedProps &
   );
 
 export default function MediaViewer(props: MediaViewerProps) {
+  const dialogRoot = useRef<HTMLDivElement>(null);
   const {
     title = "Media preview",
     subtitle,
@@ -58,11 +60,14 @@ export default function MediaViewer(props: MediaViewerProps) {
   }, [requestedIndex, maxIndex]);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousBodyBackground = document.body.style.background;
-    const previousRootBackground = document.documentElement.style.background;
+    const root = dialogRoot.current;
+    if (!root) return;
+    const release = isolateDialog(root);
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    root.focus({ preventScroll: true });
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (!isTopDialog(root) || event.defaultPrevented) return;
+      if (event.key === "Escape") { event.preventDefault(); onClose(); }
       if (items.length > 1 && event.key === "ArrowLeft") {
         setIndex((value) => Math.max(0, value - 1));
       }
@@ -70,14 +75,11 @@ export default function MediaViewer(props: MediaViewerProps) {
         setIndex((value) => Math.min(items.length - 1, value + 1));
       }
     };
-    document.body.style.overflow = "hidden";
-    document.body.style.background = "#000";
-    document.documentElement.style.background = "#000";
+
     window.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.background = previousBodyBackground;
-      document.documentElement.style.background = previousRootBackground;
+      release();
+      if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [items.length, onClose]);
@@ -90,7 +92,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   }, [kind, src]);
 
   return createPortal(
-    <div
+    <div ref={dialogRoot} tabIndex={-1}
       className="fixed inset-0 z-[100200] isolate flex h-[100svh] flex-col bg-black text-white"
       role="dialog"
       aria-modal="true"

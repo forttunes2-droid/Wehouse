@@ -1,3 +1,6 @@
+import HotelSpecialRequest from "@/components/HotelSpecialRequest";
+import ShortLetPaymentReview from "@/components/ShortLetPaymentReview";
+import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
 import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -1306,10 +1309,10 @@ function PropertyBookingDetail({
     Boolean(row.booking_code) &&
     journey.rentPaid &&
     ["handover", "tenancy", "completed"].includes(journey.action);
+  const shortBill = shortLetPayment(row);
   const rentAmount = Number(
     short
-      ? Number(row.stay_rent_total || 0) +
-          Number(row.security_deposit_snapshot || 0)
+      ? shortBill?.total || 0
       : row.upfront_rent_required ||
           row.annual_rent_snapshot ||
           row.listing_price ||
@@ -1425,6 +1428,7 @@ function PropertyBookingDetail({
             </p>
           ) : null}
 
+          <ShortLetPaymentReview row={row} />
           <PropertyBookingJourney row={row} inspection={inspection} />
 
           {journey.action === "reservation_payment" ? (
@@ -1454,7 +1458,7 @@ function PropertyBookingDetail({
           ) : null}
 
           {journey.action === "rent_payment" ? (
-            <button type="button" disabled={busy} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
+            <button type="button" disabled={busy || (short && !shortBill)} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
               {busy
                 ? "Checking payment…"
                 : row.rent_payment_status === "payment_pending"
@@ -1462,7 +1466,7 @@ function PropertyBookingDetail({
                     ? "Check or continue stay payment"
                     : "Check Year 1 rent payment"
                   : short
-                    ? `Pay stay and deposit · ${money(rentAmount)}`
+                    ? `Pay ${money(rentAmount)} securely`
                     : `Pay Year 1 rent · ${money(rentAmount)}`}
             </button>
           ) : null}
@@ -1677,6 +1681,8 @@ function HotelBookingDetail({
             <Info label="Room" value={room} />
             <Info label="Package" value={packageName} />
           </div>
+
+          <HotelSpecialRequest request={row.special_requests} />
 
           <div className="mt-4">
             <p className="text-[9px] font-semibold uppercase tracking-wide text-[#777D8E]">

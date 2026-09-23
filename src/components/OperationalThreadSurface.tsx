@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 
 type Dismiss = (afterClose?: () => void) => void;
 
@@ -36,11 +37,9 @@ export default function OperationalThreadSurface({
   useEffect(() => {
     const generation = ++lifecycle.current;
     const priorFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const app = document.getElementById("root");
-    const priorInert = app?.inert || false;
-    const priorOverflow = document.body.style.overflow;
-    if (app) app.inert = true;
-    document.body.style.overflow = "hidden";
+    const element = root.current;
+    if (!element) return;
+    const release = isolateDialog(element);
     const previousState = { ...(window.history.state || {}) };
     delete previousState.whOperationalThread;
     if (window.history.state?.whOperationalThread !== conversationId) {
@@ -59,6 +58,7 @@ export default function OperationalThreadSurface({
       height: window.visualViewport?.height || window.innerHeight,
     });
     const keydown = (event: KeyboardEvent) => {
+      if (!isTopDialog(element) || event.defaultPrevented) return;
       if (event.key === "Escape") { event.preventDefault(); dismiss(); return; }
       if (event.key !== "Tab") return;
       const elements = Array.from(root.current?.querySelectorAll<HTMLElement>(
@@ -79,16 +79,14 @@ export default function OperationalThreadSurface({
     window.visualViewport?.addEventListener("resize", updateViewport);
     window.visualViewport?.addEventListener("scroll", updateViewport);
     root.current?.addEventListener("keydown", keydown);
-    const element = root.current;
     return () => {
       window.removeEventListener("popstate", pop, true);
       window.removeEventListener("resize", updateViewport);
       window.visualViewport?.removeEventListener("resize", updateViewport);
       window.visualViewport?.removeEventListener("scroll", updateViewport);
       element?.removeEventListener("keydown", keydown);
-      document.body.style.overflow = priorOverflow;
-      if (app) app.inert = priorInert;
-      if (priorFocus?.isConnected) priorFocus.focus({ preventScroll: true });
+      release();
+      if (priorFocus?.isConnected && !priorFocus.closest('[inert]')) priorFocus.focus({ preventScroll: true });
       // StrictMode's cleanup/setup replay must not push a second history entry.
       queueMicrotask(() => {
         if (lifecycle.current === generation && window.history.state?.whOperationalThread === conversationId)

@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { useRef, useState } from "react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
 import VideoPlayer from "./VideoPlayer";
 
@@ -24,20 +27,8 @@ export default function PropertyMediaCarousel({
     ...videos.map((reference) => ({ reference, kind: "video" as const })),
   ];
 
-  useEffect(() => {
-    if (!fullscreen) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousBodyBackground = document.body.style.background;
-    const previousRootBackground = document.documentElement.style.background;
-    document.body.style.overflow = "hidden";
-    document.body.style.background = "#000";
-    document.documentElement.style.background = "#000";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.background = previousBodyBackground;
-      document.documentElement.style.background = previousRootBackground;
-    };
-  }, [fullscreen]);
+  const closeFullscreen = useRecordScreenBack(() => setFullscreen(false), fullscreen);
+  const dialogRef = useDialogInteraction(closeFullscreen, fullscreen);
 
   function moveTo(index: number) {
     if (!items.length) return;
@@ -152,8 +143,8 @@ export default function PropertyMediaCarousel({
           </>
         )}
       </section>
-      {fullscreen && (
-        <div
+      {fullscreen && createPortal(
+        <div ref={dialogRef} tabIndex={-1}
           className="fixed inset-0 z-[100200] flex h-[100svh] flex-col bg-black"
           role="dialog"
           aria-modal="true"
@@ -165,7 +156,7 @@ export default function PropertyMediaCarousel({
             </span>
             <button
               type="button"
-              onClick={() => setFullscreen(false)}
+              onClick={closeFullscreen}
               className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-xl"
               aria-label="Close media viewer"
             >
@@ -234,7 +225,7 @@ export default function PropertyMediaCarousel({
           {items.length === 1 ? (
             <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
           ) : null}
-        </div>
+        </div>, document.body
       )}
     </>
   );
