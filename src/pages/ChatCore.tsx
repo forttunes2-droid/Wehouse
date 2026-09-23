@@ -1,8 +1,10 @@
 import { createPortal } from "react-dom";
 import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
 import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
-import SharedPropertyCard from "@/components/SharedPropertyCard";
-import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, parsePropertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
+import { PropertyDraftAttachment } from "@/components/SharedPropertyCard";
+import RoommateBubble from "@/components/RoommateMessageBubble";
+import { PendingMessageMedia } from "@/components/MessageMedia";
+import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -43,7 +45,6 @@ import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
-import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import {
   lockEncryptionIdentity,
   privateConversationReadiness,
@@ -53,10 +54,8 @@ import {
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
-import MediaViewer from "@/components/MediaViewer";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
-import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
@@ -1253,25 +1252,8 @@ export default function Chat({
               />
             ) : (
               <>
-                {propertyDraft && <div className="mb-2 flex items-start gap-2 rounded-xl border border-violet-400/30 p-2">
-                  <div className="min-w-0 flex-1"><p className="mb-1 text-sm font-medium text-violet-200">Ready to send</p><SharedPropertyCard property={propertyDraft} onOpen={onNavigate} /></div>
-                  <button type="button" aria-label="Remove property from message" className="grid h-11 w-11 shrink-0 place-items-center text-lg text-[#AAA3B3]" onClick={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }}>×</button>
-                </div>}
-                {files.length > 0 && (
-                  <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                    {files.map((file, index) => (
-                      <PendingMedia
-                        key={`${file.name}-${index}`}
-                        file={file}
-                        onRemove={() =>
-                          setFiles((current) =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
+                {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }} />}
+                <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel
                   recording={voice.recording}
                   seconds={voice.seconds}
@@ -1991,89 +1973,6 @@ function SelectableRow({
     </button>
   );
 }
-function RoommateBubble({
-  msg,
-  mine,
-  quoted,
-  onOpenActions,
-  onTapReaction,
-  onReply,
-  onOpenProperty,
-}: {
-  onOpenProperty: (page: string, id: string) => void;
-  msg: RoommateMessage;
-  mine: boolean;
-  quoted?: RoommateMessage;
-  onOpenActions: (anchor: DOMRect) => void;
-  onTapReaction: (anchor: DOMRect) => void;
-  onReply: () => void;
-}) {
-  const shared = parsePropertyShareMessage(msg.content || "");
-  const reactions = Object.values(msg.reactions || {}).reduce<
-    Record<string, number>
-  >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
-  return (
-    <MessagePress
-      onOpen={onOpenActions}
-      onTap={onTapReaction}
-      onReply={onReply}
-      className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
-    >
-      <div
-        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
-      >
-        {quoted && (
-          <div
-            className={`mb-2 rounded-xl border-l-2 px-2.5 py-2 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
-          >
-            <p className="text-[8px] font-semibold opacity-75">
-              {quoted.sender_id === msg.sender_id ? "Earlier message" : "Reply"}
-            </p>
-            <p className="mt-0.5 line-clamp-2 text-[10px] opacity-80">
-              {propertyMessagePreview(quoted.content || "") ||
-                ((quoted.attachments || []).length ? "Attachment" : "Message")}
-            </p>
-          </div>
-        )}
-        {msg.media_loading && <p role="status" className="text-sm opacity-80">Loading attachment…</p>}
-      {msg.media_error && <p className="text-sm opacity-80">An attachment could not be loaded.</p>}
-      {(msg.attachments || []).map((url, index) => (
-          <PrivateAttachment
-            key={`${msg.id}-${index}`}
-            url={url}
-            type={msg.attachment_types?.[index] || ""}
-          />
-        ))}
-        {shared ? <>
-          {shared.text && <p className="mb-2 whitespace-pre-wrap text-sm leading-6">{shared.text}</p>}
-          <SharedPropertyCard property={shared.property} onOpen={onOpenProperty} />
-        </> : msg.content && <p className="whitespace-pre-wrap text-sm leading-6">{msg.content}</p>}
-        <p
-          className={`mt-1 text-right text-[8px] ${mine ? "text-violet-100/70" : "text-[#626677]"}`}
-        >
-          {time(msg.created_at)}
-          {mine ? msg.delivery_state === "sending" ? " · Sending…" : msg.delivery_state === "failed" ? " · Not sent" : msg.seen ? " · Seen" : " · Sent" : ""}
-        </p>
-        {Object.keys(reactions).length > 0 && (
-          <div
-            className={`absolute -bottom-3 ${mine ? "right-2" : "left-2"} flex gap-1 rounded-full border border-white/[.08] bg-[#171A22] px-2 py-0.5 text-[10px] shadow-lg`}
-          >
-            {Object.entries(reactions).map(([emoji, count]) => (
-              <span key={emoji}>
-                {emoji}
-                {count > 1 ? (
-                  <small className="ml-0.5 text-[7px] text-[#A6AAB6]">
-                    {count}
-                  </small>
-                ) : null}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </MessagePress>
-  );
-}
 function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
   const outgoing = call.caller_id === me,
     ended = call.ended_at ? new Date(call.ended_at).getTime() : 0,
@@ -2111,68 +2010,6 @@ function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
       </div>
     </div>
   );
-}
-function PrivateAttachment({ url, type }: { url: string; type: string }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const image =
-    type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
-  const video =
-    type.startsWith("video/") ||
-    /\.(mp4|mov)(\?|$)/i.test(url) ||
-    (!type && /\.webm(\?|$)/i.test(url));
-  if (image)
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black"
-          aria-label="Open shared photo in WeHouse viewer"
-        >
-          <img
-            src={url}
-            alt="Shared photo"
-            className="max-h-80 w-auto max-w-full object-contain"
-          />
-        </button>
-        {viewerOpen ? (
-          <MediaViewer
-            src={url}
-            kind="image"
-            title="Shared photo"
-            onClose={() => setViewerOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  if (video)
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black"
-          aria-label="Open shared video in WeHouse viewer"
-        >
-          <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]">
-            <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">
-              ▶
-            </span>
-          </span>
-        </button>
-        {viewerOpen ? (
-          <MediaViewer
-            src={url}
-            kind="video"
-            title="Shared video"
-            onClose={() => setViewerOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  if (type.startsWith("audio/") || /\.(webm|m4a|mp3|wav|ogg)(\?|$)/i.test(url))
-    return <VoiceNotePlayer url={url} />;
-  return null;
 }
 function DateDivider({ value }: { value: string }) {
   return (
@@ -2293,26 +2130,6 @@ function VideoCallIcon() {
       <rect x="3" y="6" width="13" height="12" rx="2" />
       <path d="m16 10 5-3v10l-5-3" />
     </svg>
-  );
-}
-function PendingMedia({
-  file,
-  onRemove,
-}: {
-  file: File;
-  onRemove: () => void;
-}) {
-  const isVoice = file.type.startsWith("audio/");
-  return (
-    <div className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2">
-      <span className="text-sm">{isVoice ? "🎤" : "▧"}</span>
-      <p className="max-w-36 truncate text-[9px] text-violet-200">
-        {isVoice ? "Voice note" : file.name}
-      </p>
-      <button onClick={onRemove} className="text-[#8D91A1]">
-        ×
-      </button>
-    </div>
   );
 }
 function DeleteSheet({

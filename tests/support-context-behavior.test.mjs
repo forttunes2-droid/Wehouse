@@ -45,7 +45,7 @@ function harness() {
   const noop=()=>{};
   const fakeApi={...api,getMySupportConversations:()=>new Promise(resolve=>requests.push(resolve)),getSupportMessages:id=>new Promise(resolve=>messageRequests.push({id,resolve})),getSupportCaseEvents:async()=>({events:[],error:null}),markSupportMessagesRead:async()=>{},createSupportMessageDraft:async()=>({draftId:'draft-'+sends.length}),sendFirstWeHouseMessage:async(draftId,context)=>{sends.push({draftId,context});return {error:{message:'network'}};},getSupportMessageDraftStatus:async()=>({error:{message:'network'}})};
   const component=moduleAt('src/components/SupportChat.tsx',{
-    react,'react-dom':{createPortal:node=>node},sonner:{toast:Object.assign(noop,{error:noop,success:noop})},'@/lib/supabase/support':fakeApi,'@/lib/supabase':{supabase:{channel:()=>chain,removeChannel:noop}},'@/lib/displayDate':dates,'@/components/BackButton':'BackButton','@/components/SecureSupportAttachment':'SecureSupportAttachment',
+    react,'react-dom':{createPortal:node=>node},sonner:{toast:Object.assign(noop,{error:noop,success:noop})},'@/lib/supabase/support':fakeApi,'@/lib/supabase':{supabase:{channel:()=>chain,removeChannel:noop}},'@/lib/displayDate':dates,'@/components/BackButton':'BackButton','@/components/SecureSupportAttachment':'SecureSupportAttachment','@/components/MessageMedia':{PendingMessageMedia:'PendingMessageMedia'},
   },{window:{addEventListener:(key,fn)=>listeners.set(key,fn),removeEventListener:key=>listeners.delete(key),dispatchEvent:noop,matchMedia:()=>({matches:false})},document:{body:{}},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}}}).default;
   const profile={user_id:'user-a',username:'user',email:'test@example.invalid',role:'user'};
   let tree;

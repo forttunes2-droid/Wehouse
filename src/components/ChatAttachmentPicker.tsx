@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import { useRef } from "react";
 
 type Props = {
@@ -46,7 +47,7 @@ export default function ChatAttachmentPicker({
         aria-label="Add media or file"
         className="grid h-11 w-11 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-xl text-[#A2A7B6] disabled:opacity-40"
       >
-        ＋
+        <Plus size={21} aria-hidden="true" />
       </button>
     </div>
   );

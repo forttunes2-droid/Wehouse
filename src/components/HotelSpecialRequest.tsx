@@ -1,9 +1,10 @@
+import { ChevronDown, MessageSquareText } from 'lucide-react';
+import './message-attachments.css';
+
 type Props = { request?: string | null; hotelView?: boolean; inConversation?: boolean };
 export default function HotelSpecialRequest({ request, hotelView = false, inConversation = false }: Props) {
   if (!request?.trim()) return null;
-  return <section aria-label="Special request" className="mt-3 rounded-xl border border-violet-400/15 bg-violet-500/[.04] p-3">
-    {!inConversation && <h3 className="text-sm font-semibold text-violet-200">Special request</h3>}
-    <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#CDD1DC]">{request}</p>
-    <p className="mt-2 text-xs leading-5 text-[#A1A7B4]">{hotelView ? inConversation ? 'Confirm with the guest what you can arrange.' : 'Reply in Guest messages to confirm what you can arrange.' : 'Sent with your booking. The hotel must confirm whether it can arrange this.'}</p>
-  </section>;
+  const body = <div className="wh-request-body"><p>{request}</p><small>{hotelView ? 'Reply to confirm what the hotel can arrange.' : 'A request, not a confirmation. The hotel can reply here.'}</small></div>;
+  if (inConversation) return <details className="wh-attachment-surface wh-request-note"><summary><MessageSquareText size={19} aria-hidden="true" /><span><strong>Special request</strong><small>Sent with this booking</small></span><ChevronDown size={18} aria-hidden="true" className="wh-request-chevron" /></summary>{body}</details>;
+  return <section aria-label="Special request" className="wh-attachment-surface wh-request-note mt-3"><div className="px-3 pt-3 text-sm font-semibold">Special request</div><div className="wh-request-body !border-0"><p>{request}</p><small>{hotelView ? 'Reply in Guest messages to confirm what you can arrange.' : 'The hotel must confirm whether it can arrange this.'}</small></div></section>;
 }

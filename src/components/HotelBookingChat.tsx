@@ -1,3 +1,4 @@
+import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { hotelMessagePresentation, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { displayDate } from "@/lib/displayDate";
 import { createPortal } from "react-dom";
@@ -20,8 +21,6 @@ import {
   uploadHotelChatAttachment,
   type HotelMessage,
 } from "@/lib/supabase/hotel-chat";
-import MediaViewer from "@/components/MediaViewer";
-import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import MessageActionSheet from "@/components/MessageActionSheet";
@@ -74,10 +73,7 @@ export default function HotelBookingChat({
   const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(
     null,
   );
-  const [viewer, setViewer] = useState<{
-    src: string;
-    kind: "image" | "video";
-  } | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
   const messageById = useMemo(
@@ -314,7 +310,7 @@ export default function HotelBookingChat({
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
-          {specialRequest?.trim() && <details className="mb-4 border-y border-white/10 py-2"><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-violet-200">Special request</summary><HotelSpecialRequest request={specialRequest} hotelView={hotelView} inConversation /></details>}
+          {specialRequest?.trim() && <HotelSpecialRequest request={specialRequest} hotelView={hotelView} inConversation />}
           {loadError && <div role="alert" className="mb-3 text-sm text-amber-200"><p>{loadError}</p>{conversationId && <button type="button" className="min-h-11 underline" onClick={() => void load(conversationId, true)}>Try again</button>}</div>}
           {loading ? (
             <div
@@ -396,34 +392,9 @@ export default function HotelBookingChat({
                           {message.content}
                         </p>
                       )}
-                      {message.media_loading && <p role="status" className="text-sm opacity-80">Loading attachment…</p>}
-                      {message.media_error && <p className="text-sm opacity-80">An attachment could not be loaded.</p>}
-                      {(message.attachments || []).map((src, index) => {
-                        const type = message.attachment_types?.[index] || "";
-                        return type.startsWith("image/") ? (
-                          <button
-                            key={src}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setViewer({ src, kind: "image" });
-                            }}
-                            className="mt-2 block overflow-hidden rounded-xl"
-                          >
-                            <img
-                              src={src}
-                              alt="Chat attachment"
-                              loading="lazy"
-                              decoding="async"
-                              className="max-h-72 w-full object-cover"
-                            />
-                          </button>
-                        ) : type.startsWith("audio/") ? (
-                          <div key={src} className="mt-2">
-                            <VoiceNotePlayer url={src} />
-                          </div>
-                        ) : null;
-                      })}
+                      {message.media_loading && <AttachmentState />}
+                      {message.media_error && <AttachmentState error />}
+                      <MessageMedia items={(message.attachments || []).map((url, index) => ({ url, type: message.attachment_types?.[index] || "" }))} />
                       <span
                         className={`mt-1.5 block text-right text-xs ${mine ? "text-violet-100/75" : "text-[#697080]"}`}
                       >
@@ -465,27 +436,7 @@ export default function HotelBookingChat({
               {!context ? "Checking conversation access…" : "This booking conversation is read-only. Your messages remain available here."}
             </p>
           ) : <>
-          {files.length > 0 && (
-            <div className="mb-2 flex gap-2 overflow-x-auto">
-              {files.map((file, index) => (
-                <div
-                  key={`${file.name}-${index}`}
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-violet-500/10 px-3 py-2 text-xs text-violet-200"
-                >
-                  <span className="max-w-36 truncate">{file.name}</span>
-                  <button
-                    onClick={() =>
-                      setFiles((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
           <VoiceRecorderPanel
             recording={voice.recording}
             seconds={voice.seconds}
@@ -602,14 +553,7 @@ export default function HotelBookingChat({
         onCancel={() => setMessageToRemove(null)}
         onConfirm={() => void removeMessage()}
       />
-      {viewer && (
-        <MediaViewer
-          src={viewer.src}
-          kind={viewer.kind}
-          title="Hotel chat media"
-          onClose={() => setViewer(null)}
-        />
-      )}
+
     </div>, document.body
   );
 }

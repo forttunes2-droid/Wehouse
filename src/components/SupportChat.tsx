@@ -1,3 +1,4 @@
+import { PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -578,32 +579,7 @@ export default function SupportChat({
           )}
 
           {firstSendAttemptRef.current && !sending && <p role="status" className="mb-2 px-2 text-xs text-amber-200">Message not confirmed. Tap Send to retry.</p>}
-          {files.length > 0 && (
-            <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-              {files.map((file, index) => (
-                <div
-                  key={`${file.name}-${index}`}
-                  className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2"
-                >
-                  <p className="max-w-40 truncate text-[9px] text-violet-200">
-                    {file.name}
-                  </p>
-                  <button
-                    disabled={sending || Boolean(firstSendAttemptRef.current)}
-                    aria-label={`Remove ${file.name}`}
-                    onClick={() =>
-                      setFiles((current) =>
-                        current.filter((_, i) => i !== index),
-                      )
-                    }
-                    className="text-[#8D91A1]"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <PendingMessageMedia files={files} disabled={sending || Boolean(firstSendAttemptRef.current)} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
 
           <div className="flex items-end gap-2">
             <input
