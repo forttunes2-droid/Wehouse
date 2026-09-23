@@ -158,7 +158,19 @@ async def main():
     await page.evaluate('window.__rerenderHotel()')
     await page.wait_for_timeout(200)
     assert scenario.hotel_reads==initial_reads,'Parent redraw reloaded hotel history'
-    assert await page.evaluate("Boolean(document.elementFromPoint(1,1)?.closest('[role=dialog][aria-label=\"Hotel conversation\"]'))")
+    # The dialog's accessible name is the real hotel, not the old generic label.
+    # Keep the visual isolation assertion: every corner must hit this dialog,
+    # whose solid background covers the entire viewport.
+    hotel_dialog=page.get_by_role('dialog',name='Garden Lodge',exact=True)
+    await expect(hotel_dialog).to_be_visible()
+    assert await hotel_dialog.evaluate("""el => {
+      const r=el.getBoundingClientRect(), css=getComputedStyle(el);
+      const points=[[1,1],[innerWidth-2,1],[1,innerHeight-2],[innerWidth-2,innerHeight-2]];
+      return el.parentElement===document.body && r.left<=0 && r.top<=0 &&
+        r.right>=innerWidth && r.bottom>=innerHeight &&
+        css.backgroundColor==='rgb(9, 11, 16)' && css.opacity==='1' &&
+        points.every(([x,y]) => el.contains(document.elementFromPoint(x,y)));
+    }"""), 'Hotel conversation must opaquely cover the viewport'
     await page.locator('textarea[placeholder="Message"]').fill('I arrive at six')
     await page.get_by_role('button',name='Send message',exact=True).click()
     await expect(page.get_by_text('I arrive at six',exact=True)).to_be_visible(timeout=400)
