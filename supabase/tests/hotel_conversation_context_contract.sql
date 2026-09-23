@@ -247,8 +247,19 @@ set local role authenticated;
 do $$ declare n integer; begin
  select count(*) into n from storage.objects where bucket_id='chat-files' and name like '%88999999%';
  if n<>2 then raise exception 'Intended peer cannot read private media'; end if;
+ -- Supabase protects every raw DELETE statement, even one matching no rows.
+ -- Confirm that guard, then emulate only the Storage service's transaction
+ -- context to exercise actual authenticated DELETE RLS (never disable RLS).
+ begin
+  delete from storage.objects where bucket_id='chat-files' and name like '%88999999%';
+  raise exception 'Direct Storage deletion guard was bypassed';
+ exception when insufficient_privilege then
+  if sqlerrm not like 'Direct deletion from storage tables is not allowed%' then raise; end if;
+ end;
+ perform set_config('storage.allow_delete_query','true',true);
  delete from storage.objects where bucket_id='chat-files' and name like '%88999999%';
  get diagnostics n=row_count;
+ perform set_config('storage.allow_delete_query','false',true);
  if n<>0 then raise exception 'Peer deleted somebody else''s uploads'; end if;
 end $$;
 reset role;
@@ -260,6 +271,20 @@ do $$ begin
   insert into storage.objects(bucket_id,name,owner_id,metadata) values('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/attack.bin',auth.uid()::text,'{"mimetype":"application/octet-stream","size":100}');
   raise exception 'Unrelated identity uploaded into a private conversation';
  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- A real uploader can remove their own unreferenced upload through the same
+-- service context. This catches a policy that simply denies every DELETE.
+select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+set local role authenticated;
+do $$ declare n integer; begin
+ insert into storage.objects(bucket_id,name,owner_id,metadata) values
+ ('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin',auth.uid()::text,'{"mimetype":"application/octet-stream","size":100}');
+ perform set_config('storage.allow_delete_query','true',true);
+ delete from storage.objects where bucket_id='chat-files' and name='e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin';
+ get diagnostics n=row_count;
+ perform set_config('storage.allow_delete_query','false',true);
+ if n<>1 then raise exception 'Uploader could not remove their own upload'; end if;
 end $$;
 reset role;
 -- A block takes effect on existing media reads and on future uploads.
