@@ -120,7 +120,7 @@ async def main():
      await page.get_by_role('button',name=re.compile('Activity')).filter(visible=True).click()
      await page.get_by_role('button',name=re.compile('New paid hotel stay')).click()
      await expect(page.get_by_text('Guest Forty Two',exact=True)).to_be_visible()
-     denied=True; await page.evaluate('window.dispatchEvent(new Event('focus'))')
+     denied=True; await page.evaluate('window.dispatchEvent(new Event("focus"))')
      await expect(page.get_by_text('Guest Forty Two',exact=True)).to_have_count(0)
      await expect(page.get_by_text(re.compile('your access has changed'))).to_be_visible(); denied=False
      mode='team'
