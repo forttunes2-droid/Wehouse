@@ -309,7 +309,11 @@ export default function App() {
   const consumePropertyIntent = useCallback(() => setPropertyIntent(null), []);
   useEffect(() => { try { savePropertyLinkIntent(propertyIntent, sessionStorage); } catch {} }, [propertyIntent]);
   useEffect(() => {
-    const readLink = () => { const next = parsePropertyShareUrl(window.location.href); if (next) setPropertyIntent(next); };
+    const readLink = () => {
+      let next = parsePropertyShareUrl(window.location.href);
+      try { next = readPropertyLinkIntent(window.location.href, sessionStorage); } catch {}
+      if (next) setPropertyIntent(next);
+    };
     window.addEventListener("hashchange", readLink);
     return () => window.removeEventListener("hashchange", readLink);
   }, []);

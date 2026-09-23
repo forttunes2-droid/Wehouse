@@ -2,7 +2,7 @@ import PropertyShareDialog from "@/components/PropertyShareDialog";
 import { displayDate } from "@/lib/displayDate";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useRef, useState } from "react";
-import { addCalendarDays, nigeriaCalendarDate, shortLetQuote } from "@/lib/shortLetQuote";
+import { addCalendarDays, nigeriaCalendarDate, validateShortLetDates } from "@/lib/shortLetQuote";
 import {
   createInspectionRequest,
   createReservation,
@@ -114,6 +114,8 @@ export default function ListingDetail({
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [accountError, setAccountError] = useState("");
   const loadGeneration = useRef(0);
   const reservationInFlight = useRef(false);
   const [reservation, setReservation] = useState<any>(null);
@@ -139,15 +141,28 @@ export default function ListingDetail({
     const request = ++loadGeneration.current;
     setLoading(true);
     setLoadError("");
+    setAccountLoading(true); setAccountError("");
+    let propertyLoaded = false;
     try {
       const result = await withTimeout(getListing(listingId), 15000, "Property took too long to load.");
       if (request !== loadGeneration.current) return;
       if (result.error) throw result.error;
       const property = result.listing;
       setListing(property);
+      propertyLoaded = true;
+      // Show the public property immediately; account checks guard only actions.
+      setLoading(false);
       setReservation(null); setInspection(null); setSharedGroup(null); setPlan(null);
       if (!property) return;
-      const currentResult = await withTimeout(getReservationForListing(listingId, profile.user_id), 15000, "Your reservation could not be loaded.");
+      const [currentResult, shared] = await Promise.all([
+        withTimeout(getReservationForListing(listingId, profile.user_id), 15000, "Your reservation could not be loaded."),
+        property.sub_type === "long_stay"
+          ? withTimeout(getMySharedHousingGroups(), 15000, "Your shared reservation could not be loaded.")
+          : Promise.resolve({ groups: [], error: null }),
+      ]);
+      if (request !== loadGeneration.current) return;
+      if (shared.error) throw shared.error;
+      setSharedGroup(shared.groups.find(group => String(group.listing?.id) === String(property.id)) || null);
       if (currentResult.error) throw currentResult.error;
       if (request !== loadGeneration.current) return;
       const current = currentResult.reservation;
@@ -163,16 +178,13 @@ export default function ListingDetail({
         if (request !== loadGeneration.current) return;
         setInspection(inspectionResult.inspection || null);
       }
-      if (property.sub_type === "long_stay") {
-        const shared = await withTimeout(getMySharedHousingGroups(), 15000, "Your shared reservation could not be loaded.");
-        if (shared.error) throw shared.error;
-        if (request !== loadGeneration.current) return;
-        setSharedGroup(shared.groups.find(group => String(group.listing?.id) === String(property.id)) || null);
-      }
     } catch {
-      if (request === loadGeneration.current) setLoadError("This property could not be refreshed. Please try again before making a reservation.");
+      if (request === loadGeneration.current) {
+        if (propertyLoaded) setAccountError("Your booking status could not be checked. Refresh before reserving or paying.");
+        else setLoadError("This property could not be refreshed. Please try again.");
+      }
     } finally {
-      if (request === loadGeneration.current) setLoading(false);
+      if (request === loadGeneration.current) { setLoading(false); setAccountLoading(false); }
     }
   }
 
@@ -240,7 +252,7 @@ export default function ListingDetail({
   }
 
   async function reserveShortLet() {
-    if (!listing || listing.sub_type !== "short_let" || reservationInFlight.current || busy || !quote.valid) return;
+    if (!listing || listing.sub_type !== "short_let" || reservationInFlight.current || busy || accountLoading || accountError || !selection.valid) return;
     reservationInFlight.current = true; setBusy(true);
     const request = loadGeneration.current;
     try {
@@ -518,10 +530,8 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
   const bookingWindowEnd = addCalendarDays(today, bookingWindowDays);
   const minShortCheckout = addCalendarDays(shortCheckIn || today, shortMinNights);
   const maxGuests = Number(listing.max_guests || 0);
-  const quote = shortLetQuote({ checkIn: shortCheckIn, checkOut: shortCheckOut, today,
-    lastDate: bookingWindowEnd, guests: shortGuests, maxGuests, minNights: shortMinNights, maxNights: shortMaxNights,
-    nightlyRate: Number(listing.price), refundableDeposit: Number(listing.security_deposit_amount || 0) });
-  const shortNights = quote.nights;
+  const selection = validateShortLetDates({ checkIn: shortCheckIn, checkOut: shortCheckOut, today,
+    lastDate: bookingWindowEnd, guests: shortGuests, maxGuests, minNights: shortMinNights, maxNights: shortMaxNights });
   const hasOwnActiveReservation = Boolean(
     reservation && ACTIVE_RESERVATION_STATES.has(String(reservation.status)),
   );
@@ -663,7 +673,11 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
             </div>
 
             <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
-              {sharedGroup ? (
+              {accountLoading ? (
+                <section role="status" aria-label="Checking your booking status" className="rounded-2xl border border-white/10 bg-[#11141C] p-5 text-sm text-[#AAA3B3]">Checking your booking status…</section>
+              ) : accountError ? (
+                <section role="alert" className="rounded-2xl border border-amber-500/20 bg-[#11141C] p-5 text-sm leading-6 text-amber-100"><p>{accountError}</p><button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Refresh booking status</button></section>
+              ) : sharedGroup ? (
                 <SharedHomeCard
                   group={sharedGroup}
                   profile={profile}
@@ -772,30 +786,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         +
                       </button>
                     </div>
-                    {quote.valid && (
-                      <div className="mt-4 rounded-xl bg-white/[.03] p-3">
-                        <Row
-                          label="Stay"
-                          value={`${shortNights} night${shortNights === 1 ? "" : "s"}`}
-                        />
-                        <Row
-                          label="Stay rent"
-                          value={`₦${quote.rent.toLocaleString()}`}
-                        />
-                        <Row
-                          label="Refundable deposit"
-                          value={`₦${quote.deposit.toLocaleString()}`}
-                        />
-                        <Row label="Estimated total" value={`₦${quote.total.toLocaleString()}`} />
-                      </div>
-                    )}
-                    {shortCheckIn && shortCheckOut && !quote.valid && <p role="alert" className="mt-3 text-sm leading-6 text-amber-200">{quote.error}</p>}
-                    <button type="button" disabled={busy || !quote.valid}
+                    {selection.valid && <p className="mt-4 text-sm text-[#AAA3B3]">{selection.nights} night{selection.nights === 1 ? "" : "s"} · {shortGuests} guest{shortGuests === 1 ? "" : "s"}</p>}
+                    {shortCheckIn && shortCheckOut && !selection.valid && <p role="alert" className="mt-3 text-sm leading-6 text-amber-200">{selection.error}</p>}
+                    <button type="button" disabled={busy || !selection.valid}
                       onClick={() => void reserveShortLet()}
                       className="mt-4 min-h-12 w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold disabled:opacity-40">
                       {busy ? "Preparing reservation…" : "Reserve date"}
                     </button>
-                    <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">Review the full price before payment. Your stay is confirmed after payment is verified.</p>
+                    <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">Next: review your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable deposit" : ""}. No payment is taken at this step.</p>
                   </section>
                 ) : (
                   <section className="border-y border-white/[.08] py-5">
@@ -1455,12 +1453,12 @@ function ShortStayReservationPanel({
     return (
       <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5">
         <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
-          Dates reserved
+          Reservation prepared
         </p>
         <h2 className="mt-2 text-lg font-bold">Pay for your Short Let</h2>
         <p className="mt-2 text-sm leading-5 text-[#7D8291]">
-          Pay the stay rent and refundable security deposit. There is no annual
-          rent plan or roommate step.
+          Review the stay price and any refundable deposit in your booking before
+          payment. An unpaid reservation is not a confirmed stay.
         </p>
         {stay}
         <button

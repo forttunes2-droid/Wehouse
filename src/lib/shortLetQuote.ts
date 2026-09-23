@@ -16,16 +16,15 @@ export function nigeriaCalendarDate(now = new Date()): string {
   const part = (type: string) => parts.find(value => value.type === type)?.value || '';
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
-export type ShortLetSelection = {
+export type ShortLetDates = {
   checkIn: string; checkOut: string; today: string; lastDate: string;
   guests: number; maxGuests: number; minNights: number; maxNights: number;
-  nightlyRate: number; refundableDeposit: number;
 };
-export type ShortLetQuote = { valid: false; total: null; nights: number; error: string }
-  | { valid: true; total: number; nights: number; rent: number; deposit: number; error: '' };
-/** Display estimate only. The reservation RPC remains the price/availability authority. */
-export function shortLetQuote(selection: ShortLetSelection): ShortLetQuote {
-  const fail = (error: string, nights = 0): ShortLetQuote => ({ valid: false, total: null, nights, error });
+export type ShortLetDateResult = { valid: boolean; nights: number; error: string };
+/** The date step validates dates/capacity only. Money belongs to the server's
+ * reservation review, not a live total beside the Reserve date button. */
+export function validateShortLetDates(selection: ShortLetDates): ShortLetDateResult {
+  const fail = (error: string, nights = 0): ShortLetDateResult => ({ valid: false, nights, error });
   if (!selection.checkIn || !selection.checkOut) return fail('Choose your check-in and check-out dates.');
   const start = calendarDay(selection.checkIn), end = calendarDay(selection.checkOut);
   const today = calendarDay(selection.today), last = calendarDay(selection.lastDate);
@@ -37,8 +36,18 @@ export function shortLetQuote(selection: ShortLetSelection): ShortLetQuote {
   if (nights < selection.minNights || nights > selection.maxNights) return fail(`Choose a stay of ${selection.minNights}–${selection.maxNights} nights.`, nights);
   if (!Number.isSafeInteger(selection.maxGuests) || selection.maxGuests < 1) return fail('Guest capacity is not available for this property.', nights);
   if (!Number.isSafeInteger(selection.guests) || selection.guests < 1 || selection.guests > selection.maxGuests) return fail(`Choose between 1 and ${selection.maxGuests} guests.`, nights);
-  if (!Number.isFinite(selection.nightlyRate) || selection.nightlyRate <= 0 || !Number.isFinite(selection.refundableDeposit) || selection.refundableDeposit < 0) return fail('The price could not be confirmed. Please refresh.', nights);
-  const rate = Math.round(selection.nightlyRate * 100), deposit = Math.round(selection.refundableDeposit * 100), rent = rate * nights;
-  if (![rate, deposit, rent, rent + deposit].every(Number.isSafeInteger)) return fail('The price could not be confirmed. Please refresh.', nights);
-  return { valid: true, total: (rent + deposit) / 100, nights, rent: rent / 100, deposit: deposit / 100, error: '' };
+  return { valid: true, nights, error: '' };
+}
+export type ShortLetSelection = ShortLetDates & { nightlyRate: number; refundableDeposit: number };
+export type ShortLetQuote = { valid: false; total: null; nights: number; error: string }
+  | { valid: true; total: number; nights: number; rent: number; deposit: number; error: '' };
+/** Optional review estimate only. The reservation RPC remains the money authority. */
+export function shortLetQuote(selection: ShortLetSelection): ShortLetQuote {
+  const dates = validateShortLetDates(selection);
+  const fail = (error: string): ShortLetQuote => ({ valid: false, total: null, nights: dates.nights, error });
+  if (!dates.valid) return fail(dates.error);
+  if (!Number.isFinite(selection.nightlyRate) || selection.nightlyRate <= 0 || !Number.isFinite(selection.refundableDeposit) || selection.refundableDeposit < 0) return fail('The price could not be confirmed. Please refresh.');
+  const rate = Math.round(selection.nightlyRate * 100), deposit = Math.round(selection.refundableDeposit * 100), rent = rate * dates.nights;
+  if (![rate, deposit, rent, rent + deposit].every(Number.isSafeInteger)) return fail('The price could not be confirmed. Please refresh.');
+  return { valid: true, total: (rent + deposit) / 100, nights: dates.nights, rent: rent / 100, deposit: deposit / 100, error: '' };
 }

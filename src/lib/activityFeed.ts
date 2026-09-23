@@ -268,11 +268,15 @@ export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = 
     .filter((row) => {
       const type = String(row.type || "");
       const isLifecycle = FINANCIAL_ACTIVITY.test(type) || BOOKING_ACTIVITY.test(type) || ROOMMATE_ACTIVITY.test(type);
-      // An action stays visible until the workflow records its resolution. Merely
-      // reading it, or receiving a different lifecycle event, must not erase it.
-      const key = isLifecycle && row.source_type && row.source_id
-        ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
-        : "";
+      // Within the existing retention window, only the workflow can resolve an
+      // action. Reading it or receiving another event must not suppress it.
+      // Deduplicate action deliveries by event identity, not by booking/lane.
+      // Informational updates still collapse to the latest update in a lane.
+      const key = activityNeedsAction(row)
+        ? `action:${row.id || JSON.stringify([row.source_type, row.source_id, type, row.created_at])}`
+        : isLifecycle && row.source_type && row.source_id
+          ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
+          : "";
       if (!key) return true;
       if (seen.has(key)) return false;
       seen.add(key);

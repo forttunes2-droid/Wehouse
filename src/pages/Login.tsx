@@ -1,3 +1,4 @@
+import GuestBrowseEntry from "@/components/GuestBrowseEntry";
 import { useEffect, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import {
@@ -724,6 +725,7 @@ export default function Login({
               New here?
               <button type="button" onClick={() => { setMode("signup"); clearMessages(); }} className={textAction}>Create account</button>
             </p>
+            <GuestBrowseEntry onSignIn={() => { setMode("signin"); clearMessages(); }} />
           </div>
         ) : null}
 

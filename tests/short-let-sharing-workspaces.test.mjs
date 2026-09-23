@@ -41,7 +41,7 @@ test('Short Let Reserve date creates its existing booking but does not initiate 
   const text = fs.readFileSync('src/pages/ListingDetailCore.tsx', 'utf8');
   const action = text.slice(text.indexOf('async function reserveShortLet'), text.indexOf('async function openCheckout'));
   assert.match(action, /createShortStayReservation\(listingId, shortCheckIn, shortCheckOut, shortGuests\)/);
-  assert.match(action, /onOpenBooking/); assert.match(action, /!quote.valid/);
+  assert.match(action, /onOpenBooking/); assert.match(action, /!selection.valid/);
   assert.doesNotMatch(action, /initialize.*Payment|window.location/);
   assert.match(text, /Reserve date/); assert.doesNotMatch(text, /Pay for stay ·/);
 });

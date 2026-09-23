@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { withTimeout } from "@/lib/withTimeout";
+import { acknowledgeChatMessage, reconcileChatMessages } from "@/lib/chatMessageReconciliation";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import {
@@ -48,6 +53,17 @@ export default function HotelBookingChat({
   onClose,
   onUpdated,
 }: Props) {
+  const dismiss = useRecordScreenBack(onClose);
+  const dialogRef = useDialogInteraction(dismiss);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  const loadGeneration = useRef(0);
+  const sendingRef = useRef(false);
+  const localUrls = useRef(new Set<string>());
+  const onUpdatedRef = useRef(onUpdated);
+  useEffect(() => { onUpdatedRef.current = onUpdated; }, [onUpdated]);
+  const activeConversation = useRef(initialConversationId || "");
+  const activeIdentity = useRef(profile.user_id);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [conversationId, setConversationId] = useState(
     initialConversationId || "",
@@ -56,6 +72,7 @@ export default function HotelBookingChat({
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [sending, setSending] = useState(false);
   const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
   const [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions");
@@ -69,44 +86,70 @@ export default function HotelBookingChat({
   } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
+  const composer = useRef({ input, files });
+  useEffect(() => { composer.current = { input, files }; }, [input, files]);
+  useEffect(() => {
+    const visible = new Set(messages.flatMap(message => message.attachments || []));
+    for (const url of localUrls.current) if (!visible.has(url)) {
+      URL.revokeObjectURL(url); localUrls.current.delete(url);
+    }
+  }, [messages]);
   const messageById = useMemo(
     () => new Map(messages.map((message) => [message.id, message])),
     [messages],
   );
 
   const load = useCallback(async (id: string, quiet = false) => {
-    if (!quiet) setLoading(true);
-    const result = await getHotelMessages(id);
-    if (result.error)
-      toast.error(result.error.message || "Hotel messages could not be loaded");
-    else {
-      setMessages(result.messages);
-      void markHotelMessagesRead(id);
-    }
-    if (!quiet) setLoading(false);
+    const generation = ++loadGeneration.current;
+    const current = () => generation === loadGeneration.current && activeConversation.current === id;
+    if (!quiet) { setLoading(true); setLoadError(""); }
+    try {
+      const result = await withTimeout(getHotelMessages(id), 15000, "Hotel messages took too long to load");
+      if (!current()) return;
+      if (result.error) throw result.error;
+      setLoadError("");
+      setMessages(previous => reconcileChatMessages(previous, result.messages));
+      void markHotelMessagesRead(id).catch(() => undefined);
+    } catch (error) {
+      if (current() && !quiet) setLoadError(error instanceof Error ? error.message : "Hotel messages could not be loaded");
+    } finally { if (current()) setLoading(false); }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+    activeIdentity.current = profile.user_id;
+    setMessages([]); setInput(""); setFiles([]); setReplyingTo(null);
+    setConversationId(initialConversationId || "");
+    activeConversation.current = initialConversationId || "";
+    setLoading(true);
     void (async () => {
       let id = initialConversationId || "";
       if (!id) {
-        const opened = await openHotelBookingConversation(bookingId);
+        const opened = await withTimeout(openHotelBookingConversation(bookingId), 15000, "Hotel conversation took too long to open");
         if (cancelled) return;
         if (opened.error || !opened.conversationId) {
           toast.error(opened.error?.message || "Hotel chat is unavailable");
-          onClose();
+          onCloseRef.current();
           return;
         }
         id = opened.conversationId;
         setConversationId(id);
       }
+      activeConversation.current = id;
       await load(id);
-    })();
+    })().catch(error => {
+      if (!cancelled) {
+        setLoading(false);
+        toast.error(error instanceof Error ? error.message : "Hotel chat could not be opened");
+        onCloseRef.current();
+      }
+    });
     return () => {
-      cancelled = true;
+      cancelled = true; loadGeneration.current++; activeConversation.current = ""; activeIdentity.current = "";
+      for (const url of localUrls.current) URL.revokeObjectURL(url);
+      localUrls.current.clear();
     };
-  }, [bookingId, initialConversationId, load, onClose]);
+  }, [bookingId, initialConversationId, profile.user_id, load]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -122,14 +165,14 @@ export default function HotelBookingChat({
         },
         () => {
           void load(conversationId, true);
-          onUpdated?.();
+          onUpdatedRef.current?.();
         },
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [conversationId, load, onUpdated]);
+  }, [conversationId, load]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -152,15 +195,19 @@ export default function HotelBookingChat({
   }
 
   async function send() {
-    if (!conversationId || sending || (!input.trim() && !files.length)) return;
+    if (!conversationId || readOnly || loading || sendingRef.current || (!input.trim() && !files.length)) return;
+    sendingRef.current = true;
+    const target = conversationId;
+    const isCurrent = () => activeConversation.current === target && activeIdentity.current === profile.user_id;
     setSending(true);
     const paths: string[] = [];
     const types: string[] = [];
     const text = input.trim();
     const queuedFiles = [...files];
     const replyTarget = replyingTo;
-    const optimisticId = `pending-${Date.now()}`;
+    const optimisticId = `pending-${crypto.randomUUID()}`;
     const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
+    optimisticUrls.forEach(url => localUrls.current.add(url));
     setInput("");
     setFiles([]);
     setReplyingTo(null);
@@ -199,23 +246,29 @@ export default function HotelBookingChat({
         types,
         replyTarget?.id || null,
       );
-      if (result.error)
-        throw new Error(result.error.message || "Message could not be sent");
-      setSending(false);
-      await load(conversationId, true);
-      onUpdated?.();
+      if (result.error || !result.messageId)
+        throw new Error(result.error?.message || "Message acknowledgement was not received. Check this conversation before trying again.");
+      if (isCurrent()) {
+        loadGeneration.current++;
+        setMessages(current => acknowledgeChatMessage(current, optimisticId, result.messageId!));
+        setSending(false);
+        void load(target, true);
+        onUpdatedRef.current?.();
+      }
     } catch (error) {
+      if (!isCurrent()) return;
       setMessages((current) => current.filter((message) => message.id !== optimisticId));
-      await Promise.all(paths.map((path) => deleteHotelChatAttachment(path)));
-      setInput(text);
-      setFiles(queuedFiles);
-      setReplyingTo(replyTarget);
+      void Promise.all(paths.map((path) => deleteHotelChatAttachment(path))).catch(() => undefined);
+      if (!composer.current.input && !composer.current.files.length) {
+        setInput(text); setFiles(queuedFiles); setReplyingTo(replyTarget);
+      }
       toast.error(
         error instanceof Error ? error.message : "Message could not be sent",
       );
     } finally {
-      optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
-      setSending(false);
+      sendingRef.current = false;
+      if (isCurrent()) setSending(false);
+      else optimisticUrls.forEach(url => { URL.revokeObjectURL(url); localUrls.current.delete(url); });
     }
   }
 
@@ -255,17 +308,17 @@ export default function HotelBookingChat({
     setMessageToRemove(null);
   }
 
-  return (
-    <div className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
+  return createPortal(
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Hotel conversation" className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
       <header className="shrink-0 border-b border-white/[.07] bg-[#0E1118]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
-          <BackButton onClick={onClose} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
+          <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
             H
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-semibold">{title}</h1>
-            <p className="mt-0.5 truncate text-[9px] text-[#73798A]">
+            <p className="mt-0.5 truncate text-xs text-[#73798A]">
               {subtitle}
             </p>
           </div>
@@ -274,7 +327,7 @@ export default function HotelBookingChat({
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
-          <div className="mx-auto mb-4 max-w-sm border-y border-white/[.06] py-3 text-center text-[9px] leading-4 text-[#717788]">
+          <div className="mx-auto mb-4 max-w-sm border-y border-white/[.06] py-3 text-center text-xs leading-4 text-[#717788]">
             Use this conversation for arrival, the room and the stay. For
             payment or booking changes, open the booking and choose Get help
             from WeHouse.
@@ -285,12 +338,14 @@ export default function HotelBookingChat({
               role="status"
               aria-label="Loading hotel messages"
             />
+          ) : loadError ? (
+            <div role="alert" className="py-10 text-center text-sm text-[#AAA3B3]"><p>{loadError}</p><button type="button" onClick={() => void load(conversationId)} className="mt-3 min-h-11 font-semibold text-violet-300">Try again</button></div>
           ) : messages.length === 0 ? (
             <div className="py-16 text-center">
               <p className="text-sm font-semibold">
                 Start the hotel conversation
               </p>
-              <p className="mt-2 text-[10px] text-[#6E7484]">
+              <p className="mt-2 text-xs text-[#6E7484]">
                 Ask about arrival, the room or your stay.
               </p>
             </div>
@@ -329,7 +384,7 @@ export default function HotelBookingChat({
                       className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[#171B24]"}`}
                     >
                       {!mine && (
-                        <p className="mb-1 text-[8px] font-semibold text-violet-300">
+                        <p className="mb-1 text-xs font-semibold text-violet-300">
                           {message.sender_role === "hotel"
                             ? title
                             : message.sender_name}
@@ -342,12 +397,12 @@ export default function HotelBookingChat({
                             <div
                               className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
                             >
-                              <p className="truncate text-[8px] font-semibold text-violet-200">
+                              <p className="truncate text-xs font-semibold text-violet-200">
                                 {quoted.sender_id === profile.user_id
                                   ? "You"
                                   : quoted.sender_name}
                               </p>
-                              <p className="mt-0.5 truncate text-[9px] opacity-70">
+                              <p className="mt-0.5 truncate text-xs opacity-70">
                                 {quoted.content ||
                                   (quoted.attachments?.length
                                     ? "Attachment"
@@ -357,7 +412,7 @@ export default function HotelBookingChat({
                           ) : null;
                         })()}
                       {message.content && (
-                        <p className="whitespace-pre-wrap break-words text-[12px] leading-5">
+                        <p className="whitespace-pre-wrap break-words text-sm leading-5">
                           {message.content}
                         </p>
                       )}
@@ -388,7 +443,7 @@ export default function HotelBookingChat({
                         ) : null;
                       })}
                       <span
-                        className={`mt-1.5 block text-right text-[7px] ${mine ? "text-violet-100/75" : "text-[#697080]"}`}
+                        className={`mt-1.5 block text-right text-xs ${mine ? "text-violet-100/75" : "text-[#697080]"}`}
                       >
                         {new Date(message.created_at).toLocaleTimeString([], {
                           hour: "2-digit",
@@ -405,7 +460,7 @@ export default function HotelBookingChat({
                           <button
                             key={emoji}
                             onClick={() => void react(message, emoji)}
-                            className="rounded-full border border-white/[.08] bg-[#12151D] px-2 py-1 text-[9px]"
+                            className="rounded-full border border-white/[.08] bg-[#12151D] px-2 py-1 text-xs"
                           >
                             {emoji} {count}
                           </button>
@@ -424,7 +479,7 @@ export default function HotelBookingChat({
       <footer className="shrink-0 border-t border-white/[.07] bg-[#0E1118] px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5">
         <div className="mx-auto max-w-3xl">
           {readOnly ? (
-            <p className="py-2 text-center text-[10px] text-[#73798A]">
+            <p className="py-2 text-center text-xs text-[#73798A]">
               This stay has ended. Its conversation is kept as read-only history.
             </p>
           ) : <>
@@ -433,7 +488,7 @@ export default function HotelBookingChat({
               {files.map((file, index) => (
                 <div
                   key={`${file.name}-${index}`}
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-violet-500/10 px-3 py-2 text-[9px] text-violet-200"
+                  className="flex shrink-0 items-center gap-2 rounded-full bg-violet-500/10 px-3 py-2 text-xs text-violet-200"
                 >
                   <span className="max-w-36 truncate">{file.name}</span>
                   <button
@@ -465,13 +520,13 @@ export default function HotelBookingChat({
           {replyingTo && (
             <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
               <div className="min-w-0 flex-1">
-                <p className="text-[8px] font-semibold text-violet-300">
+                <p className="text-xs font-semibold text-violet-300">
                   Replying to{" "}
                   {replyingTo.sender_id === profile.user_id
                     ? "yourself"
                     : replyingTo.sender_name}
                 </p>
-                <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
+                <p className="mt-0.5 truncate text-xs text-[#A1A6B4]">
                   {replyingTo.content ||
                     (replyingTo.attachments?.length ? "Attachment" : "Message")}
                 </p>
@@ -573,6 +628,6 @@ export default function HotelBookingChat({
           onClose={() => setViewer(null)}
         />
       )}
-    </div>
+    </div>, document.body
   );
 }

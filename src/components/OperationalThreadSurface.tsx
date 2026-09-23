@@ -98,10 +98,12 @@ export default function OperationalThreadSurface({
   }, [conversationId, dismiss]);
 
   return createPortal(
-    <div ref={root} role="dialog" aria-modal="true" aria-label="WeHouse conversation"
-      tabIndex={-1} className="fixed inset-x-0 z-[1000] bg-[#0E1219] text-white outline-none"
-      style={{ top: viewport.top, height: viewport.height }}>
-      <ThreadContents render={children} onDismiss={dismiss} />
+    <div className="fixed inset-0 z-[1000] bg-[#0E1219]" data-wehouse-screen="conversation">
+      <div ref={root} role="dialog" aria-modal="true" aria-label="WeHouse conversation"
+        tabIndex={-1} className="absolute inset-x-0 bg-[#0E1219] text-white outline-none"
+        style={{ top: viewport.top, height: viewport.height }}>
+        <ThreadContents render={children} onDismiss={dismiss} />
+      </div>
     </div>, document.body,
   );
 }

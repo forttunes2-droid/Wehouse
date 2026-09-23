@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { acknowledgeChatMessage, reconcileChatMessages } from "@/lib/chatMessageReconciliation";
 import SharedPropertyCard from "@/components/SharedPropertyCard";
 import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, parsePropertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -213,14 +215,21 @@ export default function Chat({
   const activeRef = useRef<Conversation | null>(null);
   const messageLoadGeneration = useRef(0);
   const sendingRef = useRef(false);
+  const optimisticObjectUrls = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const currentIdentityRef = useRef(profile.user_id);
   const composerRef = useRef({ input, files, propertyDraft });
   useEffect(() => { composerRef.current = { input, files, propertyDraft }; }, [input, files, propertyDraft]);
   useEffect(() => {
     mountedRef.current = true; currentIdentityRef.current = profile.user_id;
-    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; };
+    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; optimisticObjectUrls.current.forEach(url => URL.revokeObjectURL(url)); optimisticObjectUrls.current.clear(); };
   }, [profile.user_id]);
+  useEffect(() => {
+    const used = new Set(messages.flatMap(message => message.attachments || []));
+    for (const url of optimisticObjectUrls.current) if (!used.has(url)) {
+      URL.revokeObjectURL(url); optimisticObjectUrls.current.delete(url);
+    }
+  }, [messages]);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
@@ -361,18 +370,20 @@ export default function Chat({
       const current = () => mountedRef.current && currentIdentityRef.current === profile.user_id && request === messageLoadGeneration.current && activeRef.current?.id === id;
       if (!quiet) setLoadingMessages(true);
       try {
-        const [result, callResult] = await withTimeout(Promise.all([
-          getMessages(id, otherId(currentActive)),
-          supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100),
-        ]), 18000, "Messages took too long to load. Please try again.");
+        // Call history is secondary. A slow calls query must not hide messages.
+        void withTimeout(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100), 12000, "Calls took too long")
+          .then(result => { if (current() && !result.error) setActiveCalls((result.data || []) as PrivateCall[]); })
+          .catch(() => undefined);
+        const result = await withTimeout(getMessages(id, otherId(currentActive)), 18000, "Messages took too long to load. Please try again.");
         if (!current()) return;
         if (result.error) throw result.error;
-        setMessages((result.messages || []) as RoommateMessage[]);
-        setActiveCalls((callResult.data || []) as PrivateCall[]);
-        await Promise.all([
+        setMessages(previous => reconcileChatMessages(previous, (result.messages || []) as RoommateMessage[]));
+        setLoadingMessages(false);
+        // Acknowledgements never hold the composer or the visible history open.
+        void Promise.all([
           markMessagesSeen(id),
           supabase.from("notifications").update({ read: true }).eq("recipient_id", profile.user_id).eq("related_id", id),
-        ]);
+        ]).catch(() => undefined);
       } catch (error) {
         if (current() && !quiet) toast.error(error instanceof Error ? error.message : "Unable to open conversation. Please try again.");
       } finally { if (current()) setLoadingMessages(false); }
@@ -667,6 +678,7 @@ export default function Chat({
     const replyTarget = replyingTo;
     const optimisticId = `pending-${Date.now()}`;
     const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
+    optimisticUrls.forEach(url => optimisticObjectUrls.current.add(url));
     setSending(true);
     setInput("");
     setPropertyDraft(null);
@@ -718,7 +730,13 @@ export default function Chat({
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
       if (shared) clearPropertyShare(profile.user_id, active.id);
-      if (stillHere()) { setSending(false); await loadRoommateMessages(target.id); }
+      if (stillHere()) {
+        // Invalidate snapshots started before the write acknowledgement.
+        messageLoadGeneration.current++;
+        setMessages(current => acknowledgeChatMessage(current, optimisticId, result.message!.id));
+        setSending(false);
+        void loadRoommateMessages(target.id, true);
+      }
       if (mountedRef.current) void loadInbox(true);
     } catch (error: unknown) {
       if (stillHere()) {
@@ -742,7 +760,7 @@ export default function Chat({
         );
       } else toast.error(message);
     } finally {
-      optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
+      // Object URLs are released only after the visible local bubble is replaced.
       sendingRef.current = false;
       if (mountedRef.current) setSending(false);
     }
@@ -1045,7 +1063,7 @@ export default function Chat({
         new Date(a.time).getTime() - new Date(b.time).getTime() ||
         a.id.localeCompare(b.id),
     );
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#090A0F] text-white">
         <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center gap-1">
@@ -1071,7 +1089,7 @@ export default function Chat({
                 </span>
                 {presenceText ? (
                   <span
-                    className={`mt-0.5 block truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
+                    className={`mt-0.5 block truncate text-xs ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
                   >
                     {presenceText}
                   </span>
@@ -1099,7 +1117,7 @@ export default function Chat({
                   setMenuOpen(false);
                   void openActiveProfile();
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] hover:bg-white/[.04]"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm hover:bg-white/[.04]"
               >
                 <span>◉</span>
                 <span>Contact info</span>
@@ -1113,7 +1131,7 @@ export default function Chat({
                     setBlockPrompt(true);
                   }
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-amber-200"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-amber-200"
               >
                 <span>⊘</span>
                 <span>
@@ -1125,7 +1143,7 @@ export default function Chat({
                   setMenuOpen(false);
                   setConfirmDelete(true);
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-red-300 hover:bg-red-500/[.07]"
               >
                 <TrashIcon />
                 <span>Remove from Inbox</span>
@@ -1138,17 +1156,17 @@ export default function Chat({
             {lockedMessages ? (
               <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
                 <div>
-                  <p className="text-[10px] font-semibold text-violet-100">
+                  <p className="text-xs font-semibold text-violet-100">
                     Some messages are still locked
                   </p>
-                  <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                  <p className="mt-1 text-xs leading-4 text-[#8C92A2]">
                     Re-enter your Inbox PIN to unlock this conversation on this device.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => void retryLockedMessages()}
-                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-xs font-semibold text-violet-200"
                 >
                   Enter PIN
                 </button>
@@ -1204,13 +1222,13 @@ export default function Chat({
           <div className="mx-auto max-w-3xl">
             {person?.isBlocked ? (
               <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
-                <p className="text-[10px] text-amber-100">
+                <p className="text-xs text-amber-100">
                   This person is blocked. Matching, messages and calls are off.
                 </p>
                 <button
                   type="button"
                   onClick={() => void toggleBlock()}
-                  className="shrink-0 text-[10px] font-semibold text-violet-300"
+                  className="shrink-0 text-xs font-semibold text-violet-300"
                 >
                   Unblock
                 </button>
@@ -1220,7 +1238,7 @@ export default function Chat({
                 className="flex items-end gap-2"
                 aria-label="Opening secure conversation"
               >
-                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-[11px] text-[#666C7B]">
+                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-sm text-[#666C7B]">
                   Opening conversation…
                 </div>
                 <span className="grid h-11 w-11 place-items-center rounded-full bg-white/[.05]">
@@ -1272,13 +1290,13 @@ export default function Chat({
                 {replyingTo && (
                   <div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[8px] font-semibold text-violet-300">
+                      <p className="text-xs font-semibold text-violet-300">
                         Replying to{" "}
                         {replyingTo.sender_id === profile.user_id
                           ? "yourself"
                           : person?.name || "message"}
                       </p>
-                      <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
+                      <p className="mt-0.5 truncate text-xs text-[#A1A6B4]">
                         {propertyMessagePreview(replyingTo.content || "") ||
                           ((replyingTo.attachments || []).length
                             ? "Attachment"
@@ -1432,7 +1450,7 @@ export default function Chat({
                   <h2 className="text-base font-bold">
                     Block {person?.name || "this person"}?
                   </h2>
-                  <p className="mt-1 text-[10px] leading-5 text-[#7B8292]">
+                  <p className="mt-1 text-xs leading-5 text-[#7B8292]">
                     They will leave your discovery results. A linked shared
                     booking will be cancelled, or sent to WeHouse first if
                     payment must be reviewed.
@@ -1461,14 +1479,14 @@ export default function Chat({
                     void toggleBlock();
                   }}
                   disabled={blockBusy}
-                  className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold disabled:opacity-40"
+                  className="h-11 rounded-xl border border-white/[.08] text-xs font-semibold disabled:opacity-40"
                 >
                   Skip reason
                 </button>
                 <button
                   onClick={() => void toggleBlock(blockReason)}
                   disabled={blockBusy}
-                  className="h-11 rounded-xl bg-red-500 text-[10px] font-semibold disabled:opacity-40"
+                  className="h-11 rounded-xl bg-red-500 text-xs font-semibold disabled:opacity-40"
                 >
                   {blockBusy ? "Blocking…" : "Block and continue"}
                 </button>
@@ -1476,7 +1494,7 @@ export default function Chat({
             </section>
           </div>
         )}
-      </div>
+      </div>, document.body
     );
   }
 

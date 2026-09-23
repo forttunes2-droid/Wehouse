@@ -165,7 +165,7 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
     return <PropertyPipelineWorkspace profile={adminProfile} initialRecordId={operationTarget} onExitRecord={closeOperation} />;
   }
 
-  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100040] flex items-end justify-center bg-black/70 text-white sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) back(); }}>
+  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100040] flex items-end justify-center bg-[#090B10] text-white sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) back(); }}>
     <aside role="dialog" aria-modal="true" aria-label="Account profile" className="flex h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#0D1017] shadow-2xl sm:rounded-3xl">
         <header className="flex shrink-0 items-center gap-3 border-b border-white/[.08] px-5 py-4">
           <BackButton onClick={back} ariaLabel={section === "overview" ? "Close profile" : "Back to account profile"} />

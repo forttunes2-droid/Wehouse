@@ -31,7 +31,7 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
     return () => { active = false; };
   }, [userId, attempt]);
   const visible = recipients.filter(person => `${person.name} ${person.username}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/70 sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
+  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-[#090B10] sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
     <section role="dialog" aria-modal="true" aria-label="Send property" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#10131B] p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-white sm:rounded-3xl">
       <header className="flex items-center gap-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><h2 className="text-lg font-semibold">Send property</h2></header>
       <p className="mt-4 break-words text-base font-medium">{title}</p>
