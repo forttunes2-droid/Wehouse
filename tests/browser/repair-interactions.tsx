@@ -28,8 +28,8 @@ function ProfileLayer({close,inner=false}:{close:()=>void;inner?:boolean}){
 function ChatFixture(){
  const [open,setOpen]=useState(true),[booking,setBooking]=useState(1),[revision,setRevision]=useState(0);
  (window as any).__rerender=()=>setRevision(n=>n+1);(window as any).__otherBooking=()=>setBooking(2);(window as any).__close=()=>setOpen(false);
- return <main><p>Underlying Account {revision}</p><button onClick={()=>setOpen(true)}>Open chat</button>{open&&<HotelBookingChat key={booking} bookingId={booking} conversationId={booking===1?'alpha':'beta'} profile={actor} title={booking===1?'Guest Example':'Other guest'} subtitle="Garden Lodge · Deluxe · 24–26 Sep" specialRequest={booking===1?'Please arrange a quiet room.\nI may arrive at 6 pm.':null} hotelView onClose={()=>setOpen(false)} onUpdated={()=>setRevision(n=>n+1)}/>}</main>
+ return <main><p>Underlying Account {revision}</p><button onClick={()=>setOpen(true)}>Open chat</button>{open&&<HotelBookingChat key={booking} bookingId={booking} conversationId={booking===1?'alpha':'beta'} profile={actor} title={booking===1?'Guest Example':'Other guest'} subtitle="Garden Lodge · Deluxe · 24–26 Sep" onClose={()=>setOpen(false)} onUpdated={()=>setRevision(n=>n+1)}/>}</main>
 }
 const mode=(window as any).__mode;
-createRoot(document.getElementById('root')!).render(<StrictMode><NativeSelectBridge/>{mode==='chat'?<ChatFixture/>:mode==='bill'?<main className="p-6 text-white"><ShortLetPaymentReview row={{stay_type:'short_let',stay_rent_total:240000,security_deposit_snapshot:50000}}/></main>:<WorkspaceFixture/>}</StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><NativeSelectBridge/>{['chat','guest-chat'].includes(mode)?<ChatFixture/>:mode==='bill'?<main className="p-6 text-white"><ShortLetPaymentReview row={{stay_type:'short_let',stay_rent_total:240000,security_deposit_snapshot:50000}}/></main>:<WorkspaceFixture/>}</StrictMode>);
 void control;

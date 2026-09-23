@@ -1,3 +1,5 @@
+import { hotelMessagePresentation, type HotelConversationContext } from "@/lib/hotelConversationContext";
+import { displayDate } from "@/lib/displayDate";
 import { createPortal } from "react-dom";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -53,8 +55,6 @@ export default function HotelBookingChat({
   title,
   subtitle = "Hotel team · Booking conversation",
   readOnly = false,
-  specialRequest,
-  hotelView = false,
   onClose,
   onUpdated,
 }: Props) {
@@ -63,6 +63,7 @@ export default function HotelBookingChat({
     initialConversationId || "",
   );
   const [messages, setMessages] = useState<LocalHotelMessage[]>([]);
+  const [context, setContext] = useState<HotelConversationContext | null>(null);
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,26 +100,26 @@ export default function HotelBookingChat({
     if (!quiet) setLoading(true);
     setLoadError('');
     try {
-      const result = await withTimeout(getHotelMessages(id, rows => {
+      const result = await withTimeout(getHotelMessages(id, bookingId, (rows, verifiedContext) => {
         if (!current()) return;
-        setMessages(old => reconcileChatMessages(old, rows, startedAt)); setLoading(false);
+        setContext(verifiedContext); setMessages(old => reconcileChatMessages(old, rows, startedAt)); setLoading(false);
+        if (document.visibilityState === "visible") void markHotelMessagesRead(id).catch(() => undefined);
       }), 18000, 'Hotel messages took too long to refresh.');
       if (!current()) return;
       if (result.error) throw result.error;
+      setContext(result.context);
       setMessages(old => reconcileChatMessages(old, result.messages, startedAt));
-      // Read receipts never block readable messages.
-      void markHotelMessagesRead(id).catch(() => undefined);
     } catch (cause) {
       if (!current()) return;
-      if (/permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((cause as {message?: string})?.message || cause))) setMessages([]);
+      if (/permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((cause as {message?: string})?.message || cause))) { setMessages([]); setContext(null); }
       setLoadError('Messages could not be refreshed. Please try again.');
     } finally { if (current()) setLoading(false); }
-  }, []);
+  }, [bookingId]);
 
   useEffect(() => {
     const session = ++generation.current;
     activeId.current = initialConversationId || '';
-    setConversationId(initialConversationId || ''); setMessages([]); setInput(''); setFiles([]); setReplyingTo(null); setLoading(true); setLoadError('');
+    setConversationId(initialConversationId || ''); setMessages([]); setContext(null); setInput(''); setFiles([]); setReplyingTo(null); setLoading(true); setLoadError('');
     sendingRef.current = false; setSending(false);
     void (async () => {
       try {
@@ -147,7 +148,9 @@ export default function HotelBookingChat({
     const channel = supabase.channel(`hotel-booking-chat:${conversationId}`).on('postgres_changes', {
       event: '*', schema: 'public', table: 'hotel_booking_messages', filter: `conversation_id=eq.${conversationId}`,
     }, () => { void load(conversationId, true); updatedRef.current?.(); }).subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    const refreshOnVisible = () => { if (document.visibilityState === 'visible') void load(conversationId, true); };
+    document.addEventListener('visibilitychange', refreshOnVisible);
+    return () => { document.removeEventListener('visibilitychange', refreshOnVisible); void supabase.removeChannel(channel); };
   }, [conversationId, load]);
 
   useEffect(() => {
@@ -171,7 +174,7 @@ export default function HotelBookingChat({
   }
 
   async function send() {
-    if (!conversationId || readOnly || loading || sendingRef.current || sending || (!input.trim() && !files.length)) return;
+    if (!conversationId || !context?.can_reply || readOnly || loading || sendingRef.current || sending || (!input.trim() && !files.length)) return;
     const session = generation.current;
     const stillHere = () => session === generation.current && activeId.current === conversationId;
     sendingRef.current = true;
@@ -191,7 +194,7 @@ export default function HotelBookingChat({
       id: optimisticId,
       sender_id: profile.user_id,
       sender_name: profile.full_name || profile.username || "You",
-      sender_role: profile.role === "user" ? "guest" : "hotel",
+      sender_role: context.viewer_party,
       content: text,
       attachments: optimisticUrls,
       attachment_types: queuedFiles.map((file) => file.type),
@@ -285,18 +288,25 @@ export default function HotelBookingChat({
     setMessageToRemove(null);
   }
 
+  const chatTitle = context?.other_party_label || title;
+  const chatSubtitle = context ? [context.viewer_party === 'hotel' ? context.hotel_name : 'Hotel team', context.room_name,
+    `${displayDate(context.check_in)} – ${displayDate(context.check_out)}`].filter(Boolean).join(' · ') : subtitle;
+  const canReply = Boolean(context?.can_reply) && !readOnly;
+  const specialRequest = context?.request_visible ? context.special_requests : null;
+  const hotelView = context?.viewer_party === 'hotel';
+
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={chatTitle} className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
       <header className="shrink-0 border-b border-white/[.07] bg-[#0E1118]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
-            {title.trim().charAt(0).toUpperCase() || "H"}
+            {chatTitle.trim().charAt(0).toUpperCase() || "H"}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold">{title}</h1>
+            <h1 className="truncate text-sm font-semibold">{chatTitle}</h1>
             <p className="mt-0.5 truncate text-xs text-[#73798A]">
-              {subtitle}
+              {chatSubtitle}
             </p>
           </div>
         </div>
@@ -323,7 +333,9 @@ export default function HotelBookingChat({
             </div>
           ) : (
             messages.map((message) => {
-              const mine = message.sender_id === profile.user_id;
+              if (!context) return null;
+              const presentation = hotelMessagePresentation(message, profile.user_id, context);
+              const mine = presentation.outgoing;
               const counts = Object.values(message.reactions || {}).reduce<
                 Record<string, number>
               >(
@@ -348,18 +360,16 @@ export default function HotelBookingChat({
                     setMessageMenuMode("reactions");
                     setMessageMenu(message);
                   }}
-                  onReply={() => { if (!message.delivery_state) setReplyingTo(message); }}
+                  onReply={() => { if (canReply && !message.delivery_state) setReplyingTo(message); }}
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   <div className="max-w-[84%]">
                     <div
                       className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[#171B24]"}`}
                     >
-                      {!mine && (
-                        <p className="mb-1 text-xs font-semibold text-violet-300">
-                          {message.sender_role === "hotel"
-                            ? title
-                            : message.sender_name}
+                      {(!mine || presentation.teammate) && (
+                        <p className={`mb-1 text-xs font-semibold ${mine ? "text-violet-100" : "text-violet-300"}`}>
+                          {presentation.author}
                         </p>
                       )}
                       {message.reply_to_id &&
@@ -370,9 +380,7 @@ export default function HotelBookingChat({
                               className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
                             >
                               <p className="truncate text-xs font-semibold text-violet-200">
-                                {quoted.sender_id === profile.user_id
-                                  ? "You"
-                                  : quoted.sender_name}
+                                {hotelMessagePresentation(quoted, profile.user_id, context).author}
                               </p>
                               <p className="mt-0.5 truncate text-xs opacity-70">
                                 {quoted.content ||
@@ -452,9 +460,9 @@ export default function HotelBookingChat({
 
       <footer className="shrink-0 border-t border-white/[.07] bg-[#0E1118] px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5">
         <div className="mx-auto max-w-3xl">
-          {readOnly ? (
+          {!canReply ? (
             <p className="py-2 text-center text-sm text-[#73798A]">
-              This stay has ended. Its conversation is kept as read-only history.
+              {!context ? "Checking conversation access…" : "This booking conversation is read-only. Your messages remain available here."}
             </p>
           ) : <>
           {files.length > 0 && (
@@ -572,7 +580,7 @@ export default function HotelBookingChat({
           onClose={() => setMessageMenu(null)}
           onReact={(emoji) => void react(messageMenu, emoji)}
           onReply={() => {
-            setReplyingTo(messageMenu);
+            if (canReply) setReplyingTo(messageMenu);
             setMessageMenu(null);
           }}
           onRemove={() => {

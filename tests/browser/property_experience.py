@@ -39,11 +39,12 @@ class Scenario:
   elif name in ['get_inspection_for_reservation','get_my_pending_device_login_alert']: data=None
   elif name=='get_discoverable_listings': data=[SHORT,LONG]
   elif name=='get_discoverable_hotels': data=[HOTEL]
-  elif name=='get_hotel_booking_messages':
+  elif name=='get_my_hotel_conversation_bundle':
    self.hotel_reads+=1
    if self.hotel_sent: await asyncio.sleep(2)
    data=[{'id':'hotel-first','sender_id':'hotel-team','sender_name':'Garden Lodge','sender_role':'hotel','content':'Welcome to Garden Lodge','attachments':[],'attachment_types':[],'reactions':{},'is_read':True,'created_at':NOW.isoformat()}]
    if self.hotel_sent: data.append({'id':'hotel-ack','sender_id':'qa-personal','sender_name':'QA','sender_role':'guest','content':'I arrive at six','attachments':[],'attachment_types':[],'reactions':{},'is_read':False,'created_at':(NOW+timedelta(seconds=1)).isoformat()})
+   data={'context':{'conversation_id':args['p_conversation_id'],'booking_id':args['p_booking_id'],'hotel_id':7,'hotel_name':'Garden Lodge','room_name':'Deluxe','rate_plan_name':'Room only','check_in':TOMORROW,'check_out':CHECKOUT,'booking_status':'confirmed','payment_status':'paid','viewer_party':'guest','other_party_label':'Garden Lodge','request_visible':True,'special_requests':None,'can_reply':True},'messages':data}
   elif name=='send_hotel_booking_message':
    await asyncio.sleep(.6); self.hotel_sent=True; data='hotel-ack'
   elif name=='mark_hotel_booking_messages_read':

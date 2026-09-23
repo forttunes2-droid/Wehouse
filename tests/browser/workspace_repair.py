@@ -72,10 +72,13 @@ async def main():
      await page.locator('summary').filter(has_text='Special request').click()
      await expect(page.get_by_text('Please arrange a quiet room.\nI may arrive at 6 pm.',exact=True)).to_be_visible()
      await page.screenshot(path=str(OUT/f'hotel-special-request-in-conversation-{width}.png'))
-     before=await page.evaluate('window.__transport.calls.filter(c=>c.name==="get_hotel_booking_messages").length')
+     colleague=page.get_by_text('We have noted your quiet-room request.',exact=True)
+     assert await colleague.evaluate('(el)=>Boolean(el.closest(".justify-end"))')
+     await expect(page.get_by_text('Reception A',exact=True)).to_be_visible()
+     before=await page.evaluate('window.__transport.calls.filter(c=>c.name==="get_my_hotel_conversation_bundle").length')
      await page.evaluate('window.__rerender()')
      await page.wait_for_timeout(50)
-     assert await page.evaluate('window.__transport.calls.filter(c=>c.name==="get_hotel_booking_messages").length')==before
+     assert await page.evaluate('window.__transport.calls.filter(c=>c.name==="get_my_hotel_conversation_bundle").length')==before
      # A pending send remains present through another server snapshot.
      await page.get_by_placeholder('Message',exact=True).fill('We have noted your arrival time.')
      await page.get_by_role('button',name='Send message',exact=True).click()
@@ -106,6 +109,33 @@ async def main():
      await expect(page.get_by_text('Other booking only',exact=True)).to_be_visible()
      assert not errors,errors
      results.append({'test':'hotel-request-and-delivery','width':width,'passed':True,'page_errors':errors})
+    finally:await context.close()
+    context,page,errors=await mount(browser,'guest-chat',width)
+    try:
+     await expect(page.get_by_role('dialog',name='Garden Lodge',exact=True)).to_be_visible()
+     reply=page.get_by_text('We have noted your quiet-room request.',exact=True)
+     await expect(reply).to_be_visible()
+     assert await reply.evaluate('(el)=>Boolean(el.closest(".justify-start"))')
+     await page.locator('summary').filter(has_text='Special request').click()
+     await expect(page.get_by_text('Please arrange a quiet room.\nI may arrive at 6 pm.',exact=True)).to_be_visible()
+     await page.get_by_placeholder('Message',exact=True).fill('Thank you. Is parking available?')
+     await page.get_by_role('button',name='Send message',exact=True).click()
+     followup=page.get_by_text('Thank you. Is parking available?',exact=True)
+     await expect(followup).to_have_count(1)
+     assert await followup.evaluate('(el)=>Boolean(el.closest(".justify-end"))')
+     await page.evaluate('window.__transport.releaseSend()')
+     await expect(page.get_by_text('Sending…',exact=False)).to_have_count(0)
+     assert await page.evaluate('window.__transport.calls.filter(c=>c.name==="send_hotel_booking_message").every(c=>c.args.p_conversation_id==="alpha")')
+     assert await page.evaluate('window.__transport.calls.filter(c=>c.name==="open_my_hotel_booking_conversation").length')==0
+     await page.screenshot(path=str(OUT/f'hotel-guest-request-reply-followup-{width}.png'))
+     # A live revocation removes old context, messages and the composer together.
+     await page.evaluate('window.__transport.denyContext=true;window.__transport.fire()')
+     await expect(page.get_by_text('Messages could not be refreshed. Please try again.',exact=True)).to_be_visible()
+     await expect(page.get_by_text('We have noted your quiet-room request.',exact=True)).to_have_count(0)
+     await expect(page.get_by_placeholder('Message',exact=True)).to_have_count(0)
+     await expect(page.get_by_text('Special request',exact=True)).to_have_count(0)
+     assert not errors,errors
+     results.append({'test':'guest-hotel-reply-and-followup','width':width,'passed':True,'page_errors':errors})
     finally:await context.close()
     context,page,errors=await mount(browser,'bill',width)
     try:

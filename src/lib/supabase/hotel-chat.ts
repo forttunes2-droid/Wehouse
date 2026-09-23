@@ -1,3 +1,4 @@
+import { parseHotelConversationBundle, type HotelChatMessage, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { prepareChatImageFile } from "./utils";
 import { supabase } from "./client";
 
@@ -22,19 +23,7 @@ export type HotelConversation = {
   updated_at: string;
 };
 
-export type HotelMessage = {
-  id: string;
-  sender_id: string;
-  sender_name: string;
-  sender_role: "guest" | "hotel";
-  content: string;
-  attachments: string[];
-  attachment_types: string[];
-  reactions: Record<string, string>;
-  is_read: boolean;
-  reply_to_id?: string | null;
-  created_at: string;
-};
+export type HotelMessage = HotelChatMessage;
 
 export async function openHotelBookingConversation(bookingId: number) {
   const { data, error } = await supabase.rpc("open_my_hotel_booking_conversation", {
@@ -54,11 +43,11 @@ export async function getMyHotelConversations(workspace: "personal" | "property_
   };
 }
 
-export async function getHotelMessages(conversationId: string, onTextReady?: (messages: HotelMessage[]) => void) {
-  const { data, error } = await supabase.rpc("get_hotel_booking_messages", { p_conversation_id: conversationId });
-  if (error) return { messages: [] as HotelMessage[], error };
-  const rows = (data || []) as HotelMessage[];
-  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })));
+export async function getHotelMessages(conversationId: string, bookingId: number, onTextReady?: (messages: HotelMessage[], context: HotelConversationContext) => void) {
+  const { data, error } = await supabase.rpc("get_my_hotel_conversation_bundle", { p_conversation_id: conversationId, p_booking_id: bookingId });
+  if (error) return { context: null, messages: [] as HotelMessage[], error };
+  const {context, messages: rows} = parseHotelConversationBundle(data, conversationId, bookingId);
+  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })), context);
   const messages = await Promise.all(rows.map(async message => {
     const files = await Promise.all((message.attachments || []).map(async (path, index) => {
       try {
@@ -69,7 +58,7 @@ export async function getHotelMessages(conversationId: string, onTextReady?: (me
     const available = files.filter((file): file is {url: string; type: string} => Boolean(file));
     return { ...message, attachments: available.map(file => file.url), attachment_types: available.map(file => file.type), media_loading: false, media_error: available.length !== files.length };
   }));
-  return { messages, error: null };
+  return { context, messages, error: null };
 }
 
 export async function sendHotelMessage(

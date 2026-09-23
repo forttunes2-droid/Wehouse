@@ -91,6 +91,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operational_conversation_bundle_contract.sql
       - name: Exercise property routing inventory and revoked hotel Activity
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_workspace_routing_contract.sql
+      - name: Hotel conversation context and recipient receipts
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
       - name: Exercise privileged RPC write guards
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/security_definer_write_guard_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
