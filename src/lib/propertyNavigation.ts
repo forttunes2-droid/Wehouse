@@ -40,3 +40,33 @@ export function propertyRecordTitle(row: Record<string, any>, fallback = "Proper
     row.hotel_program?.name, row.name, row.title, row.property_address]
     .find(value => typeof value === "string" && value.trim())?.trim() || fallback;
 }
+
+/** One dated display calculation for both the hotel total and room-type rows.
+ * These figures are a projection of the authorized snapshot, not permission to
+ * sell or check in; reservation writes remain server-authoritative. */
+export function hotelRoomAvailability(
+  room: { room_id: number; total_rooms: number },
+  bookings: ReadonlyArray<{ room_id: number; status: string; check_in: string; check_out: string; payment_expires_at?: string | null }>,
+  inventory: ReadonlyArray<{ room_id: number; inventory_date: string; available_quantity: number; closed: boolean }>,
+  roomUnits: ReadonlyArray<{ unit_id: number; room_id: number; status: string }>,
+  date: string,
+  now: number,
+) {
+  const count = (value: number) => Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  const configured = count(room.total_rooms);
+  const units = [...new Map(roomUnits.filter(unit => unit.room_id === room.room_id).map(unit => [unit.unit_id, unit])).values()];
+  const registered = units.length;
+  const operational = units.filter(unit => ["ready", "occupied", "cleaning"].includes(unit.status)).length;
+  const maintenance = units.filter(unit => ["maintenance", "out_of_service"].includes(unit.status)).length;
+  const override = inventory.find(row => row.room_id === room.room_id && row.inventory_date === date);
+  const closed = Boolean(override?.closed);
+  const offered = closed ? 0 : count(override?.available_quantity ?? configured);
+  const dated = bookings.filter(row => row.room_id === room.room_id && row.check_in <= date && row.check_out > date);
+  const occupied = dated.filter(row => ["confirmed", "checked_in"].includes(row.status)).length;
+  const holds = dated.filter(row => row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() > now).length;
+  return {
+    configured, registered, operational, maintenance, occupied, holds, closed,
+    setupIncomplete: registered < configured,
+    available: Math.max(0, Math.min(configured, offered, operational) - occupied - holds),
+  };
+}
