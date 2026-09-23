@@ -3,7 +3,7 @@ import { matchesPropertyRecord, propertyRecordTitle } from "@/lib/propertyNaviga
 import { withTimeout } from "@/lib/withTimeout";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import PropertyRecordDialog from "./PropertyRecordDialog";
 import { toast } from "sonner";
 import { supabase, getHotelRooms } from "@/lib/supabase";
 import LocationMap from "./LocationMap";
@@ -142,6 +142,20 @@ export default function PropertyPipelineWorkspace({
         }}
       />
     );
+  // A deep link must not fall back to the entire pipeline while loading or
+  // when access is denied. Keep one readable, escapable record screen.
+  if (initialRecordId && onExitRecord) {
+    return <PropertyRecordDialog onClose={onExitRecord}>
+      <main className="absolute inset-0 overflow-y-auto p-5">
+        <button type="button" onClick={onExitRecord} aria-label="Close property" className="min-h-11 text-sm font-semibold text-violet-300">← Back</button>
+        <h2 className="mt-4 text-xl font-semibold">Property record</h2>
+        {loading ? <p role="status" className="mt-5 text-sm text-[#A1A7B4]">Loading property record…</p> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[#C0C4D0]">
+          <p>{loadError ? "The property record could not be loaded. Please try again." : "This property is no longer available in your work coverage."}</p>
+          <button type="button" onClick={() => { openedTarget.current = null; void load(); }} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
+        </div>}
+      </main>
+    </PropertyRecordDialog>;
+  }
   const shown =
     stage === "all"
       ? rows
@@ -260,18 +274,13 @@ function Case({
   const showCreatorException =
     profile.role === "creator" &&
     ["awaiting_review", "ready_to_prepare", "listing_prepared", "changes_requested"].includes(stage);
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100020] bg-[#080A0F] text-white"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Property workflow"
-    >
+  return (
+    <PropertyRecordDialog onClose={back}>
       <main className="absolute inset-0 overflow-y-auto bg-[#0A0D14]">
         <header className="sticky top-0 z-10 flex min-h-14 items-center gap-3 border-b border-white/[.07] bg-[#0A0D14]/95 px-4 backdrop-blur-xl">
           <button
             onClick={back}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[#A0A5B4] active:bg-white/[.05]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-xl text-[#A0A5B4] active:bg-white/[.05]"
             aria-label="Close property"
           >
             ‹
@@ -280,7 +289,7 @@ function Case({
             <p className="truncate text-sm font-semibold">
               {propertyRecordTitle(row, "Property workflow")}
             </p>
-            <p className="truncate text-[8px] text-[#666D7E]">
+            <p className="truncate text-xs text-[#A1A7B4]">
               {row.request_code} · {stageLabel(stage)}
             </p>
           </div>
@@ -353,8 +362,7 @@ function Case({
           {showCreatorException && <SubmissionDecision row={row} done={back} />}
         </div>
       </main>
-    </div>,
-    document.body,
+    </PropertyRecordDialog>
   );
 }
 
@@ -365,26 +373,31 @@ function CreatorHotelRecord({
   hotelId: number;
   fallback: any;
 }) {
-  const [hotel, setHotel] = useState<any | null>(fallback.hotel || null),
+  const [hotel, setHotel] = useState<any | null>(null),
     [rooms, setRooms] = useState<any[]>([]),
     [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let active = true;
+    setLoading(true); setHotel(null); setRooms([]);
     void (async () => {
-      const { data, error } = await supabase.rpc("get_my_property_hotel_record", { p_hotel_id: hotelId });
-      if (!active) return;
-      if (error) toast.error("The hotel record is unavailable or outside your current coverage.");
-      setHotel(error ? null : data);
-      setRooms(error ? [] : data?.hotel_rooms || []);
-      setLoading(false);
+      try {
+        const { data, error } = await withTimeout(supabase.rpc("get_my_property_hotel_record", { p_hotel_id: hotelId }), 12000, "Hotel record timed out.");
+        if (!active) return;
+        if (error || !data || Number(data.hotel_id) !== hotelId) throw new Error("Hotel record unavailable.");
+        setHotel(data);
+        setRooms(Array.isArray(data.hotel_rooms) ? data.hotel_rooms : []);
+      } catch {
+        if (active) { setHotel(null); setRooms([]); }
+      } finally { if (active) setLoading(false); }
     })();
-    return () => {
-      active = false;
-    };
-  }, [hotelId, fallback.hotel]);
-  if (loading) return <Loading />;
-  if (!hotel)
-    return <Empty text="The published hotel record could not be loaded." />;
+    return () => { active = false; };
+  }, [hotelId, reloadKey]);
+  if (loading) return <p role="status" className="py-8 text-sm text-[#A1A7B4]">Loading hotel details…</p>;
+  if (!hotel) return <div role="alert" className="space-y-3 py-8 text-sm leading-6 text-[#C0C4D0]">
+    <p>The hotel record is unavailable or outside your work coverage.</p>
+    <button type="button" onClick={() => setReloadKey(value => value + 1)} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
+  </div>;
   const images = Array.isArray(hotel.images) ? hotel.images : [];
   return (
     <div className="space-y-6">
@@ -395,14 +408,14 @@ function CreatorHotelRecord({
             title={hotel.name || "Hotel"}
           />
         ) : (
-          <div className="grid aspect-[16/9] place-items-center bg-white/[.025] text-[9px] text-[#686F80]">
+          <div className="grid aspect-[16/9] place-items-center bg-white/[.025] text-sm text-[#A1A7B4]">
             No hotel gallery
           </div>
         )}
         <div className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+              <p className="text-sm font-bold uppercase tracking-[.16em] text-violet-300">
                 Published hotel
               </p>
               <h2 className="mt-2 text-2xl font-bold">
@@ -410,7 +423,7 @@ function CreatorHotelRecord({
                   fallback.hotel_program?.name ||
                   fallback.property_address}
               </h2>
-              <p className="mt-1 text-[10px] text-[#747A8A]">
+              <p className="mt-1 text-sm text-[#A1A7B4]">
                 {locationLabel(hotel.address || fallback.property_address,
                   hotel.city || fallback.property_city,
                   hotel.state || fallback.property_state)}
@@ -419,7 +432,7 @@ function CreatorHotelRecord({
             <Badge value={hotel.status || "live"} />
           </div>
           {hotel.description && (
-            <p className="mt-4 whitespace-pre-wrap text-[11px] leading-6 text-[#969BA9]">
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#969BA9]">
               {hotel.description}
             </p>
           )}
@@ -428,7 +441,7 @@ function CreatorHotelRecord({
               {hotel.amenities.map((item: string) => (
                 <span
                   key={item}
-                  className="rounded-full border border-violet-500/15 px-2.5 py-1 text-[8px] text-violet-200"
+                  className="rounded-full border border-violet-500/15 px-2.5 py-1 text-sm text-violet-200"
                 >
                   {item}
                 </span>
@@ -438,7 +451,7 @@ function CreatorHotelRecord({
           <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden border-y border-white/[.06] bg-white/[.06]">
             <div className="bg-[#10131B] p-3">
               <p className="text-xl font-bold">{rooms.length}</p>
-              <p className="mt-1 text-[8px] text-[#686F80]">Room types</p>
+              <p className="mt-1 text-sm text-[#A1A7B4]">Room types</p>
             </div>
             <div className="bg-[#10131B] p-3">
               <p className="text-xl font-bold">
@@ -447,7 +460,7 @@ function CreatorHotelRecord({
                   0,
                 )}
               </p>
-              <p className="mt-1 text-[8px] text-[#686F80]">
+              <p className="mt-1 text-sm text-[#A1A7B4]">
                 Rooms in inventory
               </p>
             </div>
@@ -457,7 +470,7 @@ function CreatorHotelRecord({
       <section>
         <div className="mb-3">
           <h3 className="text-base font-semibold">Room types</h3>
-          <p className="mt-1 text-[9px] text-[#6D7384]">
+          <p className="mt-1 text-sm text-[#A1A7B4]">
             Every room keeps its own public gallery, capacity, amenities, rate
             and inventory.
           </p>
@@ -474,20 +487,20 @@ function CreatorHotelRecord({
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
                   <h4 className="text-base font-semibold">{room.room_type}</h4>
-                  <p className="mt-1 text-[9px] text-[#747A8A]">
+                  <p className="mt-1 text-sm text-[#A1A7B4]">
                     {room.total_rooms} unit(s) · up to {room.max_guests} guests
                     {room.bed_type ? ` · ${room.bed_type}` : ""}
                   </p>
                 </div>
                 <p className="shrink-0 text-sm font-bold text-violet-200">
                   {money(room.price_per_night)}
-                  <span className="block text-right text-[8px] font-normal text-[#686F80]">
+                  <span className="block text-right text-sm font-normal text-[#A1A7B4]">
                     per night
                   </span>
                 </p>
               </div>
               {room.description && (
-                <p className="mt-3 text-[10px] leading-5 text-[#9297A5]">
+                <p className="mt-3 text-sm leading-5 text-[#9297A5]">
                   {room.description}
                 </p>
               )}
@@ -496,7 +509,7 @@ function CreatorHotelRecord({
                   {room.amenities.map((item: string) => (
                     <span
                       key={item}
-                      className="rounded-full border border-white/[.07] px-2.5 py-1 text-[8px] text-[#A0A5B3]"
+                      className="rounded-full border border-white/[.07] px-2.5 py-1 text-sm text-[#A0A5B3]"
                     >
                       {item}
                     </span>

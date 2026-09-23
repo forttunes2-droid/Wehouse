@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 
 /** Isolate a portalled dialog without changing routes or granting capabilities. */
-export function useDialogInteraction(onDismiss: () => void) {
+export function useDialogInteraction(onDismiss: () => void, enabled = true) {
   const ref = useRef<HTMLDivElement>(null);
   const dismissRef = useRef(onDismiss);
   useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
   useEffect(() => {
+    if (!enabled) return;
     const root = ref.current;
     if (!root) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -34,6 +35,6 @@ export function useDialogInteraction(onDismiss: () => void) {
       document.body.style.overflow = overflow;
       if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
     };
-  }, []);
+  }, [enabled]);
   return ref;
 }

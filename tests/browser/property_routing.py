@@ -27,7 +27,7 @@ async def main():
   try:
    for width,height in [(390,844),(768,1024),(1440,900)]:
     context=await browser.new_context(viewport={'width':width,'height':height}, service_workers='block')
-    page=await context.new_page(); errors=[]; calls=[]; mode='partner'; denied=False; unit_mode='ready'
+    page=await context.new_page(); errors=[]; calls=[]; mode='partner'; denied=False; unit_mode='ready'; pipeline_mode='normal'; record_denied=False
     page.on('pageerror',lambda error:errors.append(str(error)))
     async def route(handler):
      nonlocal mode
@@ -49,8 +49,12 @@ async def main():
      elif name=='get_my_canonical_activity_v2': data=[{**EVENT,'workspace':args.get('p_workspace')}]
      elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
      elif name=='get_internal_profile_record': data={'account':{},'workspaces':[{'role':'property_partner','status':'active'}],'hotels_owned':[HOTEL], 'apartments':[], 'hotel_team':[], 'wehouse_team':[]}
-     elif name=='get_my_property_pipeline_v2': data=[REQUEST]
-     elif name=='get_my_property_hotel_record': data={**HOTEL,'hotel_rooms':ROOMS}
+     elif name=='get_my_property_pipeline_v2':
+      if pipeline_mode=='slow': await asyncio.sleep(0.7)
+      data=[] if pipeline_mode=='missing' else [REQUEST]
+     elif name=='get_my_property_hotel_record':
+      if record_denied: return await handler.fulfill(status=403,content_type='application/json',body=json.dumps({'message':'Access denied','code':'42501'}),headers={'access-control-allow-origin':'*'})
+      data={**HOTEL,'hotel_rooms':ROOMS}
      await handler.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
     await page.route('**/*',route)
     async def fits():
@@ -153,25 +157,69 @@ async def main():
      assert any(name=='get_my_canonical_activity_v2' and args.get('p_workspace')=='hotel' for name,args in calls)
      assert not any(args.get('p_workspace')=='hotel_staff' for name,args in calls)
      await page.go_back(); await expect(page.get_by_role('button',name='Back to Inbox',exact=True)).to_be_visible()
-     mode='creator'
-     await page.goto(BASE+'/tests/browser/property-routing.html?mode=creator')
-     await page.get_by_role('button',name='View partner',exact=True).click()
-     await page.get_by_role('button',name=re.compile('^Hotels')).first.click()
-     await page.get_by_role('button',name=re.compile('Test Lodge')).click()
-     await expect(page.get_by_role('button',name='Close property',exact=True)).to_be_visible()
-     await expect(page.get_by_text('Test Lodge',exact=True).first).to_be_visible()
-     assert any(name=='get_my_property_hotel_record' and args.get('p_hotel_id')==7 for name,args in calls)
-     assert not any(name=='get_public_hotel_detail' for name,args in calls)
-     await fits(); await page.screenshot(path=str(OUT/f'creator-profile-hotel-record-{width}.png'))
-     await page.go_back()
-     await expect(page.get_by_role('button',name=re.compile('Test Lodge'))).to_be_visible()
-     await page.go_back()
-     await expect(page.get_by_role('heading',name='Account profile',exact=True)).to_be_visible()
-     await page.go_back()
-     await expect(page.get_by_role('button',name='View partner',exact=True)).to_be_visible()
-     assert await page.evaluate('history.state.workspace')=='creator'
+     for mode in ['creator','admin']:
+      await page.goto(BASE+'/tests/browser/property-routing.html?mode='+mode)
+      await page.get_by_role('button',name='View partner',exact=True).click()
+      profile=page.get_by_role('dialog',name='Account profile',exact=True)
+      await expect(profile.get_by_role('heading',name='Test Partner',exact=True)).to_be_visible()
+      await profile.get_by_role('button',name=re.compile('^Hotels')).first.click(trial=True)
+      await fits(); await page.screenshot(path=str(OUT/f'{mode}-profile-overview-{width}.png'))
+      await profile.get_by_role('button',name=re.compile('^Hotels')).first.click()
+      pipeline_mode='slow'
+      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
+      await expect(page.get_by_role('status')).to_contain_text('Loading property record')
+      await expect(profile).to_have_count(0)
+      workflow=page.get_by_role('dialog',name='Property workflow',exact=True)
+      await expect(workflow).to_have_count(1)
+      await workflow.get_by_role('button',name='Close property',exact=True).click(trial=True)
+      await expect(workflow.get_by_role('heading',name='Test Lodge',exact=True)).to_be_visible()
+      await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_be_visible()
+      await expect(workflow.get_by_role('heading',name='Deluxe',exact=True)).to_be_visible()
+      # Visibility alone cannot detect a blank dialog covering the real record.
+      # Trial click and a center-point hit test must reach the record itself.
+      close=workflow.get_by_role('button',name='Close property',exact=True)
+      await close.click(trial=True)
+      assert await close.evaluate('(node) => { const r=node.getBoundingClientRect(); return node.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)); }')
+      assert await page.evaluate("document.activeElement?.closest('[role=dialog]')?.getAttribute('aria-label')")=='Property workflow'
+      assert any(name=='get_my_property_hotel_record' and args.get('p_hotel_id')==7 for name,args in calls)
+      assert not any(name=='get_public_hotel_detail' for name,args in calls)
+      await fits(); await page.screenshot(path=str(OUT/f'{mode}-profile-hotel-record-{width}.png'))
+      await close.click()
+      await expect(profile.get_by_role('button',name=re.compile('Test Lodge'))).to_be_visible()
+      await expect(workflow).to_have_count(0)
+      pipeline_mode='normal'
+      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
+      await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_be_visible()
+      await workflow.get_by_role('button',name='Close property',exact=True).focus()
+      await page.keyboard.press('Escape')
+      await expect(profile.get_by_role('button',name=re.compile('Test Lodge'))).to_be_visible()
+      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
+      await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_be_visible()
+      await page.go_back()
+      await expect(profile.get_by_role('button',name=re.compile('Test Lodge'))).to_be_visible()
+      await page.go_back()
+      await expect(page.get_by_role('heading',name='Account profile',exact=True)).to_be_visible()
+      await page.go_back()
+      await page.get_by_role('button',name='View partner',exact=True).click(trial=True)
+      assert await page.evaluate('history.state.workspace')==mode
+      # Missing scoped records remain escapable; they must not open every property.
+      await page.get_by_role('button',name='View partner',exact=True).click()
+      await page.get_by_role('button',name=re.compile('^Hotels')).first.click()
+      pipeline_mode='missing'; await page.get_by_role('button',name=re.compile('Test Lodge')).click()
+      await expect(workflow.get_by_role('alert')).to_contain_text('no longer available in your work coverage')
+      await expect(page.get_by_role('button',name='Filter property records',exact=True)).to_have_count(0)
+      await workflow.get_by_role('button',name='Close property',exact=True).click(trial=True)
+      pipeline_mode='normal'; record_denied=True
+      await workflow.get_by_role('button',name='Try again',exact=True).click()
+      await expect(workflow.get_by_role('alert')).to_contain_text('unavailable or outside your work coverage')
+      await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_have_count(0)
+      record_denied=False; await workflow.get_by_role('button',name='Try again',exact=True).click()
+      await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_be_visible()
+      await workflow.get_by_role('button',name='Close property',exact=True).click()
+      await page.go_back(); await expect(page.get_by_role('heading',name='Account profile',exact=True)).to_be_visible()
+      await page.go_back(); await page.get_by_role('button',name='View partner',exact=True).click(trial=True)
      assert not errors,errors
-     results.append({'viewport':[width,height],'passed':True,'checks':['Account reachable/no duplicate avatar or switcher','All and Live same hotel manager','rendered overview and actual available-room total before screenshot','headline and room rows agree after maintenance or incomplete setup','inventory from server projection','hotel sections permission-scoped','cancelled unpaid copy','property title not inspection code','exact stay target not chat','button and browser Back retain Activity and workspace','access re-fetch clears private guest data','hotel read-only team Activity','Creator scoped hotel and Back to partner profile'],'page_errors':errors})
+     results.append({'viewport':[width,height],'passed':True,'checks':['Account reachable/no duplicate avatar or switcher','All and Live same hotel manager','rendered overview and actual available-room total before screenshot','headline and room rows agree after maintenance or incomplete setup','inventory from server projection','hotel sections permission-scoped','cancelled unpaid copy','property title not inspection code','exact stay target not chat','button and browser Back retain Activity and workspace','access re-fetch clears private guest data','hotel read-only team Activity','Creator and Admin actual hotel record is not occluded','one property portal owns focus while profile remains unmounted','loading/missing/denied record and retry remain escapable','button/Escape/browser Back preserve profile and workspace'],'page_errors':errors})
      print('PASS property workspace browser',width,flush=True)
     except Exception as error:
      results.append({'viewport':[width,height],'passed':False,'error':str(error),'page_errors':errors,'calls':calls})

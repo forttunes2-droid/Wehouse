@@ -125,7 +125,9 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
   const closeSection = useRecordScreenBack(() => setSection("overview"), section !== "overview");
   const closeOperation = useRecordScreenBack(() => setOperationTarget(undefined), Boolean(operationTarget));
   const back = operationTarget ? closeOperation : section !== "overview" ? closeSection : dismiss;
-  const dialogRef = useDialogInteraction(back);
+  // A property owns its full-screen dialog. Keep profile state/history, not
+  // an empty profile portal above that dialog or a competing focus trap.
+  const dialogRef = useDialogInteraction(back, !operationTarget);
 
   useEffect(() => {
     let active = true;
@@ -159,9 +161,12 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
     else if (onNavigate) { onClose(); onNavigate("operations_properties", target); }
   }
 
+  if (operationTarget && adminProfile) {
+    return <PropertyPipelineWorkspace profile={adminProfile} initialRecordId={operationTarget} onExitRecord={closeOperation} />;
+  }
+
   return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100040] flex items-end justify-center bg-black/70 text-white sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) back(); }}>
-    <aside role="dialog" aria-modal="true" aria-label={operationTarget ? "Property record" : "Account profile"} className={`flex h-[94dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#0D1017] shadow-2xl sm:rounded-3xl ${operationTarget ? "max-w-6xl" : "max-w-xl"}`}>
-      {operationTarget && adminProfile ? <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"><PropertyPipelineWorkspace profile={adminProfile} initialRecordId={operationTarget} onExitRecord={closeOperation} /></div> : <>
+    <aside role="dialog" aria-modal="true" aria-label="Account profile" className="flex h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#0D1017] shadow-2xl sm:rounded-3xl">
         <header className="flex shrink-0 items-center gap-3 border-b border-white/[.08] px-5 py-4">
           <BackButton onClick={back} ariaLabel={section === "overview" ? "Close profile" : "Back to account profile"} />
           <div className="min-w-0"><h2 className="text-base font-semibold">{titles[section]}</h2>{section !== "overview" && <p className="mt-1 break-words text-sm text-[#A1A7B4]">{user.full_name || user.username || "WeHouse account"}</p>}</div>
@@ -183,7 +188,6 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
             </Section>
           </div> : section === "workspaces" ? <Workspaces rows={workspaces} /> : section === "professional" && provider ? <Provider provider={provider} onOpen={() => { if (onNavigate) { onClose(); onNavigate("worker_operations", user.user_id); } }} /> : section === "apartments" ? <ApartmentList rows={apartments} onOpen={row => openOperations("apartment", row.id)} /> : section === "hotels" ? <HotelList rows={hotels} onOpen={row => openOperations("hotel", String(row.hotel_id))} /> : section === "hotel_team" ? <HotelTeam rows={hotelTeam} onOpenHotel={id => openOperations("hotel", String(id))} /> : <WeHouseTeam rows={wehouseTeam} />}
         </div>
-      </>}
     </aside>
     {avatarOpen && user.avatar_url && <MediaViewer items={[{ url: user.avatar_url, kind: "image" as const }]} initialIndex={0} title={user.full_name || user.username || "Profile photo"} onClose={() => setAvatarOpen(false)} />}
   </div>, document.body);
