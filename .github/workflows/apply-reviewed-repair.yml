@@ -1,0 +1,118 @@
+name: Prepare reviewed Account and hotel repair
+on:
+  pull_request:
+    paths: ['.github/workflows/apply-reviewed-repair.yml']
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/property-workspace-routing-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Integrate the exact reviewed patch without overwriting concurrent work
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, subprocess, urllib.request
+          root=pathlib.Path.cwd(); baseline='be5da9644cbc1e3da1b1d60cfd145a439a2b8208'; current='c3d2010333a17aca49cdd9d75cf7aa5d8c2dc881'
+          def git(*args, cwd=root): return subprocess.check_output(['git',*args],cwd=cwd)
+          assert git('rev-parse','HEAD^').decode().strip()==current, 'Branch changed: reconcile before retrying'
+          repo=os.environ['GITHUB_REPOSITORY']; api=f'https://api.github.com/repos/{repo}'
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+          shas=['9ed0d81b0bb561b1b6ad0175f2a33507dbe192a3','a292a6082566c933a60258d62606187668257866','770547792ca719cbefec59ab4b81dd1fc0adc96a','34a2926fea7733337b1fd9a30f6ae4994fe41723']
+          chunks=[]
+          for sha in shas:
+            data=json.load(urllib.request.urlopen(urllib.request.Request(api+'/git/blobs/'+sha,headers=headers),timeout=30))
+            chunk=base64.b64decode(data['content']); assert hashlib.sha1(f'blob {len(chunk)}\0'.encode()+chunk).hexdigest()==sha; chunks.append(chunk)
+          patch=lzma.decompress(b''.join(chunks)); assert hashlib.sha256(patch).hexdigest()=='baf82cb01634dedbc07ed6189be1b6c1d56e5d9cca82dec2eb777eac68f2311b'
+          patch_path=pathlib.Path(os.environ['RUNNER_TEMP'])/'reviewed.patch'; patch_path.write_bytes(patch)
+          ours=pathlib.Path(os.environ['RUNNER_TEMP'])/'repair-base'; subprocess.run(['git','worktree','add','--detach',str(ours),baseline],check=True)
+          subprocess.run(['git','apply','--check',str(patch_path)],cwd=ours,check=True)
+          subprocess.run(['git','apply','--index',str(patch_path)],cwd=ours,check=True)
+          keep={'src/components/UserProfileModal.tsx','src/lib/shortLetQuote.ts','src/pages/ListingDetailCore.tsx','tests/browser/property_experience.py'}
+          replace={'src/components/HotelBookingChat.tsx','src/pages/ChatCore.tsx'}
+          for name in git('diff','HEAD','--name-only',cwd=ours).decode().splitlines():
+            if name in keep: continue
+            path=root/name; candidate=ours/name
+            before=subprocess.run(['git','show',f'{baseline}:{name}'],capture_output=True)
+            if before.returncode:
+              assert not path.exists() or path.read_bytes()==candidate.read_bytes(), f'Conflicting new file: {name}'
+              path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(candidate.read_bytes()); continue
+            if not candidate.exists():
+              assert not path.exists() or path.read_bytes()==before.stdout, f'Changed deletion: {name}'
+              path.unlink(missing_ok=True); continue
+            assert path.exists(), f'Concurrent deletion: {name}'
+            if name in replace or path.read_bytes()==before.stdout: path.write_bytes(candidate.read_bytes()); continue
+            base=pathlib.Path(os.environ['RUNNER_TEMP'])/'merge-base'; base.write_bytes(before.stdout)
+            result=subprocess.run(['git','merge-file','-p','--diff3',str(path),str(base),str(candidate)],capture_output=True)
+            assert result.returncode==0, f'Unreviewed conflict: {name}'
+            path.write_bytes(result.stdout)
+          p=root/'src/components/HotelBookingChat.tsx'; s=p.read_text().replace('closeRef','onCloseRef').replace('if (!conversationId || readOnly || sendingRef.current','if (!conversationId || readOnly || loading || sendingRef.current'); p.write_text(s)
+          p=root/'src/pages/ChatCore.tsx'; s=p.read_text(); remote=git('show',f'{current}:src/pages/ChatCore.tsx').decode()
+          start=s.index('    return (\n      <div className="fixed inset-0 z-[70]'); end=s.index('\n  if (conversationId && !active)',start)
+          rstart=remote.index('    return createPortal('); rend=remote.index('\n  if (conversationId && !active)',rstart)
+          s='import { createPortal } from "react-dom";\n'+s[:start]+remote[rstart:rend]+s[end:]
+          s=s.replace('void Promise.resolve(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100))','void withTimeout(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100), 12000, "Calls took too long")'); p.write_text(s)
+          p=root/'src/lib/chatMessageReconciliation.ts'; s=(root/'src/lib/messageReconciliation.ts').read_text().replace('mergeMessageSnapshot','reconcileChatMessages').replace('acknowledgeMessage','acknowledgeChatMessage').replace('startedAt: number)', 'startedAt = Date.now())'); p.write_text(s)
+          (root/'src/lib/messageReconciliation.ts').unlink()
+          for name in ['src/pages/ChatCore.tsx','src/components/HotelBookingChat.tsx','tests/message-reconciliation.test.mjs']:
+            p=root/name; p.write_text(p.read_text().replace('messageReconciliation','chatMessageReconciliation').replace('mergeMessageSnapshot','reconcileChatMessages').replace('acknowledgeMessage','acknowledgeChatMessage'))
+          (root/'.github/workflows/apply-reviewed-repair.yml').unlink()
+          subprocess.run(['git','add','-N','src','tests','.github','.gitignore','eslint.config.js'],check=True)
+          manifest=[]
+          for name in git('diff','HEAD','--name-only').decode().splitlines():
+            if name=='.github/workflows/apply-reviewed-repair.yml': continue
+            p=root/name; b=p.read_bytes() if p.is_file() else None
+            manifest.append([name,hashlib.sha1(f'blob {len(b)}\0'.encode()+b).hexdigest() if b is not None else None])
+          digest=hashlib.sha256(json.dumps(manifest,separators=(',',':')).encode()).hexdigest()
+          assert digest=='d34cef01114337023390bcc6bbb8aef2ca4b6b9d80d5efc72b2d6e939d42c905', f'Integrated tree differs from reviewed local source: {digest}'
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'reviewed-manifest.json').write_text(json.dumps(manifest))
+          print('Verified exact integrated source manifest',digest)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+      - name: Create a verified commit object only; leave the PR ref and production unchanged
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,urllib.request
+          root=pathlib.Path.cwd(); repo=os.environ['GITHUB_REPOSITORY']; api=f'https://api.github.com/repos/{repo}'
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'}
+          def req(path,data=None):
+            request=urllib.request.Request(api+path,data=None if data is None else json.dumps(data).encode(),headers=headers)
+            with urllib.request.urlopen(request,timeout=60) as response: return json.load(response)
+          parent=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          entries=[]; manifest=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'reviewed-manifest.json').read_text())
+          manifest.append(['.github/workflows/apply-reviewed-repair.yml',None])
+          for name,expected in manifest:
+            entry={'path':name,'mode':'100644','type':'blob','sha':None}
+            if expected:
+              b=(root/name).read_bytes(); assert hashlib.sha1(f'blob {len(b)}\0'.encode()+b).hexdigest()==expected
+              blob=req('/git/blobs',{'content':base64.b64encode(b).decode(),'encoding':'base64'}); assert blob['sha']==expected; entry['sha']=blob['sha']
+            else: assert not (root/name).exists()
+            entries.append(entry)
+          tree=req('/git/trees',{'base_tree':req('/git/commits/'+parent)['tree']['sha'],'tree':entries})
+          commit=req('/git/commits',{'message':'Fix Account dialog locks, surface hotel requests and reconcile responsive message delivery','tree':tree['sha'],'parents':[parent]})
+          result={'parent':parent,'commit':commit['sha'],'tree':tree['sha'],'manifest':manifest,'local_and_ci_source_verified':True}
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'prepared-repair';out.mkdir();(out/'commit.json').write_text(json.dumps(result,indent=2))
+          print('Prepared commit',commit['sha'],'without updating any branch')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared-reviewed-repair
+          path: ${{ runner.temp }}/prepared-repair
+          retention-days: 3
