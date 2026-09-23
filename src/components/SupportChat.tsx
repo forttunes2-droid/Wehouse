@@ -1,3 +1,4 @@
+import { CHAT_MEDIA_ACCEPT, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import { PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -142,7 +143,7 @@ export default function SupportChat({
         return false;
       }
       if (!isSupportedSupportEvidence(file)) {
-        toast.error(`${file.name} is not a supported evidence file`);
+        toast.error(CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       return true;
@@ -587,14 +588,14 @@ export default function SupportChat({
               type="file"
               hidden
               multiple
-              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,text/plain,.doc,.docx"
+              accept={CHAT_MEDIA_ACCEPT}
               onChange={(event) => addFiles(event.target.files)}
             />
             <button
               onClick={() => fileRef.current?.click()}
               disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
-              aria-label="Attach evidence"
+              aria-label="Add photo or video"
             >
               <svg
                 width="18"

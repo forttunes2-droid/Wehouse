@@ -1,3 +1,4 @@
+import { validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from "./client";
 import { propertyBookingStatusLabel, type PropertyJourneyAudience } from "@/lib/propertyBookingLifecycle";
 
@@ -259,8 +260,6 @@ export type SupportMessageDraftStatus = {
 };
 export const SUPPORT_EVIDENCE_MIME_TYPES = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime",
-  "application/pdf", "text/plain", "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 export function isSupportedSupportEvidence(file: File) { return SUPPORT_EVIDENCE_MIME_TYPES.has(file.type || ""); }
 export async function createSupportMessageDraft() {
@@ -312,6 +311,7 @@ export async function sendFirstContextualHelpMessage(
     replayed: result.replayed === true, error };
 }
 export async function uploadSupportDraftAttachment(draftId: string, requesterId: string, file: File) {
+  try { await validateChatUpload(file, false); } catch (error) { return { path: null, error: { message: error instanceof Error ? error.message : "Choose a photo or video." } }; }
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100) || "attachment";
   const path = `drafts/${requesterId}/${draftId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
   const { error } = await supabase.storage.from("support-files").upload(path, file, {
@@ -422,6 +422,7 @@ export async function getSupportInbox(
   return { conversations: data || [], error };
 }
 export async function uploadSupportAttachment(conversationId: string, file: File) {
+  try { await validateChatUpload(file, false); } catch (error) { return { path: null, error: { message: error instanceof Error ? error.message : "Choose a photo or video." } }; }
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100) || "attachment";
   const path = `${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
   const { error } = await supabase.storage.from("support-files").upload(path, file, {

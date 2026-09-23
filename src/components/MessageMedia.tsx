@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Download, FileText, ImageOff, Images, Mic, Play, Video, X } from 'lucide-react';
+import {  ImageOff, Images, Mic, Play, Video, X } from 'lucide-react';
 import MediaViewer from '@/components/MediaViewer';
 import VoiceNotePlayer from '@/components/VoiceNotePlayer';
-import { attachmentFileLabel, attachmentSize, messageAttachmentKind, usableAttachmentUrl, type MessageAttachment } from '@/lib/messageAttachment';
+import { attachmentSize, messageAttachmentKind, usableAttachmentUrl, type MessageAttachment } from '@/lib/messageAttachment';
 import './message-attachments.css';
 
 export function AttachmentState({ error = false, onRetry }: { error?: boolean; onRetry?: () => void }) {
@@ -39,9 +39,7 @@ export default function MessageMedia({ items }: { items: MessageAttachment[] }) 
       const kind = messageAttachmentKind(item.type, item.url);
       if (kind === 'audio') return <div key={`${item.url}-${index}`} className="wh-media-audio"><VoiceNotePlayer url={item.url} /></div>;
       if (kind !== 'file') return null;
-      return <a key={`${item.url}-${index}`} className="wh-attachment-file" href={item.url} download rel="noreferrer" aria-label={`Download ${attachmentFileLabel(item)}`} onClick={event => event.stopPropagation()}>
-        <FileText size={22} aria-hidden="true" /><span>{attachmentFileLabel(item)}<small>Download file</small></span><Download size={18} aria-hidden="true" />
-      </a>;
+      return <p key={`${item.url}-${index}`} className="wh-attachment-state text-sm" role="note">Documents are not supported in chat.</p>;
     })}
     {safe.length !== items.length && <AttachmentState error />}
     {openedIndex >= 0 && <MediaViewer items={visual} initialIndex={openedIndex} title="Shared media" onClose={() => setOpened(null)} />}
@@ -58,7 +56,7 @@ function PendingItem({ file, onRemove, disabled = false }: { file: File; onRemov
   }, [file, kind]);
   const label = kind === 'audio' ? 'Voice note' : file.name;
   return <div className="wh-pending-item">
-    <span className="wh-pending-thumb">{kind === 'image' && url ? <Photo key={url} url={url} /> : kind === 'audio' ? <Mic size={22} aria-hidden="true" /> : kind === 'video' ? <Video size={22} aria-hidden="true" /> : <FileText size={22} aria-hidden="true" />}</span>
+    <span className="wh-pending-thumb">{kind === 'image' && url ? <Photo key={url} url={url} /> : kind === 'audio' ? <Mic size={22} aria-hidden="true" /> : kind === 'video' ? <Video size={22} aria-hidden="true" /> : <ImageOff size={22} aria-hidden="true" />}</span>
     <span className="wh-pending-name"><span>{label}</span><small>{attachmentSize(file.size)}</small></span>
     <button type="button" className="wh-attachment-remove" disabled={disabled} aria-label={`Remove ${label}`} onClick={onRemove}><X size={18} aria-hidden="true" /></button>
   </div>;

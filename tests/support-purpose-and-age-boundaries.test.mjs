@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -13,6 +14,7 @@ async function supportModule() {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   vm.runInNewContext(code, { exports, require(name) {
+    if(name === '@/lib/chatMediaPolicy') return chatMediaPolicy;
     if (name === "./client") return { supabase: { async rpc(name, args) {
       calls.push({ name, args: JSON.parse(JSON.stringify(args)) });
       return { data: { conversation_id: "test-conversation" }, error: null };

@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -7,7 +8,7 @@ import ts from 'typescript';
 const require=createRequire(import.meta.url);
 function moduleAt(path, dependencies={}, globals={}) {
   const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-  const exports={};vm.runInNewContext(code,{exports,require:name=>dependencies[name]??require(name),...globals});return exports;
+  const exports={};vm.runInNewContext(code,{exports,require:name=>name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name]??require(name),...globals});return exports;
 }
 const api=moduleAt('src/lib/supabase/support.ts',{'./client':{},'@/lib/propertyBookingLifecycle':{propertyBookingStatusLabel:()=> 'Status unavailable'}});
 const dates=moduleAt('src/lib/displayDate.ts');

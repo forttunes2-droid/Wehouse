@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -8,7 +9,7 @@ const require = createRequire(import.meta.url);
 function supportWith(result) {
   const code = ts.transpileModule(readFileSync('src/lib/supabase/support.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const exports={};
-  vm.runInNewContext(code,{exports,require:name=>name==='./client'?{supabase:{rpc:async()=>result}}:name==='@/lib/propertyBookingLifecycle'?{}:require(name)});
+  vm.runInNewContext(code,{exports,require:name=>name==='@/lib/chatMediaPolicy'?chatMediaPolicy:name==='./client'?{supabase:{rpc:async()=>result}}:name==='@/lib/propertyBookingLifecycle'?{}:require(name)});
   return exports;
 }
 test('Operational bundle rejects null, wrong-thread and malformed responses instead of claiming empty success', async()=>{

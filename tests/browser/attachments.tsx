@@ -1,3 +1,6 @@
+import ChatAttachmentPicker from '../../src/components/ChatAttachmentPicker';
+import SecureSupportAttachment from '../../src/components/SecureSupportAttachment';
+import { validateChatUpload } from '../../src/lib/chatMediaPolicy';
 // Actual production attachment and bubble components; synthetic transport only.
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,6 +18,8 @@ const initialMode = (window as any).__attachmentMode || 'shared';
 const message = (content:string,id='message') => ({id,sender_id:'qa-ada',conversation_id:'chat-ada',content,created_at:'2026-09-23T09:10:00Z',seen:true});
 function Fixture() {
   const [mode,setMode]=useState(initialMode), [property,setProperty]=useState<any>(initialMode === 'draft' ? house : null), [note,setNote]=useState(''), [sent,setSent]=useState<string[]>([]), [files,setFiles]=useState<File[]>([]);
+  const [mediaError,setMediaError]=useState('');
+  const selectMedia=async(selection:FileList|null)=>{setMediaError('');try{const picked=Array.from(selection||[]);for(const file of picked)await validateChatUpload(file,false);setFiles(picked);}catch(error){setMediaError(error instanceof Error?error.message:'Choose a photo or video.');}};
   const open = (page:string,id:string)=>{(window as any).__opened={page,id};};
   const action = ()=>{(window as any).__actions=((window as any).__actions||0)+1;};
   const reply = ()=>{(window as any).__replies=((window as any).__replies||0)+1;};
@@ -29,11 +34,14 @@ function Fixture() {
       {mode==='gallery' && <><RoommateBubble msg={{...message('Here are the room photos.'),attachments:[image,image+'?v=2',image+'?v=3',image+'?v=4',image+'?v=5'],attachment_types:Array(5).fill('image/png')} as any} mine={false} onOpenActions={action} onTapReaction={action} onReply={reply} onOpenProperty={open} /><MessageMedia items={[{url:'https://assets.wehouse.test/test-voice.wav',type:'audio/wav'},{url:'https://assets.wehouse.test/lease.pdf',type:'application/pdf'},{url:'javascript:alert(1)',type:'application/pdf'}]} /></>}
       {mode==='request' && <><HotelSpecialRequest request={'Please arrange a quiet room.\nI may arrive at 6 pm.'} inConversation /><RoommateBubble msg={message('We have noted your quiet-room request.') as any} mine={false} onOpenActions={action} onTapReaction={action} onReply={reply} onOpenProperty={open} /></>}
       {(mode==='unavailable'||mode==='error') && <SharedPropertyCard property={{kind:'listing',id:mode==='unavailable'?'unavailable-home':'long-home'}} onOpen={open} />}
+      {mode==='policy' && <><p className="text-sm text-[#AAA3B3]">Photos and videos only. Record a voice note with the microphone.</p><SecureSupportAttachment path="private/lease.pdf" type="application/pdf" /></>}
       {mode==='hotel' && <SharedPropertyCard property={{kind:'hotel',id:'7'}} onOpen={open} />}
       {sent.map((content,index)=><RoommateBubble key={index} msg={{...message(content,'sent-'+index),sender_id:'qa-personal'} as any} mine onOpenActions={action} onTapReaction={action} onReply={reply} onOpenProperty={open} />)}
     </main>
     <footer className="shrink-0 border-t border-white/10 bg-[#10131B] p-3">
       {property && <PropertyDraftAttachment property={property} onRemove={()=>setProperty(null)} />}
+      {mediaError && <p role="alert" className="mb-3 text-sm text-amber-200">{mediaError}</p>}
+      {mode==='policy' && <ChatAttachmentPicker onFiles={selection=>void selectMedia(selection)} />}
       <PendingMessageMedia files={files} onRemove={index=>setFiles(current=>current.filter((_,i)=>i!==index))}/>
       <div className="flex items-end gap-2"><textarea aria-label="Message" placeholder="Message" rows={1} className="min-h-11 min-w-0 flex-1 resize-none rounded-3xl border border-white/10 bg-[#181B24] px-4 py-3 text-sm" value={note} onChange={event=>setNote(event.target.value)}/><button type="button" aria-label="Send message" disabled={!property&&!note.trim()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:opacity-40" onClick={onSend}><Send size={19} /></button></div>
     </footer>

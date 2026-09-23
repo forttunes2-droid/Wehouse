@@ -1,7 +1,7 @@
 """Shared real components and canonical selectors, with isolated fixture APIs.
 This does not claim a real two-account encrypted send; that remains a separate gate.
 """
-import asyncio,io,json,os,subprocess,wave
+import asyncio,base64,io,json,os,subprocess,wave
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');BUNDLE=Path('test-results/attachment-offline')
@@ -45,7 +45,7 @@ async def main():
   browser=await p.chromium.launch(**opts)
   try:
    for width in [320,390,768,1440]:
-    for mode in ['shared','picker','gallery','request','unavailable','error','hotel']:
+    for mode in ['shared','picker','gallery','request','unavailable','error','hotel','policy']:
      context,page,scenario=await open_fixture(browser,mode,width)
      try:
       if mode=='shared':
@@ -87,6 +87,8 @@ async def main():
        await expect(page.get_by_role('button',name='Open photo 1 of 5',exact=True)).to_be_visible()
        await expect(page.get_by_text('+1',exact=True)).to_be_visible()
        assert await page.locator('a[href^="javascript:"]').count()==0
+       await expect(page.get_by_text('Documents are not supported in chat.',exact=True)).to_be_visible()
+       assert await page.locator('a[download],a[href*="lease.pdf"]').count()==0
        await expect(page.get_by_label('Voice note position',exact=True)).to_be_enabled()
        await page.get_by_role('button',name='Playback speed 1 times',exact=True).click()
        await expect(page.get_by_role('button',name='Playback speed 1.5 times',exact=True)).to_be_visible()
@@ -112,6 +114,23 @@ async def main():
        await page.get_by_role('button',name='Remove room-photo.png',exact=True).click()
        await expect(page.get_by_role('button',name='Remove room-photo.png',exact=True)).to_have_count(0)
        await expect(page.get_by_role('button',name='Remove Voice note',exact=True)).to_be_visible()
+      elif mode=='policy':
+       await expect(page.get_by_role('button',name='Add photo or video',exact=True)).to_be_visible()
+       picker=page.locator('input[type=file]');accept=await picker.get_attribute('accept')
+       assert 'video/mp4' in accept and all(value not in accept for value in ['audio','application','text','*'])
+       await page.get_by_placeholder('Message').fill('Keep this message while I choose a photo')
+       for name,mime,body in [('lease.pdf','application/pdf',b'%PDF-1.7'),('renamed.png','image/png',b'%PDF-1.7'),('voice.webm','audio/webm',b'not-from-recorder')]:
+        await picker.set_input_files({'name':name,'mimeType':mime,'buffer':body})
+        await expect(page.get_by_role('alert')).to_be_visible()
+        await expect(page.locator('.wh-attachment-remove')).to_have_count(0)
+        await expect(page.get_by_placeholder('Message')).to_have_value('Keep this message while I choose a photo')
+       photo=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=')
+       await picker.set_input_files({'name':'room.png','mimeType':'image/png','buffer':photo})
+       await expect(page.get_by_role('alert')).to_have_count(0)
+       await expect(page.get_by_role('button',name='Remove room.png',exact=True)).to_be_visible()
+       await page.get_by_role('button',name='Remove room.png',exact=True).click()
+       await expect(page.get_by_placeholder('Message')).to_have_value('Keep this message while I choose a photo')
+       await page.screenshot(path=str(OUT/f'wehouse-media-only-policy-{width}.png'))
       elif mode=='request':
        summary=page.locator('summary');await expect(summary).to_be_visible()
        box=await summary.bounding_box();assert box['height']<=80

@@ -1,3 +1,4 @@
+import { validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
@@ -99,6 +100,7 @@ export async function sendBookingMessage(conversationId:string,peerUserId:string
 
 export async function uploadBookingChatAttachment(file:File,conversationId:string,peerUserId:string){
   try{
+    await validateChatUpload(file);
     let upload:Blob|File=file;
     let contentType=file.type||'application/octet-stream';
     let extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';

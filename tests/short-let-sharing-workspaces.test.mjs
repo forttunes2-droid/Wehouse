@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,10 +13,11 @@ function load(name, mocks = {}, extra = {}) {
   const exports = {};
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(compiled, { exports, require: requested => {
+    if (requested === '@/lib/chatMediaPolicy') return chatMediaPolicy;
     if (requested in mocks) return mocks[requested];
     if (!requested.startsWith('.')) throw Error(`Unexpected dependency ${requested}`);
     return load(path.resolve(path.dirname(filename), `${requested}.ts`));
-  }, URL, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
+  }, Blob, File, URL, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
   if (!Object.keys(mocks).length && !Object.keys(extra).length) cache.set(filename, exports);
   return exports;
 }
@@ -139,9 +141,12 @@ test('a property share uses real encryption and only the intended second identit
       }
     };
   }
+  const objects=new Map();
   const aliceClient=client('alice'),bobClient=client('bob');
+  bobClient.storage={from(bucket){assert.equal(bucket,'chat-files');return{createSignedUrl:async path=>({data:{signedUrl:path},error:null})};}};
+  const fetchAttachment=async url=>({ok:true,arrayBuffer:async()=>objects.get(url).arrayBuffer()});
   const alice=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:aliceClient}},{sessionStorage:storage()});
-  const bob=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:bobClient}},{sessionStorage:storage()});
+  const bob=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:bobClient}},{sessionStorage:storage(),fetch:fetchAttachment});
   await alice.createEncryptionIdentity('123456');await bob.createEncryptionIdentity('654321');
   const chat=load('src/lib/supabase/chat.ts',{'./client':{supabase:aliceClient},'./utils':{},'@/lib/e2ee':alice});
   const clear=sharing.propertyShareMessage({kind:'listing',id:'home-1'},'Please check this place');
@@ -152,6 +157,16 @@ test('a property share uses real encryption and only the intended second identit
   assert.equal(decoded,clear);assert.equal(sharing.parsePropertyShareMessage(decoded).property.id,'home-1');
   await bob.lockEncryptionIdentity();await assert.rejects(()=>bob.unlockEncryptionIdentity('000000'),/Incorrect/);
   await bob.unlockEncryptionIdentity('654321');assert.equal(await bob.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv),clear);
+  // A real encrypted image remains media; an authenticated hostile metadata URL
+  // cannot override the receiver-created object URL. Unsupported cleartext fails.
+  const photo=new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=','base64')],{type:'image/png'});
+  for(const [payload,metadata,accepted] of [[photo,{name:'room.png',type:'image/png',url:'javascript:alert(1)'},true],[new Blob(['%PDF-1.7']),{name:'lease.pdf',type:'application/pdf'},false],[new Blob(['%PDF-1.7']),{name:'room.png',type:'image/png'},false]]) {
+    const encrypted=await alice.encryptPrivateAttachment('roommate','accepted-1','bob',payload,metadata);
+    const path='https://storage.invalid/'+objects.size;objects.set(path,encrypted.blob);
+    const attachment={...encrypted,path};
+    if(accepted){const received=await bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment);assert.ok(received.url.startsWith('blob:'));assert.equal(received.type,'image/png');assert.equal(received.name,'room.png');URL.revokeObjectURL(received.url);}
+    else await assert.rejects(()=>bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment),/not supported|not a supported/);
+  }
   const outsider=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:client('outsider')}},{sessionStorage:storage()});
   await outsider.createEncryptionIdentity('777777');await assert.rejects(()=>outsider.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv),/access denied/);
 });

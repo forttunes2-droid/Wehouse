@@ -1,3 +1,4 @@
+import { validateChatUpload, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { parseHotelConversationBundle, type HotelChatMessage, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { prepareChatImageFile } from "./utils";
 import { supabase } from "./client";
@@ -119,8 +120,9 @@ export async function uploadHotelChatAttachment(
   userId: string,
   file: File,
 ) {
+  try { await validateChatUpload(file); } catch (error) { return { path: null, type: null, error: { message: error instanceof Error ? error.message : "Choose a photo or video." } }; }
   let upload: Blob | File = file;
-  let contentType = file.type || "application/octet-stream";
+  let contentType = normaliseChatMediaType(file.type);
   let extension = (file.name.split(".").pop() || "bin").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   if (file.type.startsWith("image/")) {
     const prepared = await prepareChatImageFile(file);

@@ -1,3 +1,4 @@
+import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -336,6 +337,7 @@ export default function BookingNegotiationChat({
   function chooseFiles(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
+      if (!isChatVisualType(file.type)) { toast.error(CHAT_MEDIA_ONLY_MESSAGE); return false; }
       if (file.size > MAX_FILE_SIZE) {
         toast.error(`${file.name} is larger than 25MB`);
         return false;
@@ -345,7 +347,7 @@ export default function BookingNegotiationChat({
     setFiles((current) => {
       const next = [...current, ...incoming].slice(0, MAX_FILES);
       if (current.length + incoming.length > MAX_FILES)
-        toast.error("You can send up to 6 files at once");
+        toast.error("You can send up to 6 photos or videos at once");
       return next;
     });
   }
@@ -426,7 +428,7 @@ export default function BookingNegotiationChat({
   async function toggleVoice() {
     if (voice.recording) return voice.finish();
     if (files.length >= MAX_FILES)
-      return toast.error("Remove a file before recording a voice note");
+      return toast.error("Remove an attachment before recording a voice note");
     try {
       await voice.start();
     } catch (error) {
@@ -1189,9 +1191,6 @@ export default function BookingNegotiationChat({
                 <div className="flex items-end gap-2">
                   <ChatAttachmentPicker
                     onFiles={chooseFiles}
-                    allowVideo
-                    allowDocuments
-                    allowAudio
                   />
                   <button
                     onClick={() => void toggleVoice()}

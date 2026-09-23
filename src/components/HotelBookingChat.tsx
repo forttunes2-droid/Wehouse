@@ -1,3 +1,4 @@
+import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { hotelMessagePresentation, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { displayDate } from "@/lib/displayDate";
@@ -156,8 +157,8 @@ export default function HotelBookingChat({
   function chooseFiles(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
-      if (!file.type.startsWith("image/") && !file.type.startsWith("audio/")) {
-        toast.error("Hotel chat supports photos and voice notes");
+      if (!isChatVisualType(file.type)) {
+        toast.error(CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       if (file.size > MAX_FILE_SIZE) {
@@ -476,7 +477,7 @@ export default function HotelBookingChat({
           )}
           {!voice.recording && !voice.draft && (
             <div className="flex items-end gap-2">
-              <ChatAttachmentPicker onFiles={chooseFiles} allowAudio />
+              <ChatAttachmentPicker onFiles={chooseFiles} />
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}

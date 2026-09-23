@@ -4,13 +4,13 @@ export type MessageAttachmentKind = 'image' | 'video' | 'audio' | 'file';
 /** MIME is authoritative, especially for audio/webm. Extensions are a legacy fallback. */
 export function messageAttachmentKind(type = '', url = ''): MessageAttachmentKind {
   const mime = type.toLowerCase().split(';')[0].trim();
-  if (mime.startsWith('image/')) return 'image';
-  if (mime.startsWith('audio/')) return 'audio';
-  if (mime.startsWith('video/')) return 'video';
+  if (['image/jpeg','image/png','image/webp','image/gif','image/avif'].includes(mime)) return 'image';
+  if (['audio/webm','audio/mp4','audio/wav','audio/x-wav','audio/ogg'].includes(mime)) return 'audio';
+  if (['video/mp4','video/webm','video/quicktime'].includes(mime)) return 'video';
   if (mime && mime !== 'application/octet-stream') return 'file';
   const pathname = url.split(/[?#]/)[0];
   if (/\.(jpe?g|png|gif|webp|avif)$/i.test(pathname)) return 'image';
-  if (/\.(mp3|m4a|wav|ogg|aac)$/i.test(pathname)) return 'audio';
+  if (/\.(m4a|wav|ogg)$/i.test(pathname)) return 'audio';
   if (/\.(mp4|mov|webm)$/i.test(pathname)) return 'video';
   return 'file';
 }
@@ -24,7 +24,7 @@ export function usableAttachmentUrl(url: string): boolean {
     if (parsed.username || parsed.password) return false;
     if (['https:', 'http:', 'blob:'].includes(parsed.protocol)) return true;
     // Local image fixtures/previews only; never permit HTML/document data links.
-    return /^data:image\/(?:png|jpeg|webp|gif|avif|svg\+xml)[;,]/i.test(url);
+    return /^data:image\/(?:png|jpeg|webp|gif|avif)[;,]/i.test(url);
   } catch { return false; }
 }
 

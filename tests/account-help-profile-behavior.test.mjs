@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
@@ -9,7 +10,7 @@ async function load(path, dependencies = {}) {
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {};
   vm.runInNewContext(code, { exports, queueMicrotask, Intl, Date, console,
-    require(name) { if (!(name in dependencies)) throw new Error(`Unexpected dependency: ${name}`); return dependencies[name]; },
+    require(name) { if(name === '@/lib/chatMediaPolicy') return chatMediaPolicy; if (!(name in dependencies)) throw new Error(`Unexpected dependency: ${name}`); return dependencies[name]; },
   });
   return exports;
 }

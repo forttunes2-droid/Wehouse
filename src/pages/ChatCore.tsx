@@ -1,3 +1,4 @@
+import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import { createPortal } from "react-dom";
 import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
 import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
@@ -627,8 +628,8 @@ export default function Chat({
   function choosePhotos(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
-      if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} is not a photo`);
+      if (!isChatVisualType(file.type)) {
+        toast.error(CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       if (file.size > MAX_FILE_SIZE) {

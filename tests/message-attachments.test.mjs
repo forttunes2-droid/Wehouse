@@ -14,7 +14,7 @@ test('attachment MIME outranks filename and signed paths, especially audio/webm'
  assert.equal(kind('image/webp', 'https://example.test/private/token'), 'image');
  assert.equal(kind('application/pdf', 'https://example.test/photo.png'), 'file');
  assert.equal(kind('', 'https://example.test/photo.jpg?token=test'), 'image');
- assert.equal(kind('', 'https://example.test/voice.mp3?token=test'), 'audio');
+ assert.equal(kind('', 'https://example.test/voice.mp3?token=test'), 'file');
  assert.equal(kind('', 'https://example.test/clip.webm?token=test'), 'video');
  assert.equal(kind('', 'blob:opaque'), 'file');
 });

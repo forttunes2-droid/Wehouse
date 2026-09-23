@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -7,6 +8,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 function harness(rows, failure = null) {
   const calls = [], decryptions = [], exports = {};
   const deps = {
+    '@/lib/chatMediaPolicy': chatMediaPolicy,
     './client': { supabase: {
       rpc: async (name, params) => { calls.push([name,params]); return {data:rows,error:failure}; },
       storage: { from: bucket => {
