@@ -111,9 +111,21 @@ async def main():
     finally:
      (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
    scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
-   await expect(page.get_by_role('alert')).to_contain_text('have not been removed')
-   await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
-   scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
-   await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible(); await context.close()
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
   finally: await browser.close()
 asyncio.run(main())
