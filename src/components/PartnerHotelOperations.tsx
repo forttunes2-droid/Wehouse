@@ -1,4 +1,4 @@
-import { hotelPaymentLabel } from "@/lib/propertyNavigation";
+import { hotelPaymentLabel, hotelRoomAvailability } from "@/lib/propertyNavigation";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -310,12 +310,6 @@ export default function PartnerHotelOperations({
   }, [hotel.hotel_id, load]);
 
   const date = today(hotel.timezone || "Africa/Lagos");
-  const activeBookings = bookings.filter((row) => {
-    if (["confirmed", "checked_in"].includes(row.status)) return true;
-    if (row.status !== "pending") return false;
-    const expiry = new Date(row.payment_expires_at || 0).getTime();
-    return Number.isFinite(expiry) && expiry > Date.now();
-  });
   const metrics = useMemo(
     () => ({
       arrivals: bookings.filter(
@@ -333,19 +327,12 @@ export default function PartnerHotelOperations({
     }),
     [bookings, date],
   );
-  const available = rooms.reduce((sum, room) => {
-    const override = inventory.find((row) => row.room_id === room.room_id && row.inventory_date === date);
-    const reserved = activeBookings.filter(
-      (row) =>
-        row.room_id === room.room_id &&
-        row.check_in <= date &&
-        row.check_out > date,
-    ).length;
-    const sellable = override?.closed
-      ? 0
-      : (override?.available_quantity ?? room.total_rooms);
-    return sum + Math.max(0, sellable - reserved);
-  }, 0);
+  const inventoryAsOf = Date.now();
+  const dailyRooms = rooms.map(room => ({
+    room,
+    ...hotelRoomAvailability(room, bookings, inventory, roomUnits, date, inventoryAsOf),
+  }));
+  const available = dailyRooms.reduce((sum, row) => sum + row.available, 0);
   const filteredBookings = bookings.filter((row) => {
     if (focusedBooking && String(row.booking_id) !== focusedBooking) return false;
     if (reservationFilter !== "all" && row.status !== reservationFilter)
@@ -461,7 +448,7 @@ export default function PartnerHotelOperations({
                 ["Needs action", metrics.attention],
               ].map(([label, value]) => <div key={String(label)} className="bg-[#0A0A0F] p-4"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-[8px] text-[#72798A]">{label}</p></div>)}
             </div>
-            <TodayRooms rooms={rooms} bookings={bookings} inventory={inventory} roomUnits={roomUnits} timeZone={hotel.timezone || "Africa/Lagos"} />
+            <TodayRooms rows={dailyRooms} />
           </section> : null}
 
           {visibleSection === "overview" && !canReadStays ? <p className="text-sm text-[#A1A6B5]">Use the hotel sections to manage the work assigned to you.</p> : null}
@@ -687,9 +674,13 @@ function RoomUnitRow({ unit, roomName, editable, onSaved }: { unit: HotelRoomUni
   );
 }
 
-function TodayRooms({ rooms, bookings, inventory, roomUnits, timeZone }: { rooms: Room[]; bookings: Booking[]; inventory: Inventory[]; roomUnits: HotelRoomUnit[]; timeZone: string }) {
-  const date = today(timeZone);
-  return <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rooms.map((room) => { const override = inventory.find((row) => row.room_id === room.room_id && row.inventory_date === date); const liveHolds = bookings.filter((row) => row.room_id === room.room_id && row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() > Date.now() && row.check_in <= date && row.check_out > date).length; const occupied = bookings.filter((row) => row.room_id === room.room_id && ["confirmed", "checked_in"].includes(row.status) && row.check_in <= date && row.check_out > date).length; const operationalUnits = roomUnits.filter((unit) => unit.room_id === room.room_id && !["maintenance", "out_of_service"].includes(unit.status)).length; const offered = override?.closed ? 0 : (override?.available_quantity ?? room.total_rooms); const sellable = Math.min(offered, operationalUnits); return <div key={room.room_id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#686F80]">{occupied} confirmed/staying · {liveHolds} active hold · {operationalUnits}/{room.total_rooms} operational</p></div><div className="text-right"><p className="text-sm font-bold">{Math.max(0, sellable - occupied - liveHolds)} sellable</p>{override?.closed ? <p className="text-[8px] text-amber-300">Sales closed today</p> : operationalUnits < room.total_rooms ? <p className="text-[8px] text-amber-300">Maintenance reduces capacity</p> : null}</div></div>; })}{rooms.length === 0 ? <Empty text="No room inventory has been added." /> : null}</div>;
+function TodayRooms({ rows }: { rows: Array<{ room: Room } & ReturnType<typeof hotelRoomAvailability>> }) {
+  return <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map(({ room, occupied, holds, operational, configured, available, closed, setupIncomplete, maintenance }) => (
+    <div key={room.room_id} data-room-availability={room.room_id} className="flex items-center justify-between gap-3 py-3">
+      <div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#686F80]">{occupied} confirmed/staying · {holds} active hold · {operational}/{configured} operational</p></div>
+      <div className="text-right"><p className="text-sm font-bold">{available} sellable</p>{closed ? <p className="text-[8px] text-amber-300">Sales closed today</p> : setupIncomplete ? <p className="text-[8px] text-amber-300">Room setup incomplete</p> : maintenance > 0 ? <p className="text-[8px] text-amber-300">Maintenance reduces capacity</p> : null}</div>
+    </div>
+  ))}{rows.length === 0 ? <Empty text="No room inventory has been added." /> : null}</div>;
 }
 
 function RoomRow({ room, canEditRoom, canManageRates, onEdit, onRate }: { room: Room; canEditRoom: boolean; canManageRates: boolean; onEdit: () => void; onRate: (plan?: HotelRatePlan) => void }) {
@@ -701,7 +692,7 @@ function AvailabilityRow({ room, inventory, onSaved }: { room: Room; inventory?:
   const [start, setStart] = useState(today()); const [end, setEnd] = useState(today()); const [quantity, setQuantity] = useState(String(inventory?.available_quantity ?? room.total_rooms)); const [closed, setClosed] = useState(Boolean(inventory?.closed)); const [rate, setRate] = useState(inventory?.rate_override ? String(inventory.rate_override) : ""); const [note, setNote] = useState(inventory?.note || ""); const [saving, setSaving] = useState(false);
   useEffect(() => { setQuantity(String(inventory?.available_quantity ?? room.total_rooms)); setClosed(Boolean(inventory?.closed)); setRate(inventory?.rate_override ? String(inventory.rate_override) : ""); setNote(inventory?.note || ""); }, [inventory?.available_quantity, inventory?.closed, inventory?.note, inventory?.rate_override, room.total_rooms]);
   async function save() { const available = Number(quantity); if (!Number.isInteger(available) || available < 0 || available > room.total_rooms) return toast.error(`Sellable rooms must be between 0 and ${room.total_rooms}`); if (!start || !end || end < start) return toast.error("Choose a valid date range"); if (rate && Number(rate) <= 0) return toast.error("Daily price must be positive"); setSaving(true); const { error } = await supabase.rpc("partner_set_hotel_inventory_range", { p_room_id: room.room_id, p_start_date: start, p_end_date: end, p_available_quantity: available, p_closed: closed, p_rate_override: rate ? Number(rate) : null, p_note: note.trim() || null }); setSaving(false); if (error) return toast.error(error.message); toast.success("Availability and pricing updated"); await onSaved(); }
-  return <article className="py-5"><div><p className="text-sm font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#707687]">{room.total_rooms} physical units · {inventory?.closed ? "sales closed today" : `${inventory?.available_quantity ?? room.total_rooms} offered today`}</p></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Field label="From" value={start} set={setStart} type="date" /><Field label="To" value={end} set={setEnd} type="date" /><Field label="Rooms offered" value={quantity} set={setQuantity} type="number" /><Field label="Base daily price override" value={rate} set={setRate} type="number" placeholder="Keep package prices" /></div><label className="mt-2 flex min-h-11 items-center gap-2 rounded-xl border border-white/[.07] px-3 text-[9px]"><input type="checkbox" checked={closed} onChange={(event) => setClosed(event.target.checked)} className="accent-violet-500" />Close room sales for this range</label><label className="mt-2 block"><span className="mb-1 block text-[8px] text-[#686E7E]">Internal note (optional)</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Why this range changed" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none" /></label><button onClick={() => void save()} disabled={saving} className="mt-2 min-h-11 w-full rounded-xl border border-violet-500/20 text-[10px] font-semibold text-violet-300 disabled:opacity-40">{saving ? "Updating…" : "Save availability"}</button></article>;
+  return <article className="py-5"><div><p className="text-sm font-semibold">{room.room_type}</p><p className="mt-1 text-[9px] text-[#707687]">{room.total_rooms} physical units · {inventory?.closed ? "sales closed today" : `${inventory?.available_quantity ?? room.total_rooms} offered today`}</p></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Field label="From" value={start} set={setStart} type="date" /><Field label="To" value={end} set={setEnd} type="date" /><Field label="Rooms offered" value={quantity} set={setQuantity} type="number" /><Field label="Base daily price override" value={rate} set={setRate} type="number" placeholder="Keep package prices" /></div><label className="mt-2 flex min-h-11 items-center gap-2 rounded-xl border border-white/[.07] px-3 text-[9px]"><input type="checkbox" checked={closed} onChange={(event) => setClosed(event.target.checked)} className="accent-violet-500" />Close room sales for this range</label><label className="mt-2 block"><span className="mb-1 block text-[8px] text-[#686E7E]">Internal note (optional)</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Why this range changed" className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none" /></label><button onClick={() => void save()} disabled={saving} className="mt-2 min-h-11 w-full rounded-xl border border-violet-500/20 text-[10px] font-semibold text-violet-300 disabled:opacity-40">{saving ? "Updating…" : "Save availability"}</button></article>;
 }
 
 function RoomEditor({ hotelId, room, close, saved }: { hotelId: number; room?: Room; close: () => void; saved: () => Promise<void> }) {
@@ -796,7 +787,7 @@ function HotelTeamMemberRow({ row, grantableCapabilities, removing, onRemove, on
     toast.success("Hotel permissions updated");
     await onSaved();
   }
-  return <article className="py-4"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-200">{(row.name || row.username || "W").slice(0, 1).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.name}</p><p className="mt-1 truncate text-[9px] text-[#687080]">{row.username ? `@${row.username}` : row.member_user_id}</p></div><div className="text-right"><span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${row.status === "active" ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-200"}`}>{row.status === "active" ? (row.hotel_role === "manager" ? "Manager" : "Front desk") : "Awaiting acceptance"}</span><button disabled={removing} onClick={onRemove} className="mt-2 block w-full text-[8px] font-semibold text-red-300 disabled:opacity-40">{removing ? "Updating…" : row.status === "invited" ? "Cancel" : "Remove"}</button></div></div><details className="mt-3 rounded-xl border border-white/[.06] p-3"><summary className="cursor-pointer text-[9px] font-semibold text-violet-200">Permissions · {selected.length}</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{grantableCapabilities.map((capability) => <label key={capability} className="flex min-h-9 items-center gap-2 text-[9px] text-[#9AA0AF]"><input type="checkbox" checked={selected.includes(capability)} onChange={() => toggle(capability)} className="accent-violet-500" />{HOTEL_CAPABILITY_LABELS[capability]}</label>)}</div>{dirty ? <button type="button" disabled={saving} onClick={() => void saveCapabilities()} className="mt-3 h-10 w-full rounded-xl bg-violet-500 text-[9px] font-semibold disabled:opacity-40">{saving ? "Saving permissions…" : "Save permissions"}</button> : null}</details></article>;
+  return <article className="py-4"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-200">{(row.name || row.username || "W").slice(0, 1).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="text-xs font-semibold">{row.name}</p><p className="mt-1 text-[9px] text-[#687080]">{row.username ? `@${row.username}` : row.member_user_id}</p></div><div className="text-right"><span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${row.status === "active" ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-200"}`}>{row.status === "active" ? (row.hotel_role === "manager" ? "Manager" : "Front desk") : "Awaiting acceptance"}</span><button disabled={removing} onClick={onRemove} className="mt-2 block w-full text-[8px] font-semibold text-red-300 disabled:opacity-40">{removing ? "Updating…" : row.status === "invited" ? "Cancel" : "Remove"}</button></div></div><details className="mt-3 rounded-xl border border-white/[.06] p-3"><summary className="cursor-pointer text-[9px] font-semibold text-violet-200">Permissions · {selected.length}</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{grantableCapabilities.map((capability) => <label key={capability} className="flex min-h-9 items-center gap-2 text-[9px] text-[#9AA0AF]"><input type="checkbox" checked={selected.includes(capability)} onChange={() => toggle(capability)} className="accent-violet-500" />{HOTEL_CAPABILITY_LABELS[capability]}</label>)}</div>{dirty ? <button type="button" disabled={saving} onClick={() => void saveCapabilities()} className="mt-3 h-10 w-full rounded-xl bg-violet-500 text-[9px] font-semibold disabled:opacity-40">{saving ? "Saving permissions…" : "Save permissions"}</button> : null}</details></article>;
 }
 
 function Sheet({ title, subtitle, close, children }: { title: string; subtitle: string; close: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[100030] flex items-end bg-black/75 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={close}><section className="max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#11151D] p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-w-2xl sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-bold">{title}</h3><p className="mt-1 text-[9px] leading-4 text-[#707687]">{subtitle}</p></div><button type="button" onClick={close} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close">×</button></div><div className="mt-5">{children}</div></section></div>; }
