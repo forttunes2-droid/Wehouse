@@ -1,0 +1,23 @@
+name: Isolated repair source
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/repair-source-evidence.yml'
+permissions:
+  contents: read
+jobs:
+  source:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Archive tracked source only
+        run: git archive --format=tar -o "${RUNNER_TEMP}/repair-source.tar" HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolated-repair-source
+          path: ${{ runner.temp }}/repair-source.tar
+          retention-days: 1
