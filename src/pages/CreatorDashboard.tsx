@@ -1,3 +1,5 @@
+import { internalActivityDestination } from "@/lib/internalActivityDestination";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import CreatorOverview from "@/components/CreatorOverview";
 import { useRpcRead } from '@/hooks/useRpcRead';
 import { withTimeout } from '@/lib/withTimeout';
@@ -155,7 +157,16 @@ export default function CreatorDashboard({
   const [viewing, setViewing] = useState<Profile | null>(null);
   const inboxSummary = useCreatorInboxSummary(profile.user_id, "creator");
 
+  const [inboxVisited, setInboxVisited] = useState(false);
+  const [returnToInbox, setReturnToInbox] = useState(false);
+  useEffect(() => { if (tab === "inbox") setInboxVisited(true); }, [tab]);
+  const closeOperation = useRecordScreenBack(() => {
+    setOperation(null); setOperationTarget(null);
+    if (returnToInbox) setTab("inbox");
+    setReturnToInbox(false);
+  }, tab === "operations" && Boolean(operation));
   function openOperation(next: Operation, id?: string) {
+    setReturnToInbox(tab === "inbox");
     setOperationTarget({ operation: next, id });
     setOperation(next);
     setPlatformSection(null);
@@ -163,35 +174,15 @@ export default function CreatorDashboard({
   }
 
   function openCreatorDestination(page: string, id?: string) {
-    const route = String(page || "").toLowerCase();
+    const route = String(page || "").toLowerCase().replace(/-/g, "_");
     if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
-      setInboxTargetId(id);
-      setTab("inbox");
-      return;
+      setInboxTargetId(id); setTab("inbox"); return;
     }
-    if (
-      route === "operations_properties" ||
-      route === "listing_detail" ||
-      route === "detail" ||
-      route.includes("propert")
-    ) {
-      openOperation("properties", id);
-      return;
-    }
-    if (
-      route === "my_reservations" ||
-      route === "my_bookings" ||
-      route.includes("reservation") ||
-      route.includes("booking")
-    ) {
-      openOperation("bookings", id);
-      return;
-    }
-    if (route.includes("worker")) {
-      openOperation("workers", id);
-      return;
-    }
-    onNavigate?.(page, id);
+    const target = internalActivityDestination(route, id);
+    if (target?.operation === "security") { toast.error("Open Security Operations from the team workspace for this case."); return; }
+    if (target) { openOperation(target.operation, target.id); return; }
+    if (["profile", "privacy", "security", "devices", "privacy_policy", "terms_of_service"].includes(route)) { onNavigate?.(route, id); return; }
+    toast.error("This update cannot be opened in the current workspace. Your workspace has not changed.");
   }
 
   const nav = NAV.map((item) =>
@@ -220,9 +211,9 @@ export default function CreatorDashboard({
         description={currentPlatform?.note || workspaceDescription}
         onBack={tab === "operations" && operation ? () => {
           if (platformSection) setPlatformSection(null);
-          else { setOperation(null); setOperationTarget(null); }
+          else closeOperation();
         } : undefined}
-        backLabel={platformSection ? "Back to platform settings" : "Back to work areas"}
+        backLabel={platformSection ? "Back to platform settings" : returnToInbox ? "Back to Inbox" : "Back to work areas"}
         items={nav}
         active={tab}
         setActive={(id) => {
@@ -252,9 +243,10 @@ export default function CreatorDashboard({
               if (!next) setOperationTarget(null);
             }}
             onView={setViewing}
+            onExitRecord={returnToInbox ? closeOperation : undefined}
           />
         )}
-        {tab === "inbox" && (
+        {(tab === "inbox" || inboxVisited) && <div hidden={tab !== "inbox"} inert={tab !== "inbox"}>
           <CreatorInbox
             profile={profile}
             onNavigate={openCreatorDestination}
@@ -262,7 +254,7 @@ export default function CreatorDashboard({
             initialConversationId={inboxTargetId}
             summary={inboxSummary}
           />
-        )}
+        </div>}
       </WorkspaceFrameV2>
       {workspaceAccess && onSwitchWorkspace ? (
         <WorkspaceSwitchSheet
@@ -296,7 +288,9 @@ function Operations({
   target,
   setActive,
   onView,
+  onExitRecord,
 }: {
+  onExitRecord?: () => void;
   profile: Profile;
   platformSection: PlatformSection | null;
   setPlatformSection: (section: PlatformSection | null) => void;
@@ -345,6 +339,7 @@ function Operations({
         <div className="space-y-5">
           <AccountIdentityReviewQueue accountRole="property_partner" />
           <PropertyPipelineWorkspace
+            onExitRecord={onExitRecord}
             profile={profile}
             initialRecordId={
               target?.operation === "properties" ? target.id : undefined

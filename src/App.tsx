@@ -1,3 +1,7 @@
+import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
+import { parsePropertyShareUrl, type SharedProperty } from "@/lib/propertyShare";
+import SharedPropertyWorkspacePrompt from "@/components/SharedPropertyWorkspacePrompt";
+import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
@@ -298,10 +302,21 @@ function normalizePageForRole(
 
 export default function App() {
   const auth = useAuth();
-  return <AppSession key={auth.profile?.auth_id || "signed-out"} auth={auth} />;
+  const [propertyIntent, setPropertyIntent] = useState<SharedProperty | null>(() => {
+    try { return readPropertyLinkIntent(window.location.href, sessionStorage); }
+    catch { return parsePropertyShareUrl(window.location.href); }
+  });
+  const consumePropertyIntent = useCallback(() => setPropertyIntent(null), []);
+  useEffect(() => { try { savePropertyLinkIntent(propertyIntent, sessionStorage); } catch {} }, [propertyIntent]);
+  useEffect(() => {
+    const readLink = () => { const next = parsePropertyShareUrl(window.location.href); if (next) setPropertyIntent(next); };
+    window.addEventListener("hashchange", readLink);
+    return () => window.removeEventListener("hashchange", readLink);
+  }, []);
+  return <AppSession key={auth.profile?.auth_id || "signed-out"} auth={auth} propertyIntent={propertyIntent} consumePropertyIntent={consumePropertyIntent} />;
 }
 
-function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
+function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: ReturnType<typeof useAuth>; propertyIntent: SharedProperty | null; consumePropertyIntent: () => void }) {
   const [navPage, setNavPage] = useState<NavPage>("search"),
     [conversationOpen, setConversationOpen] = useState(false),
     [detailId, setDetailId] = useState<string | null>(null),
@@ -696,7 +711,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       setChatPeerId(null);
       handleSetNavPage("conversation");
     };
-    const openNotifications = () => handleSetNavPage("conversation");
+    const openNotifications = () => handleSetNavPage("activity");
     const refreshUnread = () => void count();
     window.addEventListener("wehouse:unread-changed", refreshUnread);
     const chatChannel = supabase
@@ -983,8 +998,16 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const openUserDestination = useCallback(
     (page: string, id?: string) => {
       const route = page.toLowerCase().replace(/-/g, "_");
-      if (id && (route === "detail" || route === "listing_detail"))
-        return goToDetail(id);
+      const property = publicPropertyDestination(route, id);
+      if (property?.kind === "listing") return goToDetail(property.id);
+      if (property?.kind === "hotel") {
+        setHotelId(property.id);
+        return goTo("hotel_detail");
+      }
+      if (["detail", "listing_detail", "hotel_detail"].includes(route)) {
+        toast.error("This property link is invalid. Open it again from Saved or Explore.");
+        return;
+      }
       if (
         ["conversation", "conversations", "message", "messages", "chat"].includes(
           route,
@@ -1011,6 +1034,11 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     },
     [goTo, goToChat, goToDetail],
   );
+  useEffect(() => {
+    if (!propertyIntent || !isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
+    openUserDestination(propertyIntent.kind === "hotel" ? "hotel_detail" : "detail", propertyIntent.id);
+    consumePropertyIntent();
+  }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, openUserDestination, consumePropertyIntent]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
       [handleSetNavPage],
@@ -1196,9 +1224,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           <Saved
             {...props}
             onBack={subpageBack}
-            onNavigate={(p: string, id?: string) =>
-              id ? goToDetail(id) : goTo(p as NavPage)
-            }
+            onNavigate={openUserDestination}
           />
         ) : (
           renderRoleRoot()
@@ -1357,20 +1383,14 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         );
       case "hotels":
         return isUserRole ? (
-          <HotelsHome
-            onNavigate={(p: string, id?: string) => {
-              if (p === "hotel_detail" && id) {
-                setHotelId(Number(id));
-                goTo("hotel_detail");
-              } else goTo(p as NavPage);
-            }}
-          />
+          <HotelsHome onNavigate={openUserDestination} />
         ) : (
           renderRoleRoot()
         );
       case "hotel_detail":
         return isUserRole && hotelId ? (
           <HotelDetail
+            onGoToChat={goToChat}
             hotelId={hotelId}
             onBack={subpageBack}
             onBook={(h, r, ratePlanId, ci, co) => {
@@ -1459,6 +1479,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     );
   return (
     <CreatorAuthProvider>
+      {propertyIntent && profile && !isUserRole && <SharedPropertyWorkspacePrompt onConfirm={() => switchWorkspace("personal")} onDismiss={consumePropertyIntent} />}
       <Suspense fallback={<RouteTransitionFallback />}>
         <Suspense fallback={null}>
           <PrivateCallCenter />

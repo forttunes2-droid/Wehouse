@@ -1,3 +1,4 @@
+import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -102,7 +103,7 @@ function NotificationFeed({
     if (failures.length === 2) setError(failures.join(" · "));
     else {
       const events = currentActivityRows(
-        ((eventResult.rows || []) as Omit<Activity, "source">[]).map((row) => ({
+        ((eventResult.rows || []) as Omit<Activity, "source">[]).filter(row => activityWorkspaceMatches(scope, row.workspace)).map((row) => ({
           ...row,
           source: "event" as const,
         })),
@@ -218,6 +219,10 @@ function NotificationFeed({
   }
 
   async function open(row: Activity) {
+    if (row.source === "event" && !activityWorkspaceMatches(scope, row.workspace)) {
+      toast.error("This update belongs to a different workspace. Refresh Activity.");
+      return;
+    }
     void markRead(row);
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));

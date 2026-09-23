@@ -1,3 +1,5 @@
+import SharedPropertyCard from "@/components/SharedPropertyCard";
+import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, parsePropertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -157,6 +159,7 @@ export default function Chat({
   activityUnreadCount = 0,
   onActivityUnreadChange,
 }: Props) {
+  const [propertyDraft, setPropertyDraft] = useState<SharedProperty | null>(null);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const cachedInbox = inboxCache.get(profile.user_id);
   const [openingConversation, setOpeningConversation] = useState(Boolean(conversationId));
@@ -208,6 +211,16 @@ export default function Chat({
     refresh: refreshInboxSecurity,
   } = useSecureInboxAccess(profile.user_id);
   const activeRef = useRef<Conversation | null>(null);
+  const messageLoadGeneration = useRef(0);
+  const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const currentIdentityRef = useRef(profile.user_id);
+  const composerRef = useRef({ input, files, propertyDraft });
+  useEffect(() => { composerRef.current = { input, files, propertyDraft }; }, [input, files, propertyDraft]);
+  useEffect(() => {
+    mountedRef.current = true; currentIdentityRef.current = profile.user_id;
+    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; };
+  }, [profile.user_id]);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
@@ -342,39 +355,27 @@ export default function Chat({
 
   const loadRoommateMessages = useCallback(
     async (id: string, quiet = false) => {
-      if (!quiet) setLoadingMessages(true);
       const currentActive = activeRef.current;
-      const conversation =
-        (currentActive?.id === id ? currentActive : null) ||
-        conversationsRef.current.find((row) => row.id === id);
-      const peer = conversation ? otherId(conversation) : null;
-      const [result, callResult] = await Promise.all([
-        getMessages(id, peer),
-        supabase
-          .from("private_calls")
-          .select("*")
-          .eq("context_type", "roommate")
-          .eq("context_id", id)
-          .order("created_at", { ascending: true })
-          .limit(100),
-      ]);
-      if (result.error) {
-        if (!quiet)
-          toast.error(result.error.message || "Unable to open conversation");
-        setLoadingMessages(false);
-        return;
-      }
-      setMessages((result.messages || []) as RoommateMessage[]);
-      setActiveCalls((callResult.data || []) as PrivateCall[]);
-      await Promise.all([
-        markMessagesSeen(id),
-        supabase
-          .from("notifications")
-          .update({ read: true })
-          .eq("recipient_id", profile.user_id)
-          .eq("related_id", id),
-      ]);
-      setLoadingMessages(false);
+      if (!currentActive || currentActive.id !== id) return;
+      const request = ++messageLoadGeneration.current;
+      const current = () => mountedRef.current && currentIdentityRef.current === profile.user_id && request === messageLoadGeneration.current && activeRef.current?.id === id;
+      if (!quiet) setLoadingMessages(true);
+      try {
+        const [result, callResult] = await withTimeout(Promise.all([
+          getMessages(id, otherId(currentActive)),
+          supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100),
+        ]), 18000, "Messages took too long to load. Please try again.");
+        if (!current()) return;
+        if (result.error) throw result.error;
+        setMessages((result.messages || []) as RoommateMessage[]);
+        setActiveCalls((callResult.data || []) as PrivateCall[]);
+        await Promise.all([
+          markMessagesSeen(id),
+          supabase.from("notifications").update({ read: true }).eq("recipient_id", profile.user_id).eq("related_id", id),
+        ]);
+      } catch (error) {
+        if (current() && !quiet) toast.error(error instanceof Error ? error.message : "Unable to open conversation. Please try again.");
+      } finally { if (current()) setLoadingMessages(false); }
     },
     [profile.user_id, otherId],
   );
@@ -610,6 +611,7 @@ export default function Chat({
   async function openConversation(conv: Conversation) {
     setActive(conv);
     setInput("");
+    setPropertyDraft(null);
     setFiles([]);
     setMenuOpen(false);
   }
@@ -647,17 +649,27 @@ export default function Chat({
       );
     }
   }
+  useEffect(() => {
+    setPropertyDraft(active ? pendingPropertyShare(profile.user_id, active.id) : null);
+  }, [profile.user_id, active?.id]);
+
   async function submit() {
-    if (!active || sending || (!input.trim() && !files.length)) return;
+    if (!active || sendingRef.current || sending || (!input.trim() && !files.length && !propertyDraft)) return;
     if (secureChat?.state !== "ready")
       return toast.error("Secure conversation must be ready before sending");
-    const content = input.trim();
+    const target = active;
+    const stillHere = () => mountedRef.current && currentIdentityRef.current === profile.user_id && activeRef.current?.id === target.id;
+    sendingRef.current = true;
+    const note = input.trim();
+    const shared = propertyDraft;
+    const content = shared ? propertyShareMessage(shared, note) : note;
     const queuedFiles = [...files];
     const replyTarget = replyingTo;
     const optimisticId = `pending-${Date.now()}`;
     const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
     setSending(true);
     setInput("");
+    setPropertyDraft(null);
     setFiles([]);
     setReplyingTo(null);
     setMessages((current) => [
@@ -705,31 +717,34 @@ export default function Chat({
       );
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
-      setSending(false);
-      await loadRoommateMessages(active.id);
-      void loadInbox(true);
+      if (shared) clearPropertyShare(profile.user_id, active.id);
+      if (stillHere()) { setSending(false); await loadRoommateMessages(target.id); }
+      if (mountedRef.current) void loadInbox(true);
     } catch (error: unknown) {
-      setMessages((current) => current.filter((message) => message.id !== optimisticId));
-      setInput(content);
-      setFiles(queuedFiles);
-      setReplyingTo(replyTarget);
+      if (stillHere()) {
+        const hasNewDraft = Boolean(composerRef.current.input.trim() || composerRef.current.files.length || composerRef.current.propertyDraft);
+        setMessages(current => hasNewDraft ? current.map(message => message.id === optimisticId ? { ...message, delivery_state: "failed" } : message) : current.filter(message => message.id !== optimisticId));
+        if (!hasNewDraft) { setInput(note); setPropertyDraft(shared); setFiles(queuedFiles); setReplyingTo(replyTarget); }
+      }
       for (const path of paths) await deleteRoommateChatAttachment(path);
       const message =
         error instanceof Error ? error.message : "Message could not be sent";
+      if (!stillHere()) return;
       if (/encrypted chat is ready/i.test(message)) {
         setSecureChat(null);
         void privateConversationReadiness(
           "roommate",
           active.id,
           otherId(active),
-        ).then(setSecureChat);
+        ).then(value => { if (stillHere()) setSecureChat(value); });
         toast.error(
           "Secure conversation is ready now. Send again to protect this message.",
         );
       } else toast.error(message);
     } finally {
       optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
-      setSending(false);
+      sendingRef.current = false;
+      if (mountedRef.current) setSending(false);
     }
   }
   async function deleteFromMessages() {
@@ -1158,6 +1173,7 @@ export default function Chat({
                 ) : (
                   <RoommateBubble
                     msg={event.message}
+                    onOpenProperty={onNavigate}
                     mine={event.message.sender_id === profile.user_id}
                     quoted={
                       event.message.reply_to_id
@@ -1219,6 +1235,10 @@ export default function Chat({
               />
             ) : (
               <>
+                {propertyDraft && <div className="mb-2 flex items-start gap-2 rounded-xl border border-violet-400/30 p-2">
+                  <div className="min-w-0 flex-1"><p className="mb-1 text-sm font-medium text-violet-200">Ready to send</p><SharedPropertyCard property={propertyDraft} onOpen={onNavigate} /></div>
+                  <button type="button" aria-label="Remove property from message" className="grid h-11 w-11 shrink-0 place-items-center text-lg text-[#AAA3B3]" onClick={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }}>×</button>
+                </div>}
                 {files.length > 0 && (
                   <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
                     {files.map((file, index) => (
@@ -1259,7 +1279,7 @@ export default function Chat({
                           : person?.name || "message"}
                       </p>
                       <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
-                        {replyingTo.content ||
+                        {propertyMessagePreview(replyingTo.content || "") ||
                           ((replyingTo.attachments || []).length
                             ? "Attachment"
                             : "Message")}
@@ -1305,7 +1325,7 @@ export default function Chat({
                   </div>
                   <button
                     onClick={() => void submit()}
-                    disabled={sending || (!input.trim() && !files.length)}
+                    disabled={sending || (!input.trim() && !files.length && !propertyDraft)}
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#636878]"
                     aria-label="Send"
                   >
@@ -1960,7 +1980,9 @@ function RoommateBubble({
   onOpenActions,
   onTapReaction,
   onReply,
+  onOpenProperty,
 }: {
+  onOpenProperty: (page: string, id: string) => void;
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
@@ -1968,6 +1990,7 @@ function RoommateBubble({
   onTapReaction: (anchor: DOMRect) => void;
   onReply: () => void;
 }) {
+  const shared = parsePropertyShareMessage(msg.content || "");
   const reactions = Object.values(msg.reactions || {}).reduce<
     Record<string, number>
   >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
@@ -1989,7 +2012,7 @@ function RoommateBubble({
               {quoted.sender_id === msg.sender_id ? "Earlier message" : "Reply"}
             </p>
             <p className="mt-0.5 line-clamp-2 text-[10px] opacity-80">
-              {quoted.content ||
+              {propertyMessagePreview(quoted.content || "") ||
                 ((quoted.attachments || []).length ? "Attachment" : "Message")}
             </p>
           </div>
@@ -2001,11 +2024,10 @@ function RoommateBubble({
             type={msg.attachment_types?.[index] || ""}
           />
         ))}
-        {msg.content && (
-          <p className="whitespace-pre-wrap text-[12px] leading-5">
-            {msg.content}
-          </p>
-        )}
+        {shared ? <>
+          {shared.text && <p className="mb-2 whitespace-pre-wrap text-sm leading-6">{shared.text}</p>}
+          <SharedPropertyCard property={shared.property} onOpen={onOpenProperty} />
+        </> : msg.content && <p className="whitespace-pre-wrap text-sm leading-6">{msg.content}</p>}
         <p
           className={`mt-1 text-right text-[8px] ${mine ? "text-violet-100/70" : "text-[#626677]"}`}
         >

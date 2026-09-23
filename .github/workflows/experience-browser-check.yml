@@ -10,7 +10,7 @@ concurrency:
 jobs:
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,7 +22,7 @@ jobs:
           output = pathlib.Path('test-results/review-source')
           output.mkdir(parents=True, exist_ok=True)
           (output / 'reviewed-commit.txt').write_text(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))
-          prefixes = ('src/', 'tests/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
+          prefixes = ('public/', 'src/', 'tests/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
           configs = {'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.app.json', 'tailwind.config.js', 'tailwind.config.ts', 'postcss.config.js', 'postcss.config.cjs', 'eslint.config.js', 'index.html'}
           names = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
           with tarfile.open(output / 'review-source.tar.gz', 'w:gz') as bundle:
@@ -60,10 +60,27 @@ jobs:
             sleep 1
           done
           failed=0
-          for test in property_routing experience welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
+          for test in property_experience property_link property_routing experience welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0
+      - name: Verify real bundle startup failures remain safe and recoverable
+        if: ${{ !cancelled() }}
+        env:
+          VITE_SUPABASE_URL: https://rkrhnkhppeihvmuwvsvn.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_isolated_guard_test
+        run: |
+          # Deliberately unsafe for localhost: the production guard must block it
+          # before any database request, and the independent startup shell must render.
+          node node_modules/vite/bin/vite.js build --outDir test-results/startup-bundle
+          python -m http.server 4321 --bind 127.0.0.1 --directory test-results/startup-bundle > /tmp/wehouse-startup-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for attempt in $(seq 1 15); do
+            curl --fail --silent http://127.0.0.1:4321 >/dev/null && break
+            sleep 1
+          done
+          python tests/browser/startup_bundle.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

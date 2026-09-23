@@ -1,3 +1,5 @@
+import PropertyShareDialog from "@/components/PropertyShareDialog";
+import { withTimeout } from "@/lib/withTimeout";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +41,7 @@ type HotelDetailRow = Hotel & {
 type Props = {
   hotelId: number;
   onBack: () => void;
+  onGoToChat?: (id: string) => void;
   onBook: (
     hotelId: number,
     roomId: number,
@@ -52,11 +55,13 @@ type Props = {
 export default function HotelDetailExperience({
   hotelId,
   onBack,
+  onGoToChat,
   onBook,
   profile,
 }: Props) {
   const { location } = useDiscoveryLocation();
   const [attempt, setAttempt] = useState(0);
+  const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
   const [hotel, setHotel] = useState<HotelDetailRow | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,28 +94,26 @@ export default function HotelDetailExperience({
 
   useEffect(() => {
     let live = true;
+    setLoading(true); setHotel(null); setReviews([]); setSaved(false);
+    setSelectedRoom(null); setSelectedRate(null); setReviewEligible(false);
+    setCheckIn(""); setCheckOut(""); setCurrentImage(0); setRoomImage(0);
+    // Optional reviews and Saved cannot delay the primary hotel record.
+    void withTimeout(getHotelReviews(hotelId), 12000, "Reviews took too long.")
+      .then(result => { if (live) { setReviews(result.reviews); setReviewEligible(result.eligible); } })
+      .catch(() => undefined);
+    void withTimeout(getMySavedHotelIds(), 12000, "Saved took too long.")
+      .then(result => { if (live && !result.error) setSaved(result.hotelIds.includes(hotelId)); })
+      .catch(() => undefined);
     void (async () => {
-      setLoading(true);
-      // Secondary reviews and saved state must not delay the hotel itself.
-      void getHotelReviews(hotelId).then(result => { if (live) { setReviews(result.reviews); setReviewEligible(result.eligible); } });
-      void getMySavedHotelIds().then(result => { if (live && !result.error) setSaved(result.hotelIds.includes(hotelId)); });
-      const hotelResult = await getHotelById(hotelId);
-      if (!live) return;
-      if (hotelResult.error || !hotelResult.hotel) {
-        toast.error("Hotel could not be loaded");
-        setHotel(null);
-      } else {
-        setHotel(hotelResult.hotel as HotelDetailRow);
-        // Never choose for the guest. Room + package are explicit decisions.
-        setSelectedRoom(null);
-        setSelectedRate(null);
-        setRoomImage(0);
-      }
-      setLoading(false);
+      try {
+        const result = await withTimeout(getHotelById(hotelId), 15000, "Hotel took too long to load.");
+        if (!live) return;
+        if (result.error || !result.hotel || String(result.hotel.hotel_id) !== String(hotelId)) throw new Error("Hotel could not be loaded");
+        setHotel(result.hotel as HotelDetailRow);
+      } catch { if (live) toast.error("Hotel could not be loaded. Please try again."); }
+      finally { if (live) setLoading(false); }
     })();
-    return () => {
-      live = false;
-    };
+    return () => { live = false; };
   }, [hotelId, profile.user_id, attempt]);
 
   useEffect(() => {
@@ -258,6 +261,7 @@ export default function HotelDetailExperience({
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
 
 
+      {sendPropertyOpen && onGoToChat && <PropertyShareDialog userId={profile.user_id} property={{ kind: "hotel", id: String(hotelId) }} title={hotel.name} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
       <main className="mx-auto max-w-5xl space-y-5 px-4 pb-5 sm:px-6">
         <section className="-mx-4 overflow-hidden border-y border-white/[.07] sm:mx-0 sm:rounded-2xl sm:border">
           <div className="relative aspect-[4/3] bg-[#171B24] sm:aspect-[16/9]">
@@ -323,6 +327,7 @@ export default function HotelDetailExperience({
             ) : null}
           </div>
         </section>
+        {onGoToChat && <div className="flex justify-end"><button type="button" onClick={() => setSendPropertyOpen(true)} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Send property ↗</button></div>}
 
         {amenities.length ? (
           <section className="border-y border-white/[.06] py-4">

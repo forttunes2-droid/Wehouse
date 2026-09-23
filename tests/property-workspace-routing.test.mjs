@@ -78,8 +78,11 @@ test('Creator profile preserves its caller while opening the authorized internal
 
 test('hotel sections separate daily work from setup and team, retaining capability gates', () => {
   const source = read('src/components/PartnerHotelOperations.tsx');
-  for (const label of ['Overview', 'Reservations', 'Rooms and packages', 'Availability', 'Property details', 'Team']) assert.ok(source.includes(`label: "${label}"`));
+  for (const label of ['Today', 'Reservations', 'Rooms and packages', 'Availability', 'Property details', 'Team']) assert.ok(source.includes(`label: "${label}"`));
   assert.match(source, /visibleSection === "team" && canManageTeam/);
+  assert.match(source, /matchesHotelReservationFilter\(row, reservationFilter, date\)/);
+  assert.doesNotMatch(source, /visibleSection === "overview" \|\| visibleSection === "availability"/);
+  assert.doesNotMatch(source, /overflow-x-auto/);
   assert.match(source, /visibleSection === "reservations" && canReadStays/);
   assert.match(source, /setLiveCapabilities\(\[\]\)/);
   assert.match(source, /generation !== loadGeneration.current/);

@@ -46,7 +46,7 @@ async def main():
      elif name=='get_my_hotel_booking_target': data={'booking_id':42,'hotel_id':7}
      elif name=='inspection_requests': data=[REQUEST]
      elif name=='get_my_workspace_inbox': data=[SUPPORT] if args.get('p_kind')=='wehouse' and mode=='partner' else []
-     elif name=='get_my_canonical_activity_v2': data=[EVENT]
+     elif name=='get_my_canonical_activity_v2': data=[{**EVENT,'workspace':args.get('p_workspace')}]
      elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
      elif name=='get_internal_profile_record': data={'account':{},'workspaces':[{'role':'property_partner','status':'active'}],'hotels_owned':[HOTEL], 'apartments':[], 'hotel_team':[], 'wehouse_team':[]}
      elif name=='get_my_property_pipeline_v2': data=[REQUEST]
@@ -84,27 +84,33 @@ async def main():
      await expect(page.get_by_text(re.compile('2 room types.*3 rooms'))).to_be_visible()
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
      sections=page.get_by_role('navigation',name='Hotel sections')
-     await expect(sections.get_by_role('button')).to_have_count(6)
+     await expect(sections.get_by_role('button')).to_have_count(3)
+     await expect(page.get_by_role('button',name='Hotel setup',exact=True)).to_be_visible()
      # A navigation-only screenshot can pass while the actual hotel surface is blank.
      # Wait for the authorized snapshot and assert its inventory before capturing evidence.
      await expect(page.get_by_role('heading',name='Today at the hotel',exact=True)).to_be_visible()
      await expect(page.get_by_role('status',name='Loading hotel operation',exact=True)).to_have_count(0)
-     await expect(page.get_by_text('Rooms available',exact=True).locator('..').get_by_text('3',exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name=re.compile('^Rooms available:')).get_by_text('3',exact=True)).to_be_visible()
      await expect(page.locator('[data-room-availability="8"]').get_by_text('2 sellable',exact=True)).to_be_visible()
      await expect(page.locator('[data-room-availability="9"]').get_by_text('1 sellable',exact=True)).to_be_visible()
+     await expect(page.get_by_role('heading',name='Physical room board',exact=True)).to_have_count(0)
      await fits(); await page.screenshot(path=str(OUT/f'property-hotel-overview-{width}.png'),full_page=True)
+     await page.get_by_role('button',name=re.compile('^Rooms available:')).click()
+     await expect(page.get_by_role('heading',name='Physical room board',exact=True)).to_be_visible()
+     await sections.get_by_role('button',name='Today',exact=True).click()
+     await expect(page.get_by_role('heading',name='Physical room board',exact=True)).to_have_count(0)
      # Physical restrictions must change the headline and the room rows together.
      unit_mode='maintenance'; await page.evaluate('window.dispatchEvent(new Event("focus"))')
-     await expect(page.get_by_text('Rooms available',exact=True).locator('..').get_by_text('2',exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name=re.compile('^Rooms available:')).get_by_text('2',exact=True)).to_be_visible()
      await expect(page.locator('[data-room-availability="8"]').get_by_text('1 sellable',exact=True)).to_be_visible()
      await expect(page.get_by_text('Maintenance reduces capacity',exact=True)).to_be_visible()
      unit_mode='missing'; await page.evaluate('window.dispatchEvent(new Event("focus"))')
-     await expect(page.get_by_text('Rooms available',exact=True).locator('..').get_by_text('0',exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name=re.compile('^Rooms available:')).get_by_text('0',exact=True)).to_be_visible()
      await expect(page.get_by_text('0 sellable',exact=True)).to_have_count(2)
      await expect(page.get_by_text('Room setup incomplete',exact=True)).to_have_count(2)
      await expect(page.get_by_text('Maintenance reduces capacity',exact=True)).to_have_count(0)
      unit_mode='ready'; await page.evaluate('window.dispatchEvent(new Event("focus"))')
-     await expect(page.get_by_text('Rooms available',exact=True).locator('..').get_by_text('3',exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name=re.compile('^Rooms available:')).get_by_text('3',exact=True)).to_be_visible()
      await sections.get_by_role('button',name='Reservations',exact=True).click()
      await expect(page.get_by_text('Guest Forty Two',exact=True)).to_be_visible()
      await expect(page.get_by_text('No active payment',exact=True)).to_be_visible()
@@ -152,14 +158,17 @@ async def main():
      await page.get_by_role('button',name='View partner',exact=True).click()
      await page.get_by_role('button',name=re.compile('^Hotels')).first.click()
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
-     await page.get_by_role('button',name='Open in Property Operations',exact=True).click()
      await expect(page.get_by_role('button',name='Close property',exact=True)).to_be_visible()
      await expect(page.get_by_text('Test Lodge',exact=True).first).to_be_visible()
      assert any(name=='get_my_property_hotel_record' and args.get('p_hotel_id')==7 for name,args in calls)
      assert not any(name=='get_public_hotel_detail' for name,args in calls)
      await fits(); await page.screenshot(path=str(OUT/f'creator-profile-hotel-record-{width}.png'))
      await page.go_back()
-     await expect(page.get_by_role('button',name='Open in Property Operations',exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name=re.compile('Test Lodge'))).to_be_visible()
+     await page.go_back()
+     await expect(page.get_by_role('heading',name='Account profile',exact=True)).to_be_visible()
+     await page.go_back()
+     await expect(page.get_by_role('button',name='View partner',exact=True)).to_be_visible()
      assert await page.evaluate('history.state.workspace')=='creator'
      assert not errors,errors
      results.append({'viewport':[width,height],'passed':True,'checks':['Account reachable/no duplicate avatar or switcher','All and Live same hotel manager','rendered overview and actual available-room total before screenshot','headline and room rows agree after maintenance or incomplete setup','inventory from server projection','hotel sections permission-scoped','cancelled unpaid copy','property title not inspection code','exact stay target not chat','button and browser Back retain Activity and workspace','access re-fetch clears private guest data','hotel read-only team Activity','Creator scoped hotel and Back to partner profile'],'page_errors':errors})

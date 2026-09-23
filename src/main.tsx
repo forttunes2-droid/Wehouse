@@ -12,6 +12,7 @@ import NativeSelectBridge from '@/components/NativeSelectBridge'
 import NativeDateBridge from '@/components/NativeDateBridge'
 
 function NativeInit() {
+  useEffect(() => { document.documentElement.dataset.whReactMounted = "true"; }, []);
   useEffect(() => {
     if (!isNative()) return;
     import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
@@ -80,7 +81,7 @@ function MobileViewportInit() {
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('WeHouse root element is missing');
 
-document.documentElement.dataset.whReactMounted = 'true';
+
 createRoot(rootElement).render(
   <StrictMode>
     <ErrorBoundary>

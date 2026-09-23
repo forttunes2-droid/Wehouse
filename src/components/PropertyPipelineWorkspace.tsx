@@ -150,7 +150,7 @@ export default function PropertyPipelineWorkspace({
         );
   return (
     <div className="space-y-5">
-      {onExitRecord ? <button onClick={onExitRecord} className="min-h-11 text-sm text-violet-300">← Back to profile</button> : null}
+      {onExitRecord ? <button onClick={onExitRecord} className="min-h-11 text-sm text-violet-300">← Go back</button> : null}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-bold">Property records</h3>
