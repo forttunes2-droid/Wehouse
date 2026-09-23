@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 3
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -28,9 +28,8 @@ jobs:
           expected='f19da2fe7d6c85628e789793e5c30ddc5ee3cfe2'
           base_tree='5e18c7c34b131ea089af52b953d840cac64852e1'
           def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
-          assert git('rev-parse','HEAD^')==expected, 'Source moved; reconcile instead of overwriting'
-          assert git('rev-parse','HEAD^{tree}')!=base_tree
-          assert git('rev-parse','HEAD^:')==base_tree
+          assert git('rev-parse','HEAD^')=='f326834a79eafab63f88d9524fc5f3d32c4b729d', 'Source moved; reconcile instead of overwriting'
+          assert git('rev-parse','HEAD^^')==expected and git('rev-parse','HEAD^^:')==base_tree
           raw=lzma.decompress(b''.join((root/f'tools/current-property-repair.{i}.xzpart').read_bytes() for i in range(7)))
           assert hashlib.sha256(raw).hexdigest()=='c9090db331470c823e336b4bc14c7fab48c12f2818c21ecdf5adcda8a6ec553f'
           delta=json.loads(raw)
@@ -48,8 +47,7 @@ jobs:
                   assert not path.exists(); old=b''
               else:
                   old=path.read_bytes(); assert hashlib.sha256(old).hexdigest()==row['old'], name
-              lines=old.decode('utf-8').splitlines(keepends=True)
-              limit=len(lines)
+              lines=old.decode('utf-8').splitlines(keepends=True); limit=len(lines)
               for start,end,text in reversed(row['edits']):
                   assert isinstance(start,int) and isinstance(end,int) and 0<=start<=end<=limit
                   lines[start:end]=text.splitlines(keepends=True); limit=start
@@ -63,7 +61,7 @@ jobs:
           (root/'.github/workflows/prepare-current-property-repair.yml').unlink()
           subprocess.run(['git','add','--all'],check=True)
           assert git('write-tree')=='8923cd21cb0730a082c79008a2bb1d814b79d484', 'Final tree differs from locally verified source'
-          print('Verified all 42 preimages/postimages and exact final tree; removed temporary transport files.')
+          print('Verified all 42 preimages/postimages and exact final tree.')
           PY
       - run: npm ci
       - name: Lint, unit tests, types and production build
@@ -73,36 +71,37 @@ jobs:
           npm run lint 2>&1 | tee "$RUNNER_TEMP/property-repair-evidence/lint.log"
           npm test 2>&1 | tee "$RUNNER_TEMP/property-repair-evidence/tests.log"
           npm run build 2>&1 | tee "$RUNNER_TEMP/property-repair-evidence/build.log"
-      - name: Create immutable reviewed commit object without moving any branch
+      - name: Prepare application-only tree without workflow edits or branch changes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import json,os,pathlib,subprocess,urllib.request
+          import json,os,pathlib,subprocess,urllib.request,urllib.error
           repo=os.environ['GITHUB_REPOSITORY']; head=os.environ['GITHUB_SHA']
           branch='codex/property-workspace-routing-20260922'
           assert repo=='forttunes2-droid/Wehouse'
           def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
           def api(method,path,body=None):
               request=urllib.request.Request('https://api.github.com/repos/'+repo+path,data=None if body is None else json.dumps(body).encode(),method=method,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'})
-              with urllib.request.urlopen(request,timeout=90) as response: return json.load(response)
-          assert api('GET','/git/ref/heads/'+branch)['object']['sha']==head, 'Branch moved; do not prepare stale commit'
+              try:
+                  with urllib.request.urlopen(request,timeout=90) as response: return json.load(response)
+              except urllib.error.HTTPError as error:
+                  print('GitHub operation rejected:',error.code,error.read().decode()); raise
+          assert api('GET','/git/ref/heads/'+branch)['object']['sha']==head, 'Branch moved; do not prepare stale tree'
           assert git('write-tree')=='8923cd21cb0730a082c79008a2bb1d814b79d484'
-          names=git('diff','--cached','--name-only','HEAD').splitlines()
-          entries=[]
+          names=git('diff','--cached','--name-only','HEAD').splitlines(); entries=[]
           for name in names:
-              path=pathlib.Path(name)
-              row={'path':name,'type':'blob','mode':'100644'}
+              # Actions cannot edit workflow files. Those edits are left to the
+              # connected user's authorised native GitHub action after verification.
+              if name.startswith('.github/workflows/'): continue
+              path=pathlib.Path(name); row={'path':name,'type':'blob','mode':'100644'}
               if path.exists(): row['content']=path.read_text()
               else: row['sha']=None
               entries.append(row)
           tree=api('POST','/git/trees',{'base_tree':git('rev-parse','HEAD^{tree}'),'tree':entries})
-          assert tree['sha']=='8923cd21cb0730a082c79008a2bb1d814b79d484', 'GitHub final tree mismatch'
-          commit=api('POST','/git/commits',{'message':'Restore Short Let dates, property sharing and workspace journeys','tree':tree['sha'],'parents':[head]})
-          evidence={'commit':commit['sha'],'parent':head,'tree':tree['sha'],'source_base':'f19da2fe7d6c85628e789793e5c30ddc5ee3cfe2','delta_sha256':'c9090db331470c823e336b4bc14c7fab48c12f2818c21ecdf5adcda8a6ec553f','branch_updated':False,'merged':False,'production_changed':False,'checks':['lint','unit tests','TypeScript','production build']}
-          output=pathlib.Path(os.environ['RUNNER_TEMP'])/'property-repair-evidence'/'commit.json'
-          output.write_text(json.dumps(evidence,indent=2)+'\n')
-          print(json.dumps(evidence,indent=2))
+          evidence={'parent':head,'application_tree':tree['sha'],'expected_final_tree':'8923cd21cb0730a082c79008a2bb1d814b79d484','source_base':'f19da2fe7d6c85628e789793e5c30ddc5ee3cfe2','delta_sha256':'c9090db331470c823e336b4bc14c7fab48c12f2818c21ecdf5adcda8a6ec553f','branch_updated':False,'merged':False,'production_changed':False,'workflow_edits_applied':False,'checks':['lint','unit tests','TypeScript','production build']}
+          output=pathlib.Path(os.environ['RUNNER_TEMP'])/'property-repair-evidence'/'tree.json'
+          output.write_text(json.dumps(evidence,indent=2)+'\n'); print(json.dumps(evidence,indent=2))
           PY
       - uses: actions/upload-artifact@v4
         if: always()
