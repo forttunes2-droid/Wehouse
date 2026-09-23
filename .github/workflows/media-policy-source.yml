@@ -1,0 +1,30 @@
+name: Media policy source snapshot
+on:
+  push:
+    branches: [codex/media-policy-source-20260923]
+    paths: [.github/workflows/media-policy-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    if: github.repository == 'forttunes2-droid/Wehouse'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0ac146af7703a92262b7dc8c9bb09c009a3d3b9b
+          persist-credentials: false
+      - name: Archive tracked source only
+        run: |
+          mkdir -p /tmp/media-policy-source
+          git archive --format=tar HEAD | gzip > /tmp/media-policy-source/source.tar.gz
+          git rev-parse HEAD > /tmp/media-policy-source/commit.txt
+          git rev-parse HEAD^{tree} > /tmp/media-policy-source/tree.txt
+          cd /tmp/media-policy-source
+          sha256sum source.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: media-policy-source
+          path: /tmp/media-policy-source/
+          retention-days: 1
