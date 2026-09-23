@@ -54,7 +54,7 @@ function LoadedPropertyCard({ property, onOpen, compact = false }: Props) {
     <span className="wh-property-copy"><span className="wh-property-kind">{preview.label}</span><span className="wh-property-title">{preview.title}</span><span className="wh-property-area">{preview.area}</span>{onOpen && !compact && <span className="wh-property-open">View property<ChevronRight size={17} aria-hidden="true" /></span>}</span>
   </>;
   const className = `wh-attachment-surface wh-property-attachment${compact ? ' wh-property-compact' : ''}`;
-  return onOpen ? <button type="button" className={className} aria-label={`View ${preview.title}`} onClick={event => { event.stopPropagation(); onOpen(property.kind === 'hotel' ? 'hotel_detail' : 'detail', property.id); }}>{contents}</button>
+  return onOpen ? <button type="button" data-message-swipe-surface="true" className={className} aria-label={`View ${preview.title}`} onClick={event => { event.stopPropagation(); onOpen(property.kind === 'hotel' ? 'hotel_detail' : 'detail', property.id); }}>{contents}</button>
     : <div className={className} aria-label={`Property to send: ${preview.title}`}>{contents}</div>;
 }
 

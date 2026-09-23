@@ -25,13 +25,24 @@ class Scenario:
 
 async def open_fixture(browser,mode,width):
  scenario=Scenario()
- context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block')
+ context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block',has_touch=True)
  page=await context.new_page();page.on('pageerror',lambda error:scenario.errors.append(str(error)))
  await page.route('**/*',scenario.route)
  await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0"><div id="root"></div></body></html>')
  await page.evaluate('(mode)=>{window.__attachmentMode=mode}',mode)
  await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
  return context,page,scenario
+async def swipe(page, target, dx, dy=0):
+ await target.scroll_into_view_if_needed()
+ box=await target.bounding_box();assert box
+ x=box['x']+box['width']/2;y=box['y']+box['height']/2
+ session=await page.context.new_cdp_session(page)
+ await session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
+ for i in range(1,9):
+  await session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x+dx*i/8,'y':y+dy*i/8}]})
+ await session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+ await page.wait_for_timeout(150);await session.detach()
+
 async def fits(page):
  assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
  for button in await page.locator('.wh-attachment-remove').all():
@@ -45,10 +56,36 @@ async def main():
   browser=await p.chromium.launch(**opts)
   try:
    for width in [320,390,768,1440]:
-    for mode in ['shared','picker','gallery','request','unavailable','error','hotel','policy']:
-     context,page,scenario=await open_fixture(browser,mode,width)
+    for mode in ['shared','picker','gallery','request','unavailable','error','hotel','policy','swipe-property','swipe-own-property','swipe-photo']:
+     context,page,scenario=await open_fixture(browser,{'swipe-property':'shared','swipe-own-property':'own-shared','swipe-photo':'gallery'}.get(mode,mode),width)
      try:
-      if mode=='shared':
+      if mode.startswith('swipe-'):
+       is_photo=mode=='swipe-photo';is_own=mode=='swipe-own-property'
+       target=page.get_by_role('button',name='Open photo 1 of 5' if is_photo else 'View Courtyard Long Let',exact=True)
+       await expect(target).to_be_visible();direction=-1 if is_own else 1
+       await swipe(page,target,-direction*94)
+       assert await page.evaluate('window.__replies||0')==0
+       assert await page.evaluate('!window.__opened')
+       await swipe(page,target,0,35)
+       assert await page.evaluate('window.__replies||0')==0
+       await swipe(page,target,direction*94)
+       assert await page.evaluate('window.__replies')==1
+       assert await page.evaluate('!window.__opened')
+       await expect(page.get_by_role('dialog',name='Shared media',exact=True)).to_have_count(0)
+       await expect(page.get_by_label('Reply selected',exact=True)).to_be_visible()
+       await page.get_by_placeholder('Message').fill('This works for me')
+       await page.get_by_role('button',name='Send message',exact=True).click()
+       assert await page.evaluate('window.__replyIds[0]')=='message'
+       await expect(page.get_by_text('This works for me',exact=True)).to_be_visible()
+       await expect(page.get_by_label('Reply selected',exact=True)).to_have_count(0)
+       await fits(page);await page.screenshot(path=str(OUT/f'wehouse-{mode}-{width}.png'))
+       await target.click()
+       if is_photo:
+        await expect(page.get_by_role('dialog',name='Shared media',exact=True)).to_be_visible()
+        await page.keyboard.press('Escape')
+       else:
+        assert await page.evaluate('window.__opened.id')=='long-home'
+      elif mode=='shared':
        card=page.get_by_role('button',name='View Courtyard Long Let',exact=True)
        await expect(card).to_be_visible();await fits(page)
        await page.screenshot(path=str(OUT/f'wehouse-shared-property-message-{width}.png'))

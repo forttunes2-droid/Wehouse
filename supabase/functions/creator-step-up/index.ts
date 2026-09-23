@@ -1,3 +1,4 @@
+import { hasLiveSession } from "../_shared/liveSession.ts";
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -64,6 +65,7 @@ serve(async (request) => {
     if (currentError || !current.user?.email) {
       return json({ success: false, error: 'Session expired. Sign in again.' }, 401);
     }
+    if (!await hasLiveSession(admin, current.user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
     const sessionId = jwtSessionId(token);
     if (!sessionId) return json({ success: false, error: 'Signed-in session is incomplete' }, 401);
 

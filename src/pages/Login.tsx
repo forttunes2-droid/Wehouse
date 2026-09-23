@@ -597,6 +597,10 @@ export default function Login({
     setWorking(true);
     try {
       clearGoogleVerification();
+      // Recovery must create a new provider session after the server request.
+      // It is not a reuse of a bearer already stored on this browser.
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) throw new Error("Could not prepare a new confirmation. Please try again.");
       const { data: attemptId, error: beginError } = await supabase.rpc(
         "begin_identity_provider_password_recovery",
         { p_identifier: clean, p_provider: "google" },
@@ -646,6 +650,14 @@ export default function Login({
         "provider-password-recovery",
         { body: { attempt_id: attemptId, new_password: password } },
       );
+      if (recovery?.password_changed === true && !recovery.success) {
+        clearGoogleVerification(); setPassword(""); setConfirmPassword(""); setRecoveryReady(false);
+        window.history.replaceState({}, "", window.location.pathname);
+        setMode("signin");
+        setInfo(String(recovery.error));
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        return;
+      }
       if (recoveryError || !recovery?.success) {
         setError(
           friendlyError(

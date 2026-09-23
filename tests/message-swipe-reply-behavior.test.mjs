@@ -41,3 +41,21 @@ test('long press opens once, cannot become reply and does not steal embedded con
   assert.equal(p.style.overflowX,'clip');assert.equal(p.style.overflowY,'visible');assert.equal(p.style.touchAction,'pan-y pinch-zoom');assert.equal(p.style.WebkitTouchCallout,'none');
 });
 
+
+test('property and media buttons opt into swipe without stealing a normal tap',()=>{
+  for(const alignment of ['flex-start','flex-end']) {
+    const h=gestureHarness(alignment),p=h.render(),direction=alignment==='flex-start'?1:-1;
+    const target={closest:()=>({getAttribute:key=>key==='data-message-swipe-surface'?'true':null})};
+    p.onPointerDown(h.event(0,0,{target}));assert.equal(h.captured.size,0,'tap must remain on its property/photo button');
+    p.onPointerUp(h.event(0,0,{target}));assert.equal(h.counts().replies,0);
+    p.onPointerDown(h.event(0,0,{target}));p.onPointerMove(h.event(100*direction,0,{target}));
+    assert.equal(h.captured.size,1);p.onPointerUp(h.event(100*direction,0,{target}));assert.equal(h.counts().replies,1);
+    let prevented=false;p.onClickCapture(h.event(100*direction,0,{target,preventDefault(){prevented=true;}}));assert.equal(prevented,true,'reply must not also open the property');
+  }
+});
+test('media surface wrong direction, scrolling, cancellation and hold remain distinct',()=>{
+  const h=gestureHarness(),p=h.render(),target={closest:()=>({getAttribute:()=> 'true'})};
+  p.onPointerDown(h.event(0,0,{target}));p.onPointerMove(h.event(-120,0,{target}));p.onPointerUp(h.event(-120,0,{target}));assert.equal(h.counts().replies,0);
+  p.onPointerDown(h.event(0,0,{target}));p.onPointerMove(h.event(2,40,{target}));p.onPointerMove(h.event(120,50,{target}));p.onPointerUp(h.event(120,50,{target}));assert.equal(h.counts().replies,0);
+  p.onPointerDown(h.event(0,0,{target}));for(const fn of h.timers.values())fn();p.onPointerMove(h.event(120,0,{target}));p.onPointerUp(h.event(120,0,{target}));assert.deepEqual(h.counts(),{replies:0,opens:1,taps:0});
+});

@@ -15,11 +15,14 @@ export type RoommateMatchProfile = {
   school: string | null;
   area_preference: string | null;
   score_factors: Record<string, number>;
+  match_highlights?: string[];
+  discuss_before_deciding?: string[];
+  compared_answers?: number;
 };
 export type RoommateMatchResult = {
   id: string;
   matched_user_id: string;
-  match_score: number;
+  match_score: number | null;
   status: string;
   created_at: string;
   mutual_accepted: boolean;
@@ -29,7 +32,7 @@ export type RoommateMatchResult = {
 export type ReceivedRoommateInterest = {
   interest_id: string;
   sender_user_id: string;
-  match_score: number;
+  match_score: number | null;
   sent_at: string;
   username: string | null;
   full_name: string | null;
@@ -47,43 +50,15 @@ type MatchRpcRow = Omit<RoommateMatchResult, "matched_profile"> &
     noise_score?: number;
     visitors_score?: number;
     stay_score?: number;
+    match_highlights?: string[];
+    discuss_before_deciding?: string[];
+    compared_answers?: number;
   };
 
-export async function saveRoommatePreferences(
-  prefs: Partial<RoommatePreferences>,
-) {
-  const { data, error } = await supabase.rpc("save_my_roommate_preferences", {
-    p_gender: prefs.gender || "",
-    p_gender_preference: prefs.gender_preference || "no_preference",
-    p_budget_min: Number(prefs.budget_min || 0),
-    p_budget_max: Number(prefs.budget_max || 0),
-    p_cleanliness: prefs.cleanliness || "moderate",
-    p_noise_level: prefs.noise_level || "moderate",
-    p_sleep_time: prefs.sleep_time || "10pm-11pm",
-    p_visitors: prefs.visitors || "sometimes",
-    p_stay_duration: prefs.stay_duration || "1_year",
-    p_area_preference: prefs.area_preference || null,
-    p_bio: prefs.bio || null,
-    p_school_name: prefs.school_name || null,
-    p_campus: prefs.campus || null,
-    p_level: prefs.level || null,
-    p_department: prefs.department || null,
-  });
-  if (error || !data)
-    return { prefs: (data || null) as RoommatePreferences | null, error };
-
-  const { data: schoolData, error: schoolError } = await supabase.rpc(
-    "set_my_roommate_school_filter",
-    {
-      p_school_match: Boolean(prefs.school_match),
-      p_school_name: prefs.school_name || null,
-      p_campus: prefs.campus || null,
-    },
-  );
-  return {
-    prefs: (schoolData || data || null) as RoommatePreferences | null,
-    error: schoolError,
-  };
+export async function saveRoommatePreferences(prefs: Partial<RoommatePreferences> | import("@/lib/roommatePreferences").RoommatePreferenceForm) {
+  // One atomic server write owns identity, location, practical plans and school privacy.
+  const { data, error } = await supabase.rpc("save_my_roommate_preferences_v2", { p_preferences: prefs });
+  return { prefs: (data || null) as RoommatePreferences | null, error };
 }
 
 export async function getRoommatePreferences(userId?: string) {
@@ -117,7 +92,7 @@ export async function getSavedMatchResults(
   offset = 0,
 ) {
   const pageSize = Math.max(1, Math.min(limit, 48));
-  const { data, error } = await supabase.rpc("get_my_roommate_matches_page", {
+  const { data, error } = await supabase.rpc("get_my_roommate_matches_page_v2", {
     p_limit: pageSize + 1,
     p_offset: Math.max(0, offset),
   });
@@ -144,6 +119,9 @@ export async function getSavedMatchResults(
         bio: row.bio,
         school: row.school,
         area_preference: row.area_preference,
+        match_highlights: Array.isArray(row.match_highlights) ? row.match_highlights : [],
+        discuss_before_deciding: Array.isArray(row.discuss_before_deciding) ? row.discuss_before_deciding : [],
+        compared_answers: Number(row.compared_answers || 0),
         score_factors: {
           budget: Number(row.budget_score || 0),
           location: Number(row.location_score || 0),
@@ -201,8 +179,8 @@ export async function ensureRoommateConversation(peerUserId: string) {
 
 export async function checkSearchExpiry(
   userId?: string,
-): Promise<{ expired: boolean; prefs: RoommatePreferences | null }> {
+): Promise<{ expired: boolean; prefs: RoommatePreferences | null; error: { message: string } | null }> {
   void userId;
-  const { prefs } = await getRoommatePreferences();
-  return { expired: prefs?.search_status === "expired", prefs };
+  const { prefs, error } = await getRoommatePreferences();
+  return { expired: prefs?.search_status === "expired", prefs, error };
 }

@@ -30,7 +30,7 @@ export default function MessageMedia({ items }: { items: MessageAttachment[] }) 
   if (!items.length) return null;
   return <div className="wh-attachment-surface wh-message-media">
     {visual.length > 0 && <div className="wh-media-grid" data-count={Math.min(visual.length, 4)}>{visual.slice(0, 4).map((item, index) => <button
-      key={`${item.url}-${index}`} type="button" className="wh-media-tile" aria-label={`Open ${item.kind === 'image' ? 'photo' : 'video'} ${index + 1} of ${visual.length}`}
+      key={`${item.url}-${index}`} type="button" data-message-swipe-surface="true" className="wh-media-tile" aria-label={`Open ${item.kind === 'image' ? 'photo' : 'video'} ${index + 1} of ${visual.length}`}
       onClick={event => { event.stopPropagation(); setOpened(item.url); }}>
       {item.kind === 'image' ? <Photo key={item.url} url={item.url} /> : <span className="wh-media-play"><Play size={22} aria-hidden="true" /></span>}
       {index === 3 && visual.length > 4 && <span className="wh-media-count">+{visual.length - 4}</span>}

@@ -20,6 +20,8 @@ type Props = {
   score?: number;
   matchLabel?: string;
   highlights?: string[];
+  discuss?: string[];
+  comparedAnswers?: number;
   presence?: string;
   actions?: ReactNode;
   footer?: ReactNode;
@@ -28,7 +30,7 @@ type Props = {
 
 export default function RoommatePublicProfile({
   person, onClose, onViewProfile, context = "discovery", score, matchLabel,
-  highlights = [], presence, actions, footer, primaryAction,
+  highlights = [], discuss = [], comparedAnswers, presence, actions, footer, primaryAction,
 }: Props) {
   const [fullProfile, setFullProfile] = useState(false);
   const hasScore = Number.isFinite(score);
@@ -51,14 +53,16 @@ export default function RoommatePublicProfile({
       bottomAction={primaryAction}
     >
       {!conversationMode && <>
-        {hasScore && <section className="border-t border-white/[.07] py-5">
-          <h2 className="text-[10px] font-bold uppercase tracking-[.14em] text-[#858C9C]">What matches</h2>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+        {(hasScore || highlights.length > 0 || discuss.length > 0) && <section className="border-t border-white/[.07] py-5">
+          <h2 className="text-sm font-bold uppercase tracking-[.14em] text-[#858C9C]">What matches</h2>
+          {hasScore && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
             <div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.min(100, Math.max(0, Number(score)))}%` }} />
-          </div>
+          </div>}
+          <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">{hasScore ? `Similarity across ${comparedAnswers || "your"} answered preferences—not the chance that living together will succeed.` : "Compare your plans together. Unanswered preferences are not treated as agreement."}</p>
           {highlights.length > 0 && <div className="mt-4 flex flex-wrap gap-2">
             {highlights.map(item => <span key={item} className="rounded-full border border-violet-500/15 bg-violet-500/[.06] px-3 py-1.5 text-xs font-medium text-violet-200">{item}</span>)}
           </div>}
+          {discuss.length > 0 && <div className="mt-4 text-sm leading-6 text-[#C8C3D3]"><h3 className="font-semibold">Discuss before deciding</h3>{discuss.map(item=><p key={item} className="mt-1">{item}</p>)}</div>}
         </section>}
         {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {person.preferredArea && <Detail label="Preferred area" value={person.preferredArea} />}
@@ -70,7 +74,7 @@ export default function RoommatePublicProfile({
     </PublicProfileSurface>
     {/* Keep the originating info screen mounted: Back restores that exact step,
         with the same permission-filtered person data, rather than starting over. */}
-    {fullProfile ? <RoommatePublicProfile person={person} score={score} matchLabel={matchLabel} highlights={highlights}
+    {fullProfile ? <RoommatePublicProfile person={person} score={score} matchLabel={matchLabel} highlights={highlights} discuss={discuss} comparedAnswers={comparedAnswers}
       onClose={() => setFullProfile(false)} /> : null}
   </>;
 }

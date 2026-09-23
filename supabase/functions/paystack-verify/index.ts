@@ -1,3 +1,4 @@
+import { hasLiveSession } from "../_shared/liveSession.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -83,6 +84,8 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: "Invalid or expired token" }),
         { status: 401, headers: cors },
       );
+
+    if (!await hasLiveSession(admin, user.id, token)) return new Response(JSON.stringify({success:false,error:'Session ended. Sign in again.'}),{status:401,headers:cors});
 
     const { data: profile } = await admin
       .from("profiles")

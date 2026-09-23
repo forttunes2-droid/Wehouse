@@ -10,6 +10,12 @@ type Props = {
 };
 
 const INTERACTIVE = "button,a,input,textarea,select,audio,video,[contenteditable=true]";
+/** Opt in only the visual message surface. A media tile is still a button for
+ * keyboard/tap navigation; audio controls, retries and draft removal are not. */
+function blocksGesture(target: EventTarget) {
+  const control = (target as HTMLElement).closest(INTERACTIVE);
+  return Boolean(control && control.getAttribute?.("data-message-swipe-surface") !== "true");
+}
 const THRESHOLD = 54;
 type Gesture = { id: number; x: number; y: number; direction: number; axis: "pending" | "horizontal" | "vertical"; distance: number };
 
@@ -33,7 +39,7 @@ export default function MessagePress({ children, className = "", onOpen, onTap, 
     if (!event.isPrimary || event.button !== 0) return;
     opened.current = false;
     dragged.current = false;
-    if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
+    if (blocksGesture(event.target)) return;
     const element = event.currentTarget;
     cancelTimer();
     opened.current = false;
@@ -44,7 +50,6 @@ export default function MessagePress({ children, className = "", onOpen, onTap, 
     const endAligned = window.getComputedStyle(element).justifyContent === "flex-end";
     const direction = replyDirection ? (replyDirection === "left" ? -1 : 1) : (endAligned ? -1 : 1);
     gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, direction, axis: "pending", distance: 0 };
-    element.setPointerCapture?.(event.pointerId);
     timer.current = window.setTimeout(() => {
       if (!gesture.current || gesture.current.axis !== "pending") return;
       opened.current = true;
@@ -63,6 +68,9 @@ export default function MessagePress({ children, className = "", onOpen, onTap, 
       cancelTimer();
       dragged.current = true;
       current.axis = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
+      // Capturing on pointerdown retargets the eventual click away from a
+      // property/photo button. Capture only after an actual horizontal drag.
+      if (current.axis === "horizontal" && onReply) event.currentTarget.setPointerCapture?.(event.pointerId);
     }
     // Once vertical scrolling starts it cannot turn into a reply gesture.
     if (current.axis !== "horizontal" || !onReply) return;
@@ -95,9 +103,13 @@ export default function MessagePress({ children, className = "", onOpen, onTap, 
       onPointerMove={move}
       onPointerUp={(event) => finish(event)}
       onPointerCancel={(event) => finish(event, true)}
-      onLostPointerCapture={(event) => finish(event, true)}
+      onLostPointerCapture={(event) => {
+        // Touch starts with implicit capture on the image/button. Moving capture
+        // to this wrapper emits a bubbling loss from that child, not cancellation.
+        if (event.target === event.currentTarget) finish(event, true);
+      }}
       onContextMenu={(event) => {
-        if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
+        if (blocksGesture(event.target)) return;
         event.preventDefault();
         cancelTimer();
         if (opened.current) return;
