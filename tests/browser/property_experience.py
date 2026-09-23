@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
 BASE='http://127.0.0.1:4173'; OUT=Path('test-results/experience')
-IMAGE='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="500"%3E%3Crect width="800" height="500" fill="%232d2244"/%3E%3Cpath d="M220 340V220l180-130 180 130v120H220" fill="%23644991"/%3E%3C/svg%3E'
+IMAGE=BASE+'/qa-public-property.svg'
+IMAGE_BODY='<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#2d2244"/><path d="M220 340V220l180-130 180 130v120H220" fill="#644991"/></svg>'
 SHORT={'id':'short-home','listing_id':'short-home','title':'Garden Short Let','sub_type':'short_let','type':'apartment','price':120000,'security_deposit_amount':50000,'max_guests':2,'bedrooms':1,'bathrooms':1,'address':'Test road','city':'Lafia','state':'Nasarawa','images':[IMAGE],'videos':[],'status':'available','is_verified':True,'amenities':['WiFi']}
 LONG={**SHORT,'id':'long-home','listing_id':'long-home','title':'Courtyard Long Let','sub_type':'long_stay','price':100000,'security_deposit_amount':0}
 HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Lafia','state':'Nasarawa','area':'Town','address':'Test road','status':'active','images':[IMAGE],'amenities':[],'hotel_rooms':[],'venues':[]}
@@ -15,10 +16,13 @@ CONNECTIONS=[{'id':'chat-ada','participant_a':'qa-personal','participant_b':'qa-
 PEERS=[{'user_id':'qa-ada','full_name':'Ada Example','username':'ada-example','avatar_url':None,'is_blocked':False}, {'user_id':'qa-blocked','full_name':'Blocked Example','username':'blocked','is_blocked':True}, {'user_id':'qa-pending','full_name':'Pending Example','username':'pending','is_blocked':False}]
 NOW=datetime.now(timezone.utc); TOMORROW=(NOW+timedelta(days=2)).date().isoformat(); CHECKOUT=(NOW+timedelta(days=4)).date().isoformat()
 class Scenario:
- def __init__(self): self.calls=[]; self.errors=[]; self.fail_saved=False; self.delay_listing=0; self.delay_account=0; self.hotel_sent=False; self.hotel_reads=0
+ def __init__(self): self.calls=[]; self.errors=[]; self.fail_saved=False; self.delay_listing=0; self.delay_account=0; self.hotel_sent=False; self.hotel_reads=0; self.guest_mode=False
  async def route(self, handler):
   request=handler.request
-  if request.url.startswith(BASE): return await handler.continue_()
+  if request.url==IMAGE: return await handler.fulfill(status=200,content_type='image/svg+xml',body=IMAGE_BODY)
+  if request.url.startswith(BASE):
+   if request.resource_type=='document': self.guest_mode='mode=guest' in request.url
+   return await handler.continue_()
   if not request.url.startswith('http://127.0.0.1:54321/'): return await handler.abort()
   if request.method=='OPTIONS': return await handler.fulfill(status=204,headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'})
   name=request.url.split('/')[-1].split('?')[0]; args=request.post_data_json if request.post_data else {}; self.calls.append((name,args)); data=[]; status=200
@@ -51,6 +55,9 @@ class Scenario:
   elif name=='get_my_canonical_activity_v2': data=[{'id':f'event-{scope}','workspace':scope,'type':'hotel.confirmed' if scope=='property_partner' else 'search_match','title':'Partner guest update' if scope=='property_partner' else 'Personal saved search must stay Personal','message':'Synthetic update','source_type':'hotel_booking','source_id':'42','destination_route':'hotel_booking','destination_params':{'hotel_id':7,'booking_id':42},'read':False,'created_at':NOW.isoformat(),'action_required':False} for scope in ['personal','property_partner']]
   elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
   elif name=='get_my_legal_status': data={}
+  if self.guest_mode and name in ['get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'] and data:
+   def mixed_media(record): return {**record,'images':[*record.get('images',[]),'partner/private-unpublished.jpg','https://test.supabase.co/storage/v1/object/sign/listing-candidates/private.jpg?token=not-a-real-token']}
+   data=[mixed_media(record) for record in data] if isinstance(data,list) else mixed_media(data)
   await handler.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
  async def open(self,browser,mode,width):
   context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block')
@@ -104,6 +111,9 @@ async def main():
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      await fits(page)
+     await expect(page.locator('img').first).to_be_visible()
+     await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
+     assert await page.locator('img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
      allowed={'get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]

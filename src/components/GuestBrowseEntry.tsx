@@ -5,6 +5,7 @@ import { getHotels, getHotelById } from '@/lib/supabase/hotels';
 import { listingDisplayTitle } from '@/lib/listingPresentation';
 import { propertyShareUrl, type SharedProperty } from '@/lib/propertyShare';
 import { savePropertyLinkIntent } from '@/lib/propertyLinkIntent';
+import { publicPropertyImages } from '@/lib/publicPropertyMedia';
 import { withTimeout } from '@/lib/withTimeout';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import { useDialogInteraction } from '@/hooks/useDialogInteraction';
@@ -15,10 +16,10 @@ import type { Hotel, HotelRoom, Listing } from '@/types';
 type PublicRoom = Pick<HotelRoom, "room_id" | "room_type" | "price_per_night"> & Partial<HotelRoom>;
 type Place = { ref: SharedProperty; title: string; area: string; images: string[]; label: string; rate: string; description?: string | null; amenities: string[]; rooms?: PublicRoom[] };
 const money = (value: number) => Number.isFinite(value) && value > 0 ? `₦${value.toLocaleString()}` : '';
-const home = (item: Listing): Place => ({ ref: { kind: 'listing', id: String(item.id) }, title: listingDisplayTitle(item), area: [item.city, item.state].filter(Boolean).join(', '), images: item.images || [], label: item.sub_type === 'short_let' ? 'Short Let' : 'Long Let', rate: money(Number(item.price)) ? `${money(Number(item.price))} / ${item.sub_type === 'short_let' ? 'night' : 'year'}` : 'Price unavailable', description: item.description, amenities: item.amenities || [] });
+const home = (item: Listing): Place => ({ ref: { kind: 'listing', id: String(item.id) }, title: listingDisplayTitle(item), area: [item.city, item.state].filter(Boolean).join(', '), images: publicPropertyImages(item.images), label: item.sub_type === 'short_let' ? 'Short Let' : 'Long Let', rate: money(Number(item.price)) ? `${money(Number(item.price))} / ${item.sub_type === 'short_let' ? 'night' : 'year'}` : 'Price unavailable', description: item.description, amenities: item.amenities || [] });
 const hotel = (item: Hotel & { hotel_rooms?: PublicRoom[] }): Place => {
   const prices = (item.hotel_rooms || []).map(room => Number(room.price_per_night)).filter(price => Number.isFinite(price) && price > 0);
-  return { ref: { kind: 'hotel', id: String(item.hotel_id) }, title: item.name, area: [item.city, item.state].filter(Boolean).join(', '), images: item.images || [], label: 'Hotel', rate: prices.length ? `From ${money(Math.min(...prices))} / night` : 'Choose a room to see rates', description: item.description, amenities: item.amenities || [], rooms: item.hotel_rooms };
+  return { ref: { kind: 'hotel', id: String(item.hotel_id) }, title: item.name, area: [item.city, item.state].filter(Boolean).join(', '), images: publicPropertyImages(item.images), label: 'Hotel', rate: prices.length ? `From ${money(Math.min(...prices))} / night` : 'Choose a room to see rates', description: item.description, amenities: item.amenities || [], rooms: item.hotel_rooms?.map(room => ({ ...room, images: publicPropertyImages(room.images) })) };
 };
 const action = 'min-h-12 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white';
 
