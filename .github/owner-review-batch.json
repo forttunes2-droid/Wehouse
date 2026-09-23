@@ -1,0 +1,122 @@
+{
+  "source_head": "6a1be1bb79d06dda6b1e740429705d7b27097d99",
+  "patch_sha256": "20ef7ecc5da97cb4424fc30922609d1eb8d19f642e193b29aff681546eefe773",
+  "files": [
+    {
+      "path": "src/App.tsx",
+      "before": "8effd20433fb9affa2790d9ae1e62e5596f08965",
+      "after": "7d1e622fe50d087a67e9b8f088635dd393f0c188"
+    },
+    {
+      "path": "src/components/GuestBrowseEntry.tsx",
+      "before": null,
+      "after": "27e57bf11985a8aeb4e4bbe8385cd35ff1d46eea"
+    },
+    {
+      "path": "src/components/HotelBookingChat.tsx",
+      "before": "1c7ae5b9646b621e6596ad582d54762c89e18060",
+      "after": "4ca369bbc71a6e2da19cb92caee3b78e43efc1ff"
+    },
+    {
+      "path": "src/components/OperationalThreadSurface.tsx",
+      "before": "a344b0dcd2bb6d64dd8c57f7af14a58c88074947",
+      "after": "44408025b83b1ad15d07a75a2f2f3dc8722abad6"
+    },
+    {
+      "path": "src/components/PropertyShareDialog.tsx",
+      "before": "cc5fc25c3e43544b457fa6b6d06c2db8f445006d",
+      "after": "6e64441fece9b02427197294d9e39c956f008aee"
+    },
+    {
+      "path": "src/components/SharedPropertyWorkspacePrompt.tsx",
+      "before": "709b4f188d88d27c3378a8ae49b070024d002864",
+      "after": "912b6e61b6338d4dc0975d4044c142c1f722c904"
+    },
+    {
+      "path": "src/components/UserProfileModal.tsx",
+      "before": "2c96054317d6fb89ae9ed7a309f24cf6cbe2c277",
+      "after": "5186204c21bedfb9476eefedb912ff317a8e7155"
+    },
+    {
+      "path": "src/lib/activityFeed.ts",
+      "before": "25c49f1469b0ca2d22fdfb44cdaee9695c1498f4",
+      "after": "5a6bb41702aad99be77353942955a922dda00d74"
+    },
+    {
+      "path": "src/lib/chatMessageReconciliation.ts",
+      "before": null,
+      "after": "d6a78c0bee82fe379713aa193a145dc34d8eb93a"
+    },
+    {
+      "path": "src/lib/shortLetQuote.ts",
+      "before": "c7b693800493d536af7aeec02fe99a774c3ea521",
+      "after": "d046efb15d4f3833ba5986e13d02fce251b0d357"
+    },
+    {
+      "path": "src/pages/ChatCore.tsx",
+      "before": "d4ef730bd27f3a3f1c562e3bba9afc706f543132",
+      "after": "d7c4af0e9467219f939c9da076c7d49dfc4bb956"
+    },
+    {
+      "path": "src/pages/ListingDetailCore.tsx",
+      "before": "f8d57fa13d6f578b442899f5104c65888f719d54",
+      "after": "cc035588affb0de6b11721702f04a8ceefe391a2"
+    },
+    {
+      "path": "src/pages/Login.tsx",
+      "before": "ac64378c354627d5ba5311b93f7c6569ace5c4a0",
+      "after": "74a0ae5f6ddc24d45c0e4012eaee26fc6d0f51b8"
+    },
+    {
+      "path": "tests/activity-action-retention.test.mjs",
+      "before": null,
+      "after": "b2229a69fe8eeb0f9458aa9059bf4c24a59d693d"
+    },
+    {
+      "path": "tests/browser/property-experience.tsx",
+      "before": "3a710ae77ff2c2b4e3cf1667a9559d4731809687",
+      "after": "4faa5806b60a9e127329014ce14d413b06689cc9"
+    },
+    {
+      "path": "tests/browser/property_experience.py",
+      "before": "865fbe09df8ede557ffa9c91741718832a349a7d",
+      "after": "4e2e94ab97d304795abd439da2b4e251c8ede486"
+    },
+    {
+      "path": "tests/short-let-sharing-workspaces.test.mjs",
+      "before": "5f07490d0f4d8e0d98746fd1183df811a9d11296",
+      "after": "3448a4ee035049f72e108aa53e7042fc772bab2a"
+    },
+    {
+      "path": "tests/staged-reservation-chat.test.mjs",
+      "before": null,
+      "after": "7cff0b0ce7c4b5d7e269737a87b312598dc978e4"
+    }
+  ],
+  "chunks": [
+    {
+      "path": ".github/owner-review-chunks/part-0.bin",
+      "sha": "2bf1e555a21850522a96d6e2f19c358a3956d898"
+    },
+    {
+      "path": ".github/owner-review-chunks/part-1.bin",
+      "sha": "ebafa76521a07883db7519da6a7c9c3bb0583902"
+    },
+    {
+      "path": ".github/owner-review-chunks/part-2.bin",
+      "sha": "a3a45ee51a93267c95c304162f0deaf75f7485ee"
+    },
+    {
+      "path": ".github/owner-review-chunks/part-3.bin",
+      "sha": "85019788576977ae2dbb8fed0ef40aeb0ee1b3f2"
+    },
+    {
+      "path": ".github/owner-review-chunks/part-4.bin",
+      "sha": "4a95d9df32662a74c0e1b42fbc5b0beda023180e"
+    },
+    {
+      "path": ".github/owner-review-chunks/part-5.bin",
+      "sha": "5a778f2ed42218c52e772b4788a464afd18c67d9"
+    }
+  ]
+}

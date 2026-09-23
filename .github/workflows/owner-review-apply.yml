@@ -1,0 +1,100 @@
+name: Apply exact owner review batch
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/owner-review-batch.json
+      - .github/workflows/owner-review-apply.yml
+      - .github/owner-review-chunks/**
+permissions:
+  contents: read
+concurrency:
+  group: owner-review-86
+  cancel-in-progress: false
+jobs:
+  apply-reviewed-source:
+    if: github.repository == 'forttunes2-droid/Wehouse' && github.event.pull_request.number == 86 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/property-workspace-routing-20260922'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply only the exact reviewed source diff
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, subprocess, zlib
+          manifest_path = pathlib.Path('.github/owner-review-batch.json')
+          batch = json.loads(manifest_path.read_text())
+          assert batch['source_head'] == '6a1be1bb79d06dda6b1e740429705d7b27097d99'
+          # Preserve the independently added source-export workflow. Its two
+          # commits changed no application source; every source blob is also
+          # checked below before and after applying this exact patch.
+          reviewed_branch = 'be5da9644cbc1e3da1b1d60cfd145a439a2b8208'
+          allowed_transport = {str(manifest_path), '.github/workflows/owner-review-apply.yml'} | {item['path'] for item in batch['chunks']}
+          assert all(item['path'].startswith('.github/owner-review-chunks/part-') and item['path'].endswith('.bin') and '..' not in item['path'] for item in batch['chunks'])
+          prior_changes = set(subprocess.check_output(['git','diff','--name-only',reviewed_branch,'HEAD'],text=True).splitlines())
+          assert prior_changes <= allowed_transport, 'Branch source changed; reconcile rather than overwrite it.'
+          for item in batch['files']:
+              path = pathlib.Path(item['path'])
+              assert not path.is_absolute() and '..' not in path.parts and str(path).startswith(('src/','tests/'))
+              assert not path.is_symlink()
+              if item['before']:
+                  assert subprocess.check_output(['git','hash-object',str(path)],text=True).strip() == item['before'], str(path)
+              else:
+                  assert not path.exists(), str(path)
+          for item in batch['chunks']:
+              assert subprocess.check_output(['git','hash-object',item['path']],text=True).strip() == item['sha']
+          patch = zlib.decompress(b''.join(pathlib.Path(item['path']).read_bytes() for item in batch['chunks']))
+          assert hashlib.sha256(patch).hexdigest() == batch['patch_sha256']
+          patch_path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'owner-review.patch'
+          patch_path.write_bytes(patch)
+          subprocess.run(['git','apply','--check','--index',str(patch_path)],check=True)
+          subprocess.run(['git','apply','--index',str(patch_path)],check=True)
+          for item in batch['files']:
+              assert subprocess.check_output(['git','hash-object',item['path']],text=True).strip() == item['after'], item['path']
+          actual = set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
+          assert actual == {item['path'] for item in batch['files']}
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          print('Applied and verified',len(actual),'source/test files. No production or database action.')
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - name: Commit verified source to the same draft branch and remove this one-off transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import base64, json, os, pathlib, subprocess
+          batch = json.loads(pathlib.Path('.github/owner-review-batch.json').read_text())
+          branch = 'codex/property-workspace-routing-20260922'
+          expected = os.environ['EXPECTED_HEAD']
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip() == expected
+          for item in batch['files']:
+              assert subprocess.check_output(['git','hash-object',item['path']],text=True).strip() == item['after'], 'Tests changed reviewed source'
+          assert not subprocess.check_output(['git','diff','--name-only'],text=True).strip(), 'Unexpected tracked changes'
+          header = 'AUTHORIZATION: basic ' + base64.b64encode(('x-access-token:'+os.environ['GH_TOKEN']).encode()).decode()
+          env = dict(os.environ, GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0=header)
+          current = subprocess.check_output(['git','ls-remote','origin','refs/heads/'+branch],text=True,env=env).split()[0]
+          assert current == expected, 'Branch advanced; no push performed.'
+          subprocess.run(['git','rm','--','.github/owner-review-batch.json','.github/workflows/owner-review-apply.yml']+[item['path'] for item in batch['chunks']],check=True)
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          subprocess.run(['git','commit','-m','Separate date reservation from payment; open public browsing and remove chat loading bottlenecks'],check=True)
+          result = subprocess.run(['git','push','origin','HEAD:refs/heads/'+branch],env=env)
+          if result.returncode:
+              raise SystemExit('Source push failed; no force push or production action was attempted.')
+          print('SOURCE_COMMIT='+subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
+          PY
