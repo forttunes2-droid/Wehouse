@@ -3,6 +3,7 @@ UI-only environment fixture; APIs are intercepted localhost requests. No live
 account, production service, OAuth round-trip or database write is performed.
 """
 import asyncio
+import os
 import json
 import re
 from playwright.async_api import async_playwright, expect
@@ -12,7 +13,7 @@ async def main():
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(executable_path=os.getenv("CHROMIUM_PATH") or None, args=["--no-sandbox"])
         try:
             for width, height in [(320, 640), (390, 844), (760, 900), (1440, 900)]:
                 scenario = Scenario()
@@ -91,7 +92,7 @@ async def main():
             await expect(page.get_by_role('region', name='Which payment is this about?', exact=True)).to_be_visible()
             await expect(page.get_by_role('button', name=re.compile('Payments and refunds'))).to_have_count(0)
             await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_be_visible()
-            await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_be_disabled()
+            await expect(page.locator('[data-help-target]')).to_have_count(0)
             await expect(page.get_by_role('alert')).to_have_count(0)
             await page.screenshot(path=str(OUT/'help-verified-empty-payments.png'))
             assert not scenario.errors, scenario.errors

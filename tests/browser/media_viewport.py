@@ -27,8 +27,10 @@ async def main():
     await expect(page.get_by_role('button',name='Close media preview')).to_be_focused()
     assert await page.evaluate('document.getElementById("root").inert')
     assert await viewer.evaluate('(e)=>getComputedStyle(e).backgroundColor')=='rgb(0, 0, 0)'
-    checks.append('opaque viewer and background interaction isolation')
-    await page.get_by_role('button',name='Zoom in',exact=True).click();await expect(page.get_by_label('Image zoom',exact=True)).to_have_text('150%')
+    assert '%' not in await viewer.inner_text()
+    checks.append('opaque viewer, no zoom calculation and background interaction isolation')
+    await page.get_by_role('button',name='Zoom in',exact=True).click();await expect(page.locator('[data-photo-stage]')).to_have_attribute('data-image-scale','1.5')
+    assert '%' not in await viewer.inner_text()
     stage=page.locator('[data-photo-stage]');box=await stage.bounding_box();x=box['x']+box['width']/2;y=box['y']+box['height']/2
     session=await context.new_cdp_session(page)
     await touches(session,'touchStart',[(1,x-35,y),(2,x+35,y)])
@@ -43,12 +45,12 @@ async def main():
     assert await page.evaluate('scrollY')==0
     checks.append('pinch changes only image, bounded pan does not switch gallery or scroll Account')
     await page.screenshot(path=str(OUT/f'media-viewer-zoom-{width}.png'))
-    await page.get_by_role('button',name='Reset image zoom').click();await expect(page.get_by_label('Image zoom',exact=True)).to_have_text('100%')
+    await page.get_by_role('button',name='Reset image zoom').click();await expect(page.locator('[data-photo-stage]')).to_have_attribute('data-image-scale','1')
     await touches(session,'touchStart',[(1,x+65,y)])
     for dx in [20,40,80,130]:await touches(session,'touchMove',[(1,x+65-dx,y)])
     await touches(session,'touchEnd',[])
     await expect(page.get_by_role('button',name='Previous media',exact=True)).to_be_visible();await expect(page.get_by_role('button',name='Next media',exact=True)).to_have_count(0)
-    await expect(page.get_by_label('Image zoom',exact=True)).to_have_text('100%');checks.append('fit-size horizontal swipe changes item and resets its camera')
+    await expect(page.locator('[data-photo-stage]')).to_have_attribute('data-image-scale','1');checks.append('fit-size horizontal swipe changes item and resets its camera')
     await page.set_viewport_size({'width':height,'height':width});await page.wait_for_timeout(80)
     bounds=await viewer.bounding_box();assert abs(bounds['height']-width)<2 and abs(bounds['width']-height)<2
     await session.send('Emulation.setPageScaleFactor',{'pageScaleFactor':1.7});await page.wait_for_timeout(80)

@@ -2,6 +2,7 @@
 synthetic identities/APIs. Never visits Production or sends a real message.
 """
 import asyncio
+import os
 import json
 import re
 from pathlib import Path
@@ -18,7 +19,7 @@ async def main():
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(executable_path=os.getenv("CHROMIUM_PATH") or None, args=["--no-sandbox"])
         try:
             for width, height in [(390, 844), (1440, 900)]:
                 context = await browser.new_context(viewport={'width': width, 'height': height}, service_workers='block')
@@ -80,19 +81,22 @@ async def main():
 
                     await page.goto(BASE+'/tests/browser/profile-help.html?mode=help')
                     await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
-                    # The refined picker is an inline, named list, not another modal.
+                    await expect(page.get_by_role('region',name='Which payment is this about?',exact=True)).to_be_visible()
+                    await page.go_back()
+                    await expect(page.get_by_role('heading',name='Help',exact=True)).to_be_visible()
+                    assert not [name for name, _ in calls if name.startswith(('create_', 'send_'))], calls
+                    await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
+                    # Typed record rows open the composer directly, without radio + submit.
                     choices = page.get_by_role('region', name='Which payment is this about?', exact=True)
                     await expect(choices).to_be_visible()
                     await expect(page.get_by_role('dialog', name='Which payment is this about?', exact=True)).to_have_count(0)
                     await expect(choices.get_by_text(re.compile('Old apartment attempt'))).to_have_count(0)
-                    await expect(choices.get_by_role('radio')).to_have_count(2)
-                    await expect(choices.get_by_role('radio', name=re.compile('Cancelled paid stay.*Hotel stay.*Cancelled'))).to_be_visible()
-                    await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_be_disabled()
-                    stay_choice = choices.get_by_role('radio', name=re.compile('Test Lodge.*Hotel stay'))
-                    assert json.loads(await stay_choice.input_value()) == ['hotel_booking', 'hotel', '1']
-                    await stay_choice.check()
-                    await expect(stay_choice).to_be_checked()
-                    await page.get_by_role('button', name='Message WeHouse', exact=True).click()
+                    await expect(choices.locator('[data-help-target]')).to_have_count(2)
+                    await expect(choices.get_by_role('button', name=re.compile('Cancelled paid stay.*Hotel stay.*Cancelled'))).to_be_visible()
+                    await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_have_count(0)
+                    stay_choice = choices.get_by_role('button', name=re.compile('Test Lodge.*Hotel stay'))
+                    assert json.loads(await stay_choice.get_attribute('data-help-target')) == ['hotel_booking', 'hotel', '1']
+                    await stay_choice.click()
                     await expect(page.locator('[data-chat-composer]')).to_be_visible()
                     await expect(page.locator('header').last).to_contain_text('WeHouse')
                     await expect(page.locator('header').last).not_to_contain_text('Operations')
@@ -106,16 +110,15 @@ async def main():
                     await page.get_by_role('button', name=re.compile('Properties and guests')).click()
                     choices = page.get_by_role('region', name='Which property or stay?', exact=True)
                     await expect(choices).to_be_visible()
-                    await expect(choices.get_by_role('radio', name=re.compile('Test Lodge'))).to_have_count(2)
-                    # Same numeric ID and title must still produce different typed targets.
-                    assert sorted(await choices.get_by_role('radio').evaluate_all('(radios) => radios.map(radio => JSON.parse(radio.value)[0])')) == ['hotel_booking', 'hotel_property']
+                    await expect(choices.locator('[data-help-target]')).to_have_count(2)
+                    # Same numeric ID/name retains different authorised destinations.
+                    assert sorted(await choices.locator('[data-help-target]').evaluate_all("els => els.map(el => JSON.parse(el.dataset.helpTarget)[0])")) == ['hotel_booking', 'hotel_property']
+                    await choices.get_by_role('button', name='Search your records', exact=True).click()
                     await choices.get_by_role('textbox', name='Search your records', exact=True).fill('Hotel stay')
-                    await expect(choices.get_by_role('radio')).to_have_count(1)
-                    stay_choice = choices.get_by_role('radio', name=re.compile('Test Lodge.*Hotel stay'))
-                    assert json.loads(await stay_choice.input_value()) == ['hotel_booking', 'hotel', '1']
-                    await stay_choice.check()
-                    await expect(stay_choice).to_be_checked()
-                    await page.get_by_role('button', name='Message WeHouse', exact=True).click()
+                    await expect(choices.locator('[data-help-target]')).to_have_count(1)
+                    stay_choice = choices.get_by_role('button', name=re.compile('Test Lodge.*Hotel stay'))
+                    assert json.loads(await stay_choice.get_attribute('data-help-target')) == ['hotel_booking', 'hotel', '1']
+                    await stay_choice.click()
                     await expect(page.locator('[data-chat-composer]')).to_be_visible()
                     assert await page.evaluate('window.__lastSupportContext.contextType') == 'hotel_booking'
                     assert not errors, errors

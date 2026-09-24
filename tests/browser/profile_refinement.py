@@ -1,5 +1,5 @@
 """Production UI/hooks with isolated API fixtures: not real customer data or production writes."""
-import asyncio,base64,json,os,subprocess
+import asyncio,base64,json,os,re,subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');BUNDLE=Path('test-results/profile-refinement-offline')
@@ -113,15 +113,32 @@ async def main():
       await tiles.nth(0).click();await expect(page.get_by_role('dialog',name='Chika Example work post')).to_be_visible();assert await page.get_by_role('heading',name='Sani Example').count()==0
       calls=await page.evaluate('window.__fixtureState.calls');assert any(x.get('worker')=='worker-b' for x in calls)
      elif mode=='help':
+      await expect(page.get_by_role('button',name='Using WeHouse',exact=True)).to_be_enabled()
+      await settled_capture(page,f'help-home-{width}.png')
       await page.get_by_role('button',name='Property or stay').click();await expect(page.get_by_text('Garden Lodge',exact=True)).to_be_visible()
       assert await page.get_by_text('Cancelled test stay',exact=True).count()==0;assert 'Record 12345678' not in await page.locator('body').inner_text()
       await settled_capture(page,f'help-current-records-{width}.png')
-      await page.get_by_label('Records to show',exact=True).select_option('all');await expect(page.get_by_text('Cancelled test stay',exact=True)).to_be_visible()
-      await page.get_by_placeholder('Search your records').fill('Garden');await page.get_by_role('radio').check();await page.get_by_role('button',name='Message WeHouse',exact=True).click()
-      assert (await page.evaluate('window.__helpEvent'))['contextId']=='stay-current'
+      await page.get_by_role('button',name='Include past bookings and jobs',exact=True).click();await expect(page.get_by_text('Cancelled test stay',exact=True)).to_be_visible()
+      await page.get_by_role('button',name='Search your records',exact=True).click();await page.get_by_placeholder('Search your records').fill('Garden');await page.locator('[data-help-target]').click()
+      event=await page.evaluate('window.__helpEvent');assert event['contextId']=='stay-current' and event['contextSnapshot']['requester_workspace']=='personal'
+      assert await page.get_by_role('radio').count()==0
+      assert not any(x['name'].startswith(('send_', 'create_')) for x in await page.evaluate('window.__fixtureState.calls'))
       await page.get_by_role('button',name='Back',exact=True).click();await page.get_by_role('button',name='Payments and refunds').click()
-      await expect(page.get_by_text('Refund under review',exact=True)).to_be_visible();assert await page.get_by_label('Records to show').count()==0
+      await expect(page.get_by_text('Refund under review',exact=True)).to_be_visible();assert await page.get_by_role('button',name='Include past bookings and jobs',exact=True).count()==0
       assert await page.get_by_text('Cancelled test stay',exact=True).count()==0
+      await page.locator('[data-help-target]').click()
+      event=await page.evaluate('window.__helpEvent');assert event['contextId']=='refund' and event['contextSnapshot']['reason_code']=='payment_issue'
+      await page.go_back();await expect(page.get_by_role('heading',name='Help',exact=True)).to_be_visible()
+      await page.get_by_role('button',name='Account access',exact=True).click()
+      event=await page.evaluate('window.__helpEvent');assert event['category']=='account_access' and event['contextId']=='viewer'
+      await page.get_by_role('button',name='Account security',exact=True).click()
+      event=await page.evaluate('window.__helpEvent');assert event['category']=='account_compromise' and event['priority']=='high'
+      await page.get_by_role('button',name='Report a safety concern',exact=True).click()
+      await page.get_by_role('button',name='Not about a specific booking or job',exact=True).click()
+      event=await page.evaluate('window.__helpEvent');assert event['category']=='safety_threat' and event['contextId']=='viewer' and event['priority']=='urgent'
+      await page.get_by_role('button',name=re.compile('Garden Lodge.*Hotel stay')).click()
+      event=await page.evaluate('window.__helpEvent');assert event['contextId']=='stay-current' and event['contextSnapshot']['reason_code']=='safety_threat'
+      assert not any(x['name'].startswith(('send_', 'create_')) for x in await page.evaluate('window.__fixtureState.calls'))
      elif mode.startswith('help-'):
       await expect(page.get_by_role('alert')).to_contain_text("couldn't load")
       assert await page.get_by_text('Garden Lodge',exact=True).count()==0

@@ -5,7 +5,7 @@ import type { WorkspaceName } from "@/lib/workspacePresentation";
 import { withTimeout } from "@/lib/withTimeout";
 import { helpTargetKey, paymentHelpTargets, isHelpTargetsResponse, type HelpTarget } from "@/lib/helpTargets";
 import HelpRecordPicker from "@/components/HelpRecordPicker";
-import WeHouseSelect from "@/components/WeHouseSelect";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
@@ -43,7 +43,10 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
   const [loadError, setLoadError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [topic, setTopic] = useState<Topic | null>(null);
-  const [targetId, setTargetId] = useState("");
+  const backToHelp = useRecordScreenBack(() => setTopic(null), Boolean(topic));
+  const [loadedFor, setLoadedFor] = useState("");
+  const scope = `${profile.user_id}:${workspace}`;
+  const ready = !loading && !loadError && loadedFor === scope;
   const [moneyReason, setMoneyReason] = useState<MoneyReason>("payment_issue");
   const [securityReason, setSecurityReason] = useState<SecurityReason>("account_compromise");
 
@@ -52,6 +55,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     setLoading(true);
     setLoadError(false);
     setTargets({});
+    setLoadedFor("");
     void withTimeout(supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace }), 15000, 'Help timed out').then(({ data, error }) => {
       if (cancelled) return;
       // An older or malformed projection is unavailable, not an empty payment history.
@@ -59,6 +63,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
       setLoadError(!usable);
       // Never let a malformed list crash rendering before the retry UI appears.
       setTargets(usable ? data as HelpTargets : {});
+      setLoadedFor(usable ? scope : "");
       setLoading(false);
     }).catch(() => {
       if (cancelled) return;
@@ -66,9 +71,9 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [profile.user_id, workspace, retry]);
+  }, [profile.user_id, workspace, retry, scope]);
 
-  useEffect(() => { setTopic(null); setTargetId(""); }, [profile.user_id, workspace]);
+  useEffect(() => { setTopic(null); }, [profile.user_id, workspace]);
 
   const topics = TOPICS.filter(item => {
     if (item.id === 'property') return workspace === 'personal' || workspace === 'property_partner' || workspace === 'hotel';
@@ -98,12 +103,12 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
 
   function resetTopic(next: Topic) {
     setTopic(next);
-    setTargetId("");
     if (next === "security") setSecurityReason("account_compromise");
     if (next === "money") setMoneyReason("payment_issue");
   }
   function openConversation(context: Record<string, unknown>) {
-    window.dispatchEvent(new CustomEvent("openSupportChat", { detail: context }));
+    if (!ready) return;
+    window.dispatchEvent(new CustomEvent("openSupportChat", { detail: { ...context, contextSnapshot: { ...(context.contextSnapshot as Record<string, unknown> || {}), requester_workspace: workspace } } }));
   }
   function startGeneral(reason: GeneralReason) {
     const account = targets.account;
@@ -115,7 +120,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
         source_id: account.subject_id, linked_label: account.label },
     });
   }
-  function startProperty() {
+  function startProperty(targetId: string) {
     const target = propertyTargets.find(item => helpTargetKey(item) === targetId);
     if (!target) return toast.error("Choose the property or stay first");
     openConversation({
@@ -128,7 +133,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
       },
     });
   }
-  function startJob() {
+  function startJob(targetId: string) {
     const target = jobTargets.find(item => helpTargetKey(item) === targetId);
     if (!target) return toast.error("Choose the job or Worker profile first");
     if (target.subject_type === "worker") {
@@ -156,7 +161,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     });
     return true;
   }
-  function startMoney() {
+  function startMoney(targetId: string) {
     const source = moneyReason === "payout_issue" ? payoutTargets : paymentTargets;
     const target = source.find(item => helpTargetKey(item) === targetId);
     if (!target) return toast.error(moneyReason === "payout_issue" ? "Choose the withdrawal first" : "Choose the payment record first");
@@ -170,83 +175,58 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
         source_id: target.subject_id, linked_label: target.label, status: target.status || target.detail },
     });
   }
-  function startSecurity() {
+  function startSecurity(targetId = "", reason: SecurityReason = securityReason) {
     const account = targets.account;
     if (!account) return toast.error("Your account security link is unavailable");
-    if (securityReason === "safety_threat" && targetId) {
+    if (reason === "safety_threat" && targetId) {
       const target = safetyTargets.find(item => helpTargetKey(item) === targetId);
       if (target && openLinkedJourney(target, "safety_threat", "Safety concern")) return;
     }
     let subjectType = "account", subjectId = account.subject_id, linkedLabel = account.label;
-    if (securityReason === "safety_threat" && targetId) {
+    if (reason === "safety_threat" && targetId) {
       const target = safetyTargets.find(item => helpTargetKey(item) === targetId);
       if (target) { subjectType = safetySubjectType(target); subjectId = target.subject_id; linkedLabel = target.label; }
     }
     openConversation({
-      subject: securityReason === "account_compromise" ? "Account security" : "Safety concern",
-      category: securityReason, contextType: "contextual_help", contextId: subjectId,
-      priority: securityReason === "safety_threat" ? "urgent" : "high",
-      contextSnapshot: { reason_code: securityReason, subject_type: subjectType, source_type: subjectType,
+      subject: reason === "account_compromise" ? "Account security" : "Safety concern",
+      category: reason, contextType: "contextual_help", contextId: subjectId,
+      priority: reason === "safety_threat" ? "urgent" : "high",
+      contextSnapshot: { reason_code: reason, subject_type: subjectType, source_type: subjectType,
         source_id: subjectId, linked_label: linkedLabel },
     });
   }
 
-  return <AccountShell profile={profile} workspace={workspace} title={topic ? topics.find(item => item.id === topic)?.title || "Help" : "Help"}
-    description=""
-    onBack={topic ? () => { setTopic(null); setTargetId(''); } : onBack}>
-    {loadError ? <div role="alert" className="rounded-2xl border border-white/10 p-4 text-sm">
-      <p>We couldn't load your help options.</p><button className="mt-3 min-h-11 text-violet-300" onClick={() => setRetry(value => value + 1)}>Try again</button>
-    </div> : !topic ? <AccountSection>
-      {topics.map(item => <AccountRow key={item.id} title={item.title} onClick={() => resetTopic(item.id)} />)}
-    </AccountSection> : <div className="space-y-4">
-      {loading ? <div role="status" className="rounded-2xl border border-white/[.06] bg-[#11141C] p-5 text-xs text-[#8E95A6]">Loading your help options…</div> : <>
-      {topic === "general" ? <AccountSection>
-        <AccountRow title="Using WeHouse" detail="Something in the app is confusing or not working" onClick={() => startGeneral("app_help")} />
-        <AccountRow title="Account access" detail="Sign-in, profile or account access problem" onClick={() => startGeneral("account_access")} />
-      </AccountSection> : null}
-      {topic === "property" ? <TargetPicker title="Which property or stay?" targets={propertyTargets} value={targetId} setValue={setTargetId}
-        empty="No property or stay is linked to this identity yet." action={startProperty} /> : null}
-      {topic === "job" ? <TargetPicker title="Which job or Worker profile?" targets={jobTargets} value={targetId} setValue={setTargetId}
-        empty="No job or Worker profile is linked to this account yet." action={startJob} /> : null}
-      {topic === "money" ? <>
-        <WeHouseSelect value={moneyReason} options={[
-          { value: "payment_issue", label: "Payment issue" },
-          ...(workspace !== 'personal' ? [{ value: "payout_issue", label: "Withdrawal / payout issue" }] : []),
-        ]} onChange={value => { setMoneyReason(value as MoneyReason); setTargetId(""); }}
-          eyebrow="Payment help" title="What happened?" ariaLabel="Choose finance help reason" />
-        <TargetPicker title={moneyReason === "payout_issue" ? "Which withdrawal?" : "Which payment is this about?"}
-          targets={moneyReason === "payout_issue" ? payoutTargets : paymentTargets} value={targetId} setValue={setTargetId}
-          empty={moneyReason === "payout_issue" ? "No withdrawal request is linked to this identity yet." : "No payment or active payment attempt is linked to this workspace."}
-          action={startMoney} includeHistory />
-      </> : null}
-      {topic === "security" ? <>
-        <WeHouseSelect value={securityReason} options={[
-          { value: "account_compromise", label: "Account security / unauthorized access" },
-          { value: "safety_threat", label: "Safety, abuse or threat" },
-        ]} onChange={value => { setSecurityReason(value as SecurityReason); setTargetId(""); }}
-          eyebrow="Safety & security" title="What happened?" ariaLabel="Choose security help reason" />
-        {securityReason === "safety_threat" ? <HelpRecordPicker title="Link a record if this happened during a job or stay"
-          targets={safetyTargets} value={targetId} setValue={setTargetId} allowAccount /> : null}
-        <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse</PrimaryButton>
-      </> : null}
+  const retryButton = <button className="mt-3 min-h-11 text-violet-300" onClick={() => setRetry(value => value + 1)}>Try again</button>;
+  const title = topic === "security" ? "Safety concern" : topic ? topics.find(item => item.id === topic)?.title || "Help" : "Help";
+  return <AccountShell profile={profile} workspace={workspace} title={title} narrow onBack={topic ? backToHelp : onBack}>
+    <div className="mx-auto w-full max-w-xl">
+    {loadError ? <div role="alert" className="border-y border-white/10 py-5 text-sm leading-6"><p>We couldn't load your help options.</p>{retryButton}</div> : !topic ? <div className="space-y-5">
+      <AccountSection>
+        {topics.filter(item => !["general","security"].includes(item.id)).map(item => <AccountRow key={item.id} title={item.title} onClick={() => resetTopic(item.id)} />)}
+      </AccountSection>
+      <AccountSection>
+        <AccountRow title="Using WeHouse" onClick={() => startGeneral("app_help")} disabled={!ready} />
+        <AccountRow title="Account access" onClick={() => startGeneral("account_access")} disabled={!ready} />
+        <AccountRow title="Account security" onClick={() => startSecurity("", "account_compromise")} disabled={!ready} />
+        <AccountRow title="Report a safety concern" onClick={() => {resetTopic("security");setSecurityReason("safety_threat");}} />
+      </AccountSection>
+      {loading && <p role="status" className="text-sm text-[#A7ADBA]">Loading your help options…</p>}
+    </div> : <>
+      {loading || !ready ? <div role="status" className="py-5 text-sm text-[#A7ADBA]">Loading your help options…</div> : <>
+        {topic === "property" && <HelpRecordPicker key={`${scope}:property`} title="Which property or stay?" targets={propertyTargets} onChoose={target => startProperty(helpTargetKey(target))} />}
+        {topic === "property" && !propertyTargets.length && <p className="py-5 text-sm text-[#A7ADBA]">No property or stay is linked to this account yet.</p>}
+        {topic === "job" && <HelpRecordPicker key={`${scope}:job`} title="Which job or Worker profile?" targets={jobTargets} onChoose={target => startJob(helpTargetKey(target))} />}
+        {topic === "job" && !jobTargets.length && <p className="py-5 text-sm text-[#A7ADBA]">No job or Worker profile is linked to this account yet.</p>}
+        {topic === "money" && <>
+          {workspace !== "personal" && <div className="mb-3 flex gap-2" role="group" aria-label="Payment help type">{([["payment_issue","Payments and refunds"],["payout_issue","Withdrawals"]] as const).map(([value,label]) => <button key={value} type="button" aria-pressed={moneyReason === value} onClick={() => setMoneyReason(value)} className={`min-h-11 rounded-xl border px-3 text-sm ${moneyReason === value ? "border-violet-400/50 text-violet-200" : "border-white/10 text-[#A7ADBA]"}`}>{label}</button>)}</div>}
+          <HelpRecordPicker key={`${scope}:${moneyReason}`} title={moneyReason === "payout_issue" ? "Which withdrawal?" : "Which payment is this about?"} targets={moneyReason === "payout_issue" ? payoutTargets : paymentTargets} onChoose={target => startMoney(helpTargetKey(target))} includeHistory />
+          {!(moneyReason === "payout_issue" ? payoutTargets : paymentTargets).length && <p className="py-5 text-sm leading-6 text-[#A7ADBA]">{moneyReason === "payout_issue" ? "No withdrawal request is linked to this account yet." : "No payment or active payment attempt is linked to this workspace."}</p>}
+        </>}
+        {topic === "security" && <HelpRecordPicker key={`${scope}:safety`} title="Link a booking or job" targets={safetyTargets} onChoose={target => startSecurity(helpTargetKey(target))} onAccount={() => startSecurity()} />}
       </>}
-    </div>}
+    </>}
+    </div>
   </AccountShell>;
-}
-function TargetPicker({ title, targets, value, setValue, empty, action, includeHistory = false }: {
-  title: string; targets: HelpTarget[]; value: string; setValue: (value: string) => void; empty: string; action: () => void; includeHistory?: boolean;
-}) {
-  return <>
-    <HelpRecordPicker key={title} title={title} targets={targets} value={value} setValue={setValue} includeHistory={includeHistory} />
-    {!targets.length ? <p className="text-sm leading-6 text-[#8E95A6]">{empty}</p> : null}
-    <PrimaryButton onClick={action} disabled={!targets.some(item => helpTargetKey(item) === value)}>Message WeHouse</PrimaryButton>
-  </>;
-}
-function PrimaryButton({ children, onClick, disabled = false }: {
-  children: React.ReactNode; onClick: () => void; disabled?: boolean;
-}) {
-  return <button type="button" disabled={disabled} onClick={onClick}
-    className="h-12 w-full rounded-2xl bg-violet-500 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40">{children}</button>;
 }
 function financeSubjectType(target: HelpTarget) {
   if (target.subject_type === "worker_job") return "worker_job";

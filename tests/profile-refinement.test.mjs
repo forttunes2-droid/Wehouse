@@ -24,9 +24,13 @@ test('Help type identity prevents hotel and stay collision, deduplicates deliver
  assert.equal(help.helpRecordType(record({context_type:'hotel_property'})),'Hotel');
  assert.equal(help.helpRecordStatus(record({status:'payment_pending'})),'Payment not completed');
 });
-test('Roommate editor has one state, explicit review, neutral optional fields and one match summary',()=>{
+test('Roommate editor has one state and save, in-place edits, neutral optional fields and one match summary',()=>{
  const editor=read('src/components/RoommatePreferencesPanel.tsx');
- assert.match(editor,/housing: "Housing needs", living: "Living preferences", review: "Review"/);
+ assert.match(editor,/aria-label="Roommate preferences"/);
+ assert.match(editor,/aria-expanded=\{open\}/);
+ assert.doesNotMatch(editor,/type Step|setStep|1 of 3|"Continue"/);
+ assert.equal((editor.match(/"Save preferences"/g)||[]).length,1);
+ assert.match(editor,/setForm\(openedWith.current\);onCancel\(\)/);
  assert.match(editor,/roommateHousingError/);assert.match(editor,/roommatePreferenceError/);
  assert.match(editor,/<option value="">Not set<\/option>/);
  assert.doesNotMatch(editor,/"Skip"/);

@@ -10,9 +10,10 @@ type Props = {
   onWorkspaceSwitch?: () => void;
   children: React.ReactNode;
   workspace?: WorkspaceName;
+  narrow?: boolean;
 };
 
-export default function AccountShell({ profile, title, description, onBack, onWorkspaceSwitch, children, workspace }: Props) {
+export default function AccountShell({ profile, title, description, onBack, onWorkspaceSwitch, children, workspace, narrow = false }: Props) {
   const role = String(profile.role || 'user');
   const roleLabel = workspace ? workspaceLabel(workspace).toUpperCase() : role === 'property_partner'
     ? 'PROPERTY PARTNER'
@@ -23,7 +24,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
   return (
     <div className="role-workspace min-h-[100dvh] bg-[#0A0A0F] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-white sm:pb-10">
       <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]">
-        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
+        <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 py-4 sm:px-5 lg:px-8`}>
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
@@ -44,7 +45,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
         </div>
       </header>
 
-      <main key={title} className="wh-panel-enter mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
+      <main key={title} className={`wh-panel-enter mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} space-y-4 px-4 py-5 sm:px-5 lg:px-8 lg:py-7`}>
         {children}
       </main>
     </div>
@@ -88,7 +89,7 @@ export function AccountRow({
         <span className="block text-sm font-semibold text-[#E6E8EE]">{title}</span>
         {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[#989EAE]">{detail}</span> : null}
       </span>
-      {trailing ?? (onClick ? <span className="text-[#565D6D]">›</span> : null)}
+      {trailing ?? (onClick ? <span aria-hidden="true" className="text-[#565D6D]">›</span> : null)}
     </Wrapper>
   );
 }

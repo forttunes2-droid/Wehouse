@@ -110,11 +110,10 @@ export default function ZoomablePhoto({ src, title, onReady, onError, onPrevious
     <div ref={stage} data-photo-stage className="relative grid min-h-0 flex-1 touch-none select-none place-items-center overflow-hidden overscroll-none" style={{ touchAction: 'none' }}>
       <img ref={image} src={src} alt={title} draggable={false} decoding="async" onLoad={onReady} onError={onError} className="pointer-events-none max-w-none select-none object-contain" style={{ willChange: 'transform' }} />
     </div>
-    <div className="flex min-h-14 shrink-0 items-center justify-center gap-2 bg-black px-3 text-white">
+    <div role="group" aria-label="Photo controls" className="flex min-h-14 shrink-0 items-center justify-center gap-2 bg-black px-3 text-white">
       <button type="button" aria-label="Zoom out" disabled={scale <= 1.01} onClick={() => move.current(zoomAt(camera.current, camera.current.scale / 1.5, { x: 0, y: 0 }, bounds.current))} className="grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><Minus size={20} /></button>
-      <span className="min-w-14 text-center text-sm tabular-nums" aria-label="Image zoom">{Math.round(scale * 100)}%</span>
       <button type="button" aria-label="Zoom in" disabled={scale >= 3.99} onClick={() => move.current(zoomAt(camera.current, camera.current.scale * 1.5, { x: 0, y: 0 }, bounds.current))} className="grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><Plus size={20} /></button>
-      <button type="button" aria-label="Reset image zoom" disabled={scale <= 1.01} onClick={() => move.current(restingCamera())} className="ml-2 grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><RotateCcw size={18} /></button>
+      <button type="button" aria-label="Reset image zoom" disabled={scale <= 1.01} onClick={() => move.current(restingCamera())} className="grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><RotateCcw size={18} /></button>
     </div>
   </div>;
 }

@@ -42,3 +42,9 @@ test('first-frame dialog input does not depend on a later effect or animation fr
  assert.match(dialog,/useLayoutEffect/);assert.doesNotMatch(dialog,/requestAnimationFrame/);
  assert.match(dialog,/focusables\(\)\[0\] \|\| root/);
 });
+
+test('image zoom remains functional without displaying a calculation',()=>{
+ const photo=fs.readFileSync('src/components/ZoomablePhoto.tsx','utf8');
+ assert.doesNotMatch(photo,/Math.round\(scale \* 100\)|aria-label="Image zoom"/);
+ assert.match(photo,/data-photo-stage/);assert.match(photo,/aria-label="Zoom in"/);assert.match(photo,/aria-label="Reset image zoom"/);
+});
