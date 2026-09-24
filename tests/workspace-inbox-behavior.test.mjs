@@ -95,7 +95,7 @@ const accountShell = {
 };
 test('Help menus follow the selected profile, including Hotel Team',()=>{
   const Help=moduleAt('src/components/AccountHelpCenter.tsx',{
-    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,
+    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,'@/components/HelpRecordPicker':()=>null,
     '@/lib/helpTargets':moduleAt('src/lib/helpTargets.ts'),
     '@/lib/supabase':{},'@/lib/withTimeout':{},sonner:{toast:{}},
   }).default;

@@ -3,7 +3,8 @@ import { toast } from "sonner";
 import AccountShell, { AccountRow, AccountSection } from "@/components/AccountShell";
 import type { WorkspaceName } from "@/lib/workspacePresentation";
 import { withTimeout } from "@/lib/withTimeout";
-import { helpTargetKey, helpTargetLabel, paymentHelpTargets, isHelpTargetsResponse, type HelpTarget } from "@/lib/helpTargets";
+import { helpTargetKey, paymentHelpTargets, isHelpTargetsResponse, type HelpTarget } from "@/lib/helpTargets";
+import HelpRecordPicker from "@/components/HelpRecordPicker";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -51,12 +52,10 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     setLoading(true);
     setLoadError(false);
     setTargets({});
-    setTopic(null);
-    setTargetId("");
     void withTimeout(supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace }), 15000, 'Help timed out').then(({ data, error }) => {
       if (cancelled) return;
       // An older or malformed projection is unavailable, not an empty payment history.
-      const usable = !error && isHelpTargetsResponse(data);
+      const usable = !error && isHelpTargetsResponse(data) && data.account.subject_id === profile.user_id;
       setLoadError(!usable);
       // Never let a malformed list crash rendering before the retry UI appears.
       setTargets(usable ? data as HelpTargets : {});
@@ -68,6 +67,8 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     });
     return () => { cancelled = true; };
   }, [profile.user_id, workspace, retry]);
+
+  useEffect(() => { setTopic(null); setTargetId(""); }, [profile.user_id, workspace]);
 
   const topics = TOPICS.filter(item => {
     if (item.id === 'property') return workspace === 'personal' || workspace === 'property_partner' || workspace === 'hotel';
@@ -190,13 +191,13 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     });
   }
 
-  return <AccountShell profile={profile} workspace={workspace} title="Help"
-    description="Choose what you need help with. WeHouse links the right booking, job or account only when it is relevant."
+  return <AccountShell profile={profile} workspace={workspace} title={topic ? topics.find(item => item.id === topic)?.title || "Help" : "Help"}
+    description=""
     onBack={topic ? () => { setTopic(null); setTargetId(''); } : onBack}>
     {loadError ? <div role="alert" className="rounded-2xl border border-white/10 p-4 text-sm">
       <p>We couldn't load your help options.</p><button className="mt-3 min-h-11 text-violet-300" onClick={() => setRetry(value => value + 1)}>Try again</button>
     </div> : !topic ? <AccountSection>
-      {topics.map(item => <AccountRow key={item.id} title={item.title} detail={item.detail} onClick={() => resetTopic(item.id)} />)}
+      {topics.map(item => <AccountRow key={item.id} title={item.title} onClick={() => resetTopic(item.id)} />)}
     </AccountSection> : <div className="space-y-4">
       {loading ? <div role="status" className="rounded-2xl border border-white/[.06] bg-[#11141C] p-5 text-xs text-[#8E95A6]">Loading your help options…</div> : <>
       {topic === "general" ? <AccountSection>
@@ -216,7 +217,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
         <TargetPicker title={moneyReason === "payout_issue" ? "Which withdrawal?" : "Which payment is this about?"}
           targets={moneyReason === "payout_issue" ? payoutTargets : paymentTargets} value={targetId} setValue={setTargetId}
           empty={moneyReason === "payout_issue" ? "No withdrawal request is linked to this identity yet." : "No payment or active payment attempt is linked to this workspace."}
-          action={startMoney} />
+          action={startMoney} includeHistory />
       </> : null}
       {topic === "security" ? <>
         <WeHouseSelect value={securityReason} options={[
@@ -224,7 +225,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
           { value: "safety_threat", label: "Safety, abuse or threat" },
         ]} onChange={value => { setSecurityReason(value as SecurityReason); setTargetId(""); }}
           eyebrow="Safety & security" title="What happened?" ariaLabel="Choose security help reason" />
-        {securityReason === "safety_threat" ? <TargetSelect title="Link a record if this happened during a job or stay"
+        {securityReason === "safety_threat" ? <HelpRecordPicker title="Link a record if this happened during a job or stay"
           targets={safetyTargets} value={targetId} setValue={setTargetId} allowAccount /> : null}
         <PrimaryButton onClick={startSecurity} disabled={loading || !targets.account}>Message WeHouse</PrimaryButton>
       </> : null}
@@ -232,29 +233,20 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     </div>}
   </AccountShell>;
 }
-function TargetPicker({ title, targets, value, setValue, empty, action }: {
-  title: string; targets: HelpTarget[]; value: string; setValue: (value: string) => void; empty: string; action: () => void;
+function TargetPicker({ title, targets, value, setValue, empty, action, includeHistory = false }: {
+  title: string; targets: HelpTarget[]; value: string; setValue: (value: string) => void; empty: string; action: () => void; includeHistory?: boolean;
 }) {
   return <>
-    <TargetSelect title={title} targets={targets} value={value} setValue={setValue} />
-    {!targets.length ? <p className="text-xs leading-5 text-[#8E95A6]">{empty}</p> : null}
-    <PrimaryButton onClick={action} disabled={!targets.length || !value}>Message WeHouse</PrimaryButton>
+    <HelpRecordPicker key={title} title={title} targets={targets} value={value} setValue={setValue} includeHistory={includeHistory} />
+    {!targets.length ? <p className="text-sm leading-6 text-[#8E95A6]">{empty}</p> : null}
+    <PrimaryButton onClick={action} disabled={!targets.some(item => helpTargetKey(item) === value)}>Message WeHouse</PrimaryButton>
   </>;
-}
-function TargetSelect({ title, targets, value, setValue, allowAccount = false }: {
-  title: string; targets: HelpTarget[]; value: string; setValue: (value: string) => void; allowAccount?: boolean;
-}) {
-  const options = [
-    ...(allowAccount ? [{ value: "", label: "My account / no specific record" }] : []),
-    ...targets.map(item => ({ value: helpTargetKey(item), label: helpTargetLabel(item) })),
-  ];
-  return <WeHouseSelect value={value} options={options} onChange={setValue} eyebrow="Linked record" title={title} ariaLabel={title} />;
 }
 function PrimaryButton({ children, onClick, disabled = false }: {
   children: React.ReactNode; onClick: () => void; disabled?: boolean;
 }) {
   return <button type="button" disabled={disabled} onClick={onClick}
-    className="h-12 w-full rounded-2xl bg-violet-500 text-[11px] font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40">{children}</button>;
+    className="h-12 w-full rounded-2xl bg-violet-500 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40">{children}</button>;
 }
 function financeSubjectType(target: HelpTarget) {
   if (target.subject_type === "worker_job") return "worker_job";

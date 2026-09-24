@@ -553,7 +553,7 @@ export default function AccountCenter({
       </AccountSection>
 
       {canOpenCustomerHelp ? (
-        <AccountSection title="Help">
+        <AccountSection>
           <AccountRow
             title="Help"
             detail={helpDetail}

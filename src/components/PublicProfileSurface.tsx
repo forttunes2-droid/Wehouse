@@ -113,7 +113,7 @@ export default function PublicProfileSurface({
       </header>
       <main className={`mx-auto ${width} px-5 pb-8`}>
         {about ? <section className="border-t border-white/[.07] py-5">
-          <h2 className="text-[10px] font-bold uppercase tracking-[.14em] text-[#858C9C]">About</h2>
+          <h2 className="text-xs font-bold uppercase tracking-[.14em] text-[#858C9C]">About</h2>
           <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#B5BAC6]">{about}</p>
         </section> : null}
         {children ? <div className="space-y-5">{children}</div> : null}
@@ -145,7 +145,7 @@ function ProfilePhoto({ src, name, subtitle, onClose }: {
 export function PublicProfileAction({ label, onClick, children }: {
   label: string; onClick: () => void; children: ReactNode;
 }) {
-  return <button type="button" onClick={onClick} className="flex min-w-14 flex-col items-center gap-2 text-[10px] font-medium text-[#B9BDC8]">
+  return <button type="button" onClick={onClick} className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-[#B9BDC8]">
     <span className="grid h-11 w-11 place-items-center rounded-full border border-white/[.06] bg-white/[.055] text-[#D8DAE1]">{children}</span>
     {label}
   </button>;
