@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
+import { useEffect, useState } from "react";
+import { isTopDialog } from "@/lib/dialogIsolation";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
+import ZoomablePhoto from "@/components/ZoomablePhoto";
 import { createPortal } from "react-dom";
 import VideoPlayer from "@/components/VideoPlayer";
 
@@ -30,12 +34,13 @@ type MediaViewerProps = MediaViewerSharedProps &
   );
 
 export default function MediaViewer(props: MediaViewerProps) {
-  const dialogRoot = useRef<HTMLDivElement>(null);
+  const dismiss = useRecordScreenBack(props.onClose);
+  const dialogRoot = useDialogInteraction(dismiss);
+  useVisualViewportFrame(dialogRoot);
   const {
     title = "Media preview",
     subtitle,
     avatarUrl,
-    onClose,
   } = props;
   const items: MediaViewerItem[] =
     props.items !== undefined
@@ -60,31 +65,6 @@ export default function MediaViewer(props: MediaViewerProps) {
   }, [requestedIndex, maxIndex]);
 
   useEffect(() => {
-    const root = dialogRoot.current;
-    if (!root) return;
-    const release = isolateDialog(root);
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    root.focus({ preventScroll: true });
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (!isTopDialog(root) || event.defaultPrevented) return;
-      if (event.key === "Escape") { event.preventDefault(); onClose(); }
-      if (items.length > 1 && event.key === "ArrowLeft") {
-        setIndex((value) => Math.max(0, value - 1));
-      }
-      if (items.length > 1 && event.key === "ArrowRight") {
-        setIndex((value) => Math.min(items.length - 1, value + 1));
-      }
-    };
-
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      release();
-      if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [items.length, onClose]);
-
-  useEffect(() => {
     setReady(kind === "video");
     setFailed(!src);
     setCurrentTime(0);
@@ -93,12 +73,17 @@ export default function MediaViewer(props: MediaViewerProps) {
 
   return createPortal(
     <div ref={dialogRoot} tabIndex={-1}
-      className="fixed inset-0 z-[100200] isolate flex h-[100svh] flex-col bg-black text-white"
+      className="fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
+      onKeyDown={event => {
+        if (event.defaultPrevented || !dialogRoot.current || !isTopDialog(dialogRoot.current) || (event.target as HTMLElement).closest("button,input,select,textarea")) return;
+        if (event.key === "ArrowLeft") { event.preventDefault(); setIndex(value => Math.max(0, value - 1)); }
+        if (event.key === "ArrowRight") { event.preventDefault(); setIndex(value => Math.min(maxIndex, value + 1)); }
+      }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[.08] px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] backdrop-blur-xl">
+      <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[.08] px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] bg-black">
         <div className="flex min-w-0 items-center gap-2.5">
           {avatarUrl ? (
             <img
@@ -110,15 +95,15 @@ export default function MediaViewer(props: MediaViewerProps) {
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{title}</p>
             {subtitle ? (
-              <p className="mt-0.5 truncate text-[9px] text-white/55">
+              <p className="mt-0.5 truncate text-xs text-white/55">
                 {subtitle}
               </p>
             ) : kind === "video" && duration > 0 ? (
-              <p className="mt-0.5 font-mono text-[9px] text-white/55">
+              <p className="mt-0.5 font-mono text-xs text-white/55">
                 {formatDuration(currentTime)} / {formatDuration(duration)}
               </p>
             ) : items.length > 1 ? (
-              <p className="mt-0.5 text-[9px] text-white/55">
+              <p className="mt-0.5 text-xs text-white/55">
                 {index + 1} / {items.length}
               </p>
             ) : null}
@@ -126,7 +111,7 @@ export default function MediaViewer(props: MediaViewerProps) {
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[.08] text-xl"
           aria-label="Close media preview"
         >
@@ -146,7 +131,7 @@ export default function MediaViewer(props: MediaViewerProps) {
             <p className="text-sm font-semibold">
               This media could not be loaded
             </p>
-            <p className="mt-2 text-[10px] text-white/55">
+            <p className="mt-2 text-sm text-white/55">
               Close the viewer and try again.
             </p>
           </div>
@@ -160,16 +145,14 @@ export default function MediaViewer(props: MediaViewerProps) {
               setReady(true);
             }}
             onPlaybackError={() => setFailed(true)}
-            className="max-h-full max-w-full object-contain"
+            containerClassName="h-full w-full bg-black"
+            className="h-full w-full object-contain"
           />
         ) : (
-          <img
-            src={src}
-            alt={title}
-            decoding="async"
-            onLoad={() => setReady(true)}
-            onError={() => setFailed(true)}
-            className={`max-h-full max-w-full object-contain transition-opacity ${ready ? "opacity-100" : "opacity-0"}`}
+          <ZoomablePhoto key={src} src={src} title={title}
+            onReady={() => setReady(true)} onError={() => setFailed(true)}
+            onPrevious={index > 0 ? () => setIndex(value => value - 1) : undefined}
+            onNext={index < maxIndex ? () => setIndex(value => value + 1) : undefined}
           />
         )}
         {items.length > 1 && index > 0 ? (

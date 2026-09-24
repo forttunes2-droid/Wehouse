@@ -20,7 +20,9 @@ async def main():
      await page.evaluate('(mode)=>window.__practicalMode=mode',mode)
      await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
      if mode=='preferences':
-      await expect(page.get_by_role('heading',name='Roommate preferences')).to_be_visible()
+      await expect(page.get_by_role('heading',name='Housing needs',exact=True)).to_be_visible()
+      await expect(page.get_by_role('region',name='Roommate preferences',exact=True)).to_be_visible()
+      await expect(page.get_by_text('1 of 3',exact=True)).to_be_visible()
       form=await page.evaluate('window.__getForm()');assert all(form[x]=='' for x in ['preferred_state','preferred_lga','cleanliness','noise_level','visitors','move_in_mode','room_arrangement'])
       assert form['school_name']=='Example Polytechnic' and not form['school_match']
       await page.get_by_label('Preferred State',exact=True).select_option('Nasarawa');await page.get_by_label('Preferred LGA',exact=True).select_option('Lafia')

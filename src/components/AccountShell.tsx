@@ -22,7 +22,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
 
   return (
     <div className="role-workspace min-h-[100dvh] bg-[#0A0A0F] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-white sm:pb-10">
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]">
         <div className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
