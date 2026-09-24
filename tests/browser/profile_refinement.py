@@ -10,6 +10,23 @@ async def swipe(page,target,dy):
  await session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
  for i in range(1,9):await session.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y+dy*i/8}]})
  await session.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]});await session.detach();await page.wait_for_timeout(120)
+async def settled_capture(page, name, media=False):
+ # Capture the UI after its finite entrance animation; do not mistake a dim
+ # transition frame or an undecoded thumbnail for the finished presentation.
+ await page.wait_for_function("""() => Array.from(document.querySelectorAll('.wh-panel-enter')).every(node => Number(getComputedStyle(node).opacity) >= .99)""", timeout=6000)
+ if media:
+  await page.wait_for_function("""() => {
+   const visible = Array.from(document.querySelectorAll('[data-showcase-grid] > button')).filter(node => {
+    const box = node.getBoundingClientRect();
+    return box.bottom > 0 && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
+   });
+   return visible.length > 0 && visible.every(node => {
+    const image = node.querySelector('img'), video = node.querySelector('video');
+    return (image && image.complete && image.naturalWidth > 0) || (video && video.readyState >= 2 && video.videoWidth > 0);
+   });
+  }""", timeout=6000)
+ await page.screenshot(path=str(OUT/name))
+
 async def main():
  subprocess.run(['node','tests/browser/build-profile-refinement.mjs'],check=True);OUT.mkdir(parents=True,exist_ok=True);results=[]
  async with async_playwright() as p:
@@ -35,7 +52,7 @@ async def main():
       assert await page.locator('video').evaluate_all('(v)=>v.every(e=>e.paused)')
       # A sticky action must be opaque; blurred grid tiles must not show through.
       assert await page.get_by_role('button',name='Request service',exact=True).evaluate('(button)=>getComputedStyle(button.parentElement.parentElement).backgroundColor')=='rgb(9, 11, 16)'
-      await page.screenshot(path=str(OUT/f'worker-public-profile-{width}.png'))
+      await settled_capture(page,f'worker-public-profile-{width}.png',media=True)
       await page.get_by_role('tab',name='Reviews',exact=True).click();await expect(page.get_by_text('Careful work and a tidy finish.',exact=True)).to_be_visible()
       assert await page.locator('[data-showcase-grid]').count()==0
       await page.get_by_role('tab',name='Reviews',exact=True).press('ArrowLeft');await expect(page.get_by_role('tab',name='Work posts')).to_be_focused()
@@ -59,7 +76,7 @@ async def main():
      elif mode=='owner':
       await expect(tiles).to_have_count(24);await page.get_by_label('Post visibility',exact=True).select_option('hidden');await expect(tiles).to_have_count(1)
       assert not any(x['name']=='set_my_worker_work_post_hidden' for x in await page.evaluate('window.__fixtureState.calls'))
-      await page.get_by_label('Post visibility',exact=True).select_option('all');await page.screenshot(path=str(OUT/f'worker-own-showcase-{width}.png'))
+      await page.get_by_label('Post visibility',exact=True).select_option('all');await settled_capture(page,f'worker-own-showcase-{width}.png',media=True)
       await tiles.nth(0).click();await page.get_by_label('Post options',exact=True).click();await page.get_by_role('button',name='Hide from profile',exact=True).click()
       await expect(page.get_by_role('dialog',name='Sani Example work post')).to_have_count(0)
       assert len([x for x in await page.evaluate('window.__fixtureState.calls') if x['name']=='set_my_worker_work_post_hidden'])==1
@@ -98,7 +115,7 @@ async def main():
      elif mode=='help':
       await page.get_by_role('button',name='Property or stay').click();await expect(page.get_by_text('Garden Lodge',exact=True)).to_be_visible()
       assert await page.get_by_text('Cancelled test stay',exact=True).count()==0;assert 'Record 12345678' not in await page.locator('body').inner_text()
-      await page.screenshot(path=str(OUT/f'help-current-records-{width}.png'))
+      await settled_capture(page,f'help-current-records-{width}.png')
       await page.get_by_label('Records to show',exact=True).select_option('all');await expect(page.get_by_text('Cancelled test stay',exact=True)).to_be_visible()
       await page.get_by_placeholder('Search your records').fill('Garden');await page.get_by_role('radio').check();await page.get_by_role('button',name='Message WeHouse',exact=True).click()
       assert (await page.evaluate('window.__helpEvent'))['contextId']=='stay-current'
