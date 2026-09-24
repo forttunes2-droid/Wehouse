@@ -14,7 +14,7 @@ async def main():
   if os.getenv('CHROMIUM_PATH'):opts['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**opts)
   for width,height in [(320,640),(390,844),(768,900),(1440,900)]:
-   context=await browser.new_context(viewport={'width':width,'height':height},has_touch=True,service_workers='block');page=await context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));checks=[]
+   context=await browser.new_context(viewport={'width':width,'height':height},has_touch=True,service_workers='block');page=await context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));checks=[];phase='open'
    async def route(handler):
     if handler.request.url.startswith('https://assets.wehouse.test/'):return await handler.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await handler.abort()
@@ -57,13 +57,23 @@ async def main():
     checks.append('orientation and real browser page scale track the visual viewport')
     await session.send('Emulation.setPageScaleFactor',{'pageScaleFactor':1});await page.set_viewport_size({'width':width,'height':height})
     await page.get_by_role('button',name='Close media preview').click();await expect(viewer).to_have_count(0);await expect(opener).to_be_focused();assert not await page.evaluate('document.getElementById("root").inert')
+    phase='immediate Escape after reopen'
     await opener.click();await page.keyboard.press('Escape');await expect(viewer).to_have_count(0);await expect(opener).to_be_focused()
+    phase='native Back after reopen'
     await opener.click();await page.go_back();await expect(viewer).to_have_count(0);await expect(opener).to_be_focused();assert not await page.evaluate('document.getElementById("root").inert')
     checks.append('close, Escape and browser Back release page lock and restore opener')
+    phase='first-committed-frame Escape'
+    for repeat in range(4):
+     await opener.focus()
+     await page.evaluate('window.__openWithImmediateEscape()')
+     await expect(viewer).to_have_count(0)
+     await expect(opener).to_be_focused()
+     assert not await page.evaluate('document.getElementById("root").inert')
+    checks.append('first-frame Escape works on four immediate reopen cycles without delaying input')
     assert not errors,errors
     results.append({'width':width,'passed':True,'checks':checks,'page_errors':errors})
    except Exception as e:
-    results.append({'width':width,'passed':False,'error':str(e),'page_errors':errors});await page.screenshot(path=str(OUT/f'media-viewer-FAIL-{width}.png'))
+    results.append({'width':width,'passed':False,'error':str(e),'phase':phase,'history':await page.evaluate('history.state'),'page_errors':errors});await page.screenshot(path=str(OUT/f'media-viewer-FAIL-{width}.png'))
    finally:await context.close()
   await browser.close()
  (OUT/'media-viewport-results.json').write_text(json.dumps(results,indent=2));print(json.dumps(results,indent=2));assert all(r['passed'] for r in results)

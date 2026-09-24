@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useCallback, useId, useLayoutEffect, useRef } from "react";
 import { bindProfileScreenHistory } from "@/lib/profileScreenHistory";
 
 /** Detail screens stay inside the originating workspace and consume one Back.
@@ -8,7 +8,8 @@ export function useRecordScreenBack(onBack: () => void, enabled = true) {
   const callback = useRef(onBack);
   useLayoutEffect(() => { callback.current = onBack; }, [onBack]);
   const binding = useRef<ReturnType<typeof bindProfileScreenHistory> | null>(null);
-  useEffect(() => {
+  // Register the history entry before the dialog accepts its first input.
+  useLayoutEffect(() => {
     if (!enabled) return;
     const layer = bindProfileScreenHistory(window, `record:${id}`, () => callback.current());
     binding.current = layer;

@@ -34,3 +34,11 @@ test('media viewer owns native Back, focus and dynamic opaque viewport',()=>{
  assert.match(s,/ZoomablePhoto key=\{src\}/);
  assert.doesNotMatch(s,/user-scalable|maximum-scale/);
 });
+
+test('first-frame dialog input does not depend on a later effect or animation frame',()=>{
+ const history=fs.readFileSync('src/hooks/useRecordScreenBack.ts','utf8');
+ const dialog=fs.readFileSync('src/hooks/useDialogInteraction.ts','utf8');
+ assert.match(history,/useLayoutEffect\(\(\) => \{[\s\S]*?bindProfileScreenHistory/);
+ assert.match(dialog,/useLayoutEffect/);assert.doesNotMatch(dialog,/requestAnimationFrame/);
+ assert.match(dialog,/focusables\(\)\[0\] \|\| root/);
+});
