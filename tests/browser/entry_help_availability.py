@@ -4,6 +4,7 @@ account, production service, OAuth round-trip or database write is performed.
 """
 import asyncio
 import json
+import os
 import re
 from playwright.async_api import async_playwright, expect
 from experience import BASE, OUT, Scenario
@@ -12,7 +13,7 @@ async def main():
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(**({"executable_path": os.environ["CHROMIUM_PATH"]} if os.getenv("CHROMIUM_PATH") else {}))
         try:
             for width, height in [(320, 640), (390, 844), (760, 900), (1440, 900)]:
                 scenario = Scenario()
@@ -85,7 +86,10 @@ async def main():
                 await page.get_by_role('button', name='Try again', exact=True).click()
             valid_response = await valid_retry.value
             assert isinstance((await valid_response.json())['reservations'], list)
-            await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
+            # Retry preserves the topic the person already selected. It must
+            # not send them back to the root menu or require a second selection.
+            await expect(page.get_by_role('heading', name='Payments and refunds', exact=True)).to_be_visible()
+            await expect(page.get_by_role('button', name='Payments and refunds', exact=True)).to_have_count(0)
             await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_be_visible()
             await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_be_disabled()
             await expect(page.get_by_role('alert')).to_have_count(0)
