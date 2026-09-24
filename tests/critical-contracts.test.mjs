@@ -310,8 +310,8 @@ test('Worker ratings and reviews render only after verified job reviews exist',(
   const workerWorkspace=read('src/components/WorkerProfilePanelV2.tsx');
   const booking=read('src/components/BookingNegotiationChat.tsx');
   const schema=read('supabase/migrations/20250525000000_remote_schema.sql');
-  assert.match(profile,/reviewCount > 0 \? <ProfileFact label="Customer rating"/);
-  assert.match(profile,/reviews\.length > 0 \? <section>/);
+  assert.match(profile,/reviewCount > 0 && <span>★/);
+  assert.match(profile,/reviews\.length \? <div/);
   assert.doesNotMatch(profile,/value=\{rating > 0 \?[^:]+: "New"\}/);
   assert.match(discovery,/Number\(worker\.review_count \|\| 0\) > 0 && Number\(worker\.rating \|\| 0\) > 0/);
   assert.match(workerWorkspace,/Number\(trust\?\.review_count\|\|0\)>0\?<Fact label="Customer rating"/);

@@ -33,7 +33,7 @@ export default function RoommatePublicProfile({
   highlights = [], discuss = [], comparedAnswers, presence, actions, footer, primaryAction,
 }: Props) {
   const [fullProfile, setFullProfile] = useState(false);
-  const hasScore = Number.isFinite(score);
+  const hasScore = Number.isFinite(score) && (comparedAnswers === undefined || comparedAnswers > 0);
   const conversationMode = context === "conversation";
   return <>
     <PublicProfileSurface
@@ -49,20 +49,18 @@ export default function RoommatePublicProfile({
       onClose={onClose}
       ariaLabel={`${person.name} ${conversationMode ? "conversation info" : "profile"}`}
       actions={conversationMode ? <>{actions}<PublicProfileAction label="Profile" onClick={onViewProfile || (() => setFullProfile(true))}><UserRound size={18} /></PublicProfileAction></> : actions}
-      badges={!conversationMode && hasScore ? <><strong className="text-xl text-violet-300">{score}%</strong><span className="text-xs font-medium text-[#A5AABA]">{matchLabel || "Roommate match"}</span></> : undefined}
+
       bottomAction={primaryAction}
     >
       {!conversationMode && <>
         {(hasScore || highlights.length > 0 || discuss.length > 0) && <section className="border-t border-white/[.07] py-5">
-          <h2 className="text-sm font-bold uppercase tracking-[.14em] text-[#858C9C]">What matches</h2>
-          {hasScore && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
-            <div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.min(100, Math.max(0, Number(score)))}%` }} />
-          </div>}
-          <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">{hasScore ? `Similarity across ${comparedAnswers || "your"} answered preferences—not the chance that living together will succeed.` : "Compare your plans together. Unanswered preferences are not treated as agreement."}</p>
-          {highlights.length > 0 && <div className="mt-4 flex flex-wrap gap-2">
-            {highlights.map(item => <span key={item} className="rounded-full border border-violet-500/15 bg-violet-500/[.06] px-3 py-1.5 text-xs font-medium text-violet-200">{item}</span>)}
-          </div>}
-          {discuss.length > 0 && <div className="mt-4 text-sm leading-6 text-[#C8C3D3]"><h3 className="font-semibold">Discuss before deciding</h3>{discuss.map(item=><p key={item} className="mt-1">{item}</p>)}</div>}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold">Preference match</h2>
+            {hasScore && <p className="text-sm text-[#C4BCD8]"><strong className="font-semibold text-violet-300">{score}%</strong> similarity{comparedAnswers ? ` · ${comparedAnswers} answers` : ""}</p>}
+          </div>
+          {highlights.length > 0 && <ul className="mt-3 space-y-2 text-sm leading-6 text-[#BCC2CF]">{highlights.map(item => <li key={item}>{item}</li>)}</ul>}
+          {discuss.length > 0 && <div className="mt-4 border-l-2 border-violet-400/60 pl-3 text-sm leading-6 text-[#C8C3D3]"><h3 className="font-medium text-[#E0DDE8]">Discuss before deciding</h3>{discuss.map(item => <p key={item}>{item}</p>)}</div>}
+          <details className="mt-3 text-sm text-[#A7ADBA]"><summary className="w-fit cursor-pointer py-3">How matching works</summary><p className="pb-2 leading-6">Similarity compares answered preferences, not the chance that living together will succeed. Unanswered choices do not count as agreement.</p></details>
         </section>}
         {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
           {person.preferredArea && <Detail label="Preferred area" value={person.preferredArea} />}

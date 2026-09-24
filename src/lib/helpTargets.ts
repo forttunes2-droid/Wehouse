@@ -59,3 +59,28 @@ export function isHelpTargetsResponse(value: unknown): boolean {
   return HELP_LISTS.every(key => data[key] == null
     || (Array.isArray(data[key]) && data[key].every(isHelpTarget)));
 }
+
+/** Presentation only: never changes server eligibility or deletes historical records. */
+export function helpRecordStatus(target: HelpTarget): string {
+  const status = (target.status || target.detail || "").trim().toLowerCase().replace(/ /g, "_");
+  const labels: Record<string, string> = { payment_pending: "Payment not completed", waiting_payment: "Payment not completed", approved_released: "Completed", cancelled: "Cancelled", canceled: "Cancelled", expired: "Expired" };
+  return labels[status] || (target.status || target.detail || "").replace(/_/g, " ");
+}
+export function helpRecordType(target: HelpTarget): string {
+  const types: Record<string, string> = { apartment_reservation: target.stay_type === "short_let" ? "Short Let" : "Long Let", hotel_booking: "Hotel stay", hotel_property: "Hotel", property_listing: "Home", property_inspection: "Property submission", worker_booking: "Service job" };
+  return types[target.context_type || ""] || (target.subject_type === "worker" ? "Worker profile" : target.subject_type === "payout" ? "Withdrawal" : "Account");
+}
+export function helpRecordCurrent(target: HelpTarget): boolean {
+  const status = (target.status || target.detail || "").trim().toLowerCase().replace(/ /g, "_");
+  return !["cancelled", "canceled", "expired", "completed", "approved_released", "checked_out", "refunded", "rejected", "deleted"].includes(status);
+}
+export function filterHelpRecords(targets: HelpTarget[], query: string, includeHistory: boolean): HelpTarget[] {
+  const seen = new Set<string>();
+  const search = query.trim().toLocaleLowerCase();
+  return targets.filter(target => {
+    const key = helpTargetKey(target);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return (includeHistory || helpRecordCurrent(target)) && (!search || [target.label, helpRecordStatus(target), helpRecordType(target), target.record_date, target.record_reference].filter(Boolean).join(" ").toLocaleLowerCase().includes(search));
+  });
+}

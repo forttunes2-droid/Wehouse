@@ -1,4 +1,5 @@
-export function RoommateChoice({ title, value, options, onChange }: {title:string;value:string;options:Array<[string,string]>;onChange:(value:string)=>void}) {
-  return <fieldset><legend className="mb-2 text-sm font-medium text-[#C8C3D3]">{title}</legend><div className="flex flex-wrap gap-2">{options.map(([key,label]) => <button type="button" key={key} aria-pressed={value === key} onClick={() => onChange(key)} className={`min-h-11 rounded-xl px-4 text-sm ${value===key?'bg-violet-500 text-white':'border border-white/[.12] text-[#C8C3D3]'}`}>{label}</button>)}</div></fieldset>;
+import { useId } from "react";
+export function RoommateChoice({ title, value, options, onChange }: { title: string; value: string; options: Array<[string, string]>; onChange: (value: string) => void }) {
+  const id = useId();
+  return <fieldset className="space-y-3"><legend id={id} className="text-sm font-medium text-[#D3D6DF]">{title}</legend><div className="flex flex-wrap gap-2">{options.filter(([key]) => key !== "").map(([key, label]) => <button type="button" key={key} aria-pressed={value === key} onClick={() => onChange(key)} className={`min-h-11 rounded-xl border px-4 py-2 text-sm transition-colors ${value === key ? "border-violet-400 bg-violet-500/15 text-violet-100" : "border-white/10 bg-transparent text-[#B5BBC8]"}`}>{label}</button>)}{value && options.some(([key]) => key === "") && <button type="button" onClick={() => onChange("")} className="min-h-11 px-2 text-sm text-[#A7ADBA]">Clear</button>}</div></fieldset>;
 }
-export function RoommateInfo({label,value}:{label:string;value:string}) { return <div className="border-b border-white/[.08] py-4"><p className="text-sm text-[#AAA3B3]">{label}</p><p className="mt-1 text-base font-medium">{value}</p></div>; }

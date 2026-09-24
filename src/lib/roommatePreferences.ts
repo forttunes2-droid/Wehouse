@@ -21,7 +21,7 @@ export function roommatePreferenceForm(p?: Partial<RoommatePreferences> | null, 
   };
 }
 /** Empty optional answers stay empty; we never manufacture agreement. */
-export function roommatePreferenceError(form: RoommatePreferenceForm, today: string): string | null {
+export function roommateHousingError(form: RoommatePreferenceForm, today: string): string | null {
   if (!['male','female','no_preference'].includes(form.gender_preference)) return 'Choose who you would live with.';
   if (!form.preferred_state || !form.preferred_lga) return 'Choose where you want to move: State and LGA.';
   if (![form.budget_min, form.budget_max].every(n => Number.isSafeInteger(n) && n > 0 && n <= 2000000000) || form.budget_max < form.budget_min) return 'Enter your own annual rent range, with the maximum at least the minimum.';
@@ -30,8 +30,14 @@ export function roommatePreferenceError(form: RoommatePreferenceForm, today: str
   if (['date','range'].includes(form.move_in_mode) && (!validDate(form.move_in_from) || form.move_in_from < today)) return 'Choose a valid future move-in date.';
   if (form.move_in_mode === 'range' && (!validDate(form.move_in_to) || form.move_in_to < form.move_in_from)) return 'Choose an end date on or after your earliest move-in date.';
   if (!['shared_bedroom','separate_bedrooms','either'].includes(form.room_arrangement)) return 'Choose whether you want to share a bedroom or just a home.';
-  if (!['never','outdoors','smokes'].includes(form.smoking_habit) || !['no','outdoors','yes'].includes(form.smoking_preference)) return 'Complete the two smoking choices so both people’s limits are respected.';
+
   if (form.school_match && !form.school_name.trim()) return 'Add your school before enabling same-school matching.';
+  return null;
+}
+export function roommatePreferenceError(form: RoommatePreferenceForm, today: string): string | null {
+  const housing = roommateHousingError(form, today);
+  if (housing) return housing;
+  if (!['never','outdoors','smokes'].includes(form.smoking_habit) || !['no','outdoors','yes'].includes(form.smoking_preference)) return 'Complete the two smoking choices so both people’s limits are respected.';
   return null;
 }
 export function roommateScoreLabel(score: number | null | undefined, answered = 0) {

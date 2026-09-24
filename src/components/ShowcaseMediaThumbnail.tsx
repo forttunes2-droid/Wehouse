@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 
 type Props = {
   src?: string;
@@ -44,28 +45,19 @@ export default function ShowcaseMediaThumbnail({
     return () => observer.disconnect();
   }, [nearViewport]);
 
-  if (mediaType === "image")
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={className}
-        loading="lazy"
-        decoding="async"
-      />
-    );
+  if (mediaType === "image") return src && !failed ? <img src={src} alt={alt} className={className} loading="lazy" decoding="async" onError={() => setFailed(true)} /> : <span className="grid h-full w-full place-items-center bg-[#161A23] px-2 text-center text-xs text-[#A7ADBA]">Photo</span>;
 
   return (
     <span ref={root} className="relative block h-full w-full overflow-hidden bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_48%),#111522]">
       {!ready && !failed ? (
-        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[.035] via-violet-500/[.08] to-white/[.025]" />
+        <span className="absolute inset-0 motion-safe:animate-pulse bg-gradient-to-br from-white/[.035] via-violet-500/[.08] to-white/[.025]" />
       ) : null}
       {poster ? <img src={poster} alt={alt} className={className} /> : src && nearViewport ? (
         <video
           src={`${src}#t=0.1`}
           muted
           playsInline
-          preload="auto"
+          preload="metadata"
           crossOrigin="anonymous"
           aria-hidden="true"
           onLoadedMetadata={(event) => {
@@ -91,12 +83,8 @@ export default function ShowcaseMediaThumbnail({
           className={`${className} transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
         />
       ) : null}
-      {failed && !ready && <span className="absolute inset-x-1 top-2 text-center text-[10px] text-white/70">Video · tap to play</span>}
-      <span className="pointer-events-none absolute inset-0 grid place-items-center">
-        <span className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/50 pl-0.5 text-sm text-white shadow-lg backdrop-blur-sm">
-          ▶
-        </span>
-      </span>
+      {failed && !ready && <span className="absolute inset-x-1 top-2 text-center text-xs text-white/70">Video · tap to play</span>}
+      <span className="pointer-events-none absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/65 text-xs text-white" aria-hidden="true"><Play size={14} fill="currentColor" /></span>
     </span>
   );
 }

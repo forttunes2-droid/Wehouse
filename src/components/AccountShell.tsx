@@ -27,15 +27,15 @@ export default function AccountShell({ profile, title, description, onBack, onWo
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
+              <p className="truncate text-xs font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
               <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
-              {description ? <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p> : null}
+              {description ? <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#74798B]">{description}</p> : null}
             </div>
             {onWorkspaceSwitch ? (
               <button
                 type="button"
                 onClick={onWorkspaceSwitch}
-                className="min-h-10 shrink-0 px-1 text-[10px] font-semibold text-violet-300"
+                className="min-h-10 shrink-0 px-1 text-xs font-semibold text-violet-300"
               >
                 Workspaces
               </button>
@@ -54,7 +54,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
 export function AccountSection({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <section>
-      {title ? <p className="mb-2 px-1 text-[9px] font-bold uppercase tracking-[.16em] text-[#656C7C]">{title}</p> : null}
+      {title ? <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[.16em] text-[#656C7C]">{title}</p> : null}
       <div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">{children}</div>
     </section>
   );
