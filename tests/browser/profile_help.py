@@ -3,7 +3,6 @@ synthetic identities/APIs. Never visits Production or sends a real message.
 """
 import asyncio
 import json
-import os
 import re
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
@@ -12,6 +11,7 @@ OUT = Path('test-results/experience')
 ACCOUNT = {'subject_type': 'account', 'subject_id': 'qa-self', 'label': 'My WeHouse account'}
 ABANDONED = {'subject_type': 'long_let', 'subject_id': 'old-attempt', 'context_type': 'apartment_reservation', 'label': 'Old apartment attempt', 'detail': 'cancelled'}
 STAY = {'subject_type': 'hotel', 'subject_id': '1', 'context_type': 'hotel_booking', 'label': 'Test Lodge', 'detail': 'confirmed', 'status': 'confirmed', 'record_date': '2026-09-22T00:00:00Z', 'record_reference': 'Record hotelstay'}
+PAID_CANCELLED = {'subject_type': 'hotel', 'subject_id': '2', 'context_type': 'hotel_booking', 'label': 'Cancelled paid stay', 'detail': 'Refund requested', 'status': 'cancelled', 'record_date': '2026-09-21T00:00:00Z'}
 HOTEL = {'subject_type': 'hotel', 'subject_id': '1', 'context_type': 'hotel_property', 'label': 'Test Lodge', 'detail': 'Hotel property', 'record_reference': 'Record property'}
 
 async def main():
@@ -35,9 +35,9 @@ async def main():
                     data = []
                     if name == 'get_my_legal_status': data = {}
                     if name == 'get_my_workspace_help_targets':
-                        data = {'account': ACCOUNT, 'reservations': [ABANDONED], 'hotel_bookings': [STAY], 'payment_targets': [STAY]}
+                        data = {'account': ACCOUNT, 'reservations': [ABANDONED], 'hotel_bookings': [STAY], 'payment_targets': [STAY, PAID_CANCELLED]}
                         if args.get('p_workspace') == 'property_partner':
-                            data = {'account': ACCOUNT, 'hotels': [HOTEL], 'partner_hotel_bookings': [STAY], 'payment_targets': [STAY]}
+                            data = {'account': ACCOUNT, 'hotels': [HOTEL], 'partner_hotel_bookings': [STAY], 'payment_targets': [STAY, PAID_CANCELLED]}
                     await req_route.fulfill(status=200, content_type='application/json', body=json.dumps(data), headers={'access-control-allow-origin': '*'})
                 await page.route('**/*', route)
                 try:
@@ -80,10 +80,18 @@ async def main():
 
                     await page.goto(BASE+'/tests/browser/profile-help.html?mode=help')
                     await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
-                    await page.get_by_role('button', name='Which payment is this about?', exact=True).click()
-                    choices = page.get_by_role('dialog', name='Which payment is this about?', exact=True)
+                    # The refined picker is an inline, named list, not another modal.
+                    choices = page.get_by_role('region', name='Which payment is this about?', exact=True)
+                    await expect(choices).to_be_visible()
+                    await expect(page.get_by_role('dialog', name='Which payment is this about?', exact=True)).to_have_count(0)
                     await expect(choices.get_by_text(re.compile('Old apartment attempt'))).to_have_count(0)
-                    await choices.get_by_role('button', name=re.compile('Test Lodge.*Record hotelstay')).click()
+                    await expect(choices.get_by_role('radio')).to_have_count(2)
+                    await expect(choices.get_by_role('radio', name=re.compile('Cancelled paid stay.*Hotel stay.*Cancelled'))).to_be_visible()
+                    await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_be_disabled()
+                    stay_choice = choices.get_by_role('radio', name=re.compile('Test Lodge.*Hotel stay'))
+                    assert json.loads(await stay_choice.input_value()) == ['hotel_booking', 'hotel', '1']
+                    await stay_choice.check()
+                    await expect(stay_choice).to_be_checked()
                     await page.get_by_role('button', name='Message WeHouse', exact=True).click()
                     await expect(page.locator('[data-chat-composer]')).to_be_visible()
                     await expect(page.locator('header').last).to_contain_text('WeHouse')
@@ -96,15 +104,22 @@ async def main():
 
                     await page.goto(BASE+'/tests/browser/profile-help.html?mode=help&workspace=property_partner')
                     await page.get_by_role('button', name=re.compile('Properties and guests')).click()
-                    await page.get_by_role('button', name='Which property or stay?', exact=True).click()
-                    choices = page.get_by_role('dialog', name='Which property or stay?', exact=True)
-                    await expect(choices.get_by_role('button', name=re.compile('Test Lodge'))).to_have_count(2)
-                    await choices.get_by_role('button', name=re.compile('Test Lodge.*Record hotelstay')).click()
+                    choices = page.get_by_role('region', name='Which property or stay?', exact=True)
+                    await expect(choices).to_be_visible()
+                    await expect(choices.get_by_role('radio', name=re.compile('Test Lodge'))).to_have_count(2)
+                    # Same numeric ID and title must still produce different typed targets.
+                    assert sorted(await choices.get_by_role('radio').evaluate_all('(radios) => radios.map(radio => JSON.parse(radio.value)[0])')) == ['hotel_booking', 'hotel_property']
+                    await choices.get_by_role('textbox', name='Search your records', exact=True).fill('Hotel stay')
+                    await expect(choices.get_by_role('radio')).to_have_count(1)
+                    stay_choice = choices.get_by_role('radio', name=re.compile('Test Lodge.*Hotel stay'))
+                    assert json.loads(await stay_choice.input_value()) == ['hotel_booking', 'hotel', '1']
+                    await stay_choice.check()
+                    await expect(stay_choice).to_be_checked()
                     await page.get_by_role('button', name='Message WeHouse', exact=True).click()
                     await expect(page.locator('[data-chat-composer]')).to_be_visible()
                     assert await page.evaluate('window.__lastSupportContext.contextType') == 'hotel_booking'
                     assert not errors, errors
-                    results.append({'viewport': [width, height], 'passed': True, 'checks': ['one account identity', 'one profile masthead', 'nested/native Back', 'workspace retained', 'no invented match score', 'server payment choices', 'WeHouse recipient identity', 'hotel property/booking ID separation', 'no first-send side effect']})
+                    results.append({'viewport': [width, height], 'passed': True, 'checks': ['one account identity', 'one profile masthead', 'nested/native Back', 'workspace retained', 'no invented match score', 'server payment choices including paid cancellations', 'inline searchable record list', 'WeHouse recipient identity', 'hotel property/booking ID separation', 'no first-send side effect']})
                     print('PASS Account/profile/Help browser', width, flush=True)
                 except Exception as error:
                     results.append({'viewport': [width, height], 'passed': False, 'error': str(error), 'page_errors': errors})
