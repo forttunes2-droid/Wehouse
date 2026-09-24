@@ -33,6 +33,8 @@ async def main():
       await expect(page.get_by_role('heading',name='Sani Example',exact=True)).to_be_visible();await expect(tiles).to_have_count(24)
       assert 'Hidden' not in await page.locator('[data-showcase-grid]').inner_text()
       assert await page.locator('video').evaluate_all('(v)=>v.every(e=>e.paused)')
+      # A sticky action must be opaque; blurred grid tiles must not show through.
+      assert await page.get_by_role('button',name='Request service',exact=True).evaluate('(button)=>getComputedStyle(button.parentElement.parentElement).backgroundColor')=='rgb(9, 11, 16)'
       await page.screenshot(path=str(OUT/f'worker-public-profile-{width}.png'))
       await page.get_by_role('tab',name='Reviews',exact=True).click();await expect(page.get_by_text('Careful work and a tidy finish.',exact=True)).to_be_visible()
       assert await page.locator('[data-showcase-grid]').count()==0
