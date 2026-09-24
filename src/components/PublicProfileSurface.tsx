@@ -118,7 +118,7 @@ export default function PublicProfileSurface({
         </section> : null}
         {children ? <div className="space-y-5">{children}</div> : null}
       </main>
-      {bottomAction ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#090B10]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+      {bottomAction ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#090B10] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
         <div className={`mx-auto ${width}`}>{bottomAction}</div>
       </div> : null}
       {avatarOpen && avatar ? <ProfilePhoto src={avatar} name={name} subtitle={subtitle} onClose={() => setAvatarOpen(false)} /> : null}
