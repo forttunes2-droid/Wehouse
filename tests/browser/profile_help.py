@@ -18,7 +18,7 @@ async def main():
     OUT.mkdir(parents=True, exist_ok=True)
     results = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(**({"executable_path": os.environ["CHROMIUM_PATH"]} if os.getenv("CHROMIUM_PATH") else {}))
         try:
             for width, height in [(390, 844), (1440, 900)]:
                 context = await browser.new_context(viewport={'width': width, 'height': height}, service_workers='block')
@@ -80,29 +80,35 @@ async def main():
 
                     await page.goto(BASE+'/tests/browser/profile-help.html?mode=help')
                     await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
-                    await page.get_by_role('button', name='Which payment is this about?', exact=True).click()
-                    choices = page.get_by_role('dialog', name='Which payment is this about?', exact=True)
+                    choices = page.get_by_role('region', name='Which payment is this about?', exact=True)
+                    await expect(choices).to_be_visible()
+                    await expect(choices.get_by_role('radio')).to_have_count(1)
                     await expect(choices.get_by_text(re.compile('Old apartment attempt'))).to_have_count(0)
-                    await choices.get_by_role('button', name=re.compile('Test Lodge.*Record hotelstay')).click()
+                    await expect(choices.get_by_text(re.compile('Record hotelstay'))).to_have_count(0)
+                    await choices.get_by_role('radio', name=re.compile('Test Lodge.*Hotel stay')).check()
                     await page.get_by_role('button', name='Message WeHouse', exact=True).click()
                     await expect(page.locator('[data-chat-composer]')).to_be_visible()
                     await expect(page.locator('header').last).to_contain_text('WeHouse')
                     await expect(page.locator('header').last).not_to_contain_text('Operations')
                     await expect(page.locator('header').last).to_contain_text('Test Lodge')
                     assert await page.evaluate('window.__lastSupportContext.contextType') == 'hotel_booking'
+                    assert await page.evaluate('window.__lastSupportContext.contextId') == '1'
                     assert await page.evaluate('window.__lastSupportContext.contextSnapshot.reason_code') == 'payment_issue'
                     assert not [name for name, _ in calls if name.startswith(('create_', 'send_'))], calls
                     await page.screenshot(path=str(OUT/f'wehouse-customer-title-{width}.png'))
 
                     await page.goto(BASE+'/tests/browser/profile-help.html?mode=help&workspace=property_partner')
                     await page.get_by_role('button', name=re.compile('Properties and guests')).click()
-                    await page.get_by_role('button', name='Which property or stay?', exact=True).click()
-                    choices = page.get_by_role('dialog', name='Which property or stay?', exact=True)
-                    await expect(choices.get_by_role('button', name=re.compile('Test Lodge'))).to_have_count(2)
-                    await choices.get_by_role('button', name=re.compile('Test Lodge.*Record hotelstay')).click()
+                    choices = page.get_by_role('region', name='Which property or stay?', exact=True)
+                    await expect(choices).to_be_visible()
+                    await expect(choices.get_by_role('radio', name=re.compile('Test Lodge'))).to_have_count(2)
+                    # A hotel and its stay may have the same numeric ID. The typed
+                    # record, not the title or a fabricated reference, owns routing.
+                    await choices.get_by_role('radio', name=re.compile('Test Lodge.*Hotel stay')).check()
                     await page.get_by_role('button', name='Message WeHouse', exact=True).click()
                     await expect(page.locator('[data-chat-composer]')).to_be_visible()
                     assert await page.evaluate('window.__lastSupportContext.contextType') == 'hotel_booking'
+                    assert await page.evaluate('window.__lastSupportContext.contextId') == '1'
                     assert not errors, errors
                     results.append({'viewport': [width, height], 'passed': True, 'checks': ['one account identity', 'one profile masthead', 'nested/native Back', 'workspace retained', 'no invented match score', 'server payment choices', 'WeHouse recipient identity', 'hotel property/booking ID separation', 'no first-send side effect']})
                     print('PASS Account/profile/Help browser', width, flush=True)
