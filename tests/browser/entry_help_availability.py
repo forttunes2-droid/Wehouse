@@ -85,13 +85,17 @@ async def main():
                 await page.get_by_role('button', name='Try again', exact=True).click()
             valid_response = await valid_retry.value
             assert isinstance((await valid_response.json())['reservations'], list)
-            await page.get_by_role('button', name=re.compile('Payments and refunds')).click()
+            # Retry preserves the selected topic. It must not send the person
+            # back to the topic menu or require a second click to recover.
+            await expect(page.get_by_role('heading', name='Payments and refunds', exact=True)).to_be_visible()
+            await expect(page.get_by_role('region', name='Which payment is this about?', exact=True)).to_be_visible()
+            await expect(page.get_by_role('button', name=re.compile('Payments and refunds'))).to_have_count(0)
             await expect(page.get_by_text('No payment or active payment attempt is linked to this workspace.', exact=True)).to_be_visible()
             await expect(page.get_by_role('button', name='Message WeHouse', exact=True)).to_be_disabled()
             await expect(page.get_by_role('alert')).to_have_count(0)
             await page.screenshot(path=str(OUT/'help-verified-empty-payments.png'))
             assert not scenario.errors, scenario.errors
-            results.append({'passed':True, 'check':'Loading never claims empty; malformed lists remain retryable; verified empty payments remain distinct'})
+            results.append({'passed':True, 'check':'Loading never claims empty; malformed lists remain retryable; verified empty payments remain distinct and the selected topic survives retry'})
             print('PASS Help availability and retry', flush=True)
             await context.close()
         except Exception as error:
