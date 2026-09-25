@@ -4,7 +4,6 @@ import './index.css'
 import './operational-workspaces.css'
 import './worker-discovery-responsive.css'
 import './chat-mobile.css'
-import App from './App.tsx'
 import { Toaster } from 'sonner'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
@@ -78,11 +77,37 @@ function MobileViewportInit() {
   return null;
 }
 
+function assertBrowserEnvironmentBeforeAppLoad() {
+  const configuredUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+  const configuredKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  const host = window.location.hostname.toLowerCase();
+  const productionHost = host === 'wehouse.com.ng' || host === 'www.wehouse.com.ng';
+  const productionProject = 'rkrhnkhppeihvmuwvsvn.supabase.co';
+
+  if ((!configuredUrl || !configuredKey) && !(productionHost && !configuredUrl && !configuredKey)) {
+    throw new Error('WeHouse configuration is incomplete. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY together for this environment.');
+  }
+  if (configuredUrl) {
+    let endpoint: URL;
+    try { endpoint = new URL(configuredUrl); }
+    catch { throw new Error('WeHouse Supabase URL is invalid.'); }
+    const configuredProduction = endpoint.hostname.replace(/\.$/, '') === productionProject;
+    if (!productionHost && configuredProduction) {
+      throw new Error('Safety stop: a non-production WeHouse host cannot connect to the production Supabase project.');
+    }
+    if (productionHost && endpoint.hostname.replace(/\.$/, '') !== productionProject) {
+      throw new Error('Safety stop: the live WeHouse website must connect to the production Supabase project.');
+    }
+  }
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('WeHouse root element is missing');
 
-
-createRoot(rootElement).render(
+async function mountWeHouse() {
+  assertBrowserEnvironmentBeforeAppLoad();
+  const { default: App } = await import('./App.tsx');
+  createRoot(rootElement).render(
   <StrictMode>
     <ErrorBoundary>
       <NativeInit />
@@ -95,4 +120,7 @@ createRoot(rootElement).render(
         style={{ zIndex: 2147483647 }} toastOptions={{ style: { background: "#17151E", color: "#F4F1F8", borderColor: "#38313F", borderRadius: '14px', padding: '12px 14px', fontSize: '13px', lineHeight: '1.4' } }} />
     </ErrorBoundary>
   </StrictMode>,
-)
+  )
+}
+
+void mountWeHouse()
