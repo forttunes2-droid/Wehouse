@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
+import { isMoneyPolicyResponse } from "@/lib/bookingMoneyPolicyResponse";
 
 type Rules = {
   short_let: {
@@ -197,6 +198,8 @@ export default function CreatorBookingMoneyRules() {
   const [saved, setSaved] = useState<Rules>(DEFAULTS);
   const [policy, setPolicy] = useState<PolicyResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const loadGeneration = useRef(0);
   const [publishing, setPublishing] = useState(false);
   const [reason, setReason] = useState("");
   const [effectiveAt, setEffectiveAt] = useState("");
@@ -207,21 +210,30 @@ export default function CreatorBookingMoneyRules() {
   );
 
   async function load() {
+    const generation = ++loadGeneration.current;
     setLoading(true);
-    const { data, error } = await supabase.rpc(
-      "creator_get_booking_money_rules",
-    );
-    setLoading(false);
-    if (error) return toast.error("Booking & money rules could not be loaded");
-    const response = (data || {}) as PolicyResponse;
-    const next = readRules(response);
-    setPolicy(response);
-    setRules(next);
-    setSaved(next);
+    setLoadError("");
+    setPolicy(null);
+    try {
+      const { data, error } = await supabase.rpc("creator_get_booking_money_rules");
+      if (generation !== loadGeneration.current) return;
+      if (error || !isMoneyPolicyResponse(data)) throw new Error("Policy response is unavailable or incomplete");
+      const next = readRules(data);
+      setPolicy(data);
+      setRules(next);
+      setSaved(next);
+    } catch {
+      if (generation !== loadGeneration.current) return;
+      setPolicy(null);
+      setLoadError("Your saved money rules could not be loaded. Editing is unavailable until they can be verified.");
+    } finally {
+      if (generation === loadGeneration.current) setLoading(false);
+    }
   }
 
   useEffect(() => {
     void load();
+    return () => { loadGeneration.current += 1; };
   }, []);
 
   function setShort<K extends keyof Rules["short_let"]>(
@@ -265,7 +277,7 @@ export default function CreatorBookingMoneyRules() {
   }
 
   async function publish(elevationId: string) {
-    if (!dirty) return;
+    if (loading || loadError || !policy || publishing || !dirty) return;
     if (reason.trim().length < 5)
       return toast.error("Add a short reason for this policy change");
 
@@ -296,9 +308,10 @@ export default function CreatorBookingMoneyRules() {
   }
 
   function requestPublish() {
-    if (!dirty) return;
+    if (loading || loadError || !policy || publishing || !dirty) return;
+    const generation = loadGeneration.current;
     requestElevation("policy_publish", (elevationId) => {
-      void publish(elevationId);
+      if (generation === loadGeneration.current) void publish(elevationId);
     });
   }
 
@@ -309,7 +322,15 @@ export default function CreatorBookingMoneyRules() {
       </div>
     );
 
-  const activeVersions = Object.values(policy?.active || {})
+  if (loadError || !policy) return (
+    <section role="alert" className="rounded-xl border border-white/10 p-4">
+      <h3 className="text-sm font-semibold">Booking &amp; money rules</h3>
+      <p className="mt-2 text-sm text-[#A4A9B6]">{loadError || "Your saved money rules are unavailable."}</p>
+      <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-xl border border-white/10 px-4 text-sm text-violet-300">Try again</button>
+    </section>
+  );
+
+  const activeVersions = Object.values(policy.active || {})
     .map((entry) => Number(entry.version || 0))
     .filter(Boolean);
   const latestVersion = activeVersions.length
