@@ -20,13 +20,13 @@ const hotel = (item: Hotel & { hotel_rooms?: PublicRoom[] }): Place => {
   const prices = (item.hotel_rooms || []).map(room => Number(room.price_per_night)).filter(price => Number.isFinite(price) && price > 0);
   return { ref: { kind: 'hotel', id: String(item.hotel_id) }, title: item.name, area: [item.city, item.state].filter(Boolean).join(', '), images: publicPropertyImages(item.images), label: 'Hotel', rate: prices.length ? `From ${money(Math.min(...prices))} / night` : 'Choose a room to see rates', description: item.description, amenities: item.amenities || [], rooms: item.hotel_rooms?.map(room => ({ ...room, images: publicPropertyImages(room.images) })) };
 };
-type Props = { active: boolean; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { busy?: boolean; active: boolean; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
 
 /** The signed-out landing page, not a tab or another dialog over authentication.
  * Uses only existing redacted discovery APIs. It never creates a guest account,
  * booking, payment or authorisation grant. Auth children replace its DOM while
  * the search and selected property are retained for the return journey. */
-export default function GuestBrowseEntry({ active, onSignIn, onOpenLegal, notice, children }: Props) {
+export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpenLegal, notice, children }: Props) {
   const [places, setPlaces] = useState<Place[]>([]), [target, setTarget] = useState<SharedProperty | null>(null), [detail, setDetail] = useState<Place | null>(null);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState(''), [kind, setKind] = useState('all');
   const viewport = useRef<HTMLElement>(null), queryField = useRef<HTMLInputElement>(null);
@@ -75,6 +75,7 @@ export default function GuestBrowseEntry({ active, onSignIn, onOpenLegal, notice
     if (active && !loading && viewport.current) viewport.current.scrollTop = target ? scroll.current.detail : scroll.current.list;
   }, [active, loading, target]);
   function signIn() {
+    if (busy) return;
     if (target) {
       try { savePropertyLinkIntent(target, sessionStorage); } catch { /* Sign-in still works without browser storage. */ }
       const hash = new URL(propertyShareUrl(target)).hash;
@@ -88,7 +89,7 @@ export default function GuestBrowseEntry({ active, onSignIn, onOpenLegal, notice
   return <div className="wh-public-entry">
     <header className="wh-public-header"><div className="wh-public-container wh-public-masthead">
       <a href="#" onClick={event => { event.preventDefault(); if (target) back(); else viewport.current?.scrollTo({ top: 0, behavior: 'auto' }); }} className="wh-public-brand" aria-label="WeHouse home"><img src="/app-icon.svg?v=3" alt="" width="36" height="36" /><span>WeHouse</span></a>
-      <button type="button" onClick={signIn} className="wh-public-signin">Sign in</button>
+      <button type="button" onClick={signIn} disabled={busy} aria-busy={busy} className="wh-public-signin disabled:opacity-50 disabled:cursor-wait">{busy ? "Signing in…" : "Sign in"}</button>
     </div></header>
     <main ref={viewport} className="wh-public-body" onScroll={event => { if (!loading) scroll.current[target ? 'detail' : 'list'] = event.currentTarget.scrollTop; }}>
       <div className="wh-public-container">
@@ -112,7 +113,7 @@ export default function GuestBrowseEntry({ active, onSignIn, onOpenLegal, notice
             {detail.description && <p className="wh-public-description">{detail.description}</p>}
             {!!detail.amenities.length && <p className="wh-public-amenities">{detail.amenities.join(' · ')}</p>}
             {!!detail.rooms?.length && <section className="wh-public-rooms"><h2>Room types</h2>{detail.rooms.map(room => <div key={room.room_id}>{room.images?.[0] && <img src={room.images[0]} alt="" loading="lazy" />}<div><h3>{room.room_type}</h3><p>{[room.bed_type, room.max_guests ? `Up to ${room.max_guests} guests` : null].filter(Boolean).join(' · ')}</p><p>{money(Number(room.price_per_night)) || 'Rate unavailable'}{money(Number(room.price_per_night)) ? ' / night' : ''}</p></div></div>)}</section>}
-            <div className="wh-public-continue"><p>Published rates. Review availability and the full price before payment.</p><button type="button" onClick={signIn}>Sign in to continue</button></div>
+            <div className="wh-public-continue"><p>Published rates. Review availability and the full price before payment.</p><button type="button" onClick={signIn} disabled={busy} aria-busy={busy}>{busy ? "Signing in…" : "Sign in to continue"}</button></div>
           </article> : !loading && !target ? <div className="wh-public-grid">{visible.map(place => <button key={`${place.ref.kind}:${place.ref.id}`} type="button" aria-label={`View ${place.title}`} onClick={() => { scroll.current.detail = 0; setTarget(place.ref); }} className="wh-public-place">
             <div className="wh-public-image">{place.images[0] ? <img src={place.images[0]} alt="" loading="lazy" /> : <span>Photo unavailable</span>}</div>
             <p className="wh-public-kind">{place.label}</p><h3>{place.title}</h3><p className="wh-public-area">{place.area}</p><p className="wh-public-rate">{place.rate}</p>

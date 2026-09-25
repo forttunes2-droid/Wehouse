@@ -73,3 +73,7 @@ async def main():
   finally:await browser.close()
  (OUT/'public-entry-results.json').write_text(json.dumps(results,indent=2));print(json.dumps(results,indent=2));assert all(row['passed'] for row in results)
 asyncio.run(main())
+# The same real Login must also remain non-interactive during a pending request
+# and while its authenticated account/device checks finish.
+import auth_pending  # Runs the independent offline response-state regressions.
+
