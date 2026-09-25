@@ -11,3 +11,7 @@
 .wh-public-gate p { margin:12px auto 0; max-width:340px; color:#a7adba; font-size:15px; line-height:1.65; }
 .wh-public-gate button { margin-top:24px; min-height:48px; min-width:150px; border-radius:12px; background:#7c3aed; color:white; padding:0 22px; font-size:14px; font-weight:650; }
 .wh-public-gate button:disabled { opacity:.55; cursor:wait; }
+
+.wh-public-account-links { margin-top:36px; padding-top:18px; border-top:1px solid rgb(255 255 255 / 8%); display:flex; justify-content:center; flex-wrap:wrap; gap:2px 18px; }
+.wh-public-account-links button { margin:0; min-width:0; min-height:44px; padding:0 4px; background:transparent; color:#9299aa; font-size:12px; font-weight:500; }
+.wh-public-account-links button:hover,.wh-public-account-links button:focus-visible { color:#c4b5fd; }

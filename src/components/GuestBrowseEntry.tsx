@@ -54,8 +54,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
           ? <ListingDetail key={target.id} listingId={target.id} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
-      </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} busy={busy} />}
-      <footer className="mx-auto flex max-w-7xl gap-5 border-t border-white/10 px-4 py-5 text-xs text-[#A7ADBA]"><button type="button" onClick={() => onOpenLegal('terms_of_service')}>Terms of Service</button><button type="button" onClick={() => onOpenLegal('privacy_policy')}>Privacy Policy</button></footer>
+      </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
       <nav className="wh-public-nav" aria-label="Main navigation">
         <button type="button" aria-current={section === 'explore' ? 'page' : undefined} onClick={() => { setSection('explore'); setTarget(null); }}><SearchIcon size={20} aria-hidden="true" /><span>Explore</span></button>
         <button type="button" aria-current={section === 'bookings' ? 'page' : undefined} onClick={() => { setSection('bookings'); setTarget(null); }}><CalendarDays size={20} aria-hidden="true" /><span>Bookings</span></button>
@@ -66,7 +65,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
   </DiscoveryAccessContext.Provider>;
 }
 
-function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox' | 'account'; onSignIn: () => void; busy: boolean }) {
+function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: 'bookings' | 'inbox' | 'account'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
   const content = {
     bookings: { title: 'Your bookings', text: 'Sign in to view and manage your bookings.' },
     inbox: { title: 'Your inbox', text: 'Sign in to see your messages, requests and updates.' },
@@ -77,6 +76,10 @@ function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox
       <h1 id={`guest-${section}-title`}>{content.title}</h1>
       <p>{content.text}</p>
       <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+      {section === 'account' ? <div className="wh-public-account-links" aria-label="Account information">
+        <button type="button" onClick={() => onOpenLegal('terms_of_service')}>Terms of Service</button>
+        <button type="button" onClick={() => onOpenLegal('privacy_policy')}>Privacy Policy</button>
+      </div> : null}
     </div>
   </main>;
 }
