@@ -5,13 +5,13 @@
 .wh-public-nav { position:fixed; z-index:60; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-top:1px solid rgb(255 255 255 / 8%); background:#090b10; padding:7px 10px max(7px,env(safe-area-inset-bottom)); }
 .wh-public-nav button { min-height:54px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#7f8696; border-radius:12px; font-size:11px; font-weight:600; }
 .wh-public-nav button[aria-current="page"] { color:#c4b5fd; }
-.wh-public-gate { min-height:calc(100dvh - 70px - env(safe-area-inset-bottom)); display:grid; place-items:center; padding:32px 20px 56px; text-align:center; }
-.wh-public-gate > div { width:min(100%,420px); }
-.wh-public-gate h1 { font-size:28px; line-height:1.2; letter-spacing:-.035em; font-weight:650; }
-.wh-public-gate p { margin:12px auto 0; max-width:340px; color:#a7adba; font-size:15px; line-height:1.65; }
-.wh-public-gate button { margin-top:24px; min-height:48px; min-width:150px; border-radius:12px; background:#7c3aed; color:white; padding:0 22px; font-size:14px; font-weight:650; }
+.wh-public-gate { width:min(100%,720px); margin:0 auto; padding:34px 20px 110px; text-align:left; }
+.wh-public-gate > div { width:100%; }
+.wh-public-gate h1 { font-size:24px; line-height:1.2; letter-spacing:-.03em; font-weight:650; }
+.wh-public-gate p { margin:10px 0 0; max-width:440px; color:#a7adba; font-size:15px; line-height:1.65; }
+.wh-public-gate > div > button { margin-top:24px; min-height:48px; width:min(100%,320px); border-radius:12px; background:#7c3aed; color:white; padding:0 22px; font-size:14px; font-weight:650; }
 .wh-public-gate button:disabled { opacity:.55; cursor:wait; }
 
-.wh-public-account-links { margin-top:36px; padding-top:18px; border-top:1px solid rgb(255 255 255 / 8%); display:flex; justify-content:center; flex-wrap:wrap; gap:2px 18px; }
+.wh-public-account-links { margin-top:36px; max-width:440px; padding-top:18px; border-top:1px solid rgb(255 255 255 / 8%); display:flex; justify-content:flex-start; flex-wrap:wrap; gap:2px 18px; }
 .wh-public-account-links button { margin:0; min-width:0; min-height:44px; padding:0 4px; background:transparent; color:#9299aa; font-size:12px; font-weight:500; }
 .wh-public-account-links button:hover,.wh-public-account-links button:focus-visible { color:#c4b5fd; }
