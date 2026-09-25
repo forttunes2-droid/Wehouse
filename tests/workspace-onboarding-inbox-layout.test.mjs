@@ -14,7 +14,8 @@ test("professional onboarding stays inside its workspace and never traps switchi
     read("src/App.tsx"),
   ]);
 
-  assert.match(worker, /ACTIVATION_NAV = \[\{ id: "home", label: "Setup" \}\]/);
+  assert.match(worker, /ACTIVATION_NAV = \[\{ id: "home", label: "Setup" \}, \{ id: "inbox", label: "Inbox" \}\]/);
+  assert.match(worker, /!live && safeTab === "inbox"[\s\S]*?<SupportEntryCard/);
   assert.doesNotMatch(worker, /ACTIVATION_NAV[\s\S]{0,160}label: "Account"/);
   assert.match(worker, /WorkspaceSwitchSheet/);
   assert.match(worker, /onWorkspaceSwitch=/);

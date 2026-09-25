@@ -47,13 +47,15 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
 
   useEffect(() => {
     void loadMessages();
+    const refresh = () => void loadMessages();
+    window.addEventListener("wehouse:unread-changed", refresh);
     const channel = supabase
       .channel(`partner-inbox:${profile.user_id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "hotel_booking_messages" }, () => void loadMessages())
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, () => void loadMessages())
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_conversations" }, () => void loadMessages())
       .subscribe();
-    return () => { generation.current++; void supabase.removeChannel(channel); };
+    return () => { generation.current++; window.removeEventListener("wehouse:unread-changed", refresh); void supabase.removeChannel(channel); };
   }, [loadMessages, profile.user_id]);
 
   const items = useMemo<InboxItem[]>(() => [

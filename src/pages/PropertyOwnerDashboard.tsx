@@ -23,6 +23,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 
 type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
+  inboxOpenRequest?: number;
   profile: Profile;
   onLogout: () => void;
   onNavigate: (page: string, id?: string) => void;
@@ -53,6 +54,7 @@ export default function PropertyOwnerDashboard({
   profile,
   onLogout,
   onNavigate,
+  inboxOpenRequest = 0,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const [propertyTargetId, setPropertyTargetId] = useState<
@@ -62,6 +64,11 @@ export default function PropertyOwnerDashboard({
   const [returnToActivity, setReturnToActivity] = useState(false);
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
   const inbox = usePartnerInboxSummary(profile.user_id);
+  useEffect(() => {
+    if (!inboxOpenRequest) return;
+    setPropertyTargetId(undefined); setPropertyReservationId(undefined);
+    setReturnToActivity(false); setNestedPropertyView(false); setTab("communication");
+  }, [inboxOpenRequest]);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
   async function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");

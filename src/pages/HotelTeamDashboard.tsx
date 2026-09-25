@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
+import SupportEntryCard from "@/components/SupportEntryCard";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import Notifications from "@/pages/Notifications";
@@ -31,7 +32,9 @@ export default function HotelTeamDashboard({
   profile,
   onLogout,
   onNavigate,
+  inboxOpenRequest = 0,
 }: {
+  inboxOpenRequest?: number;
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string, id?: string) => void;
@@ -56,7 +59,14 @@ export default function HotelTeamDashboard({
       ),
     [hotels],
   );
-  const hasInbox = hotels.length > 0;
+  // Own account-support messages must not vanish when assigned hotels change.
+  // Guest data remains filtered by hotel capabilities below and on the server.
+  const hasInbox = Boolean(profile.user_id);
+  const [supportUnread, setSupportUnread] = useState(0);
+  useEffect(() => {
+    if (!inboxOpenRequest) return;
+    setSelected(null); setActiveConversation(null); setShowActivity(false); setTab("inbox");
+  }, [inboxOpenRequest]);
   const activity = useOperationsInboxSummary(
     hasInbox ? profile.user_id : "",
     "hotel",
@@ -190,7 +200,7 @@ export default function HotelTeamDashboard({
     <WorkspaceFrameV2
       label="WEHOUSE · HOTEL TEAM"
       title={tab === "hotels" ? "Hotels" : "Inbox"}
-      items={[{ id: "hotels", label: "Hotels" }, ...(hasInbox ? [{ id: "inbox", label: "Inbox", badge: chatUnread + activity.activityUnread }] : [])]}
+      items={[{ id: "hotels", label: "Hotels" }, ...(hasInbox ? [{ id: "inbox", label: "Inbox", badge: chatUnread + supportUnread + activity.activityUnread }] : [])]}
       active={tab}
       setActive={id => { setShowActivity(false); setTab(id as "hotels" | "inbox"); }}
       onAccount={() => onNavigate?.("profile")}
@@ -231,6 +241,7 @@ export default function HotelTeamDashboard({
             detail="Stay and hotel-operation updates"
             onOpen={() => setShowActivity(true)}
           />
+          <SupportEntryCard profile={profile} compact hideWhenEmpty onUnreadChange={setSupportUnread} />
           <div className="mb-3 mt-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">Guest messages</h2>

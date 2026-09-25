@@ -46,5 +46,6 @@ test('first-frame dialog input does not depend on a later effect or animation fr
 test('image zoom remains functional without displaying a calculation',()=>{
  const photo=fs.readFileSync('src/components/ZoomablePhoto.tsx','utf8');
  assert.doesNotMatch(photo,/Math.round\(scale \* 100\)|aria-label="Image zoom"/);
- assert.match(photo,/data-photo-stage/);assert.match(photo,/aria-label="Zoom in"/);assert.match(photo,/aria-label="Reset image zoom"/);
+ assert.match(photo,/data-photo-stage/);assert.doesNotMatch(photo,/Photo controls|aria-label="Zoom in"|aria-label="Zoom out"|aria-label="Reset image zoom"/);
+ assert.match(photo,/aria-keyshortcuts/);
 });

@@ -309,12 +309,14 @@ export default function Chat({
     const reconcile = () => {
       if (document.visibilityState === "visible") scheduler.request();
     };
+    window.addEventListener("wehouse:unread-changed", scheduler.request);
     window.addEventListener("focus", reconcile);
     document.addEventListener("visibilitychange", reconcile);
 
     return () => {
       loadVersion.current += 1;
       scheduler.dispose();
+      window.removeEventListener("wehouse:unread-changed", scheduler.request);
       window.removeEventListener("focus", reconcile);
       document.removeEventListener("visibilitychange", reconcile);
       void supabase.removeChannel(channel);

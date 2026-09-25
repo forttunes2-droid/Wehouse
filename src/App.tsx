@@ -340,6 +340,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [notificationCount, setNotificationCount] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null);
+  const [inboxOpenRequest, setInboxOpenRequest] = useState(0);
+  const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
@@ -960,6 +962,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   );
   const goTo = useCallback(
     (p: NavPage, c?: string) => {
+      setInboxOpenRequest(0);
       if (c) setWorkerCategory(c);
       if (p === "conversation" || p === "messages" || p === "chat") {
         setChatConvId(null);
@@ -1162,6 +1165,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     if (isWorkerRole)
       return (
         <WorkerDashboard
+          inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onGoToSetup={() => goTo("worker_setup")}
           onLogout={auth.logout}
@@ -1174,6 +1178,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     if (isPropertyPartner)
       return (
         <PropertyPartnerDashboard
+          inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
@@ -1185,6 +1190,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     if (isHotelTeamRole)
       return (
         <HotelTeamDashboard
+          inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
@@ -1516,6 +1522,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           <Suspense fallback={null}>
             <SupportChat
               key={`${baseProfile?.user_id}:${activeWorkspace}`}
+              onOpenInbox={() => {
+                goTo(isUserRole ? "conversation" : roleRootFor(userRole));
+                setInboxOpenRequest(++inboxOpenSequence.current);
+              }}
               onOpenListing={goToDetail}
               onOpenBooking={
                 isUserRole

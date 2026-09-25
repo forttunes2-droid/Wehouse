@@ -320,7 +320,7 @@ export async function uploadSupportDraftAttachment(draftId: string, requesterId:
   return { path: error ? null : path, error };
 }
 export async function getMySupportConversations(workspace = "personal") {
-  const { data, error } = await supabase.rpc("get_my_workspace_inbox", { p_workspace: workspace === "user" ? "personal" : workspace, p_kind: "wehouse" });
+  const { data, error } = await supabase.rpc("get_my_workspace_inbox", { p_workspace: workspace === "user" ? "personal" : workspace === "hotel_staff" ? "hotel" : workspace, p_kind: "wehouse" });
   return { conversations: (data || []) as SupportThread[], error };
 }
 export async function getSupportMessages(conversationId: string) {

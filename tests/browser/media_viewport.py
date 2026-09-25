@@ -29,12 +29,14 @@ async def main():
     assert await viewer.evaluate('(e)=>getComputedStyle(e).backgroundColor')=='rgb(0, 0, 0)'
     assert '%' not in await viewer.inner_text()
     checks.append('opaque viewer, no zoom calculation and background interaction isolation')
-    await page.get_by_role('button',name='Zoom in',exact=True).click();await expect(page.locator('[data-photo-stage]')).to_have_attribute('data-image-scale','1.5')
+    await expect(page.get_by_role('group',name='Photo controls')).to_have_count(0)
+    await expect(page.get_by_role('button',name='Zoom in',exact=True)).to_have_count(0)
+    await expect(page.get_by_role('button',name='Zoom out',exact=True)).to_have_count(0)
     assert '%' not in await viewer.inner_text()
     stage=page.locator('[data-photo-stage]');box=await stage.bounding_box();x=box['x']+box['width']/2;y=box['y']+box['height']/2
     session=await context.new_cdp_session(page)
     await touches(session,'touchStart',[(1,x-35,y),(2,x+35,y)])
-    for distance in [45,55,65,75]:await touches(session,'touchMove',[(1,x-distance,y),(2,x+distance,y)])
+    for distance in [45,65,85,105]:await touches(session,'touchMove',[(1,x-distance,y),(2,x+distance,y)])
     await touches(session,'touchEnd',[]);await page.wait_for_timeout(70)
     assert float(await stage.get_attribute('data-image-scale'))>2.5
     await touches(session,'touchStart',[(1,x,y)])
@@ -45,7 +47,15 @@ async def main():
     assert await page.evaluate('scrollY')==0
     checks.append('pinch changes only image, bounded pan does not switch gallery or scroll Account')
     await page.screenshot(path=str(OUT/f'media-viewer-zoom-{width}.png'))
-    await page.get_by_role('button',name='Reset image zoom').click();await expect(page.locator('[data-photo-stage]')).to_have_attribute('data-image-scale','1')
+    # A double tap resets the zoom without touching a toolbar.
+    for tap in range(2):
+     await touches(session,'touchStart',[(1,x,y)]);await touches(session,'touchEnd',[])
+     await page.wait_for_timeout(60)
+    await expect(stage).to_have_attribute('data-image-scale','1')
+    # Keyboard users retain equivalent controls without visible +/− controls.
+    await stage.focus();await page.keyboard.press('+');await expect(stage).to_have_attribute('data-image-scale','1.5')
+    await page.keyboard.press('0');await expect(stage).to_have_attribute('data-image-scale','1')
+    checks.append('no zoom toolbar; double-tap reset and keyboard equivalents work')
     await touches(session,'touchStart',[(1,x+65,y)])
     for dx in [20,40,80,130]:await touches(session,'touchMove',[(1,x+65-dx,y)])
     await touches(session,'touchEnd',[])

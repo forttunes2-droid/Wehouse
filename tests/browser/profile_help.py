@@ -134,3 +134,7 @@ async def main():
         finally:
             await browser.close()
 asyncio.run(main())
+
+# Use the real support components to verify Help hands off to the same Inbox.
+from support_inbox_handoff import main as support_inbox_main
+asyncio.run(support_inbox_main())

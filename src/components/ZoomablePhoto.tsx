@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { Minus, Plus, RotateCcw } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { boundedCamera, fittedImage, mediaSwipe, restingCamera, zoomAt, type ImageBounds, type ImageCamera } from '@/lib/mediaViewport';
 
 type Props = { src: string; title: string; onReady: () => void; onError: () => void; onPrevious?: () => void; onNext?: () => void };
@@ -8,7 +7,6 @@ export default function ZoomablePhoto({ src, title, onReady, onError, onPrevious
   const stage = useRef<HTMLDivElement>(null), image = useRef<HTMLImageElement>(null);
   const camera = useRef<ImageCamera>(restingCamera());
   const bounds = useRef<ImageBounds>({ width: 0, height: 0, imageWidth: 0, imageHeight: 0 });
-  const [scale, setScale] = useState(1);
   const move = useRef<(value: ImageCamera) => void>(() => undefined);
   const callbacks = useRef({ onPrevious, onNext }); callbacks.current = { onPrevious, onNext };
   useEffect(() => {
@@ -26,7 +24,6 @@ export default function ZoomablePhoto({ src, title, onReady, onError, onPrevious
       img.style.transform = `translate3d(${c.x}px,${c.y}px,0) scale(${c.scale})`;
       node.dataset.imageScale = String(c.scale);
       node.dataset.imageX = String(c.x); node.dataset.imageY = String(c.y);
-      setScale(c.scale);
     };
     move.current = value => {
       camera.current = boundedCamera(value, bounds.current);
@@ -107,13 +104,19 @@ export default function ZoomablePhoto({ src, title, onReady, onError, onPrevious
     };
   }, []);
   return <div className="relative flex h-full w-full min-h-0 flex-col bg-black">
-    <div ref={stage} data-photo-stage className="relative grid min-h-0 flex-1 touch-none select-none place-items-center overflow-hidden overscroll-none" style={{ touchAction: 'none' }}>
+    <div ref={stage} data-photo-stage tabIndex={0} role="group" aria-label="Photo" aria-keyshortcuts="+ - 0 ArrowUp ArrowDown ArrowLeft ArrowRight"
+      onKeyDown={event => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const c = camera.current;
+        if (event.key === '+' || event.key === '=') { event.preventDefault(); move.current(zoomAt(c, c.scale * 1.5, { x: 0, y: 0 }, bounds.current)); }
+        else if (event.key === '-') { event.preventDefault(); move.current(zoomAt(c, c.scale / 1.5, { x: 0, y: 0 }, bounds.current)); }
+        else if (event.key === '0') { event.preventDefault(); move.current(restingCamera()); }
+        else if (c.scale > 1.01 && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) {
+          event.preventDefault(); move.current({ ...c, x: c.x + (event.key === 'ArrowLeft' ? 40 : event.key === 'ArrowRight' ? -40 : 0), y: c.y + (event.key === 'ArrowUp' ? 40 : event.key === 'ArrowDown' ? -40 : 0) });
+        }
+      }} className="relative grid min-h-0 flex-1 touch-none select-none place-items-center overflow-hidden overscroll-none" style={{ touchAction: 'none' }}>
       <img ref={image} src={src} alt={title} draggable={false} decoding="async" onLoad={onReady} onError={onError} className="pointer-events-none max-w-none select-none object-contain" style={{ willChange: 'transform' }} />
     </div>
-    <div role="group" aria-label="Photo controls" className="flex min-h-14 shrink-0 items-center justify-center gap-2 bg-black px-3 text-white">
-      <button type="button" aria-label="Zoom out" disabled={scale <= 1.01} onClick={() => move.current(zoomAt(camera.current, camera.current.scale / 1.5, { x: 0, y: 0 }, bounds.current))} className="grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><Minus size={20} /></button>
-      <button type="button" aria-label="Zoom in" disabled={scale >= 3.99} onClick={() => move.current(zoomAt(camera.current, camera.current.scale * 1.5, { x: 0, y: 0 }, bounds.current))} className="grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><Plus size={20} /></button>
-      <button type="button" aria-label="Reset image zoom" disabled={scale <= 1.01} onClick={() => move.current(restingCamera())} className="grid h-11 w-11 place-items-center rounded-full disabled:opacity-30"><RotateCcw size={18} /></button>
-    </div>
+
   </div>;
 }
