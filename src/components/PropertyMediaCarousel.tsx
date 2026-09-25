@@ -69,14 +69,17 @@ export default function PropertyMediaCarousel({
     setActiveIndex(index);
   }
 
+  if (!items.length) return <section className="relative min-h-28 w-full bg-[#11141C] px-4 pb-4 pt-16" aria-label={`${title} media`}>
+    {children}<p className="text-sm text-[#A7ADBA]">Photos are not available.</p>
+  </section>;
+
   return (
     <>
-      <section className="relative w-full overflow-hidden bg-[#11141C]">
+      <section className="relative w-full overflow-hidden bg-[#11141C]" aria-label={`${title} media`}>
         <div
           ref={railRef}
           onScroll={updateIndex}
           className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide"
-          aria-label={`${title} media`}
         >
           {items.map((item, index) => (
             <button

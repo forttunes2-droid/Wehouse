@@ -60,7 +60,7 @@ jobs:
             sleep 1
           done
           failed=0
-          for test in public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
+          for test in shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0

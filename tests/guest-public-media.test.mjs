@@ -17,7 +17,11 @@ test('signed-out media never passes private upload paths or signed storage URLs 
  assert.deepEqual(plain(publicPropertyImages(null)),[]);
 });
 test('all signed-out property and room projections filter media before shared gallery',()=>{
- const source=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
- assert.equal((source.match(/images: publicPropertyImages\(item.images\)/g)||[]).length,2);
- assert.match(source,/images: publicPropertyImages\(room.images\)/);
+ const guest=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
+ assert.match(guest,/profile=\{null\}/);
+ for (const file of ['src/pages/Search.tsx','src/pages/HotelsHome.tsx','src/pages/ListingDetailCore.tsx','src/pages/HotelDetailExperience.tsx']) {
+  const source=fs.readFileSync(file,'utf8');assert.match(source,/publicPropertyImages/);
+ }
+ const hotel=fs.readFileSync('src/pages/HotelDetailExperience.tsx','utf8');assert.match(hotel,/images: publicPropertyImages\(room.images\)/);
+ const listing=fs.readFileSync('src/pages/ListingDetailCore.tsx','utf8');assert.match(listing,/videos=\{publicPropertyImages\(listing.videos\)\}/);
 });

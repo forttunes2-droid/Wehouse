@@ -108,17 +108,18 @@ async def main():
      before_guest=len(scenario.calls)
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
      await expect(page.get_by_role('button',name='Explore places first',exact=True)).to_have_count(0)
+     await page.get_by_role('button',name='Hotels',exact=True).click()
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      await fits(page)
      await expect(page.locator('img').first).to_be_visible()
      await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
-     assert await page.locator('.wh-public-detail img').count()==1,'Private or signed media leaked into public gallery'
+     assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
-     allowed={'get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'}
+     allowed={'get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
-     await page.get_by_role('button',name='Sign in to continue',exact=True).click()
+     await page.get_by_role('button',name='Save hotel',exact=True).click()
      assert await page.evaluate('window.__guestSignIn') is True
      assert await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')=={'kind':'hotel','id':'7'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]

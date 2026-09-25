@@ -387,7 +387,7 @@ export default function PartnerHotelOperations({
           <PropertyMediaCarousel images={hotel.images} title={hotel.name} />
         </section>
       ) : (
-        <section className="grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-white/[.08] text-sm text-[#A1A7B4]">No hotel gallery is published yet</section>
+        <section className="border-y border-white/[.08] py-4 text-sm text-[#A1A7B4]">No hotel gallery is published yet</section>
       ))}
 
       {hotel.status !== "active" ? (
@@ -401,7 +401,7 @@ export default function PartnerHotelOperations({
 
       {loadError && <div role="alert" className="mb-4 rounded-xl border border-amber-400/20 p-3 text-sm text-amber-100"><p>{loadError}</p><button onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
       {loading ? (
-        <div className="min-h-44" role="status" aria-label="Loading hotel operation" />
+        <div className="space-y-3 py-4" role="status" aria-label="Loading hotel operation"><span className="sr-only">Loading hotel operation…</span><div aria-hidden="true" className="h-12 rounded-xl bg-white/[.05] motion-safe:animate-pulse" /><div aria-hidden="true" className="h-20 rounded-xl bg-white/[.05] motion-safe:animate-pulse" /></div>
       ) : (
         <>
           {visibleSection === "overview" && canReadStays ? <section>
@@ -416,7 +416,7 @@ export default function PartnerHotelOperations({
                 ["Staying", metrics.staying, "staying"],
                 ["Leaving", metrics.departures, "departures_today"],
                 ["Needs action", metrics.attention, "attention"],
-              ] as const).map(([label, value, filter]) => <button type="button" key={label} onClick={() => openDailyWork(filter)} aria-label={`${label}: ${value}`} className="bg-[#0A0A0F] p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-sm text-[#A1A7B4]">{label} <span aria-hidden="true">›</span></p></button>)}
+              ] as const).map(([label, value, filter]) => <button type="button" key={label} onClick={() => openDailyWork(filter)} aria-label={`${label}: ${value}`} className="bg-[#0A0A0F] p-4 text-left last:col-span-2 sm:last:col-span-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-sm text-[#A1A7B4]">{label} <span aria-hidden="true">›</span></p></button>)}
             </div>
             <TodayRooms rows={dailyRooms} />
           </section> : null}

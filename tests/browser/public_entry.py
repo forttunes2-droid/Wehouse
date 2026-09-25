@@ -5,7 +5,7 @@ import asyncio,json,re
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 from experience import Scenario,BASE,OUT
-HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_let','city':'Lafia','state':'Nasarawa','status':'available','price':400000,'images':[],'amenities':[],'description':'A sample published home.'}
+HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','city':'Lafia','state':'Nasarawa','status':'available','price':400000,'images':[],'amenities':[],'description':'A sample published home.'}
 HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[]}],'description':'A sample published hotel.'}
 class PublicScenario(Scenario):
  def __init__(self):super().__init__();self.fail=False
@@ -29,20 +29,19 @@ async def main():
     row={'width':width,'passed':False}
     try:
      await page.goto(BASE+'/tests/browser/experience.html?fixture=login&presentation_environment=live')
-     await expect(page.get_by_role('heading',name='Find your next place.',exact=True)).to_be_visible()
-     await expect(page.get_by_role('search')).to_be_visible()
+     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
+     await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
      await expect(page.get_by_role('button',name='Explore places first',exact=True)).to_have_count(0)
      await expect(page.get_by_role('dialog')).to_have_count(0)
      await expect(page.get_by_role('tab')).to_have_count(0)
+     await page.get_by_role('button',name='Hotels',exact=True).click()
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
-     assert not any(name.startswith(('create_','initialize_','send_')) for name,_ in scenario.calls)
+     assert not any(name.startswith(('create_','initialize_','send_','get_my_')) for name,_ in scenario.calls if name not in ('get_my_legal_status','get_my_pending_device_login_alert'))
      await page.screenshot(path=str(OUT/f'public-landing-{width}.png'))
-     await page.get_by_label('Find a place',exact=True).fill('Keffi')
-     await page.get_by_label('Property type',exact=True).select_option('Hotel')
-     await page.get_by_role('button',name='Search',exact=True).click()
+     await page.get_by_placeholder('Search hotel name').fill('Garden')
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
-     await page.get_by_role('button',name='Sign in to continue',exact=True).click()
+     await page.get_by_role('button',name='Save hotel',exact=True).click()
      await expect(page.get_by_role('heading',name='Welcome',exact=True)).to_be_visible()
      await expect(page.locator('.wh-public-entry')).to_have_count(0)
      await expect(page.get_by_role('button',name='Continue with email',exact=True)).to_be_visible()
@@ -59,9 +58,8 @@ async def main():
      await page.go_back()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      await expect(page.locator('.wh-auth-form')).to_have_count(0)
-     await page.get_by_role('button',name='Back to places',exact=True).click()
-     await expect(page.get_by_label('Find a place',exact=True)).to_have_value('Keffi')
-     await expect(page.get_by_label('Property type',exact=True)).to_have_value('Hotel')
+     await page.get_by_role('button',name='Back to hotels',exact=True).click()
+     await expect(page.get_by_placeholder('Search hotel name')).to_have_value('Garden')
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
      assert not await page.evaluate('document.getElementById("root").inert')
      assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')

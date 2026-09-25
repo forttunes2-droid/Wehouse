@@ -1,3 +1,6 @@
+import { publicPropertyImages } from "@/lib/publicPropertyMedia";
+import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useState } from "react";
 import { getHotels } from "@/lib/supabase";
@@ -47,19 +50,21 @@ const HOTEL_PRICE_STEP = 1000;
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
+let hotelFilters = { query: '', state: '', city: '', amenities: [] as string[], minPrice: '' as number | '', maxPrice: '' as number | '', radius: '' as number | '' };
 export default function HotelsHome({ onNavigate }: Props) {
+  const guest = useDiscoveryAccess();
   const [attempt, setAttempt] = useState(0);
   const [loadError, setLoadError] = useState(false);
   const [hotels, setHotels] = useState<HotelRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [state, setState] = useState("");
-  const [city, setCity] = useState("");
-  const [amenities, setAmenities] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState<number | "">("");
-  const [maxPrice, setMaxPrice] = useState<number | "">("");
+  const [query, setQuery] = useState(() => hotelFilters.query);
+  const [state, setState] = useState(() => hotelFilters.state);
+  const [city, setCity] = useState(() => hotelFilters.city);
+  const [amenities, setAmenities] = useState<string[]>(() => hotelFilters.amenities);
+  const [minPrice, setMinPrice] = useState<number | "">(() => hotelFilters.minPrice);
+  const [maxPrice, setMaxPrice] = useState<number | "">(() => hotelFilters.maxPrice);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [radius, setRadius] = useState<number | "">("");
+  const [radius, setRadius] = useState<number | "">(() => hotelFilters.radius);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
@@ -71,6 +76,7 @@ export default function HotelsHome({ onNavigate }: Props) {
     requestLocation,
     clearLocation,
   } = useDiscoveryLocation();
+  useEffect(() => { hotelFilters = { query, state, city, amenities, minPrice, maxPrice, radius }; }, [query, state, city, amenities, minPrice, maxPrice, radius]);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -83,18 +89,18 @@ export default function HotelsHome({ onNavigate }: Props) {
     let live = true;
     void (async () => {
       setLoading(true);
-      void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
-      void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
+      if (!guest) void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
+      if (!guest) void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
       const result = await getHotels();
       if (!live) return;
       setLoadError(Boolean(result.error));
-      if (!result.error) setHotels((result.hotels || []) as HotelRow[]);
+      if (!result.error) setHotels((result.hotels || []).map(item => ({ ...item, images: publicPropertyImages(item.images) })) as HotelRow[]);
       setLoading(false);
     })();
     return () => {
       live = false;
     };
-  }, [attempt]);
+  }, [attempt, Boolean(guest)]);
 
   const cities = useMemo(() => getCitiesForState(state), [state]);
   const stateOptions = useMemo(
@@ -218,6 +224,7 @@ export default function HotelsHome({ onNavigate }: Props) {
   }
 
   async function toggleFollowSearch() {
+    if (guest) { guest.requireSignIn(); return; }
     if (savingSearch) return;
     setSavingSearch(true);
     if (followedSearch?.notifications_enabled) {
@@ -251,6 +258,7 @@ export default function HotelsHome({ onNavigate }: Props) {
   }
 
   async function toggleHotelSave(hotelId: number) {
+    if (guest) { guest.requireSignIn(); return; }
     if (savingHotelId !== null) return;
     const alreadySaved = savedHotelIds.has(hotelId);
     setSavingHotelId(hotelId);
@@ -464,24 +472,13 @@ function HotelCard({
   const roomCount = (hotel.hotel_rooms || []).length;
   return (
     <article className="group border-b border-white/[.07] pb-5">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#171B24]">
+      <div className={`relative overflow-hidden rounded-2xl bg-[#171B24] ${image ? "aspect-[4/3]" : "h-40"}`}>
         <button
           type="button"
           onClick={onOpen}
           className="block h-full w-full text-left"
         >
-          {image ? (
-            <img
-              src={image}
-              alt={hotel.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-              loading="lazy"
-            />
-          ) : (
-            <div className="grid h-full place-items-center text-[10px] text-[#5F6676]">
-              No image yet
-            </div>
-          )}
+          <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {hotel.featured ? (
             <span className="absolute left-3 top-3 rounded-full bg-violet-500 px-2.5 py-1 text-[7px] font-bold">
@@ -515,6 +512,7 @@ function HotelCard({
       <button
         type="button"
         onClick={onOpen}
+        aria-label={`View ${hotel.name}`}
         className="block w-full px-1 pt-3 text-left"
       >
         <div className="flex items-start justify-between gap-3">

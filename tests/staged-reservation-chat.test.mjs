@@ -81,9 +81,11 @@ test('navigation dialogs use opaque page backgrounds rather than translucent pre
 
  test('guest entry uses redacted public reads and keeps all personal actions behind sign-in', () => {
  const guest = read('src/components/GuestBrowseEntry.tsx');
- assert.match(guest, /getAllListings/); assert.match(guest, /getHotelById/);
+ assert.match(guest, /import\('@\/pages\/Search'\)/); assert.match(guest, /import\('@\/pages\/HotelsHome'\)/);
+ assert.match(guest, /profile=\{null\}/);
+ const detail=read('src/pages/ListingDetailCore.tsx');assert.match(detail,/if \(!property \|\| !profile\) return/);
  assert.doesNotMatch(guest, /supabase\.from|signInAnonymously|createReservation|createHotelBooking|initialize.*Payment/);
- assert.match(guest, /savePropertyLinkIntent\(target, sessionStorage\)/);
- assert.match(guest, /className="wh-public-entry"/);
+ assert.match(guest, /savePropertyLinkIntent\(property, sessionStorage\)/);
+ assert.match(guest, /data-shared-discovery/);
  assert.doesNotMatch(guest, /createPortal|Explore places first|role="tab"/);
  });

@@ -1,3 +1,5 @@
+import { publicPropertyImages } from "@/lib/publicPropertyMedia";
+import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
 import { displayDate } from "@/lib/displayDate";
 import DateField from "@/components/BookingDateField";
@@ -46,7 +48,8 @@ type Props = {
   onNavigate: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
-  profile: Profile;
+  profile: Profile | null;
+  onRequireAuth?: () => void;
   onGoToChat: (convId: string) => void;
   onOpenBooking: (reservationId: string) => void;
 };
@@ -110,6 +113,7 @@ export default function ListingDetail({
   onToggleSave,
   onOpenBooking,
   onGoToChat,
+  onRequireAuth,
 }: Props) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -150,10 +154,15 @@ export default function ListingDetail({
       const property = result.listing;
       setListing(property);
       propertyLoaded = true;
+      if (property?.sub_type === 'short_let') {
+        const draft = readPublicBrowseDraft('listing', listingId);
+        setShortCheckIn(browseDate(draft.checkIn)); setShortCheckOut(browseDate(draft.checkOut));
+        setShortGuests(Number.isInteger(draft.guests) && Number(draft.guests) > 0 ? Number(draft.guests) : 1);
+      }
       // Show the public property immediately; account checks guard only actions.
       setLoading(false);
       setReservation(null); setInspection(null); setSharedGroup(null); setPlan(null);
-      if (!property) return;
+      if (!property || !profile) return;
       const [currentResult, shared] = await Promise.all([
         withTimeout(getReservationForListing(listingId, profile.user_id), 15000, "Your reservation could not be loaded."),
         property.sub_type === "long_stay"
@@ -193,7 +202,7 @@ export default function ListingDetail({
     setShareOpen(false); setReservationOptionsOpen(false);
     void load();
     return () => { loadGeneration.current += 1; };
-  }, [listingId, profile.user_id]);
+  }, [listingId, profile?.user_id]);
 
   useEffect(() => {
     let live = true;
@@ -203,11 +212,16 @@ export default function ListingDetail({
     return () => { live = false; };
   }, [listing?.id, listingId, location]);
 
+  useEffect(() => {
+    if (!loading && listing?.id === listingId) savePublicBrowseDraft("listing", listingId, { checkIn: shortCheckIn, checkOut: shortCheckOut, guests: shortGuests });
+  }, [loading, listing, listingId, shortCheckIn, shortCheckOut, shortGuests]);
+
   function support(
     kind: "property" | "reservation" | "inspection" | "payment" = "property",
   ) {
 
   if (!listing) return;
+    if (!profile) { onRequireAuth?.(); return; }
     const displayTitle = listingDisplayTitle(listing);
     const contextId =
       kind === "inspection"
@@ -252,6 +266,7 @@ export default function ListingDetail({
   }
 
   async function reserveShortLet() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (!listing || listing.sub_type !== "short_let" || reservationInFlight.current || busy || accountLoading || accountError || !selection.valid) return;
     reservationInFlight.current = true; setBusy(true);
     const request = loadGeneration.current;
@@ -269,6 +284,7 @@ export default function ListingDetail({
   }
 
   async function openCheckout() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (!listing) return;
     setBusy(true);
     try {
@@ -336,6 +352,7 @@ export default function ListingDetail({
   }
 
   async function openShare() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (busy) return;
     setBusy(true);
     setShareOpen(false);
@@ -467,6 +484,7 @@ export default function ListingDetail({
   }
 
   async function requestInspection() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (!reservation) return;
     setBusy(true);
     const { inspection: request, error } = await createInspectionRequest(
@@ -508,11 +526,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
 
   const status = String(listing.status || "available") as ListingState;
   const state = LISTING_STATES[status] || LISTING_STATES.closed;
-  const images = listing.images?.length
-    ? listing.images
-    : listing.videos?.length
-      ? []
-      : ["https://placehold.co/900x650/171922/666A7A?text=No+Image"];
+  const images = publicPropertyImages(listing.images);
   const shortStay = listing.sub_type === "short_let";
   const shortMinNights = Math.max(
     1,
@@ -550,7 +564,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
       <div className="mx-auto max-w-6xl">
         <PropertyMediaCarousel
           images={images}
-          videos={listing.videos || []}
+          videos={publicPropertyImages(listing.videos)}
           title={displayTitle}
         >
           <BackButton
@@ -578,9 +592,9 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           )}
         </PropertyMediaCarousel>
 
-        {sendPropertyOpen && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
+        {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
         <main className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mb-3 flex justify-end"><button type="button" onClick={() => setSendPropertyOpen(true)} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Send property ↗</button></div>
+          <div className="mb-3 flex justify-end"><button type="button" onClick={() => profile ? setSendPropertyOpen(true) : onRequireAuth?.()} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Send property ↗</button></div>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 space-y-5">
               <section>
@@ -677,7 +691,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 <section role="status" aria-label="Checking your booking status" className="rounded-2xl border border-white/10 bg-[#11141C] p-5 text-sm text-[#AAA3B3]">Checking your booking status…</section>
               ) : accountError ? (
                 <section role="alert" className="rounded-2xl border border-amber-500/20 bg-[#11141C] p-5 text-sm leading-6 text-amber-100"><p>{accountError}</p><button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Refresh booking status</button></section>
-              ) : sharedGroup ? (
+              ) : sharedGroup && profile ? (
                 <SharedHomeCard
                   group={sharedGroup}
                   profile={profile}
