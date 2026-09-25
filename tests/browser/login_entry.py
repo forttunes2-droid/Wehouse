@@ -59,7 +59,7 @@ async def run(browser):
             await expect(page.locator('.wh-auth-form')).to_have_css('border-top-width', '0px')
             await page.wait_for_timeout(250)
             await page.screenshot(path=str(OUT / f'welcome-repaired-{width}.png'), full_page=True)
-            await page.get_by_role('button', name='Sign in', exact=True).click()
+            await page.get_by_role('button', name='Continue with email', exact=True).click()
             await expect(page.get_by_role('heading', name='Welcome back', exact=True)).to_be_visible()
             await page.get_by_label('Username or email', exact=True).fill('layout-check@example.invalid')
             await password_input(page).fill('Test-only-password')
@@ -83,7 +83,7 @@ async def run(browser):
     async def short_viewport():
         scenario = Scenario()
         context, page = await scenario.page(browser, 'login', 390, 844)
-        await page.get_by_role('button', name='Sign in', exact=True).click()
+        await page.get_by_role('button', name='Continue with email', exact=True).click()
         await page.get_by_label('Username or email', exact=True).fill('layout-check@example.invalid')
         await password_input(page).fill('Test-only-password')
         await page.set_viewport_size({'width': 390, 'height': 360})
@@ -110,7 +110,7 @@ async def run(browser):
         context, page = await scenario.page(browser, 'login', reduced=True)
         await expect(page.locator('.wh-auth-brand')).to_have_css('animation-name', 'none')
         await expect(page.locator('.wh-auth-form')).to_have_css('animation-name', 'none')
-        button = page.get_by_role('button', name='Sign in', exact=True)
+        button = page.get_by_role('button', name='Continue with email', exact=True)
         await button.hover()
         await page.mouse.down()
         try:

@@ -1,4 +1,5 @@
 import GuestBrowseEntry from "@/components/GuestBrowseEntry";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useEffect, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import {
@@ -12,6 +13,7 @@ import {
 import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import "./login.css";
+import "./public-entry.css";
 import { isTestEnvironment } from '@/lib/supabase/client';
 import { getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
 import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
@@ -26,6 +28,7 @@ import {
 
 type PublicRole = "user" | "worker" | "property_partner";
 type Mode =
+  | "browse"
   | "choose"
   | "signin"
   | "signup"
@@ -161,7 +164,7 @@ export default function Login({
           ? "confirm_device"
           : legacyRecoveryRequested()
             ? "forgot"
-            : "choose",
+            : "browse",
   );
   const [email, setEmail] = useState(storedVerification?.email || "");
   const [loginIdentifier, setLoginIdentifier] = useState(
@@ -694,8 +697,16 @@ export default function Login({
   }
 
   const displayError = error || serverError;
+  const returnToPlaces = useRecordScreenBack(() => {
+    setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
+  }, ["choose", "signin", "signup", "forgot"].includes(mode));
 
   return (
+    <GuestBrowseEntry active={mode === "browse"}
+      onSignIn={() => { setMode("choose"); clearMessages(); }}
+      onOpenLegal={onOpenLegal}
+      notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
+    >
     <AuthSurface>
       <main className={`wh-auth-layout wh-auth-mode-${mode}`}>
         <header className="wh-auth-header"><Brand /></header>
@@ -712,6 +723,7 @@ export default function Login({
 
         {mode === "choose" ? (
           <div>
+            <button type="button" onClick={returnToPlaces} className="wh-auth-text-action mb-5 inline-flex min-h-11 items-center gap-2 text-sm"><span aria-hidden="true">←</span> Back to places</button>
             <div className="mb-6">
               <h1 className="text-2xl font-semibold leading-tight tracking-tight">Welcome</h1>
               <p className="mt-2 text-sm leading-6 text-[var(--auth-muted)]">Sign in or create your WeHouse account.</p>
@@ -721,7 +733,7 @@ export default function Login({
               onClick={() => { setMode("signin"); clearMessages(); }}
               className={primaryAction}
             >
-              Sign in
+              Continue with email
             </button>
             <Divider />
             <button
@@ -737,7 +749,6 @@ export default function Login({
               New here?
               <button type="button" onClick={() => { setMode("signup"); clearMessages(); }} className={textAction}>Create account</button>
             </p>
-            <GuestBrowseEntry onSignIn={() => { setMode("signin"); clearMessages(); }} />
           </div>
         ) : null}
 
@@ -955,6 +966,7 @@ export default function Login({
         </section>
       </main>
     </AuthSurface>
+    </GuestBrowseEntry>
   );
 }
 
@@ -964,7 +976,7 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
     const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#0E0C12";
+    if (theme) theme.content = "#090B10";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");

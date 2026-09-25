@@ -1,5 +1,7 @@
 import HotelBookingChat from "../../src/components/HotelBookingChat";
 import GuestBrowseEntry from "../../src/components/GuestBrowseEntry";
+import "../../src/pages/login.css";
+import "../../src/pages/public-entry.css";
 // Isolated test entry. Production builds do not import fixtures or mock auth.
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -34,7 +36,7 @@ function Fixture() {
  };
  const back = () => setView('saved');
  if (view === 'hotel-chat') return <HotelBookingChat bookingId={42} conversationId="qa-hotel-chat" profile={actor} title="Garden Lodge" onClose={() => setView('saved')} />;
- if (view === 'guest') return <main><GuestBrowseEntry onSignIn={() => { (window as any).__guestSignIn = true; }} /></main>;
+ if (view === 'guest') return <main><GuestBrowseEntry active onOpenLegal={() => {}} children={null} onSignIn={() => { (window as any).__guestSignIn = true; }} /></main>;
  if (view === 'chat') return <Chat profile={actor} onNavigate={navigate} conversationId={conversationId} onConversationClose={back} conversationOnly />;
  if (view === 'listing' || view === 'short' || view === 'long') return <ListingDetail listingId={id} profile={actor} isSaved onToggleSave={() => {}} onNavigate={back} onGoToChat={openChat} onOpenBooking={reservationId => { (window as any).__booking = reservationId; setView('booking-target'); }} />;
  if (view === 'booking-target') return <main><h1>Existing booking destination</h1><p>{(window as any).__booking}</p></main>;

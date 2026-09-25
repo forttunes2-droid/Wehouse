@@ -68,6 +68,10 @@ class Scenario:
         page.on('pageerror', lambda error: self.errors.append(str(error)))
         await page.route('**/*', self.route)
         await page.goto(f'{BASE}/tests/browser/experience.html?fixture={mode}')
+        # Auth-specific suites enter through the real landing masthead.
+        # The public landing itself is covered by public_entry.py.
+        if mode == 'login':
+            await page.get_by_role('button', name='Sign in', exact=True).click()
         return context, page
 
 async def open_account_workspaces(page):

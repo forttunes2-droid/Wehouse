@@ -26,6 +26,7 @@ async def main():
     try:
      # Public reference survives a login render without disclosing privileged data.
      await page.goto(BASE+'/tests/browser/experience.html?fixture=login')
+     await page.get_by_role('button',name='Sign in',exact=True).click()
      await expect(page.get_by_role('heading',name='Welcome',exact=True)).to_be_visible()
      assert await page.evaluate("JSON.parse(sessionStorage.getItem('wh_public_property_intent_v1')).property.id")=='7'
      assert not any(name=='get_public_hotel_detail' for name,_ in s.calls)

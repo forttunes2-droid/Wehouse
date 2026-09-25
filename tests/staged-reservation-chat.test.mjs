@@ -84,5 +84,6 @@ test('navigation dialogs use opaque page backgrounds rather than translucent pre
  assert.match(guest, /getAllListings/); assert.match(guest, /getHotelById/);
  assert.doesNotMatch(guest, /supabase\.from|signInAnonymously|createReservation|createHotelBooking|initialize.*Payment/);
  assert.match(guest, /savePropertyLinkIntent\(target, sessionStorage\)/);
- assert.match(guest, /fixed inset-0.*bg-\[#090B10\]/);
+ assert.match(guest, /className="wh-public-entry"/);
+ assert.doesNotMatch(guest, /createPortal|Explore places first|role="tab"/);
  });

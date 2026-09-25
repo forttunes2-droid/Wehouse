@@ -107,14 +107,14 @@ async def main():
      # Public guest reads must not invoke personal, reservation or messaging APIs.
      before_guest=len(scenario.calls)
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
-     await page.get_by_role('button',name='Explore places first',exact=True).click()
+     await expect(page.get_by_role('button',name='Explore places first',exact=True)).to_have_count(0)
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      await fits(page)
      await expect(page.locator('img').first).to_be_visible()
      await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
-     assert await page.locator('img').count()==1,'Private or signed media leaked into public gallery'
+     assert await page.locator('.wh-public-detail img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
      allowed={'get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]

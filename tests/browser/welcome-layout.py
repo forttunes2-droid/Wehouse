@@ -28,7 +28,7 @@ async def main():
                     assert 12 <= legal['y']-(form['y']+form['height']) <= 40, (width,'Legal links are stranded at the bottom',form,legal)
                     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth'), 'Horizontal overflow'
                     await page.screenshot(path=str(OUT/f'welcome-aligned-{width}.png'),full_page=True)
-                    await page.get_by_role('button',name='Sign in',exact=True).click()
+                    await page.get_by_role('button',name='Continue with email',exact=True).click()
                     await expect(page.get_by_label('Username or email')).to_be_visible()
                     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth'), 'Sign-in form overflow'
                     assert not scenario.errors, scenario.errors
