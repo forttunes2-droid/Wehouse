@@ -103,11 +103,12 @@ function assertBrowserEnvironmentBeforeAppLoad() {
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('WeHouse root element is missing');
+const appRoot = rootElement;
 
 async function mountWeHouse() {
   assertBrowserEnvironmentBeforeAppLoad();
   const { default: App } = await import('./App.tsx');
-  createRoot(rootElement).render(
+  createRoot(appRoot).render(
   <StrictMode>
     <ErrorBoundary>
       <NativeInit />
