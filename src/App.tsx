@@ -1046,6 +1046,15 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     openUserDestination(propertyIntent.kind === "hotel" ? "hotel_detail" : "detail", propertyIntent.id);
     consumePropertyIntent();
   }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, openUserDestination, consumePropertyIntent]);
+  useEffect(() => {
+    if (!isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
+    let destination = "";
+    try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
+    const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : "";
+    if (!route) return;
+    try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
+    goTo(route as NavPage);
+  }, [isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
       [handleSetNavPage],
