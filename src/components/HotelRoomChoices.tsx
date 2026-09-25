@@ -34,14 +34,14 @@ export default function HotelRoomChoices({ rooms, roomId, rateId, nights, onRoom
             {!!room.amenities?.length && <p className="mt-3 text-sm leading-6 text-[#A7ADBA]">{room.amenities.join(' · ')}</p>}
             <div id="hotel-package-options" className="mt-5 scroll-mt-4">
               <h3 className="text-base font-semibold">Choose a package</h3>
-              {!rates.length ? <p className="py-4 text-sm text-[#A7ADBA]">No packages are available for this room.</p> : <div className="mt-3 space-y-3" role="group" aria-label={`${room.room_type} packages`}>
+              {!rates.length ? <p className="py-4 text-sm text-[#A7ADBA]">No packages are available for this room.</p> : <div className="mt-3 divide-y divide-white/10 border-y border-white/10" role="group" aria-label={`${room.room_type} packages`}>
                 {rates.map(rate => {
                   const selected = rate.rate_plan_id === rateId;
                   const nightly = Number(rate.price_per_night);
                   const valid = Number.isFinite(nightly) && nightly > 0;
                   const refundable = rate.refundable && Number.isFinite(rate.cancellation_hours) && Number(rate.cancellation_hours) >= 0;
-                  return <button type="button" key={rate.rate_plan_id} aria-pressed={selected} disabled={!valid} onClick={() => onRate(rate)} className={`w-full rounded-xl border p-4 text-left focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-50 ${selected ? 'border-violet-400 bg-violet-500/[.07]' : 'border-white/10 bg-transparent'}`}>
-                    <span className="flex flex-wrap items-start justify-between gap-3"><span className="min-w-0 flex-1 text-sm font-semibold">{rate.name}</span><span className="text-right text-sm font-semibold">{valid ? money(nightly * (nights > 0 ? nights : 1)) : 'Price unavailable'}<span className="block text-xs font-normal text-[#A7ADBA]">{nights > 0 ? `for ${nights} night${nights === 1 ? '' : 's'}` : 'per night'}</span></span></span>
+                  return <button type="button" key={rate.rate_plan_id} aria-pressed={selected} disabled={!valid} onClick={() => onRate(rate)} className={`relative w-full py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300 disabled:opacity-50 ${selected ? 'pl-3' : ''}`}>
+                    {selected ? <span aria-hidden="true" className="absolute inset-y-3 left-0 w-0.5 rounded-full bg-violet-400" /> : null}<span className="flex flex-wrap items-start justify-between gap-3"><span className="min-w-0 flex-1 text-sm font-semibold">{rate.name}</span><span className="text-right text-sm font-semibold">{valid ? money(nightly * (nights > 0 ? nights : 1)) : 'Price unavailable'}<span className="block text-xs font-normal text-[#A7ADBA]">{nights > 0 ? `for ${nights} night${nights === 1 ? '' : 's'}` : 'per night'}</span></span></span>
                     <span className="mt-3 block text-sm leading-6 text-[#BCC2CF]">{meals[rate.meal_plan] || 'Meal details unavailable'}</span>
                     <span className="block text-sm leading-6 text-[#BCC2CF]">{!rate.refundable ? 'Non-refundable' : refundable ? `Refundable · cancel at least ${rate.cancellation_hours} hours before check-in` : 'Refundable · review the cancellation terms'}</span>
                     <span className="block text-sm leading-6 text-[#A7ADBA]">{timing[rate.payment_timing] || 'Review payment terms'}</span>

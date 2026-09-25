@@ -6,7 +6,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright,expect
 from experience import Scenario,BASE,OUT
 HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','city':'Lafia','state':'Nasarawa','status':'available','price':400000,'images':[],'amenities':[],'description':'A sample published home.'}
-HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[]}],'description':'A sample published hotel.'}
+HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'1 double bed','rate_plans':[{'rate_plan_id':91,'name':'Room only','price_per_night':30000,'meal_plan':'room_only','payment_timing':'pay_now','refundable':False,'active':True,'included_features':[]},{'rate_plan_id':92,'name':'Breakfast included','price_per_night':35000,'meal_plan':'breakfast','payment_timing':'pay_now','refundable':True,'cancellation_hours':24,'active':True,'included_features':['Breakfast']}]}],'description':'A sample published hotel.'}
 class PublicScenario(Scenario):
  def __init__(self):super().__init__();self.fail=False
  async def route(self,route):
