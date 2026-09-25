@@ -71,8 +71,11 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     window.location.assign(String(result.data.url));
   }
 
-  if (loading) return <State text="Loading paid Worker plan…" />;
-  if (error || !pro) return <State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />;
+  // Ownership of existing records does not end with the subscription. Unknown
+  // entitlement permits read/export only; all writes stay server-authorised.
+  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} />;
+  if (loading) return <div className="space-y-4"><State text="Loading paid Worker plan…" />{tools}</div>;
+  if (error || !pro) return <div className="space-y-4"><State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />{tools}</div>;
   const storeName = isIOS() ? 'App Store' : isAndroid() ? 'Google Play' : 'Paystack';
   const native = isNative();
   const planOptions = Array.isArray(pro.plans) && pro.plans.length > 0 ? pro.plans : [{
@@ -162,7 +165,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
-      {pro.active ? <WorkerProTools profile={profile} /> : null}
+      {tools}
     </div>
   );
 }
