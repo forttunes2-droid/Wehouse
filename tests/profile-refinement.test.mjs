@@ -52,9 +52,9 @@ test('Worker profile and owner share a scoped post loader and grid without priva
 });
 test('Worker viewer keeps media and controls separate and supports navigation without adding a feed',()=>{
  const viewer=read('src/components/WorkerShowcasePostViewer.tsx');
- assert.match(viewer,/aria-label="Next work post"/);assert.match(viewer,/aria-label="Previous work post"/);
+ assert.match(viewer,/nextLabel="Next work post"/);assert.match(viewer,/previousLabel="Previous work post"/);
  assert.match(viewer,/inert=\{commentsOpen\}/);assert.match(viewer,/touch-pan-x/);
- assert.match(viewer,/pointerType !== "touch"/);assert.match(viewer,/data-media-toggle/);
+ assert.match(viewer,/useMediaSwipe/);assert.match(viewer,/axis: "vertical"/);
  assert.match(viewer,/bg-\[#090B10\]/);assert.match(viewer,/current.current === id/);
  assert.match(read('src/components/ShowcaseMediaThumbnail.tsx'),/preload="metadata"/);
 });

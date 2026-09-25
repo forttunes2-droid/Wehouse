@@ -58,7 +58,8 @@ async def main():
       await page.get_by_role('tab',name='Reviews',exact=True).press('ArrowLeft');await expect(page.get_by_role('tab',name='Work posts')).to_be_focused()
       await tiles.nth(0).click();viewer=page.get_by_role('dialog',name='Sani Example work post',exact=True);await expect(viewer).to_be_visible()
       await expect(viewer.get_by_text('1 / 24',exact=True)).to_be_visible()
-      await viewer.get_by_role('button',name='Next work post',exact=True).click();await expect(viewer.get_by_text('2 / 24',exact=True)).to_be_visible()
+      assert await viewer.locator('[data-media-paging-action]').evaluate_all('(nodes)=>nodes.every(node=>node.getBoundingClientRect().width<=1)')
+      await swipe(page,page.locator('[data-showcase-stage]'),-100);await expect(viewer.get_by_text('2 / 24',exact=True)).to_be_visible()
       await page.wait_for_function('!!document.querySelector("[data-showcase-stage] video") && document.querySelector("[data-showcase-stage] video").readyState>=2')
       assert await viewer.locator('video').count()==1
       await page.screenshot(path=str(OUT/f'worker-post-viewer-{width}.png'))

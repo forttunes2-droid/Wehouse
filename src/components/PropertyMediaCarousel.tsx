@@ -3,6 +3,7 @@ import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useRef, useState } from "react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
+import MediaPagingActions from "./MediaPagingActions";
 import VideoPlayer from "./VideoPlayer";
 
 type Props = {
@@ -110,22 +111,7 @@ export default function PropertyMediaCarousel({
         {children}
         {items.length > 1 && (
           <>
-            <button
-              type="button"
-              aria-label="Previous photo"
-              onClick={() => moveTo(activeIndex - 1)}
-              className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur sm:grid"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              aria-label="Next photo"
-              onClick={() => moveTo(activeIndex + 1)}
-              className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur sm:grid"
-            >
-              ›
-            </button>
+            <MediaPagingActions onPrevious={() => moveTo(activeIndex - 1)} onNext={() => moveTo(activeIndex + 1)} previousLabel="Previous photo" nextLabel="Next photo" />
             <span className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-1 text-[9px] backdrop-blur">
               {activeIndex + 1} / {items.length}
             </span>

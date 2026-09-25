@@ -27,6 +27,8 @@ export default function VideoPlayer({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
+  const surfaceTap = useRef<{ id: number; x: number; y: number } | null>(null);
+  const pointerTapHandledUntil = useRef(0);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(durationHint || durationFromSource(src));
   // Mobile browsers normally allow autoplay only when muted. Showcase should
@@ -147,7 +149,27 @@ export default function VideoPlayer({
       ) : (
         <button
           type="button"
-          onClick={() => void toggle()}
+          onPointerDown={event => {
+            surfaceTap.current = event.isPrimary && event.button === 0
+              ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
+          }}
+          onPointerMove={event => {
+            const tap = surfaceTap.current;
+            if (tap && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 8) surfaceTap.current = null;
+          }}
+          onPointerCancel={() => { surfaceTap.current = null; }}
+          onPointerUp={event => {
+            const tap = surfaceTap.current; surfaceTap.current = null;
+            if (!tap || tap.id !== event.pointerId || Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 8) return;
+            // A valid tap should work immediately after a gallery swipe, even
+            // when the browser suppresses that touch's compatibility click.
+            // Captured swipes, drags and multi-touch never reach this path.
+            pointerTapHandledUntil.current = Date.now() + 700;
+            void toggle();
+          }}
+          onClick={event => {
+            if (event.detail === 0 || Date.now() > pointerTapHandledUntil.current) void toggle();
+          }}
           data-media-toggle
           className="absolute inset-0 grid place-items-center"
           aria-label={playing ? "Pause video" : "Play video"}

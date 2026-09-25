@@ -3,6 +3,8 @@ import { isTopDialog } from "@/lib/dialogIsolation";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
+import MediaPagingActions from "@/components/MediaPagingActions";
+import { useMediaSwipe } from "@/hooks/useMediaSwipe";
 import ZoomablePhoto from "@/components/ZoomablePhoto";
 import { createPortal } from "react-dom";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -55,6 +57,9 @@ export default function MediaViewer(props: MediaViewerProps) {
   const current = items[index] || items[0] || { url: "", kind: "image" as const };
   const src = current.url;
   const kind = current.kind;
+  const previous = index > 0 ? () => setIndex(value => Math.max(0, value - 1)) : undefined;
+  const next = index < maxIndex ? () => setIndex(value => Math.min(maxIndex, value + 1)) : undefined;
+  const paging = useMediaSwipe({ identity: `${index}:${src}`, onPrevious: previous, onNext: next });
   const [ready, setReady] = useState(kind === "video");
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
@@ -72,7 +77,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   }, [kind, src]);
 
   return createPortal(
-    <div ref={dialogRoot} tabIndex={-1}
+    <div ref={dialogRoot} tabIndex={-1} data-media-index={index} data-media-count={items.length}
       className="fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
       onKeyDown={event => {
         if (event.defaultPrevented || !dialogRoot.current || !isTopDialog(dialogRoot.current) || (event.target as HTMLElement).closest("button,input,select,textarea")) return;
@@ -118,7 +123,7 @@ export default function MediaViewer(props: MediaViewerProps) {
           ×
         </button>
       </header>
-      <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
+      <main {...paging} data-media-stage className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black" style={{ touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? (
           <div
             className="absolute h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent"
@@ -137,6 +142,7 @@ export default function MediaViewer(props: MediaViewerProps) {
           </div>
         ) : kind === "video" ? (
           <VideoPlayer
+            key={`${index}:${src}`}
             src={src}
             autoPlay
             onTime={setCurrentTime}
@@ -149,34 +155,12 @@ export default function MediaViewer(props: MediaViewerProps) {
             className="h-full w-full object-contain"
           />
         ) : (
-          <ZoomablePhoto key={src} src={src} title={title}
+          <ZoomablePhoto key={`${index}:${src}`} src={src} title={title}
             onReady={() => setReady(true)} onError={() => setFailed(true)}
-            onPrevious={index > 0 ? () => setIndex(value => value - 1) : undefined}
-            onNext={index < maxIndex ? () => setIndex(value => value + 1) : undefined}
+            onPrevious={previous} onNext={next}
           />
         )}
-        {items.length > 1 && index > 0 ? (
-          <button
-            type="button"
-            onClick={() => setIndex((value) => Math.max(0, value - 1))}
-            className="absolute left-3 grid h-11 w-11 place-items-center rounded-full bg-black/55 text-2xl"
-            aria-label="Previous media"
-          >
-            ‹
-          </button>
-        ) : null}
-        {items.length > 1 && index < items.length - 1 ? (
-          <button
-            type="button"
-            onClick={() =>
-              setIndex((value) => Math.min(items.length - 1, value + 1))
-            }
-            className="absolute right-3 grid h-11 w-11 place-items-center rounded-full bg-black/55 text-2xl"
-            aria-label="Next media"
-          >
-            ›
-          </button>
-        ) : null}
+        {items.length > 1 && <MediaPagingActions onPrevious={previous} onNext={next} />}
       </main>
       <div className="h-[env(safe-area-inset-bottom)] shrink-0 bg-black" />
     </div>,

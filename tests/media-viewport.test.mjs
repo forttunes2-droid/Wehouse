@@ -31,7 +31,7 @@ test('media viewer owns native Back, focus and dynamic opaque viewport',()=>{
  const s=fs.readFileSync('src/components/MediaViewer.tsx','utf8');
  assert.match(s,/useRecordScreenBack\(props.onClose\)/);assert.match(s,/useDialogInteraction\(dismiss\)/);
  assert.match(s,/useVisualViewportFrame\(dialogRoot\)/);assert.doesNotMatch(s,/100svh|backdrop-blur/);
- assert.match(s,/ZoomablePhoto key=\{src\}/);
+ assert.match(s,/ZoomablePhoto key=\{`\$\{index\}:\$\{src\}`\}/);
  assert.doesNotMatch(s,/user-scalable|maximum-scale/);
 });
 
@@ -48,4 +48,21 @@ test('image zoom remains functional without displaying a calculation',()=>{
  assert.doesNotMatch(photo,/Math.round\(scale \* 100\)|aria-label="Image zoom"/);
  assert.match(photo,/data-photo-stage/);assert.doesNotMatch(photo,/Photo controls|aria-label="Zoom in"|aria-label="Zoom out"|aria-label="Reset image zoom"/);
  assert.match(photo,/aria-keyshortcuts/);
+});
+
+
+test('media paging keeps arrows off the picture without removing explicit accessible actions',()=>{
+ const shared=fs.readFileSync('src/components/MediaPagingActions.tsx','utf8');
+ assert.match(shared,/sr-only focus-visible:not-sr-only/);
+ for(const name of ['MediaViewer','WorkerShowcasePostViewer','PropertyMediaCarousel']) {
+  const text=fs.readFileSync(`src/components/${name}.tsx`,'utf8');
+  assert.match(text,/<MediaPagingActions/);
+  assert.doesNotMatch(text,/ChevronUp|ChevronDown|[‹›]/);
+ }
+});
+test('video and post paging share input ownership with photo gestures and seek controls excluded',()=>{
+ const gesture=fs.readFileSync('src/hooks/useMediaSwipe.ts','utf8');
+ assert.match(gesture,/data-photo-stage/);assert.match(gesture,/input,textarea,a,select/);
+ assert.match(gesture,/current.pointers.size !== 1/);assert.match(gesture,/start.identity !== identity/);
+ assert.match(gesture,/onPointerCancel/);assert.match(gesture,/event.detail > 0/);
 });
