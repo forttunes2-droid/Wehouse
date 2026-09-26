@@ -384,7 +384,7 @@ function PropertiesTab({
                     </p>
                     {property._assetKind === "property" && property._assignment_role ? (
                       <p className="mt-1 text-[9px] text-violet-300">
-                        {property._assignment_role === "owner" ? "You own this property" : "Assigned to you as manager"}
+                        {property._assignment_role === "owner" ? "You own this property" : property._access_level === "full_hosting" ? "Co-host · Full hosting" : "Co-host · Operations"}
                       </p>
                     ) : null}
                   </div>
@@ -408,7 +408,7 @@ function PropertiesTab({
     </section>
   );
 }
-function PropertyDetails({
+export function PropertyDetails({
   property,
   profile,
   initialReservationId,
