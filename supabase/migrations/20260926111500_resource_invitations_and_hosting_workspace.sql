@@ -617,6 +617,72 @@ begin
 end
 $$;
 
+-- Preserve any invitations already pending when this migration lands.
+insert into public.resource_invitations(
+  resource_type,resource_id,role_key,permission_profile,delivery,
+  inviter_user_id,intended_user_id,status,subject_assignment_id,expires_at,
+  created_at,updated_at
+)
+select
+  'property',assignment.listing_id::text,'property_cohost',assignment.access_level,'direct',
+  assignment.invited_by,assignment.user_id,
+  case when assignment.invited_at+interval '7 days'>now() then 'pending' else 'expired' end,
+  assignment.assignment_id,assignment.invited_at+interval '7 days',
+  assignment.invited_at,assignment.updated_at
+from public.property_host_assignments assignment
+where assignment.assignment_role='manager'
+  and assignment.status='invited'
+  and assignment.invited_by is not null
+  and not exists(
+    select 1 from public.resource_invitations invite
+    where invite.resource_type='property'
+      and invite.subject_assignment_id=assignment.assignment_id
+  );
+
+insert into public.resource_invitations(
+  resource_type,resource_id,role_key,permission_profile,delivery,
+  inviter_user_id,intended_user_id,status,subject_assignment_id,expires_at,
+  created_at,updated_at
+)
+select
+  'hotel',member.hotel_id::text,
+  case when member.hotel_role='manager' then 'hotel_manager' else 'hotel_front_desk' end,
+  case when member.hotel_role='manager' then 'manager' else 'front_desk' end,
+  'direct',member.invited_by,member.member_user_id,
+  case when member.created_at+interval '7 days'>now() then 'pending' else 'expired' end,
+  member.id,member.created_at+interval '7 days',member.created_at,member.updated_at
+from public.hotel_team_members member
+where member.status='invited'
+  and not exists(
+    select 1 from public.resource_invitations invite
+    where invite.resource_type='hotel'
+      and invite.subject_assignment_id=member.id
+  );
+
+insert into public.notifications(
+  recipient_id,type,title,message,related_id,source_type,source_id,
+  destination_route,destination_params,event_key,workspace_scope
+)
+select
+  invite.intended_user_id,
+  'resource_invitation',
+  case when invite.resource_type='hotel' then 'Hotel team invitation' else 'Co-host invitation' end,
+  case when invite.resource_type='hotel'
+    then 'You have a pending Hotel Team invitation.'
+    else 'You have a pending co-host invitation.'
+  end,
+  invite.invitation_id::text,'resource_invitation',invite.invitation_id::text,
+  'invitation',jsonb_build_object('invitation_id',invite.invitation_id),
+  'resource-invite:'||invite.invitation_id::text,'personal'
+from public.resource_invitations invite
+where invite.delivery='direct'
+  and invite.status='pending'
+  and invite.intended_user_id is not null
+  and not exists(
+    select 1 from public.notifications notification
+    where notification.event_key='resource-invite:'||invite.invitation_id::text
+  );
+
 -- Direct legacy response functions remain for compatibility but no longer require
 -- a Property Partner workspace. They only activate an invitation already bound
 -- to the signed-in identity.
