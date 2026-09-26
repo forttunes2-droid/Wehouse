@@ -1,0 +1,77 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+
+test('Short Let Reserve date is a separate paid fee before stay and deposit', async () => {
+  const [migration, detail, review, paymentInit] = await Promise.all([
+    read('supabase/migrations/20260926061000_short_let_paid_reserve_date.sql'),
+    read('src/pages/ListingDetailCore.tsx'),
+    read('src/components/ShortLetPaymentReview.tsx'),
+    read('supabase/functions/payment-init/index.ts'),
+  ]);
+  assert.match(migration, /policy_key='short_let_reservation_fee'/);
+  assert.match(migration, /reservation_fee_status='paid'/);
+  assert.match(migration, /payment_component','short_stay_balance'/);
+  assert.match(migration, /v_total:=v_stay\+v_caution/);
+  assert.match(migration, /Reserve date payment must be confirmed first/);
+  assert.match(detail, /Reserve date · ₦/);
+  assert.match(detail, /initializeReservationPayment\(reference\)/);
+  assert.match(review, /Reserve date paid/);
+  assert.match(review, /stay charge and any refundable security deposit/i);
+  assert.match(paymentInit, /Reserve date payment must be confirmed before the stay balance/);
+});
+
+test('Property management is property-scoped and booking responsibility is snapshotted', async () => {
+  const [authority, conversations, assets, panel] = await Promise.all([
+    read('supabase/migrations/20260926062000_property_management_authority.sql'),
+    read('supabase/migrations/20260926062300_host_booking_conversations.sql'),
+    read('supabase/migrations/20260926062500_property_partner_managed_assets.sql'),
+    read('src/components/PropertyManagementPanel.tsx'),
+  ]);
+  assert.match(authority, /property_host_assignments/);
+  assert.match(authority, /management_mode_snapshot/);
+  assert.match(authority, /responsible_host_user_id/);
+  assert.match(authority, /current_actor_can_host_reservation/);
+  assert.match(conversations, /property_host_conversations/);
+  assert.match(conversations, /Only photos and videos can be attached/);
+  assert.doesNotMatch(conversations, /select\s+r\.booking_code/i);
+  assert.match(assets, /get_my_managed_properties/);
+  assert.match(panel, /Identity verification does not create property authority/);
+  assert.match(panel, /Guest booking code/);
+});
+
+test('Creator sensitive actions use a separate server-hashed secret and independent MFA', async () => {
+  const [migration, stepUp, modal, security] = await Promise.all([
+    read('supabase/migrations/20260926063000_creator_security_credential.sql'),
+    read('supabase/functions/creator-step-up/index.ts'),
+    read('src/components/CreatorAuthModal.tsx'),
+    read('src/pages/SecuritySettings.tsx'),
+  ]);
+  assert.match(migration, /extensions\.crypt\(p_secret,extensions\.gen_salt\('bf',12\)\)/);
+  assert.match(migration, /finance_exception/);
+  assert.match(migration, /Authenticator verification is required for this Creator action/);
+  assert.match(stepUp, /creator_secret/);
+  assert.doesNotMatch(stepUp, /signInWithPassword/);
+  assert.match(modal, /Creator security password/);
+  assert.match(security, /Set up authenticator/);
+  assert.match(security, /Current WeHouse account password/);
+  assert.match(security, /New Creator security password/);
+});
+
+test('Host conversations stay separate from WeHouse support and media storage is booking-scoped', async () => {
+  const [conversation, media, chat, inbox] = await Promise.all([
+    read('supabase/migrations/20260926062300_host_booking_conversations.sql'),
+    read('supabase/migrations/20260926062400_property_host_chat_media.sql'),
+    read('src/components/PropertyHostBookingChat.tsx'),
+    read('src/pages/Chat.tsx'),
+  ]);
+  assert.match(conversation, /property_host_conversation_access/);
+  assert.match(conversation, /get_my_property_host_conversations/);
+  assert.match(media, /property-host-chat-files/);
+  assert.match(media, /property_host_chat_storage_access/);
+  assert.match(chat, /Back to Inbox/);
+  assert.match(inbox, /kind: "host"/);
+  assert.match(inbox, /PropertyHostBookingChat/);
+});
