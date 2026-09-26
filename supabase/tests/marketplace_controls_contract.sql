@@ -29,11 +29,17 @@ insert into public.property_host_assignments(
   assignment_id,listing_id,user_id,assignment_role,status,invited_by,accepted_at,access_level
 ) values
  ('f6100000-2000-4000-8000-000000000001','f6100000-1000-4000-8000-000000000001','mkt-owner','owner','active','mkt-owner',now(),'full_hosting'),
- ('f6100000-2000-4000-8000-000000000002','f6100000-1000-4000-8000-000000000001','mkt-host','manager','active','mkt-owner',now(),'operations');
+ ('f6100000-2000-4000-8000-000000000002','f6100000-1000-4000-8000-000000000001','mkt-host','manager','active','mkt-owner',now(),'operations'),
+ ('f6100000-2000-4000-8000-000000000003','f6100000-1000-4000-8000-000000000002','mkt-owner','owner','active','mkt-owner',now(),'full_hosting');
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
-values('mkt-worker-a','worker','global','active'),('mkt-worker-b','worker','global','active');
-insert into public.hotels(hotel_id,name,state,city,owner_id,status,approved_at)
-values(-76101,'Market Hotel','Lagos','Ikeja','mkt-hotel-owner','active',now());
+values('mkt-owner','property_partner','global','active'),
+  ('mkt-worker-a','worker','global','active'),('mkt-worker-b','worker','global','active');
+insert into public.hotels(hotel_id,name,state,city,owner_id,status,approved_at,published_at)
+values(-76101,'Market Hotel','Lagos','Ikeja','mkt-hotel-owner','active',now(),null),
+ (-76102,'Partner Hotel One','Lagos','Ikeja','mkt-owner','active',now(),now()),
+ (-76103,'Partner Hotel Two','Lagos','Ikeja','mkt-owner','active',now(),null);
+insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms)
+values(-76102,-76102,'Private inventory',10000,3);
 insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,status,capabilities,invited_by,revoked_at)
 values(-76101,'mkt-hotel-manager','manager','revoked',array['hotel.team.manage','stay.read'],'mkt-hotel-owner',now());
 insert into public.resource_invitations(
@@ -48,12 +54,23 @@ insert into public.resource_invitations(
   'hotel_manager','manager','direct','mkt-hotel-manager','mkt-hotel-target',null,'pending',now()+interval '1 day'),
  ('f6100000-3000-4000-8000-000000000004','property','f6100000-1000-4000-8000-000000000001',
   'property_cohost','operations','link','mkt-owner',null,public._invitation_token_hash('market-preview-token'),'pending',now()+interval '1 day');
+insert into public.resource_invitations(
+  invitation_id,resource_type,resource_id,role_key,permission_profile,delivery,
+  inviter_user_id,intended_user_id,token_hash,status,expires_at
+) values('f6100000-3000-4000-8000-000000000005','property',
+  'f6100000-1000-4000-8000-000000000001','property_cohost','operations',
+  'direct','mkt-owner','mkt-guest',null,'pending',now()+interval '1 day');
 
 insert into public.worker_market_capacity(
   state_name,state_key,lga_name,lga_key,occupation_name,occupation_key,
   target_count,hard_limit,approvals_paused,updated_by
 ) values('Lagos',public.wehouse_state_key('Lagos'),'Ikeja',public.worker_market_text_key('Ikeja'),
   'Plumber',public.worker_market_text_key('Plumber'),1,1,false,'mkt-owner');
+insert into public.sponsored_market_rules(
+  resource_type,scope_type,scope_key,enabled,slot_count,daily_price_ngn,allowed_durations,updated_by
+) values('property','global','global',true,3,10,array[7],'mkt-owner')
+on conflict(resource_type,scope_key) do update set
+  enabled=true,slot_count=3,daily_price_ngn=10,allowed_durations=array[7];
 set local session_replication_role=origin;
 
 -- Owners and existing co-hosts cannot be converted to pending assignments.
@@ -78,6 +95,9 @@ select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000001',true);
 set local role authenticated;
 do $$ begin
+  if public.get_public_listing_detail('mkt-hosted-home')->>'location_exact'<>'true' then
+    raise exception 'Active Partner lost internal property detail';
+  end if;
   begin
     perform public.respond_to_resource_invitation('f6100000-3000-4000-8000-000000000001',true,null);
     raise exception 'Owner self-acceptance unexpectedly succeeded';
@@ -99,6 +119,7 @@ do $$ begin
   end if;
 end $$;
 reset role;
+
 
 -- Only the currently assigned Host sees their property target; the same person
 -- cannot open Hosting support on another public listing.
@@ -142,6 +163,11 @@ reset role;
 -- disclose a small resource card. Revoked links stop resolving immediately.
 set local role anon;
 do $$ declare preview jsonb; begin
+  begin
+    perform public.get_my_owned_hotels_page(1);
+    raise exception 'Anonymous caller loaded Partner hotel inventory';
+  exception when insufficient_privilege then null;
+  end;
   preview:=public.preview_resource_invitation('market-preview-token');
   if preview->>'valid'<>'true' or preview ?| array['owner_id','payment_reference','booking_code','token_hash'] then
     raise exception 'Invitation preview leaked private fields or rejected a valid token';
@@ -192,6 +218,143 @@ do $$ begin
     raise exception 'Cross-account capacity status unexpectedly succeeded';
   exception when raise_exception then
     if sqlerrm not like 'Worker capacity status is available only to that Worker or Creator%' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- Revoking the Partner workspace removes management and owner-only reads even
+-- when a historical owner assignment is still active. The delegated co-host's
+-- separate Hosting assignment remains valid for the same home.
+select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+do $$ declare first_page jsonb; second_page jsonb; exact jsonb; quote jsonb;
+  hotel_first jsonb; hotel_second jsonb; hotel_exact jsonb; begin
+  if not public.current_actor_can_manage_property('f6100000-1000-4000-8000-000000000001')
+     or jsonb_array_length(public.get_my_managed_properties())<>2 then
+    raise exception 'Active Property Partner could not manage owned home';
+  end if;
+  first_page:=public.get_my_property_assets_page('property_partner',1);
+  second_page:=public.get_my_property_assets_page('property_partner',1,
+    (first_page->0->>'created_at')::timestamptz,(first_page->0->>'id')::uuid);
+  exact:=public.get_my_property_assets_page('property_partner',1,null,null,
+    second_page->0->>'listing_id');
+  if jsonb_array_length(first_page)<>1 or jsonb_array_length(second_page)<>1
+     or first_page->0->>'id'=second_page->0->>'id'
+     or exact->0->>'id' is distinct from second_page->0->>'id' then
+    raise exception 'Partner page cursor or linked older property failed';
+  end if;
+  quote:=public.quote_my_sponsored_campaign('property',
+    'f6100000-1000-4000-8000-000000000001',7);
+  if (quote->>'amount_ngn')::numeric<>70 then
+    raise exception 'Sponsored quote ignored the configured market price';
+  end if;
+  hotel_first:=public.get_my_owned_hotels_page(1);
+  hotel_second:=public.get_my_owned_hotels_page(1,
+    (hotel_first->0->>'page_updated_at')::timestamptz,
+    (hotel_first->0->>'hotel_id')::integer);
+  hotel_exact:=public.get_my_owned_hotels_page(1,null,null,
+    (hotel_second->0->>'hotel_id')::integer);
+  if jsonb_array_length(hotel_first)<>1 or jsonb_array_length(hotel_second)<>1
+     or hotel_first->0->>'hotel_id'=hotel_second->0->>'hotel_id'
+     or hotel_exact->0->>'hotel_id' is distinct from hotel_second->0->>'hotel_id' then
+    raise exception 'Partner hotel page cursor or direct older-hotel lookup failed';
+  end if;
+end $$;
+reset role;
+update public.workspace_role_assignments
+set status='revoked',revoked_at=now()
+where user_id='mkt-owner' and workspace_role='property_partner';
+set local role authenticated;
+do $$ begin
+  -- The detail RPCs run with elevated rights, so revoking a workspace must
+  -- remove the internal view even when owner_id still names this account.
+  if public.get_public_listing_detail('mkt-hosted-home') is not null then
+    raise exception 'Revoked Partner could read unpublished property detail';
+  end if;
+  if public.get_public_hotel_detail(-76102) is null
+     or public.get_public_hotel_detail(-76102)->'hotel_rooms'->0 ? 'total_rooms' then
+    raise exception 'Revoked Partner could read private hotel inventory or lost public detail';
+  end if;
+  if public.current_actor_can_manage_property('f6100000-1000-4000-8000-000000000001')
+     or public.current_actor_property_host_access_level('f6100000-1000-4000-8000-000000000001') is not null
+     or jsonb_array_length(public.get_my_property_partner_stays('f6100000-1000-4000-8000-000000000001'))<>0 then
+    raise exception 'Revoked Partner still has owner authority or stay access';
+  end if;
+  if exists(select 1 from public.listings where id='f6100000-1000-4000-8000-000000000001') then
+    raise exception 'Revoked Partner can still read the private listing row';
+  end if;
+  if exists(select 1 from public.property_host_assignments
+      where assignment_id='f6100000-2000-4000-8000-000000000002') then
+    raise exception 'Revoked Partner can still inspect another Host assignment';
+  end if;
+  begin
+    perform public.get_my_managed_properties();
+    raise exception 'Revoked Partner still loaded managed properties';
+  exception when raise_exception then
+    if sqlerrm not like 'Property Partner workspace required%' then raise; end if;
+  end;
+  begin
+    perform public.get_my_property_assets_page('property_partner',1);
+    raise exception 'Revoked Partner still loaded a property page';
+  exception when raise_exception then
+    if sqlerrm not like 'Property workspace required%' then raise; end if;
+  end;
+  begin
+    perform public.get_my_owned_hotels_page(1);
+    raise exception 'Revoked Partner still loaded owned hotels';
+  exception when raise_exception then
+    if sqlerrm not like 'Property Partner workspace required%' then raise; end if;
+  end;
+  begin
+    perform public.quote_my_sponsored_campaign('property',
+      'f6100000-1000-4000-8000-000000000001',7);
+    raise exception 'Revoked Partner could still quote a Sponsored home';
+  exception when raise_exception then
+    if sqlerrm not like 'Property Partner workspace required%' then raise; end if;
+  end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000005',true);
+set local role authenticated;
+do $$ begin
+  if public.get_public_hotel_detail(-76101) is not null then
+    raise exception 'Hotel owner without a Partner grant read an unpublished hotel';
+  end if;
+  begin
+    perform public.get_my_owned_hotels_page(1);
+    raise exception 'Hotel owner without a Partner grant loaded owned hotels';
+  exception when raise_exception then
+    if sqlerrm not like 'Property Partner workspace required%' then raise; end if;
+  end;
+  begin
+    perform public.quote_my_sponsored_campaign('hotel','-76101',7);
+    raise exception 'Hotel owner without a Partner grant could quote Sponsored';
+  exception when raise_exception then
+    if sqlerrm not like 'Property Partner workspace required%' then raise; end if;
+  end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000002',true);
+set local role authenticated;
+do $$ begin
+  if not public.current_actor_can_manage_property('f6100000-1000-4000-8000-000000000001')
+     or public.get_public_listing_detail('mkt-hosted-home')->>'location_exact'<>'true'
+     or jsonb_array_length(public.get_my_hosting_properties())<>1
+     or public.get_my_property_assets_page('hosting',1)->0->>'id'<>'f6100000-1000-4000-8000-000000000001'
+     or jsonb_array_length(public.get_my_property_assets_page('hosting',1,null,null,
+       'mkt-unassigned-home'))<>0 then
+    raise exception 'Delegated Hosting was removed with the owner grant';
+  end if;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000003',true);
+set local role authenticated;
+do $$ begin
+  begin
+    perform public.respond_to_resource_invitation('f6100000-3000-4000-8000-000000000005',true,null);
+    raise exception 'Revoked property inviter silently granted Hosting access';
+  exception when raise_exception then
+    if sqlerrm not like 'The property inviter no longer has Property Partner access%' then raise; end if;
   end;
 end $$;
 reset role;

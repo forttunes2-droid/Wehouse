@@ -9,7 +9,7 @@ export const CREATOR_SETTING_GROUPS:Group[]=[
   {key:'support_email',label:'Support email',description:'Primary public support email.',kind:'email',defaultValue:''},
   {key:'support_phone',label:'Support phone',description:'Primary public support phone number.',kind:'text',defaultValue:''},
  ]},
- {id:'worker_pro',label:'Paid Worker plan',description:'Optional monthly or yearly tools, separate from free Worker onboarding, Reviewed and Trusted.',note:'The public name, prices, annual saving, Sponsored slots and support target are controlled here without a code change. Saving either price pauses new web sales and synchronizes its Paystack plan without changing existing subscribers. Apple and Google control native-store prices.',settings:[
+ {id:'worker_pro',label:'Paid Worker plan',description:'Optional monthly or yearly tools, separate from free Worker onboarding, Reviewed and Trusted.',note:'The public name, web prices, annual saving and support target are controlled here without a code change. Sponsored prices and slots are managed separately under Sponsored. Saving either plan price pauses new web sales and synchronizes its Paystack plan without changing existing subscribers. Apple and Google control native-store prices.',settings:[
   {key:'worker_pro_product_name',label:'Public plan name',description:'Short name shown to Workers. Default: WeHouse Works.',kind:'text',defaultValue:'WeHouse Works',category:'worker_pro'},
   {key:'worker_pro_product_tagline',label:'Plan tagline',description:'One clear sentence explaining what the tools do.',kind:'text',defaultValue:'Run your work with clearer numbers, documents and reach.',category:'worker_pro'},
   {key:'worker_pro_monthly_price_ngn',label:'Monthly web price (₦)',description:'Price for new monthly web subscriptions. Saving it synchronizes the Paystack monthly plan.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'worker_pro'},
@@ -22,8 +22,6 @@ export const CREATOR_SETTING_GROUPS:Group[]=[
   {key:'worker_pro_terms_content',label:'Paid plan subscription terms',description:'Explain both prices, automatic renewal, paid-through cancellation, expiry, failed-payment handling, feature access and refunds.',kind:'textarea',defaultValue:'',category:'worker_pro'},
   {key:'worker_pro_payment_grace_days',label:'Failed-payment grace (days)',description:'Optional access after a failed renewal. Zero keeps access only through the already-paid period.',kind:'number',defaultValue:'0',min:0,max:14,step:1,category:'worker_pro'},
   {key:'worker_pro_support_response_hours',label:'Priority support target (hours)',description:'Ordinary platform-help response target. Safety, payment, refund and dispute handling never depends on payment.',kind:'number',defaultValue:'24',min:1,max:168,step:1,category:'worker_pro'},
-  {key:'worker_featured_slot_count',label:'Sponsored slots',description:'Maximum matching Featured Workers shown separately. Organic results remain unchanged.',kind:'number',defaultValue:'3',min:0,max:6,step:1,category:'worker_pro'},
-  {key:'worker_featured_sales_enabled',label:'Enable Featured Workers',description:'Requires approved Worker marketplace and sponsored-placement legal gates. Cards are always labelled Sponsored.',kind:'toggle',defaultValue:'false',category:'worker_pro'},
   {key:'worker_pro_sales_enabled',label:'Enable paid plan web sales',description:'Opens web checkout only after legal approval, published terms, and at least one verified Paystack plan.',kind:'toggle',defaultValue:'false',category:'worker_pro'},
  ]},
  {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, Worker-caused cancellations and unresolved disputes.',settings:[
@@ -38,4 +36,3 @@ export const CREATOR_SETTING_GROUPS:Group[]=[
   {key:'registration_open',label:'Registration open',description:'Allow new accounts to register.',kind:'toggle',defaultValue:'true'},
  ]},
 ];
-

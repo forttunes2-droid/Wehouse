@@ -20,7 +20,8 @@ test('delegated Hosting is projected from accepted co-host access, not Property 
   assert.match(app, /HostingDashboard/);
   assert.match(workspace, /delegatedOnly/);
   assert.match(ownerWorkspace, /WEHOUSE · HOSTING/);
-  assert.match(ownerWorkspace, /get_my_hosting_properties/);
+  assert.match(ownerWorkspace, /p_workspace: delegatedOnly \? "hosting" : "property_partner"/);
+  assert.match(ownerWorkspace, /get_my_property_assets_page/);
   assert.match(ownerWorkspace, /!delegatedOnly && tab === "finance"/);
 });
 

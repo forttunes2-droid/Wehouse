@@ -1,5 +1,5 @@
 import { matchesPropertyRecord, propertyRecordKey, propertyRecordTitle } from "@/lib/propertyNavigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -68,6 +68,28 @@ type RequestRow = {
 
 const fields =
   "id,request_code,property_address,property_display_name,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
+const PAGE_SIZE = 40;
+
+function submissionsQuery(ownerId: string, assetKind: PartnerAssetKind, filter: SubmissionFilter) {
+  let query = supabase.from("inspection_requests").select(fields)
+    .eq("owner_id", ownerId).eq("property_type", assetKind);
+  if (filter === "public") query = query.eq("lifecycle_stage", "live");
+  if (filter === "rejected") query = query.in("lifecycle_stage", ["changes_requested", "rejected"]);
+  if (filter === "submitted") query = query.or("lifecycle_stage.is.null,lifecycle_stage.not.in.(live,changes_requested,rejected)");
+  return query;
+}
+
+async function findLinkedSubmission(ownerId: string, assetKind: PartnerAssetKind, recordId: string) {
+  const match = /^(inspection|listing|hotel):(.+)$/.exec(recordId);
+  const id = match?.[2] || recordId;
+  const column = match?.[1] === "listing" ? "draft_listing_id"
+    : match?.[1] === "hotel" ? "draft_hotel_id" : "id";
+  if (column === "draft_hotel_id" && !/^\d+$/.test(id)) return null;
+  const { data, error } = await supabase.from("inspection_requests").select(fields)
+    .eq("owner_id", ownerId).eq("property_type", assetKind)
+    .eq(column, id).maybeSingle();
+  return error ? null : data as RequestRow | null;
+}
 
 export default function PartnerSubmittedRequests({
   profile,
@@ -90,6 +112,10 @@ export default function PartnerSubmittedRequests({
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [selected, setSelected] = useState<RequestRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const requestGeneration = useRef(0);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -101,45 +127,38 @@ export default function PartnerSubmittedRequests({
     return () => onCreationChange?.(false);
   }, [creating, onCreationChange]);
 
-  async function refresh() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("inspection_requests")
-      .select(fields)
-      .eq("owner_id", profile.user_id)
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(error.message || "Unable to load property requests");
-      setRequests([]);
-    } else {
-      setRequests((data || []) as RequestRow[]);
-    }
-    setLoading(false);
-  }
+  function refresh() { setRefreshKey((key) => key + 1); }
 
   useEffect(() => {
     let active = true;
+    const generation = ++requestGeneration.current;
+    setLoading(true);
+    setLoadingMore(false);
+    setRequests([]);
+    setHasMore(false);
     void (async () => {
-      const { data, error } = await supabase
-        .from("inspection_requests")
-        .select(fields)
-        .eq("owner_id", profile.user_id)
-        .order("created_at", { ascending: false });
-      if (!active) return;
+      const { data, error } = await submissionsQuery(profile.user_id, assetKind, filter)
+        .order("created_at", { ascending: false }).order("id", { ascending: false })
+        .range(0, PAGE_SIZE);
+      if (!active || generation !== requestGeneration.current) return;
       if (error) {
         toast.error(error.message || "Unable to load property requests");
         setRequests([]);
       } else {
-        const nextRequests = (data || []) as RequestRow[];
+        const rows = (data || []) as RequestRow[];
+        const nextRequests = rows.slice(0, PAGE_SIZE);
         setRequests(nextRequests);
+        setHasMore(rows.length > PAGE_SIZE);
         if (
           initialRecordId &&
           openedTarget.current !== String(initialRecordId)
         ) {
-          openedTarget.current = String(initialRecordId);
-          const target = nextRequests.find((request) =>
+          let target = nextRequests.find((request) =>
             matchesPropertyRecord(request, initialRecordId),
           );
+          if (!target) target = await findLinkedSubmission(profile.user_id, assetKind, initialRecordId) || undefined;
+          if (!active || generation !== requestGeneration.current) return;
+          openedTarget.current = String(initialRecordId);
           if (target) openRequest(target);
           else toast.error("The linked property is no longer available.");
         }
@@ -149,32 +168,25 @@ export default function PartnerSubmittedRequests({
     return () => {
       active = false;
     };
-  }, [initialRecordId, profile.user_id]);
+  }, [assetKind, filter, initialRecordId, profile.user_id, refreshKey]);
 
-  const batchCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const request of requests)
-      if (request.submission_batch_id)
-        counts.set(
-          request.submission_batch_id,
-          (counts.get(request.submission_batch_id) || 0) + 1,
-        );
-    return counts;
-  }, [requests]);
-  const visibleRequests = useMemo(
-    () =>
-      requests.filter((request) => {
-        if (request.property_type !== assetKind) return false;
-        const stage = request.lifecycle_stage || "access_required";
-        if (filter === "public") return stage === "live";
-        if (filter === "rejected")
-          return ["changes_requested", "rejected"].includes(stage);
-        if (filter === "submitted")
-          return !["live", "changes_requested", "rejected"].includes(stage);
-        return true;
-      }),
-    [assetKind, filter, requests],
-  );
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    const generation = requestGeneration.current;
+    setLoadingMore(true);
+    const { data, error } = await submissionsQuery(profile.user_id, assetKind, filter)
+      .order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range(requests.length, requests.length + PAGE_SIZE);
+    if (generation === requestGeneration.current) {
+      if (error) toast.error(error.message || "Unable to load more properties");
+      else {
+        const rows = (data || []) as RequestRow[];
+        setRequests((current) => [...current, ...rows.slice(0, PAGE_SIZE)]);
+        setHasMore(rows.length > PAGE_SIZE);
+      }
+      setLoadingMore(false);
+    }
+  }
 
   function openRequest(request: RequestRow) {
     if (request.lifecycle_stage === "live" && onOpenPublished) {
@@ -250,11 +262,11 @@ export default function PartnerSubmittedRequests({
           </div>
           {loading ? (
             <Loader />
-          ) : visibleRequests.length === 0 ? (
+          ) : requests.length === 0 ? (
             <Empty filter={filter} />
           ) : (
             <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
-              {visibleRequests.map((request) => (
+              {requests.map((request) => (
                 <button
                   key={request.id}
                   type="button"
@@ -288,13 +300,9 @@ export default function PartnerSubmittedRequests({
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[8px] text-[#777A8B]">
                       <span>{request.request_code || "Request sent"}</span>
-                      {request.submission_batch_id &&
-                        Number(
-                          batchCounts.get(request.submission_batch_id) || 0,
-                        ) > 1 && (
+                      {request.submission_batch_id && request.submission_batch_position != null && (
                           <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-300">
-                            Property {request.submission_batch_position} of{" "}
-                            {batchCounts.get(request.submission_batch_id)}
+                            Property {request.submission_batch_position} in batch
                           </span>
                         )}
                       <span className="ml-auto text-violet-300">
@@ -306,6 +314,10 @@ export default function PartnerSubmittedRequests({
               ))}
             </div>
           )}
+          {!loading && hasMore && <button type="button" onClick={() => void loadMore()}
+            disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold text-violet-200 disabled:opacity-50">
+            {loadingMore ? "Loading more…" : "Load more properties"}
+          </button>}
         </section>
       )}
     </div>

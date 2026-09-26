@@ -4,7 +4,7 @@ import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getMyHotelOperations, getMyHotelBookingTarget } from "@/lib/supabase/hotels";
+import { getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
@@ -24,6 +24,7 @@ import PropertyManagementPanel, { HostArrivalAction } from "@/components/Propert
 import PropertyHostControls from "@/components/PropertyHostControls";
 
 type PartnerTab = "properties" | "finance" | "communication";
+const PROPERTY_PAGE_SIZE = 40;
 type Props = {
   inboxOpenRequest?: number;
   profile: Profile;
@@ -268,10 +269,16 @@ function PropertiesTab({
   onOpenInbox?: () => void;
 }) {
   const openedTarget = useRef<string | null>(null);
+  const requestGeneration = useRef(0);
+  const selectedRef = useRef<any | null>(null);
   const [refreshKey,setRefreshKey]=useState(0);
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [cursor, setCursor] = useState<{ sort_at: string; id: string } | null>(null);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
   useEffect(() => {
     const refresh=()=>setRefreshKey(value=>value+1);
     window.addEventListener("wehouse:property-host-changed",refresh);
@@ -279,17 +286,40 @@ function PropertiesTab({
   },[]);
   useEffect(() => {
     let active = true;
-    (async () => {
+    const generation = ++requestGeneration.current;
+    setLoading(true);
+    setLoadingMore(false);
+    setHasMore(false);
+    setCursor(null);
+    void (async () => {
       const result =
         assetKind === "apartment"
-          ? await supabase.rpc(delegatedOnly ? "get_my_hosting_properties" : "get_my_managed_properties")
-          : await getMyHotelOperations();
-      if (!active) return;
-      if (result.error)
+          ? await supabase.rpc("get_my_property_assets_page", {
+              p_workspace: delegatedOnly ? "hosting" : "property_partner",
+              p_limit: PROPERTY_PAGE_SIZE + 1,
+            })
+          : await supabase.rpc("get_my_owned_hotels_page", {
+              p_limit: PROPERTY_PAGE_SIZE + 1,
+            });
+      if (!active || generation !== requestGeneration.current) return;
+      if (result.error) {
         toast.error(
           `Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`,
         );
-      const nextAssets = (result.data || []).filter((row: any) => assetKind !== "hotel" || (row.status === "active" && row.access_role === "owner")).map((row: any) =>
+        setAssets([]);
+        setSelected(null);
+        setLoading(false);
+        return;
+      }
+      const rows = (result.data || []) as any[];
+      const page = rows.slice(0, PROPERTY_PAGE_SIZE);
+      setHasMore(rows.length > PROPERTY_PAGE_SIZE);
+      const last = page.at(-1);
+      setCursor(last ? {
+        sort_at: assetKind === "apartment" ? last.created_at : last.page_updated_at,
+        id: String(assetKind === "apartment" ? last.id : last.hotel_id),
+      } : null);
+      const nextAssets = page.filter((row: any) => assetKind !== "hotel" || (row.status === "active" && row.access_role === "owner")).map((row: any) =>
           assetKind === "apartment"
             ? {
                 ...row,
@@ -303,15 +333,46 @@ function PropertiesTab({
               },
         );
       setAssets(nextAssets);
-      setSelected((current: any | null) => current
-        ? nextAssets.find((asset: any) => String(asset.id) === String(current.id)) || current
-        : current
-      );
+      async function readAccessibleAsset(targetId: string) {
+        if (assetKind === "apartment") {
+          const exact = await supabase.rpc("get_my_property_assets_page", {
+            p_workspace: delegatedOnly ? "hosting" : "property_partner",
+            p_listing_id: targetId.replace(/^listing:/, ""),
+            p_limit: 1,
+          });
+          return !exact.error && Array.isArray(exact.data) && exact.data[0]
+            ? { ...exact.data[0], _assetKind: "property" }
+            : null;
+        }
+        const hotelId = /^hotel:(-?\d+)$/.exec(targetId)?.[1];
+        if (!hotelId) return null;
+        const exact = await supabase.rpc("get_my_owned_hotels_page", {
+          p_hotel_id: Number(hotelId), p_limit: 1,
+        });
+        return !exact.error && Array.isArray(exact.data) && exact.data[0]
+          ? { ...exact.data[0], _assetKind: "hotel", id: targetId, title: exact.data[0].name }
+          : null;
+      }
+      const previousSelection = selectedRef.current;
+      if (previousSelection) {
+        let accessible = nextAssets.find((asset: any) => String(asset.id) === String(previousSelection.id));
+        if (!accessible && previousSelection._assetKind === (assetKind === "apartment" ? "property" : "hotel")) {
+          accessible = await readAccessibleAsset(String(previousSelection.id));
+          if (!active || generation !== requestGeneration.current) return;
+        }
+        setSelected((current: any | null) =>
+          current && String(current.id) === String(previousSelection.id) ? accessible || null : current,
+        );
+      }
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
-        openedTarget.current = String(initialRecordId);
-        const target = nextAssets.find((asset: any) =>
+        let target = nextAssets.find((asset: any) =>
           matchesPropertyRecord(asset, initialRecordId),
         );
+        if (!target) {
+          target = await readAccessibleAsset(initialRecordId);
+          if (!active || generation !== requestGeneration.current) return;
+        }
+        openedTarget.current = String(initialRecordId);
         if (target) setSelected(target);
         else toast.error("The linked property is no longer available.");
       }
@@ -321,6 +382,38 @@ function PropertiesTab({
       active = false;
     };
   }, [assetKind, delegatedOnly, initialRecordId, profile.user_id, refreshKey]);
+  async function loadMore() {
+    if (!hasMore || loadingMore || !cursor) return;
+    const generation = requestGeneration.current;
+    setLoadingMore(true);
+    const { data, error } = assetKind === "apartment"
+      ? await supabase.rpc("get_my_property_assets_page", {
+          p_workspace: delegatedOnly ? "hosting" : "property_partner",
+          p_before_created_at: cursor.sort_at,
+          p_before_id: cursor.id,
+          p_limit: PROPERTY_PAGE_SIZE + 1,
+        })
+      : await supabase.rpc("get_my_owned_hotels_page", {
+          p_before_updated_at: cursor.sort_at,
+          p_before_hotel_id: Number(cursor.id),
+          p_limit: PROPERTY_PAGE_SIZE + 1,
+        });
+    if (generation !== requestGeneration.current) return;
+    if (error || !Array.isArray(data)) toast.error("More properties could not be loaded");
+    else {
+      const page = data.slice(0, PROPERTY_PAGE_SIZE).map((row: any) => assetKind === "apartment"
+        ? { ...row, _assetKind: "property" }
+        : { ...row, _assetKind: "hotel", id: `hotel:${row.hotel_id}`, title: row.name });
+      setAssets((current) => [...current, ...page]);
+      setHasMore(data.length > PROPERTY_PAGE_SIZE);
+      const last = page.at(-1);
+      setCursor(last ? {
+        sort_at: assetKind === "apartment" ? last.created_at : last.page_updated_at,
+        id: String(assetKind === "apartment" ? last.id : last.hotel_id),
+      } : null);
+    }
+    setLoadingMore(false);
+  }
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
     return () => onDetailChange?.(false);
@@ -354,7 +447,7 @@ function PropertiesTab({
           </h2>
         </div>
         <span className="rounded-full bg-white/[.04] px-3 py-1 text-[10px] text-[#888A9B]">
-          {assets.length}
+          {assets.length}{hasMore ? "+" : ""}
         </span>
       </div>
       {loading ? (
@@ -420,6 +513,10 @@ function PropertiesTab({
           ))}
         </div>
       )}
+      {!loading && hasMore && <button type="button" onClick={() => void loadMore()}
+        disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold text-violet-200 disabled:opacity-50">
+        {loadingMore ? "Loading more…" : assetKind === "hotel" ? "Load more hotels" : "Load more homes"}
+      </button>}
     </section>
   );
 }
