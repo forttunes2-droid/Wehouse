@@ -728,7 +728,7 @@ export default function Login({
   }, ["choose", "signin", "signup", "forgot"].includes(mode));
 
   return (
-    <GuestBrowseEntry active={mode === "browse"} busy={working} resetToExploreKey={browseResetKey}
+    <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} busy={working}
       onSignIn={() => { if (!workingRef.current) { setMode("choose"); clearMessages(); } }}
       onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
