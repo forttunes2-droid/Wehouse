@@ -36,6 +36,8 @@ import { toast } from "sonner";
 import type { WorkspaceChoice } from "@/pages/AccountCenter";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
+import { clearInvitationIntent, parseInvitationToken, readInvitationIntent } from "@/lib/resourceInvitation";
+import ResourceInvitationAction from "@/components/ResourceInvitationAction";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -349,11 +351,24 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const [inboxOpenRequest, setInboxOpenRequest] = useState(0);
+  const [invitationToken, setInvitationToken] = useState<string | null>(() => {
+    try { return readInvitationIntent(window.location.href, sessionStorage); } catch { return null; }
+  });
   const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
   const navigationKey = baseProfile ? workspaceNavigationKey(baseProfile.user_id, activeWorkspace) : NAV_STORAGE_KEY;
+  useEffect(() => {
+    const syncInvitation = () => {
+      try {
+        const token = readInvitationIntent(window.location.href, sessionStorage);
+        if (token) setInvitationToken(token);
+      } catch {}
+    };
+    window.addEventListener("hashchange", syncInvitation);
+    return () => window.removeEventListener("hashchange", syncInvitation);
+  }, []);
   useEffect(() => {
     const update = (event: Event) =>
       setNestedScreen(
@@ -1510,9 +1525,27 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     supportRole = ["user", "worker", "property_partner", "hosting", "hotel_staff"].includes(
       profile?.role || "",
     );
+  function dismissInvitationIntent() {
+    try { clearInvitationIntent(sessionStorage); } catch {}
+    setInvitationToken(null);
+    try {
+      if (parseInvitationToken(window.location.href)) {
+        window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+      }
+    } catch {}
+  }
+
   return (
     <CreatorAuthProvider>
       {propertyIntent && profile && !isUserRole && <SharedPropertyWorkspacePrompt onConfirm={() => switchWorkspace("personal")} onDismiss={consumePropertyIntent} />}
+      {profile && invitationToken ? <ResourceInvitationAction
+        token={invitationToken}
+        onClose={dismissInvitationIntent}
+        onResolved={async () => {
+          dismissInvitationIntent();
+          await reloadWorkspaces();
+        }}
+      /> : null}
       <Suspense fallback={<RouteTransitionFallback />}>
         <Suspense fallback={null}>
           <PrivateCallCenter />
