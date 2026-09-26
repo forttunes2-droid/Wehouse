@@ -138,17 +138,17 @@ for (const name of ["payment-init", "worker-pro-payment-init"]) {
 function stayRows(overrides = {}) {
   const reference = "WHP-00000000-0000-0000-0000-000000000001";
   return {
-    booking_payments: {id:'stay-payment',user_id:'fixture-worker',status:'pending',amount_total:170000,currency:'NGN',purpose:'apartment_rent',metadata:{reservation_id:'stay-a',payment_component:'short_stay_rent'}},
-    reservations: {id:'stay-a',user_id:'fixture-worker',listing_id:'listing-a',status:'payment_pending',stay_type:'short_let',stay_check_in:'2027-01-01',stay_check_out:'2027-01-02',stay_rent_total:120000,security_deposit_snapshot:50000,rent_payment_status:'payment_pending',rent_payment_reference:reference,payment_expires_at:new Date(Date.now()+60000).toISOString(),...overrides},
+    booking_payments: {id:'stay-payment',user_id:'fixture-worker',status:'pending',amount_total:170000,currency:'NGN',purpose:'apartment_rent',metadata:{reservation_id:'stay-a',payment_component:'short_stay_balance'}},
+    reservations: {id:'stay-a',user_id:'fixture-worker',listing_id:'listing-a',status:'reserved',stay_type:'short_let',stay_check_in:'2027-01-01',stay_check_out:'2027-01-02',stay_rent_total:120000,security_deposit_snapshot:50000,rent_payment_status:'payment_pending',rent_payment_reference:reference,reservation_fee_status:'paid',manual_payment_status:'paid',reservation_fee_paid_at:new Date().toISOString(),short_stay_balance_due_at:new Date(Date.now()+3600000).toISOString(),...overrides},
     listings: {id:'listing-a',status:'available',sub_type:'short_let'},
   };
 }
-test('date-first Short Let can pay its stored bill before it is incorrectly marked reserved', async () => {
+test('Short Let stay balance opens only after Reserve date fee is confirmed', async () => {
   const checkout=await checkoutHarness('payment-init',{},true,stayRows());
   assert.equal((await checkout.request()).status,200);
   assert.equal(checkout.initialized[0].amount,'17000000');
 });
-for (const [name,changes] of Object.entries({expired:{payment_expires_at:new Date(Date.now()-60000).toISOString()},shared:{shared_payment_group_id:'shared-a'},snapshot:{stay_rent_total:120001},reference:{rent_payment_reference:'different'}})) {
+for (const [name,changes] of Object.entries({expired:{short_stay_balance_due_at:new Date(Date.now()-60000).toISOString()},shared:{shared_payment_group_id:'shared-a'},snapshot:{stay_rent_total:120001},reference:{rent_payment_reference:'different'}})) {
   test(`Short Let rejects ${name} checkout without starting provider payment`,async()=>{
     const checkout=await checkoutHarness('payment-init',{},true,stayRows(changes));
     assert.equal((await checkout.request()).status,409);assert.equal(checkout.initialized.length,0);

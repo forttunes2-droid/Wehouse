@@ -278,7 +278,9 @@ test('Privileged production Edge Functions remain reproducible and fail closed',
   const creator=read('supabase/functions/creator-step-up/index.ts');
   const processor=read('supabase/functions/financial-action-processor/index.ts');
   assert.match(creator,/issue_creator_elevation_from_service/);
-  assert.match(creator,/password_mfa/);
+  assert.match(creator,/verify_creator_security_secret_from_service/);
+  assert.match(creator,/creator_secret_mfa/);
+  assert.doesNotMatch(creator,/signInWithPassword/);
   assert.match(processor,/x-wehouse-cron-secret/);
   assert.match(processor,/sameSecret/);
   assert.match(processor,/mark_financial_action_manual_review/);
