@@ -25,7 +25,6 @@ async def main():
   try:
    for width,height in [(320,740),(390,844),(768,900),(1440,900)]:
     scenario=PublicScenario();context=await browser.new_context(viewport={'width':width,'height':height},service_workers='block');page=await context.new_page();page.set_default_timeout(8000)
-    await page.add_init_script("window.__wehousePopEvents=[];window.__wehouseHistoryCalls=[];window.__wehouseLayerStops=[];window.__wehouseNavChanges=[];window.addEventListener('popstate',e=>{window.__wehousePopEvents.push({state:e.state,trusted:e.isTrusted,time:performance.now(),url:location.href});const stop=e.stopImmediatePropagation.bind(e);try{Object.defineProperty(e,'stopImmediatePropagation',{configurable:true,value:function(){window.__wehouseLayerStops.push({state:e.state,time:performance.now(),stack:(new Error()).stack});return stop()}})}catch{}},true);new MutationObserver(records=>{for(const r of records)if(r.attributeName==='data-navigation-state')window.__wehouseNavChanges.push({state:r.target.getAttribute('data-navigation-state'),time:performance.now()})}).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['data-navigation-state']});for(const method of ['pushState','replaceState','back','forward','go']){const original=history[method].bind(history);history[method]=(...args)=>{window.__wehouseHistoryCalls.push({method,args,state:history.state,time:performance.now(),url:location.href,stack:(new Error()).stack});return original(...args)}}")
     page.on('pageerror',lambda error:scenario.errors.append(str(error)));await page.route('**/*',scenario.route)
     row={'width':width,'passed':False}
     try:
@@ -52,18 +51,14 @@ async def main():
      await page.screenshot(path=str(OUT/f'public-direct-signin-{width}.png'),full_page=True)
      await page.get_by_role('button',name='Back to places',exact=True).click()
      await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
-     row['after_back_history']=await page.evaluate('JSON.stringify(window.history.state)')
      nav=page.get_by_role('navigation',name='Main navigation')
      await nav.get_by_role('button',name='Explore',exact=True).click()
      await page.get_by_role('button',name='Hotels',exact=True).click()
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
-     row['after_hotel_list_history']=await page.evaluate('JSON.stringify(window.history.state)')
      assert not any(name.startswith(('create_','initialize_','send_','get_my_')) for name,_ in scenario.calls if name not in ('get_my_legal_status','get_my_pending_device_login_alert'))
      await page.screenshot(path=str(OUT/f'public-landing-{width}.png'))
      await page.get_by_placeholder('Search hotel name').fill('Garden')
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
-     row['after_hotel_click_state']=await page.locator('.wh-public-entry').get_attribute('data-navigation-state')
-     row['after_hotel_click_history']=await page.evaluate('JSON.stringify(window.history.state)')
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      row['hotel_opened_before_signin']=True
      await page.get_by_role('button',name='Save hotel',exact=True).click()
@@ -94,12 +89,6 @@ async def main():
     except Exception as error:
      row['error']=str(error);row['page_errors']=scenario.errors
      row['visible_text']=(await page.locator('body').inner_text())[:1800]
-     row['history_state']=await page.evaluate('JSON.stringify(window.history.state)')
-     row['guest_navigation_state']=await page.locator('.wh-public-entry').get_attribute('data-navigation-state')
-     row['pop_events']=await page.evaluate('JSON.stringify(window.__wehousePopEvents)')
-     row['history_calls']=await page.evaluate('JSON.stringify(window.__wehouseHistoryCalls)')
-     row['layer_stops']=await page.evaluate('JSON.stringify(window.__wehouseLayerStops)')
-     row['navigation_changes']=await page.evaluate('JSON.stringify(window.__wehouseNavChanges)')
      row['scenario_calls']=[name for name,_ in scenario.calls]
      await page.screenshot(path=str(OUT/f'public-entry-FAIL-{width}.png'),full_page=True)
     finally:results.append(row);await context.close()
