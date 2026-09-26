@@ -3,6 +3,7 @@ export type WorkspaceName =
   | "worker"
   | "property_partner"
   | "hosting"
+  | "hosting"
   | "staff"
   | "admin"
   | "creator"
@@ -12,6 +13,7 @@ const WORKSPACE_LABELS: Record<WorkspaceName, string> = {
   personal: "Personal",
   worker: "Service Worker",
   property_partner: "Property Partner",
+  hosting: "Hosting",
   hosting: "Hosting",
   staff: "WeHouse Team",
   admin: "WeHouse Team",
