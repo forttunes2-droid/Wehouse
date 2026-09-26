@@ -9,6 +9,12 @@ const url = (process.env.VITE_SUPABASE_URL || '').trim();
 const key = (process.env.VITE_SUPABASE_PUBLISHABLE_KEY || '').trim();
 const live = 'https://rkrhnkhppeihvmuwvsvn.supabase.co';
 if (!url || !key) throw new Error('Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for the selected project.');
+if (key.startsWith('sb_secret_')) throw new Error('A privileged Supabase key cannot be bundled into WeHouse.');
+if (key.startsWith('eyJ')) {
+  let role = '';
+  try { role = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8')).role; } catch {}
+  if (role === 'service_role' || role === 'supabase_admin') throw new Error('A privileged Supabase key cannot be bundled into WeHouse.');
+}
 const endpoint = new URL(url);
 if (endpoint.protocol !== 'https:' || endpoint.origin !== url.replace(/\/$/, '') || endpoint.pathname !== '/') {
   throw new Error('VITE_SUPABASE_URL must be a secure project origin.');

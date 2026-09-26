@@ -11,6 +11,16 @@ export function resolveSupabaseEnvironment(host: string, configuredUrl: string, 
   const production = hostname === 'wehouse.com.ng' || hostname === 'www.wehouse.com.ng' || nativeProduction;
   const url = configuredUrl.trim();
   const key = configuredKey.trim();
+  if (key.startsWith('sb_secret_')) throw new Error('A privileged Supabase key cannot be bundled into WeHouse.');
+  if (key.startsWith('eyJ')) {
+    try {
+      const payload = JSON.parse(atob(key.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (payload.role === 'service_role' || payload.role === 'supabase_admin')
+        throw new Error('A privileged Supabase key cannot be bundled into WeHouse.');
+    } catch (cause) {
+      if (cause instanceof Error && cause.message.includes('privileged Supabase key')) throw cause;
+    }
+  }
   if (nativeProduction && (!url || !key)) {
     throw new Error('A native release requires an explicit Supabase URL and publishable key.');
   }

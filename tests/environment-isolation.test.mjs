@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/lib/supabase/environment.ts', import.meta.url), 'utf8');
 const exports = {};
-vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports, URL });
+vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports, URL, atob });
 const { resolveSupabaseEnvironment: resolve, PRODUCTION_SUPABASE_URL: live } = exports;
 const testUrl = 'https://qoobnkedfyosnizrlttt.supabase.co';
 
@@ -41,6 +41,14 @@ test('only an explicit packaged native release can use the live project from loc
   const release = resolve('localhost', live, 'live-public-key', true);
   assert.equal(release.url, live);
   assert.equal(release.isTestEnvironment, false);
+});
+test('client configuration rejects privileged keys on every host', () => {
+  const serviceRole = ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ role: 'service_role' })).toString('base64url'), 'signature'].join('.');
+  for (const host of ['localhost', 'wehouse.com.ng']) {
+    const url = host === 'localhost' ? testUrl : live;
+    assert.throws(() => resolve(host, url, 'sb_secret_do-not-bundle'), /privileged Supabase key/);
+    assert.throws(() => resolve(host, url, serviceRole), /privileged Supabase key/);
+  }
 });
 test('test origins are normalized and malformed configuration fails closed', () => {
   assert.equal(resolve('localhost', ' http://127.0.0.1:54321/ ', ' key ').url, 'http://127.0.0.1:54321');
