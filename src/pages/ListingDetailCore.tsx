@@ -140,6 +140,7 @@ export default function ListingDetail({
   const [distance, setDistance] = useState<number | null>(null);
   const { getNumber } = usePlatformSettings();
   const reservationFee = getNumber("reservation_fee", 10000);
+  const shortReservationFee = getNumber("short_let_reservation_fee", 10000);
 
   async function load() {
     const request = ++loadGeneration.current;
@@ -275,9 +276,17 @@ export default function ListingDetail({
       if (created.error || !created.reservation?.id) throw created.error || new Error("Reservation could not be created.");
       if (request !== loadGeneration.current) return;
       setReservation(created.reservation);
-      // The existing reservation owns its dates, price snapshot and payment.
-      // An unpaid request is not advertised as a confirmed/exclusive stay.
-      onOpenBooking(String(created.reservation.id));
+      const reference = String(created.reservation.payment_reference || "");
+      if (!reference) throw new Error("Reserve date payment reference is missing.");
+      const initialized = await initializeReservationPayment(reference);
+      if (!initialized.result?.success) throw new Error(initialized.result?.error || "Secure Reserve date payment could not open.");
+      if (initialized.result.already_paid) {
+        toast.success("Your dates are reserved");
+        onOpenBooking(String(created.reservation.id));
+        return;
+      }
+      if (!initialized.result.authorization_url) throw new Error("Secure payment link is missing.");
+      window.location.assign(String(initialized.result.authorization_url));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Those dates could not be reserved. Please try again.");
     } finally { reservationInFlight.current = false; setBusy(false); }
@@ -285,50 +294,27 @@ export default function ListingDetail({
 
   async function openCheckout() {
     if (!profile) { onRequireAuth?.(); return; }
-    if (!listing) return;
+    if (!listing || listing.sub_type === "short_let") return;
     setBusy(true);
     try {
-      const shortStay = listing.sub_type === "short_let";
-      if (shortStay && (!shortCheckIn || !shortCheckOut))
-        throw new Error("Choose your check-in and check-out dates");
-      const reservationResult = shortStay
-        ? await createShortStayReservation(
-            listingId,
-            shortCheckIn,
-            shortCheckOut,
-            shortGuests,
-          )
-        : await createReservation(listingId, profile.user_id);
-      const { reservation: created, error: reserveError } = reservationResult;
-      if (reserveError || !created)
-        throw new Error(
-          reserveError?.message || "Could not start this reservation",
-        );
-      const next = created;
-      setReservation(next);
-      if (!shortStay && next.status !== "payment_pending") {
+      const { reservation: created, error: reserveError } = await createReservation(listingId, profile.user_id);
+      if (reserveError || !created) throw new Error(reserveError?.message || "Could not start this reservation");
+      setReservation(created);
+      if (created.status !== "payment_pending") {
         toast.success("Your reservation is already active");
-        setShowPlan(false);
         await load();
         return;
       }
-      const reference = String(next.payment_reference || "");
-      if (!shortStay && !reference)
-        throw new Error("Reservation payment reference is missing");
-      const { result, error } = shortStay
-        ? await initializeShortStayPayment(next.id)
-        : await initializeReservationPayment(reference);
+      const reference = String(created.payment_reference || "");
+      if (!reference) throw new Error("Reservation payment reference is missing");
+      const { result, error } = await initializeReservationPayment(reference);
       if (error) throw error;
       if (result?.already_paid) {
         toast.success("Reservation payment is already confirmed");
-        setShowPlan(false);
         await load();
         return;
       }
-      if (!result?.success || !result.authorization_url)
-        throw new Error(
-          result?.error || "Paystack checkout could not be opened",
-        );
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || "Paystack checkout could not be opened");
       window.location.assign(result.authorization_url);
     } catch (error: any) {
       toast.error(error?.message || "Could not start payment");
@@ -421,26 +407,27 @@ export default function ListingDetail({
   }
 
   async function resumeCheckout() {
-    if (listing?.sub_type === "short_let") return payContractRent();
-    if (!reservation?.payment_reference)
+    if (!reservation) return;
+    if (listing?.sub_type === "short_let") {
+      if (reservation.reservation_fee_status === "paid" || reservation.manual_payment_status === "paid" || reservation.manual_payment_status === "completed") return payContractRent();
+      if (!reservation.payment_reference) return toast.error("Reserve date payment reference is missing");
+    } else if (!reservation.payment_reference) {
       return toast.error("Payment reference is missing");
+    }
     setBusy(true);
     try {
-      const { result, error } = await initializeReservationPayment(
-        String(reservation.payment_reference),
-      );
+      const { result, error } = await initializeReservationPayment(String(reservation.payment_reference));
       if (error) throw error;
       if (result?.already_paid) {
-        toast.success("Payment is already confirmed");
+        toast.success(listing?.sub_type === "short_let" ? "Reserve date payment is already confirmed" : "Payment is already confirmed");
         await load();
         setBusy(false);
         return;
       }
-      if (!result?.success || !result.authorization_url)
-        throw new Error(result?.error || "Could not reopen Paystack");
+      if (!result?.success || !result.authorization_url) throw new Error(result?.error || "Could not reopen Paystack");
       window.location.assign(result.authorization_url);
     } catch (error: any) {
-      toast.error(error?.message || "Could not continue payment");
+      toast.error(error?.message || "Could not reopen payment");
       setBusy(false);
     }
   }
@@ -805,9 +792,9 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     <button type="button" disabled={busy || !selection.valid}
                       onClick={() => void reserveShortLet()}
                       className="mt-4 min-h-12 w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold disabled:opacity-40">
-                      {busy ? "Preparing reservation…" : "Reserve date"}
+                      {busy ? "Opening secure Reserve date…" : `Reserve date · ₦${shortReservationFee.toLocaleString()}`}
                     </button>
-                    <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">Next: review your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable deposit" : ""}. No payment is taken at this step.</p>
+                    <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">Reserve date pays only the reservation fee. Your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable security deposit" : ""} are reviewed and paid separately after your dates are reserved.</p>
                   </section>
                 ) : (
                   <section className="border-y border-white/[.08] py-5">

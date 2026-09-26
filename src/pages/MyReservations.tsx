@@ -445,21 +445,19 @@ export default function MyReservations({
   }
 
   async function continueHousing(row: any) {
-    if (String(row.stay_type || row._stayKind) === "short_let") return payHousingRent(row);
+    const short = String(row.stay_type || row._stayKind) === "short_let";
+    const feePaid = row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""));
+    if (short && feePaid) return payHousingRent(row);
     if (!row.payment_reference)
-      return toast.error(
-        "This reservation cannot be resumed. Start again from the apartment.",
-      );
+      return toast.error(short ? "Reserve date payment reference is missing." : "This reservation cannot be resumed. Start again from the apartment.");
     setBusyId(row.id);
-    const { result } = await initializeReservationPayment(
-      String(row.payment_reference),
-    );
+    const { result } = await initializeReservationPayment(String(row.payment_reference));
     if (!result?.success) {
       setBusyId(null);
       return toast.error(result?.error || "Could not reopen payment");
     }
     if (result.already_paid) {
-      toast.success("Reservation payment is already confirmed");
+      toast.success(short ? "Reserve date payment is already confirmed" : "Reservation payment is already confirmed");
       await load();
       return;
     }
@@ -546,7 +544,7 @@ export default function MyReservations({
     );
     setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success("Move-in time sent to Property Operations");
+    toast.success(row.management_mode_snapshot === "host" ? "Move-in time sent to your property host" : "Move-in time sent to Property Operations");
     await load(true);
   }
 
@@ -1350,6 +1348,9 @@ function PropertyBookingDetail({
     journey.rentPaid &&
     ["handover", "tenancy", "completed"].includes(journey.action);
   const shortBill = shortLetPayment(row);
+  const hostManaged = row.management_mode_snapshot === "host";
+  const arrivalManager = hostManaged ? "Property host" : "WeHouse Property Operations";
+  const addressForDirections = row.listing_address || row.listing_location || [row.listing_city,row.listing_state].filter(Boolean).join(", ");
   const rentAmount = Number(
     short
       ? shortBill?.total || 0
@@ -1430,8 +1431,9 @@ function PropertyBookingDetail({
               label="Reservation fee"
               value={journey.feePaid ? `Paid · ${money(row.amount)}` : money(row.amount)}
             />}
+            {short ? <Info label="Reserve date" value={(row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""))) ? `Paid · ${money(row.reservation_fee_snapshot || row.amount)}` : "Payment required"} /> : null}
             <Info
-              label={short ? "Stay payment" : "Rent payment status"}
+              label={short ? "Stay payment" : "Rent payment status"
               value={
                 paymentNeedsReview
                   ? "Needs WeHouse review"
@@ -1468,6 +1470,10 @@ function PropertyBookingDetail({
             </p>
           ) : null}
 
+          <section className="mt-4 border-y border-white/[.07] py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#737A8B]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-white/[.08] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
+            <p className="mt-2 text-[10px] leading-5 text-[#858B9B]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
+          </section>
           <ShortLetPaymentReview row={row} />
           <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
           {row.shared_payment_group_id && <button type="button" onClick={()=>onOpenShared(String(row.shared_payment_group_id))} className="mt-4 min-h-12 w-full rounded-xl bg-violet-600 px-4 text-sm font-semibold">View shared payment</button>}
@@ -1476,7 +1482,7 @@ function PropertyBookingDetail({
           {journey.action === "reservation_payment" ? (
             <div className="mt-5 grid gap-2">
               <button type="button" disabled={busy} onClick={onResume} className="min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
-                {busy ? "Opening secure payment…" : "Pay reservation fee"}
+                {busy ? "Opening secure payment…" : short ? "Pay Reserve date fee" : "Pay reservation fee"}
               </button>
               <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
                 Cancel reservation
@@ -1537,7 +1543,7 @@ function PropertyBookingDetail({
                   Handover code
                 </p>
                 <p className="mt-0.5 text-[8px] leading-4 text-[#6F7B72]">
-                  Show only to Property Operations during verified handover.
+                  Show only to {hostManaged ? "your authorised property host" : "Property Operations"} during verified handover.
                 </p>
               </div>
               <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-emerald-200">
