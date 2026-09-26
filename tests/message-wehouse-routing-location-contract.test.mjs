@@ -12,7 +12,7 @@ test("Help is Account-only and follows Personal, professional or Hotel Team cont
   assert.match(account, /canOpenCustomerHelp = \["personal", "worker", "property_partner", "hotel"\]\.includes\(activeWorkspace\)/);
   assert.match(account, /panel === "help" && canOpenCustomerHelp/);
   assert.match(account, /canOpenCustomerHelp \? \(/);
-  assert.match(app, /\["user", "worker", "property_partner", "hotel_staff"\]\.includes/);
+  assert.match(app, /\["user", "worker", "property_partner", "hosting", "hotel_staff"\]\.includes/);
 });
 
 test("Property Partner submission help enters Property Operations through structured reason data", async () => {

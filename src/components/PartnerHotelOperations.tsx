@@ -30,7 +30,6 @@ import type {
 } from "@/types";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import BackButton from "@/components/BackButton";
-import { invitationShareUrl } from "@/lib/resourceInvitation";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 
 type HotelAccessRole = "owner" | "manager" | "front_desk" | "staff";

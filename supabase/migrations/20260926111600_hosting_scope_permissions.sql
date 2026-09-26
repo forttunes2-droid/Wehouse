@@ -11,7 +11,7 @@ language sql
 stable
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
   select exists(
     select 1
     from public.reservations r
@@ -28,7 +28,7 @@ as $
       and not coalesce(p.suspended,false)
       and not coalesce(p.banned,false)
   )
-$;
+$$;
 
 create or replace function public.property_host_conversation_access(p_conversation_id uuid)
 returns boolean
@@ -36,7 +36,7 @@ language sql
 stable
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
   select exists(
     select 1
     from public.property_host_conversations c
@@ -63,7 +63,7 @@ as $
         )
       )
   )
-$;
+$$;
 
 revoke all on function public.current_actor_can_host_reservation(text) from public,anon;
 revoke all on function public.property_host_conversation_access(uuid) from public,anon;

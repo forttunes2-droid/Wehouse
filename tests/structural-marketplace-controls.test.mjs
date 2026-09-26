@@ -56,8 +56,9 @@ test('resource invitations use hashed expiring link tokens and canonical Activit
   assert.match(migration, /status<>'pending'/);
   assert.match(migration, /source_type,source_id/);
   assert.match(migration, /'resource_invitation'/);
-  assert.match(activity, /get_my_resource_invitation/);
-  assert.match(activity, /respond_to_resource_invitation/);
+  assert.match(activity, /row\.source_type === "resource_invitation"/);
+  assert.match(activity, /<ResourceInvitationAction[\s\S]*?invitationId=\{invitationId\}/);
+  assert.match(action, /get_my_resource_invitation/);
   assert.match(action, /respond_to_resource_invitation/);
   assert.match(action, /wehouse:workspace-access-changed/);
   assert.match(migration, /get_my_resource_invitations/);
