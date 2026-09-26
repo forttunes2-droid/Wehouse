@@ -95,6 +95,7 @@ const PropertyPartnerDashboard = lazy(
   () => import("@/pages/PropertyPartnerDashboard"),
 );
 const HotelTeamDashboard = lazy(() => import("@/pages/HotelTeamDashboard"));
+const PropertyHostingDashboard = lazy(() => import("@/pages/PropertyHostingDashboard"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
@@ -206,6 +207,7 @@ const RESTORABLE_PAGES: NavPage[] = [
   "new_listing",
   "hotels",
   "property_partner",
+  "hosting",
   "hotel_operations",
   "my_bookings",
   "my_reservations",
@@ -256,7 +258,9 @@ function roleRootFor(role: string): NavPage {
           ? "worker_dashboard"
           : role === "property_partner"
             ? "property_partner"
-            : role === "hotel_staff"
+            : role === "hosting"
+              ? "hosting"
+              : role === "hotel_staff"
               ? "hotel_operations"
               : "search";
 }
@@ -295,6 +299,8 @@ function normalizePageForRole(
       : "worker_dashboard";
   if (role === "property_partner")
     return page === "property_partner" ? page : "property_partner";
+  if (role === "hosting")
+    return page === "hosting" ? page : "hosting";
   if (role === "hotel_staff")
     return page === "hotel_operations" ? page : "hotel_operations";
   if (role === "user") return USER_PAGES.has(page) ? page : "search";
@@ -392,6 +398,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     isStaffRole = userRole === "staff",
     isAdminRole = userRole === "admin",
     isPropertyPartner = userRole === "property_partner",
+    isHostingRole = userRole === "hosting",
     isHotelTeamRole = userRole === "hotel_staff",
     isWorkerRole = userRole === "worker",
     isUserRole = userRole === "user",
@@ -1177,6 +1184,17 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           onSwitchWorkspace={switchWorkspace}
         />
       );
+    if (isHostingRole)
+      return (
+        <PropertyHostingDashboard
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
+        />
+      );
     if (isHotelTeamRole)
       return (
         <HotelTeamDashboard
@@ -1299,6 +1317,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "staff_dashboard":
       case "worker_dashboard":
       case "property_partner":
+      case "hosting":
       case "hotel_operations":
         return renderRoleRoot();
       case "detail":
