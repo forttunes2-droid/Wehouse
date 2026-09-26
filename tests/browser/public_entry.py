@@ -85,7 +85,11 @@ async def main():
      assert not scenario.errors,scenario.errors
      row['passed']=True
     except Exception as error:
-     row['error']=str(error);row['page_errors']=scenario.errors;await page.screenshot(path=str(OUT/f'public-entry-FAIL-{width}.png'),full_page=True)
+     row['error']=str(error);row['page_errors']=scenario.errors
+     row['visible_text']=(await page.locator('body').inner_text())[:1800]
+     row['history_state']=await page.evaluate('JSON.stringify(window.history.state)')
+     row['scenario_calls']=[name for name,_ in scenario.calls]
+     await page.screenshot(path=str(OUT/f'public-entry-FAIL-{width}.png'),full_page=True)
     finally:results.append(row);await context.close()
   finally:await browser.close()
  (OUT/'public-entry-results.json').write_text(json.dumps(results,indent=2));print(json.dumps(results,indent=2));assert all(row['passed'] for row in results)
@@ -93,4 +97,3 @@ asyncio.run(main())
 # The same real Login must also remain non-interactive during a pending request
 # and while its authenticated account/device checks finish.
 import auth_pending  # Runs the independent offline response-state regressions.
-
