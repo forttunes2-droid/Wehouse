@@ -645,3 +645,110 @@ end
 $$;
 revoke all on function public.set_my_property_management_mode(uuid,text) from public,anon;
 grant execute on function public.set_my_property_management_mode(uuid,text) to authenticated,service_role;
+
+
+-- Removing an accepted manager must never strand Host-managed reservations or
+-- their dedicated guest conversation. The owner explicitly initiated the
+-- removal, so active responsibilities are atomically returned to the owner
+-- before the manager's property authority is revoked. Completed/terminal
+-- bookings keep their historical responsible-host snapshot.
+create or replace function public.revoke_property_host_manager(p_assignment_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public'
+as $$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_assignment public.property_host_assignments;
+  v_listing public.listings;
+  v_transfer_count integer:=0;
+begin
+  if v_actor is null then raise exception 'Authentication required'; end if;
+
+  select * into v_assignment
+  from public.property_host_assignments
+  where assignment_id=p_assignment_id
+  for update;
+
+  if v_assignment.assignment_id is null
+     or v_assignment.assignment_role<>'manager'
+     or v_assignment.status not in ('active','invited') then
+    raise exception 'Active manager assignment not found';
+  end if;
+
+  if not exists(
+    select 1
+    from public.property_host_assignments owner_assignment
+    where owner_assignment.listing_id=v_assignment.listing_id
+      and owner_assignment.user_id=v_actor
+      and owner_assignment.assignment_role='owner'
+      and owner_assignment.status='active'
+  ) or not public.user_has_active_workspace(v_actor,'property_partner') then
+    raise exception 'Only the active property owner can remove a manager';
+  end if;
+
+  select * into v_listing
+  from public.listings
+  where id=v_assignment.listing_id and deleted_at is null
+  for update;
+  if v_listing.id is null then raise exception 'Property not found'; end if;
+
+  update public.reservations r
+  set responsible_host_user_id=v_actor,
+      updated_at=now()
+  where (r.listing_id=v_listing.id::text or r.listing_id=v_listing.listing_id)
+    and r.management_mode_snapshot='host'
+    and r.responsible_host_user_id=v_assignment.user_id
+    and r.status not in ('completed','cancelled','refunded','expired');
+  get diagnostics v_transfer_count = row_count;
+
+  update public.property_host_conversations c
+  set host_user_id=v_actor,
+      updated_at=now()
+  where c.host_user_id=v_assignment.user_id
+    and exists(
+      select 1
+      from public.reservations r
+      where r.id=c.reservation_id
+        and (r.listing_id=v_listing.id::text or r.listing_id=v_listing.listing_id)
+        and r.management_mode_snapshot='host'
+        and r.responsible_host_user_id=v_actor
+        and r.status not in ('completed','cancelled','refunded','expired')
+    );
+
+  if v_listing.management_mode='host'
+     and v_listing.management_host_user_id=v_assignment.user_id then
+    perform set_config('wehouse.management_rpc','allowed',true);
+    update public.listings
+    set management_host_user_id=v_actor,
+        management_updated_at=now(),
+        updated_at=now()
+    where id=v_listing.id;
+  end if;
+
+  update public.property_host_assignments
+  set status='revoked',
+      revoked_at=now(),
+      updated_at=now()
+  where assignment_id=v_assignment.assignment_id
+    and assignment_role='manager';
+
+  if not found then return false; end if;
+
+  insert into public.admin_audit_log(
+    admin_id,action,target_type,target_id,details,created_at
+  ) values(
+    v_actor,'property_host_manager_revoked','listing',v_listing.id::text,
+    jsonb_build_object(
+      'removed_user_id',v_assignment.user_id,
+      'active_reservations_transferred_to_owner',v_transfer_count,
+      'new_responsible_host_user_id',v_actor
+    )::text,now()
+  );
+
+  return true;
+end
+$$;
+revoke all on function public.revoke_property_host_manager(uuid) from public,anon;
+grant execute on function public.revoke_property_host_manager(uuid) to authenticated;
