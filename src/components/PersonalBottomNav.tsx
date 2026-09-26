@@ -5,6 +5,7 @@ type Props = {
   onNavigate: (page: PersonalNavPage) => void;
   inboxBadge?: number;
   className?: string;
+  signedOut?: boolean;
 };
 
 const tabs: Array<{ id: PersonalNavPage; label: string; icon: typeof SearchIcon }> = [
@@ -14,23 +15,24 @@ const tabs: Array<{ id: PersonalNavPage; label: string; icon: typeof SearchIcon 
   { id: 'profile', label: 'Account', icon: AccountIcon },
 ];
 
-export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, className = '' }: Props) {
+export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, className = '', signedOut = false }: Props) {
   return <nav className={`bottom-nav fixed bottom-0 left-0 right-0 z-50 ${className}`} aria-label="Main navigation">
     <div className="mx-auto flex max-w-lg items-center justify-around py-1">
       {tabs.map(tab => {
         const active = activePage === tab.id;
         const badge = tab.id === 'conversation' ? inboxBadge : 0;
+        const label = signedOut && tab.id === 'profile' ? 'Sign in' : tab.label;
         const Icon = tab.icon;
         return <button
           key={tab.id}
           type="button"
-          aria-label={tab.label}
+          aria-label={label}
           aria-current={active ? 'page' : undefined}
           onClick={() => onNavigate(tab.id)}
           className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? 'text-violet-400' : 'text-[#5C5E72]'}`}
         >
           <Icon size={22} active={active} />
-          <span className="text-[9px] font-medium">{tab.label}</span>
+          <span className="text-[9px] font-medium">{label}</span>
           {active && <span className="h-1 w-1 rounded-full bg-violet-400" />}
           {badge > 0 && <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>}
         </button>;
