@@ -436,7 +436,7 @@ export default function Chat({
         onNavigate={onNavigate}
         conversationId={target.conversationId}
         peerUserId={target.peerUserId}
-        initialKind={target.kind}
+        initialKind={target.kind === "host" ? undefined : target.kind}
         initialBookingId={target.bookingId}
         initialHotelConversation={target.hotelConversation}
         onConversationClose={() => {

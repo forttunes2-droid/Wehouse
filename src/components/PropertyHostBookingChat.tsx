@@ -96,7 +96,7 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
       {loading?<div className="min-h-48" role="status" aria-label="Loading host messages"/>:messages.length===0?<div className="py-16 text-center"><p className="text-sm font-semibold">Start the booking conversation</p><p className="mt-2 text-sm text-[#6E7484]">Coordinate arrival, access or the stay here.</p></div>:messages.map(message=>{
         const mine=message.sender_id===profile.user_id;
         const quoted=message.reply_to_id?byId.get(message.reply_to_id):null;
-        return <MessagePress key={message.id} onReply={()=>setReplyingTo(message)} className={`flex ${mine?"justify-end":"justify-start"}`}>
+        return <MessagePress key={message.id} onOpen={() => setReplyingTo(message)} onReply={()=>setReplyingTo(message)} className={`flex ${mine?"justify-end":"justify-start"}`}>
           <div className={`max-w-[84%] rounded-2xl px-3 py-2.5 ${mine?"rounded-br-md bg-violet-500":"rounded-bl-md bg-[#171B24]"}`}>
             {quoted?<div className="mb-2 border-l-2 border-violet-300/70 bg-black/10 px-2 py-1.5"><p className="truncate text-xs opacity-75">{quoted.content||"Media"}</p></div>:null}
             {message.content?<p className="whitespace-pre-wrap break-words text-sm leading-5">{message.content}</p>:null}
