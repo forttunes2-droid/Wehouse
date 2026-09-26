@@ -33,6 +33,15 @@ test('preview, native and lookalike hosts cannot reach the live project', () => 
     assert.equal(result.isTestEnvironment, true);
   }
 });
+test('only an explicit packaged native release can use the live project from localhost', () => {
+  assert.throws(() => resolve('localhost', live, 'live-public-key'), /non-production/);
+  assert.throws(() => resolve('preview.vercel.app', live, 'live-public-key', true), /non-production/);
+  assert.throws(() => resolve('localhost', '', '', true), /explicit Supabase/);
+  assert.throws(() => resolve('localhost', testUrl, 'test-public-key', true), /live WeHouse website/);
+  const release = resolve('localhost', live, 'live-public-key', true);
+  assert.equal(release.url, live);
+  assert.equal(release.isTestEnvironment, false);
+});
 test('test origins are normalized and malformed configuration fails closed', () => {
   assert.equal(resolve('localhost', ' http://127.0.0.1:54321/ ', ' key ').url, 'http://127.0.0.1:54321');
   for (const url of ['garbage', 'javascript:alert(1)', 'http://remote.example.org', testUrl + '/path', testUrl + '?project=live', testUrl + '#fragment', 'https://user:password@test.example.org']) {
@@ -41,7 +50,7 @@ test('test origins are normalized and malformed configuration fails closed', () 
 });
 test('the client uses the guarded configuration for database and storage', () => {
   const client = readFileSync(new URL('../src/lib/supabase/client.ts', import.meta.url), 'utf8');
-  assert.ok(client.includes('resolveSupabaseEnvironment(runtimeHost, configuredUrl, configuredKey)'));
+  assert.ok(client.includes('resolveSupabaseEnvironment(runtimeHost, configuredUrl, configuredKey, nativeRelease)'));
   assert.ok(client.includes('const SUPABASE_URL = environment.url'));
   assert.ok(client.includes('const SUPABASE_STORAGE_URL = SUPABASE_URL.replace('));
   assert.ok(!client.includes('https://rkrhnkhppeihvmuwvsvn'));

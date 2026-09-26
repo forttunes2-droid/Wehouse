@@ -2,6 +2,8 @@ import { supabase } from './client';
 import { parseDeviceInfo } from './session';
 import type { GoogleVerificationContext } from '@/lib/googleVerification';
 import { verificationRedirectUrl } from '@/lib/googleVerification';
+import { isNative } from '@/lib/native';
+import { openNativeOAuth } from '@/lib/nativeOAuth';
 import type { LegalChoices } from '@/lib/legalConsent';
 import { hasLegalConsent } from '@/lib/legalConsent';
 import { getCurrentLegalDocuments } from './legal';
@@ -60,16 +62,30 @@ export async function signInWithIdentifier(identifier: string, password: string)
 export async function signInWithGoogle(verificationEmail?: string, context?: GoogleVerificationContext) {
   const redirectUrl = verificationRedirectUrl(context);
   const loginHint = verificationEmail?.trim().toLowerCase();
-  return supabase.auth.signInWithOAuth({
+  const native = isNative();
+  const result = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: redirectUrl,
+      skipBrowserRedirect: native,
       queryParams: {
         prompt: 'select_account',
         ...(loginHint ? { login_hint: loginHint } : {}),
       },
     },
   });
+  if (native && !result.error && result.data.url) await openNativeOAuth(result.data.url);
+  return result;
+}
+
+export async function signInWithApple(context?: GoogleVerificationContext) {
+  const native = isNative();
+  const result = await supabase.auth.signInWithOAuth({
+    provider: 'apple',
+    options: { redirectTo: verificationRedirectUrl(context), skipBrowserRedirect: native },
+  });
+  if (native && !result.error && result.data.url) await openNativeOAuth(result.data.url);
+  return result;
 }
 
 export async function getSession() {
