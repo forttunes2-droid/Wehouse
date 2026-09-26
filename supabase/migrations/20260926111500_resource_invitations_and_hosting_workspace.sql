@@ -780,6 +780,7 @@ as $$
     select 1
     from public.property_host_assignments a
     join public.profiles p on p.user_id=a.user_id
+    join public.listings l on l.id=a.listing_id
     where a.listing_id=p_listing_id
       and a.user_id=public.current_profile_user_id()
       and a.status='active'
@@ -787,8 +788,20 @@ as $$
       and not coalesce(p.suspended,false)
       and not coalesce(p.banned,false)
       and (
-        a.assignment_role='manager'
-        or public.user_has_active_workspace(a.user_id,'property_partner')
+        a.assignment_role='owner'
+        or (
+          a.assignment_role='manager'
+          and (
+            l.management_mode='host'
+            or exists(
+              select 1 from public.reservations r
+              where (r.listing_id=l.id::text or r.listing_id=l.listing_id)
+                and r.management_mode_snapshot='host'
+                and r.responsible_host_user_id=a.user_id
+                and r.status not in ('completed','cancelled','refunded','expired')
+            )
+          )
+        )
       )
   )
 $$;
@@ -806,9 +819,20 @@ as $$
       select 1
       from public.property_host_assignments a
       join public.profiles p on p.user_id=a.user_id
+      join public.listings l on l.id=a.listing_id
       where a.user_id=p_user_id
         and a.assignment_role='manager'
         and a.status='active'
+        and (
+          l.management_mode='host'
+          or exists(
+            select 1 from public.reservations r
+            where (r.listing_id=l.id::text or r.listing_id=l.listing_id)
+              and r.management_mode_snapshot='host'
+              and r.responsible_host_user_id=a.user_id
+              and r.status not in ('completed','cancelled','refunded','expired')
+          )
+        )
         and not coalesce(p.deleted,false)
         and not coalesce(p.suspended,false)
         and not coalesce(p.banned,false)
@@ -845,6 +869,16 @@ as $$
       where a.user_id=public.current_profile_user_id()
         and a.assignment_role='manager'
         and a.status='active'
+        and (
+          l.management_mode='host'
+          or exists(
+            select 1 from public.reservations r
+            where (r.listing_id=l.id::text or r.listing_id=l.listing_id)
+              and r.management_mode_snapshot='host'
+              and r.responsible_host_user_id=a.user_id
+              and r.status not in ('completed','cancelled','refunded','expired')
+          )
+        )
         and not coalesce(p.deleted,false)
         and not coalesce(p.suspended,false)
         and not coalesce(p.banned,false)
@@ -928,9 +962,20 @@ as $$
           and exists(
             select 1
             from public.property_host_assignments host
+            join public.listings listing on listing.id=host.listing_id
             where host.user_id=profile.user_id
               and host.assignment_role='manager'
               and host.status='active'
+              and (
+                listing.management_mode='host'
+                or exists(
+                  select 1 from public.reservations reservation
+                  where (reservation.listing_id=listing.id::text or reservation.listing_id=listing.listing_id)
+                    and reservation.management_mode_snapshot='host'
+                    and reservation.responsible_host_user_id=host.user_id
+                    and reservation.status not in ('completed','cancelled','refunded','expired')
+                )
+              )
           )
       ) workspace
     ),'[]'::jsonb)
