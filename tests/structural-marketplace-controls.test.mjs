@@ -125,3 +125,37 @@ test('marketplace controls have one canonical implementation each', async () => 
   await assert.rejects(() => read('src/components/CreatorMarketplaceControls.tsx'));
   await assert.rejects(() => read('supabase/migrations/20260926113000_hosting_workspace_permissions.sql'));
 });
+
+test('Hosting Help is scoped to assigned properties and cannot expose partner finances', async () => {
+  const [help, support, account, migration] = await Promise.all([
+    read('src/components/AccountHelpCenter.tsx'),
+    read('src/lib/supabase/support.ts'),
+    read('src/pages/AccountCenter.tsx'),
+    read('supabase/migrations/20260926151722_harden_resource_invitations_hosting_help_capacity.sql'),
+  ]);
+  assert.match(help, /get_my_hosting_help_targets/);
+  assert.match(help, /Assigned homes and guest operations/);
+  assert.match(help, /item\.id === 'money'.*workspace === 'property_partner'/s);
+  assert.match(account, /'hosting'[\s\S]*?'hotel'/);
+  assert.match(support, /'hosting'/);
+  assert.match(migration, /Active Hosting assignment is required for this property/);
+  assert.match(migration, /when thread\.context_snapshot->>'requester_workspace'='hosting'/);
+});
+
+test('invitation acceptance checks current authority and preserves owners and active team members', async () => {
+  const migration = await read('supabase/migrations/20260926151722_harden_resource_invitations_hosting_help_capacity.sql');
+  assert.match(migration, /The inviter no longer owns this property/);
+  assert.match(migration, /The inviter no longer has hotel team-management access/);
+  assert.match(migration, /A property owner assignment cannot be replaced/);
+  assert.match(migration, /An active co-host must be revoked before a new invitation/);
+  assert.match(migration, /A hotel owner cannot be added as a team member/);
+  assert.match(migration, /v_actor=v_invite\.inviter_user_id or exists/);
+});
+
+test('Worker market capacity serializes admission and reactivation and keeps status private', async () => {
+  const migration = await read('supabase/migrations/20260926151722_harden_resource_invitations_hosting_help_capacity.sql');
+  assert.match(migration, /pg_advisory_xact_lock\(hashtext\(v_new_state\)/);
+  assert.match(migration, /worker_workspace_market_capacity_guard/);
+  assert.match(migration, /new\.status<>'active'/);
+  assert.match(migration, /available only to that Worker or Creator/);
+});

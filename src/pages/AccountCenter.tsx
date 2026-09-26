@@ -116,7 +116,7 @@ export default function AccountCenter({
   >(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
-  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hotel"].includes(activeWorkspace);
+  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hosting", "hotel"].includes(activeWorkspace);
   const isUser = activeWorkspace === "personal";
   const isServiceProvider = activeWorkspace === "worker";
   const isStaff = activeWorkspace === "staff";
