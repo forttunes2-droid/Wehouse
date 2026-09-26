@@ -57,6 +57,28 @@ test('Property management is property-scoped and booking responsibility is snaps
   assert.match(panel, /Guest booking code/);
 });
 
+test('Host-managed homes expose audited future price and availability controls', async () => {
+  const [migration, controls, workspace, reserveDate] = await Promise.all([
+    read('supabase/migrations/20260926081500_host_managed_home_controls.sql'),
+    read('src/components/PropertyHostControls.tsx'),
+    read('src/pages/PropertyOwnerDashboard.tsx'),
+    read('supabase/migrations/20260926061000_short_let_paid_reserve_date.sql'),
+  ]);
+  assert.match(migration, /property_host_date_blocks/);
+  assert.match(migration, /property_commercial_change_log/);
+  assert.match(migration, /set_my_property_future_price/);
+  assert.match(migration, /set_my_property_booking_availability/);
+  assert.match(migration, /block_my_property_dates/);
+  assert.match(migration, /current_actor_can_manage_property/);
+  assert.match(migration, /revoke all on public\.property_host_date_blocks from public,anon,authenticated/i);
+  assert.match(migration, /l\.status in \('available','unavailable','reserved','occupied','maintenance','closed'\)/);
+  assert.match(reserveDate, /nightly_rate_snapshot/);
+  assert.match(controls, /Hosting controls/);
+  assert.match(controls, /Pause bookings/);
+  assert.match(controls, /Reopen on/);
+  assert.match(workspace, /<PropertyHostControls/);
+});
+
 test('Creator sensitive actions use a separate server-hashed secret and independent MFA', async () => {
   const [migration, stepUp, modal, security] = await Promise.all([
     read('supabase/migrations/20260926063000_creator_security_credential.sql'),
