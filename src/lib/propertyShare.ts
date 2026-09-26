@@ -56,3 +56,24 @@ export function pendingPropertyShare(userId: string, conversationId: string, now
   return { ...draft.property };
 }
 export function clearPropertyShare(userId: string, conversationId: string): void { drafts.delete(key(userId, conversationId)); }
+
+
+export async function sharePropertyExternally(
+  property: SharedProperty,
+  title = 'WeHouse property',
+): Promise<'shared' | 'copied' | 'cancelled'> {
+  const url = propertyShareUrl(property);
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title, text: `View ${title} on WeHouse`, url });
+      return 'shared';
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+    }
+  }
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return 'copied';
+  }
+  throw new Error('Sharing is not available on this device.');
+}
