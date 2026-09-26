@@ -12,6 +12,7 @@ import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
+import WorkerCapacityManager from "@/components/WorkerCapacityManager";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import CreatorAuditWorkspace from "@/components/CreatorAuditWorkspace";
 import ServiceBookingOversight from "@/components/ServiceBookingOversight";
@@ -1000,6 +1001,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
             </p>
             <ServiceCategoryManager profile={profile} />
           </section>
+          <WorkerCapacityManager />
         </div>
       )}
       {section === "worker_plan" && <CreatorSettingsTabV2 profile={profile} groups={["worker_pro"]} embedded />}
