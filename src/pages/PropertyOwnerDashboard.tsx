@@ -20,6 +20,7 @@ import { ListingMediaImage } from "@/components/ListingCandidateMedia";
 import type { Profile } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
+import PropertyManagementPanel, { PropertyHostInvitations, HostArrivalAction } from "@/components/PropertyManagementPanel";
 
 type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
@@ -204,6 +205,7 @@ function PropertiesWorkspace({
           </div>
         </div>
       )}
+      {assetKind === "apartment" && !viewingDetail && !creating ? <PropertyHostInvitations profile={profile} /> : null}
       {filter === "public" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
@@ -243,24 +245,21 @@ function PropertiesTab({
   onTargetClose?: () => void;
 }) {
   const openedTarget = useRef<string | null>(null);
+  const [refreshKey,setRefreshKey]=useState(0);
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const refresh=()=>setRefreshKey(value=>value+1);
+    window.addEventListener("wehouse:property-host-changed",refresh);
+    return()=>window.removeEventListener("wehouse:property-host-changed",refresh);
+  },[]);
   useEffect(() => {
     let active = true;
     (async () => {
       const result =
         assetKind === "apartment"
-          ? await supabase
-              .from("listings")
-              .select("*")
-              .or(
-                `owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`,
-              )
-              .in("status", ["available", "reserved", "occupied", "maintenance", "closed"])
-              .not("approved_at", "is", null)
-              .is("deleted_at", null)
-              .order("created_at", { ascending: false })
+          ? await supabase.rpc("get_my_managed_properties")
           : await getMyHotelOperations();
       if (!active) return;
       if (result.error)
@@ -294,7 +293,7 @@ function PropertiesTab({
     return () => {
       active = false;
     };
-  }, [assetKind, initialRecordId, profile.user_id]);
+  }, [assetKind, initialRecordId, profile.user_id, refreshKey]);
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
     return () => onDetailChange?.(false);
@@ -370,6 +369,11 @@ function PropertiesTab({
                         .filter(Boolean)
                         .join(", ")}
                     </p>
+                    {property._assetKind === "property" && property._assignment_role ? (
+                      <p className="mt-1 text-[9px] text-violet-300">
+                        {property._assignment_role === "owner" ? "You own this property" : "Assigned to you as manager"}
+                      </p>
+                    ) : null}
                   </div>
                   <Status value={property.availability_status || property.status || "available"} />
                 </div>
@@ -405,6 +409,7 @@ function PropertyDetails({
   const closeRecord = useRecordScreenBack(onBack);
   const [stays, setStays] = useState<any[]>([]);
   const [loadingStays, setLoadingStays] = useState(true);
+  const [stayRefresh,setStayRefresh]=useState(0);
   const orderedStays = useMemo(() => {
     if (!initialReservationId) return stays;
     return [...stays].sort((a, b) =>
@@ -430,7 +435,7 @@ function PropertyDetails({
     return () => {
       active = false;
     };
-  }, [profile.user_id, property.id]);
+  }, [profile.user_id, property.id, stayRefresh]);
   useEffect(() => {
     if (loadingStays || !initialReservationId) return;
     const timer = window.setTimeout(() => {
@@ -515,6 +520,7 @@ function PropertyDetails({
           </button>
         </div>
       </section>
+      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -565,7 +571,7 @@ function PropertyDetails({
                     </div>
                     {stay.stay_type === "short_let" ? (
                       <p className="mt-1 text-[9px] text-[#696F80]">
-                        Stay {stay.booking_code || "confirmed"}
+                        {stay.management_mode_snapshot === "host" ? "Host-managed stay" : "WeHouse-managed stay"}
                       </p>
                     ) : null}
                   </div>
@@ -608,6 +614,7 @@ function PropertyDetails({
                 <p className="mt-3 text-[9px] leading-5 text-[#888E9D]">
                   {partnerStayMessage(stay)}
                 </p>
+                <HostArrivalAction stay={stay} profile={profile} onChanged={() => setStayRefresh(value => value + 1)} />
               </article>
             ))}
           </div>
@@ -718,25 +725,32 @@ function partnerPropertyStateMessage(property: any) {
   return "This property is published and currently available for a new reservation.";
 }
 function partnerStayMessage(stay: any) {
+  const hostManaged = stay.management_mode_snapshot === "host";
+  const operator = hostManaged ? "The responsible Host" : "WeHouse Property Operations";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied")
-      return `The guest entered on ${partnerDate(stay.check_in)}. WeHouse will record when the guest leaves.`;
+      return `The guest entered on ${partnerDate(stay.check_in)}. ${operator} handles the stay arrival record; WeHouse still controls payment protection and disputes.`;
     if (stay.status === "completed")
-      return `The guest left on ${partnerDate(stay.check_out)}. WeHouse is handling the final stay and deposit checks.`;
+      return `The guest left on ${partnerDate(stay.check_out)}. WeHouse is handling the final payment and deposit checks.`;
     if (stay.status === "ready_for_move_in")
-      return `Payment is confirmed. The guest is expected on ${partnerDate(stay.check_in)} and can only enter during the booked stay.`;
-    return `This home is booked from ${partnerDate(stay.check_in)} to ${partnerDate(stay.check_out)}. WeHouse is handling the guest’s arrival.`;
+      return `Stay payment is confirmed. The guest is expected on ${partnerDate(stay.check_in)}. ${operator} handles arrival and access.`;
+    if (stay.reservation_fee_status === "paid")
+      return `The dates are reserved. The guest still needs to complete the stay payment before arrival.`;
+    return "This booking is still being prepared.";
   }
   if (stay.status === "occupied")
-    return "WeHouse found a tenant, confirmed the rent and completed the move-in.";
+    return `${operator} completed the verified move-in. The rent history remains protected by WeHouse.`;
   if (stay.status === "completed")
     return "The tenancy has ended. The rent history remains available in Finance.";
   if (stay.status === "ready_for_move_in")
     return stay.requested_move_in_at
-      ? `The customer selected ${partnerDateTime(stay.requested_move_in_at)}. WeHouse will verify their code and hand over access at arrival.`
-      : "Year 1 rent is confirmed. WeHouse is waiting for the customer to choose a move-in time; the tenancy has not started.";
-  return "WeHouse found a tenant and confirmed the rent. WeHouse is preparing the home for move-in.";
+      ? `The customer selected ${partnerDateTime(stay.requested_move_in_at)}. ${operator} will verify the guest’s code at handover.`
+      : `Year 1 rent is confirmed. ${operator} is waiting for the customer to choose a move-in time.`;
+  return hostManaged
+    ? "The reservation belongs to this property. The responsible Host handles the next arrival step."
+    : "WeHouse is preparing the home for the next verified move-in step.";
 }
+
 function partnerStayStage(stay: any) {
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied") return "Guest checked in";
