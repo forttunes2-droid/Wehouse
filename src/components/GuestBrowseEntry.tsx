@@ -60,6 +60,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
       <PersonalBottomNav
         activePage={sectionPage[section]}
         onNavigate={(page) => { setSection(pageSection[page]); setTarget(null); }}
+        signedOut
       />
     </div>
   </DiscoveryAccessContext.Provider>;
@@ -67,9 +68,9 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
 
 function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: 'bookings' | 'inbox' | 'account'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
   const content = {
-    bookings: { title: 'Your bookings', text: 'Sign in to view and manage your bookings.' },
-    inbox: { title: 'Your inbox', text: 'Sign in to see your messages, requests and updates.' },
-    account: { title: 'Your account', text: 'Sign in to manage your profile, saved places and settings.' },
+    bookings: { title: 'Bookings', text: 'Sign in to view and manage your bookings.' },
+    inbox: { title: 'Inbox', text: 'Sign in to read your messages and updates.' },
+    account: { title: 'Sign in to WeHouse', text: 'Manage bookings, messages and saved homes.' },
   }[section];
   return <main className="wh-public-gate" aria-labelledby={`guest-${section}-title`}>
     <div>
