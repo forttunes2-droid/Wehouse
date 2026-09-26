@@ -1433,7 +1433,7 @@ function PropertyBookingDetail({
             />}
             {short ? <Info label="Reserve date" value={(row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""))) ? `Paid · ${money(row.reservation_fee_snapshot || row.amount)}` : "Payment required"} /> : null}
             <Info
-              label={short ? "Stay payment" : "Rent payment status"
+              label={short ? "Stay payment" : "Rent payment status"}
               value={
                 paymentNeedsReview
                   ? "Needs WeHouse review"
