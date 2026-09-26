@@ -1,5 +1,3 @@
-import type { NavPage } from '@/types/nav';
-
 export type PersonalNavPage = 'search' | 'my_reservations' | 'conversation' | 'profile';
 
 type Props = {
