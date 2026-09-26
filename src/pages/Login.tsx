@@ -214,7 +214,7 @@ export default function Login({
   const [legalReload, setLegalReload] = useState(0);
   const legalReady = !legalLoading && !legalError && hasLegalConsent(legalDocuments, legalChoices);
   // Enable only after the Apple provider and callback URLs are configured in Auth.
-  const appleSignInEnabled = import.meta.env.VITE_APPLE_SIGN_IN_ENABLED === 'true';
+  const appleSignInEnabled = import.meta.env?.VITE_APPLE_SIGN_IN_ENABLED === 'true';
 
   useEffect(() => {
     if (mode !== 'signup') return;
