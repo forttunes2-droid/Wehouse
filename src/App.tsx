@@ -37,7 +37,7 @@ import type { WorkspaceChoice } from "@/pages/AccountCenter";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
 import { clearInvitationIntent, parseInvitationToken, readInvitationIntent } from "@/lib/resourceInvitation";
-import ResourceInvitationAction from "@/components/ResourceInvitationAction";
+import ResourceInvitationAction, { PublicInvitationPreview } from "@/components/ResourceInvitationAction";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -353,6 +353,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   const [invitationToken, setInvitationToken] = useState<string | null>(() => {
     try { return readInvitationIntent(window.location.href, sessionStorage); } catch { return null; }
   });
+  const [invitationLoginOpen,setInvitationLoginOpen]=useState(false);
   const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
@@ -1091,6 +1092,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         {navPage === "privacy_policy" ? <PrivacyPolicyPage /> : <TermsPage />}
       </Suspense>
     );
+  if (auth.page === "login" && invitationToken && !invitationLoginOpen)
+    return <PublicInvitationPreview token={invitationToken} onSignIn={()=>setInvitationLoginOpen(true)} onClose={dismissInvitationIntent} />;
   if (auth.page === "login")
     return (
       <Login
