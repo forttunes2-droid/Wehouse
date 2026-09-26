@@ -223,10 +223,14 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   assert.match(billing,/worker_pro_web_paystack_plan_code/);
   assert.match(creator,/creator_set_worker_pro_setting/);
   assert.match(creator,/worker-pro-plan-sync/);
-  assert.match(paidPanel,/Gold PRO means an active subscription/);
-  assert.match(paidPanel,/Identity and professional checks are reviewed separately/);
+  assert.match(paidPanel,/Gold PRO is the worker-only paid membership badge/);
+  assert.match(paidPanel,/Identity and professional checks stay separate/);
   assert.match(paidPanel,/pro\.active && <GoldTickBadge/);
+  assert.match(publicProfile,/worker\.pro_active \? <GoldTickBadge/);
+  assert.match(discovery,/worker\.pro_active \? <GoldTickBadge/);
   assert.match(read('src/components/GoldTickBadge.tsx'),/title = 'Pro membership'/);
+  assert.doesNotMatch(read('src/components/PropertyManagementPanel.tsx'),/GoldTickBadge|Worker PRO membership/);
+  assert.doesNotMatch(read('src/pages/PropertyOwnerDashboard.tsx'),/GoldTickBadge|Worker PRO membership/);
   assert.doesNotMatch(paidPanel,/gold PRO mark|<WorkerProBadge/);
   assert.doesNotMatch(publicProfile,/WorkerProBadge/);
   assert.doesNotMatch(discovery,/WorkerProBadge/);
