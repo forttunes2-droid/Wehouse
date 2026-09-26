@@ -3,6 +3,7 @@ import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import HotelRoomChoices from "@/components/HotelRoomChoices";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
+import { sharePropertyExternally } from "@/lib/propertyShare";
 import { withTimeout } from "@/lib/withTimeout";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
@@ -317,7 +318,12 @@ export default function HotelDetailExperience({
             ) : null}
           </div>
         </section>
-        {onGoToChat && <div className="flex justify-end"><button type="button" onClick={() => profile ? setSendPropertyOpen(true) : onRequireAuth?.()} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Send property ↗</button></div>}
+        <div className="flex justify-end"><button type="button" onClick={() => {
+      if (profile && onGoToChat) { setSendPropertyOpen(true); return; }
+      void sharePropertyExternally({ kind: "hotel", id: String(hotelId) }, hotel.name)
+        .then(result => { if (result === "copied") toast.success("Hotel link copied"); })
+        .catch(() => toast.error("This hotel could not be shared"));
+    }} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
 
         {amenities.length ? (
           <section className="border-y border-white/[.06] py-4">
