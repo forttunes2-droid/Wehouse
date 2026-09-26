@@ -166,12 +166,12 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
   }
 
   return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100040] flex items-end justify-center bg-[#090B10] text-white sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) back(); }}>
-    <aside role="dialog" aria-modal="true" aria-label="Account profile" className="flex h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#0D1017] shadow-2xl sm:rounded-3xl">
+    <aside role="dialog" aria-modal="true" aria-label="Account profile" className="flex max-h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#0D1017] shadow-2xl sm:rounded-3xl">
         <header className="flex shrink-0 items-center gap-3 border-b border-white/[.08] px-5 py-4">
           <BackButton onClick={back} ariaLabel={section === "overview" ? "Close profile" : "Back to account profile"} />
           <div className="min-w-0"><h2 className="text-base font-semibold">{titles[section]}</h2>{section !== "overview" && <p className="mt-1 break-words text-sm text-[#A1A7B4]">{user.full_name || user.username || "WeHouse account"}</p>}</div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <div className="max-h-[calc(94dvh-4.5rem)] overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {loading ? <div role="status"><Empty text="Loading account record…" /></div> : !record ? <div role="alert" className="py-8 text-center"><p className="text-sm leading-6 text-[#D8DAE2]">{loadError || "Profile details are unavailable."}</p><button type="button" onClick={() => setReloadKey(value => value + 1)} className="mt-4 min-h-11 rounded-xl border border-violet-500/20 px-4 text-sm font-semibold text-violet-300">Try again</button></div> : section === "overview" ? <div className="space-y-6 py-5">
             <section className="flex items-center gap-4">
               <button type="button" disabled={!user.avatar_url} onClick={() => setAvatarOpen(true)} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-xl font-bold text-violet-200" aria-label="Preview profile photo">{user.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}</button>
@@ -298,7 +298,7 @@ function Metric({ label, value, onClick }: { label: string; value: string | numb
   return onClick ? <button type="button" onClick={onClick} className="text-left">{content}</button> : content;
 }
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 className="mb-2 text-sm font-bold uppercase tracking-[.14em] text-[#A1A7B4]">{title}</h3><div className="divide-y divide-white/[.055] border-y border-white/[.055]">{children}</div></section>;
+  return <section><h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[.12em] text-[#8E95A5]">{title}</h3><div className="divide-y divide-white/[.055] border-y border-white/[.055]">{children}</div></section>;
 }
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex min-h-11 items-center justify-between gap-4 py-2.5 text-sm"><span className="text-[#A1A7B4]">{label}</span><span className="max-w-[68%] break-words text-right font-semibold text-[#D8DAE2]">{value}</span></div>;
@@ -311,7 +311,7 @@ function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone
   return <span className={`rounded-full px-2 py-1 text-sm font-semibold ${style}`}>{children}</span>;
 }
 function Empty({ text }: { text: string }) {
-  return <div className="my-5 rounded-2xl border border-dashed border-white/[.08] px-5 py-10 text-center text-sm text-[#676E7F]">{text}</div>;
+  return <div className="my-4 border-y border-dashed border-white/[.08] px-3 py-8 text-center text-sm text-[#676E7F]">{text}</div>;
 }
 function statusText(value: string) { return String(value || "").replace(/_/g, " "); }
 function dateLabel(value: string) {
