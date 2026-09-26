@@ -144,12 +144,6 @@ begin
     raise exception 'Choose Host manages before inviting a co-host';
   end if;
 
-  update public.resource_invitations
-  set status='revoked',revoked_at=now(),updated_at=now()
-  where resource_type='property'
-    and resource_id=p_listing_id::text
-    and status='pending';
-
   if p_delivery='direct' then
     if v_identifier='' then raise exception 'Enter a WeHouse username or user ID'; end if;
     select * into v_target
@@ -165,6 +159,13 @@ begin
       raise exception 'No active WeHouse account matches that username or user ID';
     end if;
     if v_target.user_id=v_actor then raise exception 'You already own this property'; end if;
+
+    update public.resource_invitations
+    set status='revoked',revoked_at=now(),updated_at=now()
+    where resource_type='property'
+      and resource_id=p_listing_id::text
+      and intended_user_id=v_target.user_id
+      and status='pending';
 
     insert into public.property_host_assignments(
       listing_id,user_id,assignment_role,status,invited_by,invited_at,
@@ -272,12 +273,6 @@ begin
     raise exception 'You cannot grant permissions outside your own hotel access';
   end if;
 
-  update public.resource_invitations
-  set status='revoked',revoked_at=now(),updated_at=now()
-  where resource_type='hotel'
-    and resource_id=p_hotel_id::text
-    and status='pending';
-
   if p_delivery='direct' then
     if v_identifier='' then raise exception 'Enter a WeHouse username or user ID'; end if;
     select * into v_target
@@ -293,6 +288,13 @@ begin
       raise exception 'No active WeHouse account matches that username or user ID';
     end if;
     if v_target.user_id=v_actor then raise exception 'You cannot invite yourself'; end if;
+
+    update public.resource_invitations
+    set status='revoked',revoked_at=now(),updated_at=now()
+    where resource_type='hotel'
+      and resource_id=p_hotel_id::text
+      and intended_user_id=v_target.user_id
+      and status='pending';
 
     insert into public.hotel_team_members(
       hotel_id,member_user_id,hotel_role,status,invited_by,capabilities,
@@ -624,12 +626,27 @@ create or replace function public.respond_to_property_host_invite(
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public'
-as $$
+as $
 declare
   v_actor text:=public.current_profile_user_id();
   v_assignment public.property_host_assignments;
+  v_invitation_id uuid;
 begin
   if v_actor is null then raise exception 'Active Personal account required'; end if;
+
+  select invitation_id into v_invitation_id
+  from public.resource_invitations
+  where resource_type='property'
+    and subject_assignment_id=p_assignment_id
+    and intended_user_id=v_actor
+    and status='pending'
+  order by created_at desc
+  limit 1;
+
+  if v_invitation_id is not null then
+    return public.respond_to_resource_invitation(v_invitation_id,p_accept,null);
+  end if;
+
   update public.property_host_assignments
   set status=case when p_accept then 'active' else 'declined' end,
       accepted_at=case when p_accept then now() else null end,
@@ -641,7 +658,49 @@ begin
   if v_assignment.assignment_id is null then raise exception 'Active invitation not found'; end if;
   return jsonb_build_object('success',true,'status',v_assignment.status,'listing_id',v_assignment.listing_id);
 end
-$$;
+$;
+
+create or replace function public.respond_to_hotel_team_invitation(
+  p_membership_id uuid,p_accept boolean
+) returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog','public'
+as $
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_invitation_id uuid;
+  v_row public.hotel_team_members;
+begin
+  if v_actor is null then raise exception 'Active Personal account required'; end if;
+
+  select invitation_id into v_invitation_id
+  from public.resource_invitations
+  where resource_type='hotel'
+    and subject_assignment_id=p_membership_id
+    and intended_user_id=v_actor
+    and status='pending'
+  order by created_at desc
+  limit 1;
+
+  if v_invitation_id is not null then
+    return public.respond_to_resource_invitation(v_invitation_id,p_accept,null);
+  end if;
+
+  update public.hotel_team_members
+  set status=case when p_accept then 'active' else 'declined' end,
+      responded_at=now(),updated_at=now(),
+      revoked_at=case when p_accept then null else now() end
+  where id=p_membership_id and member_user_id=v_actor and status='invited'
+  returning * into v_row;
+
+  if v_row.id is null then raise exception 'Hotel invitation not found'; end if;
+  return jsonb_build_object(
+    'id',v_row.id,'accepted',p_accept,'hotel_id',v_row.hotel_id,
+    'hotel_role',v_row.hotel_role,'capabilities',to_jsonb(v_row.capabilities)
+  );
+end
+$;
 
 -- A co-host is a delegated operator, not a Property Partner owner.
 create or replace function public.current_actor_can_manage_property(p_listing_id uuid)
@@ -820,6 +879,7 @@ revoke all on function public.get_my_resource_invitation(uuid) from public,anon;
 revoke all on function public.preview_resource_invitation(text) from public;
 revoke all on function public.respond_to_resource_invitation(uuid,boolean,text) from public,anon;
 revoke all on function public.respond_to_property_host_invite(uuid,boolean) from public,anon;
+revoke all on function public.respond_to_hotel_team_invitation(uuid,boolean) from public,anon;
 revoke all on function public.current_actor_can_manage_property(uuid) from public,anon;
 revoke all on function public.user_has_active_workspace(text,text) from public,anon;
 revoke all on function public.current_actor_has_workspace(text,text) from public,anon;
@@ -831,6 +891,7 @@ grant execute on function public.get_my_resource_invitation(uuid) to authenticat
 grant execute on function public.preview_resource_invitation(text) to anon,authenticated,service_role;
 grant execute on function public.respond_to_resource_invitation(uuid,boolean,text) to authenticated,service_role;
 grant execute on function public.respond_to_property_host_invite(uuid,boolean) to authenticated,service_role;
+grant execute on function public.respond_to_hotel_team_invitation(uuid,boolean) to authenticated,service_role;
 grant execute on function public.current_actor_can_manage_property(uuid) to authenticated,service_role;
 grant execute on function public.user_has_active_workspace(text,text) to authenticated,service_role;
 grant execute on function public.current_actor_has_workspace(text,text) to authenticated,service_role;
