@@ -23,6 +23,7 @@ import {
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
+import ResourceInvitationAction from "@/components/ResourceInvitationAction";
 import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
@@ -59,19 +60,6 @@ type WorkPostConfirmation = {
   job_confirmation_status: string;
   url: string;
 };
-type ResourceInvitation = {
-  invitation_id:string;
-  resource_type:"property"|"hotel";
-  resource_id:string;
-  resource_title:string;
-  resource_image?:string|null;
-  role_key:"property_cohost"|"hotel_manager"|"hotel_front_desk";
-  permission_profile:string;
-  delivery:"direct"|"link";
-  status:string;
-  expires_at:string;
-  inviter_name:string;
-};
 type ActivityFilter = "all" | "action";
 const activityCache = new Map<string, Activity[]>();
 
@@ -98,8 +86,7 @@ function NotificationFeed({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
-  const [invitation,setInvitation]=useState<ResourceInvitation|null>(null);
-  const [invitationBusy,setInvitationBusy]=useState(false);
+  const [invitationId,setInvitationId]=useState<string|null>(null);
 
   async function load(quiet = false) {
     const request = ++requestVersion.current;
@@ -245,9 +232,7 @@ function NotificationFeed({
     if (row.source_type === "resource_invitation" || row.destination_route === "invitation") {
       const invitationId=String(row.destination_params?.invitation_id||row.source_id||"");
       if(!invitationId)return toast.error("Invitation reference is missing");
-      const {data,error}=await supabase.rpc("get_my_resource_invitation",{p_invitation_id:invitationId});
-      if(error||!data)return toast.error(error?.message||"Invitation could not be opened");
-      setInvitation(data as ResourceInvitation);
+      setInvitationId(invitationId);
       return;
     }
     if (row.type === "work_post_confirmation_requested") {
@@ -283,24 +268,6 @@ function NotificationFeed({
     if (destination.route)
       onNavigate(destination.route, destination.id, destination);
     else setExpanded((current) => (current === row.id ? null : row.id));
-  }
-
-  async function answerInvitation(accept:boolean){
-    if(!invitation||invitationBusy)return;
-    setInvitationBusy(true);
-    const {error}=await supabase.rpc("respond_to_resource_invitation",{
-      p_invitation_id:invitation.invitation_id,
-      p_accept:accept,
-      p_token:null,
-    });
-    setInvitationBusy(false);
-    if(error)return toast.error(error.message||"Invitation could not be updated");
-    toast.success(accept?"Invitation accepted":"Invitation declined");
-    setInvitation(null);
-    activityCache.delete(cacheKey);
-    window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
-    window.dispatchEvent(new Event("wehouse:unread-changed"));
-    await load(true);
   }
 
   async function answerWorkPost(confirm: boolean) {
@@ -483,39 +450,19 @@ function NotificationFeed({
       )}
     </main>
   );
-  const invitationPanel = invitation && (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white" role="dialog" aria-modal="true" aria-label="Review invitation">
-      <header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3">
-        <button type="button" onClick={()=>setInvitation(null)} disabled={invitationBusy} className="grid h-10 w-10 place-items-center text-xl" aria-label="Close">×</button>
-        <div><p className="text-sm font-semibold">Review invitation</p><p className="mt-0.5 text-[9px] text-[#707687]">{invitation.resource_type==="hotel"?"Hotel Team":"Hosting"}</p></div>
-      </header>
-      <main className="mx-auto w-full max-w-xl flex-1 overflow-y-auto p-4">
-        <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#10131B]">
-          <div className="p-4">
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">{invitation.role_key==="property_cohost"?"Co-host invitation":invitation.role_key==="hotel_manager"?"Hotel Manager invitation":"Front desk invitation"}</p>
-            <h2 className="mt-2 text-lg font-semibold">{invitation.resource_title}</h2>
-            <p className="mt-1 text-[10px] text-[#7B8292]">{invitation.inviter_name} invited you.</p>
-            <div className="mt-4 border-y border-white/[.06] py-3">
-              <p className="text-[9px] text-[#707687]">Access</p>
-              <p className="mt-1 text-xs font-semibold">{invitation.permission_profile==="full_hosting"?"Full hosting":invitation.permission_profile==="operations"?"Operations":invitation.permission_profile==="manager"?"Manager":"Front desk"}</p>
-              <p className="mt-1 text-[9px] leading-5 text-[#747A8A]">{invitation.role_key==="property_cohost"
-                ? invitation.permission_profile==="full_hosting"
-                  ? "Guest operations plus future price and availability controls. Ownership and payouts stay with the owner."
-                  : "Guest operations, arrival and handover. Ownership, payouts, future price and availability stay with the owner."
-                : invitation.role_key==="hotel_manager"
-                  ? "Hotel operational access according to the Manager permission set. Hotel ownership and payout authority do not transfer."
-                  : "Reservations, guest messages, room readiness, check-in and checkout. Hotel ownership and payout authority do not transfer."}</p>
-            </div>
-            <p className="mt-3 text-[9px] text-[#656C7C]">Expires {new Date(invitation.expires_at).toLocaleString()}</p>
-          </div>
-        </section>
-        {invitation.status==="pending"?<div className="mt-4 grid grid-cols-2 gap-3">
-          <button type="button" disabled={invitationBusy} onClick={()=>void answerInvitation(false)} className="h-12 rounded-xl border border-white/[.09] text-xs font-semibold text-[#AEB4C1] disabled:opacity-40">Decline</button>
-          <button type="button" disabled={invitationBusy} onClick={()=>void answerInvitation(true)} className="h-12 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{invitationBusy?"Updating…":"Accept"}</button>
-        </div>:<p className="mt-4 rounded-xl border border-white/[.07] p-4 text-xs text-[#A1A7B4]">This invitation is {invitation.status}.</p>}
-      </main>
-    </div>
-  );
+  const invitationPanel = invitationId ? (
+    <ResourceInvitationAction
+      invitationId={invitationId}
+      onClose={()=>setInvitationId(null)}
+      onResolved={async()=>{
+        setInvitationId(null);
+        activityCache.delete(cacheKey);
+        window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
+        window.dispatchEvent(new Event("wehouse:unread-changed"));
+        await load(true);
+      }}
+    />
+  ) : null;
 
   const confirmation = workPost && (
     <div
