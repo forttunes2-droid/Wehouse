@@ -2,6 +2,74 @@
 -- Owners keep full authority. Operations co-hosts can operate assigned stays;
 -- Full hosting co-hosts additionally control future price/availability.
 
+-- Replace legacy Property-Partner-only Host authority with assignment-scoped
+-- delegated Hosting authority. The responsible Host must still be an active
+-- assignment on this exact property.
+create or replace function public.current_actor_can_host_reservation(p_reservation_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'pg_catalog','public'
+as $
+  select exists(
+    select 1
+    from public.reservations r
+    join public.listings l on l.id::text=r.listing_id or l.listing_id=r.listing_id
+    join public.property_host_assignments a
+      on a.listing_id=l.id
+     and a.user_id=r.responsible_host_user_id
+     and a.status='active'
+    join public.profiles p on p.user_id=a.user_id
+    where r.id=p_reservation_id
+      and r.management_mode_snapshot='host'
+      and r.responsible_host_user_id=public.current_profile_user_id()
+      and not coalesce(p.deleted,false)
+      and not coalesce(p.suspended,false)
+      and not coalesce(p.banned,false)
+  )
+$;
+
+create or replace function public.property_host_conversation_access(p_conversation_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'pg_catalog','public'
+as $
+  select exists(
+    select 1
+    from public.property_host_conversations c
+    join public.reservations r on r.id=c.reservation_id
+    left join public.listings l on l.id::text=r.listing_id or l.listing_id=r.listing_id
+    where c.conversation_id=p_conversation_id
+      and (
+        c.guest_user_id=public.current_profile_user_id()
+        or (
+          c.host_user_id=public.current_profile_user_id()
+          and r.management_mode_snapshot='host'
+          and r.responsible_host_user_id=c.host_user_id
+          and exists(
+            select 1
+            from public.property_host_assignments a
+            join public.profiles p on p.user_id=a.user_id
+            where a.listing_id=l.id
+              and a.user_id=c.host_user_id
+              and a.status='active'
+              and not coalesce(p.deleted,false)
+              and not coalesce(p.suspended,false)
+              and not coalesce(p.banned,false)
+          )
+        )
+      )
+  )
+$;
+
+revoke all on function public.current_actor_can_host_reservation(text) from public,anon;
+revoke all on function public.property_host_conversation_access(uuid) from public,anon;
+grant execute on function public.current_actor_can_host_reservation(text) to authenticated,service_role;
+grant execute on function public.property_host_conversation_access(uuid) to authenticated,service_role;
+
 create or replace function public.current_actor_property_host_access_level(p_listing_id uuid)
 returns text
 language sql
