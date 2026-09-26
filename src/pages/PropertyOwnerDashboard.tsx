@@ -129,6 +129,7 @@ export default function PropertyOwnerDashboard({
             initialReservationId={propertyReservationId}
             onNestedChange={setNestedPropertyView}
             onTargetClose={closeActivityRecord}
+            onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }}
           />
         )}{" "}
         {tab === "communication" && (
@@ -139,7 +140,8 @@ export default function PropertyOwnerDashboard({
             </div>
             {propertyTargetId ? <PropertiesWorkspace key={propertyTargetId + (propertyReservationId || "")}
               profile={profile} initialRecordId={propertyTargetId} initialReservationId={propertyReservationId}
-              onTargetClose={closeActivityRecord} /> : null}
+              onTargetClose={closeActivityRecord}
+              onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }} /> : null}
           </>
         )}
         {tab === "finance" && <FinanceTab profile={profile} />}
@@ -153,12 +155,14 @@ function PropertiesWorkspace({
   initialReservationId,
   onNestedChange,
   onTargetClose,
+  onOpenInbox,
 }: {
   profile: Profile;
   initialRecordId?: string;
   initialReservationId?: string;
   onNestedChange?: (nested: boolean) => void;
   onTargetClose?: () => void;
+  onOpenInbox?: () => void;
 }) {
   const [publishedTarget, setPublishedTarget] = useState<string>();
   const recordTarget = publishedTarget || initialRecordId;
@@ -214,6 +218,7 @@ function PropertiesWorkspace({
           initialReservationId={initialReservationId}
           onTargetClose={() => { setPublishedTarget(undefined); onTargetClose?.(); }}
           onDetailChange={setViewingDetail}
+          onOpenInbox={onOpenInbox}
         />
       ) : (
         <PartnerSubmittedRequests
@@ -236,6 +241,7 @@ function PropertiesTab({
   initialReservationId,
   onDetailChange,
   onTargetClose,
+  onOpenInbox,
 }: {
   profile: Profile;
   assetKind: PartnerAssetKind;
@@ -243,6 +249,7 @@ function PropertiesTab({
   initialReservationId?: string;
   onDetailChange?: (open: boolean) => void;
   onTargetClose?: () => void;
+  onOpenInbox?: () => void;
 }) {
   const openedTarget = useRef<string | null>(null);
   const [refreshKey,setRefreshKey]=useState(0);
@@ -315,6 +322,7 @@ function PropertiesTab({
         profile={profile}
         initialReservationId={initialReservationId}
         onBack={() => { setSelected(null); onTargetClose?.(); }}
+        onOpenInbox={onOpenInbox}
       />
     );
   return (
@@ -400,16 +408,21 @@ function PropertyDetails({
   profile,
   initialReservationId,
   onBack,
+  onOpenInbox,
 }: {
   property: any;
   profile: Profile;
   initialReservationId?: string;
   onBack: () => void;
+  onOpenInbox?: () => void;
 }) {
   const closeRecord = useRecordScreenBack(onBack);
   const [stays, setStays] = useState<any[]>([]);
   const [loadingStays, setLoadingStays] = useState(true);
   const [stayRefresh,setStayRefresh]=useState(0);
+  const [managementMode,setManagementMode]=useState<"host"|"wehouse">(property.management_mode==="host"?"host":"wehouse");
+  const hostManaged=managementMode==="host";
+  useEffect(()=>setManagementMode(property.management_mode==="host"?"host":"wehouse"),[property.id,property.management_mode]);
   const orderedStays = useMemo(() => {
     if (!initialReservationId) return stays;
     return [...stays].sort((a, b) =>
@@ -507,35 +520,31 @@ function PropertyDetails({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">Published home status</p>
-                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property)}</p>
+                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property,hostManaged)}</p>
               </div>
               <Status value={property.availability_status || property.status || "available"} />
             </div>
           </div>
           <button
             onClick={contact}
-            className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-4 py-3 text-xs font-semibold text-violet-300"
+            className="mt-4 min-h-10 px-1 text-[10px] font-semibold text-[#8D93A2] hover:text-violet-300"
           >
-            Message WeHouse
+            WeHouse support
           </button>
         </div>
       </section>
-      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={setManagementMode} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold">
-              {property.sub_type === "short_let"
-                ? "Short Let stays"
-                : "Rent and tenancy"}
-            </h2>
-            <p className="mt-1 text-[9px] text-[#707687]">
-              {property.sub_type === "short_let"
-                ? "Plain updates when a stay is booked, the guest enters and the guest leaves."
-                : "WeHouse shows when rent is secured, when the customer chooses a move-in time, and when verified handover starts the tenancy."}
-            </p>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">{hostManaged?"Host operations":"Property operations"}</p>
+            <h2 className="mt-1 text-sm font-bold">Reservations</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">{hostManaged?"Manage the guest journey here; messages stay in Inbox.":property.sub_type==="short_let"?"WeHouse handles arrival and access for these stays.":"WeHouse handles the verified move-in and handover."}</p>
           </div>
-          <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
+          <div className="flex items-center gap-3">
+            {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-10 px-1 text-[10px] font-semibold text-violet-300">Messages</button>:null}
+            <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
+          </div>
         </div>
         {loadingStays ? (
           <Loading />
@@ -543,15 +552,19 @@ function PropertyDetails({
           <div className="mt-4 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
             <p className="text-xs font-semibold">
               {(property.availability_status || property.status) === "reserved"
-                ? "Reserved through WeHouse"
-                : "No active booking yet"}
+                ? hostManaged ? "Reservation active" : "Reserved through WeHouse"
+                : "No reservations yet"}
             </p>
             <p className="mt-2 text-[9px] text-[#666C7C]">
               {(property.availability_status || property.status) === "reserved"
-                ? "A customer has completed the reservation fee and the home is held. They are choosing inspection or rent; you do not need to act yet. Customer details remain with Property Operations."
-                : property.sub_type === "short_let"
-                ? "A stay appears after the guest completes payment."
-                : "WeHouse will update this page after a tenant is found and the rent is confirmed."}
+                ? hostManaged
+                  ? "The booking is secured. The guest journey and next host action will appear here."
+                  : "A customer has secured the home. Property Operations is handling the next step."
+                : hostManaged
+                  ? "New bookings appear here. Guest conversations are available from Inbox."
+                  : property.sub_type === "short_let"
+                    ? "A stay appears after the guest completes payment."
+                    : "WeHouse will update this page after rent is confirmed."}
             </p>
           </div>
         ) : (
@@ -712,17 +725,23 @@ function partnerDate(value?: string | null) {
 function partnerDateTime(value?: string | null) {
   return value ? new Date(value).toLocaleString() : "Not chosen";
 }
-function partnerPropertyStateMessage(property: any) {
+function partnerPropertyStateMessage(property: any, hostManaged = false) {
   const state = String(property.availability_status || property.status || "available");
   if (state === "reserved")
-    return "A reservation fee is confirmed and WeHouse is holding this home while the customer chooses inspection or rent.";
+    return hostManaged
+      ? "A reservation is active. Open Reservations below for the guest journey."
+      : "A reservation is active and WeHouse Property Operations is handling the next step.";
   if (state === "occupied")
-    return "WeHouse completed the verified handover and the home is currently occupied.";
+    return hostManaged
+      ? "The guest or occupant is currently checked in."
+      : "WeHouse completed the verified handover and the home is currently occupied.";
   if (state === "maintenance")
-    return "The published home is temporarily unavailable while operational checks or maintenance are completed.";
+    return "This home is temporarily unavailable.";
   if (state === "closed")
-    return "This published home is closed and is not available in discovery.";
-  return "This property is published and currently available for a new reservation.";
+    return "This home is not available in discovery.";
+  return hostManaged
+    ? "Published and ready to receive reservations."
+    : "Published and available for a new reservation.";
 }
 function partnerStayMessage(stay: any) {
   const hostManaged = stay.management_mode_snapshot === "host";
