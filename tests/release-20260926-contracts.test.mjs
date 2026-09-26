@@ -36,12 +36,15 @@ test('Signed-out Personal uses Sign in instead of a fake Account destination', a
   assert.doesNotMatch(guest, /title: 'Sign in to WeHouse'/);
 });
 
-test('Property management is property-scoped and booking responsibility is snapshotted', async () => {
-  const [authority, conversations, assets, panel] = await Promise.all([
+test('Property management is post-publication, property-scoped and booking responsibility is snapshotted', async () => {
+  const [authority, liveActivation, conversations, assets, panel, workspace, submissions] = await Promise.all([
     read('supabase/migrations/20260926062000_property_management_authority.sql'),
+    read('supabase/migrations/20260926083500_live_property_management_activation.sql'),
     read('supabase/migrations/20260926062300_host_booking_conversations.sql'),
     read('supabase/migrations/20260926062500_property_partner_managed_assets.sql'),
     read('src/components/PropertyManagementPanel.tsx'),
+    read('src/pages/PropertyOwnerDashboard.tsx'),
+    read('src/components/PartnerSubmittedRequests.tsx'),
   ]);
   assert.match(authority, /property_host_assignments/);
   assert.match(authority, /management_mode_snapshot/);
@@ -51,8 +54,15 @@ test('Property management is property-scoped and booking responsibility is snaps
   assert.match(conversations, /Only photos and videos can be attached/);
   assert.doesNotMatch(conversations, /select\s+r\.booking_code/i);
   assert.match(assets, /get_my_managed_properties/);
-  assert.match(panel, /Host managed/);
-  assert.match(panel, /WeHouse managed/);
+  assert.match(liveActivation, /Choose property management after this home is published/);
+  assert.match(liveActivation, /wehouse_management_status set default 'not_required'/);
+  assert.match(liveActivation, /management_updated_at is null/);
+  assert.match(workspace, /filter === "public" \|\| publishedTarget/);
+  assert.match(workspace, /<PropertyManagementPanel/);
+  assert.doesNotMatch(submissions, /PropertyManagementPanel|set_my_property_management_mode/);
+  assert.match(panel, /Host manages/);
+  assert.match(panel, /WeHouse manages/);
+  assert.match(panel, /Co-host/);
   assert.match(panel, /Hosting team/);
   assert.match(panel, /Property Operations/);
   assert.match(panel, /Guest booking code/);
