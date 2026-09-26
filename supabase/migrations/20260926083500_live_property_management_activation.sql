@@ -12,6 +12,58 @@ set wehouse_management_status='not_required'
 where management_updated_at is null
   and wehouse_management_status='requested';
 
+-- Publication must establish the owner authority that is allowed to make the
+-- later operating choice. This is bookkeeping only; it does not approve a home.
+create or replace function public.ensure_published_property_owner_assignment()
+returns trigger language plpgsql security definer
+set search_path to 'pg_catalog','public'
+as $
+declare v_owner text:=coalesce(nullif(new.partner_id,''),nullif(new.owner_id,''));
+begin
+  if new.approved_at is null or v_owner is null then
+    return new;
+  end if;
+
+  insert into public.property_host_assignments(
+    listing_id,user_id,assignment_role,status,invited_by,accepted_at,created_at,updated_at
+  )
+  values(new.id,v_owner,'owner','active',v_owner,now(),now(),now())
+  on conflict(listing_id,user_id) do update set
+    assignment_role='owner',
+    status='active',
+    accepted_at=coalesce(public.property_host_assignments.accepted_at,now()),
+    revoked_at=null,
+    updated_at=now();
+
+  return new;
+end
+$;
+
+drop trigger if exists listings_ensure_published_owner_assignment on public.listings;
+create trigger listings_ensure_published_owner_assignment
+after insert or update of approved_at on public.listings
+for each row
+when (new.approved_at is not null)
+execute function public.ensure_published_property_owner_assignment();
+
+-- Backfill only published homes that might have been created after the original
+-- authority migration but before this trigger existed.
+insert into public.property_host_assignments(
+  listing_id,user_id,assignment_role,status,invited_by,accepted_at,created_at,updated_at
+)
+select l.id,p.user_id,'owner','active',p.user_id,now(),now(),now()
+from public.listings l
+join public.profiles p
+  on p.user_id=coalesce(nullif(l.partner_id,''),nullif(l.owner_id,''))
+where l.deleted_at is null
+  and l.approved_at is not null
+on conflict(listing_id,user_id) do update set
+  assignment_role='owner',
+  status='active',
+  accepted_at=coalesce(public.property_host_assignments.accepted_at,now()),
+  revoked_at=null,
+  updated_at=now();
+
 create or replace function public.set_my_property_management_mode(
   p_listing_id uuid,p_mode text
 ) returns jsonb language plpgsql security definer
