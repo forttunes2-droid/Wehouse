@@ -20,7 +20,7 @@ import { ListingMediaImage } from "@/components/ListingCandidateMedia";
 import type { Profile } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
-import PropertyManagementPanel, { PropertyHostInvitations, HostArrivalAction } from "@/components/PropertyManagementPanel";
+import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
 
 type PartnerTab = "properties" | "finance" | "communication";
