@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -12,7 +13,7 @@ function moduleAt(path, dependencies = {}, globals = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   const exports = {};
-  vm.runInNewContext(code, { exports, require: name => dependencies[name] ?? require(name), setTimeout, clearTimeout, ...globals });
+  vm.runInNewContext(code, { exports, require: name => name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name] ?? require(name), setTimeout, clearTimeout, ...globals });
   return exports;
 }
 const session = moduleAt('src/lib/workspaceSession.ts');
@@ -94,7 +95,9 @@ const accountShell = {
 };
 test('Help menus follow the selected profile, including Hotel Team',()=>{
   const Help=moduleAt('src/components/AccountHelpCenter.tsx',{
-    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,
+    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,'@/components/HelpRecordPicker':()=>null,
+    '@/hooks/useRecordScreenBack':{useRecordScreenBack:fn=>fn},
+    '@/lib/helpTargets':moduleAt('src/lib/helpTargets.ts'),
     '@/lib/supabase':{},'@/lib/withTimeout':{},sonner:{toast:{}},
   }).default;
   const render=workspace=>renderToStaticMarkup(React.createElement(Help,{profile:{user_id:'person'},workspace,onBack(){}}));

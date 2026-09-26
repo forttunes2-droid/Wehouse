@@ -1,3 +1,5 @@
+import GuestBrowseEntry from "@/components/GuestBrowseEntry";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useEffect, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import {
@@ -11,6 +13,7 @@ import {
 import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import "./login.css";
+import "./public-entry.css";
 import { isTestEnvironment } from '@/lib/supabase/client';
 import { getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
 import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
@@ -25,6 +28,7 @@ import {
 
 type PublicRole = "user" | "worker" | "property_partner";
 type Mode =
+  | "browse"
   | "choose"
   | "signin"
   | "signup"
@@ -160,7 +164,7 @@ export default function Login({
           ? "confirm_device"
           : legacyRecoveryRequested()
             ? "forgot"
-            : "choose",
+            : "browse",
   );
   const [email, setEmail] = useState(storedVerification?.email || "");
   const [loginIdentifier, setLoginIdentifier] = useState(
@@ -169,7 +173,15 @@ export default function Login({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [working, setWorking] = useState(false);
+  const [working, setWorkingState] = useState(false);
+  const workingRef = useRef(false);
+  const emailHandoff = useRef(false);
+  function setWorking(value: boolean) {
+    // Guard immediately, including two submits before React commits a render.
+    workingRef.current = value;
+    if (!value) emailHandoff.current = false;
+    setWorkingState(value);
+  }
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [recoveryReady, setRecoveryReady] = useState(false);
@@ -212,6 +224,11 @@ export default function Login({
     return () => { active = false; };
   }, [mode, legalReload]);
 
+  useEffect(() => {
+    // The account/device owner ends the handoff, not the password API response.
+    if (serverError || kickedOut) { setWorking(false); setInfo(""); }
+  }, [serverError, kickedOut]);
+
   function clearMessages() {
     setError("");
     setInfo("");
@@ -235,6 +252,7 @@ export default function Login({
 
   useEffect(() => {
     if (!pendingDevice) return;
+    setWorking(false);
     setDeviceDetails(pendingDevice);
     setInfo("");
     setError("");
@@ -425,6 +443,7 @@ export default function Login({
 
   async function handleEmail(event: React.FormEvent, isSignup: boolean) {
     event.preventDefault();
+    if (workingRef.current) return;
     clearMessages();
     const clean = (isSignup ? email : loginIdentifier).trim().toLowerCase();
     if (isSignup && !clean.includes("@")) return setError("Enter a valid email address");
@@ -476,15 +495,18 @@ export default function Login({
         setError("Login failed. Please try again.");
         return;
       }
+      emailHandoff.current = true;
       setInfo("Signing you in…");
     } catch (signInError: unknown) {
       setError(friendlyError(errorMessage(signInError, "Connection timeout")));
     } finally {
-      setWorking(false);
+      // A verified password is not yet a loaded, authorised workspace.
+      if (!emailHandoff.current) setWorking(false);
     }
   }
 
   async function handleGoogle() {
+    if (workingRef.current) return;
     clearMessages();
     let context: VerificationContext | undefined;
     if (mode === "verify_email") {
@@ -518,6 +540,7 @@ export default function Login({
   }
 
   async function chooseOriginalGoogleEmail() {
+    if (workingRef.current) return;
     const transaction = readGoogleVerification();
     const context = transaction?.context || googleVerificationContext() || "signup";
     setWorking(true);
@@ -546,6 +569,7 @@ export default function Login({
   }
 
   async function returnFromGoogleMismatch() {
+    if (workingRef.current) return;
     const transaction = readGoogleVerification();
     const context = transaction?.context || googleVerificationContext();
     setWorking(true);
@@ -574,6 +598,7 @@ export default function Login({
   }
 
   async function cancelDeviceConfirmation() {
+    if (workingRef.current) return;
     setWorking(true);
     if (deviceDetails?.sessionId)
       await deactivateUserSession(deviceDetails.sessionId).catch(() => {});
@@ -588,6 +613,7 @@ export default function Login({
 
   async function handleForgot(event: React.FormEvent) {
     event.preventDefault();
+    if (workingRef.current) return;
     clearMessages();
     const clean = loginIdentifier.trim().toLowerCase();
     const isEmail = clean.includes("@");
@@ -596,6 +622,10 @@ export default function Login({
     setWorking(true);
     try {
       clearGoogleVerification();
+      // Recovery must create a new provider session after the server request.
+      // It is not a reuse of a bearer already stored on this browser.
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) throw new Error("Could not prepare a new confirmation. Please try again.");
       const { data: attemptId, error: beginError } = await supabase.rpc(
         "begin_identity_provider_password_recovery",
         { p_identifier: clean, p_provider: "google" },
@@ -629,6 +659,7 @@ export default function Login({
 
   async function handleRecovery(event: React.FormEvent) {
     event.preventDefault();
+    if (workingRef.current) return;
     clearMessages();
     if (password.length < 8) return setError("New password must be at least 8 characters");
     if (password !== confirmPassword) return setError("The two passwords do not match");
@@ -645,6 +676,14 @@ export default function Login({
         "provider-password-recovery",
         { body: { attempt_id: attemptId, new_password: password } },
       );
+      if (recovery?.password_changed === true && !recovery.success) {
+        clearGoogleVerification(); setPassword(""); setConfirmPassword(""); setRecoveryReady(false);
+        window.history.replaceState({}, "", window.location.pathname);
+        setMode("signin");
+        setInfo(String(recovery.error));
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        return;
+      }
       if (recoveryError || !recovery?.success) {
         setError(
           friendlyError(
@@ -670,6 +709,7 @@ export default function Login({
   }
 
   async function cancelRecovery() {
+    if (workingRef.current) return;
     await supabase.auth.signOut({ scope: "local" }).catch(() => {});
     clearGoogleVerification();
     window.history.replaceState({}, "", window.location.pathname);
@@ -681,13 +721,22 @@ export default function Login({
   }
 
   const displayError = error || serverError;
+  const returnToPlaces = useRecordScreenBack(() => {
+    setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
+  }, ["choose", "signin", "signup", "forgot"].includes(mode));
 
   return (
+    <GuestBrowseEntry active={mode === "browse"} busy={working}
+      onSignIn={() => { if (!workingRef.current) { setMode("choose"); clearMessages(); } }}
+      onOpenLegal={onOpenLegal}
+      notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
+    >
     <AuthSurface>
       <main className={`wh-auth-layout wh-auth-mode-${mode}`}>
         <header className="wh-auth-header"><Brand /></header>
         <section className="wh-auth-content">
         <div key={mode} className="wh-auth-form">
+        <fieldset disabled={working} aria-busy={working} className="min-w-0 border-0 p-0">
         {isTestEnvironment ? <p className="mb-6 border-l-2 border-violet-400 pl-3 text-sm leading-6 text-[var(--auth-muted)]">Test preview · Live accounts don’t work here. <a href="https://www.wehouse.com.ng/" className="text-violet-300 underline underline-offset-4">Open live WeHouse</a></p> : null}
         {kickedOut ? (
           <Notice tone="warning" title="This device was signed out">
@@ -699,17 +748,17 @@ export default function Login({
 
         {mode === "choose" ? (
           <div>
+            <button type="button" onClick={returnToPlaces} className="wh-auth-text-action mb-5 inline-flex min-h-11 items-center gap-2 text-sm"><span aria-hidden="true">←</span> Back to places</button>
             <div className="mb-6">
-              <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-violet-300">One WeHouse account</p>
-              <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight">Welcome to WeHouse</h1>
-              <p className="mt-2 text-sm leading-6 text-[var(--auth-muted)]">Your homes, services, messages and workspaces stay connected here.</p>
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Welcome</h1>
+              <p className="mt-2 text-sm leading-6 text-[var(--auth-muted)]">Sign in or create your WeHouse account.</p>
             </div>
             <button
               type="button"
               onClick={() => { setMode("signin"); clearMessages(); }}
               className={primaryAction}
             >
-              Sign in to WeHouse
+              Continue with email
             </button>
             <Divider />
             <button
@@ -770,7 +819,7 @@ export default function Login({
               disabled={working || (mode === 'signup' && !legalReady) || !(mode === "signup" ? email : loginIdentifier).trim() || password.length < 8}
               className={primaryAction}
             >
-              {working ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+              {working ? (mode === "signup" ? "Creating account…" : "Signing in…") : mode === "signup" ? "Create account" : "Sign in"}
             </button>
             {mode === "signin" ? (
               <button
@@ -934,6 +983,7 @@ export default function Login({
             </button>
           </form>
         ) : null}
+        </fieldset>
         </div>
         <nav aria-label="Legal information" className="wh-auth-legal flex flex-wrap items-center justify-center gap-x-6 text-xs text-[var(--auth-muted)]">
           <button type="button" onClick={() => onOpenLegal("terms_of_service")} className="min-h-11 rounded-md hover:text-violet-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Terms of Service</button>
@@ -942,6 +992,7 @@ export default function Login({
         </section>
       </main>
     </AuthSurface>
+    </GuestBrowseEntry>
   );
 }
 
@@ -951,7 +1002,7 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
     const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#0E0C12";
+    if (theme) theme.content = "#090B10";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");

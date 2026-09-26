@@ -10,9 +10,10 @@ type Props = {
   onWorkspaceSwitch?: () => void;
   children: React.ReactNode;
   workspace?: WorkspaceName;
+  narrow?: boolean;
 };
 
-export default function AccountShell({ profile, title, description, onBack, onWorkspaceSwitch, children, workspace }: Props) {
+export default function AccountShell({ profile, title, description, onBack, onWorkspaceSwitch, children, workspace, narrow = false }: Props) {
   const role = String(profile.role || 'user');
   const roleLabel = workspace ? workspaceLabel(workspace).toUpperCase() : role === 'property_partner'
     ? 'PROPERTY PARTNER'
@@ -22,38 +23,29 @@ export default function AccountShell({ profile, title, description, onBack, onWo
 
   return (
     <div className="role-workspace min-h-[100dvh] bg-[#0A0A0F] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-white sm:pb-10">
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]/95 backdrop-blur-xl">
-        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
+      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]">
+        <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 py-4 sm:px-5 lg:px-8`}>
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
+              <p className="truncate text-xs font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
               <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
-              {description ? <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-[#74798B]">{description}</p> : null}
+              {description ? <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#74798B]">{description}</p> : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-violet-500/[.10] text-[11px] font-bold text-violet-200" aria-label="Your profile">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span>{String(profile.full_name || profile.username || "W").trim().charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              {onWorkspaceSwitch ? (
-                <button
-                  type="button"
-                  onClick={onWorkspaceSwitch}
-                  className="min-h-10 shrink-0 px-1 text-[10px] font-semibold text-violet-300"
-                >
-                  Workspaces
-                </button>
-              ) : null}
-            </div>
+            {onWorkspaceSwitch ? (
+              <button
+                type="button"
+                onClick={onWorkspaceSwitch}
+                className="min-h-10 shrink-0 px-1 text-xs font-semibold text-violet-300"
+              >
+                Workspaces
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
 
-      <main key={title} className="wh-panel-enter mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-5 lg:px-8 lg:py-7">
+      <main key={title} className={`wh-panel-enter mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} space-y-4 px-4 py-5 sm:px-5 lg:px-8 lg:py-7`}>
         {children}
       </main>
     </div>
@@ -63,7 +55,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
 export function AccountSection({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <section>
-      {title ? <p className="mb-2 px-1 text-[9px] font-bold uppercase tracking-[.16em] text-[#656C7C]">{title}</p> : null}
+      {title ? <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[.16em] text-[#656C7C]">{title}</p> : null}
       <div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">{children}</div>
     </section>
   );
@@ -97,7 +89,7 @@ export function AccountRow({
         <span className="block text-sm font-semibold text-[#E6E8EE]">{title}</span>
         {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[#989EAE]">{detail}</span> : null}
       </span>
-      {trailing ?? (onClick ? <span className="text-[#565D6D]">›</span> : null)}
+      {trailing ?? (onClick ? <span aria-hidden="true" className="text-[#565D6D]">›</span> : null)}
     </Wrapper>
   );
 }

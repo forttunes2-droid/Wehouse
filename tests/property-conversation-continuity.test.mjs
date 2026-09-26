@@ -41,7 +41,7 @@ test("Property Partner owns apartments and hotels in one Properties workspace",a
   assert.match(partner,/type PartnerTab = "properties" \| "finance" \| "communication"/);
   assert.match(partner,/value: "apartment", label: "Apartments"/);
   assert.match(partner,/value: "hotel", label: "Hotels"/);
-  assert.match(partner,/assetKind === "apartment"[\s\S]*\.from\("listings"\)[\s\S]*:\s*await getMyHotelOperations\(\)/);
+  assert.match(partner,/assetKind === "apartment"[\s\S]*get_my_managed_properties[\s\S]*:\s*await getMyHotelOperations\(\)/);
   assert.match(partner,/accessRole="owner"/);
   assert.doesNotMatch(partner,/PartnerTab = [^\n]*"hotels"/);
   assert.match(hotelTeam,/access_role: "manager" \| "front_desk"/);

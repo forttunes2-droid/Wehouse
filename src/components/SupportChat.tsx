@@ -1,7 +1,11 @@
+import { CHAT_MEDIA_ACCEPT, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import { PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import BackButton from "@/components/BackButton";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { displayDate } from "@/lib/displayDate";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
 import { supabase } from "@/lib/supabase";
@@ -47,6 +51,7 @@ interface Props {
   profile: ChatProfile | null;
   onOpenListing?: (listingId: string) => void;
   onOpenBooking?: (bookingId: string) => void;
+  onOpenInbox?: () => void;
 }
 type SupportMessage = {
   id: string;
@@ -66,6 +71,7 @@ export default function SupportChat({
   profile,
   onOpenListing,
   onOpenBooking,
+  onOpenInbox,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<SupportThread | null>(null);
@@ -109,7 +115,6 @@ export default function SupportChat({
     });
   }, []);
   const closeConversation = useCallback(() => {
-    if (sendingRef.current) { toast("Sending your message…"); return; }
     saveDraft();
     requestRef.current += 1;
     activeThreadRef.current = null;
@@ -119,6 +124,8 @@ export default function SupportChat({
     setMessages([]);
     setEvents([]);
   }, [saveDraft]);
+  const dismiss = useRecordScreenBack(closeConversation, open);
+  const dialogRoot = useDialogInteraction(dismiss, open);
   useEffect(() => () => { requestRef.current += 1; }, []);
   const presentation = conversationPresentation(thread || pendingContext || {});
   const caseLocked = Boolean(
@@ -141,7 +148,7 @@ export default function SupportChat({
         return false;
       }
       if (!isSupportedSupportEvidence(file)) {
-        toast.error(`${file.name} is not a supported evidence file`);
+        toast.error(CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       return true;
@@ -194,8 +201,12 @@ export default function SupportChat({
 
   const openConversation = useCallback(
     async (context?: SupportOpenContext) => {
-      if (!profile || sendingRef.current) return;
+      if (!profile) return;
+      if (sendingRef.current) { toast("Your message is still sending. Please wait a moment."); return; }
       saveDraft();
+      // Help/booking/discovery are entry points; Inbox owns the conversation.
+      // The parent changes the workspace's existing Inbox, not its identity.
+      onOpenInbox?.();
       const request = ++requestRef.current;
       const requested = supportContextForWorkspace(context || {}, profile.role || "personal");
       activeContextRef.current = requested;
@@ -231,7 +242,7 @@ export default function SupportChat({
         }
       }
     },
-    [profile, loadMessages, refreshThread, saveDraft, messageCache],
+    [profile, loadMessages, refreshThread, saveDraft, messageCache, onOpenInbox],
   );
 
   useEffect(() => {
@@ -290,6 +301,7 @@ export default function SupportChat({
     sendingRef.current = true;
     setSending(true);
     const request = requestRef.current;
+    const sendingKey = composerKey.current;
     try {
 
       const existingConversationId = thread?.conversation_id || null;
@@ -318,6 +330,8 @@ export default function SupportChat({
           toast.error(error.message || "Message failed");
           return;
         }
+        drafts.current.delete(sendingKey);
+        window.dispatchEvent(new Event("wehouse:unread-changed"));
         setInput("");
         setFiles([]);
         await loadMessages(existingConversationId, true, request);
@@ -358,6 +372,9 @@ export default function SupportChat({
           types,
         };
         firstSendAttemptRef.current = attempt;
+        // Preserve the same first-send attempt even when Back was used while
+        // uploads were in flight. A retry must not create another request.
+        drafts.current.set(sendingKey, { input: attempt.content, files: [...files], attempt });
       }
 
       const sent =
@@ -392,12 +409,15 @@ export default function SupportChat({
           if (checked.status?.state !== "expired")
             await discardSupportMessageDraft(attempt.draftId);
           firstSendAttemptRef.current = null;
+          drafts.current.set(sendingKey, { input: attempt.content, files: [...files], attempt: null });
           toast.error(sent.error?.message || "Message failed");
           return;
         }
       }
 
       firstSendAttemptRef.current = null;
+      drafts.current.delete(sendingKey);
+      window.dispatchEvent(new Event("wehouse:unread-changed"));
       setInput("");
       setFiles([]);
       setPendingContext(null);
@@ -407,7 +427,7 @@ export default function SupportChat({
       toast.error("We could not confirm the send. Try again in this conversation.");
     } finally {
       sendingRef.current = false;
-      if (request === requestRef.current) setSending(false);
+      setSending(false);
     }
   }
 
@@ -446,25 +466,25 @@ export default function SupportChat({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100030] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
-      <header className="shrink-0 border-b border-white/[.06] bg-[#10141B]/95 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+    <div ref={dialogRoot} tabIndex={-1} role="dialog" aria-modal="true" aria-label="WeHouse conversation" className="fixed inset-0 z-[100030] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
+      <header className="shrink-0 border-b border-white/[.06] bg-[#10141B] px-3 py-2.5 sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
-          <BackButton onClick={closeConversation} ariaLabel="Back" />
+          <BackButton onClick={dismiss} ariaLabel="Back" />
           <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/20 text-violet-200 font-bold">
             W
 
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate text-[14px] font-semibold">
-                {presentation.operator}
-              </p>
+              <h1 className="truncate text-[14px] font-semibold">
+                {presentation.title}
+              </h1>
 
             </div>
             <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
               {presentation.operational
-                ? presentation.meta || "Linked to this WeHouse record"
-                : handlerLabel}
+                ? [presentation.operator, presentation.meta].filter(Boolean).join(" · ")
+                : `${presentation.operator} · ${handlerLabel}`}
             </p>
           </div>
         </div>
@@ -578,32 +598,7 @@ export default function SupportChat({
           )}
 
           {firstSendAttemptRef.current && !sending && <p role="status" className="mb-2 px-2 text-xs text-amber-200">Message not confirmed. Tap Send to retry.</p>}
-          {files.length > 0 && (
-            <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-              {files.map((file, index) => (
-                <div
-                  key={`${file.name}-${index}`}
-                  className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2"
-                >
-                  <p className="max-w-40 truncate text-[9px] text-violet-200">
-                    {file.name}
-                  </p>
-                  <button
-                    disabled={sending || Boolean(firstSendAttemptRef.current)}
-                    aria-label={`Remove ${file.name}`}
-                    onClick={() =>
-                      setFiles((current) =>
-                        current.filter((_, i) => i !== index),
-                      )
-                    }
-                    className="text-[#8D91A1]"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <PendingMessageMedia files={files} disabled={sending || Boolean(firstSendAttemptRef.current)} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
 
           <div className="flex items-end gap-2">
             <input
@@ -611,14 +606,14 @@ export default function SupportChat({
               type="file"
               hidden
               multiple
-              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,text/plain,.doc,.docx"
+              accept={CHAT_MEDIA_ACCEPT}
               onChange={(event) => addFiles(event.target.files)}
             />
             <button
               onClick={() => fileRef.current?.click()}
               disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
-              aria-label="Attach evidence"
+              aria-label="Add photo or video"
             >
               <svg
                 width="18"
@@ -1135,7 +1130,7 @@ function MessageContext({
           <button
             type="button"
             onClick={() => onOpenListing(listingId)}
-            className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-200"
+            className="shrink-0 rounded-full bg-violet-500/12 px-2.5 py-1.5 text-[8px] font-semibold text-violet-300"
           >
             View apartment →
           </button>
@@ -1177,9 +1172,10 @@ function PendingContext({ context, onStartGeneralHelp }: {
         <button
           type="button"
           onClick={onStartGeneralHelp}
+          aria-label="Change topic to General Help"
           className="shrink-0 rounded-full px-2 py-2 text-[9px] font-semibold text-violet-300"
         >
-          General Help
+          Change topic
         </button>
       )}
     </section>

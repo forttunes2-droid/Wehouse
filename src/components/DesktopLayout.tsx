@@ -291,7 +291,7 @@ export default function DesktopLayout({
                   <p className="truncate text-[9px] capitalize text-[#5C5E72]">{role || 'User'}</p>
                 </div>
                 {!dashboardOwnsAccount && role !== 'property_partner' && onLogout && (
-                  <button onClick={onLogout} title="Log out" className="text-[#5C5E72] hover:text-red-400">
+                  <button onClick={onLogout} title="Sign out" className="text-[#5C5E72] hover:text-red-400">
                     ↪
                   </button>
                 )}

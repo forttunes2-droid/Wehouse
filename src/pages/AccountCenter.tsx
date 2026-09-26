@@ -242,7 +242,7 @@ export default function AccountCenter({
     toast.success("Preference saved");
   }
 
-  async function logout() {
+  async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
     try {
@@ -254,7 +254,7 @@ export default function AccountCenter({
       window.location.replace(`${window.location.origin}/#login`);
     } catch {
       setSigningOut(false);
-      toast.error("Could not log out. Check your connection and try again.");
+      toast.error("Could not sign out. Check your connection and try again.");
     }
   }
 
@@ -553,7 +553,7 @@ export default function AccountCenter({
       </AccountSection>
 
       {canOpenCustomerHelp ? (
-        <AccountSection title="Help">
+        <AccountSection>
           <AccountRow
             title="Help"
             detail={helpDetail}
@@ -579,18 +579,17 @@ export default function AccountCenter({
       </AccountSection>
 
       <button
-        onClick={() => void logout()}
+        onClick={() => void signOut()}
         disabled={signingOut}
-        className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06] disabled:opacity-50"
+        className="group flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/[.07] bg-white/[.025] px-4 text-left transition hover:border-red-400/15 hover:bg-red-500/[.035] disabled:opacity-50"
       >
-        <p className="text-[12px] font-semibold text-red-300">
-          {signingOut ? "Logging out…" : "Log out"}
-        </p>
-        <p className="mt-1 text-[9px] text-red-300/60">
-          {signingOut
-            ? "Closing this session securely"
-            : "Sign out of this device"}
-        </p>
+        <span>
+          <span className="block text-[12px] font-semibold text-[#E7E9EE] group-hover:text-red-200">
+            {signingOut ? "Signing out…" : "Sign out"}
+          </span>
+          <span className="mt-0.5 block text-[9px] text-[#707686]">End this session on this device</span>
+        </span>
+        <span aria-hidden="true" className="text-lg text-[#6F7585] transition group-hover:translate-x-0.5 group-hover:text-red-300">→</span>
       </button>
     </AccountShell>
   );

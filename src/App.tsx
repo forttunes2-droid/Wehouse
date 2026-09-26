@@ -1,3 +1,8 @@
+import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
+import { parsePropertyShareUrl, type SharedProperty } from "@/lib/propertyShare";
+import SharedPropertyWorkspacePrompt from "@/components/SharedPropertyWorkspacePrompt";
+import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
+import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
   useState,
@@ -21,6 +26,7 @@ import {
   supabase,
 } from "@/lib/supabase";
 import DesktopLayout from "@/components/DesktopLayout";
+import PersonalBottomNav from "@/components/PersonalBottomNav";
 import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
@@ -105,25 +111,42 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
   }, []);
   return (
     <div
-      className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0E0C12] px-6 py-10 text-center text-[#F6F2FC]"
+      className="wh-auth-to-app min-h-[100dvh] bg-[#0A0A0F] px-4 py-5 text-[#F6F2FC]"
       role="status"
       aria-label="Loading WeHouse"
     >
-      <img
-        src="/app-icon.svg?v=3"
-        alt=""
-        className="h-12 w-12 rounded-[14px]"
-      />
-      <p className="mt-4 text-xl font-semibold tracking-tight">WeHouse</p>
-      <p className="mt-1.5 text-[13px] tracking-[.04em] text-[#AAA3B3]">{signingIn ? "Completing sign-in…" : "Opening your account…"}</p>
-      {!slow && <div aria-hidden="true" className="mt-5 h-[22px] w-[22px] animate-spin rounded-full border-2 border-violet-200 border-t-violet-600 motion-reduce:animate-none" />}
-      {slow && (
-        <div className="mt-5 max-w-xs">
-          <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
-          <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+      <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-md flex-col">
+        <div className="wh-auth-to-app-brand flex items-center gap-3 pt-3">
+          <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
+          <div>
+            <p className="text-base font-semibold tracking-tight">WeHouse</p>
+            <p className="mt-0.5 text-[10px] text-[#777E8E]">{signingIn ? "Signing you in" : "Opening your account"}</p>
+          </div>
         </div>
-      )}
+        {!slow ? (
+          <div className="wh-auth-to-app-shell mt-10 flex flex-1 flex-col">
+            <div className="h-3 w-28 rounded-full bg-white/[.08]" />
+            <div className="mt-3 h-7 w-48 rounded-xl bg-white/[.055]" />
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <div className="h-24 rounded-[20px] bg-white/[.045]" />
+              <div className="h-24 rounded-[20px] bg-violet-500/[.08]" />
+            </div>
+            <div className="mt-3 h-20 rounded-[20px] bg-white/[.035]" />
+            <div className="mt-3 h-16 rounded-[18px] bg-white/[.03]" />
+            <div className="mt-auto flex justify-around border-t border-white/[.05] pb-2 pt-4">
+              {[0,1,2,3].map((item) => <span key={item} className="h-8 w-8 rounded-full bg-white/[.045]" />)}
+            </div>
+          </div>
+        ) : (
+          <div className="grid flex-1 place-items-center text-center">
+            <div className="max-w-xs">
+              <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
+              <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
+              <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -252,13 +275,13 @@ function normalizePageForRole(
     page === "payment_return"
   )
     return page;
+  if (ACCOUNT_PAGES.has(page)) return page;
   if (role === "worker" && !workerProfileComplete)
     return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
       page,
     )
       ? page
       : "worker_dashboard";
-  if (ACCOUNT_PAGES.has(page)) return page;
   if (role === "creator")
     return page === "creator" || page === "new_listing" ? page : "creator";
   if (role === "admin")
@@ -280,10 +303,25 @@ function normalizePageForRole(
 
 export default function App() {
   const auth = useAuth();
-  return <AppSession key={auth.profile?.auth_id || "signed-out"} auth={auth} />;
+  const [propertyIntent, setPropertyIntent] = useState<SharedProperty | null>(() => {
+    try { return readPropertyLinkIntent(window.location.href, sessionStorage); }
+    catch { return parsePropertyShareUrl(window.location.href); }
+  });
+  const consumePropertyIntent = useCallback(() => setPropertyIntent(null), []);
+  useEffect(() => { try { savePropertyLinkIntent(propertyIntent, sessionStorage); } catch {} }, [propertyIntent]);
+  useEffect(() => {
+    const readLink = () => {
+      let next = parsePropertyShareUrl(window.location.href);
+      try { next = readPropertyLinkIntent(window.location.href, sessionStorage); } catch {}
+      if (next) setPropertyIntent(next);
+    };
+    window.addEventListener("hashchange", readLink);
+    return () => window.removeEventListener("hashchange", readLink);
+  }, []);
+  return <AppSession key={auth.profile?.auth_id || "signed-out"} auth={auth} propertyIntent={propertyIntent} consumePropertyIntent={consumePropertyIntent} />;
 }
 
-function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
+function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: ReturnType<typeof useAuth>; propertyIntent: SharedProperty | null; consumePropertyIntent: () => void }) {
   const [navPage, setNavPage] = useState<NavPage>("search"),
     [conversationOpen, setConversationOpen] = useState(false),
     [detailId, setDetailId] = useState<string | null>(null),
@@ -303,6 +341,8 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     [notificationCount, setNotificationCount] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null);
+  const [inboxOpenRequest, setInboxOpenRequest] = useState(0);
+  const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
@@ -356,26 +396,6 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     isWorkerRole = userRole === "worker",
     isUserRole = userRole === "user",
     isCreatorRole = checkCreator(userRole);
-  const tabs = useMemo(
-    () =>
-      isUserRole
-        ? [
-            { id: "search" as NavPage, label: "Explore", icon: SearchSvg },
-            {
-              id: "my_reservations" as NavPage,
-              label: "Bookings",
-              icon: ReservationSvg,
-            },
-            {
-              id: "conversation" as NavPage,
-              label: "Inbox",
-              icon: InboxSvg,
-            },
-            { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
-          ]
-        : [],
-    [isUserRole],
-  );
   const navHistoryRef = useRef<NavPage[]>(["search"]),
     restoredRef = useRef(false),
     [navigationReady, setNavigationReady] = useState(false),
@@ -416,14 +436,11 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       } catch {}
       const targetRole =
         workspace === "personal" ? "user" : workspace === "hotel" ? "hotel_staff" : workspace;
-      let remembered: NavPage | null = null;
-      try {
-        const value = localStorage.getItem(workspaceNavigationKey(baseProfile.user_id, workspace));
-        if (value && isRestorable(value)) remembered = value;
-      } catch {}
+      // An explicit switch enters the workspace itself. Restoring Account here
+      // hid Personal navigation and left the root-level Back button pointing at itself.
       const destination = normalizePageForRole(
         targetRole,
-        remembered || roleRootFor(targetRole),
+        workspaceEntryPage(targetRole),
         Boolean(baseProfile.profile_complete),
       );
       setNavPage(destination);
@@ -681,7 +698,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       setChatPeerId(null);
       handleSetNavPage("conversation");
     };
-    const openNotifications = () => handleSetNavPage("conversation");
+    const openNotifications = () => handleSetNavPage("activity");
     const refreshUnread = () => void count();
     window.addEventListener("wehouse:unread-changed", refreshUnread);
     const chatChannel = supabase
@@ -926,6 +943,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
   );
   const goTo = useCallback(
     (p: NavPage, c?: string) => {
+      setInboxOpenRequest(0);
       if (c) setWorkerCategory(c);
       if (p === "conversation" || p === "messages" || p === "chat") {
         setChatConvId(null);
@@ -968,8 +986,16 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const openUserDestination = useCallback(
     (page: string, id?: string) => {
       const route = page.toLowerCase().replace(/-/g, "_");
-      if (id && (route === "detail" || route === "listing_detail"))
-        return goToDetail(id);
+      const property = publicPropertyDestination(route, id);
+      if (property?.kind === "listing") return goToDetail(property.id);
+      if (property?.kind === "hotel") {
+        setHotelId(property.id);
+        return goTo("hotel_detail");
+      }
+      if (["detail", "listing_detail", "hotel_detail"].includes(route)) {
+        toast.error("This property link is invalid. Open it again from Saved or Explore.");
+        return;
+      }
       if (
         ["conversation", "conversations", "message", "messages", "chat"].includes(
           route,
@@ -996,6 +1022,20 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     },
     [goTo, goToChat, goToDetail],
   );
+  useEffect(() => {
+    if (!propertyIntent || !isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
+    openUserDestination(propertyIntent.kind === "hotel" ? "hotel_detail" : "detail", propertyIntent.id);
+    consumePropertyIntent();
+  }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, openUserDestination, consumePropertyIntent]);
+  useEffect(() => {
+    if (!isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
+    let destination = "";
+    try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
+    const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : "";
+    if (!route) return;
+    try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
+    goTo(route as NavPage);
+  }, [isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
       [handleSetNavPage],
@@ -1010,8 +1050,8 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     );
   const subpageBack = useCallback(() => {
     if (navHistoryRef.current.length > 1) window.history.back();
-    else handleSetNavPage(navPage === "hotel_detail" || navPage === "hotel_booking" ? "hotels" : "profile");
-  }, [handleSetNavPage, navPage]);
+    else handleSetNavPage(accountBackPage(navPage, roleRoot()));
+  }, [handleSetNavPage, navPage, roleRoot]);
 
   if (auth.isLoading) return <PageTransitionFallback signingIn />;
   if (baseProfile && !workspaceReady) return workspaceError ? (
@@ -1089,6 +1129,9 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
             goTo(p as NavPage);
           }}
           onGoToChat={goToChat}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
         />
       );
     if (isAdminRole)
@@ -1112,6 +1155,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     if (isWorkerRole)
       return (
         <WorkerDashboard
+          inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onGoToSetup={() => goTo("worker_setup")}
           onLogout={auth.logout}
@@ -1124,6 +1168,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     if (isPropertyPartner)
       return (
         <PropertyPartnerDashboard
+          inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
@@ -1135,6 +1180,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     if (isHotelTeamRole)
       return (
         <HotelTeamDashboard
+          inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
@@ -1178,9 +1224,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           <Saved
             {...props}
             onBack={subpageBack}
-            onNavigate={(p: string, id?: string) =>
-              id ? goToDetail(id) : goTo(p as NavPage)
-            }
+            onNavigate={openUserDestination}
           />
         ) : (
           renderRoleRoot()
@@ -1202,6 +1246,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
       case "account":
         return (
           <AccountCenter
+            key={`${profile.user_id}:${activeWorkspace}`}
             profile={profile}
             onBack={subpageBack}
             onGoToSaved={() => goTo("saved")}
@@ -1339,20 +1384,14 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         );
       case "hotels":
         return isUserRole ? (
-          <HotelsHome
-            onNavigate={(p: string, id?: string) => {
-              if (p === "hotel_detail" && id) {
-                setHotelId(Number(id));
-                goTo("hotel_detail");
-              } else goTo(p as NavPage);
-            }}
-          />
+          <HotelsHome onNavigate={openUserDestination} />
         ) : (
           renderRoleRoot()
         );
       case "hotel_detail":
         return isUserRole && hotelId ? (
           <HotelDetail
+            onGoToChat={goToChat}
             hotelId={hotelId}
             onBack={subpageBack}
             onBook={(h, r, ratePlanId, ci, co) => {
@@ -1441,6 +1480,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
     );
   return (
     <CreatorAuthProvider>
+      {propertyIntent && profile && !isUserRole && <SharedPropertyWorkspacePrompt onConfirm={() => switchWorkspace("personal")} onDismiss={consumePropertyIntent} />}
       <Suspense fallback={<RouteTransitionFallback />}>
         <Suspense fallback={null}>
           <PrivateCallCenter />
@@ -1458,7 +1498,7 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           <div
             key={`${baseProfile?.user_id}:${activeWorkspace}`}
             ref={pageScrollRef}
-            className="page-transition min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
+            className="page-transition wh-workspace-enter min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
           >
             {renderPage()}
           </div>
@@ -1472,6 +1512,10 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
           <Suspense fallback={null}>
             <SupportChat
               key={`${baseProfile?.user_id}:${activeWorkspace}`}
+              onOpenInbox={() => {
+                goTo(isUserRole ? "conversation" : roleRootFor(userRole));
+                setInboxOpenRequest(++inboxOpenSequence.current);
+              }}
               onOpenListing={goToDetail}
               onOpenBooking={
                 isUserRole
@@ -1493,40 +1537,11 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
         )}
         <div className="lg:hidden">
           {showBottomNav && (
-            <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
-              <div className="mx-auto flex max-w-lg items-center justify-around py-1">
-                {tabs.map((tab) => {
-                  const active = navPage === tab.id;
-                  const badgeCount =
-                    tab.id === "conversation"
-                      ? unreadCount + supportUnreadCount + notificationCount
-                      : 0;
-                  return (
-                    <button
-                      key={tab.id}
-                      aria-label={tab.label}
-                      onClick={() => goTo(tab.id)}
-                      className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
-                    >
-                      <tab.icon size={22} active={active} />
-                      {
-                        <span className="text-[9px] font-medium">
-                          {tab.label}
-                        </span>
-                      }
-                      {active && (
-                        <span className="h-1 w-1 rounded-full bg-violet-400" />
-                      )}
-                      {badgeCount > 0 && (
-                        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
-                          {badgeCount > 99 ? "99+" : badgeCount}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </nav>
+            <PersonalBottomNav
+              activePage={navPage as "search" | "my_reservations" | "conversation" | "profile"}
+              onNavigate={(page) => goTo(page)}
+              inboxBadge={unreadCount + supportUnreadCount + notificationCount}
+            />
           )}
         </div>
       </Suspense>
@@ -1534,62 +1549,3 @@ function AppSession({ auth }: { auth: ReturnType<typeof useAuth> }) {
   );
 }
 
-function SearchSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-4-4" />
-    </svg>
-  );
-}
-function ProfileSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-function ReservationSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" />
-    </svg>
-  );
-}
-function InboxSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="m4 4-3 9v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-6l-3-9H4Zm-3 9h6l2 3h6l2-3h6" />
-    </svg>
-  );
-}

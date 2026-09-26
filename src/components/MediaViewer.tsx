@@ -1,4 +1,11 @@
 import { useEffect, useState } from "react";
+import { isTopDialog } from "@/lib/dialogIsolation";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
+import MediaPagingActions from "@/components/MediaPagingActions";
+import { useMediaSwipe } from "@/hooks/useMediaSwipe";
+import ZoomablePhoto from "@/components/ZoomablePhoto";
 import { createPortal } from "react-dom";
 import VideoPlayer from "@/components/VideoPlayer";
 
@@ -29,11 +36,13 @@ type MediaViewerProps = MediaViewerSharedProps &
   );
 
 export default function MediaViewer(props: MediaViewerProps) {
+  const dismiss = useRecordScreenBack(props.onClose);
+  const dialogRoot = useDialogInteraction(dismiss);
+  useVisualViewportFrame(dialogRoot);
   const {
     title = "Media preview",
     subtitle,
     avatarUrl,
-    onClose,
   } = props;
   const items: MediaViewerItem[] =
     props.items !== undefined
@@ -48,6 +57,9 @@ export default function MediaViewer(props: MediaViewerProps) {
   const current = items[index] || items[0] || { url: "", kind: "image" as const };
   const src = current.url;
   const kind = current.kind;
+  const previous = index > 0 ? () => setIndex(value => Math.max(0, value - 1)) : undefined;
+  const next = index < maxIndex ? () => setIndex(value => Math.min(maxIndex, value + 1)) : undefined;
+  const paging = useMediaSwipe({ identity: `${index}:${src}`, onPrevious: previous, onNext: next });
   const [ready, setReady] = useState(kind === "video");
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
@@ -58,31 +70,6 @@ export default function MediaViewer(props: MediaViewerProps) {
   }, [requestedIndex, maxIndex]);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousBodyBackground = document.body.style.background;
-    const previousRootBackground = document.documentElement.style.background;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (items.length > 1 && event.key === "ArrowLeft") {
-        setIndex((value) => Math.max(0, value - 1));
-      }
-      if (items.length > 1 && event.key === "ArrowRight") {
-        setIndex((value) => Math.min(items.length - 1, value + 1));
-      }
-    };
-    document.body.style.overflow = "hidden";
-    document.body.style.background = "#000";
-    document.documentElement.style.background = "#000";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.background = previousBodyBackground;
-      document.documentElement.style.background = previousRootBackground;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [items.length, onClose]);
-
-  useEffect(() => {
     setReady(kind === "video");
     setFailed(!src);
     setCurrentTime(0);
@@ -90,13 +77,18 @@ export default function MediaViewer(props: MediaViewerProps) {
   }, [kind, src]);
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[100200] isolate flex h-[100svh] flex-col bg-black text-white"
+    <div ref={dialogRoot} tabIndex={-1} data-media-index={index} data-media-count={items.length}
+      className="fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
+      onKeyDown={event => {
+        if (event.defaultPrevented || !dialogRoot.current || !isTopDialog(dialogRoot.current) || (event.target as HTMLElement).closest("button,input,select,textarea")) return;
+        if (event.key === "ArrowLeft") { event.preventDefault(); setIndex(value => Math.max(0, value - 1)); }
+        if (event.key === "ArrowRight") { event.preventDefault(); setIndex(value => Math.min(maxIndex, value + 1)); }
+      }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[.08] px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] backdrop-blur-xl">
+      <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[.08] px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] bg-black">
         <div className="flex min-w-0 items-center gap-2.5">
           {avatarUrl ? (
             <img
@@ -108,15 +100,15 @@ export default function MediaViewer(props: MediaViewerProps) {
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{title}</p>
             {subtitle ? (
-              <p className="mt-0.5 truncate text-[9px] text-white/55">
+              <p className="mt-0.5 truncate text-xs text-white/55">
                 {subtitle}
               </p>
             ) : kind === "video" && duration > 0 ? (
-              <p className="mt-0.5 font-mono text-[9px] text-white/55">
+              <p className="mt-0.5 font-mono text-xs text-white/55">
                 {formatDuration(currentTime)} / {formatDuration(duration)}
               </p>
             ) : items.length > 1 ? (
-              <p className="mt-0.5 text-[9px] text-white/55">
+              <p className="mt-0.5 text-xs text-white/55">
                 {index + 1} / {items.length}
               </p>
             ) : null}
@@ -124,14 +116,14 @@ export default function MediaViewer(props: MediaViewerProps) {
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[.08] text-xl"
           aria-label="Close media preview"
         >
           ×
         </button>
       </header>
-      <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
+      <main {...paging} data-media-stage className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black" style={{ touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? (
           <div
             className="absolute h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent"
@@ -144,12 +136,13 @@ export default function MediaViewer(props: MediaViewerProps) {
             <p className="text-sm font-semibold">
               This media could not be loaded
             </p>
-            <p className="mt-2 text-[10px] text-white/55">
+            <p className="mt-2 text-sm text-white/55">
               Close the viewer and try again.
             </p>
           </div>
         ) : kind === "video" ? (
           <VideoPlayer
+            key={`${index}:${src}`}
             src={src}
             autoPlay
             onTime={setCurrentTime}
@@ -158,40 +151,16 @@ export default function MediaViewer(props: MediaViewerProps) {
               setReady(true);
             }}
             onPlaybackError={() => setFailed(true)}
-            className="max-h-full max-w-full object-contain"
+            containerClassName="h-full w-full bg-black"
+            className="h-full w-full object-contain"
           />
         ) : (
-          <img
-            src={src}
-            alt={title}
-            decoding="async"
-            onLoad={() => setReady(true)}
-            onError={() => setFailed(true)}
-            className={`max-h-full max-w-full object-contain transition-opacity ${ready ? "opacity-100" : "opacity-0"}`}
+          <ZoomablePhoto key={`${index}:${src}`} src={src} title={title}
+            onReady={() => setReady(true)} onError={() => setFailed(true)}
+            onPrevious={previous} onNext={next}
           />
         )}
-        {items.length > 1 && index > 0 ? (
-          <button
-            type="button"
-            onClick={() => setIndex((value) => Math.max(0, value - 1))}
-            className="absolute left-3 grid h-11 w-11 place-items-center rounded-full bg-black/55 text-2xl"
-            aria-label="Previous media"
-          >
-            ‹
-          </button>
-        ) : null}
-        {items.length > 1 && index < items.length - 1 ? (
-          <button
-            type="button"
-            onClick={() =>
-              setIndex((value) => Math.min(items.length - 1, value + 1))
-            }
-            className="absolute right-3 grid h-11 w-11 place-items-center rounded-full bg-black/55 text-2xl"
-            aria-label="Next media"
-          >
-            ›
-          </button>
-        ) : null}
+        {items.length > 1 && <MediaPagingActions onPrevious={previous} onNext={next} />}
       </main>
       <div className="h-[env(safe-area-inset-bottom)] shrink-0 bg-black" />
     </div>,

@@ -72,11 +72,11 @@
   display: none;
 }
 
-/* Opacity leaves fixed dialogs anchored to the viewport during navigation. */
-.page-transition,
-.wh-panel-enter {
-  animation: whPageEnter 190ms cubic-bezier(.2,.7,.2,1);
-}
+/* Never transform a route ancestor: it changes the containing block of fixed
+   conversations, sheets and bottom navigation, even for a zero translation. */
+.page-transition { animation: whPageFade 180ms ease-out; }
+.wh-panel-enter { animation: whPageEnter 190ms cubic-bezier(.2,.7,.2,1); }
+@keyframes whPageFade { from { opacity: 0; } to { opacity: 1; } }
 
 @keyframes whPageEnter {
   from {
@@ -89,8 +89,83 @@
   }
 }
 
+/* Workspace arrival is one transition, not a route fade multiplied by another
+   header/content fade. Navigation is immediately available; content follows by
+   only 30ms. Only heading text moves, never a fixed-position ancestor. */
+.page-transition.wh-workspace-enter { animation: none; }
+.wh-workspace-enter [data-workspace-frame="v2"] > header {
+  animation: whWorkspaceHeaderIn 180ms ease-out;
+}
+.wh-workspace-enter [data-workspace-frame="v2"] > header h1 {
+  animation: whWorkspaceTitleIn 200ms cubic-bezier(.2,.75,.2,1);
+}
+.wh-workspace-enter [data-workspace-frame="v2"] > main,
+.wh-workspace-enter > div > main {
+  animation: whWorkspaceContentIn 220ms 30ms cubic-bezier(.2,.75,.2,1) backwards;
+}
+@keyframes whWorkspaceHeaderIn { from { opacity: .65; } to { opacity: 1; } }
+@keyframes whWorkspaceTitleIn {
+  from { transform: translateY(4px); }
+  to { transform: none; }
+}
+@keyframes whWorkspaceContentIn { from { opacity: .65; } to { opacity: 1; } }
+
+/* Workspace tab changes keep chrome fixed and move only the new content.
+   The small settle motion gives hierarchy without making the whole app slide. */
+.wh-workspace-stage {
+  animation: whWorkspaceStageIn 180ms cubic-bezier(.22,.8,.25,1);
+  transform-origin: 50% 0;
+}
+@keyframes whWorkspaceStageIn {
+  from { opacity: .58; transform: translateY(6px) scale(.997); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Mobile overflow behaves like a bottom sheet instead of appearing abruptly. */
+.wh-more-backdrop { animation: whMoreBackdropIn 120ms ease-out; }
+.wh-more-sheet { animation: whMoreSheetIn 190ms cubic-bezier(.2,.82,.22,1); transform-origin: 50% 100%; }
+@keyframes whMoreBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes whMoreSheetIn {
+  from { opacity: .25; transform: translateY(14px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Navigation confirms the selection; it does not bounce the whole screen. */
+.wh-bottom-tab-icon { transition: transform 160ms cubic-bezier(.2,.8,.2,1), opacity 140ms ease; }
+.wh-bottom-tab[data-active="true"] .wh-bottom-tab-icon { transform: translateY(-1px) scale(1.06); }
+.wh-bottom-tab-indicator { animation: whTabIndicatorIn 160ms cubic-bezier(.2,.8,.2,1); transform-origin: 50% 50%; }
+@keyframes whTabIndicatorIn {
+  from { opacity: 0; transform: scaleX(.25); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+/* This is a real waiting state, not a splash screen to be played before the app.
+   Keep the shell still. Each placeholder fades once with at most a 60ms stagger;
+   resolving auth can replace it immediately, including before animation ends. */
+.wh-auth-to-app-brand {
+  animation: whAuthToAppBrand 180ms ease-out;
+}
+.wh-auth-to-app-shell { animation: none; }
+.wh-auth-to-app-shell > * {
+  animation: whAuthToAppPiece 180ms ease-out backwards;
+}
+.wh-auth-to-app-shell > *:nth-child(2) { animation-delay: 20ms; }
+.wh-auth-to-app-shell > *:nth-child(3) { animation-delay: 40ms; }
+.wh-auth-to-app-shell > *:nth-child(n+4) { animation-delay: 60ms; }
+@keyframes whAuthToAppBrand { from { opacity: .65; } to { opacity: 1; } }
+@keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .page-transition, .wh-panel-enter { animation: none; }
+  .page-transition, .wh-panel-enter, .wh-workspace-stage,
+  .wh-more-backdrop, .wh-more-sheet, .wh-bottom-tab-indicator,
+  .wh-workspace-enter [data-workspace-frame="v2"] > header,
+  .wh-workspace-enter [data-workspace-frame="v2"] > main,
+  .wh-workspace-enter [data-workspace-frame="v2"] > header h1,
+  .wh-workspace-enter > div > main,
+  .wh-auth-to-app-brand,
+  .wh-auth-to-app-shell,
+  .wh-auth-to-app-shell > * { animation: none; }
+  .wh-bottom-tab-icon { transition: none; transform: none !important; }
   [data-sonner-toast] { transition: none !important; animation: none !important; }
 }
 
@@ -389,4 +464,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     padding: 5mm !important;
   }
   @page { size: 105mm 148mm; margin: 6mm; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer, .orb { animation: none !important; }
 }

@@ -1,3 +1,10 @@
+import { publicPropertyImages } from "@/lib/publicPropertyMedia";
+import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
+import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
+import HotelRoomChoices from "@/components/HotelRoomChoices";
+import PropertyShareDialog from "@/components/PropertyShareDialog";
+import { sharePropertyExternally } from "@/lib/propertyShare";
+import { withTimeout } from "@/lib/withTimeout";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +46,7 @@ type HotelDetailRow = Hotel & {
 type Props = {
   hotelId: number;
   onBack: () => void;
+  onGoToChat?: (id: string) => void;
   onBook: (
     hotelId: number,
     roomId: number,
@@ -46,26 +54,30 @@ type Props = {
     checkIn: string,
     checkOut: string,
   ) => void;
-  profile: { user_id: string; username: string | null };
+  profile: { user_id: string; username: string | null } | null;
+  onRequireAuth?: () => void;
 };
 
 export default function HotelDetailExperience({
   hotelId,
   onBack,
+  onGoToChat,
   onBook,
   profile,
+  onRequireAuth,
 }: Props) {
   const { location } = useDiscoveryLocation();
   const [attempt, setAttempt] = useState(0);
+  const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
   const [hotel, setHotel] = useState<HotelDetailRow | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [currentImage, setCurrentImage] = useState(0);
+
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
   const [selectedRate, setSelectedRate] = useState<HotelRatePlan | null>(null);
-  const [roomImage, setRoomImage] = useState(0);
+
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [showAllAmenities, setShowAllAmenities] = useState(false);
@@ -89,29 +101,32 @@ export default function HotelDetailExperience({
 
   useEffect(() => {
     let live = true;
+    setLoading(true); setHotel(null); setReviews([]); setSaved(false);
+    setSelectedRoom(null); setSelectedRate(null); setReviewEligible(false);
+    setCheckIn(""); setCheckOut("");
+    // Optional reviews and Saved cannot delay the primary hotel record.
+    void withTimeout(getHotelReviews(hotelId), 12000, "Reviews took too long.")
+      .then(result => { if (live) { setReviews(result.reviews); setReviewEligible(Boolean(profile && result.eligible)); } })
+      .catch(() => undefined);
+    if (profile) void withTimeout(getMySavedHotelIds(), 12000, "Saved took too long.")
+      .then(result => { if (live && !result.error) setSaved(result.hotelIds.includes(hotelId)); })
+      .catch(() => undefined);
     void (async () => {
-      setLoading(true);
-      // Secondary reviews and saved state must not delay the hotel itself.
-      void getHotelReviews(hotelId).then(result => { if (live) { setReviews(result.reviews); setReviewEligible(result.eligible); } });
-      void getMySavedHotelIds().then(result => { if (live && !result.error) setSaved(result.hotelIds.includes(hotelId)); });
-      const hotelResult = await getHotelById(hotelId);
-      if (!live) return;
-      if (hotelResult.error || !hotelResult.hotel) {
-        toast.error("Hotel could not be loaded");
-        setHotel(null);
-      } else {
-        setHotel(hotelResult.hotel as HotelDetailRow);
-        // Never choose for the guest. Room + package are explicit decisions.
-        setSelectedRoom(null);
-        setSelectedRate(null);
-        setRoomImage(0);
-      }
-      setLoading(false);
+      try {
+        const result = await withTimeout(getHotelById(hotelId), 15000, "Hotel took too long to load.");
+        if (!live) return;
+        if (result.error || !result.hotel || String(result.hotel.hotel_id) !== String(hotelId)) throw new Error("Hotel could not be loaded");
+        const loaded = { ...result.hotel, images: publicPropertyImages(result.hotel.images), hotel_rooms: (result.hotel.hotel_rooms || []).map(room => ({ ...room, images: publicPropertyImages(room.images) })) } as HotelDetailRow;
+        const draft = readPublicBrowseDraft('hotel', String(hotelId));
+        const room = loaded.hotel_rooms?.find(item => item.room_id === draft.roomId) || null;
+        const rate = room?.rate_plans?.find(item => item.active && item.rate_plan_id === draft.rateId) || null;
+        setHotel(loaded); setSelectedRoom(room); setSelectedRate(rate);
+        if (rate) { setCheckIn(browseDate(draft.checkIn)); setCheckOut(browseDate(draft.checkOut)); }
+      } catch { if (live) toast.error("Hotel could not be loaded. Please try again."); }
+      finally { if (live) setLoading(false); }
     })();
-    return () => {
-      live = false;
-    };
-  }, [hotelId, profile.user_id, attempt]);
+    return () => { live = false; };
+  }, [hotelId, profile?.user_id, attempt]);
 
   useEffect(() => {
     let live = true;
@@ -120,6 +135,10 @@ export default function HotelDetailExperience({
     });
     return () => { live = false; };
   }, [hotelId, location]);
+
+  useEffect(() => {
+    if (!loading && hotel && String(hotel.hotel_id) === String(hotelId)) savePublicBrowseDraft('hotel', String(hotelId), { roomId: selectedRoom?.room_id || null, rateId: selectedRate?.rate_plan_id || null, checkIn, checkOut });
+  }, [loading, hotel, hotelId, selectedRoom, selectedRate, checkIn, checkOut]);
 
   const tomorrow = useMemo(() => {
     const value = new Date();
@@ -148,6 +167,7 @@ export default function HotelDetailExperience({
     : 0;
 
   async function toggleSaved() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (saving) return;
     setSaving(true);
     const result = saved ? await unsaveHotel(hotelId) : await saveHotel(hotelId);
@@ -159,20 +179,21 @@ export default function HotelDetailExperience({
   }
 
   function selectRoom(room: HotelRoom) {
+    if (selectedRoom?.room_id === room.room_id) return;
     setSelectedRoom(room);
     setSelectedRate(null);
-    setRoomImage(0);
-    setCheckIn("");
-    setCheckOut("");
+    // Dates and guest intent belong to the search, not to a particular room.
+    // Keep them while the guest compares rooms; availability is rechecked later.
   }
 
   function selectRate(plan: HotelRatePlan) {
+    if (selectedRate?.rate_plan_id === plan.rate_plan_id) return;
     setSelectedRate(plan);
-    setCheckIn("");
-    setCheckOut("");
+    // Keep the selected dates while comparing packages.
   }
 
   function messageWeHouse() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (!hotel) return;
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
@@ -194,6 +215,7 @@ export default function HotelDetailExperience({
   }
 
   function proceed() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (!selectedRoom) return toast.error("Choose a room type first");
     if (!selectedRate) return toast.error("Choose a package for that room");
     if (!checkIn || !checkOut)
@@ -209,6 +231,7 @@ export default function HotelDetailExperience({
   }
 
   async function submitReview() {
+    if (!profile) { onRequireAuth?.(); return; }
     if (!profile.user_id || submittingReview) return;
     setSubmittingReview(true);
     const { error } = await addHotelReview(
@@ -258,48 +281,20 @@ export default function HotelDetailExperience({
     <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
 
 
+      {sendPropertyOpen && onGoToChat && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "hotel", id: String(hotelId) }} title={hotel.name} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
       <main className="mx-auto max-w-5xl space-y-5 px-4 pb-5 sm:px-6">
         <section className="-mx-4 overflow-hidden border-y border-white/[.07] sm:mx-0 sm:rounded-2xl sm:border">
-          <div className="relative aspect-[4/3] bg-[#171B24] sm:aspect-[16/9]">
-            {images.length ? (
-              <img
-                src={images[currentImage]}
-                alt={`${hotel.name} photo ${currentImage + 1}`}
-                className="h-full w-full object-cover"
-                fetchPriority="high"
-                decoding="async"
-              />
-            ) : (
-              <div className="grid h-full place-items-center text-[10px] text-[#62697A]">
-                No hotel image yet
-              </div>
-            )}
-            <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/55 to-transparent px-3 pt-[max(.75rem,env(safe-area-inset-top))] pb-6">
-              <BackButton onClick={onBack} ariaLabel="Back to hotels" className="bg-black/50 !text-white backdrop-blur" />
-              <button type="button" disabled={saving} onClick={() => void toggleSaved()} aria-label={saved ? 'Remove hotel from Saved' : 'Save hotel'} aria-pressed={saved} className="grid h-11 w-11 place-items-center rounded-full bg-black/50 text-white backdrop-blur disabled:opacity-50"><Heart filled={saved} /></button>
+          <PropertyMediaCarousel images={images} title={hotel.name}>
+            <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-3 pt-[max(.75rem,env(safe-area-inset-top))]">
+              <BackButton onClick={onBack} ariaLabel="Back to hotels" className="bg-black/50 !text-white" />
+              <button type="button" disabled={saving} onClick={() => void toggleSaved()} aria-label={saved ? 'Remove hotel from Saved' : 'Save hotel'} aria-pressed={saved} className="grid h-11 w-11 place-items-center rounded-full bg-black/50 text-white disabled:opacity-50"><Heart filled={saved} /></button>
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-            {images.length > 1 ? (
-              <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 backdrop-blur">
-                {images.map((_, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    aria-label={`View hotel photo ${index + 1}`}
-                    onClick={() => setCurrentImage(index)}
-                    className={`h-1.5 rounded-full ${
-                      index === currentImage ? "w-5 bg-white" : "w-1.5 bg-white/45"
-                    }`}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
+          </PropertyMediaCarousel>
           <div className="bg-[#10131A] p-4 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
-                <p className="mt-1 text-[10px] text-[#747B8B]">
+                <p className="mt-1 text-sm text-[#747B8B]">
                   {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
                   {distance != null
                     ? ` · about ${
@@ -311,18 +306,24 @@ export default function HotelDetailExperience({
                 </p>
               </div>
               {Number(hotel.rating || 0) > 0 ? (
-                <span className="shrink-0 text-[10px] font-semibold text-amber-300">
+                <span className="shrink-0 text-sm font-semibold text-amber-300">
                   ★ {Number(hotel.rating).toFixed(1)}
                 </span>
               ) : null}
             </div>
             {hotel.description ? (
-              <p className="mt-4 text-[11px] leading-5 text-[#9399A8]">
+              <p className="mt-4 text-sm leading-5 text-[#9399A8]">
                 {hotel.description}
               </p>
             ) : null}
           </div>
         </section>
+        <div className="flex justify-end"><button type="button" onClick={() => {
+      if (profile && onGoToChat) { setSendPropertyOpen(true); return; }
+      void sharePropertyExternally({ kind: "hotel", id: String(hotelId) }, hotel.name)
+        .then(result => { if (result === "copied") toast.success("Hotel link copied"); })
+        .catch(() => toast.error("This hotel could not be shared"));
+    }} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
 
         {amenities.length ? (
           <section className="border-y border-white/[.06] py-4">
@@ -332,7 +333,7 @@ export default function HotelDetailExperience({
                 <button
                   type="button"
                   onClick={() => setShowAllAmenities((value) => !value)}
-                  className="text-[9px] font-semibold text-violet-300"
+                  className="text-xs font-semibold text-violet-300"
                 >
                   {showAllAmenities ? "Show less" : `+${amenities.length - 6} more`}
                 </button>
@@ -342,7 +343,7 @@ export default function HotelDetailExperience({
               {shownAmenities.map((item) => (
                 <span
                   key={item}
-                  className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-[9px] text-[#A0A6B4]"
+                  className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-xs text-[#A0A6B4]"
                 >
                   {item}
                 </span>
@@ -353,175 +354,20 @@ export default function HotelDetailExperience({
 
         <section className="grid grid-cols-2 divide-x divide-white/[.06] border-y border-white/[.06] py-4">
           <div className="pr-4">
-            <p className="text-[8px] uppercase tracking-wide text-[#686F80]">Check-in</p>
+            <p className="text-xs uppercase tracking-wide text-[#686F80]">Check-in</p>
             <p className="mt-1 text-xs font-semibold">
               From {formatHotelTime(hotel.check_in_time, "14:00")}
             </p>
           </div>
           <div className="pl-4">
-            <p className="text-[8px] uppercase tracking-wide text-[#686F80]">Check-out</p>
+            <p className="text-xs uppercase tracking-wide text-[#686F80]">Check-out</p>
             <p className="mt-1 text-xs font-semibold">
               By {formatHotelTime(hotel.check_out_time, "12:00")}
             </p>
           </div>
         </section>
 
-        <section id="hotel-room-options" className="scroll-mt-4">
-          <div className="mb-3">
-            <h2 className="text-base font-bold">Choose a room</h2>
-            <p className="mt-1 text-[9px] text-[#666D7E]">
-              Select a room and package to see the total.
-            </p>
-          </div>
-          {hotel.hotel_rooms?.length ? (
-            <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
-              {hotel.hotel_rooms.map((room) => {
-                const active = selectedRoom?.room_id === room.room_id;
-                const photo = room.images?.[0];
-                return (
-                  <button
-                    key={room.room_id}
-                    type="button"
-                    onClick={() => selectRoom(room)}
-                    className={`flex w-full items-center gap-3 py-4 text-left ${
-                      active ? "text-white" : "text-[#C3C7D1]"
-                    }`}
-                  >
-                    <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">
-                      {photo ? (
-                        <img
-                          src={photo}
-                          alt={`${room.room_type} room`}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="grid h-full place-items-center text-[8px] text-[#62697A]">
-                          No photo
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-sm font-semibold">{room.room_type}</h3>
-                      <p className="mt-1 text-[9px] text-[#858B9A]">
-                        Up to {room.max_guests} guest{room.max_guests === 1 ? "" : "s"}
-                        {room.bed_type ? ` · ${room.bed_type}` : ""}
-                      </p>
-                      <p className="mt-1 text-[8px] text-[#656C7C]">
-                        {(room.rate_plans || []).filter((plan) => plan.active).length} package choice{(room.rate_plans || []).filter((plan) => plan.active).length === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    <span className={active ? "text-violet-300" : "text-[#62697A]"}>
-                      {active ? "✓" : "›"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="border-y border-dashed border-white/[.08] py-10 text-center text-[10px] text-[#666D7E]">
-              No rooms are currently available.
-            </p>
-          )}
-        </section>
-
-        {selectedRoom ? (
-          <section className="border-y border-white/[.07] py-5">
-            <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-black">
-              {selectedRoom.images?.[roomImage] ? (
-                <img
-                  src={selectedRoom.images[roomImage]}
-                  alt={`${selectedRoom.room_type} photo ${roomImage + 1}`}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-items-center text-[9px] text-[#62697A]">
-                  Room photo unavailable
-                </div>
-              )}
-            </div>
-            {(selectedRoom.images?.length || 0) > 1 ? (
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                {selectedRoom.images.map((src, index) => (
-                  <button
-                    type="button"
-                    key={`${src}-${index}`}
-                    onClick={() => setRoomImage(index)}
-                    className={`h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${
-                      roomImage === index ? "border-violet-400" : "border-transparent"
-                    }`}
-                    aria-label={`View ${selectedRoom.room_type} photo ${index + 1}`}
-                  >
-                    <img src={src} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <h3 className="mt-4 text-base font-bold">{selectedRoom.room_type}</h3>
-            {selectedRoom.description ? (
-              <p className="mt-2 text-[10px] leading-5 text-[#969CAA]">
-                {selectedRoom.description}
-              </p>
-            ) : null}
-            {selectedRoom.amenities?.length ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedRoom.amenities.map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-full border border-white/[.07] px-2.5 py-1 text-[8px] text-[#A0A6B4]"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-
-            <div id="hotel-package-options" className="mt-5 scroll-mt-4">
-              <h3 className="text-sm font-bold">Choose a package</h3>
-              <p className="mt-1 text-[9px] text-[#666D7E]">
-                Compare what’s included in each package.
-              </p>
-              <div className="mt-3 divide-y divide-white/[.06] border-y border-white/[.06]">
-                {(selectedRoom.rate_plans || [])
-                  .filter((plan) => plan.active)
-                  .map((plan) => {
-                    const active = selectedRate?.rate_plan_id === plan.rate_plan_id;
-                    return (
-                      <button
-                        key={plan.rate_plan_id}
-                        type="button"
-                        onClick={() => selectRate(plan)}
-                        className="flex w-full items-start justify-between gap-4 py-4 text-left"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-semibold">{plan.name}</span>
-                          <span className="mt-1 block text-[9px] leading-4 text-[#777E8E]">
-                            {mealLabel(plan.meal_plan)} · {paymentLabel(plan.payment_timing)} · {plan.refundable ? "Refundable" : "Non-refundable"}
-                          </span>
-                          {plan.included_features?.length ? (
-                            <span className="mt-1.5 block text-[8px] text-emerald-300">
-                              Includes {plan.included_features.join(" · ")}
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className="block text-sm font-bold text-violet-200">
-                            ₦{Number(plan.price_per_night).toLocaleString()}
-                          </span>
-                          <span className="text-[8px] text-[#656C7C]">per night</span>
-                          {active ? (
-                            <span className="mt-1 block text-[8px] font-semibold text-violet-300">
-                              Selected
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          </section>
-        ) : null}
+        <HotelRoomChoices rooms={hotel.hotel_rooms || []} roomId={selectedRoom?.room_id} rateId={selectedRate?.rate_plan_id} nights={nights} onRoom={selectRoom} onRate={selectRate} />
 
         {selectedRate ? (
           <section id="hotel-stay-dates" className="scroll-mt-4 border-y border-white/[.07] py-5">
@@ -548,10 +394,10 @@ export default function HotelDetailExperience({
             {nights > 0 ? (
               <div className="mt-4 flex items-end justify-between gap-4 border-t border-white/[.06] pt-4">
                 <div>
-                  <p className="text-[9px] text-[#686F80]">
+                  <p className="text-xs text-[#686F80]">
                     {nights} night{nights === 1 ? "" : "s"} · {selectedRate.name}
                   </p>
-                  <p className="mt-1 text-[8px] text-[#5E6473]">
+                  <p className="mt-1 text-xs text-[#5E6473]">
                     Availability is rechecked before payment.
                   </p>
                 </div>
@@ -564,7 +410,7 @@ export default function HotelDetailExperience({
         {hotel.venues?.length ? (
           <section className="border-y border-white/[.06] py-5">
             <h2 className="text-sm font-semibold">At the hotel</h2>
-            <p className="mt-1 text-[9px] text-[#666D7E]">
+            <p className="mt-1 text-xs text-[#666D7E]">
               Restaurants and facilities are hotel information, not separate WeHouse bookings.
             </p>
             <div className="mt-3 divide-y divide-white/[.06]">
@@ -573,23 +419,23 @@ export default function HotelDetailExperience({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold">{venue.name}</p>
-                      <p className="mt-1 text-[8px] uppercase tracking-wide text-violet-300">
+                      <p className="mt-1 text-xs uppercase tracking-wide text-violet-300">
                         {venue.kind}
                       </p>
                     </div>
                     {venue.opening_hours ? (
-                      <p className="text-right text-[9px] text-[#858B9A]">
+                      <p className="text-right text-xs text-[#858B9A]">
                         {venue.opening_hours}
                       </p>
                     ) : null}
                   </div>
                   {venue.description ? (
-                    <p className="mt-2 text-[9px] leading-4 text-[#858B9A]">
+                    <p className="mt-2 text-xs leading-4 text-[#858B9A]">
                       {venue.description}
                     </p>
                   ) : null}
                   {venue.package_notes ? (
-                    <p className="mt-2 text-[8px] text-emerald-300">
+                    <p className="mt-2 text-xs text-emerald-300">
                       Package access: {venue.package_notes}
                     </p>
                   ) : null}
@@ -603,7 +449,7 @@ export default function HotelDetailExperience({
           <h2 className="text-sm font-semibold">Location</h2>
           <div className="mt-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] text-[#858B9A]">
+              <p className="text-sm text-[#858B9A]">
                 {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
               </p>
 
@@ -613,7 +459,7 @@ export default function HotelDetailExperience({
                 href={directionsUrl(locationLabel(hotel.address, hotel.area, hotel.city, hotel.state))}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 text-[9px] font-semibold text-violet-300"
+                className="shrink-0 text-xs font-semibold text-violet-300"
               >
                 Road directions
               </a>
@@ -625,7 +471,7 @@ export default function HotelDetailExperience({
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">Guest reviews</h2>
-              <p className="mt-1 text-[9px] text-[#666D7E]">
+              <p className="mt-1 text-xs text-[#666D7E]">
                 {reviews.length} verified review{reviews.length === 1 ? "" : "s"}
               </p>
             </div>
@@ -633,7 +479,7 @@ export default function HotelDetailExperience({
               <button
                 type="button"
                 onClick={() => setShowReviewForm((value) => !value)}
-                className="text-[9px] font-semibold text-violet-300"
+                className="text-xs font-semibold text-violet-300"
               >
                 {showReviewForm ? "Cancel" : "Write review"}
               </button>
@@ -667,7 +513,7 @@ export default function HotelDetailExperience({
                 type="button"
                 onClick={() => void submitReview()}
                 disabled={submittingReview}
-                className="mt-3 h-11 rounded-xl bg-violet-500 px-5 text-[10px] font-semibold disabled:opacity-50"
+                className="mt-3 h-11 rounded-xl bg-violet-500 px-5 text-sm font-semibold disabled:opacity-50"
               >
                 {submittingReview ? "Submitting…" : "Publish review"}
               </button>
@@ -678,22 +524,22 @@ export default function HotelDetailExperience({
             {reviews.slice(0, 6).map((review) => (
               <article key={review.review_id} className="py-3 first:pt-0">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-semibold">
+                  <p className="text-sm font-semibold">
                     @{review.profiles?.username || "guest"}
                   </p>
-                  <p className="text-[9px] text-amber-300">
+                  <p className="text-xs text-amber-300">
                     {"★".repeat(Number(review.rating || 0))}
                   </p>
                 </div>
                 {review.comment ? (
-                  <p className="mt-2 text-[10px] leading-5 text-[#858B9A]">
+                  <p className="mt-2 text-sm leading-5 text-[#858B9A]">
                     {review.comment}
                   </p>
                 ) : null}
               </article>
             ))}
             {!reviews.length ? (
-              <p className="py-5 text-center text-[10px] text-[#666D7E]">
+              <p className="py-5 text-center text-sm text-[#666D7E]">
                 No verified reviews yet.
               </p>
             ) : null}
@@ -701,12 +547,12 @@ export default function HotelDetailExperience({
         </section>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <div className="mx-auto grid max-w-5xl grid-cols-[auto_minmax(0,1fr)] gap-2">
           <button
             type="button"
             onClick={messageWeHouse}
-            className="h-12 rounded-2xl border border-violet-400/20 bg-violet-500/[.07] px-4 text-[10px] font-semibold text-violet-200"
+            className="h-12 rounded-2xl border border-violet-400/20 bg-violet-500/[.07] px-4 text-sm font-semibold text-violet-200"
           >
             Message WeHouse
           </button>
@@ -739,24 +585,6 @@ function formatHotelTime(value: unknown, fallback: string) {
   const hour = Number(match?.[1] || 0);
   const minute = match?.[2] || "00";
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
-}
-
-function mealLabel(value: HotelRatePlan["meal_plan"]) {
-  return {
-    room_only: "Room only",
-    breakfast: "Breakfast included",
-    half_board: "Breakfast + one meal",
-    full_board: "All daily meals",
-    all_inclusive: "All inclusive",
-  }[value];
-}
-
-function paymentLabel(value: HotelRatePlan["payment_timing"]) {
-  return {
-    pay_now: "Pay now",
-    before_arrival: "Pay before arrival",
-    at_property: "Pay at property",
-  }[value];
 }
 
 function Heart({ filled }: { filled: boolean }) {

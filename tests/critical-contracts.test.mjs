@@ -223,10 +223,14 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   assert.match(billing,/worker_pro_web_paystack_plan_code/);
   assert.match(creator,/creator_set_worker_pro_setting/);
   assert.match(creator,/worker-pro-plan-sync/);
-  assert.match(paidPanel,/Gold PRO means an active subscription/);
-  assert.match(paidPanel,/Identity and professional checks are reviewed separately/);
+  assert.match(paidPanel,/gold badge appears only on an active Worker membership/);
+  assert.match(paidPanel,/Identity and professional checks stay separate/);
   assert.match(paidPanel,/pro\.active && <GoldTickBadge/);
+  assert.match(publicProfile,/worker\.pro_active \? <GoldTickBadge/);
+  assert.match(discovery,/worker\.pro_active \? <GoldTickBadge/);
   assert.match(read('src/components/GoldTickBadge.tsx'),/title = 'Pro membership'/);
+  assert.doesNotMatch(read('src/components/PropertyManagementPanel.tsx'),/GoldTickBadge|Worker PRO membership/);
+  assert.doesNotMatch(read('src/pages/PropertyOwnerDashboard.tsx'),/GoldTickBadge|Worker PRO membership/);
   assert.doesNotMatch(paidPanel,/gold PRO mark|<WorkerProBadge/);
   assert.doesNotMatch(publicProfile,/WorkerProBadge/);
   assert.doesNotMatch(discovery,/WorkerProBadge/);
@@ -278,7 +282,9 @@ test('Privileged production Edge Functions remain reproducible and fail closed',
   const creator=read('supabase/functions/creator-step-up/index.ts');
   const processor=read('supabase/functions/financial-action-processor/index.ts');
   assert.match(creator,/issue_creator_elevation_from_service/);
-  assert.match(creator,/password_mfa/);
+  assert.match(creator,/verify_creator_security_secret_from_service/);
+  assert.match(creator,/creator_secret_mfa/);
+  assert.doesNotMatch(creator,/signInWithPassword/);
   assert.match(processor,/x-wehouse-cron-secret/);
   assert.match(processor,/sameSecret/);
   assert.match(processor,/mark_financial_action_manual_review/);
@@ -310,8 +316,8 @@ test('Worker ratings and reviews render only after verified job reviews exist',(
   const workerWorkspace=read('src/components/WorkerProfilePanelV2.tsx');
   const booking=read('src/components/BookingNegotiationChat.tsx');
   const schema=read('supabase/migrations/20250525000000_remote_schema.sql');
-  assert.match(profile,/reviewCount > 0 \? <ProfileFact label="Customer rating"/);
-  assert.match(profile,/reviews\.length > 0 \? <section>/);
+  assert.match(profile,/reviewCount > 0 && <span>★/);
+  assert.match(profile,/reviews\.length \? <div/);
   assert.doesNotMatch(profile,/value=\{rating > 0 \?[^:]+: "New"\}/);
   assert.match(discovery,/Number\(worker\.review_count \|\| 0\) > 0 && Number\(worker\.rating \|\| 0\) > 0/);
   assert.match(workerWorkspace,/Number\(trust\?\.review_count\|\|0\)>0\?<Fact label="Customer rating"/);

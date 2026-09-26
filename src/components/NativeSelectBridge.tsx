@@ -1,3 +1,4 @@
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -33,6 +34,15 @@ function selectTitle(select: HTMLSelectElement) {
 export default function NativeSelectBridge() {
   const [active, setActive] = useState<HTMLSelectElement | null>(null);
   const [version, setVersion] = useState(0);
+  const dialogRef = useDialogInteraction(() => setActive(null), Boolean(active));
+  useEffect(() => {
+    if (!active) return;
+    const close = () => setActive(null);
+    const observer = new MutationObserver(() => { if (!active.isConnected) close(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("wehouse:navigation", close);
+    return () => { observer.disconnect(); window.removeEventListener("wehouse:navigation", close); };
+  }, [active]);
 
   useEffect(() => {
     function open(event: PointerEvent) {
@@ -46,15 +56,12 @@ export default function NativeSelectBridge() {
       setVersion((value) => value + 1);
     }
 
-    function escape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setActive(null);
-    }
 
     document.addEventListener('pointerdown', open, true);
-    document.addEventListener('keydown', escape);
+
     return () => {
       document.removeEventListener('pointerdown', open, true);
-      document.removeEventListener('keydown', escape);
+
     };
   }, []);
 
@@ -73,7 +80,7 @@ export default function NativeSelectBridge() {
   const currentValue = active.value;
 
   function choose(value: string) {
-    if (!active) return;
+    if (!active?.isConnected) { setActive(null); return; }
     // React tracks form values on the element instance. Using the native
     // prototype setter ensures React receives the change instead of restoring
     // the previous controlled value after this sheet closes.
@@ -87,7 +94,7 @@ export default function NativeSelectBridge() {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-5" onClick={() => setActive(null)}>
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100300] flex items-center justify-center bg-[#0E1118] p-4" onClick={() => setActive(null)}>
       <section
         role="dialog"
         aria-modal="true"

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   conversationPresentation,
   getMySupportConversations,
   type SupportThread,
 } from "@/lib/supabase/support";
+import { withTimeout } from "@/lib/withTimeout";
 import type { Profile } from "@/types";
 
 type Props = {
@@ -24,41 +25,34 @@ export default function SupportEntryCard({
 }: Props) {
   const [threads, setThreads] = useState<SupportThread[]>([]),
     [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const generation = useRef(0);
   const load = useCallback(async () => {
-    const { conversations } = await getMySupportConversations(profile.role);
-    setThreads(conversations || []);
-    setLoading(false);
-  }, [profile.role]);
+    const request = ++generation.current;
+    try {
+      const { conversations, error } = await withTimeout(getMySupportConversations(profile.role), 15000, "WeHouse conversations timed out");
+      if (request !== generation.current) return;
+      setLoadError(Boolean(error));
+      if (!error) setThreads(conversations || []);
+    } catch { if (request === generation.current) setLoadError(true); }
+    finally { if (request === generation.current) setLoading(false); }
+  }, [profile.user_id, profile.role]);
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0),
-      timer = window.setInterval(() => void load(), 15000);
-    return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
-    };
-  }, [load]);
-  useEffect(() => {
-    const channel = supabase
-      .channel(`wehouse-conversations:${profile.user_id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "partner_support_messages" },
-        () => void load(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "partner_support_conversations",
-        },
-        () => void load(),
-      )
+    setThreads([]); setLoading(true); setLoadError(false);
+    const refresh = () => void load();
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener("wehouse:unread-changed", refresh);
+    const channel = supabase.channel(`wehouse-conversations:${profile.user_id}:${profile.role}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_conversations" }, refresh)
       .subscribe();
     return () => {
+      generation.current++; window.clearInterval(timer);
+      window.removeEventListener("wehouse:unread-changed", refresh);
       void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [load, profile.user_id, profile.role]);
   const ordered = useMemo(
     () =>
       [...threads].sort(
@@ -69,8 +63,8 @@ export default function SupportEntryCard({
     [threads],
   );
   useEffect(
-    () => onAvailabilityChange?.(ordered.length > 0),
-    [onAvailabilityChange, ordered.length],
+    () => onAvailabilityChange?.(ordered.length > 0 || loading || loadError),
+    [onAvailabilityChange, ordered.length, loading, loadError],
   );
   const unread = useMemo(
     () =>
@@ -98,6 +92,7 @@ export default function SupportEntryCard({
         Loading WeHouse conversations…
       </div>
     );
+  if (loadError) return <div role="alert" className="py-4 text-sm text-[#A7ADBA]">WeHouse conversations could not be refreshed. <button type="button" onClick={() => void load()} className="min-h-11 px-2 font-medium text-violet-300">Try again</button></div>;
   if (!ordered.length && hideWhenEmpty) return null;
   if (!ordered.length)
     return (

@@ -13,6 +13,7 @@ import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
+import GoldTickBadge from "@/components/GoldTickBadge";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryShell, {
@@ -777,6 +778,7 @@ function WorkerCard({
               {displayName}
             </h2>
             <WorkerTrustBadge />
+            {worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}
           </div>
           <p className="mt-1 truncate text-[10px] text-[#8A8F9E]">
             {occupation}

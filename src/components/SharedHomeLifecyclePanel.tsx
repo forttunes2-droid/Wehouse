@@ -1,30 +1,49 @@
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-import {
-  getMySharedHousingGroups,
-  initializeSharedHousingPayment,
-  respondToSharedHousingInvite,
-  startSharedHousingContractSplit,
-} from "@/lib/supabase/shared-housing";
+import { useEffect, useRef, useState } from 'react';
+import { getMySharedHousingGroups, type SharedHousingGroup } from '@/lib/supabase/shared-housing';
+import { sharedHousingLane } from '@/lib/sharedHousingPresentation';
+import SharedHousingDetails from '@/components/SharedHousingDetails';
+import { withTimeout } from '@/lib/withTimeout';
 
-type Member={user_id:string;name:string;invitation_status:string;share_amount:number;payment_status:string;paid_at?:string|null};
-type Group={id:string;created_by:string;conversation_id?:string|null;listing_id:string;status:string;payment_phase:string;expires_at:string;reservation_id?:string|null;listing:{id:string;title:string;image?:string|null;address?:string;city?:string;state?:string};members:Member[]};
-
-export default function SharedHomeLifecyclePanel({profileId,onOpenConversation,onOpenListing}:{profileId:string;onOpenConversation?:(id:string)=>void;onOpenListing?:(id:string)=>void}){
-  const[groups,setGroups]=useState<Group[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState("");
-  const load=useCallback(async()=>{const{groups:rows,error}=await getMySharedHousingGroups();if(error)toast.error(error.message||"Shared homes could not be loaded");setGroups((rows||[]) as Group[]);setLoading(false)},[]);
-  useEffect(()=>{void load()},[load]);
-  async function respond(group:Group,accept:boolean){setBusy(group.id);const{error}=await respondToSharedHousingInvite(group.id,accept);setBusy("");if(error)return toast.error(error.message);toast.success(accept?"Shared home accepted":"Shared home declined");await load()}
-  async function pay(group:Group){setBusy(group.id);const{result,error}=await initializeSharedHousingPayment(group.id);if(error){setBusy("");return toast.error(error.message)}if(result?.already_paid){setBusy("");await load();return toast.success("Your share is already paid")}if(!result?.authorization_url){setBusy("");return toast.error(result?.error||"Checkout could not open")}window.location.assign(result.authorization_url)}
-  async function startRent(group:Group){setBusy(group.id);const{error}=await startSharedHousingContractSplit(group.id);setBusy("");if(error)return toast.error(error.message);toast.success("The rent has been divided equally. Each roommate can now pay their share.");await load()}
-  if(loading)return <div className="h-20 animate-pulse rounded-2xl bg-white/[.035]"/>;
-  if(!groups.length)return null;
-  return <section className="space-y-3"><div><h2 className="text-sm font-semibold">Shared homes</h2><p className="mt-1 text-[9px] text-[#707687]">Invitations, equal payment shares and the shared reservation stay together.</p></div><div className="divide-y divide-white/[.06] border-y border-white/[.07]">{groups.map(group=><SharedHomeRow key={group.id} group={group} profileId={profileId} busy={busy===group.id} onRespond={respond} onPay={pay} onStartRent={startRent} onOpenConversation={onOpenConversation} onOpenListing={onOpenListing}/>)}</div></section>
+/** Roommates and Bookings open the same member-authorised payment record. */
+export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation, onOpenListing }: {
+  profileId: string; onOpenConversation?: (id: string) => void; onOpenListing?: (id: string) => void;
+}) {
+  const [groups, setGroups] = useState<SharedHousingGroup[]>([]);
+  const [loading, setLoading] = useState(true), [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0), [selected, setSelected] = useState<string | null>(null);
+  const generation = useRef(0);
+  useEffect(() => { setSelected(null); setGroups([]); }, [profileId]);
+  useEffect(() => {
+    const current = ++generation.current;
+    setLoading(true); setError('');
+    void withTimeout(getMySharedHousingGroups(), 15000, 'Shared payments took too long.').then(result => {
+      if (current !== generation.current) return;
+      if (result.error) throw result.error;
+      setGroups((result.groups as SharedHousingGroup[]).filter(group => group.members?.some(member => member.user_id === profileId)));
+    }).catch(() => { if (current === generation.current) setError('Your shared payments could not be loaded. Please try again.'); })
+      .finally(() => { if (current === generation.current) setLoading(false); });
+    return () => { generation.current += 1; };
+  }, [profileId, attempt]);
+  if (loading && !groups.length) return <p role="status" className="py-5 text-sm text-[#AAA3B3]">Loading shared payments…</p>;
+  if (!groups.length && !error) return null;
+  return <section className="space-y-3">
+    <header><h2 className="text-base font-semibold">Shared homes</h2><p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Review the people, invitation and individual payment shares together.</p></header>
+    {error && <div role="alert" className="text-sm leading-6 text-amber-200"><p>{error}</p><button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 font-semibold underline">Try again</button></div>}
+    <div className="divide-y divide-white/10 border-y border-white/10">{groups.map(group => {
+      const mine = group.members.find(member => member.user_id === profileId);
+      const lane = sharedHousingLane(group, profileId);
+      return <article key={group.id} className="py-4">
+        <button type="button" onClick={() => setSelected(group.id)} className="flex min-h-16 w-full items-start gap-3 text-left">
+          {group.listing?.image && <img src={group.listing.image} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-xl object-cover" />}
+          <span className="min-w-0 flex-1"><span className="block text-sm text-violet-300">{group.product_type === 'short_let' ? 'Short Let' : 'Long Let'} · {lane === 'action' ? 'Needs your action' : lane === 'history' ? 'Payment history' : 'Shared reservation'}</span>
+            <span className="mt-1 block break-words text-base font-semibold">{group.listing?.title || 'Shared home'}</span>
+            <span className="mt-1 block break-words text-sm leading-6 text-[#AAA3B3]">With {group.members.filter(member => member.user_id !== profileId).map(member => member.name).join(', ') || 'your connections'}</span>
+            <span className="mt-2 block text-sm">Your share: ₦{Number(mine?.share_amount || 0).toLocaleString()} · {mine?.payment_status === 'paid' ? 'Paid' : 'View payment details'}</span>
+          </span><span aria-hidden="true" className="text-violet-300">›</span>
+        </button>
+        {group.conversation_id && onOpenConversation && <button type="button" onClick={() => onOpenConversation(group.conversation_id!)} className="mt-2 min-h-11 text-sm font-semibold text-violet-300">Open connected conversation</button>}
+      </article>;
+    })}</div>
+    {selected && <SharedHousingDetails groupId={selected} userId={profileId} onBack={() => { setSelected(null); setAttempt(n => n + 1); }} onChanged={() => setAttempt(n => n + 1)} onOpenListing={onOpenListing} />}
+  </section>;
 }
-
-function SharedHomeRow({group,profileId,busy,onRespond,onPay,onStartRent,onOpenConversation,onOpenListing}:{group:Group;profileId:string;busy:boolean;onRespond:(g:Group,a:boolean)=>void;onPay:(g:Group)=>void;onStartRent:(g:Group)=>void;onOpenConversation?:(id:string)=>void;onOpenListing?:(id:string)=>void}){
-  const mine=group.members.find(m=>m.user_id===profileId),peer=group.members.find(m=>m.user_id!==profileId),invited=mine?.invitation_status==='invited',canPay=mine?.invitation_status==='accepted'&&mine.payment_status!=='paid'&&['ready','payment_pending'].includes(group.status),allReservationPaid=group.payment_phase==='reservation_fee'&&group.status==='paid'&&Boolean(group.reservation_id),label=stage(group,mine);
-  return <article className="py-4"><div className="flex gap-3">{group.listing.image?<img src={group.listing.image} alt="" loading="lazy" decoding="async" className="h-20 w-20 shrink-0 rounded-2xl object-cover"/>:<div className="h-20 w-20 shrink-0 rounded-2xl bg-violet-500/10"/>}<div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><button onClick={()=>onOpenListing?.(group.listing_id)} className="min-w-0 text-left"><p className="truncate text-sm font-semibold">{group.listing.title||"Shared apartment"}</p><p className="mt-1 truncate text-[9px] text-[#707687]">With {peer?.name||"your roommate"} · {[group.listing.city,group.listing.state].filter(Boolean).join(", ")}</p></button><span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-1 text-[8px] font-semibold text-violet-300">{label}</span></div><p className="mt-3 text-[10px] text-[#959AAA]">Your share: ₦{Number(mine?.share_amount||0).toLocaleString()} · {mine?.payment_status==='paid'?"Paid":"Not paid"}</p></div></div><div className="mt-3 flex flex-wrap gap-2">{invited&&<><Action disabled={busy} primary onClick={()=>onRespond(group,true)}>Accept invitation</Action><Action disabled={busy} onClick={()=>onRespond(group,false)}>Decline</Action></>}{canPay&&<Action disabled={busy} primary onClick={()=>onPay(group)}>{busy?"Opening…":"Pay my share"}</Action>}{allReservationPaid&&group.created_by===profileId&&<Action disabled={busy} primary onClick={()=>onStartRent(group)}>Split rent equally</Action>}{group.conversation_id&&<Action onClick={()=>onOpenConversation?.(group.conversation_id!)}>Message roommate</Action>}{onOpenListing&&<Action onClick={()=>onOpenListing(group.listing_id)}>View apartment</Action>}</div></article>
-}
-function stage(group:Group,mine?:Member){if(mine?.invitation_status==='invited')return"Invitation";if(group.status==='cancelled')return"Cancelled";if(group.status==='expired')return"Expired";if(group.payment_phase==='complete')return"Paid";if(group.status==='paid'&&group.payment_phase==='reservation_fee')return"Reserved";if(group.payment_phase==='contract_rent')return"Rent split";if(group.status==='payment_pending')return"Paying shares";return"Agreeing"}
-function Action({children,onClick,disabled,primary=false}:{children:React.ReactNode;onClick:()=>void;disabled?:boolean;primary?:boolean}){return <button disabled={disabled} onClick={onClick} className={`min-h-10 rounded-xl px-4 text-[9px] font-semibold disabled:opacity-40 ${primary?"bg-violet-500 text-white":"border border-white/[.08] text-[#C1C5D0]"}`}>{children}</button>}

@@ -1,0 +1,91 @@
+{
+  "source_of_truth": "creator_policy_versions",
+  "active": {
+    "short_let_reservation_hold": {
+      "version": 2,
+      "value": {
+        "minutes": 30
+      }
+    },
+    "short_let_cancellation": {
+      "version": 2,
+      "value": {
+        "full_refund_hours_before_check_in": 48,
+        "late_cancel_max_nights": 1,
+        "no_show_max_nights": 1
+      }
+    },
+    "short_let_caution_cap": {
+      "version": 2,
+      "value": {
+        "enabled": true,
+        "maximum_nights": 1
+      }
+    },
+    "caution_claim_windows": {
+      "version": 2,
+      "value": {
+        "partner_claim_hours": 24,
+        "guest_response_hours": 48
+      }
+    },
+    "accommodation_arrival_issue_window": {
+      "version": 2,
+      "value": {
+        "default_hours": 2
+      }
+    },
+    "long_let_reservation_fee": {
+      "version": 2,
+      "value": {
+        "amount": 12345,
+        "payment_hold_minutes": 30
+      }
+    },
+    "long_let_reservation_hold": {
+      "version": 2,
+      "value": {
+        "hours": 72,
+        "full_refund_hours": 24
+      }
+    },
+    "future_long_let_installments": {
+      "version": 2,
+      "value": {
+        "enabled": false
+      }
+    },
+    "commission_short_let": {
+      "version": 2,
+      "value": {
+        "percent": 10
+      }
+    },
+    "commission_long_let": {
+      "version": 2,
+      "value": {
+        "percent": 5
+      }
+    },
+    "commission_hotel": {
+      "version": 2,
+      "value": {
+        "percent": 12
+      }
+    },
+    "commission_worker": {
+      "version": 2,
+      "value": {
+        "percent": 8
+      }
+    },
+    "worker_completion_release": {
+      "version": 2,
+      "value": {
+        "reminder_hours": 12,
+        "release_eligible_hours": 24
+      }
+    }
+  },
+  "scheduled": {}
+}

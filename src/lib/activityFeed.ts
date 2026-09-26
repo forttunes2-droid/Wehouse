@@ -55,6 +55,7 @@ export function activityNeedsAction(
 export type ActivityDestination = {
   route: string;
   id?: string;
+  hotelId?: string;
 };
 
 function value(params: Record<string, unknown>, keys: string[]) {
@@ -169,6 +170,15 @@ export function resolveActivityDestination(
     explicitBookingId ||
     (/booking|reservation/.test(sourceType) ? row.source_id || undefined : undefined);
 
+  const hotelId = value(params, ["hotel_id", "hotelId"]);
+  if (lifecycleBookingId && /hotel/.test(`${type} ${sourceType}`) &&
+      !/(^|[._])(message|reply|chat)([._]|$)/.test(type)) {
+    return { route: "hotel_booking", id: String(lifecycleBookingId), ...(hotelId ? { hotelId } : {}) };
+  }
+  if (hotelId && /hotel_detail|propert|inspection/.test(route) && !/inspection/.test(sourceType)) {
+    return { route: "hotel_detail", id: hotelId };
+  }
+
   // Booking events sometimes carry both the parent property and the exact
   // reservation. The reservation owns the action; the property is only its
   // container. Never discard the more specific target because an older event
@@ -258,11 +268,15 @@ export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = 
     .filter((row) => {
       const type = String(row.type || "");
       const isLifecycle = FINANCIAL_ACTIVITY.test(type) || BOOKING_ACTIVITY.test(type) || ROOMMATE_ACTIVITY.test(type);
-      // An action stays visible until the workflow records its resolution. Merely
-      // reading it, or receiving a different lifecycle event, must not erase it.
-      const key = isLifecycle && row.source_type && row.source_id
-        ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
-        : "";
+      // Within the existing retention window, only the workflow can resolve an
+      // action. Reading it or receiving another event must not suppress it.
+      // Deduplicate action deliveries by event identity, not by booking/lane.
+      // Informational updates still collapse to the latest update in a lane.
+      const key = activityNeedsAction(row)
+        ? `action:${row.id || JSON.stringify([row.source_type, row.source_id, type, row.created_at])}`
+        : isLifecycle && row.source_type && row.source_id
+          ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
+          : "";
       if (!key) return true;
       if (seen.has(key)) return false;
       seen.add(key);

@@ -29,5 +29,5 @@ test("unsent Message WeHouse shows one named topic without internal workflow ins
   assert.match(chat, /General Help/);
   assert.doesNotMatch(chat, /Remove linked topic/);
   assert.doesNotMatch(chat, /Before you send|What sending does|FirstSendDisclosure/);
-  assert.match(chat, /Attach evidence/);
+  assert.match(chat, /Add photo or video/);
 });

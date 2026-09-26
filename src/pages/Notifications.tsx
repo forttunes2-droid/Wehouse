@@ -1,3 +1,4 @@
+import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +15,7 @@ import {
 import type { Profile } from "@/types";
 import { toast } from "sonner";
 import {
+  type ActivityDestination,
   activityDestinationLabel,
   activityIsCurrent,
   activityNeedsAction,
@@ -26,7 +28,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
   profile: Profile;
-  onNavigate: (page: string, id?: string) => void;
+  onNavigate: (page: string, id?: string, destination?: ActivityDestination) => void;
   embedded?: boolean;
   previewLimit?: number;
   compact?: boolean;
@@ -101,7 +103,7 @@ function NotificationFeed({
     if (failures.length === 2) setError(failures.join(" · "));
     else {
       const events = currentActivityRows(
-        ((eventResult.rows || []) as Omit<Activity, "source">[]).map((row) => ({
+        ((eventResult.rows || []) as Omit<Activity, "source">[]).filter(row => activityWorkspaceMatches(scope, row.workspace)).map((row) => ({
           ...row,
           source: "event" as const,
         })),
@@ -217,6 +219,10 @@ function NotificationFeed({
   }
 
   async function open(row: Activity) {
+    if (row.source === "event" && !activityWorkspaceMatches(scope, row.workspace)) {
+      toast.error("This update belongs to a different workspace. Refresh Activity.");
+      return;
+    }
     void markRead(row);
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));
@@ -253,7 +259,7 @@ function NotificationFeed({
     }
     const destination = resolveActivityDestination(row);
     if (destination.route)
-      onNavigate(destination.route, destination.id);
+      onNavigate(destination.route, destination.id, destination);
     else setExpanded((current) => (current === row.id ? null : row.id));
   }
 

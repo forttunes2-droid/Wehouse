@@ -21,7 +21,12 @@ test('identity policy allows free review without claiming a face check passed', 
   assert.equal(gate({ identity_required: true, identity_current: true }), true);
 });
 function overview(state) {
-  return moduleAt('src/components/CreatorOverview.tsx', { '@/hooks/useRpcRead': { useRpcRead: () => state } }).default;
+  // This Node harness renders semantics. The browser suite loads and verifies
+  // the actual CSS, including delayed-data entrance and reduced motion.
+  return moduleAt('src/components/CreatorOverview.tsx', {
+    '@/hooks/useRpcRead': { useRpcRead: () => state },
+    './creator-overview.css': {},
+  }).default;
 }
 test('Creator overview keeps Workers and internal team separate and opens the correct people filter', () => {
   const data = { accounts: 38, partners: 5, workers: 8, team: 5, apartments: 3, hotels: 1, hotel_team: 2, pending_reviews: 1, inspections: 2, payouts: 0 };
@@ -34,11 +39,21 @@ test('Creator overview keeps Workers and internal team separate and opens the co
   element.props.children.find(child => child.key === 'Property partners').props.onClick();
   element.props.children.find(child => child.key === 'WeHouse team').props.onClick();
   assert.deepEqual(opened,[['people','property_partner'],['team',undefined]]);
+  assert.equal(element.props['data-overview-state'],'ready');
 });
 test('Creator read failures show retry and never invented zero counts', () => {
   const View = overview({ data:null, loading:false, error:'Permission denied', refresh() {} });
   const html = renderToStaticMarkup(React.createElement(View,{userId:'owner',onOpen(){}}));
   assert.match(html,/role="alert"/); assert.match(html,/Try again/); assert.doesNotMatch(html,/>0</);
+});
+test('Creator loading reserves six rows without publishing fabricated counts', () => {
+  const View = overview({ data:null, loading:true, error:'', refresh() {} });
+  const element = View({userId:'owner',onOpen(){}});
+  assert.equal(element.props['data-overview-state'],'loading');
+  assert.equal(element.props.children.length,6);
+  const html = renderToStaticMarkup(element);
+  assert.match(html,/aria-label="Loading overview"/);
+  assert.doesNotMatch(html,/>0<|wh-overview-ready/);
 });
 test('an empty identity queue adds no face-check card, while a failed queue stays visible', () => {
   for (const error of ['', 'offline']) {

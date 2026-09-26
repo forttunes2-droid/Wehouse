@@ -1,3 +1,4 @@
+import { matchesPropertyRecord, propertyRecordKey, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
@@ -74,6 +75,7 @@ export default function PartnerSubmittedRequests({
   onDetailChange,
   onCreationChange,
   initialRecordId,
+  onOpenPublished,
   assetKind = "apartment",
 }: {
   profile: Profile;
@@ -81,6 +83,7 @@ export default function PartnerSubmittedRequests({
   onDetailChange?: (open: boolean) => void;
   onCreationChange?: (open: boolean) => void;
   initialRecordId?: string;
+  onOpenPublished?: (key: string) => void;
   assetKind?: PartnerAssetKind;
 }) {
   const openedTarget = useRef<string | null>(null);
@@ -135,11 +138,9 @@ export default function PartnerSubmittedRequests({
         ) {
           openedTarget.current = String(initialRecordId);
           const target = nextRequests.find((request) =>
-            [request.id, request.draft_listing_id, request.draft_hotel_id]
-              .filter(Boolean)
-              .some((value) => String(value) === String(initialRecordId)),
+            matchesPropertyRecord(request, initialRecordId),
           );
-          if (target) setSelected(target);
+          if (target) openRequest(target);
           else toast.error("The linked property is no longer available.");
         }
       }
@@ -175,21 +176,32 @@ export default function PartnerSubmittedRequests({
     [assetKind, filter, requests],
   );
 
+  function openRequest(request: RequestRow) {
+    if (request.lifecycle_stage === "live" && onOpenPublished) {
+      if (request.property_type === "hotel" && request.draft_hotel_id != null) { onOpenPublished(propertyRecordKey("hotel", request.draft_hotel_id)); return; }
+      if (request.draft_listing_id) { onOpenPublished(propertyRecordKey("listing", request.draft_listing_id)); return; }
+    }
+    setSelected(request);
+  }
+
   function contact(request: RequestRow) {
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
         detail: {
           category: "property_submission_help",
-          subject: `Property submission ${request.request_code || ""}`.trim(),
+          subject: propertyRecordTitle(request, "Property submission"),
           contextType: "contextual_help",
           contextId: request.id,
           contextSnapshot: {
             reason_code: "property_submission_help",
+            requester_workspace: "property_partner",
             subject_type: "inspection",
             source_type: "inspection",
             source_id: request.id,
             request_code: request.request_code,
             property_address: request.property_address,
+            property_display_name: request.property_display_name,
+            hotel_name: request.hotel_program?.name,
             property_type: request.property_type,
             city: request.property_city,
             state: request.property_state,
@@ -246,7 +258,7 @@ export default function PartnerSubmittedRequests({
                 <button
                   key={request.id}
                   type="button"
-                  onClick={() => setSelected(request)}
+                  onClick={() => openRequest(request)}
                   className="flex w-full items-center gap-3 py-4 text-left transition active:bg-white/[.025]"
                 >
                   <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#191A24]">
@@ -265,9 +277,7 @@ export default function PartnerSubmittedRequests({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-xs font-semibold">
-                        {request.property_address ||
-                          request.property_type ||
-                          "Property"}
+                        {propertyRecordTitle(request)}
                       </p>
                       <Status request={request} />
                     </div>
@@ -352,7 +362,7 @@ function RequestDetail({
         {images.length > 0 ? (
           <PropertyMediaCarousel
             images={images}
-            title={request.property_address || "Submitted property"}
+            title={propertyRecordTitle(request, "Submitted property")}
           />
         ) : (
           <div className="grid aspect-[16/8] place-items-center bg-gradient-to-br from-violet-500/10 to-transparent text-[10px] text-[#696D7D]">
@@ -366,7 +376,7 @@ function RequestDetail({
                 {request.request_code || "Property request"}
               </p>
               <h2 className="mt-2 text-xl font-bold">
-                {request.property_address || "Submitted property"}
+                {propertyRecordTitle(request, "Submitted property")}
               </h2>
               <p className="mt-1 text-[10px] text-[#747789]">
                 {[request.property_city, request.property_state]

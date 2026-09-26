@@ -1,3 +1,5 @@
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import type { ActivityDestination } from "@/lib/activityFeed";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Notifications from "@/pages/Notifications";
 import type { Profile } from "@/types";
@@ -7,53 +9,65 @@ import { conversationPresentation, getMySupportConversations, type SupportThread
 import HotelBookingChat from "@/components/HotelBookingChat";
 import { withTimeout } from "@/lib/withTimeout";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
+import PropertyHostBookingChat from "@/components/PropertyHostBookingChat";
+import { getMyPropertyHostConversations, type PropertyHostConversation } from "@/lib/supabase/property-host-chat";
 
 type Props = {
   profile: Profile;
-  onNavigate?: (page: string, id?: string) => void;
+  onNavigate?: (page: string, id?: string, destination?: ActivityDestination) => void;
+  initialActivity?: boolean;
   chatUnread?: number;
   activityUnread?: number;
 };
 type InboxItem =
   | { kind: "hotel"; id: string; time: string; thread: HotelConversation }
+  | { kind: "host"; id: string; time: string; thread: PropertyHostConversation }
   | { kind: "support"; id: string; time: string; thread: SupportThread };
 
-export default function CommunicationInbox({ profile, onNavigate = () => {}, chatUnread = 0, activityUnread = 0 }: Props) {
-  const [showActivity, setShowActivity] = useState(false);
+export default function CommunicationInbox({ profile, onNavigate = () => {}, chatUnread = 0, activityUnread = 0, initialActivity = false }: Props) {
+  const [showActivity, setShowActivity] = useState(initialActivity);
+  const closeActivity = useRecordScreenBack(() => setShowActivity(false), showActivity);
   const [query, setQuery] = useState("");
   const [hotelChats, setHotelChats] = useState<HotelConversation[]>([]);
+  const [hostChats, setHostChats] = useState<PropertyHostConversation[]>([]);
   const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const generation = useRef(0);
-  const [filter, setFilter] = useState<"all" | "hotel" | "support">("all");
+  const [filter, setFilter] = useState<"all" | "hotel" | "host" | "support">("all");
   const [activeHotel, setActiveHotel] = useState<HotelConversation | null>(null);
+  const [activeHost, setActiveHost] = useState<PropertyHostConversation | null>(null);
 
   const loadMessages = useCallback(async () => {
     const request = ++generation.current;
     try {
-      const [hotelResult, supportResult] = await withTimeout(Promise.all([getMyHotelConversations("property_partner"), getMySupportConversations("property_partner")]), 15000, "Inbox took too long");
+      const [hotelResult, hostResult, supportResult] = await withTimeout(Promise.all([getMyHotelConversations("property_partner"), getMyPropertyHostConversations(), getMySupportConversations("property_partner")]), 15000, "Inbox took too long");
       if (request !== generation.current) return;
       if (!hotelResult.error) setHotelChats(hotelResult.conversations);
+      if (!hostResult.error) setHostChats(hostResult.conversations || []);
       if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
-      setLoadError(Boolean(hotelResult.error || supportResult.error));
+      setLoadError(Boolean(hotelResult.error || hostResult.error || supportResult.error));
     } catch { if (request === generation.current) setLoadError(true); }
     finally { if (request === generation.current) setLoading(false); }
   }, []);
 
   useEffect(() => {
     void loadMessages();
+    const refresh = () => void loadMessages();
+    window.addEventListener("wehouse:unread-changed", refresh);
     const channel = supabase
       .channel(`partner-inbox:${profile.user_id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "hotel_booking_messages" }, () => void loadMessages())
+      .on("postgres_changes", { event: "*", schema: "public", table: "property_host_messages" }, () => void loadMessages())
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, () => void loadMessages())
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_conversations" }, () => void loadMessages())
       .subscribe();
-    return () => { generation.current++; void supabase.removeChannel(channel); };
+    return () => { generation.current++; window.removeEventListener("wehouse:unread-changed", refresh); void supabase.removeChannel(channel); };
   }, [loadMessages, profile.user_id]);
 
   const items = useMemo<InboxItem[]>(() => [
     ...hotelChats.map((thread) => ({ kind: "hotel" as const, id: `hotel:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread })),
+    ...hostChats.map((thread) => ({ kind: "host" as const, id: `host:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread })),
     ...supportThreads.map((thread) => ({ kind: "support" as const, id: `support:${thread.conversation_id}`, time: thread.last_message_time || thread.created_at, thread })),
   ].filter((item) => {
     if (filter !== "all" && item.kind !== filter) return false;
@@ -61,21 +75,27 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     if (!value) return true;
     const source = item.kind === "hotel"
       ? [item.thread.guest_name, item.thread.hotel_name, item.thread.room_name, item.thread.last_message]
-      : (() => { const presentation = conversationPresentation(item.thread, "operations"); return [presentation.title, presentation.meta, item.thread.last_message]; })();
+      : item.kind === "host"
+        ? [item.thread.other_person_name,item.thread.listing_title,item.thread.last_message]
+        : (() => { const presentation = conversationPresentation(item.thread, "customer"); return [presentation.title, presentation.meta, item.thread.last_message]; })();
     return source.filter(Boolean).join(" ").toLowerCase().includes(value);
   }).sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()), [filter, hotelChats, query, supportThreads]);
 
-  function openActivityDestination(page: string, id?: string) {
+  function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (["conversation", "conversations", "message", "messages", "chat"].includes(route)) {
-      const hotel = hotelChats.find((thread) => String(thread.conversation_id) === String(id || "") || String(thread.booking_id) === String(id || ""));
-      if (hotel) { setShowActivity(false); setActiveHotel(hotel); return; }
+      const hotel = hotelChats.find((thread) => String(thread.conversation_id) === String(id || ""));
+      if (hotel) { setActiveHotel(hotel); return; }
     }
-    onNavigate(page, id);
+    onNavigate(page, id, destination);
   }
 
   function openSupport(thread: SupportThread) {
     window.dispatchEvent(new CustomEvent("openSupportChat", { detail: { conversationId: thread.conversation_id, contextType: thread.context_type, contextId: thread.context_id } }));
+  }
+
+  if (activeHost) {
+    return <PropertyHostBookingChat conversation={activeHost} profile={profile} onClose={() => setActiveHost(null)} onUpdated={loadMessages} />;
   }
 
   if (activeHotel) {
@@ -86,7 +106,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     return (
       <div className="min-h-[65dvh]">
         <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
-          <button type="button" onClick={() => setShowActivity(false)} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
+          <button type="button" onClick={closeActivity} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
           <div><h2 className="text-sm font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#6F7586]">Property, booking, payment and account updates.</p></div>
         </header>
         <Notifications profile={profile} scope="partner" embedded onNavigate={openActivityDestination} />
@@ -106,13 +126,17 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
           <SearchIcon />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search messages" className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-[#626879]" />
         </label>
-        <div className="flex gap-4 border-b border-white/[.06]">{([['all', 'All'], ['hotel', 'Guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[#8B91A0]'}`}>{label}</button>)}</div>
+        <div className="flex gap-4 border-b border-white/[.06]">{([['all', 'All'], ['hotel', 'Hotel guests'], ['host', 'Home guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[#8B91A0]'}`}>{label}</button>)}</div>
         {loadError && <div role="alert" className="py-3 text-xs text-amber-200">Some conversations could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => void loadMessages()}>Try again</button></div>}
         {loading ? <p role="status" className="py-6 text-sm text-[#A1A1AA]">Loading your conversations…</p> : !items.length && !loadError ? (
           <div className="border-b border-dashed border-white/[.07] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[#666C7C]">Guest stay and WeHouse conversations will appear here.</p></div>
         ) : (
           <div className="divide-y divide-white/[.055] border-b border-white/[.06]">
-            {items.map((item) => item.kind === "hotel" ? <HotelRow key={item.id} thread={item.thread} onOpen={() => setActiveHotel(item.thread)} /> : <SupportRow key={item.id} thread={item.thread} onOpen={() => openSupport(item.thread)} />)}
+            {items.map((item) => item.kind === "hotel"
+  ? <HotelRow key={item.id} thread={item.thread} onOpen={() => setActiveHotel(item.thread)} />
+  : item.kind === "host"
+    ? <HostRow key={item.id} thread={item.thread} onOpen={() => setActiveHost(item.thread)} />
+    : <SupportRow key={item.id} thread={item.thread} onOpen={() => openSupport(item.thread)} />)}
           </div>
         )}
       </section>
@@ -128,8 +152,16 @@ function HotelRow({ thread, onOpen }: { thread: HotelConversation; onOpen: () =>
   </button>;
 }
 
+function HostRow({ thread, onOpen }: { thread: PropertyHostConversation; onOpen: () => void }) {
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-white/[.025]">
+    <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-200">{thread.other_person_avatar?<img src={thread.other_person_avatar} alt="" className="h-full w-full object-cover"/>:(thread.other_person_name||"G")[0].toUpperCase()}</div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.other_person_name || "Guest"}</p><span className="text-[7px] font-semibold text-violet-300">HOME GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count?"text-white":"text-[#777C8D]"}`}>{thread.last_message || "Booking conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[#5F6474]">{thread.listing_title} · {thread.stay_type==="short_let"?"Short Let":"Long Let"}</p></div>
+    {thread.unread_count>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
+  </button>;
+}
+
 function SupportRow({ thread, onOpen }: { thread: SupportThread; onOpen: () => void }) {
-  const presentation = conversationPresentation(thread, "operations");
+  const presentation = conversationPresentation(thread, "customer");
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-white/[.025]">
     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-300">W</div>
     <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{presentation.title}</p><span className="text-[7px] font-semibold text-violet-300">WEHOUSE</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[#777C8D]"}`}>{thread.last_message || presentation.operator}</p><p className="mt-0.5 truncate text-[8px] text-[#5F6474]">{presentation.meta || "Property and account support"}</p></div>

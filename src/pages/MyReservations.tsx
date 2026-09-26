@@ -1,3 +1,11 @@
+import ShortLetSplitCosts from "@/components/ShortLetSplitCosts";
+import SharedHousingDetails from "@/components/SharedHousingDetails";
+import { getMySharedHousingGroups, type SharedHousingGroup } from "@/lib/supabase/shared-housing";
+import { sharedHousingLane } from "@/lib/sharedHousingPresentation";
+import { withTimeout } from "@/lib/withTimeout";
+import HotelSpecialRequest from "@/components/HotelSpecialRequest";
+import ShortLetPaymentReview from "@/components/ShortLetPaymentReview";
+import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
 import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -56,7 +64,7 @@ type Props = {
 type View = "all" | "housing" | "hotels" | "services";
 type StatusView = "all" | BookingGroup;
 type BookingItem = {
-  kind: "housing" | "hotel" | "service";
+  kind: "housing" | "hotel" | "service" | "shared";
   row: any;
   date: string;
 };
@@ -135,9 +143,13 @@ export default function MyReservations({
   profile,
   initialBookingId,
   onInitialBookingConsumed,
+  onOpenListing,
 }: Props) {
   const openedInitialRef = useRef<string | null>(null);
   const [housing, setHousing] = useState<any[]>([]);
+  const [sharedGroups, setSharedGroups] = useState<SharedHousingGroup[]>([]);
+  const [activeShared, setActiveShared] = useState<string|null>(null);
+  const loadGeneration=useRef(0);
   const [hotels, setHotels] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
@@ -169,16 +181,21 @@ export default function MyReservations({
   } | null>(null);
 
   async function load(quiet = false) {
+    const current=++loadGeneration.current;
     if (!quiet) setLoading(true);
     try {
-      const [housingResult, hotelResult, serviceResult, inspectionResult] =
+      const [housingResult, hotelResult, serviceResult, inspectionResult, sharedResult] =
         await Promise.allSettled([
-          getReservationsForUser(profile.user_id),
-          getHotelBookingsForUser(profile.user_id),
-          getMyBookingConversations(profile.user_id),
-          getInspectionRequestsForUser(profile.user_id),
+          withTimeout(getReservationsForUser(profile.user_id),15000,"Bookings took too long."),
+          withTimeout(getHotelBookingsForUser(profile.user_id),15000,"Hotel stays took too long."),
+          withTimeout(getMyBookingConversations(profile.user_id),15000,"Service bookings took too long."),
+          withTimeout(getInspectionRequestsForUser(profile.user_id),15000,"Inspection details took too long."),
+          withTimeout(getMySharedHousingGroups(),15000,"Shared payments took too long."),
         ]);
+      if(current!==loadGeneration.current)return;
       const nextErrors: BookingSourceErrors = {};
+      if(sharedResult.status==='fulfilled'&&!sharedResult.value.error) setSharedGroups(sharedResult.value.groups);
+      else nextErrors.housing="Shared payments could not be refreshed.";
       if (housingResult.status === "fulfilled") {
         if (housingResult.value.reservations) {
           const nextHousing = housingResult.value.reservations.filter(
@@ -224,12 +241,14 @@ export default function MyReservations({
           "Apartment inspection updates could not be refreshed.";
       setSourceErrors(nextErrors);
     } finally {
-      setBusyId(null);
-      if (!quiet) setLoading(false);
+      if(current===loadGeneration.current){setBusyId(null);setLoading(false);}
     }
   }
 
   useEffect(() => {
+    setHousing([]);setHotels([]);setServices([]);setSharedGroups([]);setActiveShared(null);
+    setActiveHousing(null);setActiveHotel(null);setActiveService(null);setActiveHotelChat(null);setActiveServiceChat(null);
+    openedInitialRef.current=null;
     void load();
     const refresh = () => void load(true);
     const visible = () => {
@@ -239,6 +258,7 @@ export default function MyReservations({
     window.addEventListener("pageshow", refresh);
     document.addEventListener("visibilitychange", visible);
     return () => {
+      loadGeneration.current+=1;
       window.removeEventListener("focus", refresh);
       window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", visible);
@@ -252,6 +272,8 @@ export default function MyReservations({
       openedInitialRef.current === initialBookingId
     )
       return;
+    const sharedMatch=sharedGroups.find(group=>group.id===initialBookingId||group.reservation_id===initialBookingId);
+    if(sharedMatch){openedInitialRef.current=initialBookingId;setActiveShared(sharedMatch.id);onInitialBookingConsumed?.();return;}
     const housingMatch = housing.find(
       (row) =>
         String(row.id) === initialBookingId ||
@@ -293,6 +315,7 @@ export default function MyReservations({
   }, [
     initialBookingId,
     loading,
+    sharedGroups,
     housing,
     hotels,
     services,
@@ -330,7 +353,8 @@ export default function MyReservations({
   const rows = useMemo(
     () =>
       [
-        ...housing.map((row) => ({
+        ...sharedGroups.map(row=>({kind:"shared" as const,row:{...row,_viewerId:profile.user_id},date:row.created_at||row.expires_at||""})),
+        ...housing.filter(row=>!sharedGroups.some(group=>group.id===row.shared_payment_group_id)).map((row) => ({
           kind: "housing" as const,
           row,
           date: row.created_at || "",
@@ -350,7 +374,7 @@ export default function MyReservations({
           view === "all"
             ? true
             : view === "housing"
-              ? item.kind === "housing"
+              ? item.kind === "housing" || item.kind === "shared"
               : view === "hotels"
                 ? item.kind === "hotel"
                 : item.kind === "service",
@@ -359,7 +383,7 @@ export default function MyReservations({
           (a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
-    [housing, hotels, services, view],
+    [housing, hotels, services, sharedGroups, profile.user_id, view],
   );
 
   const sections = useMemo(() => {
@@ -421,21 +445,19 @@ export default function MyReservations({
   }
 
   async function continueHousing(row: any) {
-    if (String(row.stay_type || row._stayKind) === "short_let") return payHousingRent(row);
+    const short = String(row.stay_type || row._stayKind) === "short_let";
+    const feePaid = row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""));
+    if (short && feePaid) return payHousingRent(row);
     if (!row.payment_reference)
-      return toast.error(
-        "This reservation cannot be resumed. Start again from the apartment.",
-      );
+      return toast.error(short ? "Reserve date payment reference is missing." : "This reservation cannot be resumed. Start again from the apartment.");
     setBusyId(row.id);
-    const { result } = await initializeReservationPayment(
-      String(row.payment_reference),
-    );
+    const { result } = await initializeReservationPayment(String(row.payment_reference));
     if (!result?.success) {
       setBusyId(null);
       return toast.error(result?.error || "Could not reopen payment");
     }
     if (result.already_paid) {
-      toast.success("Reservation payment is already confirmed");
+      toast.success(short ? "Reserve date payment is already confirmed" : "Reservation payment is already confirmed");
       await load();
       return;
     }
@@ -522,7 +544,7 @@ export default function MyReservations({
     );
     setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success("Move-in time sent to Property Operations");
+    toast.success(row.management_mode_snapshot === "host" ? "Move-in time sent to your property host" : "Move-in time sent to Property Operations");
     await load(true);
   }
 
@@ -695,11 +717,18 @@ export default function MyReservations({
       />
     );
 
+  if(activeShared) return <SharedHousingDetails groupId={activeShared} userId={profile.user_id} onBack={()=>{setActiveShared(null);void load(true);}} onChanged={()=>void load(true)}
+    onOpenListing={onOpenListing ? id=>{setActiveShared(null);onOpenListing(id);} : undefined}
+    onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your reservation.");}} />;
+
   if (activeHousing)
     return (
       <>
         <PropertyBookingDetail
           row={activeHousing}
+          userId={profile.user_id}
+          onSplitCreated={group=>{setActiveHousing((current:any)=>current?{...current,shared_payment_group_id:group.id}:current);setActiveShared(group.id);void load(true);}}
+          onOpenShared={id=>setActiveShared(id)}
           inspection={
             inspections.find(
               (item) =>
@@ -861,6 +890,11 @@ export default function MyReservations({
                         row={item.row}
                         onOpen={() => setActiveHousing(item.row)}
                       />
+                    ) : item.kind === "shared" ? (
+                      <BookingCard key={`shared-${item.row.id}`} eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
+                        title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
+                        image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in?[`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`]:[]}
+                        next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} />
                     ) : item.kind === "hotel" ? (
                       <HotelCard
                         key={item.row.booking_id}
@@ -898,6 +932,7 @@ export default function MyReservations({
 }
 
 function bookingGroup(item: BookingItem): BookingGroup {
+  if(item.kind==='shared')return sharedHousingLane(item.row,item.row._viewerId);
   if (item.kind === "housing") {
     const status = String(item.row.status || "");
     const rentPaid = hasProtectedAccommodationPayment(item.row);
@@ -1265,6 +1300,9 @@ function formatStayTime(value: unknown, fallback: string) {
 
 function PropertyBookingDetail({
   row,
+  userId,
+  onSplitCreated,
+  onOpenShared,
   inspection,
   busy,
   protection,
@@ -1278,6 +1316,9 @@ function PropertyBookingDetail({
   onMoveIn,
 }: {
   row: any;
+  userId: string;
+  onSplitCreated:(group:SharedHousingGroup)=>void;
+  onOpenShared:(id:string)=>void;
   inspection: any;
   busy: boolean;
   protection: AccommodationProtection | null;
@@ -1306,10 +1347,13 @@ function PropertyBookingDetail({
     Boolean(row.booking_code) &&
     journey.rentPaid &&
     ["handover", "tenancy", "completed"].includes(journey.action);
+  const shortBill = shortLetPayment(row);
+  const hostManaged = row.management_mode_snapshot === "host";
+  const arrivalManager = hostManaged ? "Property host" : "WeHouse Property Operations";
+  const addressForDirections = row.listing_address || row.listing_location || [row.listing_city,row.listing_state].filter(Boolean).join(", ");
   const rentAmount = Number(
     short
-      ? Number(row.stay_rent_total || 0) +
-          Number(row.security_deposit_snapshot || 0)
+      ? shortBill?.total || 0
       : row.upfront_rent_required ||
           row.annual_rent_snapshot ||
           row.listing_price ||
@@ -1387,6 +1431,7 @@ function PropertyBookingDetail({
               label="Reservation fee"
               value={journey.feePaid ? `Paid · ${money(row.amount)}` : money(row.amount)}
             />}
+            {short ? <Info label="Reserve date" value={(row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""))) ? `Paid · ${money(row.reservation_fee_snapshot || row.amount)}` : "Payment required"} /> : null}
             <Info
               label={short ? "Stay payment" : "Rent payment status"}
               value={
@@ -1425,12 +1470,19 @@ function PropertyBookingDetail({
             </p>
           ) : null}
 
+          <section className="mt-4 border-y border-white/[.07] py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#737A8B]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-white/[.08] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
+            <p className="mt-2 text-[10px] leading-5 text-[#858B9B]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
+          </section>
+          <ShortLetPaymentReview row={row} />
+          <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
+          {row.shared_payment_group_id && <button type="button" onClick={()=>onOpenShared(String(row.shared_payment_group_id))} className="mt-4 min-h-12 w-full rounded-xl bg-violet-600 px-4 text-sm font-semibold">View shared payment</button>}
           <PropertyBookingJourney row={row} inspection={inspection} />
 
           {journey.action === "reservation_payment" ? (
             <div className="mt-5 grid gap-2">
               <button type="button" disabled={busy} onClick={onResume} className="min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
-                {busy ? "Opening secure payment…" : "Pay reservation fee"}
+                {busy ? "Opening secure payment…" : short ? "Pay Reserve date fee" : "Pay reservation fee"}
               </button>
               <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
                 Cancel reservation
@@ -1453,8 +1505,8 @@ function PropertyBookingDetail({
             </section>
           ) : null}
 
-          {journey.action === "rent_payment" ? (
-            <button type="button" disabled={busy} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
+          {journey.action === "rent_payment" && !row.shared_payment_group_id ? (
+            <button type="button" disabled={busy || (short && !shortBill)} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
               {busy
                 ? "Checking payment…"
                 : row.rent_payment_status === "payment_pending"
@@ -1462,7 +1514,7 @@ function PropertyBookingDetail({
                     ? "Check or continue stay payment"
                     : "Check Year 1 rent payment"
                   : short
-                    ? `Pay stay and deposit · ${money(rentAmount)}`
+                    ? `Pay ${money(rentAmount)} securely`
                     : `Pay Year 1 rent · ${money(rentAmount)}`}
             </button>
           ) : null}
@@ -1491,7 +1543,7 @@ function PropertyBookingDetail({
                   Handover code
                 </p>
                 <p className="mt-0.5 text-[8px] leading-4 text-[#6F7B72]">
-                  Show only to Property Operations during verified handover.
+                  Show only to {hostManaged ? "your authorised property host" : "Property Operations"} during verified handover.
                 </p>
               </div>
               <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-emerald-200">
@@ -1677,6 +1729,8 @@ function HotelBookingDetail({
             <Info label="Room" value={room} />
             <Info label="Package" value={packageName} />
           </div>
+
+          <HotelSpecialRequest request={row.special_requests} />
 
           <div className="mt-4">
             <p className="text-[9px] font-semibold uppercase tracking-wide text-[#777D8E]">

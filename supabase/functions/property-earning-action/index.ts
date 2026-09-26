@@ -1,3 +1,4 @@
+import { hasLiveSession } from "../_shared/liveSession.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -23,6 +24,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user) return new Response(JSON.stringify({ success: false, error: 'Invalid or expired token' }), { status: 401, headers: cors });
+    if (!await hasLiveSession(admin, user.id, token)) return new Response(JSON.stringify({success:false,error:'Session ended. Sign in again.'}),{status:401,headers:cors});
 
     const { data: profile } = await admin.from('profiles').select('user_id, deleted, suspended, banned').eq('auth_id', user.id).maybeSingle();
     if (!profile || profile.deleted || profile.suspended || profile.banned) {

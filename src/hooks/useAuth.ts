@@ -537,7 +537,10 @@ export function useAuth() {
           const nextAuthId = session.user.id;
           confirmedAuthIdRef.current = nextAuthId;
           setState((current) => {
-            if (!current.profile || current.profile.auth_id === nextAuthId) return current;
+            // Keep initial sign-in covered until profile and device checks finish.
+            // An existing same-identity session refresh must not interrupt a page.
+            if (!current.profile) return { ...current, isLoading: true, error: "" };
+            if (current.profile.auth_id === nextAuthId) return current;
             clearProfileSnapshot(current.profile.auth_id);
             return {page:"loading",profile:null,isLoading:true,error:"",kickedOut:false};
           });

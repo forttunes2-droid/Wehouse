@@ -71,8 +71,11 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     window.location.assign(String(result.data.url));
   }
 
-  if (loading) return <State text="Loading paid Worker plan…" />;
-  if (error || !pro) return <State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />;
+  // Ownership of existing records does not end with the subscription. Unknown
+  // entitlement permits read/export only; all writes stay server-authorised.
+  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} />;
+  if (loading) return <div className="space-y-4"><State text="Loading paid Worker plan…" />{tools}</div>;
+  if (error || !pro) return <div className="space-y-4"><State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />{tools}</div>;
   const storeName = isIOS() ? 'App Store' : isAndroid() ? 'Google Play' : 'Paystack';
   const native = isNative();
   const planOptions = Array.isArray(pro.plans) && pro.plans.length > 0 ? pro.plans : [{
@@ -103,7 +106,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-200">Optional paid tools</p>
             <h2 className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">{pro.product_name || 'WeHouse Works'}{pro.active && <GoldTickBadge />}</h2>
-            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for your Service Provider profile. Gold PRO means an active subscription. Identity and professional checks are reviewed separately.</p>
+            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for Service Workers. The gold badge appears only on an active Worker membership. Identity and professional checks stay separate.</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-lg font-bold">{native ? 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>
@@ -162,7 +165,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
-      {pro.active ? <WorkerProTools profile={profile} /> : null}
+      {tools}
     </div>
   );
 }

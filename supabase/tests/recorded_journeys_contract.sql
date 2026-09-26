@@ -69,6 +69,7 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 ('99999999-1111-4111-8111-000000000001','repair-owner@example.invalid','repair-owner','property_partner',true),
 ('99999999-1111-4111-8111-000000000002','repair-staff@example.invalid','repair-staff','user',true),
 ('99999999-1111-4111-8111-000000000003','repair-guest@example.invalid','repair-guest','user',true);
+insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values('repair-owner','property_partner','global','active');
 insert into public.hotels(hotel_id,name,state,city,address,owner_id,status) values(-9991,'Repair Hotel','Nasarawa','Lafia','Test address','repair-owner','active');
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms) values(-9991,-9991,'Deluxe',1000,2);
 insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night) values(-9991,-9991,-9991,'Room only','room_only','pay_now',false,1000);

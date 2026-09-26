@@ -1,3 +1,5 @@
+import { validateChatUpload, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
+import { parseHotelConversationBundle, type HotelChatMessage, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { prepareChatImageFile } from "./utils";
 import { supabase } from "./client";
 
@@ -22,19 +24,7 @@ export type HotelConversation = {
   updated_at: string;
 };
 
-export type HotelMessage = {
-  id: string;
-  sender_id: string;
-  sender_name: string;
-  sender_role: "guest" | "hotel";
-  content: string;
-  attachments: string[];
-  attachment_types: string[];
-  reactions: Record<string, string>;
-  is_read: boolean;
-  reply_to_id?: string | null;
-  created_at: string;
-};
+export type HotelMessage = HotelChatMessage;
 
 export async function openHotelBookingConversation(bookingId: number) {
   const { data, error } = await supabase.rpc("open_my_hotel_booking_conversation", {
@@ -54,25 +44,22 @@ export async function getMyHotelConversations(workspace: "personal" | "property_
   };
 }
 
-export async function getHotelMessages(conversationId: string) {
-  const { data, error } = await supabase.rpc("get_hotel_booking_messages", {
-    p_conversation_id: conversationId,
-  });
-  if (error) return { messages: [] as HotelMessage[], error };
-  const messages = await Promise.all(
-    ((data || []) as HotelMessage[]).map(async (message) => {
-      const attachments = await Promise.all(
-        (message.attachments || []).map(async (path) => {
-          const { data: signed } = await supabase.storage
-            .from("hotel-chat-files")
-            .createSignedUrl(path, 300);
-          return signed?.signedUrl || "";
-        }),
-      );
-      return { ...message, attachments: attachments.filter(Boolean) };
-    }),
-  );
-  return { messages, error: null };
+export async function getHotelMessages(conversationId: string, bookingId: number, onTextReady?: (messages: HotelMessage[], context: HotelConversationContext) => void) {
+  const { data, error } = await supabase.rpc("get_my_hotel_conversation_bundle", { p_conversation_id: conversationId, p_booking_id: bookingId });
+  if (error) return { context: null, messages: [] as HotelMessage[], error };
+  const {context, messages: rows} = parseHotelConversationBundle(data, conversationId, bookingId);
+  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })), context);
+  const messages = await Promise.all(rows.map(async message => {
+    const files = await Promise.all((message.attachments || []).map(async (path, index) => {
+      try {
+        const { data: signed, error } = await supabase.storage.from("hotel-chat-files").createSignedUrl(path, 300);
+        return error || !signed?.signedUrl ? null : { url: signed.signedUrl, type: message.attachment_types?.[index] || '' };
+      } catch { return null; }
+    }));
+    const available = files.filter((file): file is {url: string; type: string} => Boolean(file));
+    return { ...message, attachments: available.map(file => file.url), attachment_types: available.map(file => file.type), media_loading: false, media_error: available.length !== files.length };
+  }));
+  return { context, messages, error: null };
 }
 
 export async function sendHotelMessage(
@@ -133,8 +120,9 @@ export async function uploadHotelChatAttachment(
   userId: string,
   file: File,
 ) {
+  try { await validateChatUpload(file); } catch (error) { return { path: null, type: null, error: { message: error instanceof Error ? error.message : "Choose a photo or video." } }; }
   let upload: Blob | File = file;
-  let contentType = file.type || "application/octet-stream";
+  let contentType = normaliseChatMediaType(file.type);
   let extension = (file.name.split(".").pop() || "bin").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   if (file.type.startsWith("image/")) {
     const prepared = await prepareChatImageFile(file);

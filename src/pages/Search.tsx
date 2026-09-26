@@ -1,5 +1,7 @@
+import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import ListingCard from "@/components/ListingCard";
 import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryPriceRangeSlider from "@/components/DiscoveryPriceRangeSlider";
@@ -40,6 +42,7 @@ const SHORT_CEILING = 500000;
 let propertyCache: Listing[] | null = null;
 type StayFilter = HomeStayType | "all";
 type PropertySearchState = {
+  query: string;
   stayType: StayFilter;
   priceMin: number | "";
   priceMax: number | "";
@@ -49,6 +52,7 @@ type PropertySearchState = {
   filterCity: string;
 };
 let searchState: PropertySearchState = {
+  query: "",
   stayType: "all",
   priceMin: "",
   priceMax: "",
@@ -67,6 +71,8 @@ export default function Search({
   savedIds,
   onToggleSave,
 }: SearchProps) {
+  const guest = useDiscoveryAccess();
+  const [query, setQuery] = useState(() => searchState.query);
   const { getNumber } = usePlatformSettings();
   const [listings, setListings] = useState<Listing[]>(() => propertyCache || []);
   const [loading, setLoading] = useState(() => !propertyCache);
@@ -103,11 +109,15 @@ export default function Search({
   }, []);
 
   useEffect(() => {
-    void getMySavedSearches().then(({ searches }) => setFollowedSearches(searches));
-  }, []);
+    if (guest) return;
+    let current = true;
+    void getMySavedSearches().then(({ searches }) => { if (current) setFollowedSearches(searches); });
+    return () => { current = false; };
+  }, [Boolean(guest)]);
 
   useEffect(() => {
     searchState = {
+      query,
       stayType,
       priceMin,
       priceMax,
@@ -116,7 +126,7 @@ export default function Search({
       filterState,
       filterCity,
     };
-  }, [stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
+  }, [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
 
   const loadProperties = useCallback(async (quiet = false) => {
     if (!quiet && !propertyCache) setLoading(true);
@@ -125,7 +135,7 @@ export default function Search({
     if (error) {
       setLoadError("Apartments could not be loaded. Check your connection and try again.");
     } else {
-      propertyCache = homes || [];
+      propertyCache = (homes || []).map(item => ({ ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos) }));
       setListings(propertyCache);
     }
     setLoading(false);
@@ -138,7 +148,7 @@ export default function Search({
       if (error) {
         setLoadError("Apartments could not be loaded. Check your connection and try again.");
       } else {
-        propertyCache = homes || [];
+        propertyCache = (homes || []).map(item => ({ ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos) }));
         setListings(propertyCache);
       }
       setLoading(false);
@@ -181,6 +191,7 @@ export default function Search({
           distance: distanceMap.get(`listing:${listing.id}`) ?? null,
         }))
         .filter(({ listing }) => {
+          if (query.trim() && !normalize([listing.title, listing.address, listing.city, listing.state].filter(Boolean).join(" ")).includes(normalize(query))) return false;
           if (stayType !== "all" && listing.sub_type !== stayType) return false;
           const price = Number(listing.price || 0);
           if (priceMin !== "" && (price <= 0 || price < priceMin)) return false;
@@ -196,6 +207,7 @@ export default function Search({
         ),
     [
       listings,
+      query,
       stayType,
       priceMin,
       priceMax,
@@ -230,6 +242,7 @@ export default function Search({
   );
 
   function clearFilters() {
+    setQuery("");
     setStayType("all");
     setPriceMin("");
     setPriceMax("");
@@ -252,6 +265,7 @@ export default function Search({
   }
 
   async function toggleFollowSearch() {
+    if (guest) { guest.requireSignIn(); return; }
     if (savingSearch) return;
     setSavingSearch(true);
     if (followedSearch?.notifications_enabled) {
@@ -310,7 +324,9 @@ export default function Search({
     <DiscoveryShell active="homes" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
         <DiscoveryToolbar
-          showSearch={false}
+          value={query}
+          onChange={setQuery}
+          placeholder="City, area or apartment"
           toolbarLabel={locationSummary}
           onFilters={() => setShowFilters(true)}
           filterCount={filterCount}

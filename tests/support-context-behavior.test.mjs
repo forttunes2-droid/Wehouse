@@ -1,3 +1,4 @@
+import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -7,7 +8,7 @@ import ts from 'typescript';
 const require=createRequire(import.meta.url);
 function moduleAt(path, dependencies={}, globals={}) {
   const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-  const exports={};vm.runInNewContext(code,{exports,require:name=>dependencies[name]??require(name),...globals});return exports;
+  const exports={};vm.runInNewContext(code,{exports,require:name=>name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name]??require(name),...globals});return exports;
 }
 const api=moduleAt('src/lib/supabase/support.ts',{'./client':{},'@/lib/propertyBookingLifecycle':{propertyBookingStatusLabel:()=> 'Status unavailable'}});
 const dates=moduleAt('src/lib/displayDate.ts');
@@ -45,8 +46,8 @@ function harness() {
   const noop=()=>{};
   const fakeApi={...api,getMySupportConversations:()=>new Promise(resolve=>requests.push(resolve)),getSupportMessages:id=>new Promise(resolve=>messageRequests.push({id,resolve})),getSupportCaseEvents:async()=>({events:[],error:null}),markSupportMessagesRead:async()=>{},createSupportMessageDraft:async()=>({draftId:'draft-'+sends.length}),sendFirstWeHouseMessage:async(draftId,context)=>{sends.push({draftId,context});return {error:{message:'network'}};},getSupportMessageDraftStatus:async()=>({error:{message:'network'}})};
   const component=moduleAt('src/components/SupportChat.tsx',{
-    react,'react-dom':{createPortal:node=>node},sonner:{toast:Object.assign(noop,{error:noop,success:noop})},'@/lib/supabase/support':fakeApi,'@/lib/supabase':{supabase:{channel:()=>chain,removeChannel:noop}},'@/lib/displayDate':dates,'@/components/BackButton':'BackButton','@/components/SecureSupportAttachment':'SecureSupportAttachment',
-  },{window:{addEventListener:(key,fn)=>listeners.set(key,fn),removeEventListener:key=>listeners.delete(key),dispatchEvent:noop,matchMedia:()=>({matches:false})},document:{body:{}},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}}}).default;
+    react,'@/hooks/useRecordScreenBack':{useRecordScreenBack:fn=>fn},'@/hooks/useDialogInteraction':{useDialogInteraction:()=>({current:null})},'react-dom':{createPortal:node=>node},sonner:{toast:Object.assign(noop,{error:noop,success:noop})},'@/lib/supabase/support':fakeApi,'@/lib/supabase':{supabase:{channel:()=>chain,removeChannel:noop}},'@/lib/displayDate':dates,'@/components/BackButton':'BackButton','@/components/SecureSupportAttachment':'SecureSupportAttachment','@/components/MessageMedia':{PendingMessageMedia:'PendingMessageMedia'},
+  },{window:{addEventListener:(key,fn)=>listeners.set(key,fn),removeEventListener:key=>listeners.delete(key),dispatchEvent:noop,matchMedia:()=>({matches:false})},document:{body:{}},Event:class{constructor(type){this.type=type;}},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}}}).default;
   const profile={user_id:'user-a',username:'user',email:'test@example.invalid',role:'user'};
   let tree;
   const nodes=(node)=>!node||typeof node!=='object'?[]:Array.isArray(node)?node.flatMap(nodes):[node,...nodes(node.props?.children)];

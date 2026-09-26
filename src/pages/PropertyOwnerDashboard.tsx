@@ -1,7 +1,10 @@
+import { hotelInventorySummary, matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
+import type { ActivityDestination } from "@/lib/activityFeed";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getMyHotelOperations, getMyHotelOperationSnapshot } from "@/lib/supabase/hotels";
+import { getMyHotelOperations, getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
@@ -17,9 +20,12 @@ import { ListingMediaImage } from "@/components/ListingCandidateMedia";
 import type { Profile } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
+import PropertyManagementPanel, { PropertyHostInvitations, HostArrivalAction } from "@/components/PropertyManagementPanel";
+import PropertyHostControls from "@/components/PropertyHostControls";
 
 type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
+  inboxOpenRequest?: number;
   profile: Profile;
   onLogout: () => void;
   onNavigate: (page: string, id?: string) => void;
@@ -50,64 +56,56 @@ export default function PropertyOwnerDashboard({
   profile,
   onLogout,
   onNavigate,
-  onWorkspaceSwitch,
+  inboxOpenRequest = 0,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
   const [propertyTargetId, setPropertyTargetId] = useState<
     string | undefined
   >();
   const [propertyReservationId, setPropertyReservationId] = useState<string>();
+  const [returnToActivity, setReturnToActivity] = useState(false);
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
   const inbox = usePartnerInboxSummary(profile.user_id);
+  useEffect(() => {
+    if (!inboxOpenRequest) return;
+    setPropertyTargetId(undefined); setPropertyReservationId(undefined);
+    setReturnToActivity(false); setNestedPropertyView(false); setTab("communication");
+  }, [inboxOpenRequest]);
   const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
-  async function openActivityDestination(page: string, id?: string) {
+  async function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
-    if (/booking|reservation|handover|operations_bookings/.test(route) && id) {
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("id,listing_id")
-        .eq("id", id)
-        .maybeSingle();
-      if (!error && data?.listing_id) {
-        setPropertyTargetId(String(data.listing_id));
-        setPropertyReservationId(String(data.id));
-        setTab("properties");
-        return;
-      }
+    if (route === "hotel_booking" && id) {
       try {
-        const hotels = await getMyHotelOperations();
-        if (hotels.error) throw hotels.error;
-        for (const hotel of hotels.data.filter((row: any) => row.access_role === "owner")) {
-          const snapshot = await getMyHotelOperationSnapshot(hotel.hotel_id);
-          if (snapshot.bookings.some((booking: { booking_id: number }) => String(booking.booking_id) === id)) {
-            setPropertyTargetId(`hotel:${hotel.hotel_id}`);
-            setPropertyReservationId(undefined);
-            setTab("properties");
-            return;
-          }
-        }
-      } catch { toast.error("Hotel information could not be loaded. Please try again."); return; }
-      toast.error("The linked reservation could not be opened.");
+        const target = await getMyHotelBookingTarget(id);
+        if (destination?.hotelId && String(target.hotel_id) !== destination.hotelId) throw new Error("Mismatched hotel");
+        setPropertyTargetId(propertyRecordKey("hotel", target.hotel_id));
+        setPropertyReservationId(String(target.booking_id));
+        setReturnToActivity(true);
+      } catch { toast.error("This hotel stay is unavailable or outside your current access. Please refresh and try again."); }
+      return;
+    }
+    if (/booking|reservation|handover|operations_bookings/.test(route) && id) {
+      const { data, error } = await supabase.from("reservations").select("id,listing_id").eq("id", id).maybeSingle();
+      if (error || !data?.listing_id) { toast.error("The linked reservation could not be opened."); return; }
+      setPropertyTargetId(propertyRecordKey("listing", data.listing_id));
+      setPropertyReservationId(String(data.id)); setReturnToActivity(true);
       return;
     }
     if (/propert|listing|inspection|hotel_detail/.test(route)) {
-      setPropertyTargetId(route === "hotel_detail" && id ? `hotel:${id.replace(/^hotel:/, "")}` : id);
-      setPropertyReservationId(undefined);
-      setTab("properties");
-      return;
+      setPropertyTargetId(route === "hotel_detail" && id ? propertyRecordKey("hotel", id) : id);
+      setPropertyReservationId(undefined); setReturnToActivity(true); return;
     }
-    if (/finance|earning|payment|wallet/.test(route)) {
-      setTab("finance");
-      return;
-    }
+    if (/finance|earning|payment|wallet/.test(route)) { setTab("finance"); return; }
     onNavigate(page, id);
+  }
+  function closeActivityRecord() {
+    setPropertyTargetId(undefined); setPropertyReservationId(undefined);
+    if (returnToActivity) setTab("communication");
   }
   return (
     <>
 
       <WorkspaceFrameV2
-        identityName={profile.full_name || profile.username}
-        identityAvatar={profile.avatar_url}
         label="WEHOUSE · PROPERTY PARTNER"
         title={current.label}
         items={TABS.map((item) => ({
@@ -119,11 +117,11 @@ export default function PropertyOwnerDashboard({
               : undefined,
         }))}
         active={tab}
-        setActive={(id) => setTab(id as PartnerTab)}
-        onWorkspaceSwitch={onWorkspaceSwitch}
+        setActive={(id) => { setReturnToActivity(false); setPropertyTargetId(undefined); setPropertyReservationId(undefined); setTab(id as PartnerTab); }}
+        onAccount={() => onNavigate("profile")}
         onLogout={onLogout}
         compact={tab === "communication"}
-        immersive={tab === "properties" && nestedPropertyView}
+        immersive={(tab === "properties" && nestedPropertyView) || (tab === "communication" && Boolean(propertyTargetId))}
       >
         {tab === "properties" && (
           <PropertiesWorkspace
@@ -131,16 +129,22 @@ export default function PropertyOwnerDashboard({
             initialRecordId={propertyTargetId}
             initialReservationId={propertyReservationId}
             onNestedChange={setNestedPropertyView}
+            onTargetClose={closeActivityRecord}
+            onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }}
           />
         )}{" "}
         {tab === "communication" && (
-          <CommunicationInbox
-            profile={profile}
-            onNavigate={openActivityDestination}
-            chatUnread={inbox.chatUnread}
-            activityUnread={inbox.activityUnread}
-          />
-        )}{" "}
+          <>
+            <div hidden={Boolean(propertyTargetId)} inert={Boolean(propertyTargetId)}>
+              <CommunicationInbox profile={profile} onNavigate={openActivityDestination}
+                initialActivity={returnToActivity} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
+            </div>
+            {propertyTargetId ? <PropertiesWorkspace key={propertyTargetId + (propertyReservationId || "")}
+              profile={profile} initialRecordId={propertyTargetId} initialReservationId={propertyReservationId}
+              onTargetClose={closeActivityRecord}
+              onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }} /> : null}
+          </>
+        )}
         {tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
     </>
@@ -151,12 +155,18 @@ function PropertiesWorkspace({
   initialRecordId,
   initialReservationId,
   onNestedChange,
+  onTargetClose,
+  onOpenInbox,
 }: {
   profile: Profile;
   initialRecordId?: string;
   initialReservationId?: string;
   onNestedChange?: (nested: boolean) => void;
+  onTargetClose?: () => void;
+  onOpenInbox?: () => void;
 }) {
+  const [publishedTarget, setPublishedTarget] = useState<string>();
+  const recordTarget = publishedTarget || initialRecordId;
   const [filter, setFilter] = useState<SubmissionFilter>("all");
   const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
@@ -168,10 +178,10 @@ function PropertiesWorkspace({
     }
   }, [initialRecordId]);
   useEffect(() => {
-    if (!initialReservationId) return;
-    setAssetKind("apartment");
+    if (!initialReservationId && !initialRecordId?.startsWith("listing:")) return;
+    setAssetKind(initialRecordId?.startsWith("hotel:") ? "hotel" : "apartment");
     setFilter("public");
-  }, [initialReservationId]);
+  }, [initialReservationId, initialRecordId]);
   useEffect(() => {
     onNestedChange?.(viewingDetail || creating);
     return () => onNestedChange?.(false);
@@ -200,13 +210,16 @@ function PropertiesWorkspace({
           </div>
         </div>
       )}
-      {filter === "public" ? (
+      {assetKind === "apartment" && !viewingDetail && !creating ? <PropertyHostInvitations profile={profile} /> : null}
+      {filter === "public" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
-          assetKind={assetKind}
-          initialRecordId={initialRecordId}
+          assetKind={recordTarget?.startsWith("hotel:") ? "hotel" : recordTarget?.startsWith("listing:") ? "apartment" : assetKind}
+          initialRecordId={recordTarget}
           initialReservationId={initialReservationId}
+          onTargetClose={() => { setPublishedTarget(undefined); onTargetClose?.(); }}
           onDetailChange={setViewingDetail}
+          onOpenInbox={onOpenInbox}
         />
       ) : (
         <PartnerSubmittedRequests
@@ -215,6 +228,7 @@ function PropertiesWorkspace({
           initialRecordId={initialRecordId}
           onDetailChange={setViewingDetail}
           onCreationChange={setCreating}
+          onOpenPublished={setPublishedTarget}
           assetKind={assetKind}
         />
       )}
@@ -227,32 +241,33 @@ function PropertiesTab({
   initialRecordId,
   initialReservationId,
   onDetailChange,
+  onTargetClose,
+  onOpenInbox,
 }: {
   profile: Profile;
   assetKind: PartnerAssetKind;
   initialRecordId?: string;
   initialReservationId?: string;
   onDetailChange?: (open: boolean) => void;
+  onTargetClose?: () => void;
+  onOpenInbox?: () => void;
 }) {
   const openedTarget = useRef<string | null>(null);
+  const [refreshKey,setRefreshKey]=useState(0);
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const refresh=()=>setRefreshKey(value=>value+1);
+    window.addEventListener("wehouse:property-host-changed",refresh);
+    return()=>window.removeEventListener("wehouse:property-host-changed",refresh);
+  },[]);
   useEffect(() => {
     let active = true;
     (async () => {
       const result =
         assetKind === "apartment"
-          ? await supabase
-              .from("listings")
-              .select("*")
-              .or(
-                `owner_id.eq.${profile.user_id},partner_id.eq.${profile.user_id}`,
-              )
-              .in("status", ["available", "reserved", "occupied", "maintenance", "closed"])
-              .not("approved_at", "is", null)
-              .is("deleted_at", null)
-              .order("created_at", { ascending: false })
+          ? await supabase.rpc("get_my_managed_properties")
           : await getMyHotelOperations();
       if (!active) return;
       if (result.error)
@@ -273,12 +288,14 @@ function PropertiesTab({
               },
         );
       setAssets(nextAssets);
+      setSelected((current: any | null) => current
+        ? nextAssets.find((asset: any) => String(asset.id) === String(current.id)) || current
+        : current
+      );
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
         const target = nextAssets.find((asset: any) =>
-          [asset.id, asset.listing_id, asset.hotel_id, `hotel:${asset.hotel_id}`]
-            .filter(Boolean)
-            .some((value) => String(value) === String(initialRecordId)),
+          matchesPropertyRecord(asset, initialRecordId),
         );
         if (target) setSelected(target);
         else toast.error("The linked property is no longer available.");
@@ -288,7 +305,7 @@ function PropertiesTab({
     return () => {
       active = false;
     };
-  }, [assetKind, initialRecordId, profile.user_id]);
+  }, [assetKind, initialRecordId, profile.user_id, refreshKey]);
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
     return () => onDetailChange?.(false);
@@ -299,7 +316,8 @@ function PropertiesTab({
         hotel={selected}
         accessRole="owner"
         profile={profile}
-        onBack={() => setSelected(null)}
+        initialBookingId={initialReservationId}
+        onBack={() => { setSelected(null); onTargetClose?.(); }}
       />
     );
   if (selected)
@@ -308,7 +326,8 @@ function PropertiesTab({
         property={selected}
         profile={profile}
         initialReservationId={initialReservationId}
-        onBack={() => setSelected(null)}
+        onBack={() => { setSelected(null); onTargetClose?.(); }}
+        onOpenInbox={onOpenInbox}
       />
     );
   return (
@@ -363,6 +382,11 @@ function PropertiesTab({
                         .filter(Boolean)
                         .join(", ")}
                     </p>
+                    {property._assetKind === "property" && property._assignment_role ? (
+                      <p className="mt-1 text-[9px] text-violet-300">
+                        {property._assignment_role === "owner" ? "You own this property" : "Assigned to you as manager"}
+                      </p>
+                    ) : null}
                   </div>
                   <Status value={property.availability_status || property.status || "available"} />
                 </div>
@@ -384,36 +408,31 @@ function PropertiesTab({
     </section>
   );
 }
-function hotelInventorySummary(property: any) {
-  const rooms = Array.isArray(property.hotel_rooms) ? property.hotel_rooms : [];
-  const units = rooms.reduce(
-    (sum: number, room: { total_rooms?: number | null }) =>
-      sum + Number(room.total_rooms || 0),
-    0,
-  );
-  const startingRate = rooms.reduce(
-    (lowest: number, room: { price_per_night?: number | null }) => {
-      const rate = Number(room.price_per_night || 0);
-      return rate > 0 && (!lowest || rate < lowest) ? rate : lowest;
-    },
-    0,
-  );
-  const roomLabel = `${rooms.length} room ${rooms.length === 1 ? "type" : "types"} · ${units} ${units === 1 ? "room" : "rooms"}`;
-  return startingRate ? `${roomLabel} · from ${money(startingRate)}` : roomLabel;
-}
 function PropertyDetails({
   property,
   profile,
   initialReservationId,
   onBack,
+  onOpenInbox,
 }: {
   property: any;
   profile: Profile;
   initialReservationId?: string;
   onBack: () => void;
+  onOpenInbox?: () => void;
 }) {
+  const closeRecord = useRecordScreenBack(onBack);
   const [stays, setStays] = useState<any[]>([]);
   const [loadingStays, setLoadingStays] = useState(true);
+  const [stayRefresh,setStayRefresh]=useState(0);
+  const [managementMode,setManagementMode]=useState<"host"|"wehouse">(property.management_mode==="host"?"host":"wehouse");
+  const [managementConfigured,setManagementConfigured]=useState(Boolean(property.management_updated_at));
+  const hostManaged=managementConfigured&&managementMode==="host";
+  const wehouseManaged=managementConfigured&&managementMode==="wehouse";
+  useEffect(()=>{
+    setManagementMode(property.management_mode==="host"?"host":"wehouse");
+    setManagementConfigured(Boolean(property.management_updated_at));
+  },[property.id,property.management_mode,property.management_updated_at]);
   const orderedStays = useMemo(() => {
     if (!initialReservationId) return stays;
     return [...stays].sort((a, b) =>
@@ -439,7 +458,7 @@ function PropertyDetails({
     return () => {
       active = false;
     };
-  }, [profile.user_id, property.id]);
+  }, [profile.user_id, property.id, stayRefresh]);
   useEffect(() => {
     if (loadingStays || !initialReservationId) return;
     const timer = window.setTimeout(() => {
@@ -472,7 +491,7 @@ function PropertyDetails({
   return (
     <div className="space-y-5">
       <button
-        onClick={onBack}
+        onClick={closeRecord}
         className="text-xs text-[#888A9B] hover:text-white"
       >
         ← Back to properties
@@ -511,34 +530,32 @@ function PropertyDetails({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">Published home status</p>
-                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property)}</p>
+                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property,hostManaged,managementConfigured)}</p>
               </div>
               <Status value={property.availability_status || property.status || "available"} />
             </div>
           </div>
           <button
             onClick={contact}
-            className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-4 py-3 text-xs font-semibold text-violet-300"
+            className="mt-4 min-h-10 px-1 text-[10px] font-semibold text-[#8D93A2] hover:text-violet-300"
           >
-            Message WeHouse
+            WeHouse support
           </button>
         </div>
       </section>
+      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      {hostManaged?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold">
-              {property.sub_type === "short_let"
-                ? "Short Let stays"
-                : "Rent and tenancy"}
-            </h2>
-            <p className="mt-1 text-[9px] text-[#707687]">
-              {property.sub_type === "short_let"
-                ? "Plain updates when a stay is booked, the guest enters and the guest leaves."
-                : "WeHouse shows when rent is secured, when the customer chooses a move-in time, and when verified handover starts the tenancy."}
-            </p>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">{!managementConfigured?"Operations":hostManaged?"Host operations":"Property operations"}</p>
+            <h2 className="mt-1 text-sm font-bold">Reservations</h2>
+            <p className="mt-1 text-[9px] text-[#707687]">{!managementConfigured?"Choose who manages this live home before new bookings.":hostManaged?"Responsible Host operates these reservations.":wehouseManaged?"WeHouse Property Operations operates these reservations.":""}</p>
           </div>
-          <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
+          <div className="flex items-center gap-3">
+            {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-10 px-1 text-[10px] font-semibold text-violet-300">Messages</button>:null}
+            <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
+          </div>
         </div>
         {loadingStays ? (
           <Loading />
@@ -546,15 +563,21 @@ function PropertyDetails({
           <div className="mt-4 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
             <p className="text-xs font-semibold">
               {(property.availability_status || property.status) === "reserved"
-                ? "Reserved through WeHouse"
-                : "No active booking yet"}
+                ? hostManaged ? "Reservation active" : "Reserved through WeHouse"
+                : "No reservations yet"}
             </p>
             <p className="mt-2 text-[9px] text-[#666C7C]">
               {(property.availability_status || property.status) === "reserved"
-                ? "A customer has completed the reservation fee and the home is held. They are choosing inspection or rent; you do not need to act yet. Customer details remain with Property Operations."
-                : property.sub_type === "short_let"
-                ? "A stay appears after the guest completes payment."
-                : "WeHouse will update this page after a tenant is found and the rent is confirmed."}
+                ? hostManaged
+                  ? "The booking is secured. The guest journey and next host action will appear here."
+                  : "A customer has secured the home. Property Operations is handling the next step."
+                : !managementConfigured
+                  ? "Choose Host manages or WeHouse manages above before accepting new bookings."
+                  : hostManaged
+                    ? "New bookings appear here. Guest conversations are available from Inbox."
+                    : property.sub_type === "short_let"
+                      ? "A stay appears after the guest completes payment."
+                      : "WeHouse will update this page after rent is confirmed."}
             </p>
           </div>
         ) : (
@@ -574,7 +597,7 @@ function PropertyDetails({
                     </div>
                     {stay.stay_type === "short_let" ? (
                       <p className="mt-1 text-[9px] text-[#696F80]">
-                        Stay {stay.booking_code || "confirmed"}
+                        {stay.management_mode_snapshot === "host" ? "Host-managed stay" : "WeHouse-managed stay"}
                       </p>
                     ) : null}
                   </div>
@@ -617,6 +640,7 @@ function PropertyDetails({
                 <p className="mt-3 text-[9px] leading-5 text-[#888E9D]">
                   {partnerStayMessage(stay)}
                 </p>
+                <HostArrivalAction stay={stay} profile={profile} onChanged={() => setStayRefresh(value => value + 1)} />
               </article>
             ))}
           </div>
@@ -714,38 +738,54 @@ function partnerDate(value?: string | null) {
 function partnerDateTime(value?: string | null) {
   return value ? new Date(value).toLocaleString() : "Not chosen";
 }
-function partnerPropertyStateMessage(property: any) {
+function partnerPropertyStateMessage(property: any, hostManaged = false, managementConfigured = true) {
   const state = String(property.availability_status || property.status || "available");
   if (state === "reserved")
-    return "A reservation fee is confirmed and WeHouse is holding this home while the customer chooses inspection or rent.";
+    return hostManaged
+      ? "A reservation is active. Open Reservations below for the guest journey."
+      : "A reservation is active and WeHouse Property Operations is handling the next step.";
   if (state === "occupied")
-    return "WeHouse completed the verified handover and the home is currently occupied.";
+    return hostManaged
+      ? "The guest or occupant is currently checked in."
+      : "WeHouse completed the verified handover and the home is currently occupied.";
   if (state === "maintenance")
-    return "The published home is temporarily unavailable while operational checks or maintenance are completed.";
+    return "This home is temporarily unavailable.";
   if (state === "closed")
-    return "This published home is closed and is not available in discovery.";
-  return "This property is published and currently available for a new reservation.";
+    return "This home is not available in discovery.";
+  if (!managementConfigured)
+    return "Published. Choose who manages new bookings.";
+  return hostManaged
+    ? "Published and ready to receive reservations."
+    : "Published and available for a new reservation.";
 }
 function partnerStayMessage(stay: any) {
+  const hostManaged = stay.management_mode_snapshot === "host";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied")
-      return `The guest entered on ${partnerDate(stay.check_in)}. WeHouse will record when the guest leaves.`;
+      return hostManaged ? `Guest checked in ${partnerDate(stay.check_in)} · manage stay issues from Inbox.` : `Guest checked in ${partnerDate(stay.check_in)} · WeHouse Operations is handling the stay.`;
     if (stay.status === "completed")
-      return `The guest left on ${partnerDate(stay.check_out)}. WeHouse is handling the final stay and deposit checks.`;
+      return `Stay completed ${partnerDate(stay.check_out)} · final payment and deposit checks are in progress.`;
     if (stay.status === "ready_for_move_in")
-      return `Payment is confirmed. The guest is expected on ${partnerDate(stay.check_in)} and can only enter during the booked stay.`;
-    return `This home is booked from ${partnerDate(stay.check_in)} to ${partnerDate(stay.check_out)}. WeHouse is handling the guest’s arrival.`;
+      return hostManaged ? `Guest expected ${partnerDate(stay.check_in)} · confirm arrival with the booking code.` : `Guest expected ${partnerDate(stay.check_in)} · WeHouse Operations will confirm arrival.`;
+    if (stay.reservation_fee_status === "paid")
+      return "Dates reserved · stay payment is still due.";
+    return "Reservation in progress.";
   }
   if (stay.status === "occupied")
-    return "WeHouse found a tenant, confirmed the rent and completed the move-in.";
+    return hostManaged ? "Handover complete · occupancy is active." : "WeHouse handover complete · occupancy is active.";
   if (stay.status === "completed")
-    return "The tenancy has ended. The rent history remains available in Finance.";
+    return "Occupancy ended · payment history remains in Finance.";
   if (stay.status === "ready_for_move_in")
     return stay.requested_move_in_at
-      ? `The customer selected ${partnerDateTime(stay.requested_move_in_at)}. WeHouse will verify their code and hand over access at arrival.`
-      : "Year 1 rent is confirmed. WeHouse is waiting for the customer to choose a move-in time; the tenancy has not started.";
-  return "WeHouse found a tenant and confirmed the rent. WeHouse is preparing the home for move-in.";
+      ? hostManaged
+        ? `Move-in ${partnerDateTime(stay.requested_move_in_at)} · confirm handover with the occupant’s booking code.`
+        : `Move-in ${partnerDateTime(stay.requested_move_in_at)} · WeHouse Operations will confirm handover.`
+      : hostManaged
+        ? "Rent confirmed · waiting for the occupant to choose a move-in time."
+        : "Rent confirmed · WeHouse is waiting for the occupant to choose a move-in time.";
+  return hostManaged ? "Reservation active · responsible Host has the next action." : "Reservation active · WeHouse Operations has the next action.";
 }
+
 function partnerStayStage(stay: any) {
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied") return "Guest checked in";
@@ -753,7 +793,7 @@ function partnerStayStage(stay: any) {
     if (stay.status === "ready_for_move_in") return "Guest expected";
     return "Short Let booked";
   }
-  if (stay.status === "occupied") return "Tenant moved in";
+  if (stay.status === "occupied") return "Occupant moved in";
   if (stay.status === "completed") return "Tenancy ended";
   if (stay.status === "ready_for_move_in")
     return stay.requested_move_in_at
