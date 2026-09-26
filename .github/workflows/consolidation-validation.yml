@@ -1,7 +1,7 @@
 name: Consolidation Validation
 on:
   push:
-    branches: [main]
+    branches: [main, codex/validate-structural-marketplace-controls-20260926]
   pull_request:
     branches: [main]
   merge_group:
