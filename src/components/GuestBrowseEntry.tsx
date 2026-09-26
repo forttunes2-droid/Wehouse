@@ -66,7 +66,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
   />;
   const sectionPage: Record<typeof section, PersonalNavPage> = { explore: 'search', bookings: 'my_reservations', inbox: 'conversation' };
   return <DiscoveryAccessContext.Provider value={access}>
-    <div className="wh-public-entry bg-[#090B10] text-white" data-shared-discovery>
+    <div className="wh-public-entry bg-[#090B10] text-white" data-shared-discovery data-navigation-state={`${section}:${page}:${target?.kind || 'browse'}`}>
       {section === 'explore' ? <Suspense fallback={<div role="status" className="mx-auto max-w-7xl p-5 text-sm text-[#A7ADBA]">Loading places…</div>}>
         {target ? target.kind === 'listing'
           ? <ListingDetail key={target.id} listingId={target.id} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />

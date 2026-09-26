@@ -29,9 +29,13 @@ function fakeWindow() {
         if (!position) return;
         position--;
         let stopped = false;
-        const event = { state: entries[position], stopImmediatePropagation() { stopped = true; } };
+        const event = { state: entries[position], isTrusted: true, stopImmediatePropagation() { stopped = true; } };
         for (const fn of [...listeners]) { fn(event); if (stopped) break; }
       },
+    },
+    dispatchPop(state) {
+      const event = { state, isTrusted: false, stopImmediatePropagation() {} };
+      for (const fn of [...listeners]) fn(event);
     },
     addEventListener(name, fn) { if (name === 'popstate') listeners.add(fn); },
     removeEventListener(name, fn) { if (name === 'popstate') listeners.delete(fn); },
@@ -64,6 +68,17 @@ test('StrictMode effect replay does not create duplicate profile history entries
   replay.dismiss();
   assert.equal(closed, 1);
   assert.equal(win.history.state.page, 'conversation');
+});
+test('programmatic route synchronization does not dismiss a visible profile layer', async () => {
+  const { bindProfileScreenHistory } = await load('src/lib/profileScreenHistory.ts');
+  const win = fakeWindow();
+  let closed = 0;
+  const layer = bindProfileScreenHistory(win, 'detail', () => { closed++; layer.dispose(); });
+  win.dispatchPop({ page: 'search' });
+  assert.equal(closed, 0);
+  assert.equal(win.history.state.whProfileScreen.id, 'detail');
+  layer.dismiss();
+  assert.equal(closed, 1);
 });
 test('a nested avatar closes before its profile; unrelated navigation preserves its destination', async () => {
   const { bindProfileScreenHistory } = await load('src/lib/profileScreenHistory.ts');
