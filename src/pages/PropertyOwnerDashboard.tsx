@@ -288,7 +288,7 @@ function PropertiesTab({
               },
         );
       setAssets(nextAssets);
-      setSelected(current => current
+      setSelected((current: any | null) => current
         ? nextAssets.find((asset: any) => String(asset.id) === String(current.id)) || current
         : current
       );
