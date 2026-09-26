@@ -40,6 +40,8 @@ async def main():
      hotel={**HOTEL,'access_role':'front_desk' if mode=='team' else 'owner','capabilities':caps}
      if name=='get_my_legal_status': data={}
      elif name=='get_my_hotel_operations': data=[hotel]
+     elif name=='get_my_owned_hotels_page':
+      data=[{**hotel,'page_updated_at':DATE.isoformat()}] if args.get('p_hotel_id') in (None,7) else []
      elif name in ['get_my_hotel_operation_snapshot','get_my_hotel_operation_snapshot_v2']:
       if denied: return await handler.fulfill(status=403,content_type='application/json',body=json.dumps({'message':'Access denied','code':'42501'}),headers={'access-control-allow-origin':'*'})
       data={'hotel':hotel,'capabilities':caps,'rooms':ROOMS,'bookings':BOOKINGS,'inventory':[],'room_units':([] if unit_mode=='missing' else [{**unit,'status':'maintenance' if unit_mode=='maintenance' and index==0 else 'ready'} for index,unit in enumerate(UNITS)]),'venues':[]}
