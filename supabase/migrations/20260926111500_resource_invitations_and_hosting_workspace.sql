@@ -624,7 +624,7 @@ language plpgsql
 stable
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
 declare v_actor text:=public.current_profile_user_id(); v_result jsonb;
 begin
   if v_actor is null then raise exception 'Authentication required'; end if;
@@ -663,14 +663,14 @@ begin
 
   return v_result;
 end
-$;
+$$;
 
 create or replace function public.revoke_resource_invitation(p_invitation_id uuid)
 returns boolean
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
 declare
   v_actor text:=public.current_profile_user_id();
   v_invite public.resource_invitations;
@@ -724,7 +724,7 @@ begin
   end if;
   return true;
 end
-$;
+$$;
 
 -- Preserve any invitations already pending when this migration lands.
 insert into public.resource_invitations(
@@ -801,7 +801,7 @@ create or replace function public.respond_to_property_host_invite(
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
 declare
   v_actor text:=public.current_profile_user_id();
   v_assignment public.property_host_assignments;
@@ -833,7 +833,7 @@ begin
   if v_assignment.assignment_id is null then raise exception 'Active invitation not found'; end if;
   return jsonb_build_object('success',true,'status',v_assignment.status,'listing_id',v_assignment.listing_id);
 end
-$;
+$$;
 
 create or replace function public.respond_to_hotel_team_invitation(
   p_membership_id uuid,p_accept boolean
@@ -841,7 +841,7 @@ create or replace function public.respond_to_hotel_team_invitation(
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
 declare
   v_actor text:=public.current_profile_user_id();
   v_invitation_id uuid;
@@ -875,7 +875,7 @@ begin
     'hotel_role',v_row.hotel_role,'capabilities',to_jsonb(v_row.capabilities)
   );
 end
-$;
+$$;
 
 -- A co-host is a delegated operator, not a Property Partner owner.
 create or replace function public.current_actor_can_manage_property(p_listing_id uuid)
