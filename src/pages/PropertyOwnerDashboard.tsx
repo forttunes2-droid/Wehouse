@@ -102,7 +102,7 @@ export default function PropertyOwnerDashboard({
       setPropertyTargetId(route === "hotel_detail" && id ? propertyRecordKey("hotel", id) : id);
       setPropertyReservationId(undefined); setReturnToActivity(true); return;
     }
-    if (/finance|earning|payment|wallet/.test(route)) { setTab("finance"); return; }
+    if (!delegatedOnly && /finance|earning|payment|wallet/.test(route)) { setTab("finance"); return; }
     onNavigate(page, id);
   }
   function closeActivityRecord() {
@@ -120,7 +120,7 @@ export default function PropertyOwnerDashboard({
           label: item.label,
           badge:
             item.key === "communication"
-              ? inbox.totalUnread || undefined
+              ? delegatedOnly ? undefined : inbox.totalUnread || undefined
               : undefined,
         }))}
         active={tab}
@@ -145,7 +145,10 @@ export default function PropertyOwnerDashboard({
           <>
             <div hidden={Boolean(propertyTargetId)} inert={Boolean(propertyTargetId)}>
               <CommunicationInbox profile={profile} onNavigate={openActivityDestination}
-                initialActivity={returnToActivity} chatUnread={inbox.chatUnread} activityUnread={inbox.activityUnread} />
+                hostingOnly={delegatedOnly}
+                initialActivity={!delegatedOnly && returnToActivity}
+                chatUnread={delegatedOnly ? 0 : inbox.chatUnread}
+                activityUnread={delegatedOnly ? 0 : inbox.activityUnread} />
             </div>
             {propertyTargetId ? <PropertiesWorkspace key={propertyTargetId + (propertyReservationId || "")}
               profile={profile} initialRecordId={propertyTargetId} initialReservationId={propertyReservationId}
@@ -220,11 +223,10 @@ function PropertiesWorkspace({
             </div>
           </div>
         </div>
-      )}
-      {!delegatedOnly && assetKind === "apartment" && !viewingDetail && !creating ? <PropertyHostInvitations profile={profile} /> : null}
-      {delegatedOnly || filter === "public" || publishedTarget ? (
+      )}      {delegatedOnly || filter === "public" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
+          delegatedOnly={delegatedOnly}
           assetKind={delegatedOnly ? "apartment" : recordTarget?.startsWith("hotel:") ? "hotel" : recordTarget?.startsWith("listing:") ? "apartment" : assetKind}
           initialRecordId={recordTarget}
           initialReservationId={initialReservationId}
@@ -254,9 +256,11 @@ function PropertiesTab({
   onDetailChange,
   onTargetClose,
   onOpenInbox,
+  delegatedOnly = false,
 }: {
   profile: Profile;
   assetKind: PartnerAssetKind;
+  delegatedOnly?: boolean;
   initialRecordId?: string;
   initialReservationId?: string;
   onDetailChange?: (open: boolean) => void;
@@ -278,7 +282,7 @@ function PropertiesTab({
     (async () => {
       const result =
         assetKind === "apartment"
-          ? await supabase.rpc("get_my_managed_properties")
+          ? await supabase.rpc(delegatedOnly ? "get_my_hosting_properties" : "get_my_managed_properties")
           : await getMyHotelOperations();
       if (!active) return;
       if (result.error)
@@ -316,7 +320,7 @@ function PropertiesTab({
     return () => {
       active = false;
     };
-  }, [assetKind, initialRecordId, profile.user_id, refreshKey]);
+  }, [assetKind, delegatedOnly, initialRecordId, profile.user_id, refreshKey]);
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
     return () => onDetailChange?.(false);
