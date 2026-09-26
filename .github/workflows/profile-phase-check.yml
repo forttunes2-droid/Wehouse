@@ -38,4 +38,4 @@ jobs:
           deno-version: v2.x
       - name: Type-check recovery and sensitive Edge handlers
         run: |
-          deno check --no-config supabase/functions/provider-password-recovery/index.ts supabase/functions/creator-step-up/index.ts supabase/functions/payment-init/index.ts supabase/functions/payout-account/index.ts supabase/functions/payout-withdrawal/index.ts supabase/functions/paystack-verify/index.ts supabase/functions/property-earning-action/index.ts supabase/functions/worker-pro-manage/index.ts supabase/functions/worker-pro-payment-init/index.ts supabase/functions/worker-pro-plan-sync/index.ts
+          deno check --no-config supabase/functions/provider-password-recovery/index.ts supabase/functions/creator-security-setup/index.ts supabase/functions/creator-step-up/index.ts supabase/functions/payment-init/index.ts supabase/functions/payout-account/index.ts supabase/functions/payout-withdrawal/index.ts supabase/functions/paystack-verify/index.ts supabase/functions/property-earning-action/index.ts supabase/functions/worker-pro-manage/index.ts supabase/functions/worker-pro-payment-init/index.ts supabase/functions/worker-pro-plan-sync/index.ts
