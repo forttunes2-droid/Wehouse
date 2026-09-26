@@ -220,6 +220,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   if (type === "property_rent_confirmed") return "View reservation";
   if (type === "property_inspection_coordination_required")
     return "Open inspection request";
+  if (route === "invitation") return "Review invitation";
   if (route === "conversation") return "Open conversation";
   if (route === "devices" || route === "security") return "Review security activity";
   if (/hotel/.test(type) && /booking|reservation/.test(route)) return "Open hotel stay";
