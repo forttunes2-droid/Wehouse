@@ -39,13 +39,17 @@ test('Short Let capacity, stay rules and non-finite commercial values fail close
   assert.equal(quote.calendarDay('2026-02-30'), null);
   assert.equal(quote.addCalendarDays('2026-09-30', 1), '2026-10-01');
 });
-test('Short Let Reserve date creates its existing booking but does not initiate a payment', () => {
+test('Short Let Reserve date creates the dated booking and opens only its reservation-fee checkout', () => {
   const text = fs.readFileSync('src/pages/ListingDetailCore.tsx', 'utf8');
   const action = text.slice(text.indexOf('async function reserveShortLet'), text.indexOf('async function openCheckout'));
   assert.match(action, /createShortStayReservation\(listingId, shortCheckIn, shortCheckOut, shortGuests\)/);
-  assert.match(action, /onOpenBooking/); assert.match(action, /!selection.valid/);
-  assert.doesNotMatch(action, /initialize.*Payment|window.location/);
-  assert.match(text, /Reserve date/); assert.doesNotMatch(text, /Pay for stay ·/);
+  assert.match(action, /!selection.valid/);
+  assert.match(action, /initializeReservationPayment/);
+  assert.match(action, /payment_reference/);
+  assert.match(action, /window\.location\.assign/);
+  assert.match(text, /Reserve date/);
+  assert.match(text, /short_let_reservation_fee/);
+  assert.doesNotMatch(action, /initializeShortStayPayment/);
 });
 test('Saved preserves public type, exact identifiers and rental units', () => {
   const routes = load('src/lib/publicPropertyDestination.ts');

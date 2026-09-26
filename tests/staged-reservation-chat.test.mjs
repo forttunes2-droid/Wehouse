@@ -22,14 +22,16 @@ test('Reserve date validates selection without reading or calculating money', ()
 test('date reservation rejects invalid dates, capacity and stay rules without a price dependency', () => {
   for (const change of [{checkIn:''},{checkOut:'2026-09-24'},{checkIn:'2026-02-30'},{guests:3},{guests:1.5},{guests:0},{maxGuests:0},{minNights:3},{maxNights:1},{checkOut:'2028-01-01'}]) assert.equal(dates.validateShortLetDates({...selection,...change}).valid,false);
 });
-test('the public date step has neither quote calculation nor combined price or payment initializer', () => {
+test('the public date step charges only Reserve date and still does not calculate the later stay/deposit bill', () => {
   const source=read('src/pages/ListingDetailCore.tsx');
   const start=source.indexOf('Reserve your dates');
-  const end=source.indexOf('No payment is taken at this step.', start);
+  const end=source.indexOf('Reserve date pays only the reservation fee.', start);
   assert.ok(start>0 && end>start);
   const step=source.slice(start,end);
-  assert.doesNotMatch(step,/quote\.(total|rent|deposit)|Estimated total|Stay rent|initialize.*Payment/);
+  assert.doesNotMatch(step,/quote\.(total|rent|deposit)|Estimated total|Stay rent|initializeShortStayPayment/);
   assert.doesNotMatch(source,/shortLetQuote\(/);
+  assert.match(source,/initializeReservationPayment/);
+  assert.match(source,/shortReservationFee/);
   assert.match(step,/Reserve date/);
 });
 test('a history refresh preserves pending and failed local messages without resurrecting removed server messages', () => {
