@@ -2,13 +2,13 @@
 .wh-public-entry { min-height: 100dvh; background: #090B10; color: white; }
 
 .wh-public-entry { padding-bottom:calc(70px + env(safe-area-inset-bottom)); }
-.wh-public-gate { width:min(100%,720px); margin:0 auto; padding:34px 20px 110px; text-align:left; }
+.wh-public-gate { width:min(100%,560px); margin:0 auto; padding:28px 20px 104px; text-align:left; }
 .wh-public-gate > div { width:100%; }
-.wh-public-gate h1 { font-size:24px; line-height:1.2; letter-spacing:-.03em; font-weight:650; }
-.wh-public-gate p { margin:10px 0 0; max-width:440px; color:#a7adba; font-size:15px; line-height:1.65; }
-.wh-public-gate > div > button { margin-top:24px; min-height:48px; width:min(100%,320px); border-radius:12px; background:#7c3aed; color:white; padding:0 22px; font-size:14px; font-weight:650; }
+.wh-public-gate h1 { font-size:20px; line-height:1.2; letter-spacing:-.025em; font-weight:650; }
+.wh-public-gate p { margin:7px 0 0; max-width:390px; color:#949baa; font-size:13px; line-height:1.5; }
+.wh-public-gate > div > button { margin-top:18px; min-height:48px; width:min(100%,390px); border-radius:13px; background:#7c3aed; color:white; padding:0 22px; font-size:14px; font-weight:650; }
 .wh-public-gate button:disabled { opacity:.55; cursor:wait; }
 
-.wh-public-account-links { margin-top:36px; max-width:440px; padding-top:18px; border-top:1px solid rgb(255 255 255 / 8%); display:flex; justify-content:flex-start; flex-wrap:wrap; gap:2px 18px; }
+.wh-public-account-links { margin-top:24px; max-width:390px; padding-top:12px; border-top:1px solid rgb(255 255 255 / 8%); display:flex; justify-content:flex-start; flex-wrap:wrap; gap:2px 18px; }
 .wh-public-account-links button { margin:0; min-width:0; min-height:44px; padding:0 4px; background:transparent; color:#9299aa; font-size:12px; font-weight:500; }
 .wh-public-account-links button:hover,.wh-public-account-links button:focus-visible { color:#c4b5fd; }
