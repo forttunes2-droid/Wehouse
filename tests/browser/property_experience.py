@@ -49,7 +49,8 @@ class Scenario:
    await asyncio.sleep(.6); self.hotel_sent=True; data='hotel-ack'
   elif name=='mark_hotel_booking_messages_read':
    await asyncio.sleep(1); data=True
-  elif name=='create_short_stay_reservation': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000}\n  elif name=='payment-init': data={'success':True,'already_paid':True,'reference':'WHDATE-QA-1','purpose':'apartment_reservation'}
+  elif name=='create_short_stay_reservation': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000}
+  elif name=='payment-init': data={'success':True,'already_paid':True,'reference':'WHDATE-QA-1','purpose':'apartment_reservation'}
   elif name=='get_my_roommate_peer_details': data=PEERS
   elif name=='get_user_conversations': data=CONNECTIONS
   elif name in ['get_my_e2ee_identity','e2ee_identity','e2ee_identities','user_encryption_identities']: data=None
@@ -103,7 +104,8 @@ async def main():
      await expect(page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
      assert await page.evaluate('window.__booking')=='short-reservation-1'
      assert sum(name=='create_short_stay_reservation' for name,_ in scenario.calls)==1
-     assert sum(name=='payment-init' for name,_ in scenario.calls)==1\n     assert not any(name in ['initialize_short_stay_payment','create_short_stay_payment','create_shared_housing_group'] for name,_ in scenario.calls)
+     assert sum(name=='payment-init' for name,_ in scenario.calls)==1
+     assert not any(name in ['initialize_short_stay_payment','create_short_stay_payment','create_shared_housing_group'] for name,_ in scenario.calls)
      # Public guest reads must not invoke personal, reservation or messaging APIs.
      before_guest=len(scenario.calls)
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
