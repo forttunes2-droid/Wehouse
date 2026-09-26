@@ -1,6 +1,7 @@
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
+import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useState } from "react";
 import { getHotels } from "@/lib/supabase";
@@ -60,6 +61,7 @@ export default function HotelsHome({ onNavigate }: Props) {
   const [query, setQuery] = useState(() => hotelFilters.query);
   const [state, setState] = useState(() => hotelFilters.state);
   const [city, setCity] = useState(() => hotelFilters.city);
+  const sponsoredResults = useSponsoredDiscovery('hotel', state, city);
   const [amenities, setAmenities] = useState<string[]>(() => hotelFilters.amenities);
   const [minPrice, setMinPrice] = useState<number | "">(() => hotelFilters.minPrice);
   const [maxPrice, setMaxPrice] = useState<number | "">(() => hotelFilters.maxPrice);
@@ -176,6 +178,14 @@ export default function HotelsHome({ onNavigate }: Props) {
         ),
     [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap, radius],
   );
+  const sponsoredHotels = useMemo(() => sponsoredResults.map(item => ({
+    campaignId: item.campaign_id,
+    entry: filtered.find(({ hotel }) => String(hotel.hotel_id) === item.resource_id),
+  })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
+    [sponsoredResults, filtered]);
+  useEffect(() => {
+    sponsoredHotels.forEach(item => recordSponsoredImpression(item.campaignId, 'hotel_discovery'));
+  }, [sponsoredHotels]);
 
   const priceActive = minPrice !== "" || maxPrice !== "";
   const filterCount =
@@ -302,6 +312,19 @@ export default function HotelsHome({ onNavigate }: Props) {
           onLocation={requestLocation}
           onClearLocation={clearLocation}
         />
+        {sponsoredHotels.length > 0 && <section aria-label="Sponsored hotels" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored hotels</p>
+          <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching hotels. WeHouse checks and organic order are separate.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <div key={campaignId}>
+              <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
+              <HotelCard hotel={hotel} distance={distance} saved={savedHotelIds.has(Number(hotel.hotel_id))}
+                saving={savingHotelId === Number(hotel.hotel_id)}
+                onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
+                onOpen={() => { recordSponsoredOpen(campaignId); onNavigate('hotel_detail', String(hotel.hotel_id)); }} />
+            </div>)}
+          </div>
+        </section>}
 
         <div className="flex items-center justify-between gap-3">
           <div>

@@ -31,6 +31,7 @@ function paymentReferenceFromLocation() {
 
 function destinationForPurpose(purpose: string | undefined, role: string): NavPage {
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
+  if (purpose === 'sponsored_campaign') return role === 'worker' ? 'worker_dashboard' : 'property_partner';
   if (['worker_booking', 'hotel_booking', 'apartment_reservation', 'apartment_rent', 'housing_reservation', 'reservation_fee', 'shared_housing_share', 'rent_plan_contribution'].includes(purpose || '')) return 'my_reservations';
   if (role === 'worker') return 'worker_dashboard';
   if (role === 'property_partner') return 'property_partner';
@@ -41,6 +42,7 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
 }
 
 function successMessage(purpose?: string) {
+  if (purpose === 'sponsored_campaign') return 'Sponsored payment confirmed. Your eligible campaign is now active and can appear in matching discovery results.';
   if (purpose === 'apartment_reservation') return 'Reservation payment confirmed. This property is now held for you and the housing workflow is unlocked.';
   if (purpose === 'apartment_rent') return 'Accommodation payment confirmed. Open your booking for arrival details.';
   if (purpose === 'worker_booking') return 'Service payment confirmed. Your job is now in the protected paid stage and remains attached to the service booking.';
@@ -50,6 +52,7 @@ function successMessage(purpose?: string) {
 }
 
 function successActionLabel(purpose?: string) {
+  if (purpose === 'sponsored_campaign') return 'View my campaigns';
   if (purpose === 'worker_booking') return 'Open service booking';
   if (purpose === 'hotel_booking') return 'Open hotel booking';
   if (purpose === 'apartment_reservation') return 'Open apartment booking';
@@ -59,6 +62,7 @@ function successActionLabel(purpose?: string) {
 }
 
 function paymentHeading(purpose?: string) {
+  if (purpose === 'sponsored_campaign') return 'Sponsored campaign active';
   if (purpose === 'worker_booking') return 'Service payment confirmed';
   if (purpose === 'hotel_booking') return 'Hotel payment confirmed';
   if (purpose === 'apartment_reservation') return 'Reservation payment confirmed';
@@ -87,7 +91,12 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       }
       try { localStorage.removeItem('wh_worker_verification_payment_ref'); } catch {}
       let receipt: PaymentReceipt | undefined;
-      try { receipt = (await getPaymentReceipts(reference))[0]; } catch { /* Keep the verified payment visible while receipt retrieval can retry. */ }
+      try {
+        receipt = (await getPaymentReceipts(reference))[0];
+        if (receipt && result.purpose === 'sponsored_campaign') {
+          receipt = { ...receipt, description: 'Sponsored placement', merchant_name: 'WeHouse' };
+        }
+      } catch { /* Keep the verified payment visible while receipt retrieval can retry. */ }
       if (!cancelled) setState({ kind: 'success', purpose: result.purpose, message: successMessage(result.purpose), receipt });
     })().catch(() => {
       if (!cancelled) setState({ kind: 'error', message: 'We could not check your payment. Please try again; do not pay a second time.' });

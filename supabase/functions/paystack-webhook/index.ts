@@ -386,6 +386,19 @@ Deno.serve(async (req) => {
       return new Response("OK", { status: 200 });
     }
 
+    if (["refund.pending", "refund.processing", "refund.processed", "charge.dispute.create"].includes(event.event)) {
+      const reference = text(event.data?.transaction_reference || event.data?.transaction?.reference || event.data?.reference);
+      if (reference) {
+        const { error } = await db.rpc("pause_sponsored_on_provider_event", {
+          p_reference: reference,
+          p_event_type: event.event,
+          p_environment: environment === "production" ? "live" : "test",
+          p_amount_minor: Number(event.data?.amount ?? 0),
+        });
+        if (error) return new Response("Sponsored provider event processing error", { status: 500 });
+      }
+    }
+
     if (event.event !== "charge.success") {
       return (
         (await recordProLifecycleEvent(db, event, payloadHash, environment)) ||
@@ -457,6 +470,21 @@ Deno.serve(async (req) => {
         "Retired Worker payment recorded for Finance review",
         { status: 200 },
       );
+    }
+
+    if (payment.purpose === "sponsored_campaign") {
+      const { data, error } = await db.rpc("confirm_sponsored_paystack_charge", {
+        p_reference: reference,
+        p_transaction_id: transactionId,
+        p_amount_minor: amountMinor,
+        p_environment: environment === "production" ? "live" : "test",
+        p_source: "webhook",
+      });
+      if (error) return new Response("Sponsored payment processing error", { status: 500 });
+      // A paid campaign without a live slot needs Finance review; acknowledge the
+      // signed charge so Paystack does not retry a correctly recorded payment.
+      return new Response(data?.success ? "OK" : data?.requires_review ? "Review required" : "Activation rejected",
+        { status: data?.success || data?.requires_review ? 200 : 409 });
     }
 
     if (payment.purpose === "worker_pro_subscription") {

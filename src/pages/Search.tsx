@@ -15,6 +15,7 @@ import {
   type HomeStayType,
 } from "@/lib/housing-discovery";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import type { Listing } from "@/types";
 import { toast } from "sonner";
 import {
@@ -84,6 +85,7 @@ export default function Search({
   const [bathrooms, setBathrooms] = useState<number | "">(() => searchState.bathrooms);
   const [filterState, setFilterState] = useState(() => searchState.filterState);
   const [filterCity, setFilterCity] = useState(() => searchState.filterCity);
+  const sponsoredResults = useSponsoredDiscovery('property', filterState, filterCity);
   const [showFilters, setShowFilters] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
@@ -218,6 +220,14 @@ export default function Search({
       distanceMap,
     ],
   );
+  const sponsoredHomes = useMemo(() => sponsoredResults.map(item => ({
+    campaignId: item.campaign_id,
+    entry: filtered.find(({ listing }) => listing.id === item.resource_id),
+  })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
+    [sponsoredResults, filtered]);
+  useEffect(() => {
+    sponsoredHomes.forEach(item => recordSponsoredImpression(item.campaignId, 'home_discovery'));
+  }, [sponsoredHomes]);
 
   const priceActive = priceMin !== "" || priceMax !== "";
   const filterCount =
@@ -337,6 +347,19 @@ export default function Search({
           onClearLocation={clearLocation}
           locationDetail={locationError || undefined}
         />
+        {sponsoredHomes.length > 0 && <section aria-label="Sponsored homes" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored homes</p>
+          <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching homes. WeHouse checks and organic order are separate.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {sponsoredHomes.map(({ campaignId, entry: { listing, distance } }) => <div key={campaignId}>
+              <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
+              <ListingCard listing={listing} distanceKm={distance} compactMobile
+                onClick={() => { recordSponsoredOpen(campaignId); onNavigate('detail', listing.id); }}
+                isSaved={savedIds.has(listing.id)}
+                onToggleSave={event => { event.preventDefault(); event.stopPropagation(); onToggleSave(listing.id); }} />
+            </div>)}
+          </div>
+        </section>}
 
         <div className="flex items-center justify-between gap-3">
           <div>

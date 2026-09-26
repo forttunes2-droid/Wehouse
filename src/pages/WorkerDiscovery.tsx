@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   getCategoryWithSubcategories,
-  getFeaturedWorkers,
   getWorkers,
-  recordFeaturedBookingRequest,
-  recordFeaturedProfileOpen,
   supabase,
 } from "@/lib/supabase";
+import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
@@ -89,7 +87,6 @@ export default function WorkerDiscovery({
   const savedState = profile?.state || "",
     savedCity = profile?.local_government || profile?.city || userCity || "";
   const [workers, setWorkers] = useState<Profile[]>([]),
-    [featuredWorkers, setFeaturedWorkers] = useState<Profile[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
     [statuses, setStatuses] = useState<WorkStatus[]>([]),
     [loading, setLoading] = useState(true),
@@ -115,6 +112,7 @@ export default function WorkerDiscovery({
       conversationId: string;
       bookingId: string;
     } | null>(null);
+  const sponsoredResults = useSponsoredDiscovery('worker', state, city);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -145,32 +143,6 @@ export default function WorkerDiscovery({
       live = false;
     };
   }, []);
-  useEffect(() => {
-    if (!profile?.user_id) {
-      setFeaturedWorkers([]);
-      return;
-    }
-    let activeRequest = true;
-    const timer = window.setTimeout(() => {
-      void getFeaturedWorkers({
-        state: state || undefined,
-        city: city || undefined,
-        query: specialty || category || search || undefined,
-        limit: 6,
-      }).then(({ workers: rows, error }) => {
-        if (!activeRequest) return;
-        if (error) {
-          setFeaturedWorkers([]);
-          return;
-        }
-        setFeaturedWorkers(rows || []);
-      });
-    }, 250);
-    return () => {
-      activeRequest = false;
-      window.clearTimeout(timer);
-    };
-  }, [category, city, profile?.user_id, search, specialty, state]);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -327,9 +299,15 @@ export default function WorkerDiscovery({
     [liveWorkers, search, category, specialty, state, city],
   );
   const visibleFeaturedWorkers = useMemo(
-    () => featuredWorkers.filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city })),
-    [featuredWorkers, search, category, specialty, state, city],
+    () => sponsoredResults.map(item => ({ campaignId: item.campaign_id,
+      worker: liveWorkers.find(worker => worker.user_id === item.resource_id) }))
+      .filter((item): item is { campaignId: string; worker: Profile } =>
+        Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city }))),
+    [sponsoredResults, liveWorkers, search, category, specialty, state, city],
   );
+  useEffect(() => {
+    visibleFeaturedWorkers.forEach(item => recordSponsoredImpression(item.campaignId, 'worker_discovery'));
+  }, [visibleFeaturedWorkers]);
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
   function clear() {
     setSearch("");
@@ -349,18 +327,13 @@ export default function WorkerDiscovery({
     conversationId: string,
     bookingId: string,
   ) {
-    const placementId = bookingWorker?.featured_placement_id;
-    if (placementId) {
-      void recordFeaturedBookingRequest(placementId, bookingId);
-    }
     setBookingWorker(null);
     setActive((current) => new Set(current).add(workerId));
     setChat({ conversationId, bookingId });
   }
   function openWorker(worker: Profile) {
-    if (worker.featured_placement_id) {
-      void recordFeaturedProfileOpen(worker.featured_placement_id);
-    }
+    const campaign = visibleFeaturedWorkers.find(item => item.worker.user_id === worker.user_id);
+    if (campaign) recordSponsoredOpen(campaign.campaignId);
     setViewWorker(worker);
   }
   async function toggleProfileBlock() {
@@ -514,16 +487,16 @@ export default function WorkerDiscovery({
               </p>
             </div>
             <div className="divide-y divide-amber-300/10">
-              {visibleFeaturedWorkers.map((worker) => (
+              {visibleFeaturedWorkers.map(({ worker, campaignId }) => (
                 <WorkerCard
-                  key={worker.featured_placement_id || worker.user_id}
+                  key={campaignId}
                   worker={worker}
                   active={active.has(worker.user_id)}
                   bookable={worker.user_id !== profile?.user_id}
                   sponsored
                   onStatus={() => openWorker(worker)}
                   onProfile={() => openWorker(worker)}
-                  onBook={() => setBookingWorker(worker)}
+                  onBook={() => { recordSponsoredOpen(campaignId); setBookingWorker(worker); }}
                   onOpen={() => onNavigate("my_reservations")}
                 />
               ))}

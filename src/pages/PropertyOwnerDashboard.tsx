@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
+import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
 import PartnerSubmittedRequests, {
@@ -158,7 +159,7 @@ export default function PropertyOwnerDashboard({
               delegatedOnly={delegatedOnly} /> : null}
           </>
         )}
-        {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
+        {!delegatedOnly && tab === "finance" && <><FinanceTab profile={profile} /><div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div></>}
       </WorkspaceFrameV2>
     </>
   );

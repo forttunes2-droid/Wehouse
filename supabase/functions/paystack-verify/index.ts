@@ -165,6 +165,9 @@ serve(async (req) => {
       );
 
     const amountMinor = Number(verified.data.amount);
+    if (verified.data.reference !== reference || !Number.isSafeInteger(amountMinor) || amountMinor <= 0)
+      return new Response(JSON.stringify({ success: false, error: "Provider reference or amount mismatch" }),
+        { status: 400, headers: cors });
     const verifiedAmount = amountMinor / 100;
     const expectedAmount = Number(payment.amount_total ?? payment.amount ?? 0);
     if (Math.round(verifiedAmount * 100) !== Math.round(expectedAmount * 100)) {
@@ -180,6 +183,24 @@ serve(async (req) => {
     }
 
     const transactionId = String(verified.data.id ?? "");
+    if (payment.purpose === "sponsored_campaign") {
+      if (!transactionId || !["test", "live"].includes(String(verified.data.domain)))
+        return new Response(JSON.stringify({ success: false, error: "Provider receipt is incomplete" }),
+          { status: 400, headers: cors });
+      const { data, error } = await admin.rpc("confirm_sponsored_paystack_charge", {
+        p_reference: reference,
+        p_transaction_id: transactionId,
+        p_amount_minor: amountMinor,
+        p_environment: verified.data.domain,
+        p_source: "edge_function",
+      });
+      if (error) return new Response(JSON.stringify({ success: false, error: error.message }),
+        { status: 500, headers: cors });
+      return new Response(JSON.stringify({ success: Boolean(data?.success), verified: true,
+        recorded: true, charged: true, requires_review: Boolean(data?.requires_review),
+        error: data?.error, purpose: payment.purpose, amount: verifiedAmount, result: data }),
+        { status: 200, headers: cors });
+    }
     async function recordPaymentMode() {
       const { error } = await admin.rpc("record_verified_payment_mode", {
         p_reference: reference, p_transaction_id: transactionId,

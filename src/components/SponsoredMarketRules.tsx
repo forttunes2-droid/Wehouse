@@ -17,12 +17,18 @@ type Rule={
   daily_price_ngn:number|string;
   allowed_durations:number[];
 };
+type Campaign={ campaign_id:string; resource_type:ResourceType; status:string;
+  amount_ngn:number; starts_at:string|null; ends_at:string|null;
+  payment_reference:string|null; impressions:number; opens:number };
 
 const resourceLabels:Record<ResourceType,string>={worker:"Service Workers",property:"Homes",hotel:"Hotels"};
 
 export default function SponsoredMarketRules(){
   const{requestElevation}=useCreatorAuth();
   const[rules,setRules]=useState<Rule[]>([]);
+  const[campaigns,setCampaigns]=useState<Campaign[]>([]);
+  const[pauseReason,setPauseReason]=useState("");
+  const[pauseTarget,setPauseTarget]=useState("");
   const[loading,setLoading]=useState(true);
   const[busy,setBusy]=useState(false);
   const[resourceType,setResourceType]=useState<ResourceType>("worker");
@@ -38,7 +44,10 @@ export default function SponsoredMarketRules(){
 
   async function load(){
     setLoading(true);
-    const{data,error}=await supabase.rpc("creator_get_sponsored_market_rules");
+    const[{data,error},activity]=await Promise.all([
+      supabase.rpc("creator_get_sponsored_market_rules"),
+      supabase.rpc("creator_get_sponsored_campaigns"),
+    ]);
     setLoading(false);
     if(error)return toast.error(error.message||"Sponsored controls could not be loaded");
     setRules(Array.isArray(data)?data.map((row:any)=>({
@@ -46,6 +55,7 @@ export default function SponsoredMarketRules(){
       slot_count:Number(row.slot_count||0),
       allowed_durations:Array.isArray(row.allowed_durations)?row.allowed_durations.map(Number):[],
     })):[]);
+    if(!activity.error)setCampaigns((activity.data||[]) as Campaign[]);
   }
   useEffect(()=>{void load()},[]);
 
@@ -81,6 +91,21 @@ export default function SponsoredMarketRules(){
     });
   }
 
+  function pause(campaignId:string){
+    if(pauseReason.trim().length<10)return toast.error("Enter at least 10 characters for the pause reason");
+    requestElevation("policy_publish",elevationId=>{
+      void(async()=>{
+        setBusy(true);
+        const{error}=await supabase.rpc("creator_pause_sponsored_campaign",{
+          p_campaign_id:campaignId,p_reason:pauseReason.trim(),p_creator_elevation_id:elevationId,
+        });
+        setBusy(false);
+        if(error)return toast.error(error.message||"Campaign could not be paused");
+        setPauseReason("");setPauseTarget("");toast.success("Sponsored placement paused");await load();
+      })();
+    });
+  }
+
   return <section>
     <div><h3 className="text-sm font-semibold text-foreground">Sponsored marketplace</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Paid visibility rules shared by Workers, Homes and Hotels. Sponsored never changes verification, reviews, trust or organic ranking.</p></div>
 
@@ -107,7 +132,20 @@ export default function SponsoredMarketRules(){
       </div>}
     </div>
 
-    <p className="mt-4 text-[10px] leading-5 text-muted-foreground">Campaign checkout/activation is intentionally not enabled by this control alone. A draft campaign has no discovery effect until WeHouse verifies its advertising payment.</p>
+    <div className="mt-6">
+      <h4 className="text-xs font-semibold text-foreground">Campaign delivery</h4>
+      <p className="mt-1 text-[10px] text-muted-foreground">Recent campaigns, payment references and unique daily viewer counts. Paused paid campaigns need Finance follow up.</p>
+      {campaigns.length===0?<p className="mt-3 text-xs text-muted-foreground">No campaigns yet.</p>:<div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
+        {campaigns.map(campaign=><div key={campaign.campaign_id} className="rounded-xl border border-border bg-card p-3 text-[10px]">
+          <div className="flex flex-wrap items-center gap-2"><strong>{resourceLabels[campaign.resource_type]}</strong><span>{campaign.status}</span><span>₦{Number(campaign.amount_ngn).toLocaleString("en-NG")}</span></div>
+          <div className="mt-1 text-muted-foreground">{campaign.impressions} daily viewer records · {campaign.opens} opens{campaign.ends_at?` · Ends ${new Date(campaign.ends_at).toLocaleDateString()}`:""}</div>
+          {campaign.payment_reference&&<div className="mt-1 break-all font-mono text-muted-foreground">{campaign.payment_reference}</div>}
+          {campaign.status==="active"&&(pauseTarget===campaign.campaign_id?<div className="mt-2 flex flex-wrap gap-2"><input aria-label="Reason to pause Sponsored campaign" value={pauseReason} onChange={e=>setPauseReason(e.target.value)} placeholder="Reason for pause (10+ characters)" className="h-10 min-w-48 flex-1 rounded-lg border border-border bg-background px-3 text-foreground"/><button disabled={busy||pauseReason.trim().length<10} onClick={()=>pause(campaign.campaign_id)} className="rounded-lg border border-border px-3 font-semibold disabled:opacity-40">Confirm pause</button><button onClick={()=>{setPauseTarget("");setPauseReason("");}} className="px-2">Cancel</button></div>:<button onClick={()=>setPauseTarget(campaign.campaign_id)} className="mt-2 rounded-lg border border-border px-3 py-2 font-semibold">Pause placement</button>)}
+        </div>)}
+      </div>}
+    </div>
+
+    <p className="mt-4 text-[10px] leading-5 text-muted-foreground">Owners see enabled offers in their Worker or Property Partner workspace. The price and allowed durations here control checkout; only a verified payment can activate a campaign. Closing a rule stops new offers and placement delivery.</p>
   </section>;
 }
 

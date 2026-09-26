@@ -8,6 +8,7 @@ import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
 import SupportEntryCard from "@/components/SupportEntryCard";
 import WorkerProPanel from "@/components/WorkerProPanel";
+import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
 import AccountCenter, {
   type WorkspaceAccess,
   type WorkspaceChoice,
@@ -300,6 +301,7 @@ function ServiceProviderPaidToolsAccount({
         error={workerPro.error}
         onRefresh={workerPro.refresh}
       />
+      <SponsoredCampaignPanel types={['worker']} />
     </AccountShell>
   );
 }
