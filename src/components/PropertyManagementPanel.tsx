@@ -89,24 +89,45 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   return <section className="border-y border-white/[.07] py-5">
     <div className="flex items-center justify-between gap-3">
       <div>
-        <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Management</p>
-        <h3 className="mt-1 text-sm font-semibold">{state.management_mode==="host"?"Host managed":"WeHouse managed"}</h3>
+        <h3 className="text-sm font-semibold">Property management</h3>
+        <p className="mt-1 text-[9px] text-[#747A8A]">Choose who runs guest operations for new bookings.</p>
       </div>
       <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${statusLabel==="Active"?"border-emerald-400/15 bg-emerald-400/[.06] text-emerald-300":statusLabel==="Pending"?"border-amber-300/15 bg-amber-300/[.06] text-amber-200":"border-white/[.08] text-[#A0A6B4]"}`}>{statusLabel}</span>
     </div>
 
     {owner?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Who manages this property">
-      <button type="button" disabled={busy} aria-pressed={state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-14 rounded-2xl border px-3 text-left transition disabled:opacity-40 ${state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.08]":"border-white/[.07] bg-white/[.015]"}`}><span className="block text-xs font-semibold">Host</span><span className="mt-0.5 block text-[9px] text-[#737A8B]">You or your manager</span></button>
-      <button type="button" disabled={busy} aria-pressed={state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-14 rounded-2xl border px-3 text-left transition disabled:opacity-40 ${state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.08]":"border-white/[.07] bg-white/[.015]"}`}><span className="block text-xs font-semibold">WeHouse</span><span className="mt-0.5 block text-[9px] text-[#737A8B]">Property Operations</span></button>
+      <button type="button" disabled={busy} aria-pressed={state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">You or an assigned manager</span></button>
+      <button type="button" disabled={busy} aria-pressed={state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">WeHouse manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">Property Operations runs the stay</span></button>
+    </div>:null}
+
+    {state.management_mode==="host"?<div className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 px-3.5 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-[9px] text-[#707787]">Responsible operator</p><p className="mt-0.5 text-xs font-semibold">Host</p></div>
+        <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[8px] font-semibold text-violet-200">Direct control</span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[8px] font-medium text-[#969CAB]">
+        <span className="rounded-lg bg-white/[.025] px-2 py-2">Guest chat</span>
+        <span className="rounded-lg bg-white/[.025] px-2 py-2">Access & arrival</span>
+        <span className="rounded-lg bg-white/[.025] px-2 py-2">Handover</span>
+      </div>
+      <p className="mt-3 text-[8px] leading-4 text-[#646B7B]">WeHouse still handles protected payments, platform support and disputes.</p>
     </div>:null}
 
     {state.management_mode==="wehouse"&&!wehouseActive?<div className="mt-3 rounded-xl border border-amber-300/10 bg-amber-300/[.035] px-3 py-2.5 text-[9px] leading-4 text-[#B9A985]">
-      {state.wehouse_management_status==="requested"?"Operations review is pending. New WeHouse-managed bookings stay unavailable until accepted.":state.wehouse_management_status==="declined"?"WeHouse management was not accepted. Choose Host or contact support.":"Complete the management handoff before taking new bookings."}
+      {state.wehouse_management_status==="requested"?"Property Operations is reviewing this handoff. New WeHouse-managed bookings stay unavailable until accepted.":state.wehouse_management_status==="declined"?"WeHouse management was not accepted. Choose Host manages or contact support.":"Complete the management handoff before taking new bookings."}
     </div>:null}
 
-    {state.management_mode==="wehouse"&&wehouseActive?<div className="mt-4 flex items-center justify-between border-t border-white/[.06] pt-4">
-      <span className="text-[10px] text-[#777E8E]">Operator</span>
-      <span className="text-[10px] font-semibold text-[#D7DAE1]">WeHouse Property Operations</span>
+    {state.management_mode==="wehouse"&&wehouseActive?<div className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 px-3.5 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-[9px] text-[#707787]">Responsible operator</p><p className="mt-0.5 text-xs font-semibold">WeHouse Property Operations</p></div>
+        <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[8px] font-semibold text-violet-200">Managed</span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[8px] font-medium text-[#969CAB]">
+        <span className="rounded-lg bg-white/[.025] px-2 py-2">Guest coordination</span>
+        <span className="rounded-lg bg-white/[.025] px-2 py-2">Access & arrival</span>
+        <span className="rounded-lg bg-white/[.025] px-2 py-2">Handover</span>
+      </div>
+      <p className="mt-3 text-[8px] leading-4 text-[#646B7B]">You keep ownership of the property record while WeHouse runs the operational stay flow.</p>
     </div>:null}
 
     {state.management_mode==="host"?<div className="mt-5">
