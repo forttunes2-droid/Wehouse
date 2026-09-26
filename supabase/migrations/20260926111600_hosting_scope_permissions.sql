@@ -389,7 +389,7 @@ language plpgsql
 stable
 security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
 declare v_actor text:=public.current_profile_user_id(); v_result jsonb;
 begin
   if v_actor is null then raise exception 'Authentication required'; end if;
@@ -429,7 +429,7 @@ begin
 
   return v_result;
 end
-$;
+$$;
 
 create or replace function public.get_my_property_partner_stays(p_listing_id text default null)
 returns jsonb
