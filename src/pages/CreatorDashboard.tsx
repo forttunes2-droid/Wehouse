@@ -13,6 +13,7 @@ import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
 import WorkerCapacityManager from "@/components/WorkerCapacityManager";
+import SponsoredMarketRules from "@/components/SponsoredMarketRules";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import CreatorAuditWorkspace from "@/components/CreatorAuditWorkspace";
 import ServiceBookingOversight from "@/components/ServiceBookingOversight";
