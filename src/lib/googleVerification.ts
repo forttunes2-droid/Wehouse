@@ -1,8 +1,12 @@
+import { isNative } from '@/lib/native';
+import { NATIVE_OAUTH_REDIRECT } from '@/lib/nativeOAuthRedirect';
+
 export type GoogleVerificationContext = "signup" | "password_recovery" | "new_device";
 export type GoogleVerificationRole = "user" | "worker" | "property_partner";
 
 export type GoogleVerificationTransaction = {
   context: GoogleVerificationContext;
+  provider?: "google" | "apple";
   email: string;
   identifier?: string;
   recoveryAttemptId?: string;
@@ -55,6 +59,7 @@ export function readGoogleVerification(): GoogleVerificationTransaction | null {
       if (
         isContext(parsed.context) &&
         typeof parsed.email === "string" &&
+        (parsed.provider === undefined || parsed.provider === "google" || parsed.provider === "apple") &&
         typeof parsed.createdAt === "number" &&
         Date.now() - parsed.createdAt <= maximumAge(parsed.context)
       ) {
@@ -88,7 +93,7 @@ export function googleVerificationReturnContext(): GoogleVerificationContext | n
 }
 
 export function verificationRedirectUrl(context?: GoogleVerificationContext) {
-  const url = new URL("/", window.location.origin);
+  const url = isNative() ? new URL(NATIVE_OAUTH_REDIRECT) : new URL("/", window.location.origin);
   if (context) url.searchParams.set("verify", context);
   return url.toString();
 }

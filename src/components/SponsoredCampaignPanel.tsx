@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { isNative } from '@/lib/native';
+import { isIOS, isNative } from '@/lib/native';
 
 type Resource = { resource_type: 'worker' | 'property' | 'hotel'; resource_id: string; label: string };
 type Offer = { available: boolean; daily_price_ngn?: number; durations?: number[]; slot_count?: number; market?: string };
@@ -9,6 +9,7 @@ type Campaign = { campaign_id: string; resource_type: Resource['resource_type'];
   duration_days: number; amount_ngn: number; starts_at: string | null; ends_at: string | null; pause_reason: string | null };
 
 export default function SponsoredCampaignPanel({ types }: { types: Array<Resource['resource_type']> }) {
+  const native = isNative();
   const [resources, setResources] = useState<Resource[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selected, setSelected] = useState('');
@@ -100,14 +101,16 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
               {(offer.durations || []).map(days => <option key={days} value={days}>{days} days · ₦{(Number(offer.daily_price_ngn) * days).toLocaleString('en-NG')}</option>)}
             </select>
           </label>
-          <label className="flex items-start gap-2 text-xs leading-5 text-[#B8BBC5]">
+          {!native && <label className="flex items-start gap-2 text-xs leading-5 text-[#B8BBC5]">
             <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-amber-300" />
             <span>I understand this is paid, time limited visibility; it does not guarantee views or bookings.</span>
-          </label>
-          <button disabled={!accepted || busy || isNative()} onClick={() => void purchase()}
+          </label>}
+          {native ? <p role="status" className="rounded-xl border border-white/10 p-3 text-xs leading-5 text-[#B8BBC5]">
+            Sponsored purchases are unavailable in this {isIOS() ? 'iOS' : 'Android'} build. Existing campaigns and their delivery remain visible here.
+          </p> : <button disabled={!accepted || busy} onClick={() => void purchase()}
             className="h-11 w-full rounded-xl bg-amber-400 px-4 text-xs font-semibold text-black disabled:opacity-40">
             {busy ? 'Opening secure checkout…' : `Continue to Paystack · ₦${(Number(offer.daily_price_ngn) * duration).toLocaleString('en-NG')}`}
-          </button>
+          </button>}
         </> : <p className="text-xs text-[#A0A5B2]">Sponsored is not open for this resource’s market.</p>}
       </div>}
     {campaigns.length > 0 && <div className="mt-5 border-t border-white/10 pt-4">

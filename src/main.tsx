@@ -7,6 +7,7 @@ import './chat-mobile.css'
 import { Toaster } from 'sonner'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
+import { registerNativeOAuthHandler } from '@/lib/nativeOAuth'
 import NativeSelectBridge from '@/components/NativeSelectBridge'
 import NativeDateBridge from '@/components/NativeDateBridge'
 
@@ -14,6 +15,7 @@ function NativeInit() {
   useEffect(() => { document.documentElement.dataset.whReactMounted = "true"; }, []);
   useEffect(() => {
     if (!isNative()) return;
+    void registerNativeOAuthHandler().catch(() => {});
     import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
       StatusBar.setStyle({ style: Style.Light }).catch(() => {});
       StatusBar.setBackgroundColor({ color: '#0A0A0F' }).catch(() => {});
@@ -81,9 +83,13 @@ function assertBrowserEnvironmentBeforeAppLoad() {
   const configuredUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
   const configuredKey = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
   const host = window.location.hostname.toLowerCase();
-  const productionHost = host === 'wehouse.com.ng' || host === 'www.wehouse.com.ng';
+  const nativeRelease = host === 'localhost' && isNative() && import.meta.env.VITE_WEHOUSE_NATIVE_TARGET === 'production';
+  const productionHost = host === 'wehouse.com.ng' || host === 'www.wehouse.com.ng' || nativeRelease;
   const productionProject = 'rkrhnkhppeihvmuwvsvn.supabase.co';
 
+  if (nativeRelease && (!configuredUrl || !configuredKey)) {
+    throw new Error('A native release requires an explicit Supabase URL and publishable key.');
+  }
   if ((!configuredUrl || !configuredKey) && !(productionHost && !configuredUrl && !configuredKey)) {
     throw new Error('WeHouse configuration is incomplete. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY together for this environment.');
   }

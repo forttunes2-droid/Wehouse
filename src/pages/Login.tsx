@@ -7,6 +7,7 @@ import {
   signUpWithEmail,
   signInWithIdentifier,
   signInWithGoogle,
+  signInWithApple,
   getProfileByAuthId,
   deactivateUserSession,
 } from "@/lib/supabase";
@@ -116,7 +117,7 @@ function friendlyError(raw: string) {
   if (msg.includes("api key") || msg.includes("invalid key"))
     return "Authentication service is not configured correctly.";
   if (msg.includes('provider') && (msg.includes('not enabled') || msg.includes('disabled') || msg.includes('unsupported')))
-    return isTestEnvironment ? 'Google sign-in is not ready on this test preview yet. Use live WeHouse for your existing account.' : 'Google sign-in is temporarily unavailable. Please try again later.';
+    return isTestEnvironment ? 'This sign-in provider is not ready on this test preview yet.' : 'This sign-in provider is temporarily unavailable. Please try again later.';
   if (msg.includes("banned"))
     return "Your account has been permanently banned. Contact WeHouse for assistance.";
   if (msg.includes("suspended"))
@@ -139,7 +140,7 @@ function friendlyError(raw: string) {
   if (msg.includes("same password") || msg.includes("different from the old"))
     return "Choose a new password you have not used for this account.";
   if (msg.includes("session") && (msg.includes("missing") || msg.includes("expired")))
-    return "Your Google confirmation expired. Confirm the account again.";
+    return "Your account confirmation expired. Confirm the account again.";
   if (msg.includes("rate limit") || msg.includes("too many"))
     return "Too many attempts. Wait briefly, then try again.";
   if (msg.includes("expired") || msg.includes("invalid token"))
@@ -212,6 +213,8 @@ export default function Login({
   const [legalError, setLegalError] = useState(false);
   const [legalReload, setLegalReload] = useState(0);
   const legalReady = !legalLoading && !legalError && hasLegalConsent(legalDocuments, legalChoices);
+  // Enable only after the Apple provider and callback URLs are configured in Auth.
+  const appleSignInEnabled = import.meta.env?.VITE_APPLE_SIGN_IN_ENABLED === 'true';
 
   useEffect(() => {
     if (mode !== 'signup') return;
@@ -233,6 +236,26 @@ export default function Login({
     setError("");
     setInfo("");
   }
+
+  useEffect(() => {
+    function returned(event: Event) {
+      const { context, error: callbackError } = (event as CustomEvent<{ context: VerificationContext | null; error: string }>).detail;
+      setWorking(false);
+      if (callbackError) {
+        if (context === "password_recovery") {
+          clearGoogleVerification();
+          setMode("forgot");
+        }
+        setError(friendlyError(callbackError));
+        return;
+      }
+      if (context === "password_recovery") setMode("recover");
+      else if (context === "new_device") setMode("confirm_device");
+      else if (context === "signup") setMode("verify_email");
+    }
+    window.addEventListener('wh-native-oauth-return', returned);
+    return () => window.removeEventListener('wh-native-oauth-return', returned);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -285,6 +308,7 @@ export default function Login({
       setRecoveryReady(false);
       const transaction = readGoogleVerification();
       const attemptId = transaction?.recoveryAttemptId || "";
+      const provider = transaction?.provider === "apple" ? "apple" : "google";
       const expectedIdentifier = transaction?.identifier || transaction?.email || "";
       if (transaction?.context !== "password_recovery" || !attemptId) {
         checking = false;
@@ -303,7 +327,7 @@ export default function Login({
         checking = false;
         if (!alive) return;
         setMode("forgot");
-        setError("Google confirmation took too long. Confirm the account again.");
+        setError("Account confirmation took too long. Confirm the account again.");
         return;
       }
       let { data, error: sessionError } = sessionResult;
@@ -321,7 +345,7 @@ export default function Login({
             checking = false;
             if (!alive) return;
             setMode("forgot");
-            setError("Google confirmation expired. Start recovery again.");
+            setError("Account confirmation expired. Start recovery again.");
             return;
           }
         }
@@ -331,14 +355,14 @@ export default function Login({
         checking = false;
         if (!alive) return;
         setMode("forgot");
-        setError("Google returned without a usable confirmation. Try again.");
+        setError("Your provider returned without a usable confirmation. Try again.");
         return;
       }
 
       const returnedEmail = data.session.user.email?.trim().toLowerCase() || "";
       const { data: result, error: verifyError } = await supabase.rpc(
         "verify_identity_provider_password_recovery",
-        { p_attempt_id: attemptId, p_provider: "google" },
+        { p_attempt_id: attemptId, p_provider: provider },
       );
       checking = false;
       if (!alive) return;
@@ -387,7 +411,7 @@ export default function Login({
       window.history.replaceState({}, "", window.location.pathname);
       setMode("forgot");
       setInfo(
-        "Password recovery uses the Google identity linked to your WeHouse account. No reset link or code is sent.",
+        "Password recovery uses a Google or Apple identity linked to your WeHouse account. No reset link or code is sent.",
       );
     })();
     return () => {
@@ -539,6 +563,21 @@ export default function Login({
     }
   }
 
+  async function handleApple() {
+    if (workingRef.current) return;
+    clearMessages();
+    clearGoogleVerification();
+    sessionStorage.removeItem("wh_login_method");
+    setWorking(true);
+    try {
+      const { error: appleError } = await withTimeout(signInWithApple(), 15000, "Apple sign-in could not open. Please try again.");
+      if (appleError) throw appleError;
+    } catch (cause) {
+      setError(friendlyError(errorMessage(cause, "Apple sign-in could not open")));
+      setWorking(false);
+    }
+  }
+
   async function chooseOriginalGoogleEmail() {
     if (workingRef.current) return;
     const transaction = readGoogleVerification();
@@ -611,7 +650,7 @@ export default function Login({
     clearMessages();
   }
 
-  async function handleForgot(event: React.FormEvent) {
+  async function handleForgot(event: React.SyntheticEvent, provider: "google" | "apple" = "google") {
     event.preventDefault();
     if (workingRef.current) return;
     clearMessages();
@@ -628,7 +667,7 @@ export default function Login({
       if (signOutError) throw new Error("Could not prepare a new confirmation. Please try again.");
       const { data: attemptId, error: beginError } = await supabase.rpc(
         "begin_identity_provider_password_recovery",
-        { p_identifier: clean, p_provider: "google" },
+        { p_identifier: clean, p_provider: provider },
       );
       if (beginError || !attemptId) {
         setError("Password recovery could not start. Try again.");
@@ -636,22 +675,22 @@ export default function Login({
       }
       saveGoogleVerification({
         context: "password_recovery",
+        provider,
         email: isEmail ? clean : "",
         identifier: clean,
         recoveryAttemptId: String(attemptId),
       });
       sessionStorage.removeItem("wh_login_method");
-      const { error: googleError } = await signInWithGoogle(
-        isEmail ? clean : undefined,
-        "password_recovery",
-      );
-      if (googleError) {
+      const { error: providerError } = provider === "apple"
+        ? await signInWithApple("password_recovery")
+        : await signInWithGoogle(isEmail ? clean : undefined, "password_recovery");
+      if (providerError) {
         clearGoogleVerification();
-        setError(friendlyError(googleError.message));
+        setError(friendlyError(providerError.message));
       }
     } catch (recoveryError: unknown) {
       clearGoogleVerification();
-      setError(friendlyError(errorMessage(recoveryError, "Google confirmation could not start")));
+      setError(friendlyError(errorMessage(recoveryError, "Account confirmation could not start")));
     } finally {
       setWorking(false);
     }
@@ -669,7 +708,7 @@ export default function Login({
       const transaction = readGoogleVerification();
       const attemptId = transaction?.recoveryAttemptId || "";
       if (!recoveryReady || !session?.user || !attemptId) {
-        setError("Google confirmation is not ready or has expired. Start recovery again.");
+        setError("Account confirmation is not ready or has expired. Start recovery again.");
         return;
       }
       const { data: recovery, error: recoveryError } = await supabase.functions.invoke(
@@ -776,6 +815,9 @@ export default function Login({
               <GoogleIcon />
               {working ? "Opening Google…" : "Continue with Google"}
             </button>
+            {appleSignInEnabled && <button type="button" onClick={() => void handleApple()} disabled={working} className={`${secondaryAction} mt-3`}>
+              {working ? "Opening Apple…" : "Continue with Apple"}
+            </button>}
             <p className="mt-5 flex flex-wrap items-center justify-center text-sm text-[var(--auth-muted)]">
               New here?
               <button type="button" onClick={() => { setMode("signup"); clearMessages(); }} className={textAction}>Create account</button>
@@ -935,7 +977,7 @@ export default function Login({
             <div className="mb-5">
               <h1 className="text-2xl font-semibold leading-tight tracking-tight">Reset your password</h1>
               <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                Enter your username or email. You’ll confirm with the Google account linked to WeHouse.
+                Enter your username or email. Confirm with an identity provider already linked to WeHouse.
               </p>
             </div>
             <Field label="Username or email">
@@ -958,6 +1000,9 @@ export default function Login({
             >
               <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Confirm with Google"}</span>
             </button>
+            {appleSignInEnabled && <button type="button" onClick={(event) => void handleForgot(event, "apple")} disabled={working || !loginIdentifier.trim()} className={secondaryAction}>
+              {working ? "Opening Apple…" : "Confirm with Apple"}
+            </button>}
             <button type="button" onClick={() => { setMode("signin"); clearMessages(); }} className={`${textAction} w-full`}>
               Back to sign in
             </button>

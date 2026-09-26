@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import * as tus from 'tus-js-client';
+import { Capacitor } from '@capacitor/core';
 import { resolveSupabaseEnvironment } from './environment';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
@@ -13,7 +14,8 @@ const configuredKey = String(
   '',
 ).trim();
 const runtimeHost = typeof window === 'undefined' ? '' : window.location.hostname.toLowerCase();
-const environment = resolveSupabaseEnvironment(runtimeHost, configuredUrl, configuredKey);
+const nativeRelease = import.meta.env.VITE_WEHOUSE_NATIVE_TARGET === 'production' && Capacitor.isNativePlatform();
+const environment = resolveSupabaseEnvironment(runtimeHost, configuredUrl, configuredKey, nativeRelease);
 const SUPABASE_URL = environment.url;
 const SUPABASE_ANON_KEY = environment.key;
 
