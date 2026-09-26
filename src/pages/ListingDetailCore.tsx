@@ -1,6 +1,7 @@
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
+import { sharePropertyExternally } from "@/lib/propertyShare";
 import { displayDate } from "@/lib/displayDate";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useRef, useState } from "react";
@@ -581,7 +582,12 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
 
         {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
         <main className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mb-3 flex justify-end"><button type="button" onClick={() => profile ? setSendPropertyOpen(true) : onRequireAuth?.()} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Send property ↗</button></div>
+          <div className="mb-3 flex justify-end"><button type="button" onClick={() => {
+      if (profile) { setSendPropertyOpen(true); return; }
+      void sharePropertyExternally({ kind: "listing", id: String(listing.id) }, displayTitle)
+        .then(result => { if (result === "copied") toast.success("Property link copied"); })
+        .catch(() => toast.error("This property could not be shared"));
+    }} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 space-y-5">
               <section>
