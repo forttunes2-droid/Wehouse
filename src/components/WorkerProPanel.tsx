@@ -106,7 +106,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-200">Optional paid tools</p>
             <h2 className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">{pro.product_name || 'WeHouse Works'}{pro.active && <GoldTickBadge />}</h2>
-            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for your Service Worker profile. Gold PRO is the worker-only paid membership badge. Identity and professional checks stay separate.</p>
+            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for Service Workers. The gold badge appears only on an active Worker membership; identity and professional review stay separate.</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-lg font-bold">{native ? 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>
