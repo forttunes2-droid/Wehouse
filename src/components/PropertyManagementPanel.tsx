@@ -20,7 +20,7 @@ type ManagementState={
   assignments:Assignment[];
 };
 
-export default function PropertyManagementPanel({listingId,profile,onChanged}:{listingId:string;profile:Profile;onChanged?:()=>void}){
+export default function PropertyManagementPanel({listingId,profile,onChanged,onModeChange}:{listingId:string;profile:Profile;onChanged?:()=>void;onModeChange?:(mode:"host"|"wehouse")=>void}){
   const [state,setState]=useState<ManagementState|null>(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
@@ -44,8 +44,8 @@ export default function PropertyManagementPanel({listingId,profile,onChanged}:{l
     const {data,error}=await supabase.rpc("set_my_property_management_mode",{p_listing_id:listingId,p_mode:mode});
     setBusy(false);
     if(error||!data)return toast.error(error?.message||"Management responsibility could not be changed");
-    setState(data as ManagementState);onChanged?.();
-    toast.success(mode==="host"?"This home is now Host-managed":"WeHouse management requested");
+    setState(data as ManagementState);onModeChange?.(mode);onChanged?.();
+    toast.success(mode==="host"?"You now manage this home":"WeHouse management requested");
   }
   async function invite(){
     const value=username.trim().replace(/^@/,"");
@@ -77,18 +77,18 @@ export default function PropertyManagementPanel({listingId,profile,onChanged}:{l
   if(!state)return null;
   return <section className="border-y border-white/[.07] py-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Management</p><h3 className="mt-1 text-sm font-semibold">{state.management_mode==="host"?"Host-managed":"WeHouse-managed"}</h3><p className="mt-1 max-w-xl text-[10px] leading-5 text-[#808697]">{state.management_mode==="host"?"The responsible Host handles the guest’s arrival, access and booking conversation. WeHouse still controls payment verification, support and disputes.":state.wehouse_management_status==="approved"?"WeHouse Property Operations handles guest arrival and verified access for this home.":state.wehouse_management_status==="requested"?"WeHouse management has been requested and must be accepted before a new booking can use this mode.":"WeHouse management is not currently approved for this home."}</p></div>
+      <div><p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Hosting</p><h3 className="mt-1 text-sm font-semibold">{state.management_mode==="host"?"You manage this home":"WeHouse manages this home"}</h3><p className="mt-1 max-w-xl text-[10px] leading-5 text-[#808697]">{state.management_mode==="host"?"You or your assigned Host runs reservations, guest messages, arrival and handover. WeHouse stays responsible for verification, payment protection and disputes.":state.wehouse_management_status==="approved"?"WeHouse Property Operations runs guest access and handover for this home.":state.wehouse_management_status==="requested"?"Your request for WeHouse management is awaiting acceptance.":"WeHouse management is not active for this home."}</p></div>
       {state.management_mode==="wehouse"?<span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[9px] text-[#9BA1B0]">{state.wehouse_management_status==="approved"?"Accepted":state.wehouse_management_status==="requested"?"Awaiting WeHouse":"Needs attention"}</span>:responsible?<span className="rounded-full border border-violet-400/20 bg-violet-500/[.06] px-2.5 py-1 text-[9px] text-violet-200">{responsible.user_id===profile.user_id?"You are responsible":responsible.name||responsible.username||"Assigned Host"}</span>:null}
     </div>
     {owner?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Property management responsibility">
-      <button type="button" disabled={busy} aria-pressed={state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-12 rounded-xl border px-3 text-left text-xs font-semibold ${state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.08] text-violet-200":"border-white/[.08] text-[#A4A9B6]"}`}>Host-managed<span className="mt-1 block text-[9px] font-normal text-[#73798A]">You or an accepted manager handles arrival.</span></button>
-      <button type="button" disabled={busy} aria-pressed={state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-12 rounded-xl border px-3 text-left text-xs font-semibold ${state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.08] text-violet-200":"border-white/[.08] text-[#A4A9B6]"}`}>WeHouse-managed<span className="mt-1 block text-[9px] font-normal text-[#73798A]">WeHouse accepts operational responsibility.</span></button>
+      <button type="button" disabled={busy} aria-pressed={state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-12 rounded-xl border px-3 text-left text-xs font-semibold ${state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.08] text-violet-200":"border-white/[.08] text-[#A4A9B6]"}`}>Host manages<span className="mt-1 block text-[9px] font-normal text-[#73798A]">Bookings, messages and handover stay with you.</span></button>
+      <button type="button" disabled={busy} aria-pressed={state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-12 rounded-xl border px-3 text-left text-xs font-semibold ${state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.08] text-violet-200":"border-white/[.08] text-[#A4A9B6]"}`}>WeHouse manages<span className="mt-1 block text-[9px] font-normal text-[#73798A]">Property Operations handles guest access and handover.</span></button>
     </div>:null}
 
     {state.management_mode==="host"?<div className="mt-5">
-      <div className="flex items-center justify-between gap-3"><h4 className="text-xs font-semibold">Property hosts</h4><span className="text-[9px] text-[#747A8A]">{active.length} active</span></div>
+      <div className="flex items-center justify-between gap-3"><h4 className="text-xs font-semibold">Hosting team</h4><span className="text-[9px] text-[#747A8A]">{active.length} active</span></div>
       <div className="mt-2 divide-y divide-white/[.06] border-y border-white/[.06]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[#747A8A]">{row.role==="owner"?"Owner":"Manager"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
-      {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Invite another Property Partner</p><div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="WeHouse username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div><p className="mt-2 text-[9px] leading-4 text-[#6D7383]">Invitation gives access only to this property after the manager accepts. Identity verification does not create property authority.</p></div>:null}
+      {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Invite another Property Partner</p><div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="WeHouse username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div><p className="mt-2 text-[9px] leading-4 text-[#6D7383]">Access is limited to this property and starts only after the invitation is accepted.</p></div>:null}
     </div>:null}
   </section>;
 }
