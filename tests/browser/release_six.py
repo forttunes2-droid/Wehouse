@@ -13,14 +13,15 @@ async def main():
     ctx=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     await page.route('**/*',lambda route:route.abort());row={'width':width,'mode':mode,'passed':False}
     try:
-     management={'listing_id':'11111111-1111-4111-8111-111111111111','management_mode':'host','wehouse_management_status':'not_required','management_host_user_id':'owner-a','assignments':[{'assignment_id':'a-owner','user_id':'owner-a','name':'Test Owner','username':'test-owner','role':'owner','status':'active'},{'assignment_id':'a-manager','user_id':'manager-b','name':'Bola Manager','username':'bola-manager','role':'manager','status':'active'}]}
-     controls={'listing_id':'11111111-1111-4111-8111-111111111111','sub_type':'short_let','price':25000,'currency':'NGN','status':'available','availability_status':'available','host_booking_paused':False,'accepting_reservations':True,'min_nights':1,'max_nights':90,'date_blocks':[]}
+     management={'listing_id':'11111111-1111-4111-8111-111111111111','management_mode':'host','management_updated_at':'2026-09-26T06:00:00Z','wehouse_management_status':'not_required','management_host_user_id':'owner-a','assignments':[{'assignment_id':'a-owner','user_id':'owner-a','name':'Test Owner','username':'test-owner','role':'owner','status':'active'},{'assignment_id':'a-manager','user_id':'manager-b','name':'Bola Manager','username':'bola-manager','role':'manager','status':'active'}]}
+     controls={'listing_id':'11111111-1111-4111-8111-111111111111','sub_type':'short_let','can_manage_commercials':True,'price':25000,'currency':'NGN','status':'available','availability_status':'available','host_booking_paused':False,'accepting_reservations':True,'min_nights':1,'max_nights':90,'date_blocks':[]}
      await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>')
      await page.evaluate('x=>window.__releaseSix=x',{'mode':mode,'management':management,'controls':controls,'calls':[]})
      await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
      if mode=='management':
-      await expect(page.get_by_role('heading',name='You manage this home',exact=True)).to_be_visible()
-      await expect(page.get_by_text('You are responsible',exact=True)).to_be_visible()
+      await expect(page.get_by_role('heading',name='Property management',exact=True)).to_be_visible()
+      await expect(page.get_by_role('button',name='Host manages',exact=False)).to_have_attribute('aria-pressed','true')
+      await expect(page.get_by_text('Owner · Responsible Host',exact=True)).to_be_visible()
       await expect(page.get_by_text('Bola Manager',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='WeHouse manages',exact=False)).to_be_visible()
       await expect(page.get_by_text('Hosting controls',exact=True)).to_be_visible()

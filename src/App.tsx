@@ -1052,13 +1052,19 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, openUserDestination, consumePropertyIntent]);
   useEffect(() => {
     if (!isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
+    // A specific shared property takes precedence over the generic sign-in tab.
+    // Otherwise this effect overwrites the property navigation above with Account.
+    if (propertyIntent) {
+      try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
+      return;
+    }
     let destination = "";
     try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
     const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : "";
     if (!route) return;
     try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
     goTo(route as NavPage);
-  }, [isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
+  }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
       [handleSetNavPage],
@@ -1604,4 +1610,3 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     </CreatorAuthProvider>
   );
 }
-

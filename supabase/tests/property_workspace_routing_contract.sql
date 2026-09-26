@@ -110,8 +110,7 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,ci
 ('86666666-1000-4000-8000-000000000002','host-manager@example.invalid','host-continuity-manager','user',true,'Nasarawa','Lafia'),
 ('86666666-1000-4000-8000-000000000003','host-guest@example.invalid','host-continuity-guest','user',true,'Nasarawa','Lafia');
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values
-('host-continuity-owner','property_partner','global','active'),
-('host-continuity-manager','property_partner','global','active');
+('host-continuity-owner','property_partner','global','active');
 insert into public.listings(
   id,listing_id,title,sub_type,state,city,status,availability_status,approved_at,
   management_mode,wehouse_management_status,management_host_user_id
@@ -126,10 +125,12 @@ insert into public.property_host_assignments(
 ('86666666-3000-4000-8000-000000000001','86666666-2000-4000-8000-000000000001','host-continuity-owner','owner','active','host-continuity-owner',now()),
 ('86666666-3000-4000-8000-000000000002','86666666-2000-4000-8000-000000000001','host-continuity-manager','manager','active','host-continuity-owner',now());
 insert into public.reservations(
-  id,listing_id,user_id,status,stay_type,management_mode_snapshot,responsible_host_user_id
+  id,listing_id,user_id,status,stay_type,management_mode_snapshot,responsible_host_user_id,
+  stay_check_in,stay_check_out,stay_nights
 ) values(
   'host-continuity-booking','86666666-2000-4000-8000-000000000001',
-  'host-continuity-guest','reserved','short_let','host','host-continuity-manager'
+  'host-continuity-guest','reserved','short_let','host','host-continuity-manager',
+  current_date+2,current_date+3,1
 );
 insert into public.property_host_conversations(
   conversation_id,reservation_id,guest_user_id,host_user_id,status
