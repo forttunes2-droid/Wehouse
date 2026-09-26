@@ -364,9 +364,9 @@ export default function CreatorBookingMoneyRules() {
       <ShortLetReserveDateRule />
       <RuleSection
         title="Short Let"
-        note="Reserve dates briefly while payment is completed. Cancellation, no-show and refundable deposit rules stay separate."
+        note="Rules for the later stay payment, cancellation, no-show and refundable deposit. The Reserve date fee above is a separate stage."
       >
-        <NumberRule label="Reserve-date hold" suffix="minutes" value={rules.short_let.reservation_hold_minutes} min={5} max={120} onChange={(value) => setShort("reservation_hold_minutes", value)} />
+        <NumberRule label="Stay-payment checkout" suffix="minutes" value={rules.short_let.reservation_hold_minutes} min={5} max={120} onChange={(value) => setShort("reservation_hold_minutes", value)} />
         <NumberRule label="Full-refund cutoff" suffix="hours before check-in" value={rules.short_let.full_refund_hours_before_check_in} min={0} max={720} onChange={(value) => setShort("full_refund_hours_before_check_in", value)} />
         <NumberRule label="Late-cancellation maximum" suffix="night(s)" value={rules.short_let.late_cancel_max_nights} min={0} max={7} step={0.5} onChange={(value) => setShort("late_cancel_max_nights", value)} />
         <NumberRule label="No-show maximum" suffix="night(s)" value={rules.short_let.no_show_max_nights} min={0} max={7} step={0.5} onChange={(value) => setShort("no_show_max_nights", value)} />
