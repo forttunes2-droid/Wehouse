@@ -69,7 +69,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     const {data,error}=await supabase.rpc("revoke_property_host_manager",{p_assignment_id:assignmentId});
     setBusy(false);
     if(error||data!==true)return toast.error(error?.message||"Manager could not be removed");
-    toast.success("Manager access removed");await load();onChanged?.();
+    toast.success("Manager removed. Active Host bookings moved to you.");await load();onChanged?.();
   }
 
   if(loading)return <section className="border-y border-white/[.07] py-5"><p className="text-[10px] text-[#7C8291]">Loading management…</p></section>;
