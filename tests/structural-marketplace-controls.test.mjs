@@ -56,9 +56,12 @@ test('resource invitations use hashed expiring link tokens and canonical Activit
   assert.match(migration, /status<>'pending'/);
   assert.match(migration, /source_type,source_id/);
   assert.match(migration, /'resource_invitation'/);
-  assert.match(activity, /ResourceInvitationAction/);
+  assert.match(activity, /get_my_resource_invitation/);
+  assert.match(activity, /respond_to_resource_invitation/);
   assert.match(action, /respond_to_resource_invitation/);
   assert.match(action, /wehouse:workspace-access-changed/);
+  assert.match(migration, /get_my_resource_invitations/);
+  assert.match(migration, /revoke_resource_invitation/);
 });
 
 test('public property sharing remains view-only and separate from invitation authority', async () => {
@@ -110,4 +113,14 @@ test('new marketplace control UIs use semantic theme tokens', async () => {
     assert.match(source, /text-foreground/);
     assert.match(source, /border-border/);
   }
+});
+
+
+test('marketplace controls have one canonical implementation each', async () => {
+  const creator = await read('src/pages/CreatorDashboard.tsx');
+  assert.match(creator, /WorkerCapacityManager/);
+  assert.match(creator, /SponsoredMarketRules/);
+  assert.doesNotMatch(creator, /CreatorWorkerCapacityControl|CreatorSponsoredControl|CreatorMarketplaceControls/);
+  await assert.rejects(() => read('src/components/CreatorMarketplaceControls.tsx'));
+  await assert.rejects(() => read('supabase/migrations/20260926113000_hosting_workspace_permissions.sql'));
 });
