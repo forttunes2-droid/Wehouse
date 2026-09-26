@@ -36,7 +36,6 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   const mine=useMemo(()=>state?.assignments.find(row=>row.user_id===profile.user_id&&row.status==="active")||null,[profile.user_id,state]);
   const owner=mine?.role==="owner";
   const active=state?.assignments.filter(row=>row.status==="active")||[];
-  const responsible=active.find(row=>row.user_id===state?.management_host_user_id);
 
   async function setMode(mode:"host"|"wehouse"){
     if(!owner||busy||!state||state.management_mode===mode)return;
