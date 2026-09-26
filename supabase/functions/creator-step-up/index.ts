@@ -51,10 +51,10 @@ serve(async (request) => {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const password = String(body?.password || '');
+    const creatorSecret = String(body?.creator_secret || '');
     const otpCode = String(body?.otp_code || '').replace(/\D/g, '');
     const actionClass = String(body?.action_class || 'all_sensitive');
-    if (!password || !allowedActions.has(actionClass)) {
+    if (!creatorSecret || !allowedActions.has(actionClass)) {
       return json({ success: false, error: 'Invalid verification request' }, 400);
     }
 
@@ -69,21 +69,22 @@ serve(async (request) => {
     const sessionId = jwtSessionId(token);
     if (!sessionId) return json({ success: false, error: 'Signed-in session is incomplete' }, 401);
 
-    const verifier = createClient(supabaseUrl, publicKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
-    const { data: passwordSession, error: passwordError } = await verifier.auth.signInWithPassword({
-      email: current.user.email,
-      password,
-    });
-    if (passwordError || passwordSession.user?.id !== current.user.id) {
-      return json({ success: false, error: 'Incorrect account password' }, 200);
+    const { data: secretOk, error: secretError } = await admin.rpc(
+      'verify_creator_security_secret_from_service',
+      { p_auth_user_id: current.user.id, p_secret: creatorSecret },
+    );
+    if (secretError || secretOk !== true) {
+      return json({ success: false, error: 'Creator security confirmation failed' }, 200);
     }
 
+    const verifier = createClient(supabaseUrl, publicKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
     const { data: factorData, error: factorError } = await verifier.auth.mfa.listFactors();
     if (factorError) throw factorError;
     const verifiedFactor = factorData.totp.find((factor) => factor.status === 'verified');
-    let verificationMethod = 'password';
+    let verificationMethod = 'creator_secret';
     if (verifiedFactor) {
       if (!/^\d{6}$/.test(otpCode)) return json({ success: false, needs_mfa: true }, 200);
       const { data: challenge, error: challengeError } = await verifier.auth.mfa.challenge({
@@ -101,7 +102,7 @@ serve(async (request) => {
       if (assuranceError || assurance.currentLevel !== 'aal2') {
         return json({ success: false, error: 'MFA assurance could not be confirmed' }, 403);
       }
-      verificationMethod = 'password_mfa';
+      verificationMethod = 'creator_secret_mfa';
     }
 
     const ipHash = await hashIp(request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '');

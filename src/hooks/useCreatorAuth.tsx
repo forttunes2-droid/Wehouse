@@ -26,7 +26,7 @@ interface CreatorAuthContextType {
     actionClass: CreatorActionClass,
     onSuccess: ElevationCallback,
   ) => void;
-  verifyPassword: (password: string) => Promise<boolean>;
+  verifySecret: (creatorSecret: string) => Promise<boolean>;
   verifyMfa: (code: string) => Promise<boolean>;
   dismissRequest: () => void;
   clearAuth: () => void;
@@ -60,7 +60,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState('');
   const pendingCallbackRef = useRef<ElevationCallback | null>(null);
   const pendingActionRef = useRef<CreatorActionClass>('all_sensitive');
-  const pendingPasswordRef = useRef('');
+  const pendingSecretRef = useRef('');
   const cachedElevationRef = useRef<CachedElevation | null>(null);
 
   const finish = useCallback(
@@ -78,7 +78,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       setShowModal(false);
       setNeedsMfa(false);
       setError('');
-      pendingPasswordRef.current = '';
+      pendingSecretRef.current = '';
       const callback = pendingCallbackRef.current;
       pendingCallbackRef.current = null;
       callback?.(creatorElevationId);
@@ -110,7 +110,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       }
       pendingActionRef.current = actionClass;
       pendingCallbackRef.current = onSuccess;
-      pendingPasswordRef.current = '';
+      pendingSecretRef.current = '';
       setNeedsMfa(false);
       setError('');
       setShowModal(true);
@@ -126,13 +126,13 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
   );
 
   const invokeStepUp = useCallback(
-    async (password: string, otpCode = ''): Promise<boolean> => {
+    async (creatorSecret: string, otpCode = ''): Promise<boolean> => {
       const actionClass = pendingActionRef.current;
       const { data, error: invokeError } = await supabase.functions.invoke(
         'creator-step-up',
         {
           body: {
-            password,
+            creator_secret: creatorSecret,
             otp_code: otpCode,
             action_class: actionClass,
           },
@@ -144,7 +144,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
       if (result.needs_mfa) {
-        pendingPasswordRef.current = password;
+        pendingSecretRef.current = creatorSecret;
         setNeedsMfa(true);
         setError('');
         return false;
@@ -163,14 +163,14 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
     [finish],
   );
 
-  const verifyPassword = useCallback(
-    async (password: string): Promise<boolean> => {
-      if (!password) return false;
+  const verifySecret = useCallback(
+    async (creatorSecret: string): Promise<boolean> => {
+      if (!creatorSecret) return false;
       setIsLoading(true);
       setError('');
       try {
-        pendingPasswordRef.current = password;
-        return await invokeStepUp(password);
+        pendingSecretRef.current = creatorSecret;
+        return await invokeStepUp(creatorSecret);
       } catch {
         setError('Creator confirmation could not be completed. Try again.');
         return false;
@@ -183,10 +183,10 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
 
   const verifyMfa = useCallback(
     async (code: string): Promise<boolean> => {
-      const password = pendingPasswordRef.current;
-      if (!password) {
+      const creatorSecret = pendingSecretRef.current;
+      if (!creatorSecret) {
         setNeedsMfa(false);
-        setError('Confirm your account password again.');
+        setError('Confirm your Creator security password again.');
         return false;
       }
       if (!/^\d{6}$/.test(code.trim())) {
@@ -196,7 +196,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError('');
       try {
-        return await invokeStepUp(password, code.trim());
+        return await invokeStepUp(creatorSecret, code.trim());
       } catch {
         setError('Authenticator verification failed. Try again.');
         return false;
@@ -210,14 +210,14 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
   const dismissRequest = useCallback(() => {
     setShowModal(false);
     setNeedsMfa(false);
-    pendingPasswordRef.current = '';
+    pendingSecretRef.current = '';
     pendingCallbackRef.current = null;
     setError('');
   }, []);
 
   const clearAuth = useCallback(() => {
     cachedElevationRef.current = null;
-    pendingPasswordRef.current = '';
+    pendingSecretRef.current = '';
     pendingCallbackRef.current = null;
     setNeedsMfa(false);
     setShowModal(false);
@@ -229,7 +229,7 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       value={{
         requestAuth,
         requestElevation,
-        verifyPassword,
+        verifySecret,
         verifyMfa,
         dismissRequest,
         clearAuth,
