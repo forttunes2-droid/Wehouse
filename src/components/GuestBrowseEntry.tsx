@@ -5,6 +5,8 @@ import { propertyShareUrl, type SharedProperty } from '@/lib/propertyShare';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import { isTestEnvironment } from '@/lib/supabase/client';
 import PersonalBottomNav, { type PersonalNavPage } from '@/components/PersonalBottomNav';
+import { PublicInvitationPreview } from '@/components/ResourceInvitationAction';
+import { clearInvitationIntent, readInvitationIntent, saveInvitationIntent } from '@/lib/resourceInvitation';
 
 const Search = lazy(() => import('@/pages/Search'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
@@ -19,6 +21,9 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
   const [target, setTarget] = useState<SharedProperty | null>(null);
+  const [invitationToken, setInvitationToken] = useState<string | null>(() => {
+    try { return readInvitationIntent(window.location.href, sessionStorage); } catch { return null; }
+  });
   const back = useRecordScreenBack(() => setTarget(null), active && Boolean(target));
   function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account') {
     if (busy) return;
@@ -47,6 +52,18 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
     {notice && <p role="status" className="mx-auto max-w-7xl px-4 py-2 text-sm">{notice}</p>}
   </> }), [busy, target, notice, onSignIn]);
   if (!active) return <>{children}</>;
+  if (invitationToken) return <PublicInvitationPreview
+    token={invitationToken}
+    onSignIn={() => {
+      try { saveInvitationIntent(invitationToken, sessionStorage); } catch {}
+      onSignIn();
+    }}
+    onClose={() => {
+      try { clearInvitationIntent(sessionStorage); } catch {}
+      setInvitationToken(null);
+      try { history.replaceState(history.state, "", location.pathname + location.search); } catch {}
+    }}
+  />;
   const sectionPage: Record<typeof section, PersonalNavPage> = { explore: 'search', bookings: 'my_reservations', inbox: 'conversation' };
   return <DiscoveryAccessContext.Provider value={access}>
     <div className="wh-public-entry bg-[#090B10] text-white" data-shared-discovery>
