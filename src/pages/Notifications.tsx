@@ -24,7 +24,6 @@ import {
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
 import WeHouseSelect from "@/components/WeHouseSelect";
-import ResourceInvitationAction from "@/components/ResourceInvitationAction";
 
 type Props = {
   profile: Profile;
@@ -97,7 +96,6 @@ function NotificationFeed({
     [error, setError] = useState(""),
     [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [invitationId, setInvitationId] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
   const [invitation,setInvitation]=useState<ResourceInvitation|null>(null);
@@ -250,12 +248,6 @@ function NotificationFeed({
       const {data,error}=await supabase.rpc("get_my_resource_invitation",{p_invitation_id:invitationId});
       if(error||!data)return toast.error(error?.message||"Invitation could not be opened");
       setInvitation(data as ResourceInvitation);
-      return;
-    }
-    if (row.source_type === "resource_invitation" || row.type === "resource_invitation") {
-      const id = String(row.destination_params?.invitation_id || row.source_id || "").replace(/^event:/, "");
-      if (!id) return toast.error("Invitation reference is missing");
-      setInvitationId(id);
       return;
     }
     if (row.type === "work_post_confirmation_requested") {
@@ -525,11 +517,6 @@ function NotificationFeed({
     </div>
   );
 
-  const invitation = invitationId ? <ResourceInvitationAction
-    invitationId={invitationId}
-    onClose={() => setInvitationId(null)}
-    onResolved={() => { setInvitationId(null); void load(true); }}
-  /> : null;
   const confirmation = workPost && (
     <div
       className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white"
