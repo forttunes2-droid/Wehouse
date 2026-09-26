@@ -76,6 +76,17 @@ export default function WorkerWorkspaceModern({
     if (!inboxOpenRequest) return;
     setConversation(null); setTab("inbox");
   }, [inboxOpenRequest]);
+  useEffect(() => {
+    const activated = (event: Event) => {
+      const detail = (event as CustomEvent<{ workerId?: string }>).detail;
+      if (detail?.workerId && detail.workerId !== profile.user_id) return;
+      setConversation(null);
+      setTab("account");
+      setAccountView("paid_tools");
+    };
+    window.addEventListener("wehouse:worker-pro-activated", activated);
+    return () => window.removeEventListener("wehouse:worker-pro-activated", activated);
+  }, [profile.user_id]);
   const safeTab =
     !live &&
     (tab === "jobs" ||
