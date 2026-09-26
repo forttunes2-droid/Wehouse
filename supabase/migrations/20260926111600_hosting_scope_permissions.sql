@@ -361,6 +361,43 @@ begin
 end
 $$;
 
+create or replace function public.get_my_hosting_properties()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path to 'pg_catalog','public'
+as $
+declare v_actor text:=public.current_profile_user_id(); v_result jsonb;
+begin
+  if v_actor is null then raise exception 'Authentication required'; end if;
+
+  select coalesce(jsonb_agg(
+    (to_jsonb(l)-'access_code'-'private_video_url'-'private_video_path')
+      || jsonb_build_object(
+        '_assignment_role','manager',
+        '_assignment_status',a.status,
+        '_access_level',a.access_level,
+        '_can_manage',true,
+        '_is_owner',false
+      )
+    order by l.created_at desc
+  ),'[]'::jsonb)
+  into v_result
+  from public.property_host_assignments a
+  join public.listings l on l.id=a.listing_id
+  where a.user_id=v_actor
+    and a.assignment_role='manager'
+    and a.status='active'
+    and l.deleted_at is null
+    and l.approved_at is not null
+    and l.management_mode='host'
+    and l.status in ('available','unavailable','reserved','occupied','maintenance','closed');
+
+  return v_result;
+end
+$;
+
 create or replace function public.get_my_property_partner_stays(p_listing_id text default null)
 returns jsonb
 language plpgsql
@@ -466,6 +503,7 @@ revoke all on function public.set_my_property_booking_availability(uuid,boolean)
 revoke all on function public.block_my_property_dates(uuid,date,date) from public,anon;
 revoke all on function public.unblock_my_property_dates(uuid) from public,anon;
 revoke all on function public.get_my_managed_properties() from public,anon;
+revoke all on function public.get_my_hosting_properties() from public,anon;
 revoke all on function public.get_my_property_partner_stays(text) from public,anon;
 revoke all on function public.get_my_property_management(uuid) from public,anon;
 
@@ -477,5 +515,6 @@ grant execute on function public.set_my_property_booking_availability(uuid,boole
 grant execute on function public.block_my_property_dates(uuid,date,date) to authenticated,service_role;
 grant execute on function public.unblock_my_property_dates(uuid) to authenticated,service_role;
 grant execute on function public.get_my_managed_properties() to authenticated,service_role;
+grant execute on function public.get_my_hosting_properties() to authenticated,service_role;
 grant execute on function public.get_my_property_partner_stays(text) to authenticated,service_role;
 grant execute on function public.get_my_property_management(uuid) to authenticated,service_role;
