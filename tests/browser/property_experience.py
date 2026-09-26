@@ -49,7 +49,7 @@ class Scenario:
    await asyncio.sleep(.6); self.hotel_sent=True; data='hotel-ack'
   elif name=='mark_hotel_booking_messages_read':
    await asyncio.sleep(1); data=True
-  elif name=='create_short_stay_reservation': data={'id':'short-reservation-1','status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'stay_guests':1,'stay_total_amount':290000}
+  elif name=='create_short_stay_reservation': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000}\n  elif name=='payment-init': data={'success':True,'already_paid':True,'reference':'WHDATE-QA-1','purpose':'apartment_reservation'}
   elif name=='get_my_roommate_peer_details': data=PEERS
   elif name=='get_user_conversations': data=CONNECTIONS
   elif name in ['get_my_e2ee_identity','e2ee_identity','e2ee_identities','user_encryption_identities']: data=None
@@ -89,6 +89,320 @@ async def main():
      assert not any(name=='get_public_listing_detail' and args.get('p_listing_id')=='7' for name,args in scenario.calls)
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
      reserve=page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?
+     await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
+     await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
+     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await page.get_by_label('Check-in',exact=True).fill(TOMORROW)
+     await page.get_by_label('Check-out',exact=True).fill(CHECKOUT)
+     await expect(reserve).to_be_enabled()
+     await expect(page.get_by_text('₦290,000',exact=True)).to_have_count(0)
+     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await expect(page.get_by_text('Stay rent',exact=True)).to_have_count(0)
+     await fits(page); await reserve.scroll_into_view_if_needed(); await page.screenshot(path=str(OUT/f'short-let-reserve-date-{width}.png'))
+     await reserve.click()
+     await expect(page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
+     assert await page.evaluate('window.__booking')=='short-reservation-1'
+     assert sum(name=='create_short_stay_reservation' for name,_ in scenario.calls)==1
+     assert not any(name in ['payment-init','initialize_short_stay_payment','create_shared_housing_group'] for name,_ in scenario.calls)
+     # Public guest reads must not invoke personal, reservation or messaging APIs.
+     before_guest=len(scenario.calls)
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
+     await expect(page.get_by_role('button',name='Explore places first',exact=True)).to_have_count(0)
+     await page.get_by_role('button',name='Hotels',exact=True).click()
+     await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+     await fits(page)
+     await expect(page.locator('img').first).to_be_visible()
+     await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
+     assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
+     await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
+     allowed={'get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary'}
+     assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
+     await page.get_by_role('button',name='Save hotel',exact=True).click()
+     assert await page.evaluate('window.__guestSignIn') is True
+     assert await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')=={'kind':'hotel','id':'7'}
+     assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
+     # Received property is a public typed card, never a financial invitation.
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=received')
+     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+     # Named recipients and unchanged encrypted Inbox gate on the actual sending path.
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
+     await page.get_by_role('button',name=re.compile('^Send property')).click()
+     dialog=page.get_by_role('dialog',name='Send property',exact=True)
+     await expect(dialog).to_be_visible(); await expect(dialog.get_by_role('button',name=re.compile('Ada Example'))).to_be_visible()
+     await expect(dialog.get_by_text('Blocked Example',exact=True)).to_have_count(0)
+     await expect(dialog.get_by_text('Pending Example',exact=True)).to_have_count(0)
+     await fits(page); await page.screenshot(path=str(OUT/f'send-property-connections-{width}.png'))
+     await dialog.get_by_role('button',name=re.compile('Ada Example')).click()
+     assert await page.evaluate('window.__conversation')=='chat-ada'
+     assert await page.evaluate('window.__draftAtOpen')=={'kind':'listing','id':'short-home'}
+     await expect(page.get_by_role('heading',name='Private messages are locked',exact=True)).to_be_visible()
+     assert not any(name in ['send_message','send_roommate_message','create_shared_housing_group'] for name,_ in scenario.calls)
+     # Backend-returned Personal records must not appear in Partner Activity.
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=activity')
+     await expect(page.get_by_text('Partner guest update',exact=True)).to_be_visible()
+     await expect(page.get_by_text('Personal saved search must stay Personal',exact=True)).to_have_count(0)
+     await page.get_by_role('button',name=re.compile('Partner guest update')).click()
+     assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
+     assert not scenario.errors,scenario.errors
+     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity preserved','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','PIN gate preserved and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
+     print('PASS public property experience',width,flush=True)
+    except Exception as error:
+     results.append({'width':width,'passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors}); await page.screenshot(path=str(OUT/f'public-property-failure-{width}.png'),full_page=True); raise
+    finally:
+     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); context,page=await scenario.open(browser,'hotel-chat',390)
+   try:
+    await expect(page.get_by_text('Welcome to Garden Lodge',exact=True)).to_be_visible()
+    initial_reads=scenario.hotel_reads
+    await page.evaluate('window.__rerenderHotel()')
+    await page.wait_for_timeout(200)
+    assert scenario.hotel_reads==initial_reads,'Parent redraw reloaded hotel history'
+    # The dialog's accessible name is the real hotel, not the old generic label.
+    # Keep the visual isolation assertion: every corner must hit this dialog,
+    # whose solid background covers the entire viewport.
+    hotel_dialog=page.get_by_role('dialog',name='Garden Lodge',exact=True)
+    await expect(hotel_dialog).to_be_visible()
+    assert await hotel_dialog.evaluate("""el => {
+      const r=el.getBoundingClientRect(), css=getComputedStyle(el);
+      const points=[[1,1],[innerWidth-2,1],[1,innerHeight-2],[innerWidth-2,innerHeight-2]];
+      return el.parentElement===document.body && r.left<=0 && r.top<=0 &&
+        r.right>=innerWidth && r.bottom>=innerHeight &&
+        css.backgroundColor==='rgb(9, 11, 16)' && css.opacity==='1' &&
+        points.every(([x,y]) => el.contains(document.elementFromPoint(x,y)));
+    }"""), 'Hotel conversation must opaquely cover the viewport'
+    await page.locator('textarea[placeholder="Message"]').fill('I arrive at six')
+    await page.get_by_role('button',name='Send message',exact=True).click()
+    await expect(page.get_by_text('I arrive at six',exact=True)).to_be_visible(timeout=400)
+    await page.locator('textarea[placeholder="Message"]').fill('Keep my next message')
+    await expect(page.get_by_role('button',name='Send message',exact=True)).to_be_enabled(timeout=1600)
+    await expect(page.get_by_text('I arrive at six',exact=True)).to_have_count(1)
+    await expect(page.locator('textarea[placeholder="Message"]')).to_have_value('Keep my next message')
+    await page.screenshot(path=str(OUT/'hotel-ack-without-history-wait.png'))
+    await page.wait_for_timeout(2300)
+    await expect(page.get_by_text('I arrive at six',exact=True)).to_have_count(1)
+    await expect(page.locator('textarea[placeholder="Message"]')).to_have_value('Keep my next message')
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Hotel stable history and acknowledged send','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.delay_account=2; context,page=await scenario.open(browser,'short',390)
+   try:
+    await expect(page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=1500)
+    await expect(page.get_by_role('status',name='Checking your booking status',exact=True)).to_be_visible()
+    await expect(page.get_by_role('button',name='Reserve date',exact=True)).to_have_count(0)
+    await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
+    await expect(page.get_by_role('button',name='Reserve date',exact=True)).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))
+     await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
+     await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
+     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await page.get_by_label('Check-in',exact=True).fill(TOMORROW)
+     await page.get_by_label('Check-out',exact=True).fill(CHECKOUT)
+     await expect(reserve).to_be_enabled()
+     await expect(page.get_by_text('₦290,000',exact=True)).to_have_count(0)
+     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await expect(page.get_by_text('Stay rent',exact=True)).to_have_count(0)
+     await fits(page); await reserve.scroll_into_view_if_needed(); await page.screenshot(path=str(OUT/f'short-let-reserve-date-{width}.png'))
+     await reserve.click()
+     await expect(page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
+     assert await page.evaluate('window.__booking')=='short-reservation-1'
+     assert sum(name=='create_short_stay_reservation' for name,_ in scenario.calls)==1
+     assert not any(name in ['payment-init','initialize_short_stay_payment','create_shared_housing_group'] for name,_ in scenario.calls)
+     # Public guest reads must not invoke personal, reservation or messaging APIs.
+     before_guest=len(scenario.calls)
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
+     await expect(page.get_by_role('button',name='Explore places first',exact=True)).to_have_count(0)
+     await page.get_by_role('button',name='Hotels',exact=True).click()
+     await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+     await fits(page)
+     await expect(page.locator('img').first).to_be_visible()
+     await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
+     assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
+     await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
+     allowed={'get_discoverable_listings','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary'}
+     assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
+     await page.get_by_role('button',name='Save hotel',exact=True).click()
+     assert await page.evaluate('window.__guestSignIn') is True
+     assert await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')=={'kind':'hotel','id':'7'}
+     assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
+     # Received property is a public typed card, never a financial invitation.
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=received')
+     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+     # Named recipients and unchanged encrypted Inbox gate on the actual sending path.
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
+     await page.get_by_role('button',name=re.compile('^Send property')).click()
+     dialog=page.get_by_role('dialog',name='Send property',exact=True)
+     await expect(dialog).to_be_visible(); await expect(dialog.get_by_role('button',name=re.compile('Ada Example'))).to_be_visible()
+     await expect(dialog.get_by_text('Blocked Example',exact=True)).to_have_count(0)
+     await expect(dialog.get_by_text('Pending Example',exact=True)).to_have_count(0)
+     await fits(page); await page.screenshot(path=str(OUT/f'send-property-connections-{width}.png'))
+     await dialog.get_by_role('button',name=re.compile('Ada Example')).click()
+     assert await page.evaluate('window.__conversation')=='chat-ada'
+     assert await page.evaluate('window.__draftAtOpen')=={'kind':'listing','id':'short-home'}
+     await expect(page.get_by_role('heading',name='Private messages are locked',exact=True)).to_be_visible()
+     assert not any(name in ['send_message','send_roommate_message','create_shared_housing_group'] for name,_ in scenario.calls)
+     # Backend-returned Personal records must not appear in Partner Activity.
+     await page.goto(BASE+'/tests/browser/property-experience.html?mode=activity')
+     await expect(page.get_by_text('Partner guest update',exact=True)).to_be_visible()
+     await expect(page.get_by_text('Personal saved search must stay Personal',exact=True)).to_have_count(0)
+     await page.get_by_role('button',name=re.compile('Partner guest update')).click()
+     assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
+     assert not scenario.errors,scenario.errors
+     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity preserved','Short Let no price without dates','Reserve date opens existing booking without payment','Received property typed public card','Named accepted connections only','PIN gate preserved and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
+     print('PASS public property experience',width,flush=True)
+    except Exception as error:
+     results.append({'width':width,'passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors}); await page.screenshot(path=str(OUT/f'public-property-failure-{width}.png'),full_page=True); raise
+    finally:
+     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); context,page=await scenario.open(browser,'hotel-chat',390)
+   try:
+    await expect(page.get_by_text('Welcome to Garden Lodge',exact=True)).to_be_visible()
+    initial_reads=scenario.hotel_reads
+    await page.evaluate('window.__rerenderHotel()')
+    await page.wait_for_timeout(200)
+    assert scenario.hotel_reads==initial_reads,'Parent redraw reloaded hotel history'
+    # The dialog's accessible name is the real hotel, not the old generic label.
+    # Keep the visual isolation assertion: every corner must hit this dialog,
+    # whose solid background covers the entire viewport.
+    hotel_dialog=page.get_by_role('dialog',name='Garden Lodge',exact=True)
+    await expect(hotel_dialog).to_be_visible()
+    assert await hotel_dialog.evaluate("""el => {
+      const r=el.getBoundingClientRect(), css=getComputedStyle(el);
+      const points=[[1,1],[innerWidth-2,1],[1,innerHeight-2],[innerWidth-2,innerHeight-2]];
+      return el.parentElement===document.body && r.left<=0 && r.top<=0 &&
+        r.right>=innerWidth && r.bottom>=innerHeight &&
+        css.backgroundColor==='rgb(9, 11, 16)' && css.opacity==='1' &&
+        points.every(([x,y]) => el.contains(document.elementFromPoint(x,y)));
+    }"""), 'Hotel conversation must opaquely cover the viewport'
+    await page.locator('textarea[placeholder="Message"]').fill('I arrive at six')
+    await page.get_by_role('button',name='Send message',exact=True).click()
+    await expect(page.get_by_text('I arrive at six',exact=True)).to_be_visible(timeout=400)
+    await page.locator('textarea[placeholder="Message"]').fill('Keep my next message')
+    await expect(page.get_by_role('button',name='Send message',exact=True)).to_be_enabled(timeout=1600)
+    await expect(page.get_by_text('I arrive at six',exact=True)).to_have_count(1)
+    await expect(page.locator('textarea[placeholder="Message"]')).to_have_value('Keep my next message')
+    await page.screenshot(path=str(OUT/'hotel-ack-without-history-wait.png'))
+    await page.wait_for_timeout(2300)
+    await expect(page.get_by_text('I arrive at six',exact=True)).to_have_count(1)
+    await expect(page.locator('textarea[placeholder="Message"]')).to_have_value('Keep my next message')
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Hotel stable history and acknowledged send','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.delay_account=2; context,page=await scenario.open(browser,'short',390)
+   try:
+    await expect(page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=1500)
+    await expect(page.get_by_role('status',name='Checking your booking status',exact=True)).to_be_visible()
+    await expect(page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?).to_have_count(0)
+    await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
+    await expect(page.get_by_role('button',name='Reserve date',exact=True)).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_have_count(0)
+    await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
+    await expect(page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
      await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
      await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
@@ -353,6 +667,135 @@ asyncio.run(main())
 ))).to_have_count(0)
     await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
     await expect(page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_have_count(0)
+    await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
+    await expect(page.get_by_role('button',name='Reserve date',exact=True)).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_have_count(0)
+    await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
+    await expect(page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_be_visible(timeout=5000)
+    assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Public property before account check','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); scenario.fail_saved=True; context,page=await scenario.open(browser,'saved',390)
+   try:
+    # PostgREST retries an idempotent GET on 503. The UI's 15-second request
+    # deadline, not Playwright's default five seconds, is the acceptance limit.
+    await expect(page.get_by_role('alert')).to_contain_text('have not been removed',timeout=20000)
+    await expect(page.get_by_text('No saved places yet',exact=True)).to_have_count(0)
+    assert any(name=='saved_hotels' for name,_ in scenario.calls)
+    await page.screenshot(path=str(OUT/'saved-unavailable-not-empty.png'))
+    scenario.fail_saved=False; await page.get_by_role('button',name='Try again',exact=True).click()
+    await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Saved 503 and recovery','passed':True,'checks':['bounded retry state, not false empty','explicit retry restores saved hotel'],'page_errors':scenario.errors})
+   except Exception as error:
+    results.append({'case':'Saved 503 and recovery','passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors})
+    await page.screenshot(path=str(OUT/'saved-retry-failure.png'),full_page=True); raise
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+  finally: await browser.close()
+asyncio.run(main())
+))).to_be_visible(timeout=5000)
     assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
     assert not scenario.errors,scenario.errors
     results.append({'case':'Public property before account check','passed':True})
