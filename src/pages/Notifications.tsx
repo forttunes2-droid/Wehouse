@@ -23,7 +23,6 @@ import {
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
-import HotelTeamInvitations from "@/components/HotelTeamInvitations";
 import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
@@ -360,7 +359,6 @@ function NotificationFeed({
   }, [onUnreadChange, unread]);
   const content = (
     <main className={embedded ? "py-1" : "mx-auto max-w-4xl px-4 py-5"}>
-      {scope === "personal" && <HotelTeamInvitations />}
       {loading ? (
         <ActivityLoading />
       ) : error && rows.length === 0 ? (
