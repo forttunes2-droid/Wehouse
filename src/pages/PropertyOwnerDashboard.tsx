@@ -31,11 +31,12 @@ type Props = {
   onNavigate: (page: string, id?: string) => void;
   onGoToChat?: (convId?: string) => void;
   onWorkspaceSwitch?: () => void;
+  delegatedOnly?: boolean;
 };
 const money = (value: number) =>
   `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
+const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {
     key: "properties",
     label: "Properties",
@@ -52,13 +53,19 @@ const TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
     description: "Your wallet, earnings and withdrawals",
   },
 ];
+const HOSTING_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
+  { key: "properties", label: "Homes", description: "Host the homes assigned to you" },
+  { key: "communication", label: "Inbox", description: "Guest conversations and hosting activity" },
+];
 export default function PropertyOwnerDashboard({
   profile,
   onLogout,
   onNavigate,
   inboxOpenRequest = 0,
+  delegatedOnly = false,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
+  const tabs = delegatedOnly ? HOSTING_TABS : OWNER_TABS;
   const [propertyTargetId, setPropertyTargetId] = useState<
     string | undefined
   >();
@@ -71,7 +78,7 @@ export default function PropertyOwnerDashboard({
     setPropertyTargetId(undefined); setPropertyReservationId(undefined);
     setReturnToActivity(false); setNestedPropertyView(false); setTab("communication");
   }, [inboxOpenRequest]);
-  const current = useMemo(() => TABS.find((item) => item.key === tab)!, [tab]);
+  const current = useMemo(() => tabs.find((item) => item.key === tab) || tabs[0], [tab, tabs]);
   async function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (route === "hotel_booking" && id) {
@@ -106,9 +113,9 @@ export default function PropertyOwnerDashboard({
     <>
 
       <WorkspaceFrameV2
-        label="WEHOUSE · PROPERTY PARTNER"
+        label={delegatedOnly ? "WEHOUSE · HOSTING" : "WEHOUSE · PROPERTY PARTNER"}
         title={current.label}
-        items={TABS.map((item) => ({
+        items={tabs.map((item) => ({
           id: item.key,
           label: item.label,
           badge:
@@ -131,6 +138,7 @@ export default function PropertyOwnerDashboard({
             onNestedChange={setNestedPropertyView}
             onTargetClose={closeActivityRecord}
             onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }}
+            delegatedOnly={delegatedOnly}
           />
         )}{" "}
         {tab === "communication" && (
@@ -142,10 +150,11 @@ export default function PropertyOwnerDashboard({
             {propertyTargetId ? <PropertiesWorkspace key={propertyTargetId + (propertyReservationId || "")}
               profile={profile} initialRecordId={propertyTargetId} initialReservationId={propertyReservationId}
               onTargetClose={closeActivityRecord}
-              onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }} /> : null}
+              onOpenInbox={() => { setPropertyTargetId(undefined); setPropertyReservationId(undefined); setReturnToActivity(false); setTab("communication"); }}
+              delegatedOnly={delegatedOnly} /> : null}
           </>
         )}
-        {tab === "finance" && <FinanceTab profile={profile} />}
+        {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
       </WorkspaceFrameV2>
     </>
   );
@@ -157,6 +166,7 @@ function PropertiesWorkspace({
   onNestedChange,
   onTargetClose,
   onOpenInbox,
+  delegatedOnly = false,
 }: {
   profile: Profile;
   initialRecordId?: string;
@@ -164,19 +174,20 @@ function PropertiesWorkspace({
   onNestedChange?: (nested: boolean) => void;
   onTargetClose?: () => void;
   onOpenInbox?: () => void;
+  delegatedOnly?: boolean;
 }) {
   const [publishedTarget, setPublishedTarget] = useState<string>();
   const recordTarget = publishedTarget || initialRecordId;
-  const [filter, setFilter] = useState<SubmissionFilter>("all");
+  const [filter, setFilter] = useState<SubmissionFilter>(delegatedOnly ? "public" : "all");
   const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
-    if (initialRecordId?.startsWith("hotel:")) {
+    if (!delegatedOnly && initialRecordId?.startsWith("hotel:")) {
       setAssetKind("hotel");
       setFilter("public");
     }
-  }, [initialRecordId]);
+  }, [delegatedOnly, initialRecordId]);
   useEffect(() => {
     if (!initialReservationId && !initialRecordId?.startsWith("listing:")) return;
     setAssetKind(initialRecordId?.startsWith("hotel:") ? "hotel" : "apartment");
@@ -194,7 +205,7 @@ function PropertiesWorkspace({
   ];
   return (
     <div className="space-y-5">
-      {!viewingDetail && !creating && (
+      {!delegatedOnly && !viewingDetail && !creating && (
         <div className="border-b border-white/[.06] pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -210,11 +221,11 @@ function PropertiesWorkspace({
           </div>
         </div>
       )}
-      {assetKind === "apartment" && !viewingDetail && !creating ? <PropertyHostInvitations profile={profile} /> : null}
-      {filter === "public" || publishedTarget ? (
+      {!delegatedOnly && assetKind === "apartment" && !viewingDetail && !creating ? <PropertyHostInvitations profile={profile} /> : null}
+      {delegatedOnly || filter === "public" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
-          assetKind={recordTarget?.startsWith("hotel:") ? "hotel" : recordTarget?.startsWith("listing:") ? "apartment" : assetKind}
+          assetKind={delegatedOnly ? "apartment" : recordTarget?.startsWith("hotel:") ? "hotel" : recordTarget?.startsWith("listing:") ? "apartment" : assetKind}
           initialRecordId={recordTarget}
           initialReservationId={initialReservationId}
           onTargetClose={() => { setPublishedTarget(undefined); onTargetClose?.(); }}
@@ -544,7 +555,7 @@ export function PropertyDetails({
         </div>
       </section>
       <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
-      {hostManaged?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
+      {hostManaged&&property._can_control_commercials?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
