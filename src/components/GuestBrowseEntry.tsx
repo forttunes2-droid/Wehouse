@@ -17,7 +17,7 @@ type Props = { active: boolean; busy?: boolean; onSignIn: () => void; onOpenLega
  * SAME components as the authenticated routes. No fake Profile or private reads. */
 export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpenLegal, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
-  const [section, setSection] = useState<'explore' | 'bookings' | 'inbox' | 'account'>('explore');
+  const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
   const [target, setTarget] = useState<SharedProperty | null>(null);
   const back = useRecordScreenBack(() => setTarget(null), active && Boolean(target));
   function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account') {
@@ -47,8 +47,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
     {notice && <p role="status" className="mx-auto max-w-7xl px-4 py-2 text-sm">{notice}</p>}
   </> }), [busy, target, notice, onSignIn]);
   if (!active) return <>{children}</>;
-  const sectionPage: Record<typeof section, PersonalNavPage> = { explore: 'search', bookings: 'my_reservations', inbox: 'conversation', account: 'profile' };
-  const pageSection: Record<PersonalNavPage, typeof section> = { search: 'explore', my_reservations: 'bookings', conversation: 'inbox', profile: 'account' };
+  const sectionPage: Record<typeof section, PersonalNavPage> = { explore: 'search', bookings: 'my_reservations', inbox: 'conversation' };
   return <DiscoveryAccessContext.Provider value={access}>
     <div className="wh-public-entry bg-[#090B10] text-white" data-shared-discovery>
       {section === 'explore' ? <Suspense fallback={<div role="status" className="mx-auto max-w-7xl p-5 text-sm text-[#A7ADBA]">Loading places…</div>}>
@@ -59,28 +58,28 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
       </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
       <PersonalBottomNav
         activePage={sectionPage[section]}
-        onNavigate={(page) => { setSection(pageSection[page]); setTarget(null); }}
+        onNavigate={(page) => {
+          if (page === 'profile') { requireSignIn(null, 'account'); return; }
+          const next = page === 'search' ? 'explore' : page === 'my_reservations' ? 'bookings' : 'inbox';
+          setSection(next);
+          setTarget(null);
+        }}
         signedOut
       />
     </div>
   </DiscoveryAccessContext.Provider>;
 }
 
-function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: 'bookings' | 'inbox' | 'account'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
+function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
   const content = {
     bookings: { title: 'Bookings', text: 'Sign in to view and manage your bookings.' },
     inbox: { title: 'Inbox', text: 'Sign in to read your messages and updates.' },
-    account: { title: 'Sign in to WeHouse', text: 'Manage bookings, messages and saved homes.' },
   }[section];
   return <main className="wh-public-gate" aria-labelledby={`guest-${section}-title`}>
     <div>
       <h1 id={`guest-${section}-title`}>{content.title}</h1>
       <p>{content.text}</p>
       <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-      {section === 'account' ? <div className="wh-public-account-links" aria-label="Account information">
-        <button type="button" onClick={() => onOpenLegal('terms_of_service')}>Terms of Service</button>
-        <button type="button" onClick={() => onOpenLegal('privacy_policy')}>Privacy Policy</button>
-      </div> : null}
     </div>
   </main>;
 }
