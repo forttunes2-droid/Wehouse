@@ -1,5 +1,7 @@
 name: Experience browser check
 on:
+  push:
+    branches: [codex/validate-structural-marketplace-controls-20260926]
   pull_request:
     branches: [main]
 permissions:
