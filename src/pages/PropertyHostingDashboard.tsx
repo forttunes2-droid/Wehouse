@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
-import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
+import { ListingMediaImage } from "@/components/ListingCandidateMedia";
 import PropertyHostBookingChat from "@/components/PropertyHostBookingChat";
 import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
 import { PropertyDetails } from "@/pages/PropertyOwnerDashboard";
@@ -92,7 +92,7 @@ function HostingProperties({profile,onOpen}:{profile:Profile;onOpen:(property:an
   return <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
     {rows.map(property=><button key={property.id} type="button" onClick={()=>onOpen(property)} className="flex w-full items-center gap-3 py-4 text-left active:bg-white/[.02]">
       <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171A22]">
-        {property.images?.[0]?<PropertyMediaCarousel images={[property.images[0]]} title={property.title||"Property"}/>:null}
+        {property.images?.[0]?<ListingMediaImage reference={property.images[0]} alt={property.title||"Property"} className="h-full w-full object-cover"/>:<span className="grid h-full place-items-center text-[9px] text-muted-foreground">No image</span>}
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{property.title||"Property"}</p>
