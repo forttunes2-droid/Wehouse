@@ -31,8 +31,9 @@ test('Signed-out Personal uses Sign in instead of a fake Account destination', a
   assert.match(nav, /signedOut/);
   assert.match(nav, /'Sign in'/);
   assert.match(guest, /signedOut/);
-  assert.match(guest, /account: \{ title: 'Sign in to WeHouse'/);
+  assert.match(guest, /requireSignIn\(null, 'account'\)/);
   assert.doesNotMatch(guest, /title: 'Your account'/);
+  assert.doesNotMatch(guest, /title: 'Sign in to WeHouse'/);
 });
 
 test('Property management is property-scoped and booking responsibility is snapshotted', async () => {
