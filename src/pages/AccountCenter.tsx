@@ -254,7 +254,7 @@ export default function AccountCenter({
       window.location.replace(`${window.location.origin}/#login`);
     } catch {
       setSigningOut(false);
-      toast.error("Could not log out. Check your connection and try again.");
+      toast.error("Could not sign out. Check your connection and try again.");
     }
   }
 
@@ -581,16 +581,12 @@ export default function AccountCenter({
       <button
         onClick={() => void logout()}
         disabled={signingOut}
-        className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06] disabled:opacity-50"
+        className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-red-500/15 bg-red-500/[.04] px-4 text-left transition hover:bg-red-500/[.07] disabled:opacity-50"
       >
-        <p className="text-[12px] font-semibold text-red-300">
-          {signingOut ? "Logging out…" : "Log out"}
-        </p>
-        <p className="mt-1 text-[9px] text-red-300/60">
-          {signingOut
-            ? "Closing this session securely"
-            : "Sign out of this device"}
-        </p>
+        <span className="text-[12px] font-semibold text-red-300">
+          {signingOut ? "Signing out…" : "Sign out"}
+        </span>
+        <span aria-hidden="true" className="text-sm text-red-300/55">↗</span>
       </button>
     </AccountShell>
   );
