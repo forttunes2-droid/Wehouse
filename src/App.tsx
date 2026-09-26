@@ -94,6 +94,7 @@ const HotelBooking = lazy(() => import("@/pages/HotelBooking"));
 const PropertyPartnerDashboard = lazy(
   () => import("@/pages/PropertyPartnerDashboard"),
 );
+const HostingDashboard = lazy(() => import("@/pages/HostingDashboard"));
 const HotelTeamDashboard = lazy(() => import("@/pages/HotelTeamDashboard"));
 const PropertyHostingDashboard = lazy(() => import("@/pages/PropertyHostingDashboard"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
@@ -1195,6 +1196,18 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           onSwitchWorkspace={switchWorkspace}
         />
       );
+    if (isHostingRole)
+      return (
+        <HostingDashboard
+          inboxOpenRequest={inboxOpenRequest}
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
+        />
+      );
     if (isHotelTeamRole)
       return (
         <HotelTeamDashboard
@@ -1494,7 +1507,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       !conversationOpen &&
       !nestedScreen &&
       !hide.includes(navPage),
-    supportRole = ["user", "worker", "property_partner", "hotel_staff"].includes(
+    supportRole = ["user", "worker", "property_partner", "hosting", "hotel_staff"].includes(
       profile?.role || "",
     );
   return (
