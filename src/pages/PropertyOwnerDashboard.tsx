@@ -426,8 +426,13 @@ function PropertyDetails({
   const [loadingStays, setLoadingStays] = useState(true);
   const [stayRefresh,setStayRefresh]=useState(0);
   const [managementMode,setManagementMode]=useState<"host"|"wehouse">(property.management_mode==="host"?"host":"wehouse");
-  const hostManaged=managementMode==="host";
-  useEffect(()=>setManagementMode(property.management_mode==="host"?"host":"wehouse"),[property.id,property.management_mode]);
+  const [managementConfigured,setManagementConfigured]=useState(Boolean(property.management_updated_at));
+  const hostManaged=managementConfigured&&managementMode==="host";
+  const wehouseManaged=managementConfigured&&managementMode==="wehouse";
+  useEffect(()=>{
+    setManagementMode(property.management_mode==="host"?"host":"wehouse");
+    setManagementConfigured(Boolean(property.management_updated_at));
+  },[property.id,property.management_mode,property.management_updated_at]);
   const orderedStays = useMemo(() => {
     if (!initialReservationId) return stays;
     return [...stays].sort((a, b) =>
@@ -525,7 +530,7 @@ function PropertyDetails({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">Published home status</p>
-                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property,hostManaged)}</p>
+                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property,hostManaged,managementConfigured)}</p>
               </div>
               <Status value={property.availability_status || property.status || "available"} />
             </div>
@@ -538,14 +543,14 @@ function PropertyDetails({
           </button>
         </div>
       </section>
-      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={setManagementMode} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
       {hostManaged?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">{hostManaged?"Host operations":"Property operations"}</p>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">{!managementConfigured?"Operations":hostManaged?"Host operations":"Property operations"}</p>
             <h2 className="mt-1 text-sm font-bold">Reservations</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">{hostManaged?"Responsible Host operates these reservations.":"WeHouse Property Operations operates these reservations."}</p>
+            <p className="mt-1 text-[9px] text-[#707687]">{!managementConfigured?"Choose who manages this live home before new bookings.":hostManaged?"Responsible Host operates these reservations.":wehouseManaged?"WeHouse Property Operations operates these reservations.":""}</p>
           </div>
           <div className="flex items-center gap-3">
             {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-10 px-1 text-[10px] font-semibold text-violet-300">Messages</button>:null}
@@ -566,11 +571,13 @@ function PropertyDetails({
                 ? hostManaged
                   ? "The booking is secured. The guest journey and next host action will appear here."
                   : "A customer has secured the home. Property Operations is handling the next step."
-                : hostManaged
-                  ? "New bookings appear here. Guest conversations are available from Inbox."
-                  : property.sub_type === "short_let"
-                    ? "A stay appears after the guest completes payment."
-                    : "WeHouse will update this page after rent is confirmed."}
+                : !managementConfigured
+                  ? "Choose Host manages or WeHouse manages above before accepting new bookings."
+                  : hostManaged
+                    ? "New bookings appear here. Guest conversations are available from Inbox."
+                    : property.sub_type === "short_let"
+                      ? "A stay appears after the guest completes payment."
+                      : "WeHouse will update this page after rent is confirmed."}
             </p>
           </div>
         ) : (
@@ -731,7 +738,7 @@ function partnerDate(value?: string | null) {
 function partnerDateTime(value?: string | null) {
   return value ? new Date(value).toLocaleString() : "Not chosen";
 }
-function partnerPropertyStateMessage(property: any, hostManaged = false) {
+function partnerPropertyStateMessage(property: any, hostManaged = false, managementConfigured = true) {
   const state = String(property.availability_status || property.status || "available");
   if (state === "reserved")
     return hostManaged
@@ -745,6 +752,8 @@ function partnerPropertyStateMessage(property: any, hostManaged = false) {
     return "This home is temporarily unavailable.";
   if (state === "closed")
     return "This home is not available in discovery.";
+  if (!managementConfigured)
+    return "Published. Choose who manages new bookings.";
   return hostManaged
     ? "Published and ready to receive reservations."
     : "Published and available for a new reservation.";
