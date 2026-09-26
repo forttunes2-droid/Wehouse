@@ -545,7 +545,7 @@ function PropertyDetails({
           <div>
             <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">{hostManaged?"Host operations":"Property operations"}</p>
             <h2 className="mt-1 text-sm font-bold">Reservations</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">{hostManaged?"Manage the guest journey here; messages stay in Inbox.":property.sub_type==="short_let"?"WeHouse handles arrival and access for these stays.":"WeHouse handles the verified move-in and handover."}</p>
+            <p className="mt-1 text-[9px] text-[#707687]">{hostManaged?"Responsible Host operates these reservations.":"WeHouse Property Operations operates these reservations."}</p>
           </div>
           <div className="flex items-center gap-3">
             {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-10 px-1 text-[10px] font-semibold text-violet-300">Messages</button>:null}
@@ -751,29 +751,30 @@ function partnerPropertyStateMessage(property: any, hostManaged = false) {
 }
 function partnerStayMessage(stay: any) {
   const hostManaged = stay.management_mode_snapshot === "host";
-  const operator = hostManaged ? "The responsible Host" : "WeHouse Property Operations";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied")
-      return `The guest entered on ${partnerDate(stay.check_in)}. ${operator} handles the stay arrival record; WeHouse still controls payment protection and disputes.`;
+      return hostManaged ? `Guest checked in ${partnerDate(stay.check_in)} · manage stay issues from Inbox.` : `Guest checked in ${partnerDate(stay.check_in)} · WeHouse Operations is handling the stay.`;
     if (stay.status === "completed")
-      return `The guest left on ${partnerDate(stay.check_out)}. WeHouse is handling the final payment and deposit checks.`;
+      return `Stay completed ${partnerDate(stay.check_out)} · final payment and deposit checks are in progress.`;
     if (stay.status === "ready_for_move_in")
-      return `Stay payment is confirmed. The guest is expected on ${partnerDate(stay.check_in)}. ${operator} handles arrival and access.`;
+      return hostManaged ? `Guest expected ${partnerDate(stay.check_in)} · confirm arrival with the booking code.` : `Guest expected ${partnerDate(stay.check_in)} · WeHouse Operations will confirm arrival.`;
     if (stay.reservation_fee_status === "paid")
-      return `The dates are reserved. The guest still needs to complete the stay payment before arrival.`;
-    return "This booking is still being prepared.";
+      return "Dates reserved · stay payment is still due.";
+    return "Reservation in progress.";
   }
   if (stay.status === "occupied")
-    return `${operator} completed the verified move-in. The rent history remains protected by WeHouse.`;
+    return hostManaged ? "Handover complete · occupancy is active." : "WeHouse handover complete · occupancy is active.";
   if (stay.status === "completed")
-    return "The tenancy has ended. The rent history remains available in Finance.";
+    return "Occupancy ended · payment history remains in Finance.";
   if (stay.status === "ready_for_move_in")
     return stay.requested_move_in_at
-      ? `The customer selected ${partnerDateTime(stay.requested_move_in_at)}. ${operator} will verify the guest’s code at handover.`
-      : `Year 1 rent is confirmed. ${operator} is waiting for the customer to choose a move-in time.`;
-  return hostManaged
-    ? "The reservation belongs to this property. The responsible Host handles the next arrival step."
-    : "WeHouse is preparing the home for the next verified move-in step.";
+      ? hostManaged
+        ? `Move-in ${partnerDateTime(stay.requested_move_in_at)} · confirm handover with the occupant’s booking code.`
+        : `Move-in ${partnerDateTime(stay.requested_move_in_at)} · WeHouse Operations will confirm handover.`
+      : hostManaged
+        ? "Rent confirmed · waiting for the occupant to choose a move-in time."
+        : "Rent confirmed · WeHouse is waiting for the occupant to choose a move-in time.";
+  return hostManaged ? "Reservation active · responsible Host has the next action." : "Reservation active · WeHouse Operations has the next action.";
 }
 
 function partnerStayStage(stay: any) {
@@ -783,7 +784,7 @@ function partnerStayStage(stay: any) {
     if (stay.status === "ready_for_move_in") return "Guest expected";
     return "Short Let booked";
   }
-  if (stay.status === "occupied") return "Tenant moved in";
+  if (stay.status === "occupied") return "Occupant moved in";
   if (stay.status === "completed") return "Tenancy ended";
   if (stay.status === "ready_for_move_in")
     return stay.requested_move_in_at
