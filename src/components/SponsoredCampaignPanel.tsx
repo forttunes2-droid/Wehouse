@@ -113,7 +113,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     {campaigns.length > 0 && <div className="mt-5 border-t border-white/10 pt-4">
       <h3 className="text-xs font-semibold">Your campaigns</h3>
       <ul className="mt-2 space-y-2 text-xs text-[#B8BBC5]">{campaigns.slice(0, 10).map(item => <li key={item.campaign_id} className="rounded-xl border border-white/5 p-3">
-        {item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.duration_days} days · ₦{Number(item.amount_ngn).toLocaleString('en-NG')} · <strong>{item.status}</strong>
+        {item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.duration_days} days · ₦{Number(item.amount_ngn).toLocaleString('en-NG')} · <strong>{item.status === 'active' && item.ends_at && new Date(item.ends_at) <= new Date() ? 'expired' : item.status}</strong>
         {item.ends_at && <span className="block text-[#858B9B]">Ends {new Date(item.ends_at).toLocaleDateString()}</span>}
         {item.pause_reason && <span className="block text-amber-200">WeHouse review: {item.pause_reason}</span>}
       </li>)}</ul>
