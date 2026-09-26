@@ -30,7 +30,7 @@ async def main():
       await page.get_by_role('button',name='Save',exact=True).click()
       await expect(page.get_by_text('₦30,000 per night',exact=True)).to_be_visible()
       await page.get_by_role('button',name='Pause bookings',exact=True).click()
-      await expect(page.get_by_role('heading',name='Bookings paused',exact=True)).to_be_visible()
+      await expect(page.get_by_text('Bookings paused',exact=True)).to_be_visible()
       assert await page.evaluate("window.__releaseSix.calls.some(x=>x.name==='set_my_property_future_price')")
       assert await page.evaluate("window.__releaseSix.calls.some(x=>x.name==='set_my_property_booking_availability')")
      else:
