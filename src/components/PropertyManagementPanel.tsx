@@ -53,7 +53,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     const {error}=await supabase.rpc("invite_property_host_manager",{p_listing_id:listingId,p_username:value});
     setBusy(false);
     if(error)return toast.error(error.message);
-    setUsername("");toast.success("Manager invitation sent");await load();
+    setUsername("");toast.success("Co-host invitation sent");await load();
   }
   async function setResponsible(userId:string){
     if(!owner||busy)return;
@@ -68,8 +68,8 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     setBusy(true);
     const {data,error}=await supabase.rpc("revoke_property_host_manager",{p_assignment_id:assignmentId});
     setBusy(false);
-    if(error||data!==true)return toast.error(error?.message||"Manager could not be removed");
-    toast.success("Manager removed. Active Host bookings moved to you.");await load();onChanged?.();
+    if(error||data!==true)return toast.error(error?.message||"Co-host could not be removed");
+    toast.success("Co-host removed. Active Host bookings moved to you.");await load();onChanged?.();
   }
 
   if(loading)return <section className="border-y border-white/[.07] py-5"><p className="text-[10px] text-[#7C8291]">Loading management…</p></section>;
@@ -96,7 +96,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     </div>
 
     {owner?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Who manages this property">
-      <button type="button" disabled={busy} aria-pressed={state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">You or an assigned manager</span></button>
+      <button type="button" disabled={busy} aria-pressed={state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">You or an assigned co-host</span></button>
       <button type="button" disabled={busy} aria-pressed={state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">WeHouse manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">Property Operations runs the stay</span></button>
     </div>:null}
 
@@ -132,8 +132,8 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
 
     {state.management_mode==="host"?<div className="mt-5">
       <div className="flex items-center justify-between gap-3"><h4 className="text-xs font-semibold">Hosting team</h4><span className="text-[9px] text-[#747A8A]">{active.length} active</span></div>
-      <div className="mt-2 divide-y divide-white/[.06] border-y border-white/[.06]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[#747A8A]">{row.role==="owner"?"Owner":"Manager"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
-      {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Add manager</p><div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="WeHouse username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div></div>:null}
+      <div className="mt-2 divide-y divide-white/[.06] border-y border-white/[.06]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[#747A8A]">{row.role==="owner"?"Owner":"Co-host"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
+      {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Add co-host</p><div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Co-host username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite co-host</button></div></div>:null}
     </div>:null}
   </section>;
 }
