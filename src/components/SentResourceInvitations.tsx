@@ -31,7 +31,7 @@ export default function SentResourceInvitations({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("get_my_sent_resource_invitations", {
+    const { data, error } = await supabase.rpc("get_my_resource_invitations", {
       p_resource_type: resourceType,
       p_resource_id: resourceId,
     });
@@ -40,14 +40,19 @@ export default function SentResourceInvitations({
       setRows([]);
       return;
     }
-    setRows(Array.isArray(data) ? data as Invitation[] : []);
+    setRows(Array.isArray(data) ? (data as Invitation[]).filter(row => (row as any).status === 'pending') : []);
   }, [resourceId, resourceType]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refresh = () => void load();
+    window.addEventListener("wehouse:resource-invitations-changed", refresh);
+    return () => window.removeEventListener("wehouse:resource-invitations-changed", refresh);
+  }, [load]);
 
   async function revoke(id: string) {
     setBusy(id);
-    const { error } = await supabase.rpc("revoke_my_resource_invitation", {
+    const { error } = await supabase.rpc("revoke_resource_invitation", {
       p_invitation_id: id,
     });
     setBusy(null);
