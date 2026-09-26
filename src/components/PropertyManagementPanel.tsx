@@ -39,7 +39,10 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   const configured=Boolean(state?.management_updated_at);
 
   async function setMode(mode:"host"|"wehouse"){
-    if(!owner||busy||!state||(configured&&state.management_mode===mode))return;
+    const sameActive=configured&&state.management_mode===mode&&(
+      mode==="host"||state.wehouse_management_status==="requested"||state.wehouse_management_status==="approved"
+    );
+    if(!owner||busy||!state||sameActive)return;
     setBusy(true);
     const {data,error}=await supabase.rpc("set_my_property_management_mode",{p_listing_id:listingId,p_mode:mode});
     setBusy(false);
