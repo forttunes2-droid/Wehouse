@@ -99,3 +99,85 @@ do $$ begin
   if has_function_privilege('anon','public.get_my_hotel_booking_target(integer)','execute') or has_function_privilege('anon','public.get_my_property_hotel_record(integer)','execute') then raise exception 'Anonymous access exposed'; end if;
 end $$;
 rollback;
+
+
+-- Removing a Host manager must transfer active booking/chat responsibility back
+-- to the owner before the assignment is revoked.
+begin;
+set local session_replication_role=replica;
+insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city) values
+('86666666-1000-4000-8000-000000000001','host-owner@example.invalid','host-continuity-owner','property_partner',true,'Nasarawa','Lafia'),
+('86666666-1000-4000-8000-000000000002','host-manager@example.invalid','host-continuity-manager','user',true,'Nasarawa','Lafia'),
+('86666666-1000-4000-8000-000000000003','host-guest@example.invalid','host-continuity-guest','user',true,'Nasarawa','Lafia');
+insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values
+('host-continuity-owner','property_partner','global','active'),
+('host-continuity-manager','property_partner','global','active');
+insert into public.listings(
+  id,listing_id,title,sub_type,state,city,status,availability_status,approved_at,
+  management_mode,wehouse_management_status,management_host_user_id
+) values(
+  '86666666-2000-4000-8000-000000000001','host-continuity-home','Host continuity home',
+  'short_let','Nasarawa','Lafia','available','available',now(),
+  'host','not_required','host-continuity-manager'
+);
+insert into public.property_host_assignments(
+  assignment_id,listing_id,user_id,assignment_role,status,invited_by,accepted_at
+) values
+('86666666-3000-4000-8000-000000000001','86666666-2000-4000-8000-000000000001','host-continuity-owner','owner','active','host-continuity-owner',now()),
+('86666666-3000-4000-8000-000000000002','86666666-2000-4000-8000-000000000001','host-continuity-manager','manager','active','host-continuity-owner',now());
+insert into public.reservations(
+  id,listing_id,user_id,status,stay_type,management_mode_snapshot,responsible_host_user_id
+) values(
+  'host-continuity-booking','86666666-2000-4000-8000-000000000001',
+  'host-continuity-guest','reserved','short_let','host','host-continuity-manager'
+);
+insert into public.property_host_conversations(
+  conversation_id,reservation_id,guest_user_id,host_user_id,status
+) values(
+  '86666666-4000-4000-8000-000000000001','host-continuity-booking',
+  'host-continuity-guest','host-continuity-manager','open'
+);
+set local session_replication_role=origin;
+
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','86666666-1000-4000-8000-000000000001',true);
+set local role authenticated;
+do $$
+declare removed boolean;
+begin
+  removed:=public.revoke_property_host_manager('86666666-3000-4000-8000-000000000002');
+  if not removed then raise exception 'Manager removal returned false'; end if;
+  if not exists(
+    select 1 from public.property_host_assignments
+    where assignment_id='86666666-3000-4000-8000-000000000002' and status='revoked'
+  ) then raise exception 'Manager assignment was not revoked'; end if;
+  if not exists(
+    select 1 from public.reservations
+    where id='host-continuity-booking'
+      and responsible_host_user_id='host-continuity-owner'
+      and management_mode_snapshot='host'
+  ) then raise exception 'Active Host booking was stranded on removed manager'; end if;
+  if not exists(
+    select 1 from public.property_host_conversations
+    where conversation_id='86666666-4000-4000-8000-000000000001'
+      and host_user_id='host-continuity-owner'
+  ) then raise exception 'Host conversation was stranded on removed manager'; end if;
+  if not exists(
+    select 1 from public.listings
+    where id='86666666-2000-4000-8000-000000000001'
+      and management_host_user_id='host-continuity-owner'
+  ) then raise exception 'Future Host responsibility did not return to owner'; end if;
+  if not public.current_actor_can_host_reservation('host-continuity-booking') then
+    raise exception 'Owner did not inherit Host booking authority';
+  end if;
+  if not public.property_host_conversation_access('86666666-4000-4000-8000-000000000001') then
+    raise exception 'Owner did not inherit Host conversation access';
+  end if;
+  if not exists(
+    select 1 from public.admin_audit_log
+    where action='property_host_manager_revoked'
+      and target_id='86666666-2000-4000-8000-000000000001'
+  ) then raise exception 'Manager removal transfer was not audited'; end if;
+end $$;
+reset role;
+rollback;
