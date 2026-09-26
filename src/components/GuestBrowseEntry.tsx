@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { DiscoveryAccessContext } from '@/components/DiscoveryAccess';
 import { savePropertyLinkIntent } from '@/lib/propertyLinkIntent';
 import { propertyShareUrl, type SharedProperty } from '@/lib/propertyShare';
@@ -13,17 +13,23 @@ const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetailCore'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetailExperience'));
 const noSavedHomes = new Set<string>();
-type Props = { active: boolean; busy?: boolean; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { active: boolean; busy?: boolean; resetToExploreKey?: number; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
 
 /** Only coordinates public navigation. Search, cards and property details are the
  * SAME components as the authenticated routes. No fake Profile or private reads. */
-export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpenLegal, notice, children }: Props) {
+export default function GuestBrowseEntry({ active, busy = false, resetToExploreKey = 0, onSignIn, onOpenLegal, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
   const [target, setTarget] = useState<SharedProperty | null>(null);
   const [invitationToken, setInvitationToken] = useState<string | null>(() => {
     try { return readInvitationIntent(window.location.href, sessionStorage); } catch { return null; }
   });
+  useEffect(() => {
+    if (!resetToExploreKey) return;
+    setPage('search');
+    setSection('explore');
+    setTarget(null);
+  }, [resetToExploreKey]);
   const back = useRecordScreenBack(() => setTarget(null), active && Boolean(target));
   function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account') {
     if (busy) return;

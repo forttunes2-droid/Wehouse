@@ -721,12 +721,14 @@ export default function Login({
   }
 
   const displayError = error || serverError;
+  const [browseResetKey, setBrowseResetKey] = useState(0);
   const returnToPlaces = useRecordScreenBack(() => {
+    setBrowseResetKey((key) => key + 1);
     setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
   }, ["choose", "signin", "signup", "forgot"].includes(mode));
 
   return (
-    <GuestBrowseEntry active={mode === "browse"} busy={working}
+    <GuestBrowseEntry active={mode === "browse"} busy={working} resetToExploreKey={browseResetKey}
       onSignIn={() => { if (!workingRef.current) { setMode("choose"); clearMessages(); } }}
       onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
