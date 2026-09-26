@@ -34,7 +34,7 @@ test('Host authority is property-specific and booking responsibility is snapshot
   assert.match(chat,/Guest <-> responsible Host conversation|guest <-> responsible Host/i);
   assert.match(chat,/Only photos and videos can be attached/);
   assert.match(managed,/get_my_managed_properties/);
-  assert.match(panel,/Identity verification does not create property authority/);
+  assert.match(authority,/Identity verification is deliberately NOT an authority source/);
   assert.match(panel,/booking code.*intentionally not shown/i);
 });
 
