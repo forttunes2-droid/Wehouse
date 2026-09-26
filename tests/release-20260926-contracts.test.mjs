@@ -75,3 +75,18 @@ test('Host conversations stay separate from WeHouse support and media storage is
   assert.match(inbox, /kind: "host"/);
   assert.match(inbox, /PropertyHostBookingChat/);
 });
+
+test('Short Let shared payment starts only after paid Reserve date', async () => {
+  const [migration, split] = await Promise.all([
+    read('supabase/migrations/20260926062800_short_let_share_after_reserve_date.sql'),
+    read('src/components/ShortLetSplitCosts.tsx'),
+  ]);
+  assert.match(migration, /Pay Reserve date before splitting the remaining stay cost/);
+  assert.match(migration, /reservation_fee_status<>'paid'/);
+  assert.match(migration, /payment_phase.*short_stay/s);
+  assert.match(migration, /status='ready_for_move_in'/);
+  assert.match(migration, /reservation_fee_kept_separate/);
+  assert.match(split, /Reserve date is already paid by you/);
+  assert.match(split, /short_stay_balance_due_at/);
+  assert.doesNotMatch(migration, /create_short_stay_reservation\(/);
+});
