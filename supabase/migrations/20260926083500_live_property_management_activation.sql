@@ -17,7 +17,7 @@ where management_updated_at is null
 create or replace function public.ensure_published_property_owner_assignment()
 returns trigger language plpgsql security definer
 set search_path to 'pg_catalog','public'
-as $
+as $$
 declare v_owner text:=coalesce(nullif(new.partner_id,''),nullif(new.owner_id,''));
 begin
   if new.approved_at is null or v_owner is null then
@@ -37,7 +37,7 @@ begin
 
   return new;
 end
-$;
+$$;
 
 drop trigger if exists listings_ensure_published_owner_assignment on public.listings;
 create trigger listings_ensure_published_owner_assignment

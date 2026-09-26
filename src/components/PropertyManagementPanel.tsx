@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
+import { shareInvitationExternally } from "@/lib/resourceInvitation";
+import SentResourceInvitations from "@/components/SentResourceInvitations";
 
 type Assignment={
   assignment_id:string;
@@ -10,6 +12,7 @@ type Assignment={
   username?:string|null;
   role:"owner"|"manager";
   status:"invited"|"active"|"revoked"|"declined";
+  access_level?:"operations"|"full_hosting";
 };
 type ManagementState={
   listing_id:string;
@@ -25,12 +28,13 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [username,setUsername]=useState("");
+  const [inviteAccess,setInviteAccess]=useState<"operations"|"full_hosting">("operations");
   const load=useCallback(async()=>{
     setLoading(true);
-    const {data,error}=await supabase.rpc("get_my_property_management",{p_listing_id:listingId});
+    const management=await supabase.rpc("get_my_property_management",{p_listing_id:listingId});
     setLoading(false);
-    if(error||!data){setState(null);return toast.error(error?.message||"Property management could not be loaded")}
-    setState(data as ManagementState);
+    if(management.error||!management.data){setState(null);return toast.error(management.error?.message||"Property management could not be loaded")}
+    setState(management.data as ManagementState);
   },[listingId]);
   useEffect(()=>{void load()},[load]);
   const mine=useMemo(()=>state?.assignments.find(row=>row.user_id===profile.user_id&&row.status==="active")||null,[profile.user_id,state]);
@@ -55,10 +59,32 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     const value=username.trim().replace(/^@/,"");
     if(!owner||busy||!value)return;
     setBusy(true);
-    const {error}=await supabase.rpc("invite_property_host_manager",{p_listing_id:listingId,p_username:value});
+    const {error}=await supabase.rpc("create_property_cohost_invitation",{
+      p_listing_id:listingId,
+      p_identifier:value,
+      p_delivery:"direct",
+      p_access_level:inviteAccess,
+    });
     setBusy(false);
     if(error)return toast.error(error.message);
-    setUsername("");toast.success("Co-host invitation sent");await load();
+    setUsername("");toast.success("Co-host invitation sent");window.dispatchEvent(new Event("wehouse:resource-invitations-changed"));await load();
+  }
+  async function shareInvite(){
+    if(!owner||busy)return;
+    setBusy(true);
+    const {data,error}=await supabase.rpc("create_property_cohost_invitation",{
+      p_listing_id:listingId,
+      p_identifier:null,
+      p_delivery:"link",
+      p_access_level:inviteAccess,
+    });
+    setBusy(false);
+    if(error||!data?.token)return toast.error(error?.message||"Invite link could not be created");
+    try{
+      const result=await shareInvitationExternally(String(data.token),`Co-host ${state?.assignments?.find(row=>row.role==="owner")?.name||"property"} on WeHouse`);
+      if(result==="copied")toast.success("Invite link copied");
+      window.dispatchEvent(new Event("wehouse:resource-invitations-changed"));await load();
+    }catch{return toast.error("Invite link could not be shared")}
   }
   async function setResponsible(userId:string){
     if(!owner||busy)return;
@@ -139,8 +165,16 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
 
     {configured&&state.management_mode==="host"?<div className="mt-5">
       <div className="flex items-center justify-between gap-3"><h4 className="text-xs font-semibold">Hosting team</h4><span className="text-[9px] text-[#747A8A]">{active.length} active</span></div>
-      <div className="mt-2 divide-y divide-white/[.06] border-y border-white/[.06]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[#747A8A]">{row.role==="owner"?"Owner":"Co-host"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
-      {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Add co-host</p><div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Co-host username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite co-host</button></div></div>:null}
+      <div className="mt-2 divide-y divide-white/[.06] border-y border-white/[.06]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[#747A8A]">{row.role==="owner"?"Owner":row.access_level==="full_hosting"?"Co-host · Full hosting":"Co-host · Operations"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
+      {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Add co-host</p>
+        <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Co-host access">
+          <button type="button" aria-pressed={inviteAccess==="operations"} onClick={()=>setInviteAccess("operations")} className={`min-h-12 rounded-xl border px-3 text-left text-[9px] ${inviteAccess==="operations"?"border-violet-400/30 bg-violet-500/[.07] text-violet-100":"border-white/[.07] text-[#8B91A0]"}`}><span className="block font-semibold">Operations</span><span className="mt-1 block text-[8px] opacity-75">Guests, arrival and handover</span></button>
+          <button type="button" aria-pressed={inviteAccess==="full_hosting"} onClick={()=>setInviteAccess("full_hosting")} className={`min-h-12 rounded-xl border px-3 text-left text-[9px] ${inviteAccess==="full_hosting"?"border-violet-400/30 bg-violet-500/[.07] text-violet-100":"border-white/[.07] text-[#8B91A0]"}`}><span className="block font-semibold">Full hosting</span><span className="mt-1 block text-[8px] opacity-75">Also future price and availability</span></button>
+        </div>
+        <div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="@username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div>
+        <button type="button" disabled={busy} onClick={()=>void shareInvite()} className="mt-2 min-h-11 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-violet-300 disabled:opacity-40">Share invite link</button>
+        <SentResourceInvitations resourceType="property" resourceId={listingId} />
+      </div>:null}
     </div>:null}
   </section>;
 }

@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   merge_group:
   workflow_dispatch:
 
@@ -117,6 +116,8 @@ jobs:
         run: node scripts/verify-signup-legal-hook.mjs
       - name: Exercise cross-user RLS foundation contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
+      - name: Exercise invitations, Hosting Help and Worker market capacity
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup

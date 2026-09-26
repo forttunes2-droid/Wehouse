@@ -36,6 +36,8 @@ import { toast } from "sonner";
 import type { WorkspaceChoice } from "@/pages/AccountCenter";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
+import { clearInvitationIntent, parseInvitationToken, readInvitationIntent } from "@/lib/resourceInvitation";
+import ResourceInvitationAction, { PublicInvitationPreview } from "@/components/ResourceInvitationAction";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -94,6 +96,7 @@ const HotelBooking = lazy(() => import("@/pages/HotelBooking"));
 const PropertyPartnerDashboard = lazy(
   () => import("@/pages/PropertyPartnerDashboard"),
 );
+const HostingDashboard = lazy(() => import("@/pages/HostingDashboard"));
 const HotelTeamDashboard = lazy(() => import("@/pages/HotelTeamDashboard"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
@@ -206,6 +209,7 @@ const RESTORABLE_PAGES: NavPage[] = [
   "new_listing",
   "hotels",
   "property_partner",
+  "hosting",
   "hotel_operations",
   "my_bookings",
   "my_reservations",
@@ -256,7 +260,9 @@ function roleRootFor(role: string): NavPage {
           ? "worker_dashboard"
           : role === "property_partner"
             ? "property_partner"
-            : role === "hotel_staff"
+            : role === "hosting"
+              ? "hosting"
+              : role === "hotel_staff"
               ? "hotel_operations"
               : "search";
 }
@@ -295,6 +301,8 @@ function normalizePageForRole(
       : "worker_dashboard";
   if (role === "property_partner")
     return page === "property_partner" ? page : "property_partner";
+  if (role === "hosting")
+    return page === "hosting" ? page : "hosting";
   if (role === "hotel_staff")
     return page === "hotel_operations" ? page : "hotel_operations";
   if (role === "user") return USER_PAGES.has(page) ? page : "search";
@@ -342,11 +350,25 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const [inboxOpenRequest, setInboxOpenRequest] = useState(0);
+  const [invitationToken, setInvitationToken] = useState<string | null>(() => {
+    try { return readInvitationIntent(window.location.href, sessionStorage); } catch { return null; }
+  });
+  const [invitationLoginOpen,setInvitationLoginOpen]=useState(false);
   const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
   const navigationKey = baseProfile ? workspaceNavigationKey(baseProfile.user_id, activeWorkspace) : NAV_STORAGE_KEY;
+  useEffect(() => {
+    const syncInvitation = () => {
+      try {
+        const token = readInvitationIntent(window.location.href, sessionStorage);
+        if (token) setInvitationToken(token);
+      } catch {}
+    };
+    window.addEventListener("hashchange", syncInvitation);
+    return () => window.removeEventListener("hashchange", syncInvitation);
+  }, []);
   useEffect(() => {
     const update = (event: Event) =>
       setNestedScreen(
@@ -392,6 +414,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     isStaffRole = userRole === "staff",
     isAdminRole = userRole === "admin",
     isPropertyPartner = userRole === "property_partner",
+    isHostingRole = userRole === "hosting",
     isHotelTeamRole = userRole === "hotel_staff",
     isWorkerRole = userRole === "worker",
     isUserRole = userRole === "user",
@@ -1029,13 +1052,19 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, openUserDestination, consumePropertyIntent]);
   useEffect(() => {
     if (!isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
+    // A specific shared property takes precedence over the generic sign-in tab.
+    // Otherwise this effect overwrites the property navigation above with Account.
+    if (propertyIntent) {
+      try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
+      return;
+    }
     let destination = "";
     try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
     const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : "";
     if (!route) return;
     try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
     goTo(route as NavPage);
-  }, [isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
+  }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
       [handleSetNavPage],
@@ -1069,6 +1098,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         {navPage === "privacy_policy" ? <PrivacyPolicyPage /> : <TermsPage />}
       </Suspense>
     );
+  if (auth.page === "login" && invitationToken && !invitationLoginOpen)
+    return <PublicInvitationPreview token={invitationToken} onSignIn={()=>setInvitationLoginOpen(true)} onClose={dismissInvitationIntent} />;
   if (auth.page === "login")
     return (
       <Login
@@ -1168,6 +1199,18 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     if (isPropertyPartner)
       return (
         <PropertyPartnerDashboard
+          inboxOpenRequest={inboxOpenRequest}
+          profile={profile}
+          onLogout={auth.logout}
+          onNavigate={(p, id) => openUserDestination(p, id)}
+          workspaceAccess={workspaceAccess}
+          activeWorkspace={activeWorkspace}
+          onSwitchWorkspace={switchWorkspace}
+        />
+      );
+    if (isHostingRole)
+      return (
+        <HostingDashboard
           inboxOpenRequest={inboxOpenRequest}
           profile={profile}
           onLogout={auth.logout}
@@ -1299,6 +1342,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "staff_dashboard":
       case "worker_dashboard":
       case "property_partner":
+      case "hosting":
       case "hotel_operations":
         return renderRoleRoot();
       case "detail":
@@ -1475,12 +1519,30 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       !conversationOpen &&
       !nestedScreen &&
       !hide.includes(navPage),
-    supportRole = ["user", "worker", "property_partner", "hotel_staff"].includes(
+    supportRole = ["user", "worker", "property_partner", "hosting", "hotel_staff"].includes(
       profile?.role || "",
     );
+  function dismissInvitationIntent() {
+    try { clearInvitationIntent(sessionStorage); } catch {}
+    setInvitationToken(null);
+    try {
+      if (parseInvitationToken(window.location.href)) {
+        window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+      }
+    } catch {}
+  }
+
   return (
     <CreatorAuthProvider>
       {propertyIntent && profile && !isUserRole && <SharedPropertyWorkspacePrompt onConfirm={() => switchWorkspace("personal")} onDismiss={consumePropertyIntent} />}
+      {profile && invitationToken ? <ResourceInvitationAction
+        token={invitationToken}
+        onClose={dismissInvitationIntent}
+        onResolved={async () => {
+          dismissInvitationIntent();
+          await reloadWorkspaces();
+        }}
+      /> : null}
       <Suspense fallback={<RouteTransitionFallback />}>
         <Suspense fallback={null}>
           <PrivateCallCenter />
@@ -1548,4 +1610,3 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     </CreatorAuthProvider>
   );
 }
-

@@ -23,7 +23,7 @@ import {
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
-import HotelTeamInvitations from "@/components/HotelTeamInvitations";
+import ResourceInvitationAction from "@/components/ResourceInvitationAction";
 import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
@@ -86,6 +86,7 @@ function NotificationFeed({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
+  const [invitationId,setInvitationId]=useState<string|null>(null);
 
   async function load(quiet = false) {
     const request = ++requestVersion.current;
@@ -228,6 +229,12 @@ function NotificationFeed({
       setExpanded((current) => (current === row.id ? null : row.id));
       return;
     }
+    if (row.source_type === "resource_invitation" || row.destination_route === "invitation") {
+      const invitationId=String(row.destination_params?.invitation_id||row.source_id||"");
+      if(!invitationId)return toast.error("Invitation reference is missing");
+      setInvitationId(invitationId);
+      return;
+    }
     if (row.type === "work_post_confirmation_requested") {
       const postId = String(
         row.destination_params?.work_post_id || row.source_id || "",
@@ -319,7 +326,6 @@ function NotificationFeed({
   }, [onUnreadChange, unread]);
   const content = (
     <main className={embedded ? "py-1" : "mx-auto max-w-4xl px-4 py-5"}>
-      {scope === "personal" && <HotelTeamInvitations />}
       {loading ? (
         <ActivityLoading />
       ) : error && rows.length === 0 ? (
@@ -444,6 +450,20 @@ function NotificationFeed({
       )}
     </main>
   );
+  const invitationPanel = invitationId ? (
+    <ResourceInvitationAction
+      invitationId={invitationId}
+      onClose={()=>setInvitationId(null)}
+      onResolved={async()=>{
+        setInvitationId(null);
+        activityCache.delete(cacheKey);
+        window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
+        window.dispatchEvent(new Event("wehouse:unread-changed"));
+        await load(true);
+      }}
+    />
+  ) : null;
+
   const confirmation = workPost && (
     <div
       className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white"
@@ -524,6 +544,7 @@ function NotificationFeed({
       <>
 
         {content}
+        {invitationPanel}
         {confirmation}
       </>
     );
@@ -536,6 +557,7 @@ function NotificationFeed({
         </div>
       </header>
       {content}
+      {invitationPanel}
       {confirmation}
     </div>
   );
