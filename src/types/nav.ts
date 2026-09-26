@@ -25,6 +25,7 @@ export type NavPage =
   | 'staff_dashboard'
   | 'worker_dashboard'
   | 'property_partner'
+  | 'hosting'
   | 'hotel_operations'
   // ── Role workflow subpages ──
   | 'new_listing'
