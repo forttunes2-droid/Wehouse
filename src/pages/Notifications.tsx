@@ -493,7 +493,6 @@ function NotificationFeed({
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 overflow-y-auto p-4">
         <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#10131B]">
-          {invitation.resource_image?<img src={invitation.resource_image} alt="" className="h-44 w-full object-cover"/>:null}
           <div className="p-4">
             <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">{invitation.role_key==="property_cohost"?"Co-host invitation":invitation.role_key==="hotel_manager"?"Hotel Manager invitation":"Front desk invitation"}</p>
             <h2 className="mt-2 text-lg font-semibold">{invitation.resource_title}</h2>
@@ -600,6 +599,7 @@ function NotificationFeed({
       <>
 
         {content}
+        {invitationPanel}
         {confirmation}
       </>
     );
@@ -612,6 +612,7 @@ function NotificationFeed({
         </div>
       </header>
       {content}
+      {invitationPanel}
       {confirmation}
     </div>
   );
