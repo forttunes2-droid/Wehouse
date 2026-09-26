@@ -51,13 +51,13 @@ export default function WorkspaceFrameV2({
   function go(id: string) {
     setActive(id);
     setMore(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function goAccount() {
     setMore(false);
     onAccount?.();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   return (
@@ -109,13 +109,15 @@ export default function WorkspaceFrameV2({
       )}
 
       <main className={`mx-auto max-w-7xl ${immersive ? "px-4 py-4 sm:px-5 lg:px-8" : compact ? "px-4 py-2 sm:px-5 lg:px-8" : "px-4 py-5 sm:px-5 lg:px-8 lg:py-7"}`}>
+        <div key={`${active}:${title}`} className="wh-workspace-stage">
           <WorkspaceHeadingContext.Provider value={title}>{children}</WorkspaceHeadingContext.Provider>
+        </div>
       </main>
 
       {!immersive && more && hasOverflow && (
         <>
-          <button aria-label="Close more navigation" onClick={() => setMore(false)} className="fixed inset-0 z-[68] bg-black/55 sm:hidden" />
-          <div className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[69] max-h-[55dvh] overflow-y-auto rounded-[22px] border border-white/[.08] bg-[#11131B] p-2 shadow-2xl sm:hidden">
+          <button aria-label="Close more navigation" onClick={() => setMore(false)} className="wh-more-backdrop fixed inset-0 z-[68] bg-black/55 sm:hidden" />
+          <div className="wh-more-sheet fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[69] max-h-[55dvh] overflow-y-auto rounded-[22px] border border-white/[.08] bg-[#11131B] p-2 shadow-2xl sm:hidden">
             {extra.map((item) => (
               <button key={item.id} onClick={() => go(item.id)} className="flex min-h-12 w-full items-center justify-between border-b border-white/[.05] px-4 text-left text-[13px] font-semibold text-[#D7DAE2] last:border-b-0">
                 <span>{item.label}</span><span className="text-[#626878]">›</span>
@@ -147,13 +149,13 @@ export default function WorkspaceFrameV2({
 
 function BottomTab({ id, label, badge = 0, active, onClick }: { id: string; label: string; badge?: number; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-[10px] font-semibold transition-colors ${active ? "text-violet-300" : "text-[#686F80]"}`}>
-      <span className="grid h-7 w-7 place-items-center">
+    <button data-active={active ? "true" : "false"} onClick={onClick} className={`wh-bottom-tab relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-[10px] font-semibold transition-colors ${active ? "text-violet-300" : "text-[#686F80]"}`}>
+      <span className="wh-bottom-tab-icon grid h-7 w-7 place-items-center">
         <NavIcon id={id} />
         {badge > 0 ? <span className="absolute right-[calc(50%-1.2rem)] top-1"><CountBadge count={badge} /></span> : null}
       </span>
       <span className="max-w-full truncate">{label}</span>
-      {active ? <span className="absolute bottom-1 h-1 w-1 rounded-full bg-violet-400" /> : null}
+      {active ? <span className="wh-bottom-tab-indicator absolute bottom-1 h-[3px] w-4 rounded-full bg-violet-400" /> : null}
     </button>
   );
 }
