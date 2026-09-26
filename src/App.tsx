@@ -98,7 +98,6 @@ const PropertyPartnerDashboard = lazy(
 );
 const HostingDashboard = lazy(() => import("@/pages/HostingDashboard"));
 const HotelTeamDashboard = lazy(() => import("@/pages/HotelTeamDashboard"));
-const PropertyHostingDashboard = lazy(() => import("@/pages/PropertyHostingDashboard"));
 const MyReservations = lazy(() => import("@/pages/MyReservations"));
 const PaymentReturn = lazy(() => import("@/pages/PaymentReturn"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/PrivacyPolicyPage"));
@@ -1192,17 +1191,6 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       return (
         <PropertyPartnerDashboard
           inboxOpenRequest={inboxOpenRequest}
-          profile={profile}
-          onLogout={auth.logout}
-          onNavigate={(p, id) => openUserDestination(p, id)}
-          workspaceAccess={workspaceAccess}
-          activeWorkspace={activeWorkspace}
-          onSwitchWorkspace={switchWorkspace}
-        />
-      );
-    if (isHostingRole)
-      return (
-        <PropertyHostingDashboard
           profile={profile}
           onLogout={auth.logout}
           onNavigate={(p, id) => openUserDestination(p, id)}
