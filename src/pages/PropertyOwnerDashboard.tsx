@@ -21,6 +21,7 @@ import type { Profile } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { PropertyHostInvitations, HostArrivalAction } from "@/components/PropertyManagementPanel";
+import PropertyHostControls from "@/components/PropertyHostControls";
 
 type PartnerTab = "properties" | "finance" | "communication";
 type Props = {
@@ -287,6 +288,10 @@ function PropertiesTab({
               },
         );
       setAssets(nextAssets);
+      setSelected(current => current
+        ? nextAssets.find((asset: any) => String(asset.id) === String(current.id)) || current
+        : current
+      );
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
         const target = nextAssets.find((asset: any) =>
@@ -534,6 +539,7 @@ function PropertyDetails({
         </div>
       </section>
       <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={setManagementMode} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      {hostManaged?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
