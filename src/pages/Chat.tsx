@@ -17,6 +17,8 @@ import {
   type HotelConversation,
 } from "@/lib/supabase/hotel-chat";
 import type { Conversation, Profile } from "@/types";
+import PropertyHostBookingChat from "@/components/PropertyHostBookingChat";
+import { getMyPropertyHostConversations, type PropertyHostConversation } from "@/lib/supabase/property-host-chat";
 import ChatCore from "@/pages/ChatCore";
 import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
@@ -59,14 +61,16 @@ type Thread =
   | { kind: "roommate"; id: string; time: string; row: Conversation }
   | { kind: "worker"; id: string; time: string; row: BookingConversation }
   | { kind: "hotel"; id: string; time: string; row: HotelConversation }
+  | { kind: "host"; id: string; time: string; row: PropertyHostConversation }
   | { kind: "support"; id: string; time: string; row: SupportThread };
 
 type ActiveTarget = {
   conversationId: string;
   peerUserId?: string | null;
-  kind?: "roommate" | "worker" | "hotel";
+  kind?: "roommate" | "worker" | "hotel" | "host";
   bookingId?: string;
   hotelConversation?: HotelConversation;
+  hostConversation?: PropertyHostConversation;
 } | null;
 
 type ThreadView = {
@@ -84,6 +88,7 @@ type InboxListSnapshot = {
   conversations: Conversation[];
   bookingConversations: BookingConversation[];
   hotelConversations: HotelConversation[];
+  hostConversations: PropertyHostConversation[];
   supportThreads: SupportThread[];
   people: Record<string, Person>;
 };
@@ -109,6 +114,9 @@ export default function Chat({
   const [hotelConversations, setHotelConversations] = useState<
     HotelConversation[]
   >(() => cachedInbox?.hotelConversations || []);
+  const [hostConversations, setHostConversations] = useState<PropertyHostConversation[]>(
+    () => cachedInbox?.hostConversations || [],
+  );
   const [supportThreads, setSupportThreads] = useState<SupportThread[]>(
     () => cachedInbox?.supportThreads || [],
   );
@@ -146,6 +154,7 @@ export default function Chat({
         conversations: previous?.conversations || [],
         bookingConversations: previous?.bookingConversations || [],
         hotelConversations: previous?.hotelConversations || [],
+        hostConversations: previous?.hostConversations || [],
         supportThreads: previous?.supportThreads || [],
         people: previous?.people || {},
       };
@@ -158,13 +167,14 @@ export default function Chat({
         setConversations(next.conversations);
         setBookingConversations(next.bookingConversations);
         setHotelConversations(next.hotelConversations);
+        setHostConversations(next.hostConversations);
         setSupportThreads(next.supportThreads);
         setPeople(next.people);
         inboxListCache.set(profile.user_id, { ...next });
         // Paint the first available source immediately. Remaining sources
         // reconcile in place instead of blocking the whole Inbox.
         if (!quiet && finished === 1) setLoading(false);
-        if (finished === 5) {
+        if (finished === 6) {
           setLoading(false);
           setLoadError(
             failed
@@ -243,6 +253,21 @@ export default function Chat({
         (async () => {
           try {
             const result = await withTimeout(
+              getMyPropertyHostConversations(),
+              8000,
+              "Property host messages took too long to refresh.",
+            );
+            if (result.error) failed += 1;
+            else next.hostConversations = result.conversations || [];
+          } catch {
+            failed += 1;
+          } finally {
+            publish();
+          }
+        })(),
+        (async () => {
+          try {
+            const result = await withTimeout(
               getMySupportConversations(),
               8000,
               "WeHouse messages took too long to refresh.",
@@ -290,6 +315,11 @@ export default function Chat({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "booking_messages" },
+        scheduler.request,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "property_host_messages" },
         scheduler.request,
       )
       .on(
@@ -350,6 +380,12 @@ export default function Chat({
         time: row.last_message_time || row.updated_at,
         row,
       })),
+      ...hostConversations.map((row) => ({
+        kind: "host" as const,
+        id: `host:${row.conversation_id}`,
+        time: row.last_message_time || row.updated_at,
+        row,
+      })),
       ...supportThreads.map((row) => ({
         kind: "support" as const,
         id: `support:${row.conversation_id}`,
@@ -365,6 +401,7 @@ export default function Chat({
     bookingConversations,
     conversations,
     hotelConversations,
+    hostConversations,
     supportThreads,
   ]);
 
@@ -385,6 +422,10 @@ export default function Chat({
         onReady={() => void refreshInboxSecurity()}
       />
     );
+  }
+
+  if (target?.kind === "host" && target.hostConversation) {
+    return <PropertyHostBookingChat conversation={target.hostConversation} profile={profile} onClose={() => { setActiveTarget(null); void load(true); }} onUpdated={() => void load(true)} />;
   }
 
   if (target) {
@@ -464,6 +505,18 @@ export default function Chat({
         conversationId: hotel.conversation_id,
         kind: "hotel",
         hotelConversation: hotel,
+      });
+      return true;
+    }
+    const host = hostConversations.find(
+      (row) => String(row.conversation_id) === value || String(row.reservation_id) === value,
+    );
+    if (host) {
+      setView("messages");
+      setActiveTarget({
+        conversationId: host.conversation_id,
+        kind: "host",
+        hostConversation: host,
       });
       return true;
     }
@@ -598,11 +651,17 @@ export default function Chat({
                               bookingId: thread.row.booking_id,
                               kind: "worker",
                             }
-                          : {
-                              conversationId: thread.row.conversation_id,
-                              kind: "hotel",
-                              hotelConversation: thread.row,
-                            },
+                          : thread.kind === "hotel"
+                            ? {
+                                conversationId: thread.row.conversation_id,
+                                kind: "hotel",
+                                hotelConversation: thread.row,
+                              }
+                            : {
+                                conversationId: thread.row.conversation_id,
+                                kind: "host",
+                                hostConversation: thread.row,
+                              },
                     );
                   }}
                 />
@@ -754,6 +813,19 @@ function threadPresentation(
       tone: "amber",
     };
   }
+  if (thread.kind === "host") {
+    const mediaPreview = thread.row.last_attachment_types?.[0] === "video" ? "Video" : thread.row.last_attachment_types?.[0] === "image" ? "Photo" : "Booking conversation";
+    return {
+      title: thread.row.other_person_name || "Property host",
+      avatar: thread.row.other_person_avatar,
+      fallback: (thread.row.other_person_name || "H").slice(0,1),
+      preview: thread.row.last_message || mediaPreview,
+      context: [thread.row.listing_title, thread.row.stay_type === "short_let" ? "Short Let" : "Long Let"].filter(Boolean).join(" · "),
+      time: formatListTime(thread.row.last_message_time || thread.row.updated_at),
+      unread: Number(thread.row.unread_count || 0),
+      tone: "violet",
+    };
+  }
   const presentation = conversationPresentation(thread.row);
   return {
     title: presentation.title,
@@ -801,6 +873,10 @@ function threadSearchText(
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
+  }
+  if (thread.kind === "host") {
+    return [thread.row.other_person_name,thread.row.listing_title,thread.row.last_message]
+      .filter(Boolean).join(" ").toLowerCase();
   }
   const presentation = conversationPresentation(thread.row);
   return [
