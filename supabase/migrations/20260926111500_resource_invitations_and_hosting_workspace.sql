@@ -792,129 +792,6 @@ where invite.delivery='direct'
     where notification.event_key='resource-invite:'||invite.invitation_id::text
   );
 
-create or replace function public.get_my_sent_resource_invitations(
-  p_resource_type text,
-  p_resource_id text
-) returns jsonb
-language plpgsql
-stable
-security definer
-set search_path to 'pg_catalog','public'
-as $
-declare
-  v_actor text:=public.current_profile_user_id();
-  v_result jsonb;
-  v_allowed boolean:=false;
-begin
-  if v_actor is null then raise exception 'Authentication required'; end if;
-  if p_resource_type='property' then
-    select exists(
-      select 1 from public.property_host_assignments a
-      where a.listing_id=p_resource_id::uuid
-        and a.user_id=v_actor
-        and a.assignment_role='owner'
-        and a.status='active'
-    ) into v_allowed;
-  elsif p_resource_type='hotel' then
-    select exists(
-      select 1 from public.hotels h
-      where h.hotel_id=p_resource_id::integer and h.owner_id=v_actor
-    ) or coalesce('hotel.team.manage'=any(public.current_actor_hotel_capabilities(p_resource_id::integer)),false)
-    into v_allowed;
-  end if;
-  if not v_allowed then raise exception 'Resource invitation management access required'; end if;
-
-  update public.resource_invitations
-  set status='expired',updated_at=now()
-  where resource_type=p_resource_type
-    and resource_id=p_resource_id
-    and status='pending'
-    and expires_at<=now();
-
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'invitation_id',i.invitation_id,
-    'resource_type',i.resource_type,
-    'resource_id',i.resource_id,
-    'role_key',i.role_key,
-    'permission_profile',i.permission_profile,
-    'delivery',i.delivery,
-    'status',i.status,
-    'recipient_user_id',i.intended_user_id,
-    'recipient_name',case when i.intended_user_id is null then null else coalesce(p.full_name,p.username,'WeHouse member') end,
-    'expires_at',i.expires_at,
-    'created_at',i.created_at
-  ) order by i.created_at desc),'[]'::jsonb)
-  into v_result
-  from public.resource_invitations i
-  left join public.profiles p on p.user_id=i.intended_user_id
-  where i.resource_type=p_resource_type
-    and i.resource_id=p_resource_id
-    and i.inviter_user_id=v_actor
-    and i.status='pending';
-
-  return v_result;
-end
-$;
-
-create or replace function public.revoke_my_resource_invitation(
-  p_invitation_id uuid
-) returns boolean
-language plpgsql
-security definer
-set search_path to 'pg_catalog','public'
-as $
-declare
-  v_actor text:=public.current_profile_user_id();
-  v_invite public.resource_invitations;
-begin
-  if v_actor is null then raise exception 'Authentication required'; end if;
-
-  select * into v_invite
-  from public.resource_invitations
-  where invitation_id=p_invitation_id
-    and inviter_user_id=v_actor
-    and status='pending'
-  for update;
-
-  if v_invite.invitation_id is null then
-    raise exception 'Pending invitation not found';
-  end if;
-
-  update public.resource_invitations
-  set status='revoked',revoked_at=now(),updated_at=now()
-  where invitation_id=v_invite.invitation_id;
-
-  if v_invite.subject_assignment_id is not null then
-    if v_invite.resource_type='property' then
-      update public.property_host_assignments
-      set status='revoked',revoked_at=now(),updated_at=now()
-      where assignment_id=v_invite.subject_assignment_id
-        and status='invited';
-    else
-      update public.hotel_team_members
-      set status='revoked',revoked_at=now(),updated_at=now()
-      where id=v_invite.subject_assignment_id
-        and status='invited';
-    end if;
-  end if;
-
-  if v_invite.intended_user_id is not null then
-    insert into public.notifications(
-      recipient_id,type,title,message,related_id,source_type,source_id,
-      destination_route,destination_params,event_key,workspace_scope
-    ) values(
-      v_invite.intended_user_id,'resource_invitation_revoked','Invitation withdrawn',
-      'An access invitation sent to you is no longer available.',
-      v_invite.invitation_id::text,'resource_invitation',v_invite.invitation_id::text,
-      'notifications',jsonb_build_object('invitation_id',v_invite.invitation_id),
-      'resource-invite-revoked:'||v_invite.invitation_id::text,'personal'
-    );
-  end if;
-
-  return true;
-end
-$;
-
 -- Direct legacy response functions remain for compatibility but no longer require
 -- a Property Partner workspace. They only activate an invitation already bound
 -- to the signed-in identity.
@@ -1223,8 +1100,6 @@ revoke all on function public.get_my_resource_invitations(text,text) from public
 revoke all on function public.revoke_resource_invitation(uuid) from public,anon;
 revoke all on function public.preview_resource_invitation(text) from public;
 revoke all on function public.respond_to_resource_invitation(uuid,boolean,text) from public,anon;
-revoke all on function public.get_my_sent_resource_invitations(text,text) from public,anon;
-revoke all on function public.revoke_my_resource_invitation(uuid) from public,anon;
 revoke all on function public.respond_to_property_host_invite(uuid,boolean) from public,anon;
 revoke all on function public.respond_to_hotel_team_invitation(uuid,boolean) from public,anon;
 revoke all on function public.current_actor_can_manage_property(uuid) from public,anon;
@@ -1239,8 +1114,6 @@ grant execute on function public.get_my_resource_invitations(text,text) to authe
 grant execute on function public.revoke_resource_invitation(uuid) to authenticated,service_role;
 grant execute on function public.preview_resource_invitation(text) to anon,authenticated,service_role;
 grant execute on function public.respond_to_resource_invitation(uuid,boolean,text) to authenticated,service_role;
-grant execute on function public.get_my_sent_resource_invitations(text,text) to authenticated,service_role;
-grant execute on function public.revoke_my_resource_invitation(uuid) to authenticated,service_role;
 grant execute on function public.respond_to_property_host_invite(uuid,boolean) to authenticated,service_role;
 grant execute on function public.respond_to_hotel_team_invitation(uuid,boolean) to authenticated,service_role;
 grant execute on function public.current_actor_can_manage_property(uuid) to authenticated,service_role;
