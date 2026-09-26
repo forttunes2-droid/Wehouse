@@ -103,7 +103,7 @@ export function CreatorWorkerCapacityControl() {
     </div>
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       <WeHouseSelect value={state} options={[{value:"",label:"Choose State"},...NIGERIA_STATES.map(item=>({value:item.state,label:item.state}))]} onChange={value=>{setState(value);setLga("");}} eyebrow="Capacity" title="State" ariaLabel="Worker capacity State" />
-      <WeHouseSelect value={lga} options={[{value:"",label:"Choose LGA"},...(stateData?.lgas || []).map(item=>({value:item,label:item}))]} onChange={setLga} eyebrow="Capacity" title="LGA" ariaLabel="Worker capacity LGA" />
+      <WeHouseSelect value={lga} options={[{value:"",label:"Choose LGA"},...(stateData?.cities || []).map(item=>({value:item,label:item}))]} onChange={setLga} eyebrow="Capacity" title="LGA" ariaLabel="Worker capacity LGA" />
       <WeHouseSelect value={occupation} options={[{value:"",label:"Choose occupation"},...occupations.map(item=>({value:item,label:item}))]} onChange={setOccupation} eyebrow="Capacity" title="Occupation" ariaLabel="Worker occupation" />
       <label className="text-[9px] text-[#747B8B]">Target<input value={target} onChange={e=>setTarget(e.target.value)} inputMode="numeric" placeholder="Optional" className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 text-sm text-white outline-none" /></label>
       <label className="text-[9px] text-[#747B8B]">Hard limit<input value={hard} onChange={e=>setHard(e.target.value)} inputMode="numeric" placeholder="No hard limit" className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 text-sm text-white outline-none" /></label>
@@ -182,7 +182,7 @@ export function CreatorSponsoredControl() {
       <WeHouseSelect value={scope} options={[{value:"global",label:"Global rule"},{value:"lga",label:"One LGA"}]} onChange={value=>setScope(value as typeof scope)} eyebrow="Sponsored" title="Coverage" ariaLabel="Sponsored coverage" />
       {scope === "lga" ? <>
         <WeHouseSelect value={state} options={[{value:"",label:"Choose State"},...NIGERIA_STATES.map(item=>({value:item.state,label:item.state}))]} onChange={value=>{setState(value);setLga("");}} eyebrow="Sponsored" title="State" ariaLabel="Sponsored State" />
-        <WeHouseSelect value={lga} options={[{value:"",label:"Choose LGA"},...(stateData?.lgas || []).map(item=>({value:item,label:item}))]} onChange={setLga} eyebrow="Sponsored" title="LGA" ariaLabel="Sponsored LGA" />
+        <WeHouseSelect value={lga} options={[{value:"",label:"Choose LGA"},...(stateData?.cities || []).map(item=>({value:item,label:item}))]} onChange={setLga} eyebrow="Sponsored" title="LGA" ariaLabel="Sponsored LGA" />
       </> : null}
       <label className="text-[9px] text-[#747B8B]">Sponsored slots<input value={slots} onChange={e=>setSlots(e.target.value)} inputMode="numeric" className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 text-sm text-white outline-none" /></label>
       <label className="text-[9px] text-[#747B8B]">Price per day (₦)<input value={dailyPrice} onChange={e=>setDailyPrice(e.target.value)} inputMode="decimal" className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-white/[.025] px-3 text-sm text-white outline-none" /></label>
