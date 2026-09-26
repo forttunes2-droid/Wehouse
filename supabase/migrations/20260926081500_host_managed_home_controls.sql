@@ -547,3 +547,44 @@ comment on function public.set_my_property_future_price(uuid,numeric)
 is 'Narrow audited Partner command for future pricing. Existing reservations keep their snapshotted price.';
 comment on function public.set_my_property_booking_availability(uuid,boolean)
 is 'Host-managed global open/pause control. It never rewrites existing reservation state.';
+
+
+-- A host-paused property must remain visible inside the Partner workspace even
+-- though it is deliberately removed from public discovery.
+create or replace function public.get_my_managed_properties()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path to 'pg_catalog','public'
+as $$
+declare v_actor text:=public.current_profile_user_id(); v_result jsonb;
+begin
+  if v_actor is null or not public.current_actor_has_workspace('property_partner',null) then
+    raise exception 'Property Partner workspace required';
+  end if;
+
+  select coalesce(jsonb_agg(
+    (to_jsonb(l)-'access_code'-'private_video_url'-'private_video_path')
+      || jsonb_build_object(
+        '_assignment_role',a.assignment_role,
+        '_assignment_status',a.status,
+        '_can_manage',a.status='active',
+        '_is_owner',a.assignment_role='owner' and a.status='active'
+      )
+    order by l.created_at desc
+  ),'[]'::jsonb)
+  into v_result
+  from public.property_host_assignments a
+  join public.listings l on l.id=a.listing_id
+  where a.user_id=v_actor
+    and a.status='active'
+    and l.deleted_at is null
+    and l.approved_at is not null
+    and l.status in ('available','unavailable','reserved','occupied','maintenance','closed');
+
+  return v_result;
+end
+$$;
+revoke all on function public.get_my_managed_properties() from public,anon;
+grant execute on function public.get_my_managed_properties() to authenticated;
