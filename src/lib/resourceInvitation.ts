@@ -60,3 +60,21 @@ export function readInvitationIntent(urlValue: string, store: Storage): string |
 export function clearInvitationIntent(store: Storage) {
   store.removeItem(KEY);
 }
+
+
+export async function shareInvitationExternally(token: string, title = "WeHouse invitation"): Promise<"shared"|"copied"|"cancelled"> {
+  const url = invitationShareUrl(token);
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title, text: title, url });
+      return "shared";
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+    }
+  }
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return "copied";
+  }
+  throw new Error("Sharing is not available on this device.");
+}
