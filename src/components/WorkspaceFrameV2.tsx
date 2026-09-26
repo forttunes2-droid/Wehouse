@@ -71,7 +71,7 @@ export default function WorkspaceFrameV2({
             <div className="flex items-start justify-between gap-3 pb-3">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="truncate text-[9px] font-bold uppercase tracking-[.22em] text-violet-400">{label}</p>
+                  <p className="truncate text-[10px] font-bold uppercase tracking-[.2em] text-violet-400">{label}</p>
                   {labelBadge}
                 </div>
                 <div className="mt-1 flex min-w-0 items-center gap-1">
@@ -84,7 +84,7 @@ export default function WorkspaceFrameV2({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {onAccount ? (
-                  <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[10px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
+                  <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[11px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
                     <NavIcon id="account" />
                     <span>Account</span>
                   </button>
@@ -97,7 +97,7 @@ export default function WorkspaceFrameV2({
                 <button
                   key={item.id}
                   onClick={() => go(item.id)}
-                  className={`relative flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 text-[10px] font-semibold transition ${active === item.id ? "border-violet-400 text-white" : "border-transparent text-[#747A8B] hover:text-white"}`}
+                  className={`relative flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 text-[11px] font-semibold transition ${active === item.id ? "border-violet-400 text-white" : "border-transparent text-[#747A8B] hover:text-white"}`}
                 >
                   <span>{item.label}</span>
                   {Boolean(item.badge) && <CountBadge count={item.badge || 0} />}
@@ -115,14 +115,14 @@ export default function WorkspaceFrameV2({
       {!immersive && more && hasOverflow && (
         <>
           <button aria-label="Close more navigation" onClick={() => setMore(false)} className="fixed inset-0 z-[68] bg-black/55 sm:hidden" />
-          <div className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[69] max-h-[55dvh] overflow-y-auto rounded-[24px] border border-white/[.08] bg-[#11131B] p-2 shadow-2xl sm:hidden">
+          <div className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[69] max-h-[55dvh] overflow-y-auto rounded-[22px] border border-white/[.08] bg-[#11131B] p-2 shadow-2xl sm:hidden">
             {extra.map((item) => (
-              <button key={item.id} onClick={() => go(item.id)} className="flex min-h-12 w-full items-center justify-between border-b border-white/[.05] px-4 text-left text-xs font-semibold text-[#D7DAE2] last:border-b-0">
+              <button key={item.id} onClick={() => go(item.id)} className="flex min-h-12 w-full items-center justify-between border-b border-white/[.05] px-4 text-left text-[13px] font-semibold text-[#D7DAE2] last:border-b-0">
                 <span>{item.label}</span><span className="text-[#626878]">›</span>
               </button>
             ))}
             {accountInMore ? (
-              <button onClick={goAccount} className="flex min-h-12 w-full items-center justify-between border-t border-white/[.05] px-4 text-left text-xs font-semibold text-[#D7DAE2]">
+              <button onClick={goAccount} className="flex min-h-12 w-full items-center justify-between border-t border-white/[.05] px-4 text-left text-[13px] font-semibold text-[#D7DAE2]">
                 <span className="flex items-center gap-3"><NavIcon id="account" /><span>Account</span></span><span className="text-[#626878]">›</span>
               </button>
             ) : null}
@@ -132,7 +132,7 @@ export default function WorkspaceFrameV2({
 
       {!immersive && (
         <nav className="fixed inset-x-0 bottom-0 z-[67] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
-          <div className="mx-auto flex min-h-[4.5rem] max-w-lg items-stretch px-1">
+          <div className="mx-auto flex min-h-[4.75rem] max-w-lg items-stretch px-2">
             {direct.map((item) => (
               <BottomTab key={item.id} id={item.id} label={item.label} badge={item.badge} active={active === item.id} onClick={() => go(item.id)} />
             ))}
@@ -147,7 +147,7 @@ export default function WorkspaceFrameV2({
 
 function BottomTab({ id, label, badge = 0, active, onClick }: { id: string; label: string; badge?: number; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold transition-colors ${active ? "text-violet-300" : "text-[#686F80]"}`}>
+    <button onClick={onClick} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-[10px] font-semibold transition-colors ${active ? "text-violet-300" : "text-[#686F80]"}`}>
       <span className="grid h-7 w-7 place-items-center">
         <NavIcon id={id} />
         {badge > 0 ? <span className="absolute right-[calc(50%-1.2rem)] top-1"><CountBadge count={badge} /></span> : null}
@@ -163,7 +163,7 @@ function CountBadge({ count }: { count: number }) {
 }
 
 function NavIcon({ id }: { id: string }) {
-  const common = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8 };
+  const common = { width: 19, height: 19, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8 };
   if (id === "home" || id === "overview") return <svg {...common}><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /><path d="M9.5 20v-5h5v5" /></svg>;
   if (["jobs","reviews","pipeline","housing","properties","showcase"].includes(id)) return <svg {...common}><rect x="4" y="6" width="16" height="13" rx="2" /><path d="M9 6V4h6v2M4 11h16" /></svg>;
   if (["earnings","finance","payments","payouts","ledger"].includes(id)) return <svg {...common}><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M16 15h2" /></svg>;

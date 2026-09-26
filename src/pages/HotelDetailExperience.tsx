@@ -181,16 +181,14 @@ export default function HotelDetailExperience({
     if (selectedRoom?.room_id === room.room_id) return;
     setSelectedRoom(room);
     setSelectedRate(null);
-   
-    setCheckIn("");
-    setCheckOut("");
+    // Dates and guest intent belong to the search, not to a particular room.
+    // Keep them while the guest compares rooms; availability is rechecked later.
   }
 
   function selectRate(plan: HotelRatePlan) {
     if (selectedRate?.rate_plan_id === plan.rate_plan_id) return;
     setSelectedRate(plan);
-    setCheckIn("");
-    setCheckOut("");
+    // Keep the selected dates while comparing packages.
   }
 
   function messageWeHouse() {
