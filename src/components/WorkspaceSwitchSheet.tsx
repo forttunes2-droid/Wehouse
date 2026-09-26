@@ -14,7 +14,7 @@ function WorkspaceIcon({ workspace }: { workspace: WorkspaceChoice }) {
   const common = { size: 18, strokeWidth: 1.8 };
   if (workspace === "personal") return <UserRound {...common} />;
   if (workspace === "worker") return <Wrench {...common} />;
-  if (workspace === "property_partner") return <Building2 {...common} />;
+  if (workspace === "property_partner" || workspace === "hosting") return <Building2 {...common} />;
   if (workspace === "hotel") return <Hotel {...common} />;
   if (workspace === "creator") return <Crown {...common} />;
   if (workspace === "admin") return <ShieldCheck {...common} />;
@@ -106,7 +106,9 @@ export default function WorkspaceSwitchSheet({
                       ? "Your services, jobs and professional profile"
                       : workspace === "property_partner"
                         ? "Properties, guests, earnings and partner work"
-                        : workspace === "hotel"
+                        : workspace === "hosting"
+                          ? "Assigned homes, guest operations and co-host work"
+                          : workspace === "hotel"
                           ? "Your assigned hotel operations"
                           : "Your assigned WeHouse work";
 

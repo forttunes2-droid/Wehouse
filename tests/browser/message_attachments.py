@@ -93,7 +93,7 @@ async def main():
        assert await page.evaluate('window.__opened.id')=='long-home'
        assert await page.evaluate('(window.__actions||0)+(window.__replies||0)')==0
       elif mode=='picker':
-       await expect(page.get_by_role('dialog',name='Send property',exact=True)).to_be_visible()
+       await expect(page.get_by_role('dialog',name='Share property',exact=True)).to_be_visible()
        await expect(page.get_by_placeholder('Search name or username')).not_to_be_focused()
        await expect(page.get_by_role('button',name='Ada Example @ada-example')).to_be_visible()
        await expect(page.get_by_text('Blocked Example',exact=True)).to_have_count(0)

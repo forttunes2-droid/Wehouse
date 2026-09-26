@@ -30,10 +30,29 @@ test('Signed-out Personal uses Sign in instead of a fake Account destination', a
   ]);
   assert.match(nav, /signedOut/);
   assert.match(nav, /'Sign in'/);
+  assert.match(nav, /const Icon = tab\.icon/);
+  assert.match(nav, /const label = signedOut && tab\.id === 'profile' \? 'Sign in' : tab\.label/);
+  assert.match(nav, /active:scale-\[\.98\]/);
+  assert.doesNotMatch(nav, /SignInIcon|signInTab/);
+  assert.match(nav, /function AccountIcon/);
   assert.match(guest, /signedOut/);
   assert.match(guest, /requireSignIn\(null, 'account'\)/);
   assert.doesNotMatch(guest, /title: 'Your account'/);
   assert.doesNotMatch(guest, /title: 'Sign in to WeHouse'/);
+});
+
+test('safe invitation preview is an explicit public read-only RPC', async () => {
+  const [migration, contract] = await Promise.all([
+    read('supabase/migrations/20260926111500_resource_invitations_and_hosting_workspace.sql'),
+    read('supabase/tests/foundation_rls_contract.sql'),
+  ]);
+  const preview = migration.slice(migration.indexOf('create or replace function public.preview_resource_invitation'), migration.indexOf('create or replace function public.respond_to_resource_invitation'));
+  assert.match(preview, /token_hash=public\._invitation_token_hash\(p_token\)/);
+  assert.match(preview, /jsonb_build_object\('valid',false\)/);
+  assert.match(preview, /resource_title/);
+  assert.doesNotMatch(preview, /booking_code|check_in_code|payment_reference|owner_id|wallet/);
+  assert.doesNotMatch(preview, /insert into|update public\.|delete from/i);
+  assert.match(contract, /'preview_resource_invitation\(text\)'/);
 });
 
 test('Property management is post-publication, property-scoped and booking responsibility is snapshotted', async () => {

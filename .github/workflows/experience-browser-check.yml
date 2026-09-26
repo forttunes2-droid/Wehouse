@@ -1,7 +1,6 @@
 name: Experience browser check
 on:
   pull_request:
-    branches: [main]
 permissions:
   contents: read
 concurrency:

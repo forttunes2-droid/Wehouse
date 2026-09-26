@@ -8,7 +8,7 @@ export function workspaceEntryPage(role: string): NavPage {
   const roots: Record<string, NavPage> = {
     creator: "creator", admin: "admin", staff: "staff_dashboard",
     worker: "worker_dashboard", property_partner: "property_partner",
-    hotel_staff: "hotel_operations", user: "search",
+    hosting: "hosting", hotel_staff: "hotel_operations", user: "search",
   };
   return roots[role] || "search";
 }

@@ -12,6 +12,8 @@ import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
+import WorkerCapacityManager from "@/components/WorkerCapacityManager";
+import SponsoredMarketRules from "@/components/SponsoredMarketRules";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import CreatorAuditWorkspace from "@/components/CreatorAuditWorkspace";
 import ServiceBookingOversight from "@/components/ServiceBookingOversight";
@@ -880,6 +882,7 @@ type PlatformSection =
   | "booking_money"
   | "workers"
   | "worker_plan"
+  | "sponsored"
   | "properties"
   | "legal";
 const PLATFORM_SECTIONS: Array<{
@@ -911,6 +914,11 @@ const PLATFORM_SECTIONS: Array<{
     id: "worker_plan",
     label: "Paid Service Worker plan",
     note: "Plan name, prices, subscription terms and sales controls.",
+  },
+  {
+    id: "sponsored",
+    label: "Sponsored marketplace",
+    note: "Paid visibility rules for Workers, Homes and Hotels.",
   },
   {
     id: "properties",
@@ -992,9 +1000,11 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
             </p>
             <ServiceCategoryManager profile={profile} />
           </section>
+          <WorkerCapacityManager />
         </div>
       )}
       {section === "worker_plan" && <CreatorSettingsTabV2 profile={profile} groups={["worker_pro"]} embedded />}
+      {section === "sponsored" && <SponsoredMarketRules />}
       {section === "properties" && (
         <section>
           <h3 className="mb-1 text-sm font-semibold">Property types</h3>

@@ -18,13 +18,14 @@ type Props = {
   initialActivity?: boolean;
   chatUnread?: number;
   activityUnread?: number;
+  hostingOnly?: boolean;
 };
 type InboxItem =
   | { kind: "hotel"; id: string; time: string; thread: HotelConversation }
   | { kind: "host"; id: string; time: string; thread: PropertyHostConversation }
   | { kind: "support"; id: string; time: string; thread: SupportThread };
 
-export default function CommunicationInbox({ profile, onNavigate = () => {}, chatUnread = 0, activityUnread = 0, initialActivity = false }: Props) {
+export default function CommunicationInbox({ profile, onNavigate = () => {}, chatUnread = 0, activityUnread = 0, initialActivity = false, hostingOnly = false }: Props) {
   const [showActivity, setShowActivity] = useState(initialActivity);
   const closeActivity = useRecordScreenBack(() => setShowActivity(false), showActivity);
   const [query, setQuery] = useState("");
@@ -41,15 +42,23 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   const loadMessages = useCallback(async () => {
     const request = ++generation.current;
     try {
-      const [hotelResult, hostResult, supportResult] = await withTimeout(Promise.all([getMyHotelConversations("property_partner"), getMyPropertyHostConversations(), getMySupportConversations("property_partner")]), 15000, "Inbox took too long");
-      if (request !== generation.current) return;
-      if (!hotelResult.error) setHotelChats(hotelResult.conversations);
-      if (!hostResult.error) setHostChats(hostResult.conversations || []);
-      if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
-      setLoadError(Boolean(hotelResult.error || hostResult.error || supportResult.error));
+      if (hostingOnly) {
+        const hostResult = await withTimeout(getMyPropertyHostConversations(), 15000, "Inbox took too long");
+        if (request !== generation.current) return;
+        setHotelChats([]); setSupportThreads([]);
+        if (!hostResult.error) setHostChats(hostResult.conversations || []);
+        setLoadError(Boolean(hostResult.error));
+      } else {
+        const [hotelResult, hostResult, supportResult] = await withTimeout(Promise.all([getMyHotelConversations("property_partner"), getMyPropertyHostConversations(), getMySupportConversations("property_partner")]), 15000, "Inbox took too long");
+        if (request !== generation.current) return;
+        if (!hotelResult.error) setHotelChats(hotelResult.conversations);
+        if (!hostResult.error) setHostChats(hostResult.conversations || []);
+        if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
+        setLoadError(Boolean(hotelResult.error || hostResult.error || supportResult.error));
+      }
     } catch { if (request === generation.current) setLoadError(true); }
     finally { if (request === generation.current) setLoading(false); }
-  }, []);
+  }, [hostingOnly]);
 
   useEffect(() => {
     void loadMessages();
@@ -102,7 +111,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     return <HotelBookingChat bookingId={activeHotel.booking_id} conversationId={activeHotel.conversation_id} profile={profile} title={activeHotel.guest_name || "Guest"} subtitle={stayContext(activeHotel)} readOnly={!['confirmed','checked_in'].includes(activeHotel.booking_status)} onClose={() => setActiveHotel(null)} onUpdated={loadMessages} />;
   }
 
-  if (showActivity) {
+  if (showActivity && !hostingOnly) {
     return (
       <div className="min-h-[65dvh]">
         <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
@@ -116,7 +125,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
 
   return (
     <div className="min-h-[65dvh]">
-      <InboxActivityEntry unread={activityUnread} detail="Property, booking, payment and official updates" onOpen={() => setShowActivity(true)} />
+      {!hostingOnly ? <InboxActivityEntry unread={activityUnread} detail="Property, booking, payment and official updates" onOpen={() => setShowActivity(true)} /> : null}
       <section className="pt-1">
         <div className="mb-3 flex items-center justify-between">
           <div><h2 className="text-sm font-semibold">Messages</h2></div>
@@ -126,10 +135,10 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
           <SearchIcon />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search messages" className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-[#626879]" />
         </label>
-        <div className="flex gap-4 border-b border-white/[.06]">{([['all', 'All'], ['hotel', 'Hotel guests'], ['host', 'Home guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[#8B91A0]'}`}>{label}</button>)}</div>
+        {!hostingOnly ? <div className="flex gap-4 border-b border-white/[.06]">{([['all', 'All'], ['hotel', 'Hotel guests'], ['host', 'Home guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[#8B91A0]'}`}>{label}</button>)}</div> : null}
         {loadError && <div role="alert" className="py-3 text-xs text-amber-200">Some conversations could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => void loadMessages()}>Try again</button></div>}
         {loading ? <p role="status" className="py-6 text-sm text-[#A1A1AA]">Loading your conversations…</p> : !items.length && !loadError ? (
-          <div className="border-b border-dashed border-white/[.07] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[#666C7C]">Guest stay and WeHouse conversations will appear here.</p></div>
+          <div className="border-b border-dashed border-white/[.07] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[#666C7C]">{hostingOnly ? "Guest conversations appear here when you are assigned to a Host-managed booking." : "Guest stay and WeHouse conversations will appear here."}</p></div>
         ) : (
           <div className="divide-y divide-white/[.055] border-b border-white/[.06]">
             {items.map((item) => item.kind === "hotel"

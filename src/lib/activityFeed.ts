@@ -18,7 +18,7 @@ const FINANCIAL_ACTIVITY = /payment|payout|earning|dispute|refund/i;
 const ACCOUNT_ACTIVITY = /security|password|verification/i;
 const BOOKING_ACTIVITY = /booking|reservation|inspection|listing|property|hotel|job|worker|status/i;
 const ROOMMATE_ACTIVITY = /roommate|match|invite|interest/i;
-const ACTIONABLE_ACTIVITY = /action_required|payment_conflict|dispute|changes_requested|escalat|verification_required|refund_due|failed|service_price_ready|service_completion_review_required|service_request_received|service_payment_confirmed|work_post_confirmation_requested|roommate_interest|property_move_in_requested|waiting_payment|payment_required|approval_required/i;
+const ACTIONABLE_ACTIVITY = /resource_invitation|invitation|action_required|payment_conflict|dispute|changes_requested|escalat|verification_required|refund_due|failed|service_price_ready|service_completion_review_required|service_request_received|service_payment_confirmed|work_post_confirmation_requested|roommate_interest|property_move_in_requested|waiting_payment|payment_required|approval_required/i;
 const ACTIONABLE_COPY = /needs? (?:your|my) action|price ready for approval|review completed work|waiting for (?:your|my) (?:approval|payment|response)|requires? (?:your|my) (?:approval|payment|response)|new roommate interest|new service request|needs verification/i;
 const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/i;
 const TRANSIENT_ACTIVITY = /device_confirmation_pending|typing|message_seen|message_viewed|reaction|draft_saved|sync_(started|finished)/i;
@@ -220,6 +220,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   if (type === "property_rent_confirmed") return "View reservation";
   if (type === "property_inspection_coordination_required")
     return "Open inspection request";
+  if (route === "invitation") return "Review invitation";
   if (route === "conversation") return "Open conversation";
   if (route === "devices" || route === "security") return "Review security activity";
   if (/hotel/.test(type) && /booking|reservation/.test(route)) return "Open hotel stay";

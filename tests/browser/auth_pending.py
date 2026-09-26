@@ -21,7 +21,9 @@ async def main():
      # the real Google-transaction implementation still reads/writes its keys.
      await page.evaluate("""() => { window.__authTest={calls:[]};for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}}""")
      await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
-     await page.get_by_role('button',name='Sign in',exact=True).click()
+     masthead_signin=page.locator('.wh-public-entry section').first.get_by_role('button',name='Sign in',exact=True)
+     form_signin=page.locator('form').get_by_role('button',name='Sign in',exact=True)
+     await masthead_signin.click()
      if mode=='google-pending':
       await page.get_by_role('button',name='Continue with Google',exact=True).click()
       await expect(page.get_by_role('button',name='Opening Google…',exact=True)).to_be_disabled()
@@ -33,22 +35,22 @@ async def main():
       # submitted again from the landing masthead while its outcome is unknown.
       await page.go_back();await expect(page.get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
       await page.evaluate('window.__authTest.resolve({error:{message:"Network error"}})')
-      await expect(page.get_by_role('button',name='Sign in',exact=True)).to_be_enabled()
+      await expect(masthead_signin).to_be_enabled()
      else:
       signup=mode=='signup-confirmation'
       await page.get_by_role('button',name='Create account' if signup else 'Continue with email',exact=True).click()
       await page.get_by_label('Email' if signup else 'Username or email',exact=True).fill('test@example.invalid')
       await page.locator('input[autocomplete="new-password"]' if signup else 'input[autocomplete="current-password"]').fill('not-a-real-password')
-      await page.get_by_role('button',name='Create account' if signup else 'Sign in',exact=True).click()
+      await page.locator('form').get_by_role('button',name='Create account' if signup else 'Sign in',exact=True).click()
       await expect(page.get_by_role('button',name='Creating account…' if signup else 'Signing in…',exact=True)).to_be_disabled()
       await expect(page.get_by_label('Email' if signup else 'Username or email',exact=True)).to_be_disabled()
       await page.locator('form').evaluate('(e)=>{e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));}')
       assert len(await page.evaluate('window.__authTest.calls'))==1
       if mode=='password-error':
        await page.evaluate('window.__authTest.resolve({data:{session:null},error:{message:"Invalid login credentials"}})')
-       await expect(page.get_by_role('button',name='Sign in',exact=True)).to_be_enabled()
+       await expect(form_signin).to_be_enabled()
        await expect(page.get_by_label('Username or email',exact=True)).to_have_value('test@example.invalid')
-       await page.get_by_role('button',name='Sign in',exact=True).click()
+       await form_signin.click()
        assert len(await page.evaluate('window.__authTest.calls'))==2
       elif signup:
        await page.evaluate('window.__authTest.resolve({data:{user:{id:"test-user"}},error:null})')
@@ -68,7 +70,7 @@ async def main():
         await expect(page.get_by_role('button',name='Verify with Google',exact=True)).to_be_enabled()
        else:
         await page.evaluate('window.__accountError()')
-        await expect(page.get_by_role('button',name='Sign in',exact=True)).to_be_enabled()
+        await expect(form_signin).to_be_enabled()
      assert not errors,errors;assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1');row['passed']=True
     except Exception as e:
      row['error']=str(e);row['page_errors']=errors;await page.screenshot(path=str(OUT/f'auth-pending-FAIL-{mode}-{width}.png'))

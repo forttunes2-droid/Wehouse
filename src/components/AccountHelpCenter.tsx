@@ -56,7 +56,10 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     setLoadError(false);
     setTargets({});
     setLoadedFor("");
-    void withTimeout(supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace }), 15000, 'Help timed out').then(({ data, error }) => {
+    const targetRequest = workspace === "hosting"
+      ? supabase.rpc("get_my_hosting_help_targets")
+      : supabase.rpc("get_my_workspace_help_targets", { p_workspace: workspace });
+    void withTimeout(targetRequest, 15000, 'Help timed out').then(({ data, error }) => {
       if (cancelled) return;
       // An older or malformed projection is unavailable, not an empty payment history.
       const usable = !error && isHelpTargetsResponse(data) && data.account.subject_id === profile.user_id;
@@ -76,13 +79,14 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
   useEffect(() => { setTopic(null); }, [profile.user_id, workspace]);
 
   const topics = TOPICS.filter(item => {
-    if (item.id === 'property') return workspace === 'personal' || workspace === 'property_partner' || workspace === 'hotel';
+    if (item.id === 'property') return workspace === 'personal' || workspace === 'property_partner' || workspace === 'hosting' || workspace === 'hotel';
     if (item.id === 'job') return workspace === 'personal' || workspace === 'worker';
-    if (item.id === 'money') return workspace !== 'hotel';
+    if (item.id === 'money') return workspace === 'personal' || workspace === 'worker' || workspace === 'property_partner';
     return true;
   }).map(item => {
     if (item.id === 'property' && workspace === 'property_partner') return { ...item, title:'Properties and guests', detail:'Your submissions, properties and guest bookings' };
     if (item.id === 'property' && workspace === 'hotel') return { ...item, title:'Your hotel', detail:'Help with your assigned hotel' };
+    if (item.id === 'property' && workspace === 'hosting') return { ...item, title:'Assigned homes and guest operations', detail:'Get help with a property you currently host' };
     if (item.id === 'job' && workspace === 'worker') return { ...item, title:'Jobs and professional profile', detail:'Your jobs, setup and review' };
     if (item.id === 'money' && workspace === 'personal') return { ...item, title:'Payments and refunds', detail:'A payment for a booking or service' };
     if (item.id === 'money') return { ...item, title:'Earnings and payouts', detail:'Job payments, guest payments and withdrawals' };

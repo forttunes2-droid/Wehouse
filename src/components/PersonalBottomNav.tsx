@@ -23,11 +23,10 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
     >
       <div className="mx-auto grid w-full max-w-lg grid-cols-4 px-2 pt-1.5">
         {tabs.map((tab) => {
-          const signInTab = signedOut && tab.id === 'profile';
-          const active = !signInTab && activePage === tab.id;
+          const active = activePage === tab.id;
           const badge = tab.id === 'conversation' ? inboxBadge : 0;
-          const label = signInTab ? 'Sign in' : tab.label;
-          const Icon = signInTab ? SignInIcon : tab.icon;
+          const label = signedOut && tab.id === 'profile' ? 'Sign in' : tab.label;
+          const Icon = tab.icon;
           return (
             <button
               key={tab.id}
@@ -36,23 +35,15 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
               aria-current={active ? 'page' : undefined}
               onClick={() => onNavigate(tab.id)}
               className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 transition active:scale-[.98] ${
-                signInTab
-                  ? 'text-violet-200'
-                  : active
-                    ? 'text-violet-300'
-                    : 'text-[#777D8D]'
+                active ? 'text-violet-300' : 'text-[#777D8D]'
               }`}
             >
               <span className={`grid h-8 w-10 place-items-center rounded-xl transition ${
-                signInTab
-                  ? 'bg-violet-500/12'
-                  : active
-                    ? 'bg-violet-500/10'
-                    : 'bg-transparent'
+                active ? 'bg-violet-500/10' : 'bg-transparent'
               }`}>
-                <Icon size={22} active={active || signInTab} />
+                <Icon size={22} active={active} />
               </span>
-              <span className={`truncate text-[10px] leading-none ${active || signInTab ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+              <span className={`truncate text-[10px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
               {badge > 0 && (
                 <span className="absolute right-[18%] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white">
                   {badge > 99 ? '99+' : badge}
@@ -74,9 +65,6 @@ function ReservationIcon({ size, active }: { size: number; active: boolean }) {
 }
 function InboxIcon({ size, active }: { size: number; active: boolean }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#C4B5FD' : 'currentColor'} strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="m4 4-3 9v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-6l-3-9H4Zm-3 9h6l2 3h6l2-3h6" /></svg>;
-}
-function SignInIcon({ size, active }: { size: number; active: boolean }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#DDD6FE' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5" /></svg>;
 }
 function AccountIcon({ size, active }: { size: number; active: boolean }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={active ? '#C4B5FD' : 'currentColor'} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;

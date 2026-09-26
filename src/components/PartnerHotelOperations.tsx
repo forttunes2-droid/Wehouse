@@ -5,6 +5,8 @@ import { locationLabel } from "@/lib/locationPresentation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { shareInvitationExternally } from "@/lib/resourceInvitation";
+import SentResourceInvitations from "@/components/SentResourceInvitations";
 import {
   getMyHotelOperationSnapshot,
   partnerCreateHotelRoom,
@@ -734,11 +736,32 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
 type HotelTeamRow = { id: string; member_user_id: string; hotel_role: "manager" | "front_desk"; status: "invited" | "active"; capabilities: HotelCapability[]; name: string; username?: string | null };
 function HotelTeam({ hotelId, grantableCapabilities }: { hotelId: number; grantableCapabilities: HotelCapability[] }) {
   const [rows, setRows] = useState<HotelTeamRow[]>([]); const [identifier, setIdentifier] = useState(""); const [role, setRole] = useState<"manager" | "front_desk">("front_desk"); const [saving, setSaving] = useState(false); const [removing, setRemoving] = useState<string | null>(null);
-  const load = useCallback(async () => { const { data, error } = await supabase.rpc("get_my_hotel_team", { p_hotel_id: hotelId }); if (error) return toast.error(error.message); setRows(Array.isArray(data) ? data : []); }, [hotelId]);
+  const load = useCallback(async () => {
+    const team=await supabase.rpc("get_my_hotel_team", { p_hotel_id: hotelId });
+    if (team.error) return toast.error(team.error.message);
+    setRows(Array.isArray(team.data) ? team.data : []);
+  }, [hotelId]);
   useEffect(() => { void load(); }, [load]);
-  async function invite() { if (!identifier.trim()) return toast.error("Enter a WeHouse username or user ID"); setSaving(true); const { error } = await supabase.rpc("owner_invite_hotel_team_member", { p_hotel_id: hotelId, p_identifier: identifier.trim(), p_role: role }); setSaving(false); if (error) return toast.error(error.message); setIdentifier(""); toast.success("Invitation sent. Access starts only after acceptance."); await load(); }
+  async function invite() { if (!identifier.trim()) return toast.error("Enter a WeHouse username or user ID"); setSaving(true); const { error } = await supabase.rpc("create_hotel_team_invitation", {
+      p_hotel_id: hotelId,
+      p_role: role,
+      p_identifier: identifier.trim(),
+      p_delivery: "direct",
+    }); setSaving(false); if (error) return toast.error(error.message); setIdentifier(""); toast.success("Invitation sent. Access starts only after acceptance."); window.dispatchEvent(new Event("wehouse:resource-invitations-changed")); await load(); }
+  async function shareInvite() {
+    if(saving)return;
+    setSaving(true);
+    const {data,error}=await supabase.rpc("create_hotel_team_invitation",{p_hotel_id:hotelId,p_role:role,p_identifier:null,p_delivery:"link"});
+    setSaving(false);
+    if(error||!data?.token)return toast.error(error?.message||"Invite link could not be created");
+    try{
+      const result=await shareInvitationExternally(String(data.token),`Join this hotel on WeHouse as ${role==="manager"?"Manager":"Front desk"}`);
+      if(result==="copied")toast.success("Invite link copied");
+      window.dispatchEvent(new Event("wehouse:resource-invitations-changed"));await load();
+    }catch{return toast.error("Invite link could not be shared")}
+  }
   async function remove(row: HotelTeamRow) { setRemoving(row.id); const { error } = await supabase.rpc("owner_revoke_hotel_team_member", { p_membership_id: row.id }); setRemoving(null); if (error) return toast.error(error.message); toast.success(row.status === "invited" ? "Invitation cancelled" : "Hotel access removed"); await load(); }
-  return <div className="space-y-5"><section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4"><h3 className="text-base font-bold">Hotel team</h3><p className="mt-1 text-sm leading-relaxed text-[#6D7485]">Invite by exact WeHouse username or ID. Access starts only after acceptance.</p><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_150px_auto]"><input value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="@username or WH user ID" autoCapitalize="none" autoCorrect="off" className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/35" /><select value={role} onChange={(event) => setRole(event.target.value as "manager" | "front_desk")} className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs"><option value="manager">Manager</option><option value="front_desk">Front desk</option></select><button disabled={saving} onClick={() => void invite()} className="h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold disabled:opacity-40">{saving ? "Sending…" : "Send invite"}</button></div><div className="mt-3 grid grid-cols-2 gap-2 text-sm leading-4 text-[#A1A7B4]"><p className="rounded-xl bg-white/[.025] p-2.5"><strong className="block text-[#B7BCC8]">Manager</strong>Reservations, guest messages, check-in/out, rooms, packages and availability</p><p className="rounded-xl bg-white/[.025] p-2.5"><strong className="block text-[#B7BCC8]">Front desk</strong>Reservations, guest messages, room readiness, check-in and checkout</p></div></section>{rows.length === 0 ? <Empty text="No pending invitations or active team members." /> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <HotelTeamMemberRow key={row.id} row={row} grantableCapabilities={grantableCapabilities} removing={removing === row.id} onRemove={() => void remove(row)} onSaved={load} />)}</div>}</div>;
+  return <div className="space-y-5"><section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4"><h3 className="text-base font-bold">Hotel team</h3><p className="mt-1 text-sm leading-relaxed text-[#6D7485]">Invite an existing WeHouse account directly, or create a single-use link. Access starts only after acceptance.</p><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_150px_auto]"><input value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="@username or WH user ID" autoCapitalize="none" autoCorrect="off" className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/35" /><select value={role} onChange={(event) => setRole(event.target.value as "manager" | "front_desk")} className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs"><option value="manager">Manager</option><option value="front_desk">Front desk</option></select><button disabled={saving} onClick={() => void invite()} className="h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold disabled:opacity-40">{saving ? "Sending…" : "Send invite"}</button></div><button type="button" disabled={saving} onClick={() => void shareInvite()} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] bg-white/[.02] text-xs font-semibold text-[#B9BECA] disabled:opacity-40">Share invite link for {role === "manager" ? "Manager" : "Front desk"}</button><div className="mt-3 grid grid-cols-2 gap-2 text-sm leading-4 text-[#A1A7B4]"><p className="rounded-xl bg-white/[.025] p-2.5"><strong className="block text-[#B7BCC8]">Manager</strong>Reservations, guest messages, check-in/out, rooms, packages and availability</p><p className="rounded-xl bg-white/[.025] p-2.5"><strong className="block text-[#B7BCC8]">Front desk</strong>Reservations, guest messages, room readiness, check-in and checkout</p></div><p className="mt-3 text-[9px] leading-4 text-[#686F80]">Team access never transfers hotel ownership or payout authority.</p><SentResourceInvitations resourceType="hotel" resourceId={String(hotelId)} /></section>{rows.length === 0 ? <Empty text="No pending invitations or active team members." /> : <div className="divide-y divide-white/[.06] border-y border-white/[.06]">{rows.map((row) => <HotelTeamMemberRow key={row.id} row={row} grantableCapabilities={grantableCapabilities} removing={removing === row.id} onRemove={() => void remove(row)} onSaved={load} />)}</div>}</div>;
 }
 
 function HotelTeamMemberRow({ row, grantableCapabilities, removing, onRemove, onSaved }: { row: HotelTeamRow; grantableCapabilities: HotelCapability[]; removing: boolean; onRemove: () => void; onSaved: () => Promise<unknown> }) {

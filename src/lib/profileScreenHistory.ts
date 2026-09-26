@@ -21,6 +21,9 @@ export function bindProfileScreenHistory(win: Window, id: string, onClose: () =>
     onClose();
   };
   const pop = (event: PopStateEvent) => {
+    // Auth identity synchronization emits a synthetic popstate so App can
+    // refresh its route. It is not a browser Back and must not close a layer.
+    if (!event.isTrusted) return;
     if (!active || !isTopProfileScreen(id) || event.state?.whProfileScreen?.id === id) return;
     event.stopImmediatePropagation();
     finish();

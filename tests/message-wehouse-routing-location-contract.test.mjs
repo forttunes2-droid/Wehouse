@@ -4,15 +4,15 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("Help is Account-only and follows Personal, professional or Hotel Team context", async () => {
+test("Help remains in Account and follows supported Personal, professional, Hosting and Hotel Team workspaces", async () => {
   const [account, app] = await Promise.all([
     read("src/pages/AccountCenter.tsx"),
     read("src/App.tsx"),
   ]);
-  assert.match(account, /canOpenCustomerHelp = \["personal", "worker", "property_partner", "hotel"\]\.includes\(activeWorkspace\)/);
+  assert.match(account, /canOpenCustomerHelp = \["personal", "worker", "property_partner", "hosting", "hotel"\]\.includes\(activeWorkspace\)/);
   assert.match(account, /panel === "help" && canOpenCustomerHelp/);
   assert.match(account, /canOpenCustomerHelp \? \(/);
-  assert.match(app, /\["user", "worker", "property_partner", "hotel_staff"\]\.includes/);
+  assert.match(app, /\["user", "worker", "property_partner", "hosting", "hotel_staff"\]\.includes/);
 });
 
 test("Property Partner submission help enters Property Operations through structured reason data", async () => {

@@ -275,7 +275,10 @@ export async function discardSupportMessageDraft(draftId: string) {
   return { discarded: data === true, error };
 }
 export function supportContextForWorkspace(context: SupportOpenContext, role: string): SupportOpenContext {
-  const workspace = role === 'hotel_staff' ? 'hotel' : ['worker', 'property_partner', 'hotel'].includes(role) ? role : 'personal';
+  const requested = String(context.contextSnapshot?.requester_workspace || '');
+  const workspace = ['personal', 'worker', 'property_partner', 'hosting', 'hotel'].includes(requested)
+    ? requested
+    : role === 'hotel_staff' ? 'hotel' : ['worker', 'property_partner', 'hosting', 'hotel'].includes(role) ? role : 'personal';
   const general = !context.contextType || context.contextType === 'general';
   return { ...context, contextId: general && !context.contextId ? `workspace:${workspace}` : context.contextId,
     contextSnapshot: { ...context.contextSnapshot, requester_workspace: workspace } };

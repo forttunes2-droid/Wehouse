@@ -18,6 +18,8 @@ type HostControlsState={
   availability_status:string;
   host_booking_paused:boolean;
   accepting_reservations:boolean;
+  access_level?:"operations"|"full_hosting";
+  can_manage_commercials?:boolean;
   min_nights?:number|null;
   max_nights?:number|null;
   date_blocks:DateBlock[];
@@ -117,6 +119,18 @@ export default function PropertyHostControls({
 
   const shortLet=(state.sub_type||subType)==="short_let";
   const currentPrice=Number(state.price||0);
+  const canManageCommercials=Boolean(state.can_manage_commercials);
+
+  if(!canManageCommercials)return <section className="border-b border-white/[.07] py-5">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Hosting access</p>
+        <p className="mt-1 text-sm font-semibold">Operations</p>
+      </div>
+      <span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[9px] font-semibold text-[#A0A6B4]">Guest operations</span>
+    </div>
+    <p className="mt-2 text-[9px] leading-5 text-[#707687]">You can operate assigned stays and guest handovers. Future price, booking availability and closed dates stay with the owner or a Full hosting co-host.</p>
+  </section>;
 
   return <section className="border-b border-white/[.07] py-5">
     <div className="flex items-center justify-between gap-3">

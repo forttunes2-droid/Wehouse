@@ -40,7 +40,7 @@ async def main():
     await page.evaluate(SCRIPT,{'mode':'public','calls':[],'unexpected':[],'home':HOME,'hotel':HOTEL})
     await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
-    await expect(page.get_by_role('button',name='Sign in',exact=True)).to_be_visible()
+    await expect(page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) for c in await page.evaluate('window.__browse.calls'))
     await page.wait_for_function('Array.from(document.querySelectorAll("[data-media-thumbnail] img")).some(img=>img.complete&&img.naturalWidth>0)')

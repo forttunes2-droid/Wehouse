@@ -45,6 +45,7 @@ export type WorkspaceAccess = {
     role:
       | "worker"
       | "property_partner"
+      | "hosting"
       | "staff"
       | "admin"
       | "creator"
@@ -115,13 +116,14 @@ export default function AccountCenter({
   >(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
-  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hotel"].includes(activeWorkspace);
+  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hosting", "hotel"].includes(activeWorkspace);
   const isUser = activeWorkspace === "personal";
   const isServiceProvider = activeWorkspace === "worker";
   const isStaff = activeWorkspace === "staff";
   const canEditGenericProfile = !isStaff && !isServiceProvider;
   const helpDetail = activeWorkspace === 'worker' ? 'Your jobs, professional profile and earnings'
     : activeWorkspace === 'property_partner' ? 'Your properties, guests and earnings'
+    : activeWorkspace === 'hosting' ? 'Your assigned properties and guest operations'
     : activeWorkspace === 'hotel' ? 'Your assigned hotel and account'
     : 'Your account, stays, services and payments';
   const initials = (
@@ -146,7 +148,7 @@ export default function AccountCenter({
       profile.worker_verified === true,
   );
   const assignedWorkspaces = privilegedWorkspaces.filter((workspace) =>
-    ["hotel", "staff", "admin", "creator"].includes(workspace.role),
+    ["hosting", "hotel", "staff", "admin", "creator"].includes(workspace.role),
   );
   const canStartProfessionalOnboarding = Boolean(
     ownAccess &&
@@ -182,9 +184,11 @@ export default function AccountCenter({
         role: workspace.role,
         label: workspace.role === "staff" ? "Staff" : workspace.role === "admin" ? "Admin" : workspaceLabel(workspace.role),
         detail:
-          workspace.role === "hotel"
-            ? "Assigned hotel access"
-            : workspace.lga
+          workspace.role === "hosting"
+            ? "Properties you help host"
+            : workspace.role === "hotel"
+              ? "Assigned hotel access"
+              : workspace.lga
               ? `${workspace.lga}${workspace.state ? `, ${workspace.state}` : ""}`
               : "Assigned work access",
       });

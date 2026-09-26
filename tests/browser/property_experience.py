@@ -131,8 +131,8 @@ async def main():
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      # Named recipients and unchanged encrypted Inbox gate on the actual sending path.
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
-     await page.get_by_role('button',name=re.compile('^Send property')).click()
-     dialog=page.get_by_role('dialog',name='Send property',exact=True)
+     await page.get_by_role('button',name='Share ↗',exact=True).click()
+     dialog=page.get_by_role('dialog',name='Share property',exact=True)
      await expect(dialog).to_be_visible(); await expect(dialog.get_by_role('button',name=re.compile('Ada Example'))).to_be_visible()
      await expect(dialog.get_by_text('Blocked Example',exact=True)).to_have_count(0)
      await expect(dialog.get_by_text('Pending Example',exact=True)).to_have_count(0)
