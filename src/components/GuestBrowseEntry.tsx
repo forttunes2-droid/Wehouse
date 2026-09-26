@@ -72,13 +72,12 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
 
 function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
   const content = {
-    bookings: { title: 'Bookings', text: 'Sign in to view and manage your bookings.' },
-    inbox: { title: 'Inbox', text: 'Sign in to read your messages and updates.' },
+    bookings: { title: 'Sign in to see your bookings' },
+    inbox: { title: 'Sign in to open your inbox' },
   }[section];
   return <main className="wh-public-gate" aria-labelledby={`guest-${section}-title`}>
     <div>
       <h1 id={`guest-${section}-title`}>{content.title}</h1>
-      <p>{content.text}</p>
       <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
     </div>
   </main>;
