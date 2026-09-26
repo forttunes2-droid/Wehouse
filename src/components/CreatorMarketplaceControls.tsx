@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { NIGERIA_STATES } from "@/data/nigeria-locations";
-import { getServiceCategories } from "@/lib/supabase/services";
+import { getServiceCategories } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 import WeHouseSelect from "@/components/WeHouseSelect";
 
