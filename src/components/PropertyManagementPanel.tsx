@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import { shareInvitationExternally } from "@/lib/resourceInvitation";
-import { invitationShareUrl } from "@/lib/resourceInvitation";
+import SentResourceInvitations from "@/components/SentResourceInvitations";
 
 type Assignment={
   assignment_id:string;
@@ -13,14 +13,6 @@ type Assignment={
   role:"owner"|"manager";
   status:"invited"|"active"|"revoked"|"declined";
   access_level?:"operations"|"full_hosting";
-};
-type PendingInvite={
-  invitation_id:string;
-  delivery:"direct"|"link";
-  permission_profile:string;
-  status:string;
-  recipient_name?:string|null;
-  expires_at:string;
 };
 type ManagementState={
   listing_id:string;
@@ -37,18 +29,12 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   const [busy,setBusy]=useState(false);
   const [username,setUsername]=useState("");
   const [inviteAccess,setInviteAccess]=useState<"operations"|"full_hosting">("operations");
-  const [pendingInvites,setPendingInvites]=useState<PendingInvite[]>([]);
-  const [inviteAccess,setInviteAccess]=useState<"operations"|"full_hosting">("operations");
   const load=useCallback(async()=>{
     setLoading(true);
-    const [management,invites]=await Promise.all([
-      supabase.rpc("get_my_property_management",{p_listing_id:listingId}),
-      supabase.rpc("get_my_resource_invitations",{p_resource_type:"property",p_resource_id:listingId}),
-    ]);
+    const management=await supabase.rpc("get_my_property_management",{p_listing_id:listingId});
     setLoading(false);
     if(management.error||!management.data){setState(null);return toast.error(management.error?.message||"Property management could not be loaded")}
     setState(management.data as ManagementState);
-    setPendingInvites(Array.isArray(invites.data)?invites.data.filter((row:any)=>row.status==="pending"):[]);
   },[listingId]);
   useEffect(()=>{void load()},[load]);
   const mine=useMemo(()=>state?.assignments.find(row=>row.user_id===profile.user_id&&row.status==="active")||null,[profile.user_id,state]);
@@ -81,7 +67,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     });
     setBusy(false);
     if(error)return toast.error(error.message);
-    setUsername("");toast.success("Co-host invitation sent");await load();
+    setUsername("");toast.success("Co-host invitation sent");window.dispatchEvent(new Event("wehouse:resource-invitations-changed"));await load();
   }
   async function shareInvite(){
     if(!owner||busy)return;
@@ -97,16 +83,8 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     try{
       const result=await shareInvitationExternally(String(data.token),`Co-host ${state?.assignments?.find(row=>row.role==="owner")?.name||"property"} on WeHouse`);
       if(result==="copied")toast.success("Invite link copied");
-      await load();
+      window.dispatchEvent(new Event("wehouse:resource-invitations-changed"));await load();
     }catch{return toast.error("Invite link could not be shared")}
-  }
-  async function revokeInvite(invitationId:string){
-    if(!owner||busy)return;
-    setBusy(true);
-    const {error}=await supabase.rpc("revoke_resource_invitation",{p_invitation_id:invitationId});
-    setBusy(false);
-    if(error)return toast.error(error.message||"Invitation could not be revoked");
-    toast.success("Invitation revoked");await load();
   }
   async function setResponsible(userId:string){
     if(!owner||busy)return;
@@ -195,7 +173,6 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
         </div>
         <div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="@username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div>
         <button type="button" disabled={busy} onClick={()=>void shareInvite()} className="mt-2 min-h-11 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-violet-300 disabled:opacity-40">Share invite link</button>
-        {pendingInvites.length?<div className="mt-3 divide-y divide-white/[.06] border-y border-white/[.06]">{pendingInvites.map(inviteRow=><div key={inviteRow.invitation_id} className="flex items-center gap-3 py-2.5"><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold">{inviteRow.delivery==="link"?"Shared link":inviteRow.recipient_name||"Direct invite"} · {inviteRow.permission_profile==="full_hosting"?"Full hosting":"Operations"}</p><p className="mt-0.5 text-[8px] text-[#676E7F]">Pending · expires {new Date(inviteRow.expires_at).toLocaleDateString()}</p></div><button type="button" disabled={busy} onClick={()=>void revokeInvite(inviteRow.invitation_id)} className="min-h-9 px-2 text-[9px] font-semibold text-red-300 disabled:opacity-40">Revoke</button></div>)}</div>:null}
       </div>:null}
     </div>:null}
   </section>;
