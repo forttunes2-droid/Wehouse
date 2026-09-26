@@ -22,6 +22,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import StaffListTab from "./StaffListTab";
 import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
+import { CreatorSponsoredControl, CreatorWorkerCapacityControl } from "@/components/CreatorMarketplaceControls";
 import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
 import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
@@ -880,6 +881,7 @@ type PlatformSection =
   | "booking_money"
   | "workers"
   | "worker_plan"
+  | "sponsored"
   | "properties"
   | "legal";
 const PLATFORM_SECTIONS: Array<{
@@ -911,6 +913,11 @@ const PLATFORM_SECTIONS: Array<{
     id: "worker_plan",
     label: "Paid Service Worker plan",
     note: "Plan name, prices, subscription terms and sales controls.",
+  },
+  {
+    id: "sponsored",
+    label: "Sponsored marketplace",
+    note: "Paid visibility rules for Workers, Homes and Hotels.",
   },
   {
     id: "properties",
@@ -982,6 +989,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
             title="Worker marketplace rules"
             description="Worker onboarding and earned marketplace trust."
           />
+          <CreatorWorkerCapacityControl />
           <section className="border-t border-white/[.07] pt-5">
             <h3 className="mb-1 text-sm font-semibold">
               Occupations and services
@@ -995,6 +1003,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
         </div>
       )}
       {section === "worker_plan" && <CreatorSettingsTabV2 profile={profile} groups={["worker_pro"]} embedded />}
+      {section === "sponsored" && <CreatorSponsoredControl />}
       {section === "properties" && (
         <section>
           <h3 className="mb-1 text-sm font-semibold">Property types</h3>
