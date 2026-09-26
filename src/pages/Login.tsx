@@ -722,14 +722,18 @@ export default function Login({
 
   const displayError = error || serverError;
   const [browseResetKey, setBrowseResetKey] = useState(0);
+  const [restorePropertyOnBack, setRestorePropertyOnBack] = useState(false);
   const returnToPlaces = useRecordScreenBack(() => {
-    setBrowseResetKey((key) => key + 1);
+    // Keep the public property open when Back unwinds its sign-in prompt.
+    // A standalone Account/Inbox sign-in still restarts at Explore.
+    if (!restorePropertyOnBack) setBrowseResetKey((key) => key + 1);
+    setRestorePropertyOnBack(false);
     setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
   }, ["choose", "signin", "signup", "forgot"].includes(mode));
 
   return (
     <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} busy={working}
-      onSignIn={() => { if (!workingRef.current) { setMode("choose"); clearMessages(); } }}
+      onSignIn={(property) => { if (!workingRef.current) { setRestorePropertyOnBack(Boolean(property)); setMode("choose"); clearMessages(); } }}
       onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
     >

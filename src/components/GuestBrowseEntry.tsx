@@ -13,7 +13,7 @@ const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetailCore'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetailExperience'));
 const noSavedHomes = new Set<string>();
-type Props = { active: boolean; busy?: boolean; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { active: boolean; busy?: boolean; onSignIn: (property: SharedProperty | null) => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
 
 /** Only coordinates public navigation. Search, cards and property details are the
  * SAME components as the authenticated routes. No fake Profile or private reads. */
@@ -38,7 +38,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
         window.dispatchEvent(new HashChangeEvent('hashchange'));
       } catch { /* Restricted history must not make Sign in unusable. */ }
     }
-    onSignIn();
+    onSignIn(property);
   }
   function navigate(route: string, id?: string) {
     if (route === 'search' || route === 'hotels') { setPage(route); return; }
@@ -56,7 +56,7 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
     token={invitationToken}
     onSignIn={() => {
       try { saveInvitationIntent(invitationToken, sessionStorage); } catch {}
-      onSignIn();
+      onSignIn(null);
     }}
     onClose={() => {
       try { clearInvitationIntent(sessionStorage); } catch {}

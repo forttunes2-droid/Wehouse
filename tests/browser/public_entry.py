@@ -65,6 +65,7 @@ async def main():
      row['after_hotel_click_state']=await page.locator('.wh-public-entry').get_attribute('data-navigation-state')
      row['after_hotel_click_history']=await page.evaluate('JSON.stringify(window.history.state)')
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+     row['hotel_opened_before_signin']=True
      await page.get_by_role('button',name='Save hotel',exact=True).click()
      await expect(page.get_by_role('heading',name='Welcome',exact=True)).to_be_visible()
      await expect(page.locator('.wh-public-entry')).to_have_count(0)
@@ -81,6 +82,7 @@ async def main():
      # leave either the invisible auth page or an interaction lock behind.
      await page.go_back()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+     row['hotel_restored_after_native_back']=True
      await expect(page.locator('.wh-auth-form')).to_have_count(0)
      await page.get_by_role('button',name='Back to hotels',exact=True).click()
      await expect(page.get_by_placeholder('Search hotel name')).to_have_value('Garden')
