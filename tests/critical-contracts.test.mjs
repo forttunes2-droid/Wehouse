@@ -223,7 +223,7 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   assert.match(billing,/worker_pro_web_paystack_plan_code/);
   assert.match(creator,/creator_set_worker_pro_setting/);
   assert.match(creator,/worker-pro-plan-sync/);
-  assert.match(paidPanel,/Gold PRO is the worker-only paid membership badge/);
+  assert.match(paidPanel,/gold badge appears only on an active Worker membership/);
   assert.match(paidPanel,/Identity and professional checks stay separate/);
   assert.match(paidPanel,/pro\.active && <GoldTickBadge/);
   assert.match(publicProfile,/worker\.pro_active \? <GoldTickBadge/);
