@@ -54,7 +54,7 @@ serve(async(req)=>{
 
   if(payment.purpose==='apartment_reservation'||payment.purpose==='apartment_rent'){
    const reservationId=String(meta.reservation_id||'').trim();if(!reservationId)return json({success:false,error:'Reservation link is missing'},409);
-   const{data:reservation,error:reservationError}=await db.from('reservations').select('id,user_id,listing_id,status,payment_reference,payment_expires_at,rent_payment_status,rent_payment_reference,upfront_rent_required,stay_type,stay_check_in,stay_check_out,stay_rent_total,security_deposit_snapshot,shared_payment_group_id').eq('id',reservationId).maybeSingle();
+   const{data:reservation,error:reservationError}=await db.from('reservations').select('id,user_id,listing_id,status,payment_reference,payment_expires_at,rent_payment_status,rent_payment_reference,upfront_rent_required,stay_type,stay_check_in,stay_check_out,stay_rent_total,security_deposit_snapshot,shared_payment_group_id,reservation_fee_status,manual_payment_status,reservation_fee_paid_at,short_stay_balance_due_at').eq('id',reservationId).maybeSingle();
    if(reservationError)return json({success:false,error:reservationError.message},500);if(!reservation||reservation.user_id!==profile.user_id)return json({success:false,error:'Reservation does not match this account'},403);
    const{data:listing,error:listingError}=await db.from('listings').select('id,status,current_reservation_id,deleted_at,sub_type').eq('id',reservation.listing_id).maybeSingle();
    if(listingError)return json({success:false,error:listingError.message},500);if(!listing||listing.deleted_at)return json({success:false,error:'Property is no longer available'},409);
@@ -75,7 +75,9 @@ serve(async(req)=>{
     if(short){
      if(reservation.shared_payment_group_id)return json({success:false,error:'Pay only your own share through the shared payment record'},409);
      if(reservation.status==='payment_pending'&&(!reservation.payment_expires_at||new Date(reservation.payment_expires_at).getTime()<=Date.now()))return json({success:false,error:'Short Let date checkout has expired'},409);
-     if(String(meta.payment_component||'')!=='short_stay_rent')return json({success:false,error:'Short Stay payment component is invalid'},409);
+     if(!['short_stay_balance','short_stay_rent'].includes(String(meta.payment_component||'')))return json({success:false,error:'Short Stay payment component is invalid'},409);
+     if(reservation.reservation_fee_status!=='paid'||!['paid','completed'].includes(String(reservation.manual_payment_status||''))||!reservation.reservation_fee_paid_at)return json({success:false,error:'Reserve date payment must be confirmed before the stay balance'},409);
+     if(reservation.short_stay_balance_due_at&&new Date(reservation.short_stay_balance_due_at).getTime()<=Date.now())return json({success:false,error:'The Short Let stay balance deadline has passed. Reserve the dates again.'},409);
      const required=Number(reservation.stay_rent_total||0)+Number(reservation.security_deposit_snapshot||0);if(!sameMoney(required,amount))return json({success:false,error:'Short Stay amount does not match the reservation terms'},409);
      if(['maintenance','closed','rejected','pending_approval'].includes(String(listing.status)))return json({success:false,error:'This Short Stay cannot accept payment right now'},409);
     }else{
