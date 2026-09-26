@@ -5,20 +5,23 @@ import { readFile } from 'node:fs/promises';
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('delegated Hosting is projected from accepted co-host access, not Property Partner ownership', async () => {
-  const [invite, scope, app, workspace] = await Promise.all([
+  const [invite, scope, app, workspace, ownerWorkspace] = await Promise.all([
     read('supabase/migrations/20260926111500_resource_invitations_and_hosting_workspace.sql'),
     read('supabase/migrations/20260926111600_hosting_scope_permissions.sql'),
     read('src/App.tsx'),
-    read('src/pages/PropertyHostingDashboard.tsx'),
+    read('src/pages/HostingDashboard.tsx'),
+    read('src/pages/PropertyOwnerDashboard.tsx'),
   ]);
   assert.match(invite, /'role','hosting'/);
   assert.match(invite, /assignment_role='manager'/);
   assert.doesNotMatch(invite, /That user must activate a Property Partner workspace first/);
   assert.match(scope, /get_my_hosting_properties/);
   assert.match(app, /isHostingRole/);
-  assert.match(app, /PropertyHostingDashboard/);
-  assert.match(workspace, /WEHOUSE · HOSTING/);
-  assert.doesNotMatch(workspace, /PayoutAccountManager|PartnerSubmittedRequests|PropertyPartnerFinancePanel/);
+  assert.match(app, /HostingDashboard/);
+  assert.match(workspace, /delegatedOnly/);
+  assert.match(ownerWorkspace, /WEHOUSE · HOSTING/);
+  assert.match(ownerWorkspace, /get_my_hosting_properties/);
+  assert.match(ownerWorkspace, /!delegatedOnly && tab === "finance"/);
 });
 
 test('co-host permission presets are enforced by database commercial controls', async () => {
@@ -40,9 +43,10 @@ test('co-host permission presets are enforced by database commercial controls', 
 });
 
 test('resource invitations use hashed expiring link tokens and canonical Activity', async () => {
-  const [migration, activity] = await Promise.all([
+  const [migration, activity, action] = await Promise.all([
     read('supabase/migrations/20260926111500_resource_invitations_and_hosting_workspace.sql'),
     read('src/pages/Notifications.tsx'),
+    read('src/components/ResourceInvitationAction.tsx'),
   ]);
   assert.match(migration, /resource_invitations/);
   assert.match(migration, /extensions\.digest/);
@@ -52,8 +56,9 @@ test('resource invitations use hashed expiring link tokens and canonical Activit
   assert.match(migration, /status<>'pending'/);
   assert.match(migration, /source_type,source_id/);
   assert.match(migration, /'resource_invitation'/);
-  assert.match(activity, /respond_to_resource_invitation/);
-  assert.match(activity, /wehouse:workspace-access-changed/);
+  assert.match(activity, /ResourceInvitationAction/);
+  assert.match(action, /respond_to_resource_invitation/);
+  assert.match(action, /wehouse:workspace-access-changed/);
 });
 
 test('public property sharing remains view-only and separate from invitation authority', async () => {
