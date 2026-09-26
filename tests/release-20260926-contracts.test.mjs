@@ -23,6 +23,18 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   assert.match(paymentInit, /Reserve date payment must be confirmed before the stay balance/);
 });
 
+test('Signed-out Personal uses Sign in instead of a fake Account destination', async () => {
+  const [nav, guest] = await Promise.all([
+    read('src/components/PersonalBottomNav.tsx'),
+    read('src/components/GuestBrowseEntry.tsx'),
+  ]);
+  assert.match(nav, /signedOut/);
+  assert.match(nav, /'Sign in'/);
+  assert.match(guest, /signedOut/);
+  assert.match(guest, /account: \{ title: 'Sign in to WeHouse'/);
+  assert.doesNotMatch(guest, /title: 'Your account'/);
+});
+
 test('Property management is property-scoped and booking responsibility is snapshotted', async () => {
   const [authority, conversations, assets, panel] = await Promise.all([
     read('supabase/migrations/20260926062000_property_management_authority.sql'),
@@ -38,7 +50,9 @@ test('Property management is property-scoped and booking responsibility is snaps
   assert.match(conversations, /Only photos and videos can be attached/);
   assert.doesNotMatch(conversations, /select\s+r\.booking_code/i);
   assert.match(assets, /get_my_managed_properties/);
-  assert.match(panel, /Identity verification does not create property authority/);
+  assert.match(panel, /You manage this home/);
+  assert.match(panel, /Hosting team/);
+  assert.match(panel, /Bookings, messages and handover stay with you/);
   assert.match(panel, /Guest booking code/);
 });
 
