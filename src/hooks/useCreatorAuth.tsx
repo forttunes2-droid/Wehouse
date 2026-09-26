@@ -196,7 +196,24 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError('');
       try {
-        return await invokeStepUp(creatorSecret, code.trim());
+        const factors = await supabase.auth.mfa.listFactors();
+        if (factors.error) throw factors.error;
+        const factor = factors.data.totp.find((item) => item.status === 'verified');
+        if (!factor) {
+          setNeedsMfa(false);
+          setError('Set up an authenticator in Access & security first.');
+          return false;
+        }
+        const verified = await supabase.auth.mfa.challengeAndVerify({
+          factorId: factor.id,
+          code: code.trim(),
+        });
+        if (verified.error) {
+          setError('Authenticator code is incorrect.');
+          return false;
+        }
+        // challengeAndVerify upgrades this exact signed-in session to AAL2.
+        return await invokeStepUp(creatorSecret);
       } catch {
         setError('Authenticator verification failed. Try again.');
         return false;
