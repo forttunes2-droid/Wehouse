@@ -173,6 +173,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
         </div>
         <div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="@username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div>
         <button type="button" disabled={busy} onClick={()=>void shareInvite()} className="mt-2 min-h-11 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-violet-300 disabled:opacity-40">Share invite link</button>
+        <SentResourceInvitations resourceType="property" resourceId={listingId} />
       </div>:null}
     </div>:null}
   </section>;
