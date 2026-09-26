@@ -148,8 +148,13 @@ do $$ declare preview jsonb; begin
   end if;
 end $$;
 reset role;
-update public.resource_invitations set status='revoked',revoked_at=now()
-  where invitation_id='f6100000-3000-4000-8000-000000000004';
+select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+do $$ declare revoked boolean; begin
+  revoked:=public.revoke_resource_invitation('f6100000-3000-4000-8000-000000000004');
+  if revoked is distinct from true then raise exception 'Owner could not withdraw a pending link'; end if;
+end $$;
+reset role;
 set local role anon;
 do $$ declare preview jsonb; begin
   preview:=public.preview_resource_invitation('market-preview-token');

@@ -143,13 +143,21 @@ test('Hosting Help is scoped to assigned properties and cannot expose partner fi
 });
 
 test('invitation acceptance checks current authority and preserves owners and active team members', async () => {
-  const migration = await read('supabase/migrations/20260926151722_harden_resource_invitations_hosting_help_capacity.sql');
+  const [migration, invitationUi, contract] = await Promise.all([
+    read('supabase/migrations/20260926151722_harden_resource_invitations_hosting_help_capacity.sql'),
+    read('src/components/SentResourceInvitations.tsx'),
+    read('supabase/tests/marketplace_controls_contract.sql'),
+  ]);
   assert.match(migration, /The inviter no longer owns this property/);
   assert.match(migration, /The inviter no longer has hotel team-management access/);
   assert.match(migration, /A property owner assignment cannot be replaced/);
   assert.match(migration, /An active co-host must be revoked before a new invitation/);
   assert.match(migration, /A hotel owner cannot be added as a team member/);
   assert.match(migration, /v_actor=v_invite\.inviter_user_id or exists/);
+  assert.match(invitationUi, /revoke_resource_invitation/);
+  assert.match(invitationUi, /Withdraw/);
+  assert.match(contract, /revoke_resource_invitation\('f6100000-3000-4000-8000-000000000004'\)/);
+  assert.match(contract, /Revoked preview token remained usable/);
 });
 
 test('Worker market capacity serializes admission and reactivation and keeps status private', async () => {
