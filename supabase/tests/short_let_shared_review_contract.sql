@@ -23,8 +23,17 @@ set local role authenticated;
 select id as reservation from public.create_short_stay_reservation('94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3) \gset
 reset role;
 select payment_expires_at as original_deadline from public.reservations where id=:'reservation' \gset
-select pg_temp.expect((select payment_reference is null and shared_payment_group_id is null and stay_rent_total=1000 and security_deposit_snapshot=500 from public.reservations where id=:'reservation'),'Date-first reservation does not initialize payment');
+select pg_temp.expect((select payment_reference is not null and reservation_fee_status='payment_pending' and shared_payment_group_id is null and stay_rent_total=1000 and security_deposit_snapshot=500 from public.reservations where id=:'reservation'),'Reserve date creates only the reservation-fee checkout');
 select set_config('test.shared_reservation',:'reservation',true);
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+update public.booking_payments set status='paid',verified_amount=amount_total,verified_at=now(),paid_at=now(),webhook_processed=true,verification_source='webhook'
+where paystack_reference=(select payment_reference from public.reservations where id=:'reservation');
+reset role;
+select pg_temp.expect((select status='reserved' and reservation_fee_status='paid' and rent_payment_status='not_started' from public.reservations where id=:'reservation'),'Reserve date fee reserves the dates without paying the stay');
+select short_stay_balance_due_at as original_deadline from public.reservations where id=:'reservation' \gset
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select (public.create_my_shared_short_let(:'reservation',array['94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000013']::uuid[])->>'id') as shared_group \gset
 select pg_temp.expect((public.create_my_shared_short_let(:'reservation',array['94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000013']::uuid[])->>'id')=:'shared_group','Retry reuses the same group and reservation');
@@ -59,7 +68,7 @@ select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select public.confirm_shared_housing_payment(:'chika_payment','synthetic-chika',500);
 reset role;
-select pg_temp.expect((select status='payment_pending' from public.reservations where id=:'reservation'),'One paid share never confirms the whole stay');
+select pg_temp.expect((select status='reserved' and reservation_fee_status='paid' and rent_payment_status='not_started' from public.reservations where id=:'reservation'),'One paid share never confirms the whole stay or changes Reserve date');
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select (public.create_my_shared_housing_payment(:'shared_group')->>'reference') as ada_payment \gset
@@ -71,6 +80,6 @@ set local role service_role;
 select public.confirm_shared_housing_payment(:'ada_payment','synthetic-ada',500);
 select public.confirm_shared_housing_payment(:'bola_payment','synthetic-bola',500);
 reset role;
-select pg_temp.expect((select status='reserved' and rent_payment_status='paid' and guest_count=3 and stay_rent_total=1000 and security_deposit_snapshot=500 from public.reservations where id=:'reservation'),'Only all accepted and verified shares confirm the stored stay');
+select pg_temp.expect((select status='ready_for_move_in' and reservation_fee_status='paid' and rent_payment_status='paid' and guest_count=3 and stay_rent_total=1000 and security_deposit_snapshot=500 from public.reservations where id=:'reservation'),'Only all accepted and verified shares pay the stored stay while preserving Reserve date');
 select pg_temp.expect((select count(*)=1 from public.reservations where listing_id='94000000-0000-4000-8000-000000000020'),'No duplicate reservation after group payment');
 rollback;

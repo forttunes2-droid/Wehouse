@@ -6,7 +6,7 @@ import {shortLetPayment} from '@/lib/shortLetPayment';
 import {sharedAmounts} from '@/lib/sharedHousingPresentation';
 import {withTimeout} from '@/lib/withTimeout';
 const money=(n:number)=>`₦${n.toLocaleString('en-NG',{minimumFractionDigits:0,maximumFractionDigits:2})}`;
-type Row=Parameters<typeof shortLetPayment>[0]&{id:string;guest_count?:number;status?:string;payment_reference?:unknown;rent_payment_reference?:unknown;shared_payment_group_id?:unknown;payment_expires_at?:string};
+type Row=Parameters<typeof shortLetPayment>[0]&{id:string;guest_count?:number;status?:string;payment_reference?:unknown;rent_payment_reference?:unknown;shared_payment_group_id?:unknown;payment_expires_at?:string;reservation_fee_status?:string;manual_payment_status?:string;short_stay_balance_due_at?:string;rent_payment_status?:string};
 export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userId:string;onCreated:(group:SharedHousingGroup)=>void}) {
   const [open,setOpen]=useState(false),[people,setPeople]=useState<RoommateRecipient[]>([]),[ids,setIds]=useState<string[]>([]);
   const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[attempt,setAttempt]=useState(0);
@@ -33,11 +33,13 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
     }catch(failure){if(current===generation.current)setError(failure instanceof Error?failure.message:String((failure as {message?:string})?.message||'Invitation could not be confirmed. Refresh before retrying.'));}
     finally{inFlight.current=false;if(current===generation.current)setBusy(false);}
   }
-  if(!bill||capacity<2||row.status!=='payment_pending'||row.payment_reference||row.rent_payment_reference||row.shared_payment_group_id)return null;
+  const reserveDatePaid=row.reservation_fee_status==='paid'||['paid','completed'].includes(String(row.manual_payment_status||''));
+  const balanceDeadline=row.short_stay_balance_due_at?new Date(row.short_stay_balance_due_at).getTime():0;
+  if(!bill||capacity<2||!reserveDatePaid||!['reserved','ready_for_move_in'].includes(String(row.status||''))||!balanceDeadline||balanceDeadline<=Date.now()||row.rent_payment_status==='payment_pending'||row.rent_payment_status==='paid'||row.rent_payment_reference||row.shared_payment_group_id)return null;
   return <section className="mt-4 border-t border-white/10 pt-4" aria-label="Split Short Let costs">
     <button type="button" disabled={busy} onClick={()=>setOpen(v=>!v)} aria-expanded={open} className="min-h-11 w-full rounded-xl border border-violet-400/25 px-4 py-3 text-sm font-semibold text-violet-300">{open?'Close cost sharing':'Split costs with connections'}</button>
     {open&&<div className="mt-4 space-y-4">
-      <p className="text-sm leading-6 text-[#AAA3B3]">Choose people staying with you. Every person accepts and pays their own share. Sharing does not extend the checkout deadline or confirm the stay.</p>
+      <p className="text-sm leading-6 text-[#AAA3B3]">Reserve date is already paid by you. Choose people staying with you to split only the remaining stay charge and refundable deposit. Every person accepts and pays their own share.</p>
       <p className="text-sm">Reserved guests: {row.guest_count}. Paying people: {chosen.length+1}.</p>
       {error&&<div role="alert" className="text-sm leading-6 text-amber-200"><p>{error}</p><button type="button" disabled={busy} onClick={()=>setAttempt(n=>n+1)} className="min-h-11 font-semibold underline">Refresh connections</button></div>}
       {loading?<p role="status" className="text-sm">Loading your connections…</p>:<div className="divide-y divide-white/10">{people.map(person=><label key={person.userId} className="flex min-h-16 items-center gap-3 py-3">
