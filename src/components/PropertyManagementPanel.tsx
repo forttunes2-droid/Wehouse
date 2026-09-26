@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
+import { invitationShareUrl } from "@/lib/resourceInvitation";
 
 type Assignment={
   assignment_id:string;
@@ -26,6 +27,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [username,setUsername]=useState("");
+  const [inviteAccess,setInviteAccess]=useState<"operations"|"full_hosting">("operations");
   const [inviteAccess,setInviteAccess]=useState<"operations"|"full_hosting">("operations");
   const load=useCallback(async()=>{
     setLoading(true);
