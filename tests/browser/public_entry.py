@@ -25,7 +25,7 @@ async def main():
   try:
    for width,height in [(320,740),(390,844),(768,900),(1440,900)]:
     scenario=PublicScenario();context=await browser.new_context(viewport={'width':width,'height':height},service_workers='block');page=await context.new_page();page.set_default_timeout(8000)
-    await page.add_init_script("window.__wehousePopEvents=[];window.__wehouseHistoryCalls=[];window.addEventListener('popstate',e=>window.__wehousePopEvents.push({state:e.state,trusted:e.isTrusted,time:performance.now()}),true);for(const method of ['back','forward','go']){const original=history[method].bind(history);history[method]=(...args)=>{window.__wehouseHistoryCalls.push({method,args,state:history.state,time:performance.now()});return original(...args)}}")
+    await page.add_init_script("window.__wehousePopEvents=[];window.__wehouseHistoryCalls=[];window.__wehouseLayerStops=[];window.__wehouseNavChanges=[];window.addEventListener('popstate',e=>{window.__wehousePopEvents.push({state:e.state,trusted:e.isTrusted,time:performance.now(),url:location.href});const stop=e.stopImmediatePropagation.bind(e);try{Object.defineProperty(e,'stopImmediatePropagation',{configurable:true,value:function(){window.__wehouseLayerStops.push({state:e.state,time:performance.now(),stack:(new Error()).stack});return stop()}})}catch{}},true);new MutationObserver(records=>{for(const r of records)if(r.attributeName==='data-navigation-state')window.__wehouseNavChanges.push({state:r.target.getAttribute('data-navigation-state'),time:performance.now()})}).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['data-navigation-state']});for(const method of ['pushState','replaceState','back','forward','go']){const original=history[method].bind(history);history[method]=(...args)=>{window.__wehouseHistoryCalls.push({method,args,state:history.state,time:performance.now(),url:location.href,stack:(new Error()).stack});return original(...args)}}")
     page.on('pageerror',lambda error:scenario.errors.append(str(error)));await page.route('**/*',scenario.route)
     row={'width':width,'passed':False}
     try:
@@ -96,6 +96,8 @@ async def main():
      row['guest_navigation_state']=await page.locator('.wh-public-entry').get_attribute('data-navigation-state')
      row['pop_events']=await page.evaluate('JSON.stringify(window.__wehousePopEvents)')
      row['history_calls']=await page.evaluate('JSON.stringify(window.__wehouseHistoryCalls)')
+     row['layer_stops']=await page.evaluate('JSON.stringify(window.__wehouseLayerStops)')
+     row['navigation_changes']=await page.evaluate('JSON.stringify(window.__wehouseNavChanges)')
      row['scenario_calls']=[name for name,_ in scenario.calls]
      await page.screenshot(path=str(OUT/f'public-entry-FAIL-{width}.png'),full_page=True)
     finally:results.append(row);await context.close()
