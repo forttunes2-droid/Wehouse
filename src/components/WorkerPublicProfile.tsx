@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
+import GoldTickBadge from "@/components/GoldTickBadge";
 import { supabase } from "@/lib/supabase";
 import { workerServiceNames } from "@/lib/workerTaxonomy";
 import {
@@ -125,6 +126,7 @@ function WorkerProfileContent({
         badges={
           <>
             {verified ? <WorkerTrustBadge /> : null}
+            {worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}
           </>
         }
       >
@@ -144,7 +146,7 @@ function WorkerProfileContent({
       onClose={onBack}
       maxWidth="4xl"
       actions={communicationActions}
-      badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
+      badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
       bottomAction={showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-white/10 py-4 text-sm text-[#BCC2CF]">
