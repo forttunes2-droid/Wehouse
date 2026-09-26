@@ -51,9 +51,10 @@ test('Property management is property-scoped and booking responsibility is snaps
   assert.match(conversations, /Only photos and videos can be attached/);
   assert.doesNotMatch(conversations, /select\s+r\.booking_code/i);
   assert.match(assets, /get_my_managed_properties/);
-  assert.match(panel, /You manage this home/);
+  assert.match(panel, /Host managed/);
+  assert.match(panel, /WeHouse managed/);
   assert.match(panel, /Hosting team/);
-  assert.match(panel, /Bookings, messages and handover stay with you/);
+  assert.match(panel, /Property Operations/);
   assert.match(panel, /Guest booking code/);
 });
 
