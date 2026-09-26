@@ -15,12 +15,24 @@ as $$
   end
   from public.property_host_assignments assignment
   join public.profiles profile on profile.user_id=assignment.user_id
+  join public.listings listing on listing.id=assignment.listing_id
   where assignment.listing_id=p_listing_id
     and assignment.user_id=public.current_profile_user_id()
     and assignment.status='active'
     and not coalesce(profile.deleted,false)
     and not coalesce(profile.suspended,false)
     and not coalesce(profile.banned,false)
+    and (
+      assignment.assignment_role='owner'
+      or listing.management_mode='host'
+      or exists(
+        select 1 from public.reservations reservation
+        where (reservation.listing_id=listing.id::text or reservation.listing_id=listing.listing_id)
+          and reservation.management_mode_snapshot='host'
+          and reservation.responsible_host_user_id=assignment.user_id
+          and reservation.status not in ('completed','cancelled','refunded','expired')
+      )
+    )
   order by case when assignment.assignment_role='owner' then 0 else 1 end
   limit 1
 $$;
@@ -34,7 +46,11 @@ set search_path to 'pg_catalog','public'
 as $$
   select coalesce(
     public.current_actor_property_host_access_level(p_listing_id)
-      in ('owner','full_hosting'),
+      in ('owner','full_hosting')
+    and exists(
+      select 1 from public.listings listing
+      where listing.id=p_listing_id and listing.management_mode='host'
+    ),
     false
   )
 $$;
@@ -104,7 +120,16 @@ begin
       a.assignment_role='owner'
       or (
         a.assignment_role='manager'
-        and l.management_mode='host'
+        and (
+          l.management_mode='host'
+          or exists(
+            select 1 from public.reservations reservation
+            where (reservation.listing_id=l.id::text or reservation.listing_id=l.listing_id)
+              and reservation.management_mode_snapshot='host'
+              and reservation.responsible_host_user_id=v_actor
+              and reservation.status not in ('completed','cancelled','refunded','expired')
+          )
+        )
       )
     )
     and l.deleted_at is null
