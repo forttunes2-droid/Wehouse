@@ -73,6 +73,11 @@ test('Host-managed homes expose audited future price and availability controls',
   assert.match(migration, /current_actor_can_manage_property/);
   assert.match(migration, /Only the property owner can change who manages this home/);
   assert.match(migration, /a\.assignment_role='owner'/);
+  assert.match(migration, /revoke_property_host_manager/);
+  assert.match(migration, /responsible_host_user_id=v_actor/);
+  assert.match(migration, /property_host_conversations/);
+  assert.match(migration, /host_user_id=v_actor/);
+  assert.match(migration, /property_host_manager_revoked/);
   assert.match(migration, /revoke all on public\.property_host_date_blocks from public,anon,authenticated/i);
   assert.match(migration, /l\.status in \('available','unavailable','reserved','occupied','maintenance','closed'\)/);
   assert.match(reserveDate, /nightly_rate_snapshot/);
