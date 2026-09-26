@@ -15,6 +15,9 @@ begin
   if has_function_privilege('authenticated',
     'public.confirm_sponsored_paystack_charge(text,text,bigint,text,text)','EXECUTE') then
     raise exception 'Browser role can activate a campaign'; end if;
+  if has_function_privilege('anon',
+    'public.get_sponsored_discovery(text,text,text,text,integer)','EXECUTE') then
+    raise exception 'Anonymous role can call privileged Sponsored discovery'; end if;
   insert into public.profiles(auth_id,email,user_id,role,account_kind)
   values(gen_random_uuid()::text,'sponsored-test@example.invalid',v_owner,'property_partner','property_partner');
   insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)

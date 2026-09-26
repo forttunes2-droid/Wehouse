@@ -410,7 +410,7 @@ revoke all on function public.begin_my_sponsored_checkout(uuid) from public,anon
 revoke all on function public.confirm_sponsored_paystack_charge(text,text,bigint,text,text) from public,anon,authenticated;
 revoke all on function public.get_my_sponsored_resources() from public,anon;
 revoke all on function public.get_my_sponsored_offer(text,text) from public,anon;
-revoke all on function public.get_sponsored_discovery(text,text,text,text,integer) from public;
+revoke all on function public.get_sponsored_discovery(text,text,text,text,integer) from public,anon;
 revoke all on function public.record_my_sponsored_impression(uuid,text) from public,anon;
 revoke all on function public.record_my_sponsored_open(uuid) from public,anon;
 revoke all on function public.creator_get_sponsored_campaigns() from public,anon;
@@ -420,7 +420,7 @@ grant execute on function public.begin_my_sponsored_checkout(uuid) to authentica
 grant execute on function public.confirm_sponsored_paystack_charge(text,text,bigint,text,text) to service_role;
 grant execute on function public.get_my_sponsored_resources() to authenticated;
 grant execute on function public.get_my_sponsored_offer(text,text) to authenticated;
-grant execute on function public.get_sponsored_discovery(text,text,text,text,integer) to anon,authenticated;
+grant execute on function public.get_sponsored_discovery(text,text,text,text,integer) to authenticated;
 grant execute on function public.record_my_sponsored_impression(uuid,text) to authenticated;
 grant execute on function public.record_my_sponsored_open(uuid) to authenticated;
 grant execute on function public.creator_get_sponsored_campaigns() to authenticated;

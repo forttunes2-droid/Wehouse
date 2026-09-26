@@ -8,10 +8,13 @@ export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hot
   useEffect(() => {
     let live = true;
     const timer = window.setTimeout(() => {
-      void supabase.rpc('get_sponsored_discovery', {
-        p_resource_type: resourceType, p_state: state || null,
-        p_lga: lga || null, p_category: null, p_limit: 6,
-      }).then(({ data, error }) => { if (live) setResults(error ? [] : (data || []) as SponsoredResult[]); });
+      void supabase.auth.getSession().then(({ data: session }) => {
+        if (!session.session) { if (live) setResults([]); return; }
+        return supabase.rpc('get_sponsored_discovery', {
+          p_resource_type: resourceType, p_state: state || null,
+          p_lga: lga || null, p_category: null, p_limit: 6,
+        }).then(({ data, error }) => { if (live) setResults(error ? [] : (data || []) as SponsoredResult[]); });
+      });
     }, 250);
     return () => { live = false; window.clearTimeout(timer); };
   }, [resourceType, state, lga]);
