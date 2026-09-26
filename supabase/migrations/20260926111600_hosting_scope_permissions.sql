@@ -15,12 +15,25 @@ as $$
   end
   from public.property_host_assignments a
   join public.profiles p on p.user_id=a.user_id
+  join public.listings l on l.id=a.listing_id
   where a.listing_id=p_listing_id
     and a.user_id=public.current_profile_user_id()
     and a.status='active'
     and not coalesce(p.deleted,false)
     and not coalesce(p.suspended,false)
     and not coalesce(p.banned,false)
+    and (
+      a.assignment_role='owner'
+      or l.management_mode='host'
+      or exists(
+        select 1
+        from public.reservations r
+        where (r.listing_id=l.id::text or r.listing_id=l.listing_id)
+          and r.management_mode_snapshot='host'
+          and r.responsible_host_user_id=a.user_id
+          and r.status not in ('completed','cancelled','refunded','expired')
+      )
+    )
   order by case when a.assignment_role='owner' then 0 else 1 end
   limit 1
 $$;
@@ -32,7 +45,14 @@ stable
 security definer
 set search_path to 'pg_catalog','public'
 as $$
-  select coalesce(public.current_actor_property_host_access_level(p_listing_id)='full_hosting',false)
+  select coalesce(
+    public.current_actor_property_host_access_level(p_listing_id)='full_hosting'
+    and exists(
+      select 1 from public.listings l
+      where l.id=p_listing_id and l.management_mode='host'
+    ),
+    false
+  )
 $$;
 
 create or replace function public.get_my_property_host_controls(p_listing_id uuid)
@@ -74,7 +94,7 @@ begin
     'availability_status',v_listing.availability_status,
     'host_booking_paused',v_listing.host_booking_paused,
     'access_level',v_access,
-    'can_manage_commercials',v_access='full_hosting',
+    'can_manage_commercials',public.current_actor_can_change_property_commercials(v_listing.id),
     'accepting_reservations',
       (not v_listing.host_booking_paused
        and v_listing.status='available'
@@ -344,6 +364,8 @@ begin
         '_assignment_status',a.status,
         '_access_level',case when a.assignment_role='owner' then 'full_hosting' else a.access_level end,
         '_can_manage',a.status='active',
+        '_can_control_commercials',
+          a.assignment_role='owner' or (a.access_level='full_hosting' and l.management_mode='host'),
         '_is_owner',a.assignment_role='owner' and a.status='active'
       )
     order by l.created_at desc
@@ -379,6 +401,7 @@ begin
         '_assignment_status',a.status,
         '_access_level',a.access_level,
         '_can_manage',true,
+        '_can_control_commercials',a.access_level='full_hosting' and l.management_mode='host',
         '_is_owner',false
       )
     order by l.created_at desc
@@ -391,7 +414,17 @@ begin
     and a.status='active'
     and l.deleted_at is null
     and l.approved_at is not null
-    and l.management_mode='host'
+    and (
+      l.management_mode='host'
+      or exists(
+        select 1
+        from public.reservations r
+        where (r.listing_id=l.id::text or r.listing_id=l.listing_id)
+          and r.management_mode_snapshot='host'
+          and r.responsible_host_user_id=v_actor
+          and r.status not in ('completed','cancelled','refunded','expired')
+      )
+    )
     and l.status in ('available','unavailable','reserved','occupied','maintenance','closed');
 
   return v_result;
