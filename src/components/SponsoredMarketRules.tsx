@@ -20,6 +20,8 @@ type Rule={
 type Campaign={ campaign_id:string; resource_type:ResourceType; status:string;
   amount_ngn:number; starts_at:string|null; ends_at:string|null;
   payment_reference:string|null; impressions:number; opens:number };
+type StoreProduct={rule_id:string;duration_days:number;platform:"apple"|"google";
+  product_id:string;price_ngn:number;enabled:boolean};
 
 const resourceLabels:Record<ResourceType,string>={worker:"Service Workers",property:"Homes",hotel:"Hotels"};
 
@@ -27,6 +29,12 @@ export default function SponsoredMarketRules(){
   const{requestElevation}=useCreatorAuth();
   const[rules,setRules]=useState<Rule[]>([]);
   const[campaigns,setCampaigns]=useState<Campaign[]>([]);
+  const[storeProducts,setStoreProducts]=useState<StoreProduct[]>([]);
+  const[selectedRule,setSelectedRule]=useState("");
+  const[storePlatform,setStorePlatform]=useState<"apple"|"google">("apple");
+  const[storeDuration,setStoreDuration]=useState(7);
+  const[storeProductId,setStoreProductId]=useState("");
+  const[storeEnabled,setStoreEnabled]=useState(false);
   const[pauseReason,setPauseReason]=useState("");
   const[pauseTarget,setPauseTarget]=useState("");
   const[loading,setLoading]=useState(true);
@@ -44,9 +52,10 @@ export default function SponsoredMarketRules(){
 
   async function load(){
     setLoading(true);
-    const[{data,error},activity]=await Promise.all([
+    const[{data,error},activity,products]=await Promise.all([
       supabase.rpc("creator_get_sponsored_market_rules"),
       supabase.rpc("creator_get_sponsored_campaigns"),
+      supabase.rpc("creator_get_sponsored_store_products"),
     ]);
     setLoading(false);
     if(error)return toast.error(error.message||"Sponsored controls could not be loaded");
@@ -56,15 +65,37 @@ export default function SponsoredMarketRules(){
       allowed_durations:Array.isArray(row.allowed_durations)?row.allowed_durations.map(Number):[],
     })):[]);
     if(!activity.error)setCampaigns((activity.data||[]) as Campaign[]);
+    if(!products.error)setStoreProducts((products.data||[]) as StoreProduct[]);
   }
   useEffect(()=>{void load()},[]);
 
   function edit(rule:Rule){
+    setSelectedRule(rule.rule_id);
     setResourceType(rule.resource_type);setScopeType(rule.scope_type);
     setState(rule.state_name||"");setLga(rule.lga_name||"");
     setEnabled(Boolean(rule.enabled));setSlots(String(rule.slot_count));
     setPrice(String(rule.daily_price_ngn??""));
     setDurations((rule.allowed_durations||[]).join(","));
+    setStoreDuration(rule.allowed_durations?.[0]||7);
+  }
+
+  function saveStoreProduct(){
+    const rule=rules.find(item=>item.rule_id===selectedRule);
+    if(!rule||!rule.allowed_durations.includes(storeDuration))return toast.error("Choose a saved rule and duration");
+    if(!/^[A-Za-z0-9_.-]{3,180}$/.test(storeProductId))return toast.error("Enter a valid store product ID");
+    requestElevation("policy_publish",elevationId=>{
+      void(async()=>{
+        setBusy(true);
+        const{error}=await supabase.rpc("creator_set_sponsored_store_product",{
+          p_rule_id:rule.rule_id,p_duration_days:storeDuration,p_platform:storePlatform,
+          p_product_id:storeProductId,p_price_ngn:Number(rule.daily_price_ngn)*storeDuration,
+          p_enabled:storeEnabled,p_creator_elevation_id:elevationId,
+        });
+        setBusy(false);
+        if(error)return toast.error(error.message||"Store product could not be saved");
+        toast.success("Store product saved");await load();
+      })();
+    });
   }
 
   function save(){
@@ -121,6 +152,32 @@ export default function SponsoredMarketRules(){
       <Field label="Durations (days)"><input value={durations} onChange={e=>setDurations(e.target.value)} placeholder="7,14,30" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
       <label className="flex min-h-11 items-center justify-between rounded-xl border border-border px-3"><span><span className="block text-xs font-semibold text-foreground">Open Sponsored campaigns</span><span className="mt-0.5 block text-[10px] text-muted-foreground">This rule only opens eligibility; campaigns still require verified payment activation.</span></span><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)} className="h-4 w-4 accent-primary"/></label>
       <button type="button" disabled={busy||(scopeType==="lga"&&(!state||!lga))} onClick={save} className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40 sm:col-span-2">{busy?"Saving…":"Save Sponsored rule"}</button>
+    </div>
+
+    <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+      <h4 className="text-xs font-semibold text-foreground">App Store and Google Play Sponsored products</h4>
+      <p className="mt-1 text-[10px] text-muted-foreground">Create the matching product in each store, then link it to a saved market and duration. The store controls the customer’s displayed price. Only enabled matches can start a native checkout.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Saved market"><select value={selectedRule} onChange={e=>{
+          const rule=rules.find(item=>item.rule_id===e.target.value);
+          setSelectedRule(e.target.value);setStoreDuration(rule?.allowed_durations?.[0]||7);
+        }} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose market</option>{rules.map(rule=><option key={rule.rule_id} value={rule.rule_id}>{resourceLabels[rule.resource_type]} · {rule.scope_type==="global"?"Global":rule.lga_name}</option>)}</select></Field>
+        <Field label="Store"><select value={storePlatform} onChange={e=>setStorePlatform(e.target.value as "apple"|"google")} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="apple">App Store</option><option value="google">Google Play</option></select></Field>
+        <Field label="Duration"><select value={storeDuration} onChange={e=>setStoreDuration(Number(e.target.value))} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground">{(rules.find(rule=>rule.rule_id===selectedRule)?.allowed_durations||[]).map(days=><option key={days} value={days}>{days} days</option>)}</select></Field>
+        <Field label="Store product ID"><input value={storeProductId} onChange={e=>setStoreProductId(e.target.value.trim())} placeholder="com.wehouse.sponsored.7d" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+        <label className="flex min-h-11 items-center justify-between rounded-xl border border-border px-3 text-xs">Open this store product <input type="checkbox" checked={storeEnabled} onChange={e=>setStoreEnabled(e.target.checked)}/></label>
+        <button type="button" disabled={busy||!selectedRule} onClick={saveStoreProduct} className="h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40">Save store product</button>
+      </div>
+      {storeProducts.length>0&&<ul className="mt-3 space-y-1 text-[10px] text-muted-foreground">{storeProducts.map(product=><li key={`${product.rule_id}:${product.duration_days}:${product.platform}`}>
+        <button type="button" onClick={()=>{
+          const rule=rules.find(item=>item.rule_id===product.rule_id);
+          if(rule)edit(rule);
+          setStorePlatform(product.platform);setStoreDuration(product.duration_days);
+          setStoreProductId(product.product_id);setStoreEnabled(product.enabled);
+        }} className="w-full rounded-lg border border-border p-2 text-left">
+          {product.platform} · {product.duration_days} days · {product.product_id} · ₦{Number(product.price_ngn).toLocaleString("en-NG")} · {product.enabled?"Open":"Off"}
+        </button>
+      </li>)}</ul>}
     </div>
 
     <div className="mt-4">

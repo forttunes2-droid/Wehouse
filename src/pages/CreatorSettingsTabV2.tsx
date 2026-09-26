@@ -5,6 +5,7 @@ import { invalidateSettingsCache } from '@/hooks/usePlatformSettings';
 import { CREATOR_SETTING_GROUPS, type CreatorSettingsGroupId, type Def } from '@/lib/creatorSettingsSchema';
 import { saveCreatorSetting, type DbSetting } from '@/lib/saveCreatorSetting';
 import type { Profile } from '@/types';
+import CreatorNativeBillingControls from '@/components/CreatorNativeBillingControls';
 
 type Props = { profile?: Profile; groups?: CreatorSettingsGroupId[]; title?: string; description?: string; embedded?: boolean };
 export default function CreatorSettingsTabV2({groups,title='Platform settings',description='Product policy and global configuration.',embedded=false}: Props){
@@ -54,6 +55,7 @@ export default function CreatorSettingsTabV2({groups,title='Platform settings',d
     {(!embedded||visibleGroups.length>1)&&<div><h3 className="text-sm font-semibold">{group.label}</h3><p className="mt-1 text-sm leading-6 text-[#AAA3B3]">{group.description}</p></div>}
     {group.note&&<p className="max-w-3xl text-sm leading-6 text-[#AAA3B3]">{group.note}</p>}
     <div className="grid gap-4 xl:grid-cols-2">{group.settings.map(def=><Setting key={def.key} def={def} value={current(def)} dirty={drafts[def.key]!==undefined} busy={busy} setValue={value=>setDrafts(state=>({...state,[def.key]:value}))} save={()=>void saveChanges([def])}/>)}</div>
+    {group.id==='worker_pro'&&<CreatorNativeBillingControls/>}
    </section>)}
   </fieldset>
  </section>;
