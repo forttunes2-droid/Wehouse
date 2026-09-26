@@ -35,6 +35,7 @@ async def main():
      await expect(page.get_by_role('dialog')).to_have_count(0)
      nav=page.get_by_role('navigation',name='Main navigation')
      await expect(nav).to_be_visible()
+     assert 'bottom-nav' in (await nav.get_attribute('class') or '')
      for label in ['Explore','Bookings','Inbox','Account']:
       await expect(nav.get_by_role('button',name=label,exact=True)).to_be_visible()
      await nav.get_by_role('button',name='Bookings',exact=True).click()

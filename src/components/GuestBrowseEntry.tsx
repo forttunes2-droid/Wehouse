@@ -4,7 +4,7 @@ import { savePropertyLinkIntent } from '@/lib/propertyLinkIntent';
 import { propertyShareUrl, type SharedProperty } from '@/lib/propertyShare';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import { isTestEnvironment } from '@/lib/supabase/client';
-import { getUserNav } from '@/lib/desktop-nav';
+import PersonalBottomNav, { type PersonalNavPage } from '@/components/PersonalBottomNav';
 
 const Search = lazy(() => import('@/pages/Search'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
@@ -47,8 +47,8 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
     {notice && <p role="status" className="mx-auto max-w-7xl px-4 py-2 text-sm">{notice}</p>}
   </> }), [busy, target, notice, onSignIn]);
   if (!active) return <>{children}</>;
-  const nav = getUserNav();
-  const navSection = (id: string) => id === 'my_reservations' ? 'bookings' : id === 'conversation' ? 'inbox' : id === 'profile' ? 'account' : 'explore';
+  const sectionPage: Record<typeof section, PersonalNavPage> = { explore: 'search', bookings: 'my_reservations', inbox: 'conversation', account: 'profile' };
+  const pageSection: Record<PersonalNavPage, typeof section> = { search: 'explore', my_reservations: 'bookings', conversation: 'inbox', profile: 'account' };
   return <DiscoveryAccessContext.Provider value={access}>
     <div className="wh-public-entry bg-[#090B10] text-white" data-shared-discovery>
       {section === 'explore' ? <Suspense fallback={<div role="status" className="mx-auto max-w-7xl p-5 text-sm text-[#A7ADBA]">Loading places…</div>}>
@@ -57,15 +57,10 @@ export default function GuestBrowseEntry({ active, busy = false, onSignIn, onOpe
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
       </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
-      <nav className="wh-public-nav" aria-label="Main navigation">
-        {nav.map(item => {
-          const destination = navSection(item.id) as 'explore' | 'bookings' | 'inbox' | 'account';
-          const selected = section === destination;
-          return <button key={item.id} type="button" aria-current={selected ? 'page' : undefined} onClick={() => { setSection(destination); setTarget(null); }}>
-            <span aria-hidden="true">{item.icon(selected)}</span><span>{item.label}</span>
-          </button>;
-        })}
-      </nav>
+      <PersonalBottomNav
+        activePage={sectionPage[section]}
+        onNavigate={(page) => { setSection(pageSection[page]); setTarget(null); }}
+      />
     </div>
   </DiscoveryAccessContext.Provider>;
 }

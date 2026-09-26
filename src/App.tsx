@@ -26,6 +26,7 @@ import {
   supabase,
 } from "@/lib/supabase";
 import DesktopLayout from "@/components/DesktopLayout";
+import PersonalBottomNav from "@/components/PersonalBottomNav";
 import NewLoginAlert from "@/components/NewLoginAlert";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
@@ -395,26 +396,6 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     isWorkerRole = userRole === "worker",
     isUserRole = userRole === "user",
     isCreatorRole = checkCreator(userRole);
-  const tabs = useMemo(
-    () =>
-      isUserRole
-        ? [
-            { id: "search" as NavPage, label: "Explore", icon: SearchSvg },
-            {
-              id: "my_reservations" as NavPage,
-              label: "Bookings",
-              icon: ReservationSvg,
-            },
-            {
-              id: "conversation" as NavPage,
-              label: "Inbox",
-              icon: InboxSvg,
-            },
-            { id: "profile" as NavPage, label: "Account", icon: ProfileSvg },
-          ]
-        : [],
-    [isUserRole],
-  );
   const navHistoryRef = useRef<NavPage[]>(["search"]),
     restoredRef = useRef(false),
     [navigationReady, setNavigationReady] = useState(false),
@@ -1556,40 +1537,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         )}
         <div className="lg:hidden">
           {showBottomNav && (
-            <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
-              <div className="mx-auto flex max-w-lg items-center justify-around py-1">
-                {tabs.map((tab) => {
-                  const active = navPage === tab.id;
-                  const badgeCount =
-                    tab.id === "conversation"
-                      ? unreadCount + supportUnreadCount + notificationCount
-                      : 0;
-                  return (
-                    <button
-                      key={tab.id}
-                      aria-label={tab.label}
-                      onClick={() => goTo(tab.id)}
-                      className={`relative flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 ${active ? "text-violet-400" : "text-[#5C5E72]"}`}
-                    >
-                      <tab.icon size={22} active={active} />
-                      {
-                        <span className="text-[9px] font-medium">
-                          {tab.label}
-                        </span>
-                      }
-                      {active && (
-                        <span className="h-1 w-1 rounded-full bg-violet-400" />
-                      )}
-                      {badgeCount > 0 && (
-                        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
-                          {badgeCount > 99 ? "99+" : badgeCount}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </nav>
+            <PersonalBottomNav
+              activePage={navPage as "search" | "my_reservations" | "conversation" | "profile"}
+              onNavigate={(page) => goTo(page)}
+              inboxBadge={unreadCount + supportUnreadCount + notificationCount}
+            />
           )}
         </div>
       </Suspense>
@@ -1597,62 +1549,3 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   );
 }
 
-function SearchSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-4-4" />
-    </svg>
-  );
-}
-function ProfileSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-function ReservationSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M16 3v4M8 3v4M3 10h18M8 15l2 2 5-5" />
-    </svg>
-  );
-}
-function InboxSvg({ size, active }: { size: number; active: boolean }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "#A78BFA" : "currentColor"}
-      strokeWidth="2"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="m4 4-3 9v6a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-6l-3-9H4Zm-3 9h6l2 3h6l2-3h6" />
-    </svg>
-  );
-}
