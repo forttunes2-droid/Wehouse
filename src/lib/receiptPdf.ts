@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import font from "./receiptFont";
 import { displayDate, displayDateTime } from "./displayDate";
 import type { PaymentReceipt } from "./supabase/receipts";
+import receiptMark from "@/assets/receipt-mark.png?inline";
 
 /** Loaded only on download. All amounts and identities come from the receipt RPC. */
 export function buildReceiptPdf(r: PaymentReceipt) {
@@ -29,9 +30,10 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     }
   };
   const rule = () => { doc.setDrawColor("#E5E2EA"); doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y); y += 7; };
-  write("WeHouse", 18, "#5E39A8");
-  write("PAYMENT RECEIPT", 9, "#77717D");
-  y += 6;
+  doc.addImage(receiptMark, "PNG", MARGIN, 10, 14, 14);
+  doc.setFontSize(18); doc.setTextColor("#5E39A8"); doc.text("WeHouse", MARGIN + 18, 17);
+  doc.setFontSize(9); doc.setTextColor("#77717D"); doc.text("PAYMENT RECEIPT", MARGIN + 18, 23);
+  y = 31;
   rule();
   write("Amount paid", 10, "#77717D");
   y += 5;

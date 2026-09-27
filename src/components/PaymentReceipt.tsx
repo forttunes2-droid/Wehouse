@@ -1,6 +1,5 @@
 import BackButton from "@/components/BackButton";
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { displayDate, displayDateTime } from "@/lib/displayDate";
 import { getPaymentReceipts, type PaymentReceipt as Receipt } from "@/lib/supabase/receipts";
@@ -40,7 +39,6 @@ function ReceiptLine({ label, value }: { label: string; value: string }) {
 }
 
 export function ReceiptPrintButton({ receipt }: { receipt: Receipt }) {
-  const [printReady, setPrintReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
   async function download() {
@@ -51,15 +49,7 @@ export function ReceiptPrintButton({ receipt }: { receipt: Receipt }) {
     } catch { setDownloadError(true); }
     finally { setDownloading(false); }
   }
-  useEffect(() => {
-    if (!printReady) return;
-    const cleanup = () => { document.body.classList.remove("printing-wehouse-receipt"); setPrintReady(false); };
-    document.body.classList.add("printing-wehouse-receipt");
-    window.addEventListener("afterprint", cleanup);
-    const timer = window.setTimeout(() => window.print(), 100);
-    return () => { window.clearTimeout(timer); window.removeEventListener("afterprint", cleanup); document.body.classList.remove("printing-wehouse-receipt"); };
-  }, [printReady]);
-  return <><div className="w-full"><div className="flex items-center justify-end gap-2"><button type="button" onClick={() => setPrintReady(true)} className="min-h-11 rounded-xl border border-white/15 px-4 text-xs font-semibold">Print</button><button type="button" onClick={() => void download()} disabled={downloading} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white disabled:opacity-60">{downloading ? "Preparing PDF…" : "Download PDF"}</button></div>{downloadError && <p role="alert" className="mt-2 text-xs text-red-300">The PDF could not be saved. Try again or use Print.</p>}</div>{printReady && createPortal(<div className="wehouse-print-document"><ReceiptDocument receipt={receipt} /></div>, document.body)}</>;
+  return <div className="w-full text-right"><button type="button" onClick={() => void download()} disabled={downloading} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white disabled:opacity-60">{downloading ? "Preparing PDF…" : "Download PDF"}</button>{downloadError && <p role="alert" className="mt-2 text-xs text-red-300">The PDF could not be saved. Try again.</p>}</div>;
 }
 
 export default function ReceiptAccess({

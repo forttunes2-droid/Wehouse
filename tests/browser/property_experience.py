@@ -11,7 +11,7 @@ IMAGE=BASE+'/qa-public-property.svg'
 IMAGE_BODY='<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#2d2244"/><path d="M220 340V220l180-130 180 130v120H220" fill="#644991"/></svg>'
 SHORT={'id':'short-home','listing_id':'short-home','title':'Garden Short Let','sub_type':'short_let','type':'apartment','price':120000,'security_deposit_amount':50000,'max_guests':2,'bedrooms':1,'bathrooms':1,'address':'Test road','city':'Lafia','state':'Nasarawa','images':[IMAGE],'videos':[],'status':'available','is_verified':True,'amenities':['WiFi']}
 LONG={**SHORT,'id':'long-home','listing_id':'long-home','title':'Courtyard Long Let','sub_type':'long_stay','price':100000,'security_deposit_amount':0}
-HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Lafia','state':'Nasarawa','area':'Town','address':'Test road','status':'active','images':[IMAGE],'amenities':[],'hotel_rooms':[],'venues':[]}
+HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Lafia','state':'Nasarawa','area':'Town','address':'Test road','status':'active','images':[IMAGE],'amenities':[],'hotel_rooms':[{'room_id':71,'hotel_id':7,'room_type':'Garden Room','description':'A quiet room','price_per_night':40000,'max_guests':2,'bed_type':'Queen','images':[],'amenities':[],'total_rooms':2,'rate_plans':[{'rate_plan_id':711,'hotel_id':7,'room_id':71,'name':'Flexible room','description':None,'meal_plan':'room_only','payment_timing':'pay_now','refundable':True,'cancellation_hours':24,'price_per_night':40000,'included_features':[],'active':True}]}],'venues':[]}
 CONNECTIONS=[{'id':'chat-ada','participant_a':'qa-personal','participant_b':'qa-ada','conversation_type':'roommate','status':'active'}, {'id':'chat-blocked','participant_a':'qa-personal','participant_b':'qa-blocked','conversation_type':'roommate','status':'active'}, {'id':'chat-pending','participant_a':'qa-personal','participant_b':'qa-pending','conversation_type':'roommate','status':'pending'}, {'id':'not-my-chat','participant_a':'elsewhere','participant_b':'qa-outside','conversation_type':'roommate','status':'active'}]
 PEERS=[{'conversation_id':'chat-ada','user_id':'qa-ada','full_name':'Ada Example','username':'ada-example','avatar_url':None,'is_blocked':False}, {'conversation_id':'chat-blocked','user_id':'qa-blocked','full_name':'Blocked Example','username':'blocked','is_blocked':True}]
 NOW=datetime.now(timezone.utc); TOMORROW=(NOW+timedelta(days=2)).date().isoformat(); CHECKOUT=(NOW+timedelta(days=4)).date().isoformat()
@@ -103,6 +103,19 @@ async def main():
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      assert any(name=='get_public_hotel_detail' and args.get('p_hotel_id')==7 for name,args in scenario.calls)
      assert not any(name=='get_public_listing_detail' and args.get('p_listing_id')=='7' for name,args in scenario.calls)
+     await page.get_by_role('button',name=re.compile('Garden Room')).click()
+     await page.get_by_role('button',name=re.compile('Flexible room')).click()
+     await expect(page.get_by_role('heading',name='Choose stay dates')).to_be_visible()
+     await choose_booking_date(page,'Check-in',TOMORROW)
+     await choose_booking_date(page,'Check-out',CHECKOUT)
+     await expect(page.get_by_role('button',name='Continue to guest details')).to_be_visible()
+     await page.get_by_role('button',name='Check-in',exact=True).click()
+     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_be_visible()
+     assert await page.evaluate("document.body.style.overflow === 'hidden'"), 'Hotel calendar must hold the underlying page still'
+     await page.mouse.wheel(0,500)
+     await page.get_by_role('button',name='Close calendar').click()
+     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
+     assert await page.evaluate("document.body.style.overflow !== 'hidden'"), 'Calendar must restore page scrolling'
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
      reserve=page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?$'))
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
@@ -164,7 +177,7 @@ async def main():
      await page.get_by_role('button',name=re.compile('Partner guest update')).click()
      assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
      assert not scenario.errors,scenario.errors
-     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity preserved','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','PIN gate preserved and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
+     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','PIN gate preserved and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
      print('PASS public property experience',width,flush=True)
     except Exception as error:
      results.append({'width':width,'passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors}); await page.screenshot(path=str(OUT/f'public-property-failure-{width}.png'),full_page=True); raise
@@ -203,6 +216,20 @@ async def main():
     await expect(page.locator('textarea[placeholder="Message"]')).to_have_value('Keep my next message')
     assert not scenario.errors,scenario.errors
     results.append({'case':'Hotel stable history and acknowledged send','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); context,page=await scenario.open(browser,'receipt',390)
+   try:
+    await expect(page.get_by_role('button',name='Download PDF',exact=True)).to_have_count(1)
+    await expect(page.get_by_role('button',name='Print',exact=True)).to_have_count(0)
+    async with page.expect_download() as download_info:
+     await page.get_by_role('button',name='Download PDF',exact=True).click()
+    download=await download_info.value
+    assert download.suggested_filename=='WeHouse-receipt-WH-QA-2026.pdf'
+    pdf=Path(await download.path()).read_bytes()
+    assert pdf.startswith(b'%PDF-') and b'/Subtype /Image' in pdf, 'Receipt PDF must contain the WeHouse image mark'
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'One receipt PDF action with brand image','passed':True})
    finally:
     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
    scenario=Scenario(); scenario.delay_account=2; context,page=await scenario.open(browser,'short',390)

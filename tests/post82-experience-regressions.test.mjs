@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("receipt UI uses one lazy booking entry and compact PDF/print output", async () => {
+test("receipt UI uses one lazy booking entry and one branded compact PDF", async () => {
   const [pdf, receipt, bookings, serviceChat, css] = await Promise.all([
     read("src/lib/receiptPdf.ts"),
     read("src/components/PaymentReceipt.tsx"),
@@ -20,8 +20,9 @@ test("receipt UI uses one lazy booking entry and compact PDF/print output", asyn
   assert.doesNotMatch(receipt, /setAttempt/);
   assert.doesNotMatch(bookings, /<ReceiptAccess\s*\/>/);
   assert.doesNotMatch(serviceChat, /ReceiptAccess/);
-  assert.match(css, /body\.printing-wehouse-receipt \* \{ visibility: hidden/);
-  assert.match(css, /@page \{ size: 105mm 148mm/);
+  assert.match(pdf, /doc\.addImage\(receiptMark/);
+  assert.doesNotMatch(receipt, /window\.print\(\)|>Print<\/button>/);
+  assert.match(css, /input\[type="date"\], input\[type="datetime-local"\] \{ color-scheme: dark/);
 });
 
 test("internal profile projection uses the real Staff timestamp and canonical scope helper", async () => {
