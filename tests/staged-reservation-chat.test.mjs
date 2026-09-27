@@ -74,10 +74,12 @@ test('hotel chat is a real portal and unstable close callbacks do not retrigger 
   assert.doesNotMatch(source,/\[bookingId, initialConversationId, profile.user_id, load, onClose\]/);
   assert.match(source,/onCloseRef\.current\(\)/);
 });
-test('navigation dialogs use opaque page backgrounds rather than translucent previous pages', () => {
-  for (const path of ['src/components/UserProfileModal.tsx','src/components/PropertyShareDialog.tsx','src/components/SharedPropertyWorkspacePrompt.tsx']) {
+test('full-screen navigation dialogs use opaque page backgrounds; sharing uses a bounded sheet', () => {
+  for (const path of ['src/components/UserProfileModal.tsx','src/components/SharedPropertyWorkspacePrompt.tsx']) {
     const source=read(path); assert.doesNotMatch(source,/bg-black\/(70|75)/); assert.match(source,/bg-\[#090B10\]/);
   }
+  const share=read('src/components/PropertyShareDialog.tsx');
+  assert.match(share,/max-h-\[92dvh\]/); assert.match(share,/rounded-t-3xl/); assert.match(share,/overflow-y-auto/);
   assert.match(read('src/components/OperationalThreadSurface.tsx'),/fixed inset-0.*bg-\[#0E1219\]/);
 });
 

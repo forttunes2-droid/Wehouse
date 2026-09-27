@@ -208,7 +208,7 @@ export default function ListingDetail({
 
   useEffect(() => {
     let live = true;
-    void getDiscoveryDistanceMap(location).then((map) => {
+    void getDiscoveryDistanceMap(location, { listingIds: [String(listing?.id || listingId)] }).then((map) => {
       if (live) setDistance(map.get(`listing:${listing?.id || listingId}`) ?? null);
     });
     return () => { live = false; };

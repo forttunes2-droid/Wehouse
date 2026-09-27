@@ -6,6 +6,7 @@ on:
       - 'scripts/load-baseline.mjs'
       - 'supabase/tests/load_baseline_fixture.sql'
       - 'supabase/tests/bounded_home_search_contract.sql'
+      - 'supabase/tests/bounded_hotel_search_contract.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
 
@@ -34,6 +35,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/load_baseline_fixture.sql
       - name: Verify bounded cursor and public fields
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bounded_home_search_contract.sql
+      - name: Verify bounded hotel cursor and public fields
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bounded_hotel_search_contract.sql
       - name: Measure bounded public RPC traffic
         run: node scripts/load-baseline.mjs
       - uses: actions/upload-artifact@v4

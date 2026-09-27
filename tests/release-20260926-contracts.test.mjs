@@ -160,7 +160,7 @@ test('Short Let shared payment starts only after paid Reserve date', async () =>
   assert.match(migration, /payment_phase.*short_stay/s);
   assert.match(migration, /status='ready_for_move_in'/);
   assert.match(migration, /reservation_fee_kept_separate/);
-  assert.match(split, /Reserve date is already paid by you/);
+  assert.match(split, /Your Reserve date fee is already paid/);
   assert.match(split, /short_stay_balance_due_at/);
   assert.doesNotMatch(migration, /create_short_stay_reservation\(/);
 });

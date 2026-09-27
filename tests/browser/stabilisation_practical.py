@@ -1,5 +1,5 @@
 """Real UI components + API wrappers. Synthetic RPC responses are not live-provider acceptance."""
-import asyncio,json,os,subprocess
+import asyncio,json,os,re,subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');BUNDLE=Path('test-results/stabilisation-offline')
@@ -76,13 +76,14 @@ async def main():
       state=await page.evaluate('window.__practicalTransport');assert state['elevations']==['all_sensitive'];assert state['enabled'] if mode=='publication-global' else state['paused']
       call=[x for x in state['calls'] if x['name'].startswith('creator_set')];assert len(call)==1 and call[0]['args']['p_creator_elevation_id']=='test-elevation'
      elif mode=='split':
-      await page.get_by_role('button',name='Split costs with connections',exact=True).click()
+      await page.get_by_role('button',name=re.compile('Share stay costs')).click()
       await expect(page.get_by_label('Invite Bola Example')).to_be_visible();assert await page.get_by_label('Invite Pending Example').count()==0 and await page.get_by_label('Invite Blocked Example').count()==0
       await page.get_by_label('Invite Bola Example').check();await page.get_by_label('Invite Chika Example').check()
-      await expect(page.get_by_text('You: ₦500',exact=True)).to_be_visible()
+      await expect(page.get_by_text('You',exact=True)).to_be_visible()
+      await expect(page.get_by_text('₦500',exact=True).first).to_be_visible()
       assert not any(x['name']=='create_my_shared_short_let' for x in await page.evaluate('window.__practicalTransport.calls'))
       await page.screenshot(path=str(OUT/f'short-let-shares-before-invitation-{width}.png'),full_page=True)
-      await page.get_by_role('button',name='Send cost-sharing invitation',exact=True).click();await expect(page.get_by_role('dialog',name='Shared payment')).to_be_visible()
+      await page.get_by_role('button',name='Invite guests to split costs',exact=True).click();await expect(page.get_by_role('dialog',name='Shared payment')).to_be_visible()
       result=await page.evaluate('window.__createdGroup');assert result['reservation_id']=='reservation-existing'
       assert not any(x['name'] in ['payment-init','create_my_shared_housing_payment'] for x in await page.evaluate('window.__practicalTransport.calls'))
       await expect(page.get_by_role('button',name='Open reservation',exact=True)).to_be_visible();await page.get_by_role('button',name='Open reservation',exact=True).click();assert await page.evaluate('window.__openedBooking')=='reservation-existing'
