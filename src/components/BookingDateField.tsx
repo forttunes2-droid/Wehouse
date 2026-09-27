@@ -53,7 +53,7 @@ export default function BookingDateField({ label, value, min, max, onChange }: {
           className="max-h-[calc(100dvh-1rem)] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-[#11141C] text-white shadow-2xl sm:max-w-md sm:rounded-3xl">
           <header className="flex items-start justify-between gap-3 border-b border-white/[.07] px-5 py-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-violet-300">Short Let dates</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-violet-300">Stay dates</p>
               <h2 className="mt-1 text-lg font-semibold">Choose {label.toLowerCase()}</h2>
               <p className="mt-1 text-xs text-[#A1A7B5]">{value ? displayDate(value) : "Select an available day"}</p>
             </div>

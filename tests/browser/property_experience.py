@@ -73,6 +73,8 @@ async def choose_booking_date(page,label,iso):
  await page.get_by_role('button',name=label,exact=True).click()
  dialog=page.get_by_role('dialog',name=f'Choose {label}',exact=True)
  await expect(dialog).to_be_visible()
+ if label == 'Check-in':
+  await page.screenshot(path=str(OUT/f'stay-calendar-{page.viewport_size["width"]}.png'))
  date=datetime.fromisoformat(iso)
  day=dialog.get_by_role('button',name=re.compile(rf'{date.strftime("%B")} {date.day}(?:st|nd|rd|th)?, {date.year}'))
  for _ in range(2):
