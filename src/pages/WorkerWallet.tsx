@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
-type Wallet={available_balance:number;pending_balance:number;frozen_balance:number;total_withdrawn:number;is_frozen:boolean;frozen_reason:string|null};
+type Wallet={id:string;available_balance:number;pending_balance:number;frozen_balance:number;total_withdrawn:number;is_frozen:boolean;frozen_reason:string|null};
 type Bank={id:string;bank_name:string;account_number:string;account_name:string;is_default:boolean};
 type Movement={id:string;title:string;date:string;amount:number;status:string};
 type View="wallet"|"withdraw"|"activity";
@@ -13,13 +13,16 @@ export default function WorkerWallet({profile}:{profile:Profile}){
  const amountKey=`wh_finance_amounts_visible_${profile.user_id}`;
  const[view,setView]=useState<View>("wallet"),[wallet,setWallet]=useState<Wallet|null>(null),[banks,setBanks]=useState<Bank[]>([]),[bankId,setBankId]=useState(""),[rows,setRows]=useState<Movement[]>([]),[amount,setAmount]=useState(""),[loading,setLoading]=useState(true),[submitting,setSubmitting]=useState(false),[show,setShow]=useState(()=>{try{return localStorage.getItem(amountKey)!=="false"}catch{return true}});
  const bank=useMemo(()=>banks.find(x=>x.id===bankId)||banks.find(x=>x.is_default)||banks[0],[banks,bankId]);
- const load=useCallback(async()=>{setLoading(true);const[w,t,d,b]=await Promise.all([
-  supabase.from("wallets").select("available_balance,pending_balance,frozen_balance,total_withdrawn,is_frozen,frozen_reason").eq("owner_id",profile.user_id).eq("owner_type","worker").maybeSingle(),
-  supabase.from("wallet_transactions").select("id,description,transaction_type,created_at,amount").eq("user_id",profile.user_id).order("created_at",{ascending:false}).limit(30),
-  supabase.from("withdrawals").select("id,amount,status,created_at,wallets!inner(owner_id)").eq("wallets.owner_id",profile.user_id).order("created_at",{ascending:false}).limit(20),
+ const load=useCallback(async()=>{setLoading(true);const[w,b]=await Promise.all([
+  supabase.from("wallets").select("id,available_balance,pending_balance,frozen_balance,total_withdrawn,is_frozen,frozen_reason").eq("owner_id",profile.user_id).eq("owner_type","worker").maybeSingle(),
   supabase.from("bank_accounts").select("id,bank_name,account_number,account_name,is_default").eq("user_id",profile.user_id).order("is_default",{ascending:false})]);
   if(w.error)toast.error("Unable to load Worker wallet");setWallet((w.data||null) as Wallet|null);setBanks((b.data||[]) as Bank[]);if(b.data?.[0]?.id)setBankId(x=>x||b.data[0].id);
-  const movement:Movement[]=[...(t.data||[]).map((x:any)=>({id:`t-${x.id}`,title:x.description||friendly(x.transaction_type),date:x.created_at,amount:Number(x.amount||0),status:x.transaction_type||"transaction"})),...(d.data||[]).map((x:any)=>({id:`w-${x.id}`,title:"Withdrawal",date:x.created_at,amount:-Number(x.amount||0),status:x.status}))].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());setRows(movement);setLoading(false)},[profile.user_id]);
+  if(!w.data){setRows([]);setLoading(false);return}
+  const[t,d]=await Promise.all([
+   supabase.from("wallet_transactions").select("id,description,transaction_type,created_at,amount,reference_id").eq("wallet_id",w.data.id).order("created_at",{ascending:false}).limit(30),
+   supabase.from("withdrawals").select("id,amount,status,created_at").eq("wallet_id",w.data.id).order("created_at",{ascending:false}).limit(20)]);
+  if(t.error||d.error)toast.error("Unable to load wallet activity");
+  const movement:Movement[]=[...(t.data||[]).filter(x=>x.transaction_type!=="withdrawal").map((x:any)=>({id:`t-${x.id}`,title:x.description||friendly(x.transaction_type),date:x.created_at,amount:Number(x.amount||0),status:x.transaction_type||"transaction"})),...(d.data||[]).map((x:any)=>({id:`w-${x.id}`,title:"Withdrawal",date:x.created_at,amount:-Number(x.amount||0),status:x.status}))].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());setRows(movement);setLoading(false)},[profile.user_id]);
  useEffect(()=>{void load()},[load]);
  useEffect(()=>{try{localStorage.setItem(amountKey,String(show))}catch{}},[amountKey,show]);
  async function withdraw(){if(!wallet)return;const n=Number(amount);if(!n||n<=0)return toast.error("Enter a valid amount");if(n>Number(wallet.available_balance||0))return toast.error("Insufficient available balance");if(!bank)return toast.error("Connect a withdrawal account first");if(wallet.is_frozen)return toast.error(wallet.frozen_reason||"Wallet is unavailable");setSubmitting(true);const{data,error}=await supabase.rpc("request_worker_withdrawal",{p_amount:n,p_bank_account_id:bank.id});setSubmitting(false);if(error||!data?.success)return toast.error(data?.error||"Withdrawal request failed");toast.success("Withdrawal awaiting review");setAmount("");setView("activity");await load()}

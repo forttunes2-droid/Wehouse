@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   BriefcaseBusiness,
   Building2,
@@ -38,6 +39,22 @@ export default function WorkspaceSwitchSheet({
   identityName?: string | null;
   identityAvatar?: string | null;
 }) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButton.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previous?.focus();
+    };
+  }, [open]);
   if (!open) return null;
 
   const allowed: WorkspaceChoice[] = [];
@@ -80,6 +97,7 @@ export default function WorkspaceSwitchSheet({
             </div>
           </div>
           <button
+            ref={closeButton}
             type="button"
             onClick={onClose}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.045] text-[#9399A7]"

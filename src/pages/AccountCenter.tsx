@@ -494,8 +494,8 @@ export default function AccountCenter({
       {ownAccess ? (
         <AccountSection>
           <AccountRow
-            title="WeHouse"
-            detail={workspaceDetail}
+            title="Switch workspace"
+            detail={`Current: ${workspaceLabel(activeWorkspace)} · ${workspaceDetail}`}
             onClick={() => setPanel("workspaces")}
             icon={<ToolsIcon />}
           />

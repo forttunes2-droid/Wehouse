@@ -150,6 +150,8 @@ jobs:
         run: python scripts/coordinated-database-release.py check --local-ci
       - name: Verify the full upgrade commits with existing records preserved
         run: python scripts/coordinated-database-release.py apply --local-ci
+      - name: Reject overlapping payouts without blocking later requests
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/withdrawal_single_open_contract.sql
       - name: Verify a repeated release is a no-op
         run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase
