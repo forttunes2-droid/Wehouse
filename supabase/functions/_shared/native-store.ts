@@ -41,7 +41,10 @@ function pemBytes(pem: string): Uint8Array {
 }
 async function signJwt(header: Json, claims: Json, pem: string, alg: 'ES256' | 'RS256'): Promise<string> {
   const input = `${encoded(header)}.${encoded(claims)}`;
-  const key = await crypto.subtle.importKey('pkcs8', pemBytes(pem), alg === 'ES256'
+  const decodedKey = pemBytes(pem);
+  const keyData = new ArrayBuffer(decodedKey.byteLength);
+  new Uint8Array(keyData).set(decodedKey);
+  const key = await crypto.subtle.importKey('pkcs8', keyData, alg === 'ES256'
     ? { name: 'ECDSA', namedCurve: 'P-256' }
     : { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
   const signature = await crypto.subtle.sign(alg === 'ES256'

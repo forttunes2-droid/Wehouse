@@ -5,7 +5,7 @@ import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 const out = 'test-results/worker-documents-offline'; fs.mkdirSync(out, { recursive: true });
-await build({entryPoints:['tests/browser/worker-documents.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:`${out}/fixture.js`,plugins:[{name:'isolated-worker-documents',setup(api){
+await build({entryPoints:['tests/browser/worker-documents.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:`${out}/fixture.js`,define:{'import.meta.env.VITE_NATIVE_BILLING_ENABLED':'"false"'},plugins:[{name:'isolated-worker-documents',setup(api){
   api.onResolve({filter:/^@\/lib\/supabase$|^@\/lib\/supabase\/worker-bookings$|^@\/lib\/native$/}, args=>({path:args.path,namespace:'fixture'}));
   api.onLoad({filter:/.*/,namespace:'fixture'},args=>({loader:'js',contents:args.path.endsWith('/native')
     ? `export const isNative=()=>false;export const isIOS=()=>false;export const isAndroid=()=>false;`
