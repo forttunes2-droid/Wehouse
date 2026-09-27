@@ -1274,6 +1274,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "search":
         return isUserRole ? (
           <Search
+            key={profile.user_id}
+            sessionKey={profile.user_id}
             onNavigate={(p: string, id?: string) =>
               id ? goToDetail(id) : goTo(p as NavPage)
             }
@@ -1509,6 +1511,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         return (
           renderRoleRoot() || (
             <Search
+              key={profile.user_id}
+              sessionKey={profile.user_id}
               onNavigate={(p: string, id?: string) =>
                 id ? goToDetail(id) : goTo(p as NavPage)
               }

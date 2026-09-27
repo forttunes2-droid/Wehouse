@@ -47,10 +47,10 @@ as $$
       and (p_min_bedrooms is null or l.bedrooms >= p_min_bedrooms)
       and (p_min_bathrooms is null or l.bathrooms >= p_min_bathrooms)
       and (nullif(btrim(p_query),'') is null or
-        coalesce(l.title,'') ilike '%' || left(btrim(p_query),80) || '%' or
-        coalesce(l.address,'') ilike '%' || left(btrim(p_query),80) || '%' or
-        coalesce(l.city,'') ilike '%' || left(btrim(p_query),80) || '%' or
-        coalesce(l.state,'') ilike '%' || left(btrim(p_query),80) || '%')
+        strpos(lower(coalesce(l.title,'')),lower(left(btrim(p_query),80))) > 0 or
+        strpos(lower(coalesce(l.address,'')),lower(left(btrim(p_query),80))) > 0 or
+        strpos(lower(coalesce(l.city,'')),lower(left(btrim(p_query),80))) > 0 or
+        strpos(lower(coalesce(l.state,'')),lower(left(btrim(p_query),80))) > 0)
       and (p_cursor_created_at is null or p_cursor_id is null or
         (l.created_at,l.id) < (p_cursor_created_at,p_cursor_id))
     order by l.created_at desc,l.id desc

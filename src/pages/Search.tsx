@@ -37,6 +37,7 @@ type SearchProps = {
   onNavigate: (page: string, listingId?: string) => void;
   savedIds: Set<string>;
   onToggleSave: (listingId: string) => void;
+  sessionKey?: string;
 };
 
 const LONG_FLOOR = 180000;
@@ -54,7 +55,7 @@ type PropertySearchState = {
   filterState: string;
   filterCity: string;
 };
-let searchState: PropertySearchState = {
+const emptySearchState: PropertySearchState = {
   query: "",
   stayType: "all",
   priceMin: "",
@@ -64,6 +65,9 @@ let searchState: PropertySearchState = {
   filterState: "",
   filterCity: "",
 };
+// Remember filters only within the same identity. A guest or another signed-in
+// account must never inherit a previous account's search.
+const searchStateBySession = new Map<string, PropertySearchState>();
 
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
@@ -89,9 +93,11 @@ export default function Search({
   onNavigate,
   savedIds,
   onToggleSave,
+  sessionKey = 'guest',
 }: SearchProps) {
   const guest = useDiscoveryAccess();
-  const [query, setQuery] = useState(() => searchState.query);
+  const initialSearch = searchStateBySession.get(sessionKey) || emptySearchState;
+  const [query, setQuery] = useState(() => initialSearch.query);
   const { getNumber } = usePlatformSettings();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,13 +108,13 @@ export default function Search({
   const [sponsoredListings, setSponsoredListings] = useState<Listing[]>([]);
   const requestGeneration = useRef(0);
   const [loadError, setLoadError] = useState("");
-  const [stayType, setStayType] = useState<StayFilter>(() => searchState.stayType);
-  const [priceMin, setPriceMin] = useState<number | "">(() => searchState.priceMin);
-  const [priceMax, setPriceMax] = useState<number | "">(() => searchState.priceMax);
-  const [bedrooms, setBedrooms] = useState<number | "">(() => searchState.bedrooms);
-  const [bathrooms, setBathrooms] = useState<number | "">(() => searchState.bathrooms);
-  const [filterState, setFilterState] = useState(() => searchState.filterState);
-  const [filterCity, setFilterCity] = useState(() => searchState.filterCity);
+  const [stayType, setStayType] = useState<StayFilter>(() => initialSearch.stayType);
+  const [priceMin, setPriceMin] = useState<number | "">(() => initialSearch.priceMin);
+  const [priceMax, setPriceMax] = useState<number | "">(() => initialSearch.priceMax);
+  const [bedrooms, setBedrooms] = useState<number | "">(() => initialSearch.bedrooms);
+  const [bathrooms, setBathrooms] = useState<number | "">(() => initialSearch.bathrooms);
+  const [filterState, setFilterState] = useState(() => initialSearch.filterState);
+  const [filterCity, setFilterCity] = useState(() => initialSearch.filterCity);
   const sponsoredResults = useSponsoredDiscovery('property', filterState, filterCity);
   const [showFilters, setShowFilters] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
@@ -158,7 +164,7 @@ export default function Search({
   }, [Boolean(guest)]);
 
   useEffect(() => {
-    searchState = {
+    searchStateBySession.set(sessionKey, {
       query,
       stayType,
       priceMin,
@@ -167,8 +173,8 @@ export default function Search({
       bathrooms,
       filterState,
       filterCity,
-    };
-  }, [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
+    });
+  }, [sessionKey, query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
 
   const serverFilters = useMemo(() => ({
     query, stayType, minPrice: priceMin, maxPrice: priceMax, bedrooms, bathrooms,
@@ -393,7 +399,7 @@ export default function Search({
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
         <DiscoveryToolbar
           value={query}
-          onChange={setQuery}
+          onChange={value => setQuery(value.slice(0, 80))}
           placeholder="City, area or apartment"
           toolbarLabel={locationSummary}
           onFilters={() => setShowFilters(true)}

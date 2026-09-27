@@ -16,6 +16,7 @@ begin
       'begin_identity_provider_password_recovery(text,text)',
       'get_current_legal_documents()', 'get_discoverable_homes()',
       'get_discoverable_hotels()', 'get_discoverable_listings()',
+      'search_discoverable_homes(text,text,text,text,numeric,numeric,integer,integer,timestamp with time zone,uuid,integer)',
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
       'get_hotel_review_summary(integer)',
       'get_short_let_date_availability(text,date,date)',

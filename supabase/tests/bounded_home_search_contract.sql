@@ -29,6 +29,9 @@ begin
   if jsonb_array_length(filtered->'items') <> 48 then
     raise exception 'Public page limit was not capped';
   end if;
+  if jsonb_array_length((public.search_discoverable_homes(p_query => '%'))->'items') <> 0 then
+    raise exception 'Search punctuation was interpreted as a wildcard';
+  end if;
   for item in select value from jsonb_array_elements(filtered->'items') loop
     if item->>'city' <> 'Lafia' or item->>'sub_type' <> 'short_let'
        or item ? 'inspection_request_id' or item ? 'owner_id'
