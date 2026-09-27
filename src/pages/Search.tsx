@@ -130,9 +130,9 @@ export default function Search({
 
   useEffect(() => {
     let live = true;
-    void getDiscoveryDistanceMap(location).then((next) => { if (live) setDistanceMap(next); });
+    void getDiscoveryDistanceMap(location, { listingIds: listings.map(item => item.id) }).then((next) => { if (live) setDistanceMap(next); });
     return () => { live = false; };
-  }, [location]);
+  }, [location, listings]);
 
   useEffect(() => {
     const criteria = takeFollowedSearchIntent('homes');

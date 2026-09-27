@@ -38,7 +38,7 @@ class Scenario:
    data=None
   elif name in ['get_inspection_for_reservation','get_my_pending_device_login_alert']: data=None
   elif name=='search_discoverable_homes': data={'items':[SHORT,LONG],'has_more':False,'next_cursor_created_at':None,'next_cursor_id':None}
-  elif name=='get_discoverable_hotels': data=[HOTEL]
+  elif name=='search_discoverable_hotels': data={'items':[HOTEL],'has_more':False,'next_cursor_created_at':None,'next_cursor_id':None}
   elif name=='get_my_hotel_conversation_bundle':
    self.hotel_reads+=1
    if self.hotel_sent: await asyncio.sleep(2)
@@ -57,9 +57,9 @@ class Scenario:
   elif name=='get_my_canonical_activity_v2': data=[{'id':f'event-{scope}','workspace':scope,'type':'hotel.confirmed' if scope=='property_partner' else 'search_match','title':'Partner guest update' if scope=='property_partner' else 'Personal saved search must stay Personal','message':'Synthetic update','source_type':'hotel_booking','source_id':'42','destination_route':'hotel_booking','destination_params':{'hotel_id':7,'booking_id':42},'read':False,'created_at':NOW.isoformat(),'action_required':False} for scope in ['personal','property_partner']]
   elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
   elif name=='get_my_legal_status': data={}
-  if self.guest_mode and name in ['search_discoverable_homes','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'] and data:
+  if self.guest_mode and name in ['search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'] and data:
    def mixed_media(record): return {**record,'images':[*record.get('images',[]),'partner/private-unpublished.jpg','https://test.supabase.co/storage/v1/object/sign/listing-candidates/private.jpg?token=not-a-real-token']}
-   if name=='search_discoverable_homes': data={**data,'items':[mixed_media(record) for record in data['items']]}
+   if name in ['search_discoverable_homes','search_discoverable_hotels']: data={**data,'items':[mixed_media(record) for record in data['items']]}
    elif isinstance(data,list): data=[mixed_media(record) for record in data]
    else: data=mixed_media(data)
   await handler.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
@@ -121,7 +121,7 @@ async def main():
      await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
      assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
-     allowed={'search_discoverable_homes','get_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary'}
+     allowed={'search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
      await page.get_by_role('button',name='Save hotel',exact=True).click()
      assert await page.evaluate('window.__guestSignIn') is True

@@ -64,7 +64,9 @@ test("discovery distance is server-computed and directions use the written addre
     read("src/pages/ListingDetailCore.tsx"),
     read("src/pages/HotelDetailExperience.tsx"),
   ]);
-  assert.match(hook, /supabase\.rpc\("get_my_discovery_distances"/);
+  assert.match(hook, /supabase\.rpc\("get_my_page_distances"/);
+  assert.match(hook, /p_listing_ids:/);
+  assert.match(hook, /p_hotel_ids:/);
   assert.match(homes, /getDiscoveryDistanceMap/);
   assert.doesNotMatch(homes, /Number\(listing\.gps_latitude\)/);
   assert.match(hotels, /getDiscoveryDistanceMap/);

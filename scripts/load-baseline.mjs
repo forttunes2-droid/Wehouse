@@ -19,6 +19,8 @@ const scenarios = [
   { name: 'bounded_homes_discovery', rpc: 'search_discoverable_homes', body: () => ({ p_limit: 24 }), verify: (data) => data?.items?.length === 24 && data.has_more === true && Boolean(data.next_cursor_id) },
   { name: 'bounded_filtered_homes', rpc: 'search_discoverable_homes', body: () => ({ p_city: 'Lafia', p_stay_type: 'short_let', p_limit: 24 }), verify: (data) => data?.items?.length === 24 && data.items.every((item) => item.city === 'Lafia' && item.sub_type === 'short_let') },
   { name: 'hotels_discovery', rpc: 'get_discoverable_hotels', body: () => ({}), verify: (data) => Array.isArray(data) && data.length === 50 },
+  { name: 'bounded_hotels_discovery', rpc: 'search_discoverable_hotels', body: () => ({ p_limit: 24 }), verify: (data) => data?.items?.length === 24 && data.has_more === true && Number.isInteger(data.next_cursor_id) },
+  { name: 'bounded_filtered_hotels', rpc: 'search_discoverable_hotels', body: () => ({ p_city: 'Lafia', p_limit: 24 }), verify: (data) => data?.items?.length === 24 && data.items.every((item) => item.city === 'Lafia') },
   { name: 'one_home_detail', rpc: 'get_public_listing_detail', body: () => ({ p_listing_id: 'load-home-000001' }), verify: (data) => data?.listing_id === 'load-home-000001' },
   { name: 'spread_home_detail', rpc: 'get_public_listing_detail', body: (i) => ({ p_listing_id: `load-home-${String(1 + i % 500).padStart(6, '0')}` }), verify: (data) => typeof data?.listing_id === 'string' },
   { name: 'one_hotel_detail', rpc: 'get_public_hotel_detail', body: () => ({ p_hotel_id: -1000001 }), verify: (data) => data?.hotel_id === -1000001 },

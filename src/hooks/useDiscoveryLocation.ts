@@ -179,12 +179,15 @@ export function distanceBetweenKm(
 
 export async function getDiscoveryDistanceMap(
   origin: Pick<DiscoveryLocation, "lat" | "lng"> | null,
+  refs: { listingIds?: string[]; hotelIds?: number[] },
 ) {
   const map = new Map<string, number>();
-  if (!origin) return map;
-  const { data, error } = await supabase.rpc("get_my_discovery_distances", {
+  if (!origin || (!refs.listingIds?.length && !refs.hotelIds?.length)) return map;
+  const { data, error } = await supabase.rpc("get_my_page_distances", {
     p_lat: origin.lat,
     p_lng: origin.lng,
+    p_listing_ids: (refs.listingIds || []).slice(0, 100),
+    p_hotel_ids: (refs.hotelIds || []).slice(0, 100),
   });
   if (error) return map;
   for (const row of Array.isArray(data) ? data : []) {

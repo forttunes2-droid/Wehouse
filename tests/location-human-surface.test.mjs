@@ -64,5 +64,5 @@ test("Use my location keeps accuracy internal and resolves human-readable addres
   assert.match(discovery, /enableHighAccuracy:\s*true/);
   assert.match(discovery, /reverse-geocode/);
   assert.match(discovery, /address:\s*String\(result\.data\.address\)/);
-  assert.match(discovery, /get_my_discovery_distances/);
+  assert.match(discovery, /get_my_page_distances/);
 });

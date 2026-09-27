@@ -4,7 +4,7 @@ import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { locationLabel } from "@/lib/locationPresentation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getHotels } from "@/lib/supabase";
 import { toast } from "sonner";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
@@ -59,6 +59,10 @@ export default function HotelsHome({ onNavigate }: Props) {
   const [loadError, setLoadError] = useState(false);
   const [hotels, setHotels] = useState<HotelRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState<{ featured: boolean; createdAt: string; id: number } | null>(null);
+  const requestGeneration = useRef(0);
   const [query, setQuery] = useState(() => hotelFilters.query);
   const [state, setState] = useState(() => hotelFilters.state);
   const [city, setCity] = useState(() => hotelFilters.city);
@@ -103,26 +107,62 @@ export default function HotelsHome({ onNavigate }: Props) {
 
   useEffect(() => {
     let live = true;
-    void getDiscoveryDistanceMap(followedOrigin || userLocation).then((next) => { if (live) setDistanceMap(next); });
+    void getDiscoveryDistanceMap(followedOrigin || userLocation, { hotelIds: hotels.map(item => item.hotel_id) }).then((next) => { if (live) setDistanceMap(next); });
     return () => { live = false; };
-  }, [userLocation, followedOrigin]);
+  }, [userLocation, followedOrigin, hotels]);
 
   useEffect(() => {
+    if (guest) { setSavedHotelIds(new Set()); setFollowedSearches([]); return; }
     let live = true;
-    void (async () => {
-      setLoading(true);
-      if (!guest) void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
-      if (!guest) void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
-      const result = await getHotels();
-      if (!live) return;
-      setLoadError(Boolean(result.error));
-      if (!result.error) setHotels((result.hotels || []).map(item => ({ ...item, images: publicPropertyImages(item.images) })) as HotelRow[]);
-      setLoading(false);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [attempt, Boolean(guest)]);
+    void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
+    void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
+    return () => { live = false; };
+  }, [Boolean(guest)]);
+
+  const serverFilters = useMemo(() => ({
+    search: query, state, city, amenities,
+    minPrice: minPrice === '' ? undefined : minPrice,
+    maxPrice: maxPrice === '' ? undefined : maxPrice,
+    latitude: radius === '' ? undefined : (followedOrigin || userLocation)?.lat,
+    longitude: radius === '' ? undefined : (followedOrigin || userLocation)?.lng,
+    radiusKm: radius === '' ? undefined : radius,
+  }), [query, state, city, amenities, minPrice, maxPrice, radius, followedOrigin, userLocation]);
+  useEffect(() => {
+    let live = true;
+    const generation = ++requestGeneration.current;
+    setHotels([]); setCursor(null); setHasMore(false); setLoadingMore(false);
+    setLoading(true); setLoadError(false);
+    const timer = window.setTimeout(() => {
+      void getHotels(serverFilters).then(result => {
+        if (!live || generation !== requestGeneration.current) return;
+        setLoadError(Boolean(result.error));
+        if (!result.error) {
+          setHotels(result.hotels.map(item => ({ ...item, images: publicPropertyImages(item.images) })) as HotelRow[]);
+          setHasMore(result.hasMore); setCursor(result.nextCursor);
+        }
+      }).catch(() => { if (live && generation === requestGeneration.current) setLoadError(true); })
+        .finally(() => { if (live && generation === requestGeneration.current) setLoading(false); });
+    }, query.trim() ? 250 : 0);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [serverFilters, attempt]);
+
+  async function loadMore() {
+    if (!hasMore || !cursor || loadingMore) return;
+    const generation = requestGeneration.current;
+    setLoadingMore(true);
+    try {
+      const result = await getHotels(serverFilters, cursor);
+      if (generation !== requestGeneration.current) return;
+      if (result.error) { toast.error('More hotels could not be loaded. Try again.'); return; }
+      setHotels(current => {
+        const seen = new Set(current.map(item => item.hotel_id));
+        return [...current, ...result.hotels.filter(item => !seen.has(item.hotel_id))
+          .map(item => ({ ...item, images: publicPropertyImages(item.images) })) as HotelRow[]];
+      });
+      setHasMore(result.hasMore); setCursor(result.nextCursor);
+    } catch { if (generation === requestGeneration.current) toast.error('More hotels could not be loaded. Try again.'); }
+    finally { if (generation === requestGeneration.current) setLoadingMore(false); }
+  }
 
   const cities = useMemo(() => getCitiesForState(state), [state]);
   const stateOptions = useMemo(
@@ -165,7 +205,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           hotel,
           distance: distanceMap.get(`hotel:${hotel.hotel_id}`) ?? null,
         }))
-        .filter(({ hotel, distance }) => {
+        .filter(({ hotel }) => {
           const needle = normalize(query);
           if (needle && !normalize(hotel.name).includes(needle)) return false;
           if (state && normalize(hotel.state) !== normalize(state)) return false;
@@ -188,7 +228,6 @@ export default function HotelsHome({ onNavigate }: Props) {
             )
               return false;
           }
-          if (radius && (distance == null || distance > radius)) return false;
           return true;
         })
         .sort((a, b) =>
@@ -196,7 +235,7 @@ export default function HotelsHome({ onNavigate }: Props) {
             ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
             : Number(Boolean(b.hotel.featured)) - Number(Boolean(a.hotel.featured)),
         ),
-    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap, radius],
+    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap],
   );
   const sponsoredHotels = useMemo(() => sponsoredResults.map(item => ({
     campaignId: item.campaign_id,
@@ -349,9 +388,7 @@ export default function HotelsHome({ onNavigate }: Props) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold">
-              {loading
-                ? "Loading hotels…"
-                : `${filtered.length} ${filtered.length === 1 ? "hotel" : "hotels"}`}
+              {loading ? "Loading hotels…" : `${filtered.length} ${filtered.length === 1 ? "hotel" : "hotels"}${hasMore ? ' · more available' : ''}`}
             </p>
             <p className="mt-1 text-[9px] text-[#666D7E]">
               {city ? `${city}, ${state}` : state || "All locations"}
@@ -418,6 +455,7 @@ export default function HotelsHome({ onNavigate }: Props) {
             ))}
           </div>
         )}
+        {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-violet-400/30 px-6 text-sm font-semibold text-violet-200 disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}
       </main>
 
       {filtersOpen ? (

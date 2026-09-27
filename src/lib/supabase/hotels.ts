@@ -17,9 +17,26 @@ export async function getHotels(filters?: {
   amenities?: string[];
   search?: string;
   featured?: boolean;
-}) {
-  const { data, error } = await readHotel(supabase.rpc('get_discoverable_hotels'));
-  const rows = (Array.isArray(data) ? data : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+}, cursor: { featured: boolean; createdAt: string; id: number } | null = null) {
+  const { data, error } = await readHotel(supabase.rpc('search_discoverable_hotels', {
+    p_query: filters?.search?.trim() || null,
+    p_state: filters?.state || null,
+    p_city: filters?.city || null,
+    p_amenities: filters?.amenities?.length ? filters.amenities : null,
+    p_min_price: filters?.minPrice ?? null,
+    p_max_price: filters?.maxPrice ?? null,
+    p_lat: filters?.latitude ?? null,
+    p_lng: filters?.longitude ?? null,
+    p_radius_km: filters?.radiusKm ?? null,
+    p_cursor_featured: cursor?.featured ?? null,
+    p_cursor_created_at: cursor?.createdAt ?? null,
+    p_cursor_id: cursor?.id ?? null,
+    p_limit: 24,
+  }));
+  const rows = (Array.isArray(data?.items) ? data.items : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
   const includes = (value: unknown, query: string) => String(value || '').toLowerCase().includes(query.toLowerCase());
   const hotels = rows.filter((hotel) => {
     if (filters?.state && !includes(hotel.state, filters.state)) return false;
@@ -33,7 +50,13 @@ export async function getHotels(filters?: {
     }
     return true;
   });
-  return { hotels, error };
+  return {
+    hotels, error, hasMore: Boolean(data?.has_more),
+    nextCursor: data?.next_cursor_created_at && data?.next_cursor_id != null ? {
+      featured: Boolean(data.next_cursor_featured),
+      createdAt: String(data.next_cursor_created_at), id: Number(data.next_cursor_id),
+    } : null,
+  };
 }
 
 export async function getHotelById(hotelId: number) {

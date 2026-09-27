@@ -89,7 +89,7 @@ export default function HotelDetail({
   }, [hotelId]);
   useEffect(() => {
     let live = true;
-    void getDiscoveryDistanceMap(location).then((map) => {
+    void getDiscoveryDistanceMap(location, { hotelIds: [hotelId] }).then((map) => {
       if (live) setDistance(map.get(`hotel:${hotelId}`) ?? null);
     });
     return () => { live = false; };

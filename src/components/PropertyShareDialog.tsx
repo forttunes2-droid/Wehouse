@@ -1,10 +1,10 @@
 import SharedPropertyCard from "@/components/SharedPropertyCard";
-import { ChevronRight, Search, Share2 } from "lucide-react";
+import { ChevronRight, Copy, Search, Share2, Users } from "lucide-react";
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getConversations, getRoommateConversationPeople } from '@/lib/supabase/chat';
 import { selectRoommateRecipients, type RoommateRecipient } from '@/lib/roommateRecipients';
-import { queuePropertyShare, sharePropertyExternally, type SharedProperty } from '@/lib/propertyShare';
+import { propertyShareUrl, queuePropertyShare, sharePropertyExternally, type SharedProperty } from '@/lib/propertyShare';
 import { withTimeout } from '@/lib/withTimeout';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import BackButton from '@/components/BackButton';
@@ -15,6 +15,7 @@ type Props = { userId: string; property: SharedProperty; title: string; onClose:
 export default function PropertyShareDialog({ userId, property, title, onClose, onConversation }: Props) {
   const [recipients, setRecipients] = useState<RoommateRecipient[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState('');
+  const [sharing, setSharing] = useState(false);
   const dismiss = useRecordScreenBack(onClose);
   const dialogRef = useDialogInteraction(dismiss);
   useEffect(() => {
@@ -34,18 +35,34 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
     return () => { active = false; };
   }, [userId, attempt]);
   const visible = recipients.filter(person => `${person.name} ${person.username}`.toLowerCase().includes(query.trim().toLowerCase()));
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(propertyShareUrl(property)); toast.success('Property link copied'); }
+    catch { toast.error('Could not copy the link on this device'); }
+  }
+  async function shareViaApps() {
+    if (sharing) return;
+    setSharing(true);
+    try { const result = await sharePropertyExternally(property, title); if (result === 'copied') toast.success('Property link copied'); }
+    catch { toast.error('This property could not be shared'); }
+    finally { setSharing(false); }
+  }
   return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-[#090B10] sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
-    <section role="dialog" aria-modal="true" aria-label="Share property" className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-[#10131B] p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-white sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-white/10">
-      <header className="flex items-center gap-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><h2 className="text-lg font-semibold">Share property</h2></header>
-      <div className="mt-5" aria-label={`Sharing ${title}`}><SharedPropertyCard property={property} compact /></div>
-      <button type="button" onClick={() => void sharePropertyExternally(property, title).then(result => {
-        if (result === 'copied') toast.success('Property link copied');
-      }).catch(() => toast.error('This property could not be shared'))} className="mt-4 flex min-h-12 w-full items-center justify-between rounded-xl border border-white/10 bg-white/[.025] px-4 text-left">
-        <span className="flex items-center gap-3"><Share2 size={18} className="text-violet-300" /><span><span className="block text-sm font-semibold">Share outside WeHouse</span><span className="mt-0.5 block text-[10px] text-[#7C8291]">WhatsApp, Messages, social apps or copy link</span></span></span><span className="text-[#626878]">›</span>
-      </button>
-      <p className="mt-5 text-[10px] font-semibold uppercase tracking-[.14em] text-[#676E7E]">Send inside WeHouse</p>
-      <label className="mt-3 block text-sm font-medium text-[#DDD8E8]">Your roommate connections<span className="mt-2 flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-[#191C25] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[#AAA3B3]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name or username" className="min-w-0 flex-1 bg-transparent py-3 text-base text-white outline-none" /></span></label>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+    <section role="dialog" aria-modal="true" aria-label="Share property" className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-[#10131B] text-white sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-white/10">
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/[.07] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><div><h2 className="text-lg font-semibold">Share this place</h2><p className="text-xs text-[#A3A8B7]">Send a listing link to someone you know</p></div></header>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
+      <div className="mt-4" aria-label={`Sharing ${title}`}><SharedPropertyCard property={property} compact /></div>
+      <section className="mt-5" aria-label="Share a link outside WeHouse">
+        <h3 className="text-sm font-semibold">Share a link</h3>
+        <p className="mt-1 text-xs leading-5 text-[#A3A8B7]">Anyone with the link can view a published place. No booking or payment is created.</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" disabled={sharing} onClick={() => void shareViaApps()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-3 text-sm font-semibold disabled:opacity-50"><Share2 size={17} aria-hidden="true" />Share via apps</button>
+          <button type="button" onClick={() => void copyLink()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 px-3 text-sm font-semibold text-violet-200"><Copy size={17} aria-hidden="true" />Copy link</button>
+        </div>
+      </section>
+      <section className="mt-6 border-t border-white/10 pt-5" aria-label="Send within WeHouse">
+      <h3 className="flex items-center gap-2 text-sm font-semibold"><Users size={17} aria-hidden="true" className="text-violet-300" />Send in WeHouse</h3>
+      <p className="mt-1 text-xs leading-5 text-[#A3A8B7]">Choose a roommate connection. You can add a message before sending.</p>
+      <label className="mt-3 block"><span className="sr-only">Search your connections</span><span className="flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-[#191C25] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[#AAA3B3]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search connections" className="min-w-0 flex-1 bg-transparent py-3 text-base text-white outline-none" /></span></label>
       {loading ? <p role="status" className="py-8 text-sm text-[#AAA3B3]">Loading your connections…</p> : <>
         {error && <div role="alert" className="py-4 text-sm text-[#AAA3B3]"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-violet-300">Refresh connections</button></div>}
         <div className="mt-3 divide-y divide-white/[.06]">{visible.map(person => <button key={person.userId} type="button" onClick={() => {
@@ -59,8 +76,9 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
         </button>)}</div>
         {!visible.length && !error && <p className="py-8 text-sm leading-6 text-[#AAA3B3]">{query.trim() ? 'No connections match that name.' : 'No roommate connections yet. You can still share the public link above.'}</p>}
       </>}
+      </section>
       </div>
-      <p className="mt-4 shrink-0 border-t border-white/10 pt-3 text-xs leading-5 text-[#AAA3B3]">Sharing a place does not reserve it or split its cost.</p>
+      <p className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[#A3A8B7]">Want to split a Short Let stay? Reserve the dates first, then open your booking and choose “Split costs with connections.”</p>
     </section>
   </div>, document.body);
 }
