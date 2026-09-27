@@ -611,19 +611,15 @@ export default function AccountCenter({
         />
       </AccountSection>
 
-      <button
-        onClick={() => void signOut()}
-        disabled={signingOut}
-        className="group flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/[.07] bg-white/[.025] px-4 text-left transition hover:border-red-400/15 hover:bg-red-500/[.035] disabled:opacity-50"
-      >
-        <span>
-          <span className="block text-[12px] font-semibold text-[#E7E9EE] group-hover:text-red-200">
-            {signingOut ? "Signing out…" : "Sign out"}
-          </span>
-          <span className="mt-0.5 block text-[9px] text-[#707686]">End this session on this device</span>
-        </span>
-        <span aria-hidden="true" className="text-lg text-[#6F7585] transition group-hover:translate-x-0.5 group-hover:text-red-300">→</span>
-      </button>
+      <AccountSection>
+        <AccountRow
+          title={signingOut ? "Signing out…" : "Sign out"}
+          detail="End this session on this device"
+          onClick={() => void signOut()}
+          disabled={signingOut}
+          icon={<ExitIcon />}
+        />
+      </AccountSection>
     </AccountShell>
   );
 }
@@ -775,6 +771,13 @@ function ToolsIcon() {
       <circle cx="8" cy="7" r="1.5" />
       <circle cx="15" cy="12" r="1.5" />
       <circle cx="12" cy="17" r="1.5" />
+    </svg>
+  );
+}
+function ExitIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" />
     </svg>
   );
 }

@@ -1,6 +1,6 @@
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import ListingCard from "@/components/ListingCard";
@@ -13,12 +13,14 @@ import DiscoveryShell, {
 } from "@/components/DiscoveryShell";
 import {
   getDiscoverableHomes,
+  type HomePageCursor,
   type HomeStayType,
 } from "@/lib/housing-discovery";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import type { Listing } from "@/types";
 import { toast } from "sonner";
+import { getListing } from "@/lib/supabase/listings";
 import {
   followPropertySearch,
   getMySavedSearches,
@@ -35,13 +37,13 @@ type SearchProps = {
   onNavigate: (page: string, listingId?: string) => void;
   savedIds: Set<string>;
   onToggleSave: (listingId: string) => void;
+  sessionKey?: string;
 };
 
 const LONG_FLOOR = 180000;
 const LONG_CEILING = 5000000;
 const SHORT_FLOOR = 5000;
 const SHORT_CEILING = 500000;
-let propertyCache: Listing[] | null = null;
 type StayFilter = HomeStayType | "all";
 type PropertySearchState = {
   query: string;
@@ -53,7 +55,7 @@ type PropertySearchState = {
   filterState: string;
   filterCity: string;
 };
-let searchState: PropertySearchState = {
+const emptySearchState: PropertySearchState = {
   query: "",
   stayType: "all",
   priceMin: "",
@@ -63,29 +65,56 @@ let searchState: PropertySearchState = {
   filterState: "",
   filterCity: "",
 };
+// Remember filters only within the same identity. A guest or another signed-in
+// account must never inherit a previous account's search.
+const searchStateBySession = new Map<string, PropertySearchState>();
 
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
+}
+
+function matchesHome(listing: Listing, filters: {
+  query: string; stayType: StayFilter; minPrice: number | ""; maxPrice: number | "";
+  bedrooms: number | ""; bathrooms: number | ""; state: string; city: string;
+}) {
+  if (filters.query.trim() && !normalize([listing.title, listing.address, listing.city, listing.state].filter(Boolean).join(" ")).includes(normalize(filters.query))) return false;
+  if (filters.stayType !== "all" && listing.sub_type !== filters.stayType) return false;
+  const price = Number(listing.price || 0);
+  if (filters.minPrice !== "" && (price <= 0 || price < filters.minPrice)) return false;
+  if (filters.maxPrice !== "" && (price <= 0 || price > filters.maxPrice)) return false;
+  if (filters.bedrooms && Number(listing.bedrooms || 0) < filters.bedrooms) return false;
+  if (filters.bathrooms && Number(listing.bathrooms || 0) < filters.bathrooms) return false;
+  if (filters.state && normalize(listing.state) !== normalize(filters.state)) return false;
+  if (filters.city && normalize(listing.city) !== normalize(filters.city)) return false;
+  return listing.status === "available" && String(listing.availability_status || "available") === "available";
 }
 
 export default function Search({
   onNavigate,
   savedIds,
   onToggleSave,
+  sessionKey = 'guest',
 }: SearchProps) {
   const guest = useDiscoveryAccess();
-  const [query, setQuery] = useState(() => searchState.query);
+  const initialSearch = searchStateBySession.get(sessionKey) || emptySearchState;
+  const [query, setQuery] = useState(() => initialSearch.query);
   const { getNumber } = usePlatformSettings();
-  const [listings, setListings] = useState<Listing[]>(() => propertyCache || []);
-  const [loading, setLoading] = useState(() => !propertyCache);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState<HomePageCursor | null>(null);
+  const [reload, setReload] = useState(0);
+  const [sponsoredListings, setSponsoredListings] = useState<Listing[]>([]);
+  const requestGeneration = useRef(0);
   const [loadError, setLoadError] = useState("");
-  const [stayType, setStayType] = useState<StayFilter>(() => searchState.stayType);
-  const [priceMin, setPriceMin] = useState<number | "">(() => searchState.priceMin);
-  const [priceMax, setPriceMax] = useState<number | "">(() => searchState.priceMax);
-  const [bedrooms, setBedrooms] = useState<number | "">(() => searchState.bedrooms);
-  const [bathrooms, setBathrooms] = useState<number | "">(() => searchState.bathrooms);
-  const [filterState, setFilterState] = useState(() => searchState.filterState);
-  const [filterCity, setFilterCity] = useState(() => searchState.filterCity);
+  const [stayType, setStayType] = useState<StayFilter>(() => initialSearch.stayType);
+  const [priceMin, setPriceMin] = useState<number | "">(() => initialSearch.priceMin);
+  const [priceMax, setPriceMax] = useState<number | "">(() => initialSearch.priceMax);
+  const [bedrooms, setBedrooms] = useState<number | "">(() => initialSearch.bedrooms);
+  const [bathrooms, setBathrooms] = useState<number | "">(() => initialSearch.bathrooms);
+  const [filterState, setFilterState] = useState(() => initialSearch.filterState);
+  const [filterCity, setFilterCity] = useState(() => initialSearch.filterCity);
   const sponsoredResults = useSponsoredDiscovery('property', filterState, filterCity);
   const [showFilters, setShowFilters] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
@@ -135,7 +164,7 @@ export default function Search({
   }, [Boolean(guest)]);
 
   useEffect(() => {
-    searchState = {
+    searchStateBySession.set(sessionKey, {
       query,
       stayType,
       priceMin,
@@ -144,38 +173,71 @@ export default function Search({
       bathrooms,
       filterState,
       filterCity,
-    };
-  }, [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
+    });
+  }, [sessionKey, query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
 
-  const loadProperties = useCallback(async (quiet = false) => {
-    if (!quiet && !propertyCache) setLoading(true);
-    setLoadError("");
-    const { homes, error } = await getDiscoverableHomes();
-    if (error) {
-      setLoadError("Apartments could not be loaded. Check your connection and try again.");
-    } else {
-      propertyCache = (homes || []).map(item => ({ ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos) }));
-      setListings(propertyCache);
-    }
-    setLoading(false);
-  }, []);
+  const serverFilters = useMemo(() => ({
+    query, stayType, minPrice: priceMin, maxPrice: priceMax, bedrooms, bathrooms,
+    state: filterState, city: filterCity,
+  }), [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
 
   useEffect(() => {
     let live = true;
-    void getDiscoverableHomes().then(({ homes, error }) => {
+    const generation = ++requestGeneration.current;
+    setListings([]);
+    setHasMore(false);
+    setCursor(null);
+    setLoadingMore(false);
+    setLoading(true);
+    setLoadError("");
+    const timer = window.setTimeout(() => {
+      void getDiscoverableHomes(serverFilters).then(({ homes, hasMore: more, nextCursor, error }) => {
+        if (!live || generation !== requestGeneration.current) return;
+        if (error) setLoadError("Apartments could not be loaded. Check your connection and try again.");
+        else {
+          setListings(homes.map(item => ({ ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos) })));
+          setHasMore(more);
+          setCursor(nextCursor);
+        }
+      }).catch(() => {
+        if (live && generation === requestGeneration.current) setLoadError("Apartments could not be loaded. Check your connection and try again.");
+      }).finally(() => { if (live && generation === requestGeneration.current) setLoading(false); });
+    }, query.trim() ? 250 : 0);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [serverFilters, reload]);
+
+  async function loadMore() {
+    if (!hasMore || !cursor || loadingMore) return;
+    const generation = requestGeneration.current;
+    setLoadingMore(true);
+    try {
+      const result = await getDiscoverableHomes(serverFilters, cursor);
+      if (generation !== requestGeneration.current) return;
+      if (result.error) { toast.error("More apartments could not be loaded. Try again."); return; }
+      setListings(current => {
+        const seen = new Set(current.map(item => item.id));
+        return [...current, ...result.homes.filter(item => !seen.has(item.id)).map(item => ({
+          ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos),
+        }))];
+      });
+      setHasMore(result.hasMore);
+      setCursor(result.nextCursor);
+    } catch {
+      if (generation === requestGeneration.current) toast.error("More apartments could not be loaded. Try again.");
+    } finally { if (generation === requestGeneration.current) setLoadingMore(false); }
+  }
+
+  useEffect(() => {
+    let live = true;
+    if (!sponsoredResults.length) { setSponsoredListings([]); return; }
+    setSponsoredListings([]);
+    void Promise.all(sponsoredResults.map(item => getListing(item.resource_id))).then(results => {
       if (!live) return;
-      if (error) {
-        setLoadError("Apartments could not be loaded. Check your connection and try again.");
-      } else {
-        propertyCache = (homes || []).map(item => ({ ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos) }));
-        setListings(propertyCache);
-      }
-      setLoading(false);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
+      setSponsoredListings(results.filter(result => !result.error && result.listing)
+        .map(result => result.listing!) as Listing[]);
+    }).catch(() => { if (live) setSponsoredListings([]); });
+    return () => { live = false; };
+  }, [sponsoredResults]);
 
   const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
   const stateOptions = useMemo(
@@ -209,39 +271,24 @@ export default function Search({
           listing,
           distance: distanceMap.get(`listing:${listing.id}`) ?? null,
         }))
-        .filter(({ listing }) => {
-          if (query.trim() && !normalize([listing.title, listing.address, listing.city, listing.state].filter(Boolean).join(" ")).includes(normalize(query))) return false;
-          if (stayType !== "all" && listing.sub_type !== stayType) return false;
-          const price = Number(listing.price || 0);
-          if (priceMin !== "" && (price <= 0 || price < priceMin)) return false;
-          if (priceMax !== "" && (price <= 0 || price > priceMax)) return false;
-          if (bedrooms && Number(listing.bedrooms || 0) < bedrooms) return false;
-          if (bathrooms && Number(listing.bathrooms || 0) < bathrooms) return false;
-          if (filterState && normalize(listing.state) !== normalize(filterState)) return false;
-          if (filterCity && normalize(listing.city) !== normalize(filterCity)) return false;
-          return true;
-        })
+        .filter(({ listing }) => matchesHome(listing, serverFilters))
         .sort((a, b) =>
           location ? (a.distance ?? Infinity) - (b.distance ?? Infinity) : 0,
         ),
     [
       listings,
-      query,
-      stayType,
-      priceMin,
-      priceMax,
-      bedrooms,
-      bathrooms,
-      filterState,
-      filterCity,
+      serverFilters,
       distanceMap,
+      location,
     ],
   );
   const sponsoredHomes = useMemo(() => sponsoredResults.map(item => ({
     campaignId: item.campaign_id,
-    entry: filtered.find(({ listing }) => listing.id === item.resource_id),
+    entry: [...filtered, ...sponsoredListings.filter(listing => matchesHome(listing, serverFilters))
+      .map(listing => ({ listing, distance: distanceMap.get(`listing:${listing.id}`) ?? null }))]
+      .find(({ listing }) => listing.id === item.resource_id),
   })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
-    [sponsoredResults, filtered]);
+    [sponsoredResults, sponsoredListings, filtered, serverFilters, distanceMap]);
   useEffect(() => {
     sponsoredHomes.forEach(item => recordSponsoredImpression(item.campaignId, 'home_discovery'));
   }, [sponsoredHomes]);
@@ -352,7 +399,7 @@ export default function Search({
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
         <DiscoveryToolbar
           value={query}
-          onChange={setQuery}
+          onChange={value => setQuery(value.slice(0, 80))}
           placeholder="City, area or apartment"
           toolbarLabel={locationSummary}
           onFilters={() => setShowFilters(true)}
@@ -383,7 +430,7 @@ export default function Search({
             <p className="text-[11px] font-semibold">
               {loading
                 ? "Loading apartments…"
-                : `${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
+                : `Showing ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
             </p>
             <p className="mt-1 text-[9px] text-[#666D7E]">{modeLabel}</p>
           </div>
@@ -426,7 +473,7 @@ export default function Search({
             <p className="mt-2 text-[10px] text-[#777D8D]">{loadError}</p>
             <button
               type="button"
-              onClick={() => void loadProperties()}
+              onClick={() => setReload(value => value + 1)}
               className="mt-4 rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold"
             >
               Try again
@@ -442,8 +489,9 @@ export default function Search({
             text="Change the selected filters to see other apartments."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map(({ listing, distance }) => (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filtered.map(({ listing, distance }) => (
               <ListingCard
                 key={listing.id}
                 listing={listing}
@@ -457,8 +505,13 @@ export default function Search({
                   onToggleSave(listing.id);
                 }}
               />
-            ))}
-          </div>
+              ))}
+            </div>
+            {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
+              className="mx-auto mt-4 block min-h-11 rounded-xl border border-white/[.09] px-5 text-xs font-semibold text-violet-300 disabled:opacity-50">
+              {loadingMore ? "Loading more…" : "Show more apartments"}
+            </button>}
+          </>
         )}
       </main>
 

@@ -23,15 +23,21 @@ class ProductionAliases(unittest.TestCase):
     def setUp(self):
         self.files = sorted((ROOT / "supabase/migrations").glob("*.sql"))
         self.paths = {file.name.split("_", 1)[0]: file for file in self.files}
+        # Model the historical property release before later migrations were
+        # applied. The current production snapshot is tested separately below.
+        property_aliases = {
+            remote: local for remote, local in release.PRODUCTION_ALIASES.items()
+            if local <= "20260926064500"
+        }
         self.applied = sorted(
             [version for version in self.paths if version <= "20260926064500"
-             and version not in release.PRODUCTION_ALIASES.values()]
-            + list(release.PRODUCTION_ALIASES)
+             and version not in property_aliases.values()]
+            + list(property_aliases)
         )
         self.alias_rows = [
             {"version": remote, "name": self.paths[local].stem.split("_", 1)[1],
              "digest": hashlib.md5(self.paths[local].read_bytes()).hexdigest()}
-            for remote, local in sorted(release.PRODUCTION_ALIASES.items())
+            for remote, local in sorted(property_aliases.items())
         ]
 
     def run_plan(self, rows):
@@ -62,6 +68,19 @@ class ProductionAliases(unittest.TestCase):
         rows[0]["digest"] = "0" * 32
         with self.assertRaisesRegex(ValueError, "alias differs"):
             self.run_plan(rows)
+
+    def test_current_production_alias_has_exact_sql_and_no_pending_release(self):
+        self.applied = sorted(
+            [version for version in self.paths
+             if version not in release.PRODUCTION_ALIASES.values()]
+            + list(release.PRODUCTION_ALIASES)
+        )
+        rows = [
+            {"version": remote, "name": self.paths[local].stem.split("_", 1)[1],
+             "digest": hashlib.md5(self.paths[local].read_bytes()).hexdigest()}
+            for remote, local in sorted(release.PRODUCTION_ALIASES.items())
+        ]
+        self.assertIn("No pending database migrations", self.run_plan(rows))
 
     def test_transaction_rechecks_aliases_and_preserves_history(self):
         sql = release.release_sql([], self.applied, "check", [

@@ -12,10 +12,10 @@ class PublicScenario(Scenario):
  async def route(self,route):
   name=route.request.url.split('/')[-1].split('?')[0]
   data=None
-  if name in ['get_discoverable_listings','get_discoverable_hotels','get_public_listing_detail','get_public_hotel_detail']:
+  if name in ['search_discoverable_homes','get_discoverable_hotels','get_public_listing_detail','get_public_hotel_detail']:
    self.calls.append((name,route.request.post_data_json))
    if self.fail:return await route.fulfill(status=503,content_type='application/json',body=json.dumps({'message':'Fixture read unavailable'}))
-   data={'get_discoverable_listings':[HOME],'get_discoverable_hotels':[HOTEL],'get_public_listing_detail':HOME,'get_public_hotel_detail':HOTEL}[name]
+   data={'search_discoverable_homes':{'items':[HOME],'has_more':False,'next_cursor_created_at':None,'next_cursor_id':None},'get_discoverable_hotels':[HOTEL],'get_public_listing_detail':HOME,'get_public_hotel_detail':HOTEL}[name]
    return await route.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
   return await super().route(route)
 async def main():
