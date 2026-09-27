@@ -18,7 +18,7 @@ SCRIPT="""s=>{
   if(name==='getListing')return{listing:s.home,error:null};
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
   if(name==='getReservationForListing')return{reservation:null,error:null};
-  if(name==='rpc:get_discoverable_listings')return{data:[s.home],error:null};
+  if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
