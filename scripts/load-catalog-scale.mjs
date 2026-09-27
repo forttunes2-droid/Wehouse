@@ -38,7 +38,7 @@ async function sample(scenario,i) {
     });
     const body=await response.text(); const data=response.ok?JSON.parse(body):null;
     return {ms:performance.now()-start,bytes:Buffer.byteLength(body),ok:response.ok&&scenario.valid(data),status:response.status};
-  } catch(error) { return {ms:performance.now()-start,bytes:0,ok:false,status:error.name}; }
+  } catch(error) { return {ms:performance.now()-start,bytes:0,ok:false,status:`${error.name}:${error.cause?.code || error.message}`}; }
 }
 const percentile=(arr,p)=>Math.round(arr[Math.ceil(arr.length*p)-1]*10)/10;
 async function stage(scenario,concurrency,count) {
