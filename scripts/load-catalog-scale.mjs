@@ -42,23 +42,28 @@ async function sample(scenario,i) {
     return {ms:performance.now()-start,bytes:Buffer.byteLength(body),ok:response.ok&&scenario.valid(data),status:response.status};
   } catch(error) { return {ms:performance.now()-start,bytes:0,ok:false,status:`${error.name}:${error.cause?.code || error.message}`}; }
 }
-const percentile=(arr,p)=>Math.round(arr[Math.ceil(arr.length*p)-1]*10)/10;
+const percentile=(arr,p)=>arr.length?Math.round(arr[Math.ceil(arr.length*p)-1]*10)/10:null;
 async function stage(scenario,concurrency,count) {
   let next=0;const samples=[];const start=performance.now();
   await Promise.all(Array.from({length:concurrency},async()=>{
     while(next<count){const i=next++;samples[i]=await sample(scenario,i);}
   }));
-  const sorted=samples.map(x=>x.ms).sort((a,b)=>a-b);
-  return {scenario:scenario.name,concurrency,requests:count,errors:samples.filter(x=>!x.ok).length,
-    error_statuses:[...new Set(samples.filter(x=>!x.ok).map(x=>x.status))],
-    p50_ms:percentile(sorted,.5),p95_ms:percentile(sorted,.95),p99_ms:percentile(sorted,.99),
-    requests_per_second:Math.round(count/((performance.now()-start)/1000)*10)/10,
+  const seconds=(performance.now()-start)/1000;
+  const successful=samples.filter(x=>x.ok).map(x=>x.ms).sort((a,b)=>a-b);
+  const failures=samples.filter(x=>!x.ok);
+  const error_counts=Object.fromEntries([...new Set(failures.map(x=>String(x.status)))].map(status=>[
+    status,failures.filter(x=>String(x.status)===status).length,
+  ]));
+  return {scenario:scenario.name,concurrency,requests:count,successes:successful.length,errors:failures.length,
+    error_counts,p50_ms:percentile(successful,.5),p95_ms:percentile(successful,.95),p99_ms:percentile(successful,.99),
+    elapsed_seconds:Math.round(seconds*100)/100,
+    requests_per_second:Math.round(count/seconds*10)/10,
     response_megabytes:Math.round(samples.reduce((n,x)=>n+x.bytes,0)/1048576*100)/100};
 }
 const report={source:'disposable local Supabase HTTP API',catalog,
   caveat:'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
   measured_at:new Date().toISOString(),stages:[]};
-for(const {concurrency,count} of [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:400,count:800}]){
+for(const {concurrency,count} of [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}]){
   for(const scenario of scenarios){
     const result=await stage(scenario,concurrency,count);report.stages.push(result);
     console.log(`${result.scenario} c=${concurrency} ok=${count-result.errors}/${count} p95=${result.p95_ms}ms p99=${result.p99_ms}ms rps=${result.requests_per_second}`);

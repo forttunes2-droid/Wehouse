@@ -39,8 +39,29 @@ jobs:
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_medium_plan.sql > test-results/home-query-plan.txt
           python scripts/explain-medium-home.py > test-results/home-expanded.sql
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < test-results/home-expanded.sql >> test-results/home-query-plan.txt
-      - name: Measure HTTP reads at 1, 20, 100 and 400 clients
-        run: WEHOUSE_CAPACITY_PRESET=medium node scripts/load-catalog-scale.mjs
+      - name: Measure HTTP reads and sample resource pressure
+        run: |
+          (
+            while true; do
+              date -u +%FT%TZ
+              printf 'runner-load '; cat /proc/loadavg
+              printf 'open-files '; cat /proc/sys/fs/file-nr
+              docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}} {{.NetIO}} {{.PIDs}}' || true
+              docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc \
+                "select state,count(*) from pg_stat_activity group by state order by state" || true
+              sleep 2
+            done
+          ) > test-results/capacity-resource-samples.log 2>&1 &
+          sampler_pid=$!
+          trap 'kill "$sampler_pid" 2>/dev/null || true; wait "$sampler_pid" 2>/dev/null || true' EXIT
+          WEHOUSE_CAPACITY_PRESET=medium node scripts/load-catalog-scale.mjs
+      - name: Retain local gateway logs after the read stages
+        if: always()
+        run: |
+          mkdir -p test-results
+          for container in supabase_kong_wehouse supabase_rest_wehouse supabase_db_wehouse; do
+            docker logs --tail 500 "$container" > "test-results/$container.log" 2>&1 || true
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -48,6 +69,8 @@ jobs:
           path: |
             test-results/catalog-scale.json
             test-results/home-query-plan.txt
+            test-results/capacity-resource-samples.log
+            test-results/supabase_*.log
           retention-days: 14
       - name: Destroy disposable services
         if: always()
