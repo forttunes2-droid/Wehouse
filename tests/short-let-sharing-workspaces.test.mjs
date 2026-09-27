@@ -87,7 +87,8 @@ test('public link intent survives login without storing private context or chang
   assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#search', store, 3), null);
   assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 600001), null);
   assert.deepEqual(plain(intent.readPropertyLinkIntent('https://wehouse.com.ng/#place/hotel/7', store, 2)), { kind: 'hotel', id: '7' });
-  assert.equal(intent.readPropertyLinkIntent('https://other.example/#login', store, 4), null);
+  // Previews use their own origin-scoped storage; only the app's root auth route restores it.
+  assert.equal(intent.readPropertyLinkIntent('https://other.example/other-page#login', store, 4), null);
   intent.savePropertyLinkIntent(null, store, 3); assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 4), null);
   store.setItem('wh_public_property_intent_v1', JSON.stringify({ property: ref, expires: 500_000 }));
   assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 5), null);

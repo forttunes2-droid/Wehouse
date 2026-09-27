@@ -114,6 +114,7 @@ async def main():
      assert await page.evaluate("document.body.style.overflow === 'hidden'"), 'Hotel calendar must hold the underlying page still'
      await page.mouse.wheel(0,500)
      await page.get_by_role('button',name='Close calendar').click()
+     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
      assert await page.evaluate("document.body.style.overflow !== 'hidden'"), 'Calendar must restore page scrolling'
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
      reserve=page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?$'))
