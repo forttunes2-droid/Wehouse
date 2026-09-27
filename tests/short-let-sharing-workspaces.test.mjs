@@ -95,6 +95,19 @@ test('recipient chooser joins authoritative peer identities and excludes pending
   const result = recipients.selectRoommateRecipients('alice', rows, people);
   assert.equal(result.recipients.length, 1); assert.equal(result.recipients[0].name, 'Bob Example'); assert.equal(result.recipients[0].conversationId, 'accepted'); assert.equal(result.missingIdentityCount, 1);
 });
+test('roommate connections can receive a property before either person sends a message', () => {
+  const recipients = load('src/lib/roommateRecipients.ts');
+  const rows = [
+    { conversationId:'fresh-chat', user_id:'bob', name:'Bob Example', username:'bob', avatar:null, isBlocked:false },
+    { conversationId:'blocked-chat', user_id:'blocked', name:'Blocked', avatar:null, isBlocked:true },
+  ];
+  assert.deepEqual(plain(recipients.selectRoommateRecipientsFromPeers('alice', rows)), [{ conversationId:'fresh-chat', userId:'bob', name:'Bob Example', username:'bob', avatar:null }]);
+  const picker = fs.readFileSync('src/components/PropertyShareDialog.tsx', 'utf8');
+  assert.match(picker,/getRoommateConversationPeople\(\)/);
+  assert.doesNotMatch(picker,/getConversations\(/);
+  const listing = fs.readFileSync('src/pages/ListingDetailCore.tsx', 'utf8');
+  assert.match(listing,/selectRoommateRecipientsFromPeers/);
+});
 test('Activity never infers the audience from a highest role and preserves intentional aliases', () => {
   const { activityWorkspaceMatches: matches } = load('src/lib/activityWorkspace.ts');
   for (const scope of ['creator','admin','worker','property_partner','hotel','staff']) assert.equal(matches(scope, 'personal'), false, scope);

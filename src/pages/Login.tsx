@@ -1,4 +1,5 @@
 import GuestBrowseEntry from "@/components/GuestBrowseEntry";
+import type { SharedProperty } from "@/lib/propertyShare";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useEffect, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
@@ -51,6 +52,8 @@ interface LoginProps {
   serverError: string;
   kickedOut?: boolean;
   pendingDevice?: DeviceRegistration | null;
+  publicProperty?: SharedProperty | null;
+  onDismissPublicProperty?: () => void;
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -154,6 +157,8 @@ export default function Login({
   serverError,
   kickedOut,
   pendingDevice,
+  publicProperty,
+  onDismissPublicProperty,
 }: LoginProps) {
   const [storedVerification] = useState(() => readGoogleVerification());
   const [mode, setMode] = useState<Mode>(() =>
@@ -771,8 +776,14 @@ export default function Login({
   }, ["choose", "signin", "signup", "forgot"].includes(mode));
 
   return (
-    <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} busy={working}
+    <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} showSignedOutNav={["choose", "signin", "signup"].includes(mode)} busy={working}
+      sharedProperty={publicProperty} onDismissSharedProperty={onDismissPublicProperty}
       onSignIn={(property) => { if (!workingRef.current) { setRestorePropertyOnBack(Boolean(property)); setMode("choose"); clearMessages(); } }}
+      onBrowse={() => {
+        if (restorePropertyOnBack) onDismissPublicProperty?.();
+        setRestorePropertyOnBack(false);
+        setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
+      }}
       onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
     >

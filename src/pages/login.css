@@ -18,7 +18,7 @@ body.wh-auth-open #root { background-color: #090b10 !important; color-scheme: da
 .wh-auth-layout {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   max-width: 480px;
   min-width: 0;
@@ -27,6 +27,7 @@ body.wh-auth-open #root { background-color: #090b10 !important; color-scheme: da
   margin: 0 auto;
   padding: max(28px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
 }
+.wh-auth-with-guest-nav .wh-auth-layout { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 
 .wh-auth-header {
   width: 100%;

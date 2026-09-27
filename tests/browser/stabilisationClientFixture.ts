@@ -20,7 +20,7 @@ export const supabase={rpc:async(name:string,args:any={})=>{
   return{data:publication(),error:null};
  }
  if(name==='get_user_conversations')return{data:[['chat-bola','qa-bola','active'],['chat-chika','qa-chika','active'],['chat-pending','qa-pending','pending'],['chat-blocked','qa-blocked','active']].map(([id,b,status])=>({id,participant_a:owner,participant_b:b,conversation_type:'roommate',status})),error:null};
- if(name==='get_my_roommate_peer_details')return{data:[['qa-bola','Bola Example'],['qa-chika','Chika Example'],['qa-pending','Pending Example'],['qa-blocked','Blocked Example']].map(([id,name])=>({user_id:id,full_name:name,username:id.replace('qa-',''),is_blocked:id==='qa-blocked'})),error:null};
+ if(name==='get_my_roommate_peer_details')return{data:[['chat-bola','qa-bola','Bola Example'],['chat-chika','qa-chika','Chika Example'],['chat-blocked','qa-blocked','Blocked Example']].map(([conversation_id,id,name])=>({conversation_id,user_id:id,full_name:name,username:id.replace('qa-',''),is_blocked:id==='qa-blocked'})),error:null};
  if(name==='create_my_shared_short_let'){if(args.p_reservation_id!=='reservation-existing'||args.p_conversation_ids.length!==2)throw new Error('Lost stored reservation or recipients');return{data:group(),error:null};}
  if(name==='get_my_shared_housing_group')return{data:group(),error:null};
  if(name==='respond_to_shared_housing_invite'){if(args.p_group_id!=='shared-existing'||control.actor!==guest)throw new Error('Wrong invitation actor');w.__accepted=args.p_accept;return{data:group(),error:null};}

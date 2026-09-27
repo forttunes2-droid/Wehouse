@@ -1,0 +1,54 @@
+name: Capacity medium catalog (disposable)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/capacity-medium.yml'
+      - 'scripts/seed-capacity-medium.sh'
+      - 'scripts/load-catalog-scale.mjs'
+      - 'supabase/tests/capacity_scale_*.sql'
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capacity-medium-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  medium-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require disposable runner space
+        run: test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 8
+      - name: Start local Supabase and replay migrations
+        run: |
+          npx --yes supabase@2.114.0 start
+          npx --yes supabase@2.114.0 db reset --local
+      - name: Seed 50k homes, 100k hotels and 50k synthetic profiles
+        run: bash scripts/seed-capacity-medium.sh
+      - name: Capture home query plans
+        run: |
+          mkdir -p test-results
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_medium_plan.sql > test-results/home-query-plan.txt
+          python scripts/explain-medium-home.py > test-results/home-expanded.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < test-results/home-expanded.sql >> test-results/home-query-plan.txt
+      - name: Measure HTTP reads at 1, 20, 100 and 400 clients
+        run: WEHOUSE_CAPACITY_PRESET=medium node scripts/load-catalog-scale.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capacity-medium-results
+          path: |
+            test-results/catalog-scale.json
+            test-results/home-query-plan.txt
+          retention-days: 14
+      - name: Destroy disposable services
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup

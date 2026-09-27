@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnnouncementsTab } from "@/components/AnnouncementsTab";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
+import { CHAT_MEDIA_ACCEPT, CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatMedia } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
@@ -11,6 +12,7 @@ import {
   conversationPresentation,
   deleteSupportAttachment,
   getOperationalConversationBundle,
+  getOperationalSubjectState,
   getSupportInbox,
   markSupportMessagesRead,
   sendSupportMessage,
@@ -47,8 +49,7 @@ type Props = {
   initialConversationId?: string;
   onOpenContext?: (page: string, id?: string) => void;
 };
-const MAX_FILES = 6,
-  MAX_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_FILES = 6;
 
 export default function CommunicationsWorkspace({
   profile,
@@ -66,6 +67,7 @@ export default function CommunicationsWorkspace({
     [loadingThread, setLoadingThread] = useState(false),
     [listError, setListError] = useState(""),
     [threadError, setThreadError] = useState(""),
+    [linkedRecordState, setLinkedRecordState] = useState<"checking" | "active" | "removed" | "unknown">("checking"),
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState<any | null>(null),
     [messages, setMessages] = useState<any[]>([]),
@@ -141,6 +143,11 @@ export default function CommunicationsWorkspace({
       setInternalNotes(bundle.internal_notes || []);
       setEvents(bundle.events || []);
       setThreadError("");
+      if (["property_listing", "hotel_property", "hotel_operations"].includes(String(bundle.conversation?.context_type))) {
+        void getOperationalSubjectState(id).then(result => {
+          if (current()) setLinkedRecordState(result.error ? "unknown" : result.state);
+        }).catch(() => { if (current()) setLinkedRecordState("unknown"); });
+      }
       // A read failure, superseded request, or closed screen cannot mark anything read.
       // Receipt writes do not delay painting, and a receipt event cannot create a loop.
       const unread = bundle.messages.filter((message: any) => !message.is_read && message.sender_id !== profile.user_id);
@@ -219,6 +226,7 @@ export default function CommunicationsWorkspace({
     setSelected(null); setMessages([]); setEvents([]); setInternalNotes([]);
     setFiles([]); setInput(""); setCaseAction(null); setCaseNote("");
     setThreadError(""); setLoadingThread(false); setSending(false); setUpdatingCase(false);
+    setLinkedRecordState("checking");
   }
   async function open(row: any) {
     selectionRef.current += 1;
@@ -227,6 +235,7 @@ export default function CommunicationsWorkspace({
     setSelected(row); setMessages([]); setEvents([]); setInternalNotes([]);
     setFiles([]); setInput(""); setCaseAction(null); setCaseNote("");
     setThreadError(""); setSending(false); setUpdatingCase(false);
+    setLinkedRecordState("checking");
     setMessageVisibility("customer");
     await refreshMessages(row.conversation_id);
     // No automatic composer focus: the recording showed the keyboard opening
@@ -235,15 +244,9 @@ export default function CommunicationsWorkspace({
   function addFiles(list: FileList | null) {
     if (!list) return;
     const valid = Array.from(list).filter((file) => {
-      if (file.type.startsWith("audio/")) {
-        toast.error("WeHouse conversations do not use voice notes");
-        return false;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name} is larger than 25MB`);
-        return false;
-      }
-      return true;
+      if (isSelectableChatMedia(file)) return true;
+      toast.error(file.size > 25 * 1024 * 1024 ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
+      return false;
     });
     setFiles((current) => {
       const next = [...current, ...valid].slice(0, MAX_FILES);
@@ -383,6 +386,23 @@ export default function CommunicationsWorkspace({
       presentationAudience,
     );
     const destination = communicationDestination(selected);
+    const propertyLink = ["property_listing", "hotel_property", "hotel_operations"].includes(String(selected.context_type));
+    async function openContext(dismiss: (next?: () => void) => void) {
+      if (!onOpenContext) return;
+      if (propertyLink) {
+        try {
+          setLinkedRecordState("checking");
+          const result = await withTimeout(getOperationalSubjectState(selected.conversation_id), 12000, "Property link took too long");
+          if (selectedIdRef.current !== selected.conversation_id) return;
+          setLinkedRecordState(result.error ? "unknown" : result.state);
+          if (result.error || result.state !== "active") {
+            toast.error(result.state === "removed" ? "This property has been removed. The conversation remains available here." : "Could not verify this property link. Try again.");
+            return;
+          }
+        } catch { setLinkedRecordState("unknown"); toast.error("Could not verify this property link. Try again."); return; }
+      }
+      dismiss(() => onOpenContext(destination.page, destination.id));
+    }
     const requesterLabel =
       selected.requester_name || selected.requester_email || "WeHouse member";
     const handlerLabel =
@@ -510,10 +530,13 @@ export default function CommunicationsWorkspace({
             {onOpenContext && (
               <button
                 type="button"
-                onClick={() => dismiss(() => onOpenContext(destination.page, destination.id))}
-                className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[11px] font-semibold"
+                onClick={() => void openContext(dismiss)}
+                disabled={propertyLink && (linkedRecordState === "checking" || linkedRecordState === "removed")}
+                className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[11px] font-semibold disabled:bg-white/[.06] disabled:text-[#8A91A2]"
               >
-                {selectedPresentation.kind === "reservation"
+                {propertyLink && linkedRecordState === "removed" ? "Property removed"
+                  : propertyLink && linkedRecordState === "checking" ? "Checking property…"
+                  : selectedPresentation.kind === "reservation"
                   ? "Open booking"
                   : selectedPresentation.kind === "property_operations"
                     ? "Open property"
@@ -522,6 +545,9 @@ export default function CommunicationsWorkspace({
             )}
           </div>
         )}
+        {propertyLink && linkedRecordState === "removed" && <p role="status" className="border-b border-white/[.06] px-4 py-2 text-xs leading-5 text-[#A7ADBA]">
+          The original property is no longer available. This conversation and its replies remain here as a record.
+        </p>}
         {internalNotes.length > 0 ? <InternalNotes notes={internalNotes} /> : null}
         <main ref={scrollRef} onScroll={() => {
           const element = scrollRef.current;
@@ -547,6 +573,7 @@ export default function CommunicationsWorkspace({
                     key={msg.id}
                     msg={msg}
                     requesterName={requesterLabel}
+                    subjectTitle={selectedPresentation.title}
                   />
                 ))}
               </div>
@@ -574,30 +601,15 @@ export default function CommunicationsWorkspace({
           {files.length > 0 && (
             <div className="mx-auto mb-2 flex max-w-4xl gap-2 overflow-x-auto">
               {files.map((file, index) => (
-                <div
-                  key={`${file.name}-${index}`}
-                  className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2"
-                >
-                  <p className="max-w-40 truncate text-[9px] text-violet-200">
-                    {file.name}
-                  </p>
-                  <button
-                    onClick={() =>
-                      setFiles((current) =>
-                        current.filter((_, i) => i !== index),
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
+                <PendingMedia key={`${file.name}-${index}`} file={file} onRemove={() =>
+                  setFiles((current) => current.filter((_, i) => i !== index))} />
               ))}
             </div>
           )}
           <div className="mx-auto flex max-w-4xl items-end gap-2">
             <button
               type="button"
-              aria-label="Attach a file"
+              aria-label="Attach a photo or video"
               onClick={() => fileRef.current?.click()}
               disabled={conversationLocked}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
@@ -608,7 +620,7 @@ export default function CommunicationsWorkspace({
               ref={fileRef}
               type="file"
               multiple
-              accept="image/*,application/pdf,text/plain,.doc,.docx"
+              accept={CHAT_MEDIA_ACCEPT}
               onChange={(e) => addFiles(e.target.files)}
               className="hidden"
             />
@@ -1195,13 +1207,37 @@ function InternalNotes({ notes }: { notes: any[] }) {
   );
 }
 
+function PendingMedia({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return <div className="relative w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-[#1A1F28]">
+    {url ? file.type.startsWith("image/")
+      ? <img src={url} alt="" className="h-20 w-full object-cover" />
+      : <video src={url} muted playsInline className="h-20 w-full object-cover" />
+      : <div className="h-20 w-full animate-pulse bg-white/5" />}
+    <p className="truncate px-2 py-1.5 text-[11px] text-[#C9CDD6]" title={file.name}>{file.name}</p>
+    <button type="button" onClick={onRemove} aria-label={`Remove ${file.name}`}
+      className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/80 text-sm text-white">×</button>
+  </div>;
+}
+
 function Bubble({
   msg,
   requesterName,
+  subjectTitle,
 }: {
   msg: any;
   requesterName: string;
+  subjectTitle: string;
 }) {
+  if (msg.action_type === "request_received" && msg.content === "Property conversation linked to this record.")
+    return <p className="mx-auto max-w-[90%] py-1 text-center text-xs leading-5 text-[#8A91A2]">
+      Conversation started about {subjectTitle}. Messages remain here if the property is later removed.
+    </p>;
   const meta = msg.action_metadata || {};
   // Direction is assigned by the server from this conversation's participants,
   // not from a legacy profile role that may also have a Personal workspace.

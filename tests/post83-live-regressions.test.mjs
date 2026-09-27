@@ -36,7 +36,7 @@ test("Operations chat is projected by one server bundle with internal notes sepa
   assert.match(migration, /current_actor_can_access_operational_conversation/);
 });
 
-test("Login keeps a bounded, aligned composition and one restrained workspace entrance", () => {
+test("Login keeps a bounded composition and session restoration has a clear label", () => {
   const login = read("src/pages/login.css");
   const css = read("src/index.css");
   const app = read("src/App.tsx");
@@ -47,7 +47,7 @@ test("Login keeps a bounded, aligned composition and one restrained workspace en
   assert.match(css, /whWorkspaceHeaderIn/);
   assert.match(css, /whWorkspaceContentIn/);
   assert.match(app, /wh-workspace-enter/);
-  assert.match(app, /wh-auth-to-app-shell/);
+  assert.match(app, /Opening your session/);
   assert.match(css, /\.wh-auth-to-app-shell\s*\{\s*animation: none;/);
   assert.match(css, /\.page-transition\.wh-workspace-enter\s*\{\s*animation: none;/);
   assert.match(css, /whAuthToAppPiece/);

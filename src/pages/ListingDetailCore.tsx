@@ -26,8 +26,8 @@ import {
   initializeSharedHousingPayment,
   respondToSharedHousingInvite,
 } from "@/lib/supabase/shared-housing";
-import { getConversations, getRoommateConversationPeople } from "@/lib/supabase/chat";
-import { selectRoommateRecipients, type RoommateRecipient } from "@/lib/roommateRecipients";
+import { getRoommateConversationPeople } from "@/lib/supabase/chat";
+import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from "@/lib/roommateRecipients";
 import { withTimeout } from "@/lib/withTimeout";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import type { Listing, Profile, RentalDuration } from "@/types";
@@ -346,14 +346,9 @@ export default function ListingDetail({
     setRoommateRecipients([]);
     setMissingRoommateIdentities(0);
     try {
-      const [chats, peers] = await Promise.all([
-        withTimeout(getConversations(profile.user_id), 15000, "Connections took too long to load."),
-        withTimeout(getRoommateConversationPeople(), 15000, "Connection names took too long to load."),
-      ]);
-      if (chats.error || peers.error) throw chats.error || peers.error;
-      const result = selectRoommateRecipients(profile.user_id, chats.conversations, peers.people);
-      setRoommateRecipients(result.recipients);
-      setMissingRoommateIdentities(result.missingIdentityCount);
+      const peers = await withTimeout(getRoommateConversationPeople(), 15000, "Connections took too long to load.");
+      if (peers.error) throw peers.error;
+      setRoommateRecipients(selectRoommateRecipientsFromPeers(profile.user_id, peers.connections));
       setShareOpen(true);
     } catch {
       toast.error("Your connections could not be loaded. Please try again.");

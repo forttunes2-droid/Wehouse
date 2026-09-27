@@ -10,7 +10,7 @@ export const supabase={rpc:async(name:string,args:any={})=>{
  }
  if(name==='get_public_hotel_detail')return {data:{hotel_id:7,name:'Garden Lodge',city:'Lafia',state:'Nasarawa',images:[image],status:'active'},error:null};
  if(name==='get_user_conversations')return {data:[{id:'chat-ada',participant_a:'qa-personal',participant_b:'qa-ada',conversation_type:'roommate',status:'active'},{id:'chat-blocked',participant_a:'qa-personal',participant_b:'qa-blocked',conversation_type:'roommate',status:'active'},{id:'chat-pending',participant_a:'qa-personal',participant_b:'qa-pending',conversation_type:'roommate',status:'pending'}],error:null};
- if(name==='get_my_roommate_peer_details')return {data:[{user_id:'qa-ada',full_name:'Ada Example',username:'ada-example',is_blocked:false},{user_id:'qa-blocked',full_name:'Blocked Example',username:'blocked',is_blocked:true},{user_id:'qa-pending',full_name:'Pending Example',username:'pending',is_blocked:false}],error:null};
+ if(name==='get_my_roommate_peer_details')return {data:[{conversation_id:'chat-ada',user_id:'qa-ada',full_name:'Ada Example',username:'ada-example',is_blocked:false},{conversation_id:'chat-blocked',user_id:'qa-blocked',full_name:'Blocked Example',username:'blocked',is_blocked:true}],error:null};
  throw new Error('Unexpected attachment API: '+name);
 }};
 (window as any).__attachmentTransport=control;

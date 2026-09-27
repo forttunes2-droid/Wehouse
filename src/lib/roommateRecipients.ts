@@ -21,6 +21,26 @@ export type RoommateRecipient = {
   avatar: string | null;
 };
 
+/** The server peer projection includes active connections before their first message. */
+export function selectRoommateRecipientsFromPeers(
+  viewerId: string,
+  peers: readonly (RoommatePeerIdentity & { conversationId: string })[],
+): RoommateRecipient[] {
+  const recipients: RoommateRecipient[] = [];
+  const included = new Set<string>();
+  if (!viewerId) return recipients;
+  for (const peer of peers) {
+    const username = String(peer.username || '').trim().replace(/^@/, '');
+    const name = String(peer.name || '').trim();
+    if (!peer.conversationId || !peer.user_id || peer.user_id === viewerId || peer.isBlocked
+      || (!name && !username) || (name === 'Roommate' && !username) || included.has(peer.user_id)) continue;
+    included.add(peer.user_id);
+    recipients.push({ conversationId: peer.conversationId, userId: peer.user_id,
+      name: name && name !== 'Roommate' ? name : username, username, avatar: peer.avatar || null });
+  }
+  return recipients.sort((a, b) => a.name.localeCompare(b.name) || a.userId.localeCompare(b.userId));
+}
+
 export function selectRoommateRecipients(
   viewerId: string,
   conversations: readonly RoommateConversationRef[],
