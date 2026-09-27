@@ -319,7 +319,12 @@ export default function App() {
       }
     } catch {}
   }, []);
-  useEffect(() => { try { savePropertyLinkIntent(propertyIntent, sessionStorage); } catch {} }, [propertyIntent]);
+  const previousIdentity = useRef<string | null>(null);
+  useEffect(() => {
+    const identity = auth.profile?.auth_id || null;
+    if (previousIdentity.current && previousIdentity.current !== identity) consumePropertyIntent();
+    previousIdentity.current = identity;
+  }, [auth.profile?.auth_id, consumePropertyIntent]);
   useEffect(() => {
     const readLink = () => {
       let next = parsePropertyShareUrl(window.location.href);

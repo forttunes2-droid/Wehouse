@@ -83,9 +83,15 @@ test('public link intent survives login without storing private context or chang
   const intent = load('src/lib/propertyLinkIntent.ts'), store = storage(), ref = { kind: 'listing', id: 'home-1' };
   intent.savePropertyLinkIntent(ref, store, 0);
   assert.deepEqual(plain(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 1)), ref);
-  assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 1800001), null);
+  assert.deepEqual(plain(intent.readPropertyLinkIntent('https://wehouse.com.ng/?code=auth-return', store, 2)), ref);
+  assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#search', store, 3), null);
+  assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 600001), null);
   assert.deepEqual(plain(intent.readPropertyLinkIntent('https://wehouse.com.ng/#place/hotel/7', store, 2)), { kind: 'hotel', id: '7' });
+  // Previews use their own origin-scoped storage; only the app's root auth route restores it.
+  assert.equal(intent.readPropertyLinkIntent('https://other.example/other-page#login', store, 4), null);
   intent.savePropertyLinkIntent(null, store, 3); assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 4), null);
+  store.setItem('wh_public_property_intent_v1', JSON.stringify({ property: ref, expires: 500_000 }));
+  assert.equal(intent.readPropertyLinkIntent('https://wehouse.com.ng/#login', store, 5), null);
 });
 test('recipient chooser joins authoritative peer identities and excludes pending, blocked and unrelated chats', () => {
   const recipients = load('src/lib/roommateRecipients.ts');

@@ -12,12 +12,15 @@ import HotelDetailExperience from '../../src/pages/HotelDetailExperience';
 import SharedPropertyCard from '../../src/components/SharedPropertyCard';
 import Chat from '../../src/pages/Chat';
 import Notifications from '../../src/pages/Notifications';
+import { ReceiptDocument, ReceiptPrintButton } from '../../src/components/PaymentReceipt';
+import type { PaymentReceipt } from '../../src/lib/supabase/receipts';
 import { pendingPropertyShare } from '../../src/lib/propertyShare';
 import { publicPropertyDestination } from '../../src/lib/publicPropertyDestination';
 import { fixtureProfile } from './authFixture';
 import '../../src/index.css';
 const actor = { ...fixtureProfile, user_id: 'qa-personal', role: 'user' as const };
 const mode = new URLSearchParams(location.search).get('mode') || 'saved';
+const receipt: PaymentReceipt = { id: 'qa-receipt', reference: 'WH-QA-2026', purpose: 'hotel_booking', amount: 80000, currency: 'NGN', paid_at: new Date().toISOString(), status: 'paid', environment: 'test', payer_name: 'QA Guest', merchant_name: 'Garden Lodge', description: 'Two night hotel stay', package_name: 'Flexible room', check_in: '2026-09-28', check_out: '2026-09-30', nights: 2, guests: 1, stay_amount: 80000 };
 function Fixture() {
  const [, setRenders] = useState(0);
  (window as any).__rerenderHotel = () => setRenders(value => value + 1);
@@ -35,6 +38,7 @@ function Fixture() {
    setConversationId(conversation); setView('chat');
  };
  const back = () => setView('saved');
+ if (view === 'receipt') return <main className="min-h-screen bg-[#100D15] p-4"><ReceiptDocument receipt={receipt} /><ReceiptPrintButton receipt={receipt} /></main>;
  if (view === 'hotel-chat') return <HotelBookingChat bookingId={42} conversationId="qa-hotel-chat" profile={actor} title="Garden Lodge" onClose={() => setView('saved')} />;
  if (view === 'guest') return <main><GuestBrowseEntry active onOpenLegal={() => {}} children={null} onSignIn={() => { (window as any).__guestSignIn = true; }} /></main>;
  if (view === 'chat') return <Chat profile={actor} onNavigate={navigate} conversationId={conversationId} onConversationClose={back} conversationOnly />;

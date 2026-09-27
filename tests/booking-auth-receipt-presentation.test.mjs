@@ -55,10 +55,10 @@ test("Login motion is subtle and respects reduced motion", async () => {
   assert.match(reduced, /:active\s*\{\s*transform:\s*none/);
 });
 
-test("Receipts are compact and do not print as A4", async () => {
-  const [receipt, css] = await Promise.all([
+test("Receipts have one branded compact PDF action", async () => {
+  const [receipt, pdf] = await Promise.all([
     read("src/components/PaymentReceipt.tsx"),
-    read("src/index.css"),
+    read("src/lib/receiptPdf.ts"),
   ]);
 
   assert.match(receipt, /Amount paid/);
@@ -68,6 +68,8 @@ test("Receipts are compact and do not print as A4", async () => {
   assert.match(receipt, />\s*Receipt\s*<\/button>/);
   assert.doesNotMatch(receipt, />Payment history<\/button>/);
   assert.doesNotMatch(receipt, /receipts\.length === 0\) return null/);
-  assert.match(css, /@page \{ size: 105mm 148mm; margin: 6mm; \}/);
-  assert.doesNotMatch(css, /@page \{ size: A4/);
+  assert.match(pdf, /PAGE_WIDTH = 105/);
+  assert.match(pdf, /PAGE_HEIGHT = 148/);
+  assert.match(pdf, /doc\.addImage\(receiptMark/);
+  assert.doesNotMatch(receipt, /window\.print\(\)/);
 });
