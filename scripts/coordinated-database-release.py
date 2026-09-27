@@ -90,7 +90,7 @@ def digest_query(query):
     return f"select md5(coalesce(string_agg(row::text, '' order by row::text),'')) from ({query}) snapshot_rows"
 
 
-def release_sql(files, applied, mode, aliases):
+def release_sql(files, applied, mode, aliases=()):
     expected = json.dumps(sorted(applied), separators=(",", ":"))
     parts = [f"""
 begin isolation level repeatable read;
@@ -172,7 +172,7 @@ def main():
         "md5(array_to_string(statements,E'\\n'))) order by version),'[]') "
         "from supabase_migrations.schema_migrations where version in ("
         + ",".join(literal(version) for version in PRODUCTION_ALIASES) + ");"
-    ))
+    )) if alias_versions else []
     if len(alias_rows) != len(alias_versions):
         raise ValueError("Production migration aliases are incomplete")
     verified_aliases = []
