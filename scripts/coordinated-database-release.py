@@ -78,10 +78,13 @@ def sql_request(sql):
 def snapshot_queries():
     queries = {
         "profiles": "select to_jsonb(t)-'account_kind'-'updated_at' as row from public.profiles t",
+        # New Hosting columns may be populated for legacy homes, but the
+        # listing's original identity, owner and publication must survive.
+        "listings": "select jsonb_build_object('id',id,'listing_id',listing_id,'title',title,'status',status,'availability_status',availability_status,'owner_id',owner_id,'partner_id',partner_id,'approved_at',approved_at,'deleted_at',deleted_at) as row from public.listings",
         "worker_verifications": "select to_jsonb(t) as row from public.worker_verifications t",
         "identity_evidence": "select jsonb_build_object('worker_id',worker_id,'enrollment',enrollment_photo_path,'latest',latest_reference_photo_path,'captured_at',captured_at,'consent_at',consent_at,'challenge_result',challenge_result,'attempt_count',attempt_count) as row from public.worker_identity_checks",
     }
-    for table in ["auth.users", "public.wallets", "public.ledger_entries", "public.ledger_transactions", "public.payment_protection_transactions", "public.financial_action_outbox", "public.booking_payments"]:
+    for table in ["auth.users", "public.reservations", "public.hotels", "public.hotel_bookings", "public.wallets", "public.ledger_entries", "public.ledger_transactions", "public.payment_protection_transactions", "public.financial_action_outbox", "public.booking_payments"]:
         queries[table] = f"select to_jsonb(t) as row from {table} t"
     return queries
 
