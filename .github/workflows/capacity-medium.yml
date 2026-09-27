@@ -39,6 +39,11 @@ jobs:
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_medium_plan.sql > test-results/home-query-plan.txt
           python scripts/explain-medium-home.py > test-results/home-expanded.sql
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < test-results/home-expanded.sql >> test-results/home-query-plan.txt
+      - name: Use a local gateway sized above the 400-client read stage
+        run: |
+          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=2048 supabase_kong_wehouse kong reload
+          docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf \
+            | grep -Eq 'worker_connections[[:space:]]+2048;'
       - name: Measure HTTP reads and sample resource pressure
         run: |
           (
@@ -62,30 +67,12 @@ jobs:
           for container in supabase_kong_wehouse supabase_rest_wehouse supabase_db_wehouse; do
             docker logs --tail 500 "$container" > "test-results/$container.log" 2>&1 || true
           done
-      - name: Raise disposable gateway connection limit and repeat
-        if: always()
-        run: |
-          cp test-results/catalog-scale.json test-results/catalog-scale-baseline.json
-          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=2048 supabase_kong_wehouse kong reload
-          docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf \
-            | grep -Eq 'worker_connections[[:space:]]+2048;'
-          set +e
-          WEHOUSE_CAPACITY_PRESET=medium node scripts/load-catalog-scale.mjs
-          result=$?
-          set -e
-          mv test-results/catalog-scale.json test-results/catalog-scale-tuned.json
-          exit "$result"
-      - name: Retain tuned gateway logs
-        if: always()
-        run: docker logs --tail 500 supabase_kong_wehouse > test-results/supabase_kong_tuned.log 2>&1 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: capacity-medium-results
           path: |
             test-results/catalog-scale.json
-            test-results/catalog-scale-baseline.json
-            test-results/catalog-scale-tuned.json
             test-results/home-query-plan.txt
             test-results/capacity-resource-samples.log
             test-results/supabase_*.log
