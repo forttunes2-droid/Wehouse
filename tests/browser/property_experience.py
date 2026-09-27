@@ -63,8 +63,8 @@ class Scenario:
    elif isinstance(data,list): data=[mixed_media(record) for record in data]
    else: data=mixed_media(data)
   await handler.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
- async def open(self,browser,mode,width):
-  context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block')
+ async def open(self,browser,mode,width,touch=False):
+  context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block',is_mobile=touch,has_touch=touch)
   page=await context.new_page(); page.on('pageerror',lambda error:self.errors.append(str(error))); await page.route('**/*',self.route)
   await page.goto(BASE+'/tests/browser/property-experience.html?mode='+mode)
   return context,page
@@ -183,6 +183,30 @@ async def main():
      results.append({'width':width,'passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors}); await page.screenshot(path=str(OUT/f'public-property-failure-{width}.png'),full_page=True); raise
     finally:
      (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   scenario=Scenario(); context,page=await scenario.open(browser,'saved',390,touch=True)
+   try:
+    await page.get_by_label('Property type').select_option('hotel')
+    await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+    await page.get_by_role('button',name=re.compile('Garden Room')).click()
+    await page.get_by_role('button',name=re.compile('Flexible room')).click()
+    field=page.get_by_role('button',name='Check-in',exact=True)
+    await field.scroll_into_view_if_needed()
+    bounds=await field.bounding_box()
+    assert bounds
+    x=bounds['x']+bounds['width']/2; y=bounds['y']+bounds['height']/2
+    cdp=await context.new_cdp_session(page)
+    await cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
+    for shift in [15,35,60,90]:
+     await cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y-shift}]})
+    await cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+    await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
+    await field.tap()
+    await expect(page.get_by_role('dialog',name='Choose Check-in')).to_be_visible()
+    await page.get_by_role('button',name='Close calendar').tap()
+    assert not scenario.errors,scenario.errors
+    results.append({'case':'Touch scroll over hotel date stays closed; tap opens','passed':True})
+   finally:
+    (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
    scenario=Scenario(); context,page=await scenario.open(browser,'hotel-chat',390)
    try:
     await expect(page.get_by_text('Welcome to Garden Lodge',exact=True)).to_be_visible()

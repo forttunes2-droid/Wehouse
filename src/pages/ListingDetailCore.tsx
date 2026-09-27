@@ -575,7 +575,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           )}
         </PropertyMediaCarousel>
 
-        {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
+        {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} stayType={listing.sub_type === 'short_let' ? 'short_let' : 'long_stay'} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
         <main className="px-4 py-5 sm:px-6 lg:px-8">
           <div className="mb-3 flex justify-end"><button type="button" onClick={() => {
       if (profile) { setSendPropertyOpen(true); return; }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
 import { withTimeout } from '@/lib/withTimeout';
+import BookingDateField from '@/components/BookingDateField';
 
 type Publication = {
   enabled: boolean; launch_approved: boolean;
@@ -86,8 +87,8 @@ export default function WorkerPublicationControls({ userId, workerId }: { userId
         <label className="block text-sm">Reviewer or authority<input maxLength={200} value={authority} onChange={e=>setAuthority(e.target.value)} className={inputClass} /></label>
         <label className="block text-sm">Review reference<input maxLength={300} value={reference} onChange={e=>setReference(e.target.value)} className={inputClass} /></label>
         <label className="block text-sm">What the review covers<textarea rows={3} maxLength={3000} value={scope} onChange={e=>setScope(e.target.value)} className={inputClass} /></label>
-        <label className="block text-sm">Review date<input type="date" value={reviewDate} onChange={e=>setReviewDate(e.target.value)} className={inputClass} /></label>
-        <label className="block text-sm">Expiry date, when applicable<input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)} className={inputClass} /></label>
+        <BookingDateField label="Review date" value={reviewDate} onChange={setReviewDate} context="Launch review" />
+        <BookingDateField label="Expiry date, when applicable" value={expiry} min={reviewDate || undefined} onChange={setExpiry} context="Launch review" />
         <label className="flex min-h-11 items-start gap-3 text-sm leading-6"><input type="checkbox" checked={attested} onChange={e=>setAttested(e.target.checked)} className="mt-1 h-5 w-5 shrink-0" />I obtained this review and can provide its evidence. This does not approve any individual Worker.</label>
         <button type="button" disabled={busy || !attested || !reviewDate || authority.trim().length<3 || reference.trim().length<3 || scope.trim().length<10} onClick={recordReview} className="min-h-11 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">Record review</button>
       </div>}

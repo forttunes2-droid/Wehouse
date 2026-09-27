@@ -11,8 +11,8 @@ import BackButton from '@/components/BackButton';
 import { useDialogInteraction } from '@/hooks/useDialogInteraction';
 import { toast } from 'sonner';
 
-type Props = { userId: string; property: SharedProperty; title: string; onClose: () => void; onConversation: (id: string) => void };
-export default function PropertyShareDialog({ userId, property, title, onClose, onConversation }: Props) {
+type Props = { userId: string; property: SharedProperty; title: string; stayType?: 'short_let' | 'long_stay'; onClose: () => void; onConversation: (id: string) => void };
+export default function PropertyShareDialog({ userId, property, title, stayType, onClose, onConversation }: Props) {
   const [recipients, setRecipients] = useState<RoommateRecipient[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -46,7 +46,7 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
   }
   return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/75 sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
     <section role="dialog" aria-modal="true" aria-label="Share property" className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#10131B] text-white sm:max-h-[90dvh] sm:rounded-2xl">
-      <header className="flex shrink-0 items-center gap-3 border-b border-white/[.07] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><div><h2 className="text-lg font-semibold">Share this place</h2><p className="text-xs text-[#A3A8B7]">Send a listing link to someone you know</p></div></header>
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/[.07] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><div><h2 className="text-lg font-semibold">Share this place</h2><p className="text-xs text-[#A3A8B7]">Send a property link to someone you know</p></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
       <div className="mt-4" aria-label={`Sharing ${title}`}><SharedPropertyCard property={property} compact /></div>
       <section className="mt-5" aria-label="Share a link outside WeHouse">
@@ -76,7 +76,8 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
       </>}
       </section>
       </div>
-      <p className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[#A3A8B7]">Want to split a Short Let stay? Reserve the dates first, then open your booking and choose “Share stay costs.”</p>
+      {stayType === 'short_let' && <p className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[#A3A8B7]">To split a Short Let stay, reserve the dates first. Then open your booking and choose “Share stay costs.”</p>}
+      {stayType === 'long_stay' && <p className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[#A3A8B7]">To split a Long Let reservation, choose “Reserve with a roommate” on this listing. Sending a property link does not request payment.</p>}
     </section>
   </div>, document.body);
 }

@@ -2,6 +2,7 @@ import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import BookingDateField from "@/components/BookingDateField";
 import {
   getBookingMessages,
   sendBookingMessage,
@@ -914,12 +915,7 @@ export default function BookingNegotiationChat({
                     className="mt-1 h-9 w-full rounded-lg border border-white/[.07] bg-[#181A23] px-3 text-xs outline-none"
                   />
                 </label>
-                <input
-                  type="date"
-                  value={acceptDate}
-                  onChange={(e) => setAcceptDate(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-white/[.07] bg-[#181A23] px-3 text-xs outline-none"
-                />
+                <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
                 <button
                   disabled={!Number(acceptAmount) || !acceptDate}
                   onClick={() => void handleWorkerAccept()}
