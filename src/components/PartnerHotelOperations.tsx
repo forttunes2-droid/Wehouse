@@ -31,6 +31,7 @@ import type {
 import WeHouseSelect from "@/components/WeHouseSelect";
 import BackButton from "@/components/BackButton";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
+import BookingDateField from "@/components/BookingDateField";
 
 type HotelAccessRole = "owner" | "manager" | "front_desk" | "staff";
 type HotelCapability =
@@ -784,7 +785,7 @@ function HotelTeamMemberRow({ row, grantableCapabilities, removing, onRemove, on
 }
 
 function Sheet({ title, subtitle, close, children }: { title: string; subtitle: string; close: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[100030] flex items-end bg-black/75 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4" onClick={close}><section className="max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#11151D] p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-w-2xl sm:rounded-[28px]" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-bold">{title}</h3><p className="mt-1 text-sm leading-4 text-[#A1A7B4]">{subtitle}</p></div><button type="button" onClick={close} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.05] text-lg" aria-label="Close">×</button></div><div className="mt-5">{children}</div></section></div>; }
-function Field({ label, value, set, type = "text", placeholder }: { label: string; value: string; set: (value: string) => void; type?: string; placeholder?: string }) { return <label><span className="mb-1 block text-sm text-[#A1A7B4]">{label}</span><input type={type} min={type === "date" ? today() : type === "number" ? "0" : undefined} value={value} placeholder={placeholder} onChange={(event) => set(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none" /></label>; }
+function Field({ label, value, set, type = "text", placeholder }: { label: string; value: string; set: (value: string) => void; type?: string; placeholder?: string }) { return type === "date" ? <BookingDateField label={label} value={value} min={today()} onChange={set} context="Hotel availability" /> : <label><span className="mb-1 block text-sm text-[#A1A7B4]">{label}</span><input type={type} min={type === "number" ? "0" : undefined} value={value} placeholder={placeholder} onChange={(event) => set(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none" /></label>; }
 function Status({ value }: { value: string }) {
   const unitLabels: Record<string, string> = { ready: "Ready", occupied: "Occupied", cleaning: "Cleaning", maintenance: "Maintenance", out_of_service: "Out of service" };
   const tone = value === "payment_conflict" || value === "out_of_service"

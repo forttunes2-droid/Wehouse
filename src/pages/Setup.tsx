@@ -7,6 +7,7 @@ import type { Profile } from '@/types';
 import { acceptReviewedLegalDocument, getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
 import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
 import LegalReview from '@/components/LegalReview';
+import BookingDateField from '@/components/BookingDateField';
 
 interface Props { profile: Profile; onSetupComplete: (profile: Profile) => void }
 
@@ -129,10 +130,10 @@ export default function Setup({ profile, onSetupComplete }: Props) {
           <SearchableSelect label="State *" value={state} onChange={(next) => { setState(next); setCity(''); }} options={stateOptions} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
           <SearchableSelect label="Local Government *" value={city} onChange={setCity} options={cityOptions} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
 
-          <FieldLabel label="Date of birth">
-            <Input type="date" value={dateOfBirth} max={adultCutoff()} onChange={(event) => setDateOfBirth(event.target.value)} className="h-11 rounded-xl border-[#2A2A3A] bg-[#1A1A24] text-sm text-white" />
-            <span className="mt-1.5 block text-[9px] leading-4 text-[#6F7484]">WeHouse is for people aged 18 or older. Your date of birth is private and is used only to confirm eligibility.</span>
-          </FieldLabel>
+          <div>
+            <BookingDateField label="Date of birth" value={dateOfBirth} max={adultCutoff()} onChange={setDateOfBirth} context="Profile" />
+            <span className="mt-1.5 block text-xs leading-5 text-[#A1A7B4]">WeHouse is for people aged 18 or older. Your date of birth is private and is used only to confirm eligibility.</span>
+          </div>
 
           <div className="rounded-2xl border border-white/[.06] bg-[#11131B] p-4 text-[10px] leading-relaxed text-[#7D8291]">{content.info}</div>
 

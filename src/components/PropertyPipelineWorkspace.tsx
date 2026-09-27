@@ -1,6 +1,7 @@
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { matchesPropertyRecord, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { withTimeout } from "@/lib/withTimeout";
+import BookingDateField from "@/components/BookingDateField";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useRef, useState } from "react";
 import PropertyRecordDialog from "./PropertyRecordDialog";
@@ -969,12 +970,7 @@ function Assign({ row, done }: { row: any; done: () => void }) {
               </div>
             </button>
           ))}
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151923] px-3 text-xs"
-          />
+          <BookingDateField label="Visit date" value={date} onChange={setDate} context="Field visit" />
           <button
             disabled={saving || !pick}
             onClick={() => void assign()}

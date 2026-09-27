@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import BookingDateField from "@/components/BookingDateField";
 
 type DateBlock={
   block_id:string;
@@ -179,8 +180,8 @@ export default function PropertyHostControls({
         {state.min_nights&&state.max_nights?<span className="text-[9px] text-[#686F7F]">{state.min_nights}–{state.max_nights} nights</span>:null}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <label className="text-[9px] text-[#858B9A]">From<input type="date" value={from} onChange={event=>setFrom(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-xs outline-none"/></label>
-        <label className="text-[9px] text-[#858B9A]">Reopen on<input type="date" value={reopen} onChange={event=>setReopen(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-xs outline-none"/></label>
+        <BookingDateField label="From" value={from} onChange={setFrom} context="Closed dates" />
+        <BookingDateField label="Reopen on" value={reopen} min={from || undefined} onChange={setReopen} context="Closed dates" />
       </div>
       <button type="button" disabled={Boolean(busy)||!from||!reopen} onClick={()=>void closeDates()} className="mt-2 min-h-11 w-full rounded-xl border border-violet-500/20 text-[10px] font-semibold text-violet-300 disabled:opacity-35">{busy==="dates"?"Saving…":"Close dates"}</button>
 
