@@ -14,9 +14,9 @@
 
 ## CURRENT IMPLEMENTATION
 
-`notifications` is the current primary event table. Rows can contain a type, source type/ID, destination route/parameters, workspace scope, event key, created/read state, title, and message. Database functions emit notifications for property, reservation, hotel, worker, roommate, payment, payout, followed-search, security, and support transitions.
+This section records the earlier design baseline. The canonical Activity implementation now reads `activity_events` and recipient/workspace `activity_event_audiences`; legacy `notifications` remains a compatibility/delivery input. Database functions emit events for property, reservation, hotel, worker, roommate, payment, payout, followed-search, security and support transitions.
 
-`Notifications.tsx` combines notification rows with `announcements`. `src/lib/activityFeed.ts` then:
+`Notifications.tsx` combines canonical Activity rows with `announcements`. `src/lib/activityFeed.ts` then:
 
 - excludes transient types such as typing, seen, reactions, draft saves and sync notices;
 - excludes ordinary message-like events so Messages owns them;
@@ -32,9 +32,9 @@ Unread totals are not delivered by one canonical server read model. Feature hook
 
 ### Current followed-search activity
 
-`Search.tsx` and `HotelsHome.tsx` normalize structured criteria, load `saved_searches`, detect active/paused current criteria, and call `save_my_property_search` to upsert/resume. `Saved.tsx` lists, pauses/resumes, and removes followed searches. The database enforces a unique user+kind+criteria key and emits deduplicated notification events for matching future homes/hotels.
+`Search.tsx` and `HotelsHome.tsx` normalize structured criteria, load `saved_searches`, detect active/paused current criteria, and call `save_my_property_search` to upsert/resume. `FollowedSearches.tsx` is the separate Account subpage to reopen, pause/resume or remove a followed search; `Saved.tsx` holds only hearted places. The database enforces a unique user+kind+criteria key and emits deduplicated personal Activity events for matching future homes/hotels.
 
-The current home matcher primarily fires when a listing transitions into available. It may not notify when an already-live listing is edited later so that it newly matches. Hotel matching is invoked by publication/update paths rather than one visibly universal event trigger. Criteria normalization exists in both TypeScript and SQL and needs parity tests. The saved list can be viewed and unfollowed, but there is no complete “open this saved search and reapply every criterion” route contract.
+The current home matcher primarily fires when a listing transitions into available. It may not notify when an already-live listing is edited later so that it newly matches. Hotel matching is invoked by publication/update paths rather than one visibly universal event trigger. Criteria normalization exists in both TypeScript and SQL and needs parity tests. Opening a followed search restores its criteria; location-radius results require the saved search's reference coordinates.
 
 ## INCONSISTENCIES / LEGACY BEHAVIOUR
 

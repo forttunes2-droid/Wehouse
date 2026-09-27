@@ -1,4 +1,5 @@
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
+import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
@@ -103,6 +104,22 @@ export default function Search({
     void getDiscoveryDistanceMap(location).then((next) => { if (live) setDistanceMap(next); });
     return () => { live = false; };
   }, [location]);
+
+  useEffect(() => {
+    const criteria = takeFollowedSearchIntent('homes');
+    if (!criteria) return;
+    sessionStorage.removeItem('search_property_type');
+    const string = (key: string) => typeof criteria[key] === 'string' ? criteria[key] as string : '';
+    const number = (key: string) => typeof criteria[key] === 'number' && Number.isFinite(criteria[key]) ? criteria[key] as number : '';
+    const stay = string('sub_type');
+    setStayType(stay === 'short_let' || stay === 'long_stay' ? stay : 'all');
+    setFilterState(string('state'));
+    setFilterCity(string('city'));
+    setPriceMin(number('min_price'));
+    setPriceMax(number('max_price'));
+    setBedrooms(number('bedrooms'));
+    setBathrooms(number('bathrooms'));
+  }, []);
 
   useEffect(() => {
     const saved = sessionStorage.getItem("search_property_type");

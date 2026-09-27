@@ -586,6 +586,7 @@ function dayLabel(value: string) {
 }
 function icon(type: string) {
   if (type === "announcement") return "W";
+  if (type === "saved_search_match" || type === "followed_search_match") return "⌕";
   if (type.includes("payment")) return "₦";
   if (type.includes("roommate")) return "◉";
   if (type.includes("security")) return "⌾";
@@ -645,6 +646,7 @@ function matchesActivityFilter(row: Activity, filter: ActivityFilter) {
 }
 function activityKind(row: Activity) {
   const value = `${row.type} ${row.source_type}`.toLowerCase();
+  if (/saved_search_match|followed_search_match/.test(value)) return "Followed search";
   if (/security|device|password|login/.test(value)) return "Security";
   if (/payment|payout|earning|refund|wallet|commission/.test(value))
     return "Money";

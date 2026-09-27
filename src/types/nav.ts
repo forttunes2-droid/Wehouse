@@ -2,6 +2,7 @@ export type NavPage =
   // ── Primary customer navigation ──
   | 'search'
   | 'saved'
+  | 'followed_searches'
   | 'conversation'
   | 'messages' // legacy route alias; App normalizes this to Conversation
   | 'notifications'

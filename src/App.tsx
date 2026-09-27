@@ -4,6 +4,7 @@ import SharedPropertyWorkspacePrompt from "@/components/SharedPropertyWorkspaceP
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
+import { playNotificationSound } from "@/lib/notificationSound";
 import {
   useState,
   useEffect,
@@ -74,6 +75,7 @@ type AnnouncementRecipientRow = { announcement_id?: string };
 
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
+const FollowedSearches = lazy(() => import("@/pages/FollowedSearches"));
 const ListingDetail = lazy(() => import("@/pages/ListingDetail"));
 const CreatorDashboard = lazy(() => import("@/pages/CreatorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
@@ -191,6 +193,7 @@ const NAV_STORAGE_KEY = "wh_navpage";
 const RESTORABLE_PAGES: NavPage[] = [
   "search",
   "saved",
+  "followed_searches",
   "roommate",
   "activity",
   "profile",
@@ -232,6 +235,7 @@ const ACCOUNT_PAGES = new Set<NavPage>([
 const USER_PAGES = new Set<NavPage>([
   "search",
   "saved",
+  "followed_searches",
   "roommate",
   "activity",
   "conversation",
@@ -648,6 +652,12 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       return;
     }
     const uid = profile.user_id;
+    let alertsEnabled = profile.pref_push_notif !== false;
+    const onAlertPreference = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId: string; enabled: boolean }>).detail;
+      if (detail?.userId === uid) alertsEnabled = detail.enabled;
+    };
+    window.addEventListener("wehouse:in-app-alerts", onAlertPreference);
     async function loadCounts(isCurrent: () => boolean) {
       const [
         { data },
@@ -733,7 +743,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           const message = payload.new as IncomingMessageRow;
           if (String(message.sender_id || "") === uid) return;
           void count();
-          if (profile.pref_push_notif === false) return;
+          if (!alertsEnabled) return;
+          void playNotificationSound(uid);
           toast("New message", {
             description: String(
               message.content ||
@@ -763,7 +774,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           const message = payload.new as IncomingMessageRow;
           if (String(message.sender_id || "") === uid) return;
           void count();
-          if (profile.pref_push_notif === false) return;
+          if (!alertsEnabled) return;
+          void playNotificationSound(uid);
           toast("New service message", {
             description: String(
               message.content ||
@@ -784,7 +796,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           const message = payload.new as IncomingMessageRow;
           if (String(message.sender_id || "") === uid) return;
           void count();
-          if (profile.pref_push_notif === false) return;
+          if (!alertsEnabled) return;
+          void playNotificationSound(uid);
           toast("New hotel message", {
             description: String(message.content || "Open Inbox to read it.").slice(0, 110),
             action: {
@@ -844,7 +857,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             ["roommate_message", "customer_message", "worker_replied"].includes(type)
           )
             return;
-          if (profile.pref_push_notif === false) return;
+          if (!alertsEnabled) return;
+          void playNotificationSound(uid);
           const viewActivity = () => {
             void markCanonicalActivityRead(event.id, "personal").then((result) => {
               if (!result.error)
@@ -889,7 +903,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             .select("title,content")
             .eq("id", announcementId)
             .maybeSingle();
-          if (profile.pref_push_notif !== false)
+          if (alertsEnabled)
+            void playNotificationSound(uid);
+          if (alertsEnabled)
             toast(data?.title || "Official WeHouse update", {
               description: data?.content
                 ? String(data.content).slice(0, 140)
@@ -932,6 +948,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("wehouse:unread-changed", refreshUnread);
+      window.removeEventListener("wehouse:in-app-alerts", onAlertPreference);
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(officialChannel);
     };
@@ -1272,6 +1289,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         ) : (
           renderRoleRoot()
         );
+      case "followed_searches":
+        return isUserRole ? (
+          <FollowedSearches profile={profile} onBack={subpageBack} onNavigate={goTo} />
+        ) : renderRoleRoot();
       case "roommate":
         return isUserRole ? (
           <Roommate
@@ -1293,6 +1314,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             profile={profile}
             onBack={subpageBack}
             onGoToSaved={() => goTo("saved")}
+            onGoToFollowedSearches={() => goTo("followed_searches")}
             onGoToPrivacy={goToPrivacy}
             onGoToSecurity={goToSecurity}
             onGoToProfileEdit={goToProfileEdit}
@@ -1503,6 +1525,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     "detail",
     "chat",
     "saved",
+    "followed_searches",
     "profile_edit",
     "privacy",
     "security",

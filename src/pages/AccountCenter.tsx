@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { notificationSoundEnabled, setNotificationSoundEnabled } from "@/lib/notificationSound";
 import AccountShell, {
   AccountRow,
   AccountSection,
@@ -22,6 +23,7 @@ type Props = {
   onBack?: () => void;
   onGoToPrivacy: () => void;
   onGoToSaved: () => void;
+  onGoToFollowedSearches?: () => void;
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
   onGoToWorkerPaidTools?: () => void;
@@ -80,6 +82,7 @@ export default function AccountCenter({
   profile,
   onBack,
   onGoToSaved,
+  onGoToFollowedSearches,
   onGoToPrivacy,
   onGoToSecurity,
   onGoToProfileEdit,
@@ -101,6 +104,7 @@ export default function AccountCenter({
   const [pushNotifs, setPushNotifs] = useState(
     p.pref_push_notif !== false,
   );
+  const [alertSound, setAlertSound] = useState(() => notificationSoundEnabled(p.user_id));
   const [legal, setLegal] = useState<Legal>({
     privacy_accepted: false,
     terms_accepted: false,
@@ -242,7 +246,14 @@ export default function AccountCenter({
       .update({ [key]: value, updated_at: new Date().toISOString() })
       .eq("auth_id", profile.auth_id);
     setSaving(false);
-    if (error) return toast.error("This preference could not be saved");
+    if (error) {
+      if (key === "pref_push_notif") setPushNotifs(!value);
+      else setEmailNotifs(!value);
+      return toast.error("This preference could not be saved");
+    }
+    if (key === "pref_push_notif") window.dispatchEvent(new CustomEvent("wehouse:in-app-alerts", {
+      detail: { userId: profile.user_id, enabled: value },
+    }));
     toast.success("Preference saved");
   }
 
@@ -402,6 +413,16 @@ export default function AccountCenter({
               void saveNotificationPreference("pref_push_notif", value);
             }}
           />
+          <Toggle
+            label="Alert sound on this device"
+            detail="Play a short sound for new in-app alerts while WeHouse is open. Your device may require you to tap once to allow audio."
+            value={alertSound}
+            disabled={!pushNotifs}
+            onChange={(value) => {
+              setNotificationSoundEnabled(profile.user_id, value);
+              setAlertSound(value);
+            }}
+          />
         </AccountSection>
         <p className="px-1 text-[9px] text-[#656C7C]">
           Changes save automatically.
@@ -530,9 +551,17 @@ export default function AccountCenter({
         {isUser ? (
           <AccountRow
             title="Saved"
-            detail="Saved apartments and search alerts"
+            detail="Homes and hotels you marked with a heart"
             onClick={onGoToSaved}
             icon={<HeartIcon />}
+          />
+        ) : null}
+        {isUser && onGoToFollowedSearches ? (
+          <AccountRow
+            title="Followed searches"
+            detail="Search alerts you can pause or remove"
+            onClick={onGoToFollowedSearches}
+            icon={<BellIcon />}
           />
         ) : null}
       </AccountSection>

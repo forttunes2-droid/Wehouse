@@ -116,6 +116,7 @@ test('Existing professional profiles remain visible before public approval and d
     '@/components/AccountShell':accountShell,'@/components/AccountHelpCenter':()=>null,
     '@/pages/PrivacySecuritySettings':()=>null,'@/components/MediaViewer':()=>null,
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
+    '@/lib/notificationSound':{notificationSoundEnabled:()=>false,setNotificationSoundEnabled(){}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
   }).default;
   const render=(roles,workspace='personal',accessIdentity='person-a')=>{stateIndex=0;return renderToStaticMarkup(Account({

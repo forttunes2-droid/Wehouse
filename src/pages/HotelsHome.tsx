@@ -1,4 +1,5 @@
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
+import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
@@ -71,6 +72,25 @@ export default function HotelsHome({ onNavigate }: Props) {
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
   const [savingHotelId, setSavingHotelId] = useState<number | null>(null);
+  const [followedOrigin, setFollowedOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    const criteria = takeFollowedSearchIntent('hotels');
+    if (!criteria) return;
+    const string = (key: string) => typeof criteria[key] === 'string' ? criteria[key] as string : '';
+    const number = (key: string) => typeof criteria[key] === 'number' && Number.isFinite(criteria[key]) ? criteria[key] as number : '';
+    setQuery(string('query'));
+    setState(string('state'));
+    setCity(string('city'));
+    setMinPrice(number('min_price'));
+    setMaxPrice(number('max_price'));
+    const latitude = number('latitude');
+    const longitude = number('longitude');
+    if (latitude !== '' && longitude !== '') {
+      setFollowedOrigin({ lat: latitude, lng: longitude });
+      setRadius(number('radius_km'));
+    } else setRadius('');
+    setAmenities(Array.isArray(criteria.amenities) ? criteria.amenities.filter((item): item is string => typeof item === 'string') : []);
+  }, []);
   const {
     location: userLocation,
     locating,
@@ -83,9 +103,9 @@ export default function HotelsHome({ onNavigate }: Props) {
 
   useEffect(() => {
     let live = true;
-    void getDiscoveryDistanceMap(userLocation).then((next) => { if (live) setDistanceMap(next); });
+    void getDiscoveryDistanceMap(followedOrigin || userLocation).then((next) => { if (live) setDistanceMap(next); });
     return () => { live = false; };
-  }, [userLocation]);
+  }, [userLocation, followedOrigin]);
 
   useEffect(() => {
     let live = true;
@@ -201,10 +221,10 @@ export default function HotelsHome({ onNavigate }: Props) {
       max_price: maxPrice === "" ? null : maxPrice,
       amenities,
       radius_km: radius === "" ? null : radius,
-      latitude: radius === "" ? null : userLocation?.lat,
-      longitude: radius === "" ? null : userLocation?.lng,
+      latitude: radius === "" ? null : (followedOrigin || userLocation)?.lat,
+      longitude: radius === "" ? null : (followedOrigin || userLocation)?.lng,
     }),
-    [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng],
+    [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng, followedOrigin],
   );
   const currentSearchKey = savedSearchKey("hotels", currentSearchCriteria);
   const followedSearch = followedSearches.find(
@@ -306,11 +326,11 @@ export default function HotelsHome({ onNavigate }: Props) {
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
           locationDetail={locationError || undefined}
-          locationLabel={userLocation ? "Using current location" : "Use my location"}
-          locationActive={Boolean(userLocation)}
+          locationLabel={followedOrigin ? "Using followed search location" : userLocation ? "Using current location" : "Use my location"}
+          locationActive={Boolean(followedOrigin || userLocation)}
           locationBusy={locating}
-          onLocation={requestLocation}
-          onClearLocation={clearLocation}
+          onLocation={() => { setFollowedOrigin(null); requestLocation(); }}
+          onClearLocation={() => { setFollowedOrigin(null); clearLocation(); setRadius(''); }}
         />
         {sponsoredHotels.length > 0 && <section aria-label="Sponsored hotels" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
           <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored hotels</p>
