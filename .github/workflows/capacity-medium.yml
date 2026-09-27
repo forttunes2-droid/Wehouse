@@ -37,6 +37,7 @@ jobs:
         run: |
           mkdir -p test-results
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_medium_plan.sql > test-results/home-query-plan.txt
+          docker logs --tail 250 supabase_db_wehouse > test-results/home-nested-plan.txt 2>&1
       - name: Measure HTTP reads at 1, 20, 100 and 400 clients
         run: WEHOUSE_CAPACITY_PRESET=medium node scripts/load-catalog-scale.mjs
       - uses: actions/upload-artifact@v4
@@ -46,6 +47,7 @@ jobs:
           path: |
             test-results/catalog-scale.json
             test-results/home-query-plan.txt
+            test-results/home-nested-plan.txt
           retention-days: 14
       - name: Destroy disposable services
         if: always()
