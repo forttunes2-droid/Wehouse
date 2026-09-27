@@ -191,7 +191,7 @@ async def run(browser):
     async def arrival():
         for reduced in [False, True]:
             s=Scenario(); context,page=await s.page(browser,'arrival',reduced=reduced)
-            await expect(page.locator('.wh-auth-to-app-shell')).to_be_visible()
+            await expect(page.locator('.wh-auth-to-app')).to_be_visible()
             if reduced:
                 await expect(page.locator('.wh-auth-to-app-brand')).to_have_css('animation-name','none')
             await page.screenshot(path=str(OUT/f'arrival-shell-{reduced}.png'))

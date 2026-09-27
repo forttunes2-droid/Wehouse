@@ -779,7 +779,11 @@ export default function Login({
     <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} showSignedOutNav={["choose", "signin", "signup"].includes(mode)} busy={working}
       sharedProperty={publicProperty} onDismissSharedProperty={onDismissPublicProperty}
       onSignIn={(property) => { if (!workingRef.current) { setRestorePropertyOnBack(Boolean(property)); setMode("choose"); clearMessages(); } }}
-      onBrowse={() => { setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages(); }}
+      onBrowse={() => {
+        if (restorePropertyOnBack) onDismissPublicProperty?.();
+        setRestorePropertyOnBack(false);
+        setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
+      }}
       onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
     >

@@ -10,9 +10,11 @@ assert.ok(['localhost','127.0.0.1'].includes(origin.hostname) && origin.protocol
 const key = status.ANON_KEY || status.anon_key || status.PUBLISHABLE_KEY || status.publishable_key;
 assert.ok(key);
 const medium = process.env.WEHOUSE_CAPACITY_PRESET === 'medium';
-assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || medium, 'Unknown capacity preset');
+const million = process.env.WEHOUSE_CAPACITY_PRESET === 'million';
+assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['medium','million','full'].includes(process.env.WEHOUSE_CAPACITY_PRESET), 'Unknown capacity preset');
 const catalog = medium
   ? {homes:50000,hotels:100000,synthetic_profiles:50000,real_auth_users:0}
+  : million ? {homes:1000000,hotels:1000000,synthetic_profiles:1000000,real_auth_users:0}
   : {homes:3000000,hotels:4000000,synthetic_profiles:20000000,real_auth_users:0};
 const counts = execFileSync('docker', ['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-Atc',
   "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -5000000 and -1000001),(select count(*) from public.profiles where user_id like 'load-user-%')"], { encoding:'utf8' }).trim();
