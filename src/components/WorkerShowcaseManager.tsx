@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -6,24 +6,16 @@ import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
 import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
 import VideoPlayer from "@/components/VideoPlayer";
-import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import WorkerShowcaseGrid from "@/components/WorkerShowcaseGrid";
+import { useWorkerShowcase, type ShowcasePost } from "@/hooks/useWorkerShowcase";
+import { withTimeout } from "@/lib/withTimeout";
+import { workerDisplayName, workerAvatarUrl } from "@/lib/workerIdentity";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { createPortal } from "react-dom";
 import WorkerShowcasePostViewer from "@/components/WorkerShowcasePostViewer";
 
-type Post = {
-  id: string;
-  worker_id: string;
-  kind: "work_post";
-  media_type: "image" | "video";
-  storage_path: string;
-  caption: string | null;
-  booking_id: string | null;
-  verified_job: boolean;
-  job_confirmation_status: "not_linked" | "pending" | "confirmed" | "declined";
-  hidden_at: string | null;
-  expires_at: string | null;
-  created_at: string;
-  url?: string;
-};
+type Post = ShowcasePost;
 
 type Job = {
   id: string;
@@ -31,7 +23,11 @@ type Job = {
   service_type: string | null;
 };
 
-export default function WorkerShowcaseManager({
+type ManagerProps = { profile: Profile; initialPostId?: string };
+export default function WorkerShowcaseManager(props: ManagerProps) {
+  return <WorkerShowcaseContent key={props.profile.user_id} {...props} />;
+}
+function WorkerShowcaseContent({
   profile,
   initialPostId,
 }: {
@@ -40,10 +36,10 @@ export default function WorkerShowcaseManager({
 }) {
   const { ask, dialogProps } = useConfirm();
   const input = useRef<HTMLInputElement>(null);
-  const openedTarget = useRef<string | null>(null);
-  const [loadError, setLoadError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const showcase = useWorkerShowcase(profile.user_id, true);
+  const { posts, loading, load } = showcase;
+  const [visibility, setVisibility] = useState("all");
+  const [jobsError, setJobsError] = useState(false), [jobsRetry, setJobsRetry] = useState(0);
   const [jobs, setJobs] = useState<Job[]>([]);
   const kind = "work_post" as const;
   const [caption, setCaption] = useState("");
@@ -55,57 +51,32 @@ export default function WorkerShowcaseManager({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [viewer, setViewer] = useState<Post | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [{ data: rows, error: postError }, { data: completed, error: jobError }] = await Promise.all([
-      supabase
-        .from("worker_showcase_posts")
-        .select(
-          "id,worker_id,kind,media_type,storage_path,caption,booking_id,verified_job,job_confirmation_status,hidden_at,expires_at,created_at",
-        )
-        .eq("worker_id", profile.user_id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(30),
-      supabase
-        .from("worker_bookings")
-        .select("id,booking_code,service_type")
-        .eq("worker_id", profile.user_id)
-        .eq("status", "approved_released")
-        .order("created_at", { ascending: false })
-        .limit(30),
-    ]);
-
-    if (postError || jobError) { setLoadError("Your work could not be loaded. Please try again."); setLoading(false); return; }
-    const sourceRows = (rows || []) as Post[];
-    const signed = sourceRows.length
-      ? await supabase.storage
-          .from("worker-showcase")
-          .createSignedUrls(sourceRows.map((row) => row.storage_path), 3600)
-      : { data: [], error: null };
-    if (signed.error) { setLoadError("Your media previews could not be loaded. Please try again."); setLoading(false); return; }
-    setLoadError(""); setLoading(false);
-    const urls = new Map(
-      (signed.data || []).map((item) => [item.path, item.signedUrl || ""]),
-    );
-    const enriched = sourceRows.map((row) => ({
-      ...row,
-      url: urls.get(row.storage_path) || "",
-    }));
-
-    setPosts(enriched);
-    if (initialPostId && openedTarget.current !== String(initialPostId)) {
-      openedTarget.current = String(initialPostId);
-      const target = enriched.find((post) => String(post.id) === String(initialPostId));
-      if (target) setViewer(target);
-      else toast.error("The linked showcase post is no longer available.");
-    }
-    setJobs((completed || []) as Job[]);
-  }, [initialPostId, profile.user_id]);
-
+  const identity = useRef(profile.user_id); identity.current = profile.user_id;
   useEffect(() => {
-    void load();
-  }, [load]);
+    let active = true; setJobs([]); setJobsError(false); setViewer(null);
+    void withTimeout(supabase.from("worker_bookings").select("id,booking_code,service_type").eq("worker_id", profile.user_id).eq("status", "approved_released").order("created_at", { ascending: false }).limit(50), 15000, "Completed jobs took too long.").then(result => {
+      if (!active) return;
+      if (result.error || !Array.isArray(result.data)) setJobsError(true); else setJobs(result.data as Job[]);
+    }).catch(() => { if (active) setJobsError(true); });
+    return () => { active = false; };
+  }, [profile.user_id, jobsRetry]);
+  useEffect(() => {
+    if (!initialPostId) return;
+    let active = true;
+    // A deep-linked post may be older than the first page. Do not cancel this
+    // exact-record request when background thumbnail signing updates the grid.
+    void showcase.findPost(initialPostId).then(post => {
+      if (!active) return;
+      if (post) setViewer(post); else toast.error("This work post is no longer available.");
+    }).catch(() => { if (active) toast.error("The linked post could not be loaded. Please try again."); });
+    return () => { active = false; };
+  }, [initialPostId, showcase.findPost]);
+  async function openPost(post: Post) {
+    const worker = profile.user_id; setViewer(post);
+    if (post.url) return;
+    try { const ready = await showcase.refreshPost(post); if (identity.current === worker) setViewer(current => current?.id === post.id ? ready : current); }
+    catch { toast.error("This work post could not be opened. Please try again."); }
+  }
 
   useEffect(
     () => () => {
@@ -137,7 +108,9 @@ export default function WorkerShowcaseManager({
     if (input.current) input.current.value = "";
   }
 
+  const saving = useRef(false);
   async function publish() {
+    if (saving.current) return;
     if (!file) return toast.error("Choose a photo or video first");
     if (profile.worker_status !== "verified" || !profile.worker_verified) {
       return toast.error(
@@ -146,6 +119,7 @@ export default function WorkerShowcaseManager({
     }
 
     const isVideo = file.type.startsWith("video/");
+    saving.current = true;
     setBusy(true);
     setPublishStage("preparing");
     setUploadProgress(0);
@@ -174,7 +148,7 @@ export default function WorkerShowcaseManager({
       });
       if (error) throw error;
 
-      toast.success(bookingId ? "Showcase published · customer confirmation requested" : "Showcase published");
+      toast.success(bookingId ? "Work post saved · customer confirmation requested" : "Work post saved");
       clearComposer();
       await load();
     } catch (error: unknown) {
@@ -187,6 +161,7 @@ export default function WorkerShowcaseManager({
         error instanceof Error ? error.message : "Could not publish work",
       );
     } finally {
+      saving.current = false;
       setBusy(false);
       setPublishStage("idle");
       setUploadProgress(0);
@@ -223,11 +198,11 @@ export default function WorkerShowcaseManager({
     setBusy(true);
     const{error}=await supabase.rpc('set_my_worker_work_post_hidden',{p_post_id:post.id,p_hidden:hidden});
     setBusy(false);if(error)return toast.error(error.message);
-    toast.success(hidden?'Post hidden from your public profile':'Post visible on your public profile');
+    toast.success(hidden?'Post hidden':'Post visibility updated');
     setViewer(null);await load();
   }
 
-  const workPosts = posts.filter((post) => post.kind === "work_post");
+  const workPosts = posts.filter(post => visibility === "all" || (visibility === "hidden" ? Boolean(post.hidden_at) : !post.hidden_at));
   const previewIsVideo = file?.type.startsWith("video/") || false;
 
   return (
@@ -244,27 +219,27 @@ export default function WorkerShowcaseManager({
       />
 
       {file && (
-        <div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[#08090D]">
+        <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[#08090D]">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[.08] px-3">
             <button
               type="button"
               onClick={clearComposer}
               disabled={busy}
-              className="grid h-10 w-10 place-items-center rounded-full text-xl text-[#A8ADBA]"
+              className="grid h-11 w-11 place-items-center rounded-full text-xl text-[#A8ADBA]"
               aria-label="Close preview"
             >
               ×
             </button>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">New work post</p>
-              <p className="text-[9px] text-[#687080]">
+              <p className="text-sm text-[#687080]">
                 Preview before publishing
               </p>
             </div>
             <button
               onClick={() => void publish()}
               disabled={busy}
-              className="rounded-full bg-violet-500 px-4 py-2 text-[10px] font-semibold disabled:opacity-50"
+              className="min-h-11 rounded-xl bg-violet-500 px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {busy ? publishStage === 'preparing' ? "Preparing…" : publishStage === 'uploading' ? `${uploadProgress}%` : "Saving…" : "Publish"}
             </button>
@@ -287,11 +262,11 @@ export default function WorkerShowcaseManager({
                   type="button"
                   onClick={() => input.current?.click()}
                   disabled={busy}
-                  className="rounded-full border border-white/[.1] px-4 py-2 text-[10px] font-semibold"
+                  className="rounded-full border border-white/[.1] px-4 py-2 text-sm font-semibold"
                 >
                   Replace media
                 </button>
-                <span className="self-center truncate text-[9px] text-[#6D7484]">
+                <span className="self-center truncate text-sm text-[#6D7484]">
                   {file.name}
                 </span>
               </div>
@@ -305,7 +280,9 @@ export default function WorkerShowcaseManager({
                 placeholder="Describe this work"
                 className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
               />
+              {jobsError && <div role="alert" className="text-sm text-[#A7ADBA]">Completed jobs could not be loaded. <button type="button" onClick={() => setJobsRetry(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></div>}
               <select
+                aria-label="Link completed job"
                 value={bookingId}
                 disabled={busy}
                 onChange={(event) => setBookingId(event.target.value)}
@@ -319,16 +296,16 @@ export default function WorkerShowcaseManager({
                   </option>
                 ))}
               </select>
-              {bookingId && <p className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-[9px] leading-4 text-amber-200">The customer from this job will receive the post in Activity. The “Completed through WeHouse” badge appears only after they confirm the media shows their completed work.</p>}
+              {bookingId && <p className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-sm leading-4 text-amber-200">The customer must confirm this work before the post is marked as a WeHouse job.</p>}
               {busy && (
                 <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4" aria-live="polite">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-semibold text-violet-200">
+                      <p className="text-sm font-semibold text-violet-200">
                         {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading showcase media" : "Publishing your showcase"}
                       </p>
-                      <p className="mt-1 text-[8px] text-[#777E8E]">
-                        {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Almost done."}
+                      <p className="mt-1 text-xs text-[#777E8E]">
+                        {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Saving your post."}
                       </p>
                     </div>
                     {publishStage === "uploading" && <span className="text-xs font-bold text-violet-200">{uploadProgress}%</span>}
@@ -343,71 +320,27 @@ export default function WorkerShowcaseManager({
               )}
             </div>
           </main>
-        </div>
+        </div></ShowcaseComposer>
       )}
 
-      <div>
-        <div className="mb-3 flex items-end justify-between gap-3 border-b border-white/[.07] pb-3">
-          <p className="text-[10px] text-[#707687]">Published work</p>
-          <span className="text-[9px] text-[#686F80]">{workPosts.length}</span>
-        </div>
-        {loadError && <p role="alert" className="py-3 text-sm text-amber-200">{loadError} <button onClick={() => void load()} className="min-h-11 px-2 font-semibold text-violet-300">Try again</button></p>}
-        {loading ? <p role="status" className="py-4 text-sm text-[#A1A1AA]">Loading your work…</p> : workPosts.length > 0 ? (
-          <div className="-mx-4 grid grid-cols-2 gap-0.5 bg-white/[.07] sm:mx-0 sm:grid-cols-3 sm:overflow-hidden sm:rounded-2xl lg:grid-cols-4">
-            {workPosts.map((post) => (
-              <button
-                key={post.id}
-                onClick={() => setViewer(post)}
-                className="group relative aspect-square overflow-hidden bg-[#0D1118] text-left"
-              >
-                <Media
-                  post={post}
-                  className="h-full w-full object-cover transition duration-300 group-active:scale-[.99]"
-                />
-                {post.verified_job && (
-                  <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-1 text-[7px] font-bold text-[#04100B]">
-                    WEHOUSE JOB ✓
-                  </span>
-                )}
-                {post.job_confirmation_status === 'pending' && <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-[7px] font-bold text-[#171000]">CUSTOMER CHECK</span>}
-                {post.hidden_at && <span className="absolute right-2 top-2 rounded-full bg-black/75 px-2 py-1 text-[7px] font-bold text-white">HIDDEN</span>}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent px-2.5 pb-2.5 pt-10">
-                  <p className="line-clamp-2 text-[9px] leading-4 text-white">
-                    {post.caption || "Worker showcase"}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <EmptyWork
-            title="No work posted yet"
-            text="Add a photo or video to build your Worker showcase."
-          />
-        )}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Work posts</h2>
+        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white" aria-label="Add work">Add work</button>
       </div>
-
-      <button
-        type="button"
-        onClick={() => input.current?.click()}
-        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-violet-500 text-3xl font-light text-white shadow-2xl shadow-violet-950/60 sm:bottom-6 sm:right-8"
-        aria-label="Add work"
-      >
-        ＋
-      </button>
+      <label className="mb-4 block"><span className="sr-only">Post visibility</span><select aria-label="Post visibility" value={visibility} onChange={event => setVisibility(event.target.value)} className="min-h-11 rounded-xl border border-white/10 bg-[#151820] px-3 text-sm"><option value="all">All posts</option><option value="visible">Not hidden</option><option value="hidden">Hidden posts</option></select></label>
+      <WorkerShowcaseGrid owner posts={workPosts} loading={loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void load(true)} />
 
       {viewer && (
         <WorkerShowcasePostViewer
           post={viewer}
-          workerName={profile.full_name || profile.username || "My showcase"}
-          workerAvatar={profile.avatar_url}
+          workerName={workerDisplayName(profile)}
+          workerAvatar={workerAvatarUrl(profile)}
           onClose={() => setViewer(null)}
-          ownerActions={
-            <>
-              <button onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="rounded-full px-3 py-2 text-[9px] font-semibold text-violet-200 disabled:opacity-40">{viewer.hidden_at ? "Show" : "Hide"}</button>
-              <button onClick={() => void remove(viewer)} disabled={busy} className="rounded-full px-3 py-2 text-[9px] font-semibold text-red-300 disabled:opacity-40">Delete</button>
-            </>
-          }
+          position={workPosts.findIndex(post => post.id === viewer.id)} total={workPosts.length}
+          onPrevious={workPosts.findIndex(post => post.id === viewer.id) > 0 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) - 1]) : undefined}
+          onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
+          onRetry={async () => { const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
+          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-white/10 bg-[#151820] p-2 shadow-lg"><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[#D7DCE6] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-300 disabled:opacity-40">Delete post</button></div></details>}
         />
       )}
       <ConfirmDialog {...dialogProps} />
@@ -415,28 +348,8 @@ export default function WorkerShowcaseManager({
   );
 }
 
-function EmptyWork({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="py-16 text-center">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/10 text-2xl text-violet-300">
-        ＋
-      </div>
-      <p className="mt-4 text-sm font-semibold">{title}</p>
-      <p className="mx-auto mt-1 max-w-xs text-[10px] leading-5 text-[#686F80]">
-        {text}
-      </p>
-    </div>
-  );
-}
-
-function Media({
-  post,
-  className,
-}: {
-  post: Post;
-  className: string;
-}) {
-  if (post.media_type === "video")
-    return <ShowcaseMediaThumbnail src={post.url} mediaType="video" alt="Video work preview" className={className} />;
-  return <ShowcaseMediaThumbnail src={post.url} mediaType="image" alt="Worker work" className={className} />;
+function ShowcaseComposer({ onClose, busy, children }: { onClose: () => void; busy: boolean; children: React.ReactNode }) {
+  const dismiss = useRecordScreenBack(() => { if (!busy) onClose(); });
+  const ref = useDialogInteraction(dismiss);
+  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="New work post" className="fixed inset-0 z-[100210] bg-[#08090D]">{children}</div>, document.body);
 }

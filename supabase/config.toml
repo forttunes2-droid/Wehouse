@@ -13,3 +13,6 @@ verify_jwt = true
 
 [functions.turn-credentials]
 verify_jwt = true
+
+[functions.creator-security-setup]
+verify_jwt = true

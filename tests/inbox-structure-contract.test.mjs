@@ -5,20 +5,19 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Personal exposes one Inbox destination with Messages and nested Activity", async () => {
-  const [app, inbox, desktop] = await Promise.all([
+  const [app, inbox, desktop, personalNav] = await Promise.all([
     read("src/App.tsx"),
     read("src/pages/Chat.tsx"),
     read("src/lib/nav2.tsx"),
+    read("src/components/PersonalBottomNav.tsx"),
   ]);
-  const start = app.indexOf("const tabs = useMemo");
-  const end = app.indexOf("const navHistoryRef", start);
-  const tabs = app.slice(start, end);
-  assert.match(tabs, /label: "Explore"/);
-  assert.match(tabs, /label: "Bookings"/);
-  assert.match(tabs, /label: "Inbox"/);
-  assert.match(tabs, /label: "Account"/);
-  assert.doesNotMatch(tabs, /label: "Conversation"/);
-  assert.doesNotMatch(tabs, /id: "notifications"/);
+  assert.match(personalNav, /label: 'Explore'/);
+  assert.match(personalNav, /label: 'Bookings'/);
+  assert.match(personalNav, /label: 'Inbox'/);
+  assert.match(personalNav, /label: 'Account'/);
+  assert.doesNotMatch(personalNav, /label: 'Conversation'/);
+  assert.doesNotMatch(personalNav, /notifications/);
+  assert.match(app, /<PersonalBottomNav/);
   assert.match(app, /case "activity":[\s\S]*case "notifications":[\s\S]*case "conversation":[\s\S]*<Chat/);
   assert.match(app, /unreadCount \+ supportUnreadCount \+ notificationCount/);
   assert.match(inbox, /<InboxActivityEntry/);
@@ -74,7 +73,11 @@ test("Staff Inbox does not claim work merely by viewing it", async () => {
 
 test("Hotel Team has one Inbox surface with guest conversations and nested Activity", async () => {
   const source = await read("src/pages/HotelTeamDashboard.tsx");
-  assert.match(source, /\[\['hotels', 'Hotels'\], \['inbox', 'Inbox'\]\]/);
+  assert.match(source, /id: "hotels", label: "Hotels"/);
+  assert.match(source, /id: "inbox", label: "Inbox"/);
+  assert.match(source, /<WorkspaceFrameV2/);
+  assert.match(source, /scope="hotel"/);
+  assert.doesNotMatch(source, /scope="hotel_staff"/);
   assert.match(source, /getMyHotelConversations/);
   assert.match(source, /<InboxActivityEntry/);
   assert.match(source, /<Notifications/);

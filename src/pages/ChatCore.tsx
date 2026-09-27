@@ -1,3 +1,11 @@
+import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import { createPortal } from "react-dom";
+import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
+import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
+import { PropertyDraftAttachment } from "@/components/SharedPropertyCard";
+import RoommateBubble from "@/components/RoommateMessageBubble";
+import { PendingMessageMedia } from "@/components/MessageMedia";
+import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -38,7 +46,6 @@ import type { Conversation, Message, Profile } from "@/types";
 import Notifications from "@/pages/Notifications";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
-import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import {
   lockEncryptionIdentity,
   privateConversationReadiness,
@@ -48,10 +55,8 @@ import {
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
-import MediaViewer from "@/components/MediaViewer";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
-import MessagePress from "@/components/MessagePress";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
@@ -79,7 +84,7 @@ type Props = {
 };
 type Person = Pick<RoommatePeer, "name" | "avatar"> &
   Partial<RoommatePeer> & { username?: string | null; lga?: string | null };
-type RoommateMessage = Message & {
+type RoommateMessage = Message & MessageSyncState & {
   attachments?: string[];
   attachment_types?: string[];
   reply_to_id?: string | null;
@@ -157,6 +162,7 @@ export default function Chat({
   activityUnreadCount = 0,
   onActivityUnreadChange,
 }: Props) {
+  const [propertyDraft, setPropertyDraft] = useState<SharedProperty | null>(null);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const cachedInbox = inboxCache.get(profile.user_id);
   const [openingConversation, setOpeningConversation] = useState(Boolean(conversationId));
@@ -194,6 +200,7 @@ export default function Chat({
     Record<string, PrivateCall>
   >(() => cachedInbox?.recentRoommateCalls || {});
   const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
+  const ownMessageUrls = useMessageObjectUrls(messages);
   const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
   const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
     null,
@@ -208,6 +215,16 @@ export default function Chat({
     refresh: refreshInboxSecurity,
   } = useSecureInboxAccess(profile.user_id);
   const activeRef = useRef<Conversation | null>(null);
+  const messageLoadGeneration = useRef(0);
+  const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const currentIdentityRef = useRef(profile.user_id);
+  const composerRef = useRef({ input, files, propertyDraft });
+  useEffect(() => { composerRef.current = { input, files, propertyDraft }; }, [input, files, propertyDraft]);
+  useEffect(() => {
+    mountedRef.current = true; currentIdentityRef.current = profile.user_id;
+    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; };
+  }, [profile.user_id]);
   const conversationsRef = useRef<Conversation[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
@@ -342,39 +359,33 @@ export default function Chat({
 
   const loadRoommateMessages = useCallback(
     async (id: string, quiet = false) => {
-      if (!quiet) setLoadingMessages(true);
       const currentActive = activeRef.current;
-      const conversation =
-        (currentActive?.id === id ? currentActive : null) ||
-        conversationsRef.current.find((row) => row.id === id);
-      const peer = conversation ? otherId(conversation) : null;
-      const [result, callResult] = await Promise.all([
-        getMessages(id, peer),
-        supabase
-          .from("private_calls")
-          .select("*")
-          .eq("context_type", "roommate")
-          .eq("context_id", id)
-          .order("created_at", { ascending: true })
-          .limit(100),
-      ]);
-      if (result.error) {
-        if (!quiet)
-          toast.error(result.error.message || "Unable to open conversation");
-        setLoadingMessages(false);
-        return;
-      }
-      setMessages((result.messages || []) as RoommateMessage[]);
-      setActiveCalls((callResult.data || []) as PrivateCall[]);
-      await Promise.all([
-        markMessagesSeen(id),
-        supabase
-          .from("notifications")
-          .update({ read: true })
-          .eq("recipient_id", profile.user_id)
-          .eq("related_id", id),
-      ]);
-      setLoadingMessages(false);
+      if (!currentActive || currentActive.id !== id) return;
+      const request = ++messageLoadGeneration.current;
+      const current = () => mountedRef.current && currentIdentityRef.current === profile.user_id && request === messageLoadGeneration.current && activeRef.current?.id === id;
+      if (!quiet) setLoadingMessages(true);
+      const startedAt = Date.now();
+      // Calls are supplementary and must not hold up readable chat.
+      void withTimeout(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100), 12000, "Calls took too long")
+        .then(result => { if (current() && !result.error) setActiveCalls((result.data || []) as PrivateCall[]); }).catch(() => undefined);
+      try {
+        const result = await withTimeout(getMessages(id, otherId(currentActive), rows => {
+          if (!current()) return;
+          setMessages(old => reconcileChatMessages(old, rows as RoommateMessage[], startedAt));
+          setLoadingMessages(false);
+        }), 18000, "Messages took too long to load. Please try again.");
+        if (!current()) { for (const row of (result.messages || []) as RoommateMessage[]) for (const url of row.attachments || []) if (url.startsWith('blob:')) URL.revokeObjectURL(url); return; }
+        if (result.error) throw result.error;
+        setMessages(old => reconcileChatMessages(old, result.messages as RoommateMessage[], startedAt));
+        void Promise.allSettled([
+          markMessagesSeen(id),
+          Promise.resolve(supabase.from("notifications").update({ read: true }).eq("recipient_id", profile.user_id).eq("related_id", id)),
+        ]);
+
+      } catch (error) {
+        if (current() && /permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((error as { message?: string })?.message || error))) setMessages([]);
+        if (current() && !quiet) toast.error(error instanceof Error ? error.message : "Unable to open conversation. Please try again.");
+      } finally { if (current()) setLoadingMessages(false); }
     },
     [profile.user_id, otherId],
   );
@@ -610,14 +621,15 @@ export default function Chat({
   async function openConversation(conv: Conversation) {
     setActive(conv);
     setInput("");
+    setPropertyDraft(null);
     setFiles([]);
     setMenuOpen(false);
   }
   function choosePhotos(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
-      if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} is not a photo`);
+      if (!isChatVisualType(file.type)) {
+        toast.error(CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       if (file.size > MAX_FILE_SIZE) {
@@ -647,17 +659,28 @@ export default function Chat({
       );
     }
   }
+  useEffect(() => {
+    setPropertyDraft(active ? pendingPropertyShare(profile.user_id, active.id) : null);
+  }, [profile.user_id, active?.id]);
+
   async function submit() {
-    if (!active || sending || (!input.trim() && !files.length)) return;
+    if (!active || sendingRef.current || sending || (!input.trim() && !files.length && !propertyDraft)) return;
     if (secureChat?.state !== "ready")
       return toast.error("Secure conversation must be ready before sending");
-    const content = input.trim();
+    const target = active;
+    const stillHere = () => mountedRef.current && currentIdentityRef.current === profile.user_id && activeRef.current?.id === target.id;
+    sendingRef.current = true;
+    const note = input.trim();
+    const shared = propertyDraft;
+    const content = shared ? propertyShareMessage(shared, note) : note;
     const queuedFiles = [...files];
     const replyTarget = replyingTo;
-    const optimisticId = `pending-${Date.now()}`;
+    const optimisticId = `pending-${crypto.randomUUID()}`;
     const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
+    ownMessageUrls(optimisticUrls);
     setSending(true);
     setInput("");
+    setPropertyDraft(null);
     setFiles([]);
     setReplyingTo(null);
     setMessages((current) => [
@@ -682,6 +705,7 @@ export default function Chat({
         metadata_ciphertext: string;
         metadata_iv: string;
       }> = [];
+    let accepted = false;
     try {
       for (const file of queuedFiles) {
         const uploaded = await uploadRoommateChatAttachment(
@@ -705,31 +729,40 @@ export default function Chat({
       );
       if (result.error || !result.message)
         throw new Error(result.error?.message || "Message could not be sent");
-      setSending(false);
-      await loadRoommateMessages(active.id);
-      void loadInbox(true);
+      accepted = true;
+      if (shared) clearPropertyShare(profile.user_id, active.id);
+      if (stillHere()) {
+        setMessages(old => acknowledgeChatMessage(old, optimisticId, String(result.message!.id)));
+        setSending(false);
+        void loadRoommateMessages(target.id, true);
+      }
+      if (mountedRef.current) void loadInbox(true);
     } catch (error: unknown) {
-      setMessages((current) => current.filter((message) => message.id !== optimisticId));
-      setInput(content);
-      setFiles(queuedFiles);
-      setReplyingTo(replyTarget);
+      if (accepted) return;
+      if (stillHere()) {
+        const hasNewDraft = Boolean(composerRef.current.input.trim() || composerRef.current.files.length || composerRef.current.propertyDraft);
+        setMessages(current => hasNewDraft ? current.map(message => message.id === optimisticId ? { ...message, delivery_state: "failed" } : message) : current.filter(message => message.id !== optimisticId));
+        if (!hasNewDraft) { setInput(note); setPropertyDraft(shared); setFiles(queuedFiles); setReplyingTo(replyTarget); }
+      }
       for (const path of paths) await deleteRoommateChatAttachment(path);
       const message =
         error instanceof Error ? error.message : "Message could not be sent";
+      if (!stillHere()) return;
       if (/encrypted chat is ready/i.test(message)) {
         setSecureChat(null);
         void privateConversationReadiness(
           "roommate",
           active.id,
           otherId(active),
-        ).then(setSecureChat);
+        ).then(value => { if (stillHere()) setSecureChat(value); });
         toast.error(
           "Secure conversation is ready now. Send again to protect this message.",
         );
       } else toast.error(message);
     } finally {
-      optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
-      setSending(false);
+      if (!stillHere()) optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
+      sendingRef.current = false;
+      if (mountedRef.current) setSending(false);
     }
   }
   async function deleteFromMessages() {
@@ -1030,7 +1063,7 @@ export default function Chat({
         new Date(a.time).getTime() - new Date(b.time).getTime() ||
         a.id.localeCompare(b.id),
     );
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#090A0F] text-white">
         <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center gap-1">
@@ -1056,7 +1089,7 @@ export default function Chat({
                 </span>
                 {presenceText ? (
                   <span
-                    className={`mt-0.5 block truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
+                    className={`mt-0.5 block truncate text-xs ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
                   >
                     {presenceText}
                   </span>
@@ -1084,7 +1117,7 @@ export default function Chat({
                   setMenuOpen(false);
                   void openActiveProfile();
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] hover:bg-white/[.04]"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm hover:bg-white/[.04]"
               >
                 <span>◉</span>
                 <span>Contact info</span>
@@ -1098,7 +1131,7 @@ export default function Chat({
                     setBlockPrompt(true);
                   }
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-amber-200"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-amber-200"
               >
                 <span>⊘</span>
                 <span>
@@ -1110,7 +1143,7 @@ export default function Chat({
                   setMenuOpen(false);
                   setConfirmDelete(true);
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-red-300 hover:bg-red-500/[.07]"
               >
                 <TrashIcon />
                 <span>Remove from Inbox</span>
@@ -1123,17 +1156,17 @@ export default function Chat({
             {lockedMessages ? (
               <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
                 <div>
-                  <p className="text-[10px] font-semibold text-violet-100">
+                  <p className="text-xs font-semibold text-violet-100">
                     Some messages are still locked
                   </p>
-                  <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                  <p className="mt-1 text-xs leading-4 text-[#8C92A2]">
                     Re-enter your Inbox PIN to unlock this conversation on this device.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => void retryLockedMessages()}
-                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-xs font-semibold text-violet-200"
                 >
                   Enter PIN
                 </button>
@@ -1158,6 +1191,7 @@ export default function Chat({
                 ) : (
                   <RoommateBubble
                     msg={event.message}
+                    onOpenProperty={onNavigate}
                     mine={event.message.sender_id === profile.user_id}
                     quoted={
                       event.message.reply_to_id
@@ -1188,13 +1222,13 @@ export default function Chat({
           <div className="mx-auto max-w-3xl">
             {person?.isBlocked ? (
               <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
-                <p className="text-[10px] text-amber-100">
+                <p className="text-xs text-amber-100">
                   This person is blocked. Matching, messages and calls are off.
                 </p>
                 <button
                   type="button"
                   onClick={() => void toggleBlock()}
-                  className="shrink-0 text-[10px] font-semibold text-violet-300"
+                  className="shrink-0 text-xs font-semibold text-violet-300"
                 >
                   Unblock
                 </button>
@@ -1204,7 +1238,7 @@ export default function Chat({
                 className="flex items-end gap-2"
                 aria-label="Opening secure conversation"
               >
-                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-[11px] text-[#666C7B]">
+                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-sm text-[#666C7B]">
                   Opening conversation…
                 </div>
                 <span className="grid h-11 w-11 place-items-center rounded-full bg-white/[.05]">
@@ -1219,21 +1253,8 @@ export default function Chat({
               />
             ) : (
               <>
-                {files.length > 0 && (
-                  <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                    {files.map((file, index) => (
-                      <PendingMedia
-                        key={`${file.name}-${index}`}
-                        file={file}
-                        onRemove={() =>
-                          setFiles((current) =>
-                            current.filter((_, i) => i !== index),
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
+                {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }} />}
+                <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel
                   recording={voice.recording}
                   seconds={voice.seconds}
@@ -1252,14 +1273,14 @@ export default function Chat({
                 {replyingTo && (
                   <div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-[8px] font-semibold text-violet-300">
+                      <p className="text-xs font-semibold text-violet-300">
                         Replying to{" "}
                         {replyingTo.sender_id === profile.user_id
                           ? "yourself"
                           : person?.name || "message"}
                       </p>
-                      <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
-                        {replyingTo.content ||
+                      <p className="mt-0.5 truncate text-xs text-[#A1A6B4]">
+                        {propertyMessagePreview(replyingTo.content || "") ||
                           ((replyingTo.attachments || []).length
                             ? "Attachment"
                             : "Message")}
@@ -1305,7 +1326,7 @@ export default function Chat({
                   </div>
                   <button
                     onClick={() => void submit()}
-                    disabled={sending || (!input.trim() && !files.length)}
+                    disabled={sending || (!input.trim() && !files.length && !propertyDraft)}
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#636878]"
                     aria-label="Send"
                   >
@@ -1412,7 +1433,7 @@ export default function Chat({
                   <h2 className="text-base font-bold">
                     Block {person?.name || "this person"}?
                   </h2>
-                  <p className="mt-1 text-[10px] leading-5 text-[#7B8292]">
+                  <p className="mt-1 text-xs leading-5 text-[#7B8292]">
                     They will leave your discovery results. A linked shared
                     booking will be cancelled, or sent to WeHouse first if
                     payment must be reviewed.
@@ -1441,14 +1462,14 @@ export default function Chat({
                     void toggleBlock();
                   }}
                   disabled={blockBusy}
-                  className="h-11 rounded-xl border border-white/[.08] text-[10px] font-semibold disabled:opacity-40"
+                  className="h-11 rounded-xl border border-white/[.08] text-xs font-semibold disabled:opacity-40"
                 >
                   Skip reason
                 </button>
                 <button
                   onClick={() => void toggleBlock(blockReason)}
                   disabled={blockBusy}
-                  className="h-11 rounded-xl bg-red-500 text-[10px] font-semibold disabled:opacity-40"
+                  className="h-11 rounded-xl bg-red-500 text-xs font-semibold disabled:opacity-40"
                 >
                   {blockBusy ? "Blocking…" : "Block and continue"}
                 </button>
@@ -1456,7 +1477,7 @@ export default function Chat({
             </section>
           </div>
         )}
-      </div>
+      </div>, document.body
     );
   }
 
@@ -1953,85 +1974,6 @@ function SelectableRow({
     </button>
   );
 }
-function RoommateBubble({
-  msg,
-  mine,
-  quoted,
-  onOpenActions,
-  onTapReaction,
-  onReply,
-}: {
-  msg: RoommateMessage;
-  mine: boolean;
-  quoted?: RoommateMessage;
-  onOpenActions: (anchor: DOMRect) => void;
-  onTapReaction: (anchor: DOMRect) => void;
-  onReply: () => void;
-}) {
-  const reactions = Object.values(msg.reactions || {}).reduce<
-    Record<string, number>
-  >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
-  return (
-    <MessagePress
-      onOpen={onOpenActions}
-      onTap={onTapReaction}
-      onReply={onReply}
-      className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
-    >
-      <div
-        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
-      >
-        {quoted && (
-          <div
-            className={`mb-2 rounded-xl border-l-2 px-2.5 py-2 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
-          >
-            <p className="text-[8px] font-semibold opacity-75">
-              {quoted.sender_id === msg.sender_id ? "Earlier message" : "Reply"}
-            </p>
-            <p className="mt-0.5 line-clamp-2 text-[10px] opacity-80">
-              {quoted.content ||
-                ((quoted.attachments || []).length ? "Attachment" : "Message")}
-            </p>
-          </div>
-        )}
-        {(msg.attachments || []).map((url, index) => (
-          <PrivateAttachment
-            key={`${msg.id}-${index}`}
-            url={url}
-            type={msg.attachment_types?.[index] || ""}
-          />
-        ))}
-        {msg.content && (
-          <p className="whitespace-pre-wrap text-[12px] leading-5">
-            {msg.content}
-          </p>
-        )}
-        <p
-          className={`mt-1 text-right text-[8px] ${mine ? "text-violet-100/70" : "text-[#626677]"}`}
-        >
-          {time(msg.created_at)}
-          {mine ? msg.delivery_state === "sending" ? " · Sending…" : msg.delivery_state === "failed" ? " · Not sent" : msg.seen ? " · Seen" : " · Sent" : ""}
-        </p>
-        {Object.keys(reactions).length > 0 && (
-          <div
-            className={`absolute -bottom-3 ${mine ? "right-2" : "left-2"} flex gap-1 rounded-full border border-white/[.08] bg-[#171A22] px-2 py-0.5 text-[10px] shadow-lg`}
-          >
-            {Object.entries(reactions).map(([emoji, count]) => (
-              <span key={emoji}>
-                {emoji}
-                {count > 1 ? (
-                  <small className="ml-0.5 text-[7px] text-[#A6AAB6]">
-                    {count}
-                  </small>
-                ) : null}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </MessagePress>
-  );
-}
 function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
   const outgoing = call.caller_id === me,
     ended = call.ended_at ? new Date(call.ended_at).getTime() : 0,
@@ -2069,68 +2011,6 @@ function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
       </div>
     </div>
   );
-}
-function PrivateAttachment({ url, type }: { url: string; type: string }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const image =
-    type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
-  const video =
-    type.startsWith("video/") ||
-    /\.(mp4|mov)(\?|$)/i.test(url) ||
-    (!type && /\.webm(\?|$)/i.test(url));
-  if (image)
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black"
-          aria-label="Open shared photo in WeHouse viewer"
-        >
-          <img
-            src={url}
-            alt="Shared photo"
-            className="max-h-80 w-auto max-w-full object-contain"
-          />
-        </button>
-        {viewerOpen ? (
-          <MediaViewer
-            src={url}
-            kind="image"
-            title="Shared photo"
-            onClose={() => setViewerOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  if (video)
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black"
-          aria-label="Open shared video in WeHouse viewer"
-        >
-          <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]">
-            <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">
-              ▶
-            </span>
-          </span>
-        </button>
-        {viewerOpen ? (
-          <MediaViewer
-            src={url}
-            kind="video"
-            title="Shared video"
-            onClose={() => setViewerOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  if (type.startsWith("audio/") || /\.(webm|m4a|mp3|wav|ogg)(\?|$)/i.test(url))
-    return <VoiceNotePlayer url={url} />;
-  return null;
 }
 function DateDivider({ value }: { value: string }) {
   return (
@@ -2251,26 +2131,6 @@ function VideoCallIcon() {
       <rect x="3" y="6" width="13" height="12" rx="2" />
       <path d="m16 10 5-3v10l-5-3" />
     </svg>
-  );
-}
-function PendingMedia({
-  file,
-  onRemove,
-}: {
-  file: File;
-  onRemove: () => void;
-}) {
-  const isVoice = file.type.startsWith("audio/");
-  return (
-    <div className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.06] px-3 py-2">
-      <span className="text-sm">{isVoice ? "🎤" : "▧"}</span>
-      <p className="max-w-36 truncate text-[9px] text-violet-200">
-        {isVoice ? "Voice note" : file.name}
-      </p>
-      <button onClick={onRemove} className="text-[#8D91A1]">
-        ×
-      </button>
-    </div>
   );
 }
 function DeleteSheet({

@@ -3,6 +3,15 @@ import { execFileSync } from "node:child_process"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
+// Vercel PR previews may not have project-scoped environment variables yet.
+// This public Test-project key provides an isolated preview by default. A
+// partial or production override still fails the app's runtime safety check.
+if (process.env.VERCEL_ENV === 'preview'
+    && !process.env.VITE_SUPABASE_URL && !process.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+  process.env.VITE_SUPABASE_URL = 'https://qoobnkedfyosnizrlttt.supabase.co'
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_Rv3lT3wV3AVqWIlxM3Dygw_E3q_aSlV'
+}
+
 function releaseVersion() {
   const supplied = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || process.env.WEHOUSE_BUILD_VERSION
   if (supplied) return supplied

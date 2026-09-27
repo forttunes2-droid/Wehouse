@@ -37,6 +37,8 @@ insert into public.announcements(id,title,content,sender_id,sender_role,target_t
 (-920002,'Admin test','Rollback-only fixture','team-admin','admin','all_users');
 insert into public.announcement_recipients(announcement_id,user_id) values
 (-920001,'team-user'),(-920002,'team-partner');
+update public.profiles set full_name='Team Worker',worker_occupation='Plumber',worker_skills='["Plumbing"]'::jsonb where user_id='team-worker';
+insert into public.worker_service_coverage(worker_id,state,lga) values('team-worker','Nasarawa','Lafia');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;

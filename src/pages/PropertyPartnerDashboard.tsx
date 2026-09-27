@@ -6,6 +6,7 @@ import WorkspaceSwitchSheet from '@/components/WorkspaceSwitchSheet';
 import type { WorkspaceAccess, WorkspaceChoice } from '@/pages/AccountCenter';
 
 type Props = {
+  inboxOpenRequest?: number;
   profile: Profile;
   onLogout: () => void;
   onNavigate: (page: string, id?: string) => void;

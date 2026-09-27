@@ -14,7 +14,8 @@ test("professional onboarding stays inside its workspace and never traps switchi
     read("src/App.tsx"),
   ]);
 
-  assert.match(worker, /ACTIVATION_NAV = \[\{ id: "home", label: "Setup" \}\]/);
+  assert.match(worker, /ACTIVATION_NAV = \[\{ id: "home", label: "Setup" \}, \{ id: "inbox", label: "Inbox" \}\]/);
+  assert.match(worker, /!live && safeTab === "inbox"[\s\S]*?<SupportEntryCard/);
   assert.doesNotMatch(worker, /ACTIVATION_NAV[\s\S]{0,160}label: "Account"/);
   assert.match(worker, /WorkspaceSwitchSheet/);
   assert.match(worker, /onWorkspaceSwitch=/);
@@ -22,10 +23,11 @@ test("professional onboarding stays inside its workspace and never traps switchi
   assert.match(gate, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
   assert.match(partner, /WorkspaceSwitchSheet/);
   assert.match(partner, /workspace="property_partner"/);
-  assert.match(owner, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
-  assert.doesNotMatch(owner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
+  assert.match(owner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
+  assert.doesNotMatch(owner, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
   assert.match(app, /workspaceAccess=\{workspaceAccess\}[\s\S]*activeWorkspace=\{activeWorkspace\}[\s\S]*onSwitchWorkspace=\{switchWorkspace\}/);
-  assert.match(frame, />\s*Workspaces\s*</);
+  assert.doesNotMatch(frame, />\s*Workspaces\s*</);
+  assert.match(frame, /onClick=\{goAccount\}/);
 });
 
 test("Admin and Creator expose one canonical Worker surface", async () => {

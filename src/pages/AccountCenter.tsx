@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { notificationSoundEnabled, setNotificationSoundEnabled } from "@/lib/notificationSound";
 import AccountShell, {
   AccountRow,
   AccountSection,
@@ -22,6 +23,7 @@ type Props = {
   onBack?: () => void;
   onGoToPrivacy: () => void;
   onGoToSaved: () => void;
+  onGoToFollowedSearches?: () => void;
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
   onGoToWorkerPaidTools?: () => void;
@@ -45,6 +47,7 @@ export type WorkspaceAccess = {
     role:
       | "worker"
       | "property_partner"
+      | "hosting"
       | "staff"
       | "admin"
       | "creator"
@@ -79,6 +82,7 @@ export default function AccountCenter({
   profile,
   onBack,
   onGoToSaved,
+  onGoToFollowedSearches,
   onGoToPrivacy,
   onGoToSecurity,
   onGoToProfileEdit,
@@ -100,6 +104,7 @@ export default function AccountCenter({
   const [pushNotifs, setPushNotifs] = useState(
     p.pref_push_notif !== false,
   );
+  const [alertSound, setAlertSound] = useState(() => notificationSoundEnabled(p.user_id));
   const [legal, setLegal] = useState<Legal>({
     privacy_accepted: false,
     terms_accepted: false,
@@ -115,13 +120,14 @@ export default function AccountCenter({
   >(null);
   const [photoPreview, setPhotoPreview] = useState(false);
 
-  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hotel"].includes(activeWorkspace);
+  const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hosting", "hotel"].includes(activeWorkspace);
   const isUser = activeWorkspace === "personal";
   const isServiceProvider = activeWorkspace === "worker";
   const isStaff = activeWorkspace === "staff";
   const canEditGenericProfile = !isStaff && !isServiceProvider;
   const helpDetail = activeWorkspace === 'worker' ? 'Your jobs, professional profile and earnings'
     : activeWorkspace === 'property_partner' ? 'Your properties, guests and earnings'
+    : activeWorkspace === 'hosting' ? 'Your assigned properties and guest operations'
     : activeWorkspace === 'hotel' ? 'Your assigned hotel and account'
     : 'Your account, stays, services and payments';
   const initials = (
@@ -146,7 +152,7 @@ export default function AccountCenter({
       profile.worker_verified === true,
   );
   const assignedWorkspaces = privilegedWorkspaces.filter((workspace) =>
-    ["hotel", "staff", "admin", "creator"].includes(workspace.role),
+    ["hosting", "hotel", "staff", "admin", "creator"].includes(workspace.role),
   );
   const canStartProfessionalOnboarding = Boolean(
     ownAccess &&
@@ -182,9 +188,11 @@ export default function AccountCenter({
         role: workspace.role,
         label: workspace.role === "staff" ? "Staff" : workspace.role === "admin" ? "Admin" : workspaceLabel(workspace.role),
         detail:
-          workspace.role === "hotel"
-            ? "Assigned hotel access"
-            : workspace.lga
+          workspace.role === "hosting"
+            ? "Properties you help host"
+            : workspace.role === "hotel"
+              ? "Assigned hotel access"
+              : workspace.lga
               ? `${workspace.lga}${workspace.state ? `, ${workspace.state}` : ""}`
               : "Assigned work access",
       });
@@ -238,11 +246,18 @@ export default function AccountCenter({
       .update({ [key]: value, updated_at: new Date().toISOString() })
       .eq("auth_id", profile.auth_id);
     setSaving(false);
-    if (error) return toast.error("This preference could not be saved");
+    if (error) {
+      if (key === "pref_push_notif") setPushNotifs(!value);
+      else setEmailNotifs(!value);
+      return toast.error("This preference could not be saved");
+    }
+    if (key === "pref_push_notif") window.dispatchEvent(new CustomEvent("wehouse:in-app-alerts", {
+      detail: { userId: profile.user_id, enabled: value },
+    }));
     toast.success("Preference saved");
   }
 
-  async function logout() {
+  async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
     try {
@@ -254,7 +269,7 @@ export default function AccountCenter({
       window.location.replace(`${window.location.origin}/#login`);
     } catch {
       setSigningOut(false);
-      toast.error("Could not log out. Check your connection and try again.");
+      toast.error("Could not sign out. Check your connection and try again.");
     }
   }
 
@@ -398,6 +413,16 @@ export default function AccountCenter({
               void saveNotificationPreference("pref_push_notif", value);
             }}
           />
+          <Toggle
+            label="Alert sound on this device"
+            detail="Play a short sound for new in-app alerts while WeHouse is open. Your device may require you to tap once to allow audio."
+            value={alertSound}
+            disabled={!pushNotifs}
+            onChange={(value) => {
+              setNotificationSoundEnabled(profile.user_id, value);
+              setAlertSound(value);
+            }}
+          />
         </AccountSection>
         <p className="px-1 text-[9px] text-[#656C7C]">
           Changes save automatically.
@@ -490,8 +515,8 @@ export default function AccountCenter({
       {ownAccess ? (
         <AccountSection>
           <AccountRow
-            title="WeHouse"
-            detail={workspaceDetail}
+            title="Switch workspace"
+            detail={`Current: ${workspaceLabel(activeWorkspace)} · ${workspaceDetail}`}
             onClick={() => setPanel("workspaces")}
             icon={<ToolsIcon />}
           />
@@ -526,9 +551,17 @@ export default function AccountCenter({
         {isUser ? (
           <AccountRow
             title="Saved"
-            detail="Saved apartments and search alerts"
+            detail="Homes and hotels you marked with a heart"
             onClick={onGoToSaved}
             icon={<HeartIcon />}
+          />
+        ) : null}
+        {isUser && onGoToFollowedSearches ? (
+          <AccountRow
+            title="Followed searches"
+            detail="Search alerts you can pause or remove"
+            onClick={onGoToFollowedSearches}
+            icon={<BellIcon />}
           />
         ) : null}
       </AccountSection>
@@ -553,7 +586,7 @@ export default function AccountCenter({
       </AccountSection>
 
       {canOpenCustomerHelp ? (
-        <AccountSection title="Help">
+        <AccountSection>
           <AccountRow
             title="Help"
             detail={helpDetail}
@@ -579,18 +612,17 @@ export default function AccountCenter({
       </AccountSection>
 
       <button
-        onClick={() => void logout()}
+        onClick={() => void signOut()}
         disabled={signingOut}
-        className="w-full rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 text-left transition hover:bg-red-500/[.06] disabled:opacity-50"
+        className="group flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/[.07] bg-white/[.025] px-4 text-left transition hover:border-red-400/15 hover:bg-red-500/[.035] disabled:opacity-50"
       >
-        <p className="text-[12px] font-semibold text-red-300">
-          {signingOut ? "Logging out…" : "Log out"}
-        </p>
-        <p className="mt-1 text-[9px] text-red-300/60">
-          {signingOut
-            ? "Closing this session securely"
-            : "Sign out of this device"}
-        </p>
+        <span>
+          <span className="block text-[12px] font-semibold text-[#E7E9EE] group-hover:text-red-200">
+            {signingOut ? "Signing out…" : "Sign out"}
+          </span>
+          <span className="mt-0.5 block text-[9px] text-[#707686]">End this session on this device</span>
+        </span>
+        <span aria-hidden="true" className="text-lg text-[#6F7585] transition group-hover:translate-x-0.5 group-hover:text-red-300">→</span>
       </button>
     </AccountShell>
   );

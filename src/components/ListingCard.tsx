@@ -1,3 +1,4 @@
+import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { locationLabel } from "@/lib/locationPresentation";
 import type { Listing, ListingStatus } from "@/types";
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from "@/types";
@@ -22,7 +23,7 @@ export default function ListingCard({
 }: ListingCardProps) {
   const imageUrl =
     listing.images?.[0] ||
-    "https://placehold.co/600x400/1A1A24/5C5E72?text=No+Image";
+    "";
   const listingStatus: ListingStatus = listing.status || "available";
   const rawStatus = String(listing.status || "available");
   const statusColor =
@@ -97,13 +98,10 @@ export default function ListingCard({
       onClick={onClick}
       className="group cursor-pointer border-b border-white/[.07] pb-5"
     >
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#141720]">
-        <img
-          src={primary}
+      <div className={`relative overflow-hidden rounded-2xl bg-[#141720] ${primary ? "aspect-[4/3]" : "h-40"}`}>
+        <ShowcaseMediaThumbnail src={primary} mediaType="image"
           alt={displayTitle}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-          loading="lazy"
-          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10" />
         <div className="absolute left-2.5 top-2.5 z-10">
@@ -173,12 +171,9 @@ export default function ListingCard({
         className="flex cursor-pointer gap-3 border-b border-white/[.07] py-3 sm:hidden"
       >
         <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[#141720]">
-          <img
-            src={primary}
+          <ShowcaseMediaThumbnail src={primary} mediaType="image"
             alt={displayTitle}
             className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           <div className="absolute bottom-2 left-2">

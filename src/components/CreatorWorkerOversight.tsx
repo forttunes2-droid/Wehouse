@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import WorkerPublicationControls from "@/components/WorkerPublicationControls";
+import { withTimeout } from "@/lib/withTimeout";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import InlineFilterChips from "@/components/InlineFilterChips";
@@ -39,6 +41,8 @@ type Checks = {
 
 export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   const { requestElevation } = useCreatorAuth();
+  const selection = useRef(0);
+  useEffect(() => () => { selection.current += 1; }, [userId]);
   const [selected, setSelected] = useState<Worker | null>(null),
     [checks, setChecks] = useState<Checks | null>(null),
     [loadingChecks, setLoadingChecks] = useState(false),
@@ -50,17 +54,15 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   const { data, loading, error: listError, refresh: load } = useRpcRead<Worker[]>("creator_get_people", userId, { p_workspace: "worker" });
   const rows = useMemo(() => data || [], [data]);
   async function open(worker: Worker) {
-    setSelected(worker);
-    setReason("");
-    setChecks(null);
-    setLoadingChecks(true);
-    const { data, error } = await supabase.rpc(
-      "admin_get_worker_review_trust_status",
-      { p_worker_id: worker.user_id },
-    );
-    if (error) toast.error(error.message);
-    else setChecks((data || null) as Checks | null);
-    setLoadingChecks(false);
+    const current = ++selection.current;
+    setSelected(worker); setReason(""); setChecks(null); setLoadingChecks(true);
+    try {
+      const {data,error} = await withTimeout(supabase.rpc("admin_get_worker_review_trust_status",{p_worker_id:worker.user_id}),15000,"Review checks took too long.");
+      if (current !== selection.current) return;
+      if (error) throw error;
+      setChecks((data || null) as Checks | null);
+    } catch { if (current === selection.current) toast.error("Review checks could not be loaded. Reopen the Worker to retry."); }
+    finally { if (current === selection.current) setLoadingChecks(false); }
   }
 
   async function applyAccessChange(elevationId: string) {
@@ -174,8 +176,8 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     return (
       <div className="space-y-4">
         <button
-          onClick={() => setSelected(null)}
-          className="text-[10px] font-semibold text-violet-400"
+          onClick={() => { selection.current += 1; setSelected(null); }}
+          className="text-sm font-semibold text-violet-400"
         >
           ← Service Worker oversight
         </button>
@@ -183,13 +185,13 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           <div className="flex items-start gap-3">
             <Avatar worker={selected} />
             <div className="min-w-0 flex-1">
-              <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+              <p className="text-sm font-bold uppercase tracking-[.16em] text-violet-300">
                 WEHOUSE SERVICE WORKER
               </p>
               <h2 className="mt-1 truncate text-lg font-bold">
                 {selected.full_name || selected.username || "Service Worker"}
               </h2>
-              <p className="mt-1 truncate text-[10px] text-[#707687]">
+              <p className="mt-1 truncate text-sm text-[#707687]">
                 {workerOccupation(selected)} ·{" "}
                 {[selected.local_government || selected.city, selected.state]
                   .filter(Boolean)
@@ -241,14 +243,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
             </div>
           )}
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Info
-              label="Marketplace"
-              value={selected.worker_verified ? "Published" : "Private"}
-            />
-            <Info
-              label="Discovery"
-              value={selected.available ? "Visible" : "Hidden by provider"}
-            />
+
             <Info
               label="Rating"
               value={
@@ -261,7 +256,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           </div>
           <section className="mt-4 border-y border-white/[.06] py-4">
             <h3 className="text-xs font-semibold">Professional evidence</h3>
-            <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
+            <p className="mt-1 text-sm leading-5 text-[#737A8B]">
               Review the identity result, readiness and work evidence before
               making the account decision. Identity confirmation is not proof of
               skill, licensing or ownership.
@@ -282,10 +277,11 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
             </div>
           </section>
         </section>
+        <WorkerPublicationControls userId={userId} workerId={selected.user_id} />
         {selected.worker_status === "profile_under_review" && (
           <section className="border-y border-white/[.06] py-4">
             <h3 className="text-sm font-semibold">Account decision</h3>
-            <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
+            <p className="mt-1 text-sm leading-5 text-[#737A8B]">
               Creator approval requires fresh security confirmation. The server
               still blocks approval when required identity or professional
               evidence is incomplete.
@@ -317,7 +313,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
         )}
         <section className="border-y border-white/[.06] py-4">
           <h3 className="text-sm font-semibold">Platform access</h3>
-          <p className="mt-1 text-[9px] leading-5 text-[#737A8B]">
+          <p className="mt-1 text-sm leading-5 text-[#737A8B]">
             Suspend or restore an existing Service Worker account. This action
             requires fresh Creator confirmation and is audit logged.
           </p>
@@ -349,11 +345,12 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold">Service Worker oversight</h2>
-        <p className="mt-1 text-[10px] text-[#707687]">
+        <p className="mt-1 text-sm text-[#707687]">
           Onboarding, marketplace access, professional review and account
           exceptions for WeHouse Services.
         </p>
       </div>
+      <WorkerPublicationControls userId={userId} />
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
@@ -383,7 +380,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
                 <p className="truncate text-sm font-semibold">
                   {worker.full_name || worker.username || "Service Worker"}
                 </p>
-                <p className="mt-1 truncate text-[9px] text-[#686F7F]">
+                <p className="mt-1 truncate text-sm text-[#686F7F]">
                   {workerOccupation(worker)} ·{" "}
                   {[worker.local_government || worker.city, worker.state]
                     .filter(Boolean)
@@ -426,9 +423,9 @@ function Check({
     <div
       className={`rounded-xl border p-3 ${good ? "border-emerald-500/12 bg-emerald-500/[.035]" : "border-white/[.06] bg-black/10"}`}
     >
-      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
+      <p className="text-sm uppercase text-[#62697A]">{label}</p>
       <p
-        className={`mt-1 text-[10px] font-semibold ${good ? "text-emerald-300" : "text-[#A0A6B4]"}`}
+        className={`mt-1 text-sm font-semibold ${good ? "text-emerald-300" : "text-[#A0A6B4]"}`}
       >
         {value}
       </p>
@@ -438,8 +435,8 @@ function Check({
 function Info({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
-      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
-      <p className="mt-1 text-[10px] font-semibold text-[#A0A6B4]">{value}</p>
+      <p className="text-sm uppercase text-[#62697A]">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-[#A0A6B4]">{value}</p>
     </div>
   );
 }
@@ -448,7 +445,7 @@ function Status({ value }: { value: string }) {
     bad = ["rejected", "suspended"].includes(value);
   return (
     <span
-      className={`shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${good ? "bg-emerald-500/10 text-emerald-300" : bad ? "bg-red-500/10 text-red-300" : "bg-amber-500/10 text-amber-300"}`}
+      className={`shrink-0 rounded-full px-2 py-1 text-sm font-semibold capitalize ${good ? "bg-emerald-500/10 text-emerald-300" : bad ? "bg-red-500/10 text-red-300" : "bg-amber-500/10 text-amber-300"}`}
     >
       {value.replace(/_/g, " ")}
     </span>
@@ -463,7 +460,7 @@ function Loading() {
 }
 function Empty() {
   return (
-    <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">
+    <div className="border-y border-dashed border-white/[.08] px-5 py-12 text-center text-sm text-[#666C7D]">
       No Service Workers match this view.
     </div>
   );
@@ -500,21 +497,21 @@ function EvidenceLink({
     kind = bucket === "worker-verification-videos" ? "video" : "image";
   return (
     <div className="rounded-xl border border-white/[.06] bg-[#11141C] p-3">
-      <p className="text-[9px] font-semibold">{label}</p>
+      <p className="text-sm font-semibold">{label}</p>
       {loading ? (
-        <p className="mt-2 text-[10px] text-[#777E8E]">
+        <p className="mt-2 text-sm text-[#777E8E]">
           Preparing secure link…
         </p>
       ) : url ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-[10px] font-semibold text-violet-300"
+          className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-sm font-semibold text-violet-300"
         >
           View evidence
         </button>
       ) : (
-        <p className="mt-2 text-[10px] text-[#606778]">Not supplied</p>
+        <p className="mt-2 text-sm text-[#606778]">Not supplied</p>
       )}
       {open && url ? (
         <MediaViewer

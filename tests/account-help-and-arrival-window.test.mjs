@@ -15,8 +15,8 @@ test("Help remains in Account while professional onboarding stays in its workspa
   assert.match(account, /title="Help"/);
   assert.match(account, /setPanel\("help"\)/);
   assert.match(worker, /<AccountCenter/);
-  assert.match(partner, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
-  assert.doesNotMatch(partner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
+  assert.match(partner, /onAccount=\{\(\) => onNavigate\("profile"\)\}/);
+  assert.doesNotMatch(partner, /onWorkspaceSwitch=\{onWorkspaceSwitch\}/);
   assert.match(help, /get_my_workspace_help_targets/);
   assert.match(help, /Using WeHouse or my account/);
   assert.match(help, /Property or stay/);

@@ -298,6 +298,16 @@ export interface RoommatePreferences {
   visitors: "rarely" | "sometimes" | "often";
   stay_duration: string;
   area_preference: string;
+  move_in_mode?: string | null;
+  move_in_from?: string | null;
+  move_in_to?: string | null;
+  room_arrangement?: string | null;
+  sleep_routine?: string | null;
+  smoking_habit?: string | null;
+  smoking_preference?: string | null;
+  overnight_visitors?: string | null;
+  pets_preference?: string | null;
+  practical_preferences_version?: number;
   // ── STRUCTURED LOCATION ───────────────────────────
   preferred_state: string | null;
   preferred_lga: string | null;

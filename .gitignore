@@ -26,3 +26,6 @@ dist-ssr
 .env.local
 .vercel
 supabase/.temp/
+
+# Generated verification artifacts
+test-results/

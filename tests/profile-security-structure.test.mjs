@@ -11,8 +11,10 @@ test("Internal profile viewer stays descriptive and Team grants live in the cano
   ]);
   assert.match(profile, /type SectionKey =[\s\S]*\| "workspaces"[\s\S]*\| "professional"[\s\S]*\| "apartments"[\s\S]*\| "hotels"[\s\S]*\| "hotel_team"[\s\S]*\| "wehouse_team"/);
   assert.doesNotMatch(profile, /\| "access"/);
-  assert.match(profile, /Profile sections/);
-  assert.match(profile, /label: "Access", count: workspaces\.length/);
+  assert.match(profile, /Linked records/);
+  assert.doesNotMatch(profile, /overflow-x-auto/);
+  assert.match(profile, /title="Workspace access"/);
+  assert.doesNotMatch(profile, /workspaces\.length \|\| 1/);
   assert.match(profile, /<ApartmentList/);
   assert.match(profile, /<HotelList/);
   assert.match(profile, /<HotelTeam/);
@@ -27,13 +29,14 @@ test("Internal profile viewer stays descriptive and Team grants live in the cano
 
 test("Property Partner apartment and hotel records are individually inspectable", async () => {
   const profile = await read("src/components/UserProfileModal.tsx");
-  assert.match(profile, /<ApartmentList rows=\{apartments\} onOpen=\{\(row\) => setSelected\(\{ kind: "apartment", row \}\)\}/);
-  assert.match(profile, /<HotelList rows=\{hotels\} onOpen=\{\(row\) => setSelected\(\{ kind: "hotel", row \}\)\}/);
+  assert.match(profile, /<ApartmentList rows=\{apartments\} onOpen=\{row => openOperations\("apartment", row.id\)\}/);
+  assert.match(profile, /<HotelList rows=\{hotels\} onOpen=\{row => openOperations\("hotel", String\(row.hotel_id\)\)\}/);
   assert.match(profile, /function ApartmentList/);
   assert.match(profile, /function HotelList/);
-  assert.match(profile, /function PropertyDetail/);
-  assert.match(profile, /Record ID/);
-  assert.match(profile, /Open in Property Operations/);
+  assert.doesNotMatch(profile, /function PropertyDetail/);
+  assert.match(profile, /onExitRecord=\{closeOperation\}/);
+  assert.match(profile, /useRecordScreenBack\(onClose\)/);
+  assert.match(profile, /withTimeout\(supabase.rpc\("get_internal_profile_record"/);
   assert.doesNotMatch(profile, /partnerProperties\.slice\(0, 5\)/);
 });
 
@@ -65,7 +68,8 @@ test("Admin has a canonical Security escalation work area inside its coverage", 
   assert.match(admin, /\| "security"/);
   assert.match(admin, /"Security Operations escalations and account decisions in your coverage"/);
   assert.match(admin, /<AdminSecurityCases/);
-  assert.match(admin, /route\.includes\("security"\)/);
+  assert.match(admin, /internalActivityDestination\(route, id\)/);
+  assert.match(await read("src/lib/internalActivityDestination.ts"), /operation: 'security'/);
   assert.match(cases, /get_my_admin_security_cases/);
   assert.match(cases, /admin_security_case_decision/);
   assert.match(cases, /Temporarily suspend account/);

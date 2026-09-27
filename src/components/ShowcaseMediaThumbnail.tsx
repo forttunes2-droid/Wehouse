@@ -1,102 +1,40 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react';
+import { ImageOff, Play } from 'lucide-react';
+type Props = { src?: string; mediaType: 'image' | 'video'; alt: string; className?: string };
 
-type Props = {
-  src?: string;
-  mediaType: "image" | "video";
-  alt: string;
-  className?: string;
-};
-
-export default function ShowcaseMediaThumbnail({
-  src,
-  mediaType,
-  alt,
-  className = "h-full w-full object-cover",
-}: Props) {
-  const [ready, setReady] = useState(false);
-  const [poster, setPoster] = useState("");
-  const [failed, setFailed] = useState(false);
+export default function ShowcaseMediaThumbnail(props: Props) {
+  // A reused tile must never display the previous worker/property's poster.
+  return <Thumbnail key={`${props.mediaType}:${props.src || ''}`} {...props} />;
+}
+function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cover' }: Props) {
+  const [ready, setReady] = useState(false), [failed, setFailed] = useState(!src), [poster, setPoster] = useState('');
   const [nearViewport, setNearViewport] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => { setReady(false); setPoster(""); setFailed(false); }, [src]);
-  useEffect(() => {
-    if (!nearViewport || ready) return;
-    const timer = window.setTimeout(() => setFailed(true), 12000);
-    return () => window.clearTimeout(timer);
-  }, [nearViewport, ready, src]);
   useEffect(() => {
     const node = root.current;
     if (!node || nearViewport) return;
-    if (!("IntersectionObserver" in window)) {
-      setNearViewport(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        setNearViewport(true);
-        observer.disconnect();
-      },
-      { rootMargin: "240px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
+    if (!('IntersectionObserver' in window)) { setNearViewport(true); return; }
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setNearViewport(true); observer.disconnect(); } }, { rootMargin: '240px' });
+    observer.observe(node); return () => observer.disconnect();
   }, [nearViewport]);
-
-  if (mediaType === "image")
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={className}
-        loading="lazy"
-        decoding="async"
-      />
-    );
-
-  return (
-    <span ref={root} className="relative block h-full w-full overflow-hidden bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_48%),#111522]">
-      {!ready && !failed ? (
-        <span className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[.035] via-violet-500/[.08] to-white/[.025]" />
-      ) : null}
-      {poster ? <img src={poster} alt={alt} className={className} /> : src && nearViewport ? (
-        <video
-          src={`${src}#t=0.1`}
-          muted
-          playsInline
-          preload="auto"
-          crossOrigin="anonymous"
-          aria-hidden="true"
-          onLoadedMetadata={(event) => {
-            if (event.currentTarget.duration > 0) {
-              event.currentTarget.currentTime = Math.min(0.1, event.currentTarget.duration / 2);
-            }
-          }}
-          onLoadedData={() => { setReady(true); setFailed(false); }}
-          onSeeked={(event) => {
-            const video = event.currentTarget;
-            setReady(true); setFailed(false);
-            if (!video.videoWidth || !video.videoHeight) return;
-            try {
-              const canvas = document.createElement("canvas");
-              canvas.width = Math.min(480, video.videoWidth);
-              canvas.height = Math.round(canvas.width * video.videoHeight / video.videoWidth);
-              canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-              setPoster(canvas.toDataURL("image/jpeg", 0.75));
-            } catch { /* Keep the decoded video frame if the source does not permit a canvas. */ }
-            video.pause();
-          }}
-          onError={() => setFailed(true)}
-          className={`${className} transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
-        />
-      ) : null}
-      {failed && !ready && <span className="absolute inset-x-1 top-2 text-center text-[10px] text-white/70">Video · tap to play</span>}
-      <span className="pointer-events-none absolute inset-0 grid place-items-center">
-        <span className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/50 pl-0.5 text-sm text-white shadow-lg backdrop-blur-sm">
-          ▶
-        </span>
-      </span>
-    </span>
-  );
+  useEffect(() => {
+    if (!src || !nearViewport || ready) return;
+    const timer = window.setTimeout(() => setFailed(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [src, nearViewport, ready]);
+  const loaded = () => { setReady(true); setFailed(false); };
+  return <span ref={root} data-media-thumbnail data-media-state={failed && !ready ? 'unavailable' : ready ? 'ready' : 'loading'} className="relative block h-full w-full overflow-hidden bg-[#161A23]">
+    {!ready && !failed && <span aria-hidden="true" className="absolute inset-0 bg-white/[.04] motion-safe:animate-pulse" />}
+    {src && mediaType === 'image' && <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={loaded} onError={() => setFailed(true)} className={`${className} ${ready ? '' : 'opacity-0'}`} />}
+    {mediaType === 'video' && (poster ? <img src={poster} alt={alt} className={className} onError={() => { setPoster(''); setFailed(true); setReady(false); }} /> : src && nearViewport ? <video src={src} muted playsInline preload="metadata" crossOrigin="anonymous" aria-hidden="true" className={`${className} ${ready ? '' : 'opacity-0'}`}
+      onLoadedMetadata={event => { const video = event.currentTarget; if (video.duration > 0) video.currentTime = Math.min(.1, video.duration / 2); }}
+      onLoadedData={event => { if (event.currentTarget.videoWidth > 0) loaded(); }}
+      onSeeked={event => {
+        const video = event.currentTarget; if (!video.videoWidth || !video.videoHeight) return;
+        loaded(); video.pause();
+        try { const canvas = document.createElement('canvas'); canvas.width = Math.min(480, video.videoWidth); canvas.height = Math.max(1, Math.round(canvas.width * video.videoHeight / video.videoWidth)); const context = canvas.getContext('2d'); if (context) { context.drawImage(video, 0, 0, canvas.width, canvas.height); setPoster(canvas.toDataURL('image/jpeg', .75)); } } catch { /* Keep the decoded frame when canvas access is unavailable. */ }
+      }} onError={() => setFailed(true)} /> : null)}
+    {failed && !ready && <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2 text-center text-xs leading-4 text-[#A7ADBA]">{mediaType === 'image' ? <ImageOff size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}<span>{mediaType === 'image' ? 'Photo unavailable' : src ? 'Preview unavailable · open video' : 'Video unavailable'}</span></span>}
+    {mediaType === 'video' && ready && <span aria-hidden="true" className="pointer-events-none absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/65 text-white"><Play size={14} fill="currentColor" /></span>}
+  </span>;
 }

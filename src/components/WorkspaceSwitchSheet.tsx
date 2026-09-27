@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   BriefcaseBusiness,
   Building2,
@@ -14,7 +15,7 @@ function WorkspaceIcon({ workspace }: { workspace: WorkspaceChoice }) {
   const common = { size: 18, strokeWidth: 1.8 };
   if (workspace === "personal") return <UserRound {...common} />;
   if (workspace === "worker") return <Wrench {...common} />;
-  if (workspace === "property_partner") return <Building2 {...common} />;
+  if (workspace === "property_partner" || workspace === "hosting") return <Building2 {...common} />;
   if (workspace === "hotel") return <Hotel {...common} />;
   if (workspace === "creator") return <Crown {...common} />;
   if (workspace === "admin") return <ShieldCheck {...common} />;
@@ -38,6 +39,24 @@ export default function WorkspaceSwitchSheet({
   identityName?: string | null;
   identityAvatar?: string | null;
 }) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButton.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previous?.focus();
+    };
+  }, [open]);
   if (!open) return null;
 
   const allowed: WorkspaceChoice[] = [];
@@ -80,6 +99,7 @@ export default function WorkspaceSwitchSheet({
             </div>
           </div>
           <button
+            ref={closeButton}
             type="button"
             onClick={onClose}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.045] text-[#9399A7]"
@@ -106,7 +126,9 @@ export default function WorkspaceSwitchSheet({
                       ? "Your services, jobs and professional profile"
                       : workspace === "property_partner"
                         ? "Properties, guests, earnings and partner work"
-                        : workspace === "hotel"
+                        : workspace === "hosting"
+                          ? "Assigned homes, guest operations and co-host work"
+                          : workspace === "hotel"
                           ? "Your assigned hotel operations"
                           : "Your assigned WeHouse work";
 

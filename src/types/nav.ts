@@ -2,6 +2,7 @@ export type NavPage =
   // ── Primary customer navigation ──
   | 'search'
   | 'saved'
+  | 'followed_searches'
   | 'conversation'
   | 'messages' // legacy route alias; App normalizes this to Conversation
   | 'notifications'
@@ -25,6 +26,8 @@ export type NavPage =
   | 'staff_dashboard'
   | 'worker_dashboard'
   | 'property_partner'
+  | 'hosting_operations'
+  | 'hosting'
   | 'hotel_operations'
   // ── Role workflow subpages ──
   | 'new_listing'

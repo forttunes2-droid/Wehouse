@@ -1,3 +1,4 @@
+import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +15,7 @@ import {
 import type { Profile } from "@/types";
 import { toast } from "sonner";
 import {
+  type ActivityDestination,
   activityDestinationLabel,
   activityIsCurrent,
   activityNeedsAction,
@@ -21,12 +23,12 @@ import {
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import VideoPlayer from "@/components/VideoPlayer";
-import HotelTeamInvitations from "@/components/HotelTeamInvitations";
+import ResourceInvitationAction from "@/components/ResourceInvitationAction";
 import WeHouseSelect from "@/components/WeHouseSelect";
 
 type Props = {
   profile: Profile;
-  onNavigate: (page: string, id?: string) => void;
+  onNavigate: (page: string, id?: string, destination?: ActivityDestination) => void;
   embedded?: boolean;
   previewLimit?: number;
   compact?: boolean;
@@ -84,6 +86,7 @@ function NotificationFeed({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
+  const [invitationId,setInvitationId]=useState<string|null>(null);
 
   async function load(quiet = false) {
     const request = ++requestVersion.current;
@@ -101,7 +104,7 @@ function NotificationFeed({
     if (failures.length === 2) setError(failures.join(" · "));
     else {
       const events = currentActivityRows(
-        ((eventResult.rows || []) as Omit<Activity, "source">[]).map((row) => ({
+        ((eventResult.rows || []) as Omit<Activity, "source">[]).filter(row => activityWorkspaceMatches(scope, row.workspace)).map((row) => ({
           ...row,
           source: "event" as const,
         })),
@@ -217,9 +220,19 @@ function NotificationFeed({
   }
 
   async function open(row: Activity) {
+    if (row.source === "event" && !activityWorkspaceMatches(scope, row.workspace)) {
+      toast.error("This update belongs to a different workspace. Refresh Activity.");
+      return;
+    }
     void markRead(row);
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));
+      return;
+    }
+    if (row.source_type === "resource_invitation" || row.destination_route === "invitation") {
+      const invitationId=String(row.destination_params?.invitation_id||row.source_id||"");
+      if(!invitationId)return toast.error("Invitation reference is missing");
+      setInvitationId(invitationId);
       return;
     }
     if (row.type === "work_post_confirmation_requested") {
@@ -253,7 +266,7 @@ function NotificationFeed({
     }
     const destination = resolveActivityDestination(row);
     if (destination.route)
-      onNavigate(destination.route, destination.id);
+      onNavigate(destination.route, destination.id, destination);
     else setExpanded((current) => (current === row.id ? null : row.id));
   }
 
@@ -313,7 +326,6 @@ function NotificationFeed({
   }, [onUnreadChange, unread]);
   const content = (
     <main className={embedded ? "py-1" : "mx-auto max-w-4xl px-4 py-5"}>
-      {scope === "personal" && <HotelTeamInvitations />}
       {loading ? (
         <ActivityLoading />
       ) : error && rows.length === 0 ? (
@@ -438,6 +450,20 @@ function NotificationFeed({
       )}
     </main>
   );
+  const invitationPanel = invitationId ? (
+    <ResourceInvitationAction
+      invitationId={invitationId}
+      onClose={()=>setInvitationId(null)}
+      onResolved={async()=>{
+        setInvitationId(null);
+        activityCache.delete(cacheKey);
+        window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
+        window.dispatchEvent(new Event("wehouse:unread-changed"));
+        await load(true);
+      }}
+    />
+  ) : null;
+
   const confirmation = workPost && (
     <div
       className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white"
@@ -518,6 +544,7 @@ function NotificationFeed({
       <>
 
         {content}
+        {invitationPanel}
         {confirmation}
       </>
     );
@@ -530,6 +557,7 @@ function NotificationFeed({
         </div>
       </header>
       {content}
+      {invitationPanel}
       {confirmation}
     </div>
   );
@@ -558,6 +586,7 @@ function dayLabel(value: string) {
 }
 function icon(type: string) {
   if (type === "announcement") return "W";
+  if (type === "saved_search_match" || type === "followed_search_match") return "⌕";
   if (type.includes("payment")) return "₦";
   if (type.includes("roommate")) return "◉";
   if (type.includes("security")) return "⌾";
@@ -617,6 +646,7 @@ function matchesActivityFilter(row: Activity, filter: ActivityFilter) {
 }
 function activityKind(row: Activity) {
   const value = `${row.type} ${row.source_type}`.toLowerCase();
+  if (/saved_search_match|followed_search_match/.test(value)) return "Followed search";
   if (/security|device|password|login/.test(value)) return "Security";
   if (/payment|payout|earning|refund|wallet|commission/.test(value))
     return "Money";

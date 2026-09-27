@@ -267,8 +267,8 @@ export async function uploadRoomImage(file: File, hotelId: number, roomId: numbe
   }
 }
 
-export async function getMyHotelOperationSnapshot(hotelId: number) {
-  const { data, error } = await readHotel(supabase.rpc('get_my_hotel_operation_snapshot', { p_hotel_id: hotelId }));
+export async function getMyHotelOperationSnapshot(hotelId: number, bookingId?: string) {
+  const { data, error } = await readHotel(supabase.rpc(bookingId ? 'get_my_hotel_operation_snapshot_v2' : 'get_my_hotel_operation_snapshot', { p_hotel_id: hotelId, ...(bookingId ? { p_booking_id: Number(bookingId) } : {}) }));
   if (error || !data) throw error || new Error('Hotel information is unavailable.');
   return data;
 }
@@ -276,4 +276,12 @@ export async function getMyHotelOperationSnapshot(hotelId: number) {
 export async function getMyHotelOperations() {
   const { data, error } = await readHotel(supabase.rpc('get_my_hotel_operations'));
   return { data: data || [], error };
+}
+
+/** Resolve the parent without listing every hotel or granting access from a URL. */
+export async function getMyHotelBookingTarget(bookingId: string) {
+  if (!/^\d+$/.test(bookingId)) throw new Error("Invalid hotel booking");
+  const { data, error } = await readHotel(supabase.rpc("get_my_hotel_booking_target", { p_booking_id: Number(bookingId) }));
+  if (error || !data?.hotel_id || !data?.booking_id) throw error || new Error("Hotel stay unavailable");
+  return data as { hotel_id: number; booking_id: number };
 }

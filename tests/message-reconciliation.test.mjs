@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import test from 'node:test';
+import ts from 'typescript';
+const exported = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/chatMessageReconciliation.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:exported,Date,Map});
+const {reconcileChatMessages,acknowledgeChatMessage}=exported;
+const row=(id,extra={})=>({id,created_at:'2026-09-23T12:00:00Z',...extra});
+const ids=rows=>Array.from(rows,item=>item.id);
+test('quiet snapshots retain pending sends and failed drafts',()=>assert.deepEqual(ids(reconcileChatMessages([row('pending-a',{delivery_state:'sending'}),row('pending-b',{delivery_state:'failed'})],[],10)),['pending-a','pending-b']));
+test('a response started before send acknowledgement cannot erase it',()=>assert.deepEqual(ids(reconcileChatMessages([row('server-a',{client_confirmed_at:20})],[],10)),['server-a']));
+test('new authoritative snapshot removes stale or hidden confirmed rows',()=>assert.deepEqual(ids(reconcileChatMessages([row('server-a',{client_confirmed_at:20})],[],30)),[]));
+test('realtime before acknowledgement does not duplicate the sent bubble',()=>assert.deepEqual(ids(acknowledgeChatMessage([row('pending-a',{delivery_state:'sending'}),row('server-a')],'pending-a','server-a',30)),['server-a']));
+test('an acknowledgement is the only path from local sending to server ID',()=>{const result=acknowledgeChatMessage([row('pending-a',{delivery_state:'sending'})],'pending-a','server-a',30);assert.equal(result[0].id,'server-a');assert.equal(result[0].delivery_state,undefined);assert.equal(result[0].client_confirmed_at,30)});
+test('text-first refresh retains loaded media until its replacement is ready',()=>{const previous=row('a',{attachments:['blob:old'],attachment_types:['image/jpeg']});assert.equal(reconcileChatMessages([previous],[row('a',{attachments:[],media_loading:true})],30)[0].attachments[0],'blob:old');assert.equal(reconcileChatMessages([previous],[row('a',{attachments:['https://test.invalid/new'],media_loading:false})],30)[0].attachments[0],'https://test.invalid/new')});

@@ -1,3 +1,5 @@
+import { internalActivityDestination } from "@/lib/internalActivityDestination";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -93,33 +95,32 @@ export default function AdminDashboard({
   useEffect(() => {
     void loadStats();
   }, [coverageReady, profile.assigned_state, profile.assigned_lga]);
+  const [inboxVisited, setInboxVisited] = useState(false);
+  const [returnToInbox, setReturnToInbox] = useState(false);
+  useEffect(() => { if (tab === "inbox") setInboxVisited(true); }, [tab]);
+  const closeOperation = useRecordScreenBack(() => {
+    setOperation(null); setOperationTarget(null);
+    if (returnToInbox) setTab("inbox");
+    setReturnToInbox(false);
+  }, tab === "operations" && Boolean(operation));
   function openOperation(next: Operation, id?: string) {
+    setReturnToInbox(tab === "inbox");
     setOperationTarget({ operation: next, id });
     setOperation(next);
     setTab("operations");
   }
   function openActivity(page: string, id?: string) {
-    const route = String(page || "").toLowerCase();
+    const route = String(page || "").toLowerCase().replace(/-/g, "_");
     if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
-      setInboxTargetId(id);
-      setTab("inbox");
-      return;
+      setInboxTargetId(id); setTab("inbox"); return;
     }
-    if (
-      route.includes("propert") ||
-      route === "listing_detail" ||
-      route === "detail"
-    )
-      return openOperation("properties", id);
-    if (
-      route.includes("reservation") ||
-      route.includes("booking")
-    )
-      return openOperation("bookings", id);
-    if (route.includes("worker")) return openOperation("workers", id);
-    if (route.includes("security")) return openOperation("security", id);
-    onNavigate?.(page, id);
+    const target = internalActivityDestination(route, id);
+    if (target?.operation === "finance") { toast.error("Open Finance Operations from an authorised workspace for this record."); return; }
+    if (target) { openOperation(target.operation, target.id); return; }
+    if (["profile", "privacy", "security", "devices", "privacy_policy", "terms_of_service"].includes(route)) { onNavigate?.(route, id); return; }
+    toast.error("This update cannot be opened in the current workspace. Your workspace has not changed.");
   }
+
   const nav = NAV.map((item) =>
     item.id === "inbox" ? { ...item, badge: inboxSummary.totalUnread } : item,
   );
@@ -134,8 +135,8 @@ export default function AdminDashboard({
         identityAvatar={profile.avatar_url}
         label={`WEHOUSE TEAM · ${profile.assigned_lga ? "LGA ADMIN" : "STATE ADMIN"} · ${profile.assigned_lga || profile.assigned_state || "UNASSIGNED"}`}
         title={workspaceTitle}
-        onBack={tab === "operations" && operation ? () => { setOperation(null); setOperationTarget(null); } : undefined}
-        backLabel="Back to work areas"
+        onBack={tab === "operations" && operation ? closeOperation : undefined}
+        backLabel={returnToInbox ? "Back to Inbox" : "Back to work areas"}
         description={`${workspaceDescription}${coverageReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
         items={nav}
         active={tab}
@@ -176,16 +177,17 @@ export default function AdminDashboard({
                 }}
                 onView={setViewing}
                 onRefreshStats={loadStats}
+                onExitRecord={returnToInbox ? closeOperation : undefined}
               />
             )}{" "}
-            {tab === "inbox" && (
+            {(tab === "inbox" || inboxVisited) && <div hidden={tab !== "inbox"} inert={tab !== "inbox"}>
               <AdminInbox
                 profile={profile}
                 summary={inboxSummary}
                 onNavigate={openActivity}
                 initialConversationId={inboxTargetId}
               />
-            )}
+            </div>}
           </>
         )}
       </WorkspaceFrameV2>
@@ -199,7 +201,7 @@ export default function AdminDashboard({
             openOperation("staff");
             void loadStats();
           }}
-          onNavigate={onNavigate}
+          onNavigate={openActivity}
           onGoToChat={onGoToChat}
         />
       )}
@@ -410,7 +412,9 @@ function Operations({
   setActive,
   onView,
   onRefreshStats,
+  onExitRecord,
 }: {
+  onExitRecord?: () => void;
   profile: Profile;
   stats: any;
   active: Operation | null;
@@ -460,6 +464,7 @@ function Operations({
       {active === "staff" && <StaffListTab profile={profile} />}{" "}
       {active === "properties" && (
         <PropertyPipelineWorkspace
+          onExitRecord={onExitRecord}
           profile={profile}
           initialRecordId={target?.operation === "properties" ? target.id : undefined}
         />

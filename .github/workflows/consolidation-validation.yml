@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   merge_group:
   workflow_dispatch:
 
@@ -27,6 +26,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: python tests/coordinated_release_aliases.py
       - run: npx tsc --noEmit
       - run: npm run build
 
@@ -87,6 +87,20 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/post82_profile_summary_contract.sql
       - name: Exercise canonical Activity routing and least privilege
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/canonical_activity_domain_contract.sql
+      - name: Exercise operational conversation lane separation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operational_conversation_bundle_contract.sql
+      - name: Exercise property routing inventory and revoked hotel Activity
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_workspace_routing_contract.sql
+      - name: Hotel conversation context and recipient receipts
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
+      - name: Practical reciprocal roommate rules
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
+      - name: Fresh linked-provider recovery
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recovery_freshness_contract.sql
+      - name: Creator worker-publication authority
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_worker_publication_contract.sql
+      - name: Shared Short Let reservation and payments
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/short_let_shared_review_contract.sql
       - name: Exercise privileged RPC write guards
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/security_definer_write_guard_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
@@ -95,12 +109,18 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recorded_journeys_contract.sql
       - name: Exercise workspace inbox separation and revocation
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_inbox_contract.sql
+      - name: Exercise Help payment eligibility and workspace isolation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_help_payment_contract.sql
       - name: Exercise hotel and property first-send workspace routing
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_topic_workspace_contract.sql
       - name: Verify signup hook through Supabase Auth
         run: node scripts/verify-signup-legal-hook.mjs
       - name: Exercise cross-user RLS foundation contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
+      - name: Exercise invitations, Hosting Help and Worker market capacity
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql
+      - name: Exercise Sponsored payment and placement contract
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
@@ -130,6 +150,8 @@ jobs:
         run: python scripts/coordinated-database-release.py check --local-ci
       - name: Verify the full upgrade commits with existing records preserved
         run: python scripts/coordinated-database-release.py apply --local-ci
+      - name: Reject overlapping payouts without blocking later requests
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/withdrawal_single_open_contract.sql
       - name: Verify a repeated release is a no-op
         run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase

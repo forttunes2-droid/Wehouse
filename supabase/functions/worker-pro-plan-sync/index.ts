@@ -1,3 +1,4 @@
+import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 
 const headers = {
@@ -29,9 +30,10 @@ Deno.serve(async (req) => {
     const token = authHeader.replace(/^Bearer\s+/i, '');
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user) return json({ success: false, error: 'Invalid or expired session' }, 401);
+    if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
     const { data: creator } = await admin.from('profiles').select('user_id,role,deleted,suspended,banned')
       .eq('auth_id', user.id).maybeSingle();
-    if (!creator || creator.role !== 'creator' || creator.deleted || creator.suspended || creator.banned) {
+    if (!creator || !await hasActiveWorkspace(admin,creator.user_id,'creator') || creator.deleted || creator.suspended || creator.banned) {
       return json({ success: false, error: 'Creator access required' }, 403);
     }
 

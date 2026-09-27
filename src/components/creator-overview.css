@@ -1,0 +1,18 @@
+/* Reveal real rows when their data arrives, not while the workspace is empty.
+   No timers postpone a response. Only leaf rows move; dialogs keep their anchor. */
+.wh-overview-ready > button {
+  animation: whOverviewRowIn 240ms cubic-bezier(.2,.75,.2,1) backwards;
+}
+.wh-overview-ready > button:nth-child(2) { animation-delay: 28ms; }
+.wh-overview-ready > button:nth-child(3) { animation-delay: 56ms; }
+.wh-overview-ready > button:nth-child(4) { animation-delay: 84ms; }
+.wh-overview-ready > button:nth-child(5) { animation-delay: 112ms; }
+.wh-overview-ready > button:nth-child(6) { animation-delay: 140ms; }
+@keyframes whOverviewRowIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wh-overview-ready > button,
+  [data-overview-state="loading"] .shimmer { animation: none; }
+}

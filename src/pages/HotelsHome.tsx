@@ -1,3 +1,8 @@
+import { publicPropertyImages } from "@/lib/publicPropertyMedia";
+import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
+import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
+import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useState } from "react";
 import { getHotels } from "@/lib/supabase";
@@ -47,23 +52,45 @@ const HOTEL_PRICE_STEP = 1000;
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
+let hotelFilters = { query: '', state: '', city: '', amenities: [] as string[], minPrice: '' as number | '', maxPrice: '' as number | '', radius: '' as number | '' };
 export default function HotelsHome({ onNavigate }: Props) {
+  const guest = useDiscoveryAccess();
   const [attempt, setAttempt] = useState(0);
   const [loadError, setLoadError] = useState(false);
   const [hotels, setHotels] = useState<HotelRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [state, setState] = useState("");
-  const [city, setCity] = useState("");
-  const [amenities, setAmenities] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState<number | "">("");
-  const [maxPrice, setMaxPrice] = useState<number | "">("");
+  const [query, setQuery] = useState(() => hotelFilters.query);
+  const [state, setState] = useState(() => hotelFilters.state);
+  const [city, setCity] = useState(() => hotelFilters.city);
+  const sponsoredResults = useSponsoredDiscovery('hotel', state, city);
+  const [amenities, setAmenities] = useState<string[]>(() => hotelFilters.amenities);
+  const [minPrice, setMinPrice] = useState<number | "">(() => hotelFilters.minPrice);
+  const [maxPrice, setMaxPrice] = useState<number | "">(() => hotelFilters.maxPrice);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [radius, setRadius] = useState<number | "">("");
+  const [radius, setRadius] = useState<number | "">(() => hotelFilters.radius);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
   const [savingHotelId, setSavingHotelId] = useState<number | null>(null);
+  const [followedOrigin, setFollowedOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    const criteria = takeFollowedSearchIntent('hotels');
+    if (!criteria) return;
+    const string = (key: string) => typeof criteria[key] === 'string' ? criteria[key] as string : '';
+    const number = (key: string) => typeof criteria[key] === 'number' && Number.isFinite(criteria[key]) ? criteria[key] as number : '';
+    setQuery(string('query'));
+    setState(string('state'));
+    setCity(string('city'));
+    setMinPrice(number('min_price'));
+    setMaxPrice(number('max_price'));
+    const latitude = number('latitude');
+    const longitude = number('longitude');
+    if (latitude !== '' && longitude !== '') {
+      setFollowedOrigin({ lat: latitude, lng: longitude });
+      setRadius(number('radius_km'));
+    } else setRadius('');
+    setAmenities(Array.isArray(criteria.amenities) ? criteria.amenities.filter((item): item is string => typeof item === 'string') : []);
+  }, []);
   const {
     location: userLocation,
     locating,
@@ -71,30 +98,31 @@ export default function HotelsHome({ onNavigate }: Props) {
     requestLocation,
     clearLocation,
   } = useDiscoveryLocation();
+  useEffect(() => { hotelFilters = { query, state, city, amenities, minPrice, maxPrice, radius }; }, [query, state, city, amenities, minPrice, maxPrice, radius]);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     let live = true;
-    void getDiscoveryDistanceMap(userLocation).then((next) => { if (live) setDistanceMap(next); });
+    void getDiscoveryDistanceMap(followedOrigin || userLocation).then((next) => { if (live) setDistanceMap(next); });
     return () => { live = false; };
-  }, [userLocation]);
+  }, [userLocation, followedOrigin]);
 
   useEffect(() => {
     let live = true;
     void (async () => {
       setLoading(true);
-      void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
-      void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
+      if (!guest) void getMySavedSearches().then(result => { if (live && !result.error) setFollowedSearches(result.searches); });
+      if (!guest) void getMySavedHotelIds().then(result => { if (live && !result.error) setSavedHotelIds(new Set(result.hotelIds)); });
       const result = await getHotels();
       if (!live) return;
       setLoadError(Boolean(result.error));
-      if (!result.error) setHotels((result.hotels || []) as HotelRow[]);
+      if (!result.error) setHotels((result.hotels || []).map(item => ({ ...item, images: publicPropertyImages(item.images) })) as HotelRow[]);
       setLoading(false);
     })();
     return () => {
       live = false;
     };
-  }, [attempt]);
+  }, [attempt, Boolean(guest)]);
 
   const cities = useMemo(() => getCitiesForState(state), [state]);
   const stateOptions = useMemo(
@@ -170,6 +198,14 @@ export default function HotelsHome({ onNavigate }: Props) {
         ),
     [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap, radius],
   );
+  const sponsoredHotels = useMemo(() => sponsoredResults.map(item => ({
+    campaignId: item.campaign_id,
+    entry: filtered.find(({ hotel }) => String(hotel.hotel_id) === item.resource_id),
+  })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
+    [sponsoredResults, filtered]);
+  useEffect(() => {
+    sponsoredHotels.forEach(item => recordSponsoredImpression(item.campaignId, 'hotel_discovery'));
+  }, [sponsoredHotels]);
 
   const priceActive = minPrice !== "" || maxPrice !== "";
   const filterCount =
@@ -185,10 +221,10 @@ export default function HotelsHome({ onNavigate }: Props) {
       max_price: maxPrice === "" ? null : maxPrice,
       amenities,
       radius_km: radius === "" ? null : radius,
-      latitude: radius === "" ? null : userLocation?.lat,
-      longitude: radius === "" ? null : userLocation?.lng,
+      latitude: radius === "" ? null : (followedOrigin || userLocation)?.lat,
+      longitude: radius === "" ? null : (followedOrigin || userLocation)?.lng,
     }),
-    [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng],
+    [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng, followedOrigin],
   );
   const currentSearchKey = savedSearchKey("hotels", currentSearchCriteria);
   const followedSearch = followedSearches.find(
@@ -218,6 +254,7 @@ export default function HotelsHome({ onNavigate }: Props) {
   }
 
   async function toggleFollowSearch() {
+    if (guest) { guest.requireSignIn(); return; }
     if (savingSearch) return;
     setSavingSearch(true);
     if (followedSearch?.notifications_enabled) {
@@ -251,6 +288,7 @@ export default function HotelsHome({ onNavigate }: Props) {
   }
 
   async function toggleHotelSave(hotelId: number) {
+    if (guest) { guest.requireSignIn(); return; }
     if (savingHotelId !== null) return;
     const alreadySaved = savedHotelIds.has(hotelId);
     setSavingHotelId(hotelId);
@@ -288,12 +326,25 @@ export default function HotelsHome({ onNavigate }: Props) {
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
           locationDetail={locationError || undefined}
-          locationLabel={userLocation ? "Using current location" : "Use my location"}
-          locationActive={Boolean(userLocation)}
+          locationLabel={followedOrigin ? "Using followed search location" : userLocation ? "Using current location" : "Use my location"}
+          locationActive={Boolean(followedOrigin || userLocation)}
           locationBusy={locating}
-          onLocation={requestLocation}
-          onClearLocation={clearLocation}
+          onLocation={() => { setFollowedOrigin(null); requestLocation(); }}
+          onClearLocation={() => { setFollowedOrigin(null); clearLocation(); setRadius(''); }}
         />
+        {sponsoredHotels.length > 0 && <section aria-label="Sponsored hotels" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored hotels</p>
+          <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching hotels. WeHouse checks and organic order are separate.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <div key={campaignId}>
+              <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
+              <HotelCard hotel={hotel} distance={distance} saved={savedHotelIds.has(Number(hotel.hotel_id))}
+                saving={savingHotelId === Number(hotel.hotel_id)}
+                onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
+                onOpen={() => { recordSponsoredOpen(campaignId); onNavigate('hotel_detail', String(hotel.hotel_id)); }} />
+            </div>)}
+          </div>
+        </section>}
 
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -464,24 +515,13 @@ function HotelCard({
   const roomCount = (hotel.hotel_rooms || []).length;
   return (
     <article className="group border-b border-white/[.07] pb-5">
-      <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#171B24]">
+      <div className={`relative overflow-hidden rounded-2xl bg-[#171B24] ${image ? "aspect-[4/3]" : "h-40"}`}>
         <button
           type="button"
           onClick={onOpen}
           className="block h-full w-full text-left"
         >
-          {image ? (
-            <img
-              src={image}
-              alt={hotel.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-              loading="lazy"
-            />
-          ) : (
-            <div className="grid h-full place-items-center text-[10px] text-[#5F6676]">
-              No image yet
-            </div>
-          )}
+          <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {hotel.featured ? (
             <span className="absolute left-3 top-3 rounded-full bg-violet-500 px-2.5 py-1 text-[7px] font-bold">
@@ -515,6 +555,7 @@ function HotelCard({
       <button
         type="button"
         onClick={onOpen}
+        aria-label={`View ${hotel.name}`}
         className="block w-full px-1 pt-3 text-left"
       >
         <div className="flex items-start justify-between gap-3">

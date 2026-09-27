@@ -243,7 +243,7 @@ export default function HotelBooking({
                 <button type="button" disabled={guestCount >= room.max_guests} onClick={() => setGuestCount((value) => Math.min(room.max_guests, value + 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-white/[.07] text-lg disabled:opacity-25" aria-label="Add guest">+</button>
               </div>
             </div>
-            <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">Special requests (optional)</span><textarea value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value.slice(0, 1200))} rows={3} placeholder="Arrival time, accessibility or room request" className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
+            <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">Special requests (optional)</span><textarea value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value.slice(0, 1200))} rows={3} placeholder="Arrival time, accessibility or room request" className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-sm outline-none focus:border-violet-500/40" /><span className="mt-2 block text-sm leading-6 text-[#A1A7B4]">Your request is attached to this reservation for the hotel team. It is not guaranteed until the hotel confirms it.</span></label>
           </div>
         </section>
 

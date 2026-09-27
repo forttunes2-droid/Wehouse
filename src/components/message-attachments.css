@@ -1,0 +1,79 @@
+/* Shared conversation surfaces. Appearance can override these semantic values
+   later; this does not turn half of a dark workspace into a light workspace. */
+.wh-attachment-surface {
+  --attachment-bg: var(--wh-conversation-card-bg, #171b24);
+  --attachment-text: var(--wh-conversation-card-text, #f4f2f8);
+  --attachment-muted: var(--wh-conversation-card-muted, #b0b4c2);
+  --attachment-border: var(--wh-conversation-card-border, #343440);
+  --attachment-accent: var(--wh-conversation-card-accent, #c4afff);
+  color: var(--attachment-text);
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.wh-attachment-surface button:focus-visible,
+.wh-attachment-surface a:focus-visible,
+.wh-request-note summary:focus-visible {
+  outline: 2px solid var(--attachment-accent, #c4afff);
+  outline-offset: 3px;
+}
+.wh-property-attachment { display: block; width: 280px; max-width: 100%; overflow: hidden; border-radius: 15px; background: var(--attachment-bg); text-align: left; }
+.wh-property-photo { display: grid; place-items: center; width: 100%; aspect-ratio: 16/10; overflow: hidden; background: #242633; color: #c4afff; }
+.wh-property-photo img { width: 100%; height: 100%; object-fit: cover; }
+.wh-property-copy { display: block; min-width: 0; padding: 12px; }
+.wh-property-kind { display: block; color: var(--attachment-accent); font-size: 12px; font-weight: 600; }
+.wh-property-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: 15px; line-height: 1.4; font-weight: 650; margin-top: 4px; }
+.wh-property-area { display: block; color: var(--attachment-muted); font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }
+.wh-property-open { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--attachment-accent); }
+.wh-property-compact { display: flex; align-items: center; gap: 12px; width: 100%; border-radius: 12px; background: var(--attachment-bg); padding: 10px; }
+.wh-property-compact .wh-property-photo { width: 60px; height: 64px; aspect-ratio: auto; flex-shrink: 0; border-radius: 8px; }
+.wh-property-compact .wh-property-copy { padding: 0; flex: 1; }
+.wh-property-compact .wh-property-title { font-size: 14px; margin-top: 2px; }
+.wh-property-compact .wh-property-area { margin-top: 2px; font-size: 12px; }
+.wh-property-draft { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; border: 1px solid var(--attachment-border); border-radius: 14px; background: var(--attachment-bg); padding-right: 4px; }
+.wh-property-draft .wh-property-compact { flex: 1; }
+.wh-attachment-remove { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; color: var(--attachment-muted); }
+.wh-attachment-remove:hover { background: rgb(139 92 246 / 10%); color: var(--attachment-text); }
+.wh-attachment-state { display: flex; align-items: center; gap: 10px; min-height: 64px; max-width: 100%; padding: 12px; border-radius: 12px; background: var(--attachment-bg); color: var(--attachment-muted); overflow-wrap: anywhere; }
+.wh-attachment-state button { min-height: 44px; color: var(--attachment-accent); font-weight: 600; text-align: left; }
+.wh-message-media { width: 288px; max-width: 100%; margin: 4px 0; }
+.wh-media-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 3px; overflow: hidden; border-radius: 14px; }
+.wh-media-grid[data-count='1'] { grid-template-columns: minmax(0,1fr); }
+.wh-media-tile { display: grid; place-items: center; position: relative; min-width: 0; width: 100%; aspect-ratio: 1; background: #242633; overflow: hidden; color: #f4f2f8; }
+.wh-media-grid[data-count='1'] .wh-media-tile { aspect-ratio: 4/3; }
+.wh-media-tile img { width: 100%; height: 100%; object-fit: cover; }
+.wh-media-play { display: grid; place-items: center; border-radius: 50%; width: 48px; height: 48px; background: rgb(0 0 0 / 45%); border: 1px solid rgb(255 255 255 / 25%); }
+.wh-media-count { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 55%); font-size: 24px; font-weight: 650; }
+.wh-media-failed { padding: 10px; text-align: center; font-size: 13px; }
+.wh-media-audio { margin-top: 6px; max-width: 100%; }
+.wh-attachment-file { display: flex; gap: 12px; align-items: center; min-height: 64px; max-width: 100%; background: var(--attachment-bg); border: 1px solid var(--attachment-border); border-radius: 12px; padding: 10px 12px; margin-top: 6px; }
+.wh-attachment-file > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wh-attachment-file small { display: block; color: var(--attachment-muted); font-size: 12px; }
+.wh-pending-media { display: flex; gap: 8px; overflow-x: auto; max-width: 100%; padding: 4px 0 8px; }
+.wh-pending-item { display: flex; align-items: center; min-width: 0; max-width: 240px; flex-shrink: 0; gap: 8px; border: 1px solid var(--attachment-border); border-radius: 12px; background: var(--attachment-bg); padding: 6px; }
+.wh-pending-thumb { width: 48px; height: 48px; flex-shrink: 0; border-radius: 7px; display: grid; place-items: center; background: #242633; overflow: hidden; color: #c4afff; }
+.wh-pending-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.wh-pending-name { flex: 1; min-width: 0; }
+.wh-pending-name > span { display: block; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.wh-pending-name small { display: block; color: var(--attachment-muted); font-size: 12px; }
+.wh-request-note { margin-bottom: 16px; padding: 0; border: 1px solid var(--attachment-border); border-radius: 12px; background: var(--attachment-bg); }
+.wh-request-note summary { min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.wh-request-note summary::-webkit-details-marker { display: none; }
+.wh-request-note summary > span { flex: 1; min-width: 0; }
+.wh-request-note summary strong { display: block; font-size: 13px; color: var(--attachment-text); font-weight: 600; }
+.wh-request-note summary small { display: block; font-size: 12px; color: var(--attachment-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wh-request-note .wh-request-chevron { transition: transform .15s ease; color: var(--attachment-muted); }
+.wh-request-note[open] .wh-request-chevron { transform: rotate(180deg); }
+.wh-request-body { margin: 0 12px; padding: 12px 0; border-top: 1px solid var(--attachment-border); }
+.wh-request-body p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; }
+.wh-request-body small { display: block; margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--attachment-muted); }
+@media (prefers-reduced-motion: reduce) { .wh-request-note .wh-request-chevron { transition: none; } }
+.wh-voice-note { max-width: 100%; border-radius: 14px; background: var(--attachment-bg); padding: 8px; }
+.wh-voice-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wh-voice-play { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: #8b5cf6; color: white; }
+.wh-voice-track { flex: 1; min-width: 0; }
+.wh-voice-track input { display: block; width: 100%; height: 28px; margin: 0; accent-color: var(--attachment-accent); }
+.wh-voice-track p { margin: 0; font-size: 12px; color: var(--attachment-muted); }
+.wh-voice-speed { min-width: 44px; min-height: 44px; font-size: 12px; color: var(--attachment-text); border-radius: 10px; }
+.wh-voice-error { font-size: 12px; line-height: 1.5; color: var(--attachment-muted); margin: 8px 4px 0; }
+.wh-attachment-remove:disabled { opacity: .4; }

@@ -1,3 +1,4 @@
+import { validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
@@ -55,12 +56,22 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
     if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
       try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
-    const attachments=(Array.isArray(msg.legacy_attachments)?msg.legacy_attachments:[]).map((path:string)=>legacyUrls.get(path)||'').filter(Boolean);
+    // Keep authenticated metadata next to the decrypted URL. Blob URLs have no
+    // extension: discarding MIME turns voice notes and photos into documents.
+    const media:{url:string;type:string;name:string}[]=(Array.isArray(msg.legacy_attachments)?msg.legacy_attachments:[])
+      .flatMap((path:string)=>{const url=legacyUrls.get(path);return url?[{url,type:'',name:''}]:[]});
+    let attachmentFailed=Boolean(signed.error && msg.legacy_attachments?.length) || media.length < (Array.isArray(msg.legacy_attachments)?msg.legacy_attachments.length:0);
     if(peerUserId){
-      const decrypted=await Promise.all((Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]).map(async(item:any)=>{try{return(await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment)).url}catch{return''}}));
-      attachments.push(...decrypted.filter(Boolean));
+      const decrypted=await Promise.all((Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]).map(async(item:any)=>{
+        try{return await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment)}
+        catch{return null}
+      }));
+      for(const item of decrypted){
+        if(!item?.url){attachmentFailed=true;continue}
+        media.push({url:item.url,type:typeof item.type==='string'?item.type:'',name:typeof item.name==='string'?item.name:''});
+      }
     }
-    return{...msg,content,decryption_failed:decryptionFailed,attachments,is_read:Boolean(msg.is_read)};
+    return{...msg,content,decryption_failed:decryptionFailed,attachments:media.map(item=>item.url),attachment_types:media.map(item=>item.type),attachment_names:media.map(item=>item.name),attachment_failed:attachmentFailed,is_read:Boolean(msg.is_read)};
   }));
   return{messages,error};
 }
@@ -89,6 +100,7 @@ export async function sendBookingMessage(conversationId:string,peerUserId:string
 
 export async function uploadBookingChatAttachment(file:File,conversationId:string,peerUserId:string){
   try{
+    await validateChatUpload(file);
     let upload:Blob|File=file;
     let contentType=file.type||'application/octet-stream';
     let extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';

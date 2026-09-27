@@ -1,3 +1,5 @@
+import { internalActivityDestination } from "@/lib/internalActivityDestination";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import CreatorOverview from "@/components/CreatorOverview";
 import { useRpcRead } from '@/hooks/useRpcRead';
 import { withTimeout } from '@/lib/withTimeout';
@@ -10,6 +12,8 @@ import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
+import WorkerCapacityManager from "@/components/WorkerCapacityManager";
+import SponsoredMarketRules from "@/components/SponsoredMarketRules";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
 import CreatorAuditWorkspace from "@/components/CreatorAuditWorkspace";
 import ServiceBookingOversight from "@/components/ServiceBookingOversight";
@@ -27,6 +31,8 @@ import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
 import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import type { Profile } from "@/types";
+import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
+import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
 
 type Tab = "overview" | "operations" | "inbox";
 type Operation =
@@ -45,6 +51,9 @@ type Props = {
   onLogout: () => void;
   onNavigate?: (page: string, id?: string) => void;
   onGoToChat?: (id?: string) => void;
+  workspaceAccess?: WorkspaceAccess | null;
+  activeWorkspace?: WorkspaceChoice;
+  onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 };
 type OperationTarget = { operation: Operation; id?: string } | null;
 
@@ -137,8 +146,12 @@ export default function CreatorDashboard({
   onLogout,
   onNavigate,
   onGoToChat,
+  workspaceAccess,
+  activeWorkspace,
+  onSwitchWorkspace,
 }: Props) {
   const [tab, setTab] = useState<Tab>("overview");
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [operation, setOperation] = useState<Operation | null>(null);
   const [platformSection, setPlatformSection] = useState<PlatformSection | null>(null);
   const [operationTarget, setOperationTarget] = useState<OperationTarget>(null);
@@ -146,7 +159,16 @@ export default function CreatorDashboard({
   const [viewing, setViewing] = useState<Profile | null>(null);
   const inboxSummary = useCreatorInboxSummary(profile.user_id, "creator");
 
+  const [inboxVisited, setInboxVisited] = useState(false);
+  const [returnToInbox, setReturnToInbox] = useState(false);
+  useEffect(() => { if (tab === "inbox") setInboxVisited(true); }, [tab]);
+  const closeOperation = useRecordScreenBack(() => {
+    setOperation(null); setOperationTarget(null);
+    if (returnToInbox) setTab("inbox");
+    setReturnToInbox(false);
+  }, tab === "operations" && Boolean(operation));
   function openOperation(next: Operation, id?: string) {
+    setReturnToInbox(tab === "inbox");
     setOperationTarget({ operation: next, id });
     setOperation(next);
     setPlatformSection(null);
@@ -154,35 +176,15 @@ export default function CreatorDashboard({
   }
 
   function openCreatorDestination(page: string, id?: string) {
-    const route = String(page || "").toLowerCase();
+    const route = String(page || "").toLowerCase().replace(/-/g, "_");
     if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
-      setInboxTargetId(id);
-      setTab("inbox");
-      return;
+      setInboxTargetId(id); setTab("inbox"); return;
     }
-    if (
-      route === "operations_properties" ||
-      route === "listing_detail" ||
-      route === "detail" ||
-      route.includes("propert")
-    ) {
-      openOperation("properties", id);
-      return;
-    }
-    if (
-      route === "my_reservations" ||
-      route === "my_bookings" ||
-      route.includes("reservation") ||
-      route.includes("booking")
-    ) {
-      openOperation("bookings", id);
-      return;
-    }
-    if (route.includes("worker")) {
-      openOperation("workers", id);
-      return;
-    }
-    onNavigate?.(page, id);
+    const target = internalActivityDestination(route, id);
+    if (target?.operation === "security") { toast.error("Open Security Operations from the team workspace for this case."); return; }
+    if (target) { openOperation(target.operation, target.id); return; }
+    if (["profile", "privacy", "security", "devices", "privacy_policy", "terms_of_service"].includes(route)) { onNavigate?.(route, id); return; }
+    toast.error("This update cannot be opened in the current workspace. Your workspace has not changed.");
   }
 
   const nav = NAV.map((item) =>
@@ -211,9 +213,9 @@ export default function CreatorDashboard({
         description={currentPlatform?.note || workspaceDescription}
         onBack={tab === "operations" && operation ? () => {
           if (platformSection) setPlatformSection(null);
-          else { setOperation(null); setOperationTarget(null); }
+          else closeOperation();
         } : undefined}
-        backLabel={platformSection ? "Back to platform settings" : "Back to work areas"}
+        backLabel={platformSection ? "Back to platform settings" : returnToInbox ? "Back to Inbox" : "Back to work areas"}
         items={nav}
         active={tab}
         setActive={(id) => {
@@ -226,6 +228,7 @@ export default function CreatorDashboard({
           }
         }}
         onAccount={onNavigate ? () => onNavigate("profile") : undefined}
+        onWorkspaceSwitch={workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined}
         onLogout={onLogout}
         compact={tab === "inbox"}
       >
@@ -242,9 +245,10 @@ export default function CreatorDashboard({
               if (!next) setOperationTarget(null);
             }}
             onView={setViewing}
+            onExitRecord={returnToInbox ? closeOperation : undefined}
           />
         )}
-        {tab === "inbox" && (
+        {(tab === "inbox" || inboxVisited) && <div hidden={tab !== "inbox"} inert={tab !== "inbox"}>
           <CreatorInbox
             profile={profile}
             onNavigate={openCreatorDestination}
@@ -252,8 +256,19 @@ export default function CreatorDashboard({
             initialConversationId={inboxTargetId}
             summary={inboxSummary}
           />
-        )}
+        </div>}
       </WorkspaceFrameV2>
+      {workspaceAccess && onSwitchWorkspace ? (
+        <WorkspaceSwitchSheet
+          open={switchOpen}
+          access={workspaceAccess}
+          active={activeWorkspace}
+          identityName={profile.full_name || profile.username}
+          identityAvatar={profile.avatar_url}
+          onClose={() => setSwitchOpen(false)}
+          onSwitch={onSwitchWorkspace}
+        />
+      ) : null}
       {viewing && (
         <UserProfileModal
           user={viewing}
@@ -275,7 +290,9 @@ function Operations({
   target,
   setActive,
   onView,
+  onExitRecord,
 }: {
+  onExitRecord?: () => void;
   profile: Profile;
   platformSection: PlatformSection | null;
   setPlatformSection: (section: PlatformSection | null) => void;
@@ -324,6 +341,7 @@ function Operations({
         <div className="space-y-5">
           <AccountIdentityReviewQueue accountRole="property_partner" />
           <PropertyPipelineWorkspace
+            onExitRecord={onExitRecord}
             profile={profile}
             initialRecordId={
               target?.operation === "properties" ? target.id : undefined
@@ -864,6 +882,7 @@ type PlatformSection =
   | "booking_money"
   | "workers"
   | "worker_plan"
+  | "sponsored"
   | "properties"
   | "legal";
 const PLATFORM_SECTIONS: Array<{
@@ -895,6 +914,11 @@ const PLATFORM_SECTIONS: Array<{
     id: "worker_plan",
     label: "Paid Service Worker plan",
     note: "Plan name, prices, subscription terms and sales controls.",
+  },
+  {
+    id: "sponsored",
+    label: "Sponsored marketplace",
+    note: "Paid visibility rules for Workers, Homes and Hotels.",
   },
   {
     id: "properties",
@@ -976,9 +1000,11 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
             </p>
             <ServiceCategoryManager profile={profile} />
           </section>
+          <WorkerCapacityManager />
         </div>
       )}
       {section === "worker_plan" && <CreatorSettingsTabV2 profile={profile} groups={["worker_pro"]} embedded />}
+      {section === "sponsored" && <SponsoredMarketRules />}
       {section === "properties" && (
         <section>
           <h3 className="mb-1 text-sm font-semibold">Property types</h3>

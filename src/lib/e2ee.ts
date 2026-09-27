@@ -1,3 +1,4 @@
+import { validateMessageMedia, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 
 export type PrivateConversationKind = "roommate" | "worker";
@@ -432,5 +433,9 @@ export async function decryptPrivateAttachment(
     ),
   ]);
   const metadata = JSON.parse(decoder.decode(metadataClear)) as { name: string; type: string };
-  return { url: URL.createObjectURL(new Blob([clear], { type: metadata.type })), ...metadata };
+  if (!metadata || typeof metadata.type !== "string" || typeof metadata.name !== "string" || metadata.name.length > 160) throw new Error("Invalid private media metadata");
+  const blob = new Blob([clear], { type: normaliseChatMediaType(metadata.type) });
+  await validateMessageMedia(blob, metadata);
+  // Return only validated fields: arbitrary sender metadata must not override url.
+  return { url: URL.createObjectURL(blob), name: metadata.name, type: blob.type };
 }

@@ -1,8 +1,12 @@
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import type { ActivityDestination } from "@/lib/activityFeed";
+import { getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import AccountShell from "@/components/AccountShell";
+import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
+import SupportEntryCard from "@/components/SupportEntryCard";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import Notifications from "@/pages/Notifications";
@@ -26,16 +30,23 @@ type Hotel = {
 
 export default function HotelTeamDashboard({
   profile,
+  onLogout,
+  onNavigate,
+  inboxOpenRequest = 0,
 }: {
+  inboxOpenRequest?: number;
   profile: Profile;
   onLogout: () => void;
   onNavigate?: (page: string, id?: string) => void;
 }) {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [selected, setSelected] = useState<Hotel | null>(null);
+  const [initialBookingId, setInitialBookingId] = useState<string>();
+  const [hotelError, setHotelError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"hotels" | "inbox">("hotels");
   const [showActivity, setShowActivity] = useState(false);
+  const closeActivity = useRecordScreenBack(() => setShowActivity(false), showActivity);
   const [conversations, setConversations] = useState<HotelConversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<HotelConversation | null>(null);
 
@@ -48,10 +59,17 @@ export default function HotelTeamDashboard({
       ),
     [hotels],
   );
-  const hasInbox = messageHotelIds.size > 0;
+  // Own account-support messages must not vanish when assigned hotels change.
+  // Guest data remains filtered by hotel capabilities below and on the server.
+  const hasInbox = Boolean(profile.user_id);
+  const [supportUnread, setSupportUnread] = useState(0);
+  useEffect(() => {
+    if (!inboxOpenRequest) return;
+    setSelected(null); setActiveConversation(null); setShowActivity(false); setTab("inbox");
+  }, [inboxOpenRequest]);
   const activity = useOperationsInboxSummary(
     hasInbox ? profile.user_id : "",
-    "hotel_staff",
+    "hotel",
     null,
   );
   const visibleConversations = useMemo(
@@ -70,7 +88,8 @@ export default function HotelTeamDashboard({
     void (async () => {
       const { data, error } = await supabase.rpc("get_my_hotel_operations");
       if (!active) return;
-      if (error) toast.error(error.message);
+      setHotelError(Boolean(error));
+      if (error) toast.error("Assigned hotels could not be loaded. Please try again.");
       setHotels((Array.isArray(data) ? data : []) as Hotel[]);
       setLoading(false);
     })();
@@ -107,33 +126,34 @@ export default function HotelTeamDashboard({
     0,
   );
 
-  function openActivityDestination(page: string, id?: string) {
+  async function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (
       ["conversation", "conversations", "message", "messages", "chat"].includes(
         route,
-      ) || /booking|reservation/.test(route)
+      )
     ) {
       const thread = visibleConversations.find(
         (row) =>
-          String(row.conversation_id) === String(id || "") ||
-          String(row.booking_id) === String(id || ""),
+          String(row.conversation_id) === String(id || ""),
       );
       if (thread) {
-        setShowActivity(false);
         setActiveConversation(thread);
         return;
       }
     }
-    if (/hotel/.test(route)) {
-      const hotel = hotels.find(
-        (row) => String(row.hotel_id) === String(id || ""),
-      );
-      if (hotel) {
-        setShowActivity(false);
-        setSelected(hotel);
-        return;
-      }
+    if (route === "hotel_booking" && id) {
+      try {
+        const target = await getMyHotelBookingTarget(id);
+        if (destination?.hotelId && destination.hotelId !== String(target.hotel_id)) throw new Error("Mismatched hotel");
+        const hotel = hotels.find(row => row.hotel_id === target.hotel_id && row.capabilities.includes("stay.read"));
+        if (!hotel) throw new Error("Unavailable hotel");
+        setInitialBookingId(String(target.booking_id)); setSelected(hotel); return;
+      } catch { toast.error("This stay is unavailable or outside your current hotel permissions."); return; }
+    }
+    if (route === "hotel_detail") {
+      const hotel = hotels.find(row => String(row.hotel_id) === String(id || ""));
+      if (hotel) { setInitialBookingId(undefined); setSelected(hotel); return; }
     }
     toast.error("This update is outside your assigned hotel work.");
   }
@@ -147,7 +167,8 @@ export default function HotelTeamDashboard({
             hotel={selected}
             accessRole={selected.access_role}
             profile={profile}
-            onBack={() => setSelected(null)}
+            initialBookingId={initialBookingId}
+            onBack={() => { setSelected(null); setInitialBookingId(undefined); }}
           />
         </div>
       </div>
@@ -176,47 +197,23 @@ export default function HotelTeamDashboard({
     );
 
   return (
-    <AccountShell
-      profile={profile}
-      title={tab === "hotels" ? "Hotels" : showActivity ? "Activity" : "Inbox"}
+    <WorkspaceFrameV2
+      label="WEHOUSE · HOTEL TEAM"
+      title={tab === "hotels" ? "Hotels" : "Inbox"}
+      items={[{ id: "hotels", label: "Hotels" }, ...(hasInbox ? [{ id: "inbox", label: "Inbox", badge: chatUnread + supportUnread + activity.activityUnread }] : [])]}
+      active={tab}
+      setActive={id => { setShowActivity(false); setTab(id as "hotels" | "inbox"); }}
+      onAccount={() => onNavigate?.("profile")}
+      onLogout={onLogout}
+      immersive={showActivity}
     >
-
-
-      {hasInbox && !showActivity ? (
-        <div className="mb-5 grid grid-cols-2 border-b border-white/[.07]">
-          {([['hotels', 'Hotels'], ['inbox', 'Inbox']] as const).map(
-            ([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={`relative min-h-12 text-xs font-semibold ${
-                  tab === id ? "text-white" : "text-[#747A8B]"
-                }`}
-              >
-                {label}
-                {id === "inbox" && chatUnread + activity.activityUnread > 0 ? (
-                  <span className="ml-2 inline-grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px]">
-                    {chatUnread + activity.activityUnread > 99
-                      ? "99+"
-                      : chatUnread + activity.activityUnread}
-                  </span>
-                ) : null}
-                {tab === id ? (
-                  <span className="absolute inset-x-8 bottom-0 h-0.5 rounded-full bg-violet-400" />
-                ) : null}
-              </button>
-            ),
-          )}
-        </div>
-      ) : null}
-
+      {hotelError ? <p role="alert" className="py-4 text-sm text-amber-200">Assigned hotels are unavailable. Refresh this page to try again.</p> : null}
       {showActivity ? (
         <section>
           <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
             <button
               type="button"
-              onClick={() => setShowActivity(false)}
+              onClick={closeActivity}
               className="grid h-9 w-9 place-items-center text-[#A1A6B5]"
               aria-label="Back to Inbox"
             >
@@ -231,7 +228,7 @@ export default function HotelTeamDashboard({
           </header>
           <Notifications
             profile={profile}
-            scope="hotel_staff"
+            scope="hotel"
             embedded
             onUnreadChange={activity.refresh}
             onNavigate={openActivityDestination}
@@ -244,6 +241,7 @@ export default function HotelTeamDashboard({
             detail="Stay and hotel-operation updates"
             onOpen={() => setShowActivity(true)}
           />
+          <SupportEntryCard profile={profile} compact hideWhenEmpty onUnreadChange={setSupportUnread} />
           <div className="mb-3 mt-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">Guest messages</h2>
@@ -315,7 +313,7 @@ export default function HotelTeamDashboard({
               {hotels.map((hotel) => (
                 <button
                   key={hotel.hotel_id}
-                  onClick={() => setSelected(hotel)}
+                  onClick={() => { setInitialBookingId(undefined); setSelected(hotel); }}
                   className="flex w-full items-center gap-4 py-4 text-left"
                 >
                   <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">
@@ -349,6 +347,6 @@ export default function HotelTeamDashboard({
           )}
         </section>
       )}
-    </AccountShell>
+    </WorkspaceFrameV2>
   );
 }

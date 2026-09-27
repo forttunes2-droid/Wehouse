@@ -7,17 +7,17 @@ export default function CreatorAuthModal() {
     needsMfa,
     isLoading,
     error,
-    verifyPassword,
+    verifySecret,
     verifyMfa,
     dismissRequest,
   } = useCreatorAuth();
-  const [password, setPassword] = useState('');
+  const [creatorSecret, setCreatorSecret] = useState('');
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!showModal) {
-      setPassword('');
+      setCreatorSecret('');
       setCode('');
       setShowPassword(false);
     }
@@ -36,8 +36,8 @@ export default function CreatorAuthModal() {
       await verifyMfa(code.trim());
       return;
     }
-    if (!password) return;
-    await verifyPassword(password);
+    if (!creatorSecret) return;
+    await verifySecret(creatorSecret);
   }
 
   return (
@@ -46,11 +46,11 @@ export default function CreatorAuthModal() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">Creator protection</p>
-            <h2 className="mt-2 text-lg font-bold">{needsMfa ? 'Confirm authenticator' : 'Confirm your WeHouse account'}</h2>
+            <h2 className="mt-2 text-lg font-bold">{needsMfa ? 'Confirm authenticator' : 'Confirm Creator security'}</h2>
             <p className="mt-2 text-[10px] leading-5 text-[#777E8F]">
               {needsMfa
                 ? 'This Creator account has two-step verification enabled. Enter the current 6-digit authenticator code.'
-                : 'Sensitive Creator actions require a fresh server-backed confirmation of the account that is currently signed in.'}
+                : 'Sensitive Creator actions require the separate Creator security password you enrolled. Your normal sign-in password is not used here.'}
             </p>
           </div>
           <button type="button" onClick={dismissRequest} disabled={isLoading} aria-label="Close Creator confirmation" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-[#7B8191] hover:bg-white/[.05]">×</button>
@@ -73,14 +73,14 @@ export default function CreatorAuthModal() {
             </label>
           ) : (
             <label className="block">
-              <span className="mb-1.5 block text-[10px] font-medium text-[#A0A6B5]">Current WeHouse password</span>
+              <span className="mb-1.5 block text-[10px] font-medium text-[#A0A6B5]">Creator security password</span>
               <div className="relative">
                 <input
                   autoFocus
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  value={creatorSecret}
+                  onChange={(event) => setCreatorSecret(event.target.value)}
                   className="h-12 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-4 pr-16 text-sm outline-none focus:border-violet-500/50"
                 />
                 <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-3 text-[9px] font-semibold text-violet-300">
@@ -94,7 +94,7 @@ export default function CreatorAuthModal() {
 
           <button
             type="submit"
-            disabled={isLoading || (needsMfa ? code.length !== 6 : !password)}
+            disabled={isLoading || (needsMfa ? code.length !== 6 : !creatorSecret)}
             className="h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-45"
           >
             {isLoading ? 'Confirming…' : needsMfa ? 'Verify and continue' : 'Confirm and continue'}
@@ -102,7 +102,7 @@ export default function CreatorAuthModal() {
         </form>
 
         <p className="mt-4 text-center text-[8px] leading-4 text-[#565D6D]">
-          No Creator password or hash is stored in this browser. A successful confirmation expires after 10 minutes.
+          The Creator security password is verified server-side and is not stored in this browser. A successful confirmation expires after 10 minutes.
         </p>
       </div>
     </div>

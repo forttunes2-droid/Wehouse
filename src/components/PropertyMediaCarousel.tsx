@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { useRef, useState } from "react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
+import MediaPagingActions from "./MediaPagingActions";
 import VideoPlayer from "./VideoPlayer";
 
 type Props = {
@@ -24,20 +28,8 @@ export default function PropertyMediaCarousel({
     ...videos.map((reference) => ({ reference, kind: "video" as const })),
   ];
 
-  useEffect(() => {
-    if (!fullscreen) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousBodyBackground = document.body.style.background;
-    const previousRootBackground = document.documentElement.style.background;
-    document.body.style.overflow = "hidden";
-    document.body.style.background = "#000";
-    document.documentElement.style.background = "#000";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.background = previousBodyBackground;
-      document.documentElement.style.background = previousRootBackground;
-    };
-  }, [fullscreen]);
+  const closeFullscreen = useRecordScreenBack(() => setFullscreen(false), fullscreen);
+  const dialogRef = useDialogInteraction(closeFullscreen, fullscreen);
 
   function moveTo(index: number) {
     if (!items.length) return;
@@ -77,14 +69,17 @@ export default function PropertyMediaCarousel({
     setActiveIndex(index);
   }
 
+  if (!items.length) return <section className="relative min-h-28 w-full bg-[#11141C] px-4 pb-4 pt-16" aria-label={`${title} media`}>
+    {children}<p className="text-sm text-[#A7ADBA]">Photos are not available.</p>
+  </section>;
+
   return (
     <>
-      <section className="relative w-full overflow-hidden bg-[#11141C]">
+      <section className="relative w-full overflow-hidden bg-[#11141C]" aria-label={`${title} media`}>
         <div
           ref={railRef}
           onScroll={updateIndex}
           className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide"
-          aria-label={`${title} media`}
         >
           {items.map((item, index) => (
             <button
@@ -119,22 +114,7 @@ export default function PropertyMediaCarousel({
         {children}
         {items.length > 1 && (
           <>
-            <button
-              type="button"
-              aria-label="Previous photo"
-              onClick={() => moveTo(activeIndex - 1)}
-              className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur sm:grid"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              aria-label="Next photo"
-              onClick={() => moveTo(activeIndex + 1)}
-              className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-xl backdrop-blur sm:grid"
-            >
-              ›
-            </button>
+            <MediaPagingActions onPrevious={() => moveTo(activeIndex - 1)} onNext={() => moveTo(activeIndex + 1)} previousLabel="Previous photo" nextLabel="Next photo" />
             <span className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-1 text-[9px] backdrop-blur">
               {activeIndex + 1} / {items.length}
             </span>
@@ -152,8 +132,8 @@ export default function PropertyMediaCarousel({
           </>
         )}
       </section>
-      {fullscreen && (
-        <div
+      {fullscreen && createPortal(
+        <div ref={dialogRef} tabIndex={-1}
           className="fixed inset-0 z-[100200] flex h-[100svh] flex-col bg-black"
           role="dialog"
           aria-modal="true"
@@ -165,7 +145,7 @@ export default function PropertyMediaCarousel({
             </span>
             <button
               type="button"
-              onClick={() => setFullscreen(false)}
+              onClick={closeFullscreen}
               className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-xl"
               aria-label="Close media viewer"
             >
@@ -234,7 +214,7 @@ export default function PropertyMediaCarousel({
           {items.length === 1 ? (
             <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
           ) : null}
-        </div>
+        </div>, document.body
       )}
     </>
   );

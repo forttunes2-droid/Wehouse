@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
+import { isMoneyPolicyResponse } from "@/lib/bookingMoneyPolicyResponse";
 
 type Rules = {
   short_let: {
@@ -197,6 +198,8 @@ export default function CreatorBookingMoneyRules() {
   const [saved, setSaved] = useState<Rules>(DEFAULTS);
   const [policy, setPolicy] = useState<PolicyResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const loadGeneration = useRef(0);
   const [publishing, setPublishing] = useState(false);
   const [reason, setReason] = useState("");
   const [effectiveAt, setEffectiveAt] = useState("");
@@ -207,21 +210,30 @@ export default function CreatorBookingMoneyRules() {
   );
 
   async function load() {
+    const generation = ++loadGeneration.current;
     setLoading(true);
-    const { data, error } = await supabase.rpc(
-      "creator_get_booking_money_rules",
-    );
-    setLoading(false);
-    if (error) return toast.error("Booking & money rules could not be loaded");
-    const response = (data || {}) as PolicyResponse;
-    const next = readRules(response);
-    setPolicy(response);
-    setRules(next);
-    setSaved(next);
+    setLoadError("");
+    setPolicy(null);
+    try {
+      const { data, error } = await supabase.rpc("creator_get_booking_money_rules");
+      if (generation !== loadGeneration.current) return;
+      if (error || !isMoneyPolicyResponse(data)) throw new Error("Policy response is unavailable or incomplete");
+      const next = readRules(data);
+      setPolicy(data);
+      setRules(next);
+      setSaved(next);
+    } catch {
+      if (generation !== loadGeneration.current) return;
+      setPolicy(null);
+      setLoadError("Your saved money rules could not be loaded. Editing is unavailable until they can be verified.");
+    } finally {
+      if (generation === loadGeneration.current) setLoading(false);
+    }
   }
 
   useEffect(() => {
     void load();
+    return () => { loadGeneration.current += 1; };
   }, []);
 
   function setShort<K extends keyof Rules["short_let"]>(
@@ -265,7 +277,7 @@ export default function CreatorBookingMoneyRules() {
   }
 
   async function publish(elevationId: string) {
-    if (!dirty) return;
+    if (loading || loadError || !policy || publishing || !dirty) return;
     if (reason.trim().length < 5)
       return toast.error("Add a short reason for this policy change");
 
@@ -296,9 +308,10 @@ export default function CreatorBookingMoneyRules() {
   }
 
   function requestPublish() {
-    if (!dirty) return;
+    if (loading || loadError || !policy || publishing || !dirty) return;
+    const generation = loadGeneration.current;
     requestElevation("policy_publish", (elevationId) => {
-      void publish(elevationId);
+      if (generation === loadGeneration.current) void publish(elevationId);
     });
   }
 
@@ -309,7 +322,15 @@ export default function CreatorBookingMoneyRules() {
       </div>
     );
 
-  const activeVersions = Object.values(policy?.active || {})
+  if (loadError || !policy) return (
+    <section role="alert" className="rounded-xl border border-white/10 p-4">
+      <h3 className="text-sm font-semibold">Booking &amp; money rules</h3>
+      <p className="mt-2 text-sm text-[#A4A9B6]">{loadError || "Your saved money rules are unavailable."}</p>
+      <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-xl border border-white/10 px-4 text-sm text-violet-300">Try again</button>
+    </section>
+  );
+
+  const activeVersions = Object.values(policy.active || {})
     .map((entry) => Number(entry.version || 0))
     .filter(Boolean);
   const latestVersion = activeVersions.length
@@ -340,11 +361,12 @@ export default function CreatorBookingMoneyRules() {
         ) : null}
       </header>
 
+      <ShortLetReserveDateRule />
       <RuleSection
         title="Short Let"
-        note="Reserve dates briefly while payment is completed. Cancellation, no-show and refundable deposit rules stay separate."
+        note="Rules for the later stay payment, cancellation, no-show and refundable deposit. The Reserve date fee above is a separate stage."
       >
-        <NumberRule label="Reserve-date hold" suffix="minutes" value={rules.short_let.reservation_hold_minutes} min={5} max={120} onChange={(value) => setShort("reservation_hold_minutes", value)} />
+        <NumberRule label="Stay-payment checkout" suffix="minutes" value={rules.short_let.reservation_hold_minutes} min={5} max={120} onChange={(value) => setShort("reservation_hold_minutes", value)} />
         <NumberRule label="Full-refund cutoff" suffix="hours before check-in" value={rules.short_let.full_refund_hours_before_check_in} min={0} max={720} onChange={(value) => setShort("full_refund_hours_before_check_in", value)} />
         <NumberRule label="Late-cancellation maximum" suffix="night(s)" value={rules.short_let.late_cancel_max_nights} min={0} max={7} step={0.5} onChange={(value) => setShort("late_cancel_max_nights", value)} />
         <NumberRule label="No-show maximum" suffix="night(s)" value={rules.short_let.no_show_max_nights} min={0} max={7} step={0.5} onChange={(value) => setShort("no_show_max_nights", value)} />
@@ -435,6 +457,63 @@ export default function CreatorBookingMoneyRules() {
       </section>
     </section>
   );
+}
+
+function ShortLetReserveDateRule() {
+  const { requestElevation } = useCreatorAuth();
+  const [rule,setRule]=useState<{amount:number;payment_hold_minutes:number;balance_due_hours:number;version:number}|null>(null);
+  const [draft,setDraft]=useState<{amount:number;payment_hold_minutes:number;balance_due_hours:number}|null>(null);
+  const [reason,setReason]=useState('');
+  const [effectiveAt,setEffectiveAt]=useState('');
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
+  const dirty=Boolean(rule&&draft&&(rule.amount!==draft.amount||rule.payment_hold_minutes!==draft.payment_hold_minutes||rule.balance_due_hours!==draft.balance_due_hours));
+  async function loadReserveRule(){
+    setLoading(true);setError('');
+    const {data,error:readError}=await supabase.rpc('creator_get_short_let_reservation_rule');
+    setLoading(false);
+    if(readError||!data?.value){
+      setRule(null);setDraft(null);setError('Short Let Reserve date pricing could not be verified.');
+      return;
+    }
+    const value=data.value as any;
+    const next={amount:Number(value.amount),payment_hold_minutes:Number(value.payment_hold_minutes),balance_due_hours:Number(value.balance_due_hours),version:Number(data.version||0)};
+    if(!Number.isFinite(next.amount)||next.amount<=0||!Number.isInteger(next.payment_hold_minutes)||!Number.isInteger(next.balance_due_hours)){
+      setRule(null);setDraft(null);setError('Short Let Reserve date policy is incomplete.');
+      return;
+    }
+    setRule(next);setDraft({amount:next.amount,payment_hold_minutes:next.payment_hold_minutes,balance_due_hours:next.balance_due_hours});
+  }
+  useEffect(()=>{void loadReserveRule()},[]);
+  async function publish(elevationId:string){
+    if(!draft||!dirty||reason.trim().length<5)return;
+    setSaving(true);
+    const {data,error:saveError}=await supabase.rpc('creator_publish_short_let_reservation_rule',{
+      p_creator_elevation_id:elevationId,
+      p_amount:draft.amount,
+      p_payment_hold_minutes:draft.payment_hold_minutes,
+      p_balance_due_hours:draft.balance_due_hours,
+      p_effective_from:effectiveAt?new Date(effectiveAt).toISOString():new Date().toISOString(),
+      p_reason:reason.trim(),
+    });
+    setSaving(false);
+    if(saveError||!data?.success)return toast.error(saveError?.message||'Short Let rule could not be published');
+    toast.success(effectiveAt?'Reserve date rule scheduled':'Reserve date rule published');
+    setReason('');setEffectiveAt('');await loadReserveRule();
+  }
+  if(loading)return <section className="border-y border-white/[.07] py-5"><p className="text-sm text-[#8A91A1]">Loading Short Let Reserve date rule…</p></section>;
+  if(error||!rule||!draft)return <section className="border-y border-white/[.07] py-5"><h4 className="text-xs font-semibold">Short Let · Reserve date</h4><p className="mt-2 text-sm text-amber-200">{error||'Reserve date rule unavailable.'}</p><button type="button" onClick={()=>void loadReserveRule()} className="mt-3 min-h-11 rounded-xl border border-white/[.08] px-4 text-xs font-semibold">Try again</button></section>;
+  return <section className="border-y border-violet-500/15 py-5">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Short Let money</p><h4 className="mt-1 text-sm font-semibold">Reserve date</h4><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#7D8495]">This payment reserves the selected dates. Stay charge and any refundable security deposit are paid later and remain separate.</p></div><span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[9px] text-[#8E95A5]">v{rule.version}</span></div>
+    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <label className="text-[10px] text-[#A4A9B6]">Reservation fee (₦)<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[#A4A9B6]">Checkout time (minutes)<input type="number" min={5} max={120} value={draft.payment_hold_minutes} onChange={e=>setDraft({...draft,payment_hold_minutes:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[#A4A9B6]">Stay balance due (hours)<input type="number" min={1} max={168} value={draft.balance_due_hours} onChange={e=>setDraft({...draft,balance_due_hours:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label>
+    </div>
+    {dirty?<div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] text-[#A4A9B6]">Effective time<input type="datetime-local" value={effectiveAt} onChange={e=>setEffectiveAt(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label><label className="text-[10px] text-[#A4A9B6]">Change reason<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Why is this changing?" className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label></div>:null}
+    <div className="mt-4 flex justify-end"><button type="button" disabled={!dirty||reason.trim().length<5||saving} onClick={()=>requestElevation('policy_publish',id=>void publish(id))} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold disabled:opacity-40">{saving?'Publishing…':effectiveAt?'Review & schedule':'Review & publish'}</button></div>
+  </section>;
 }
 
 function RuleSection({

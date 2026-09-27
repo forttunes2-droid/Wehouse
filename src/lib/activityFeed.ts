@@ -18,7 +18,7 @@ const FINANCIAL_ACTIVITY = /payment|payout|earning|dispute|refund/i;
 const ACCOUNT_ACTIVITY = /security|password|verification/i;
 const BOOKING_ACTIVITY = /booking|reservation|inspection|listing|property|hotel|job|worker|status/i;
 const ROOMMATE_ACTIVITY = /roommate|match|invite|interest/i;
-const ACTIONABLE_ACTIVITY = /action_required|payment_conflict|dispute|changes_requested|escalat|verification_required|refund_due|failed|service_price_ready|service_completion_review_required|service_request_received|service_payment_confirmed|work_post_confirmation_requested|roommate_interest|property_move_in_requested|waiting_payment|payment_required|approval_required/i;
+const ACTIONABLE_ACTIVITY = /resource_invitation|invitation|action_required|payment_conflict|dispute|changes_requested|escalat|verification_required|refund_due|failed|service_price_ready|service_completion_review_required|service_request_received|service_payment_confirmed|work_post_confirmation_requested|roommate_interest|property_move_in_requested|waiting_payment|payment_required|approval_required/i;
 const ACTIONABLE_COPY = /needs? (?:your|my) action|price ready for approval|review completed work|waiting for (?:your|my) (?:approval|payment|response)|requires? (?:your|my) (?:approval|payment|response)|new roommate interest|new service request|needs verification/i;
 const MESSAGE_LIFECYCLE = /price|payment|accepted|declined|cancel|complete|scheduled|security|verification|match|invite|reservation|booking|payout|earning|status/i;
 const TRANSIENT_ACTIVITY = /device_confirmation_pending|typing|message_seen|message_viewed|reaction|draft_saved|sync_(started|finished)/i;
@@ -55,6 +55,7 @@ export function activityNeedsAction(
 export type ActivityDestination = {
   route: string;
   id?: string;
+  hotelId?: string;
 };
 
 function value(params: Record<string, unknown>, keys: string[]) {
@@ -169,6 +170,15 @@ export function resolveActivityDestination(
     explicitBookingId ||
     (/booking|reservation/.test(sourceType) ? row.source_id || undefined : undefined);
 
+  const hotelId = value(params, ["hotel_id", "hotelId"]);
+  if (lifecycleBookingId && /hotel/.test(`${type} ${sourceType}`) &&
+      !/(^|[._])(message|reply|chat)([._]|$)/.test(type)) {
+    return { route: "hotel_booking", id: String(lifecycleBookingId), ...(hotelId ? { hotelId } : {}) };
+  }
+  if (hotelId && /hotel_detail|propert|inspection/.test(route) && !/inspection/.test(sourceType)) {
+    return { route: "hotel_detail", id: hotelId };
+  }
+
   // Booking events sometimes carry both the parent property and the exact
   // reservation. The reservation owns the action; the property is only its
   // container. Never discard the more specific target because an older event
@@ -210,6 +220,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   if (type === "property_rent_confirmed") return "View reservation";
   if (type === "property_inspection_coordination_required")
     return "Open inspection request";
+  if (route === "invitation") return "Review invitation";
   if (route === "conversation") return "Open conversation";
   if (route === "devices" || route === "security") return "Review security activity";
   if (/hotel/.test(type) && /booking|reservation/.test(route)) return "Open hotel stay";
@@ -258,11 +269,15 @@ export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = 
     .filter((row) => {
       const type = String(row.type || "");
       const isLifecycle = FINANCIAL_ACTIVITY.test(type) || BOOKING_ACTIVITY.test(type) || ROOMMATE_ACTIVITY.test(type);
-      // An action stays visible until the workflow records its resolution. Merely
-      // reading it, or receiving a different lifecycle event, must not erase it.
-      const key = isLifecycle && row.source_type && row.source_id
-        ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
-        : "";
+      // Within the existing retention window, only the workflow can resolve an
+      // action. Reading it or receiving another event must not suppress it.
+      // Deduplicate action deliveries by event identity, not by booking/lane.
+      // Informational updates still collapse to the latest update in a lane.
+      const key = activityNeedsAction(row)
+        ? `action:${row.id || JSON.stringify([row.source_type, row.source_id, type, row.created_at])}`
+        : isLifecycle && row.source_type && row.source_id
+          ? `${row.source_type}:${row.source_id}:${activityLane(type)}`
+          : "";
       if (!key) return true;
       if (seen.has(key)) return false;
       seen.add(key);

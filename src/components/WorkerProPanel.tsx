@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import WorkerProTools from '@/components/WorkerProTools';
 import GoldTickBadge from '@/components/GoldTickBadge';
 import { supabase } from '@/lib/supabase';
 import { isAndroid, isIOS, isNative } from '@/lib/native';
+import { getNativeStorePlan, purchaseNativeStoreProduct, restoreNativeStoreSubscriptions, type NativeStorePlan } from '@/lib/nativePurchases';
 import type { Profile, WorkerProBillingPeriod, WorkerProEntitlement } from '@/types';
 
 type Props = {
@@ -18,13 +19,26 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   const [busy, setBusy] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<WorkerProBillingPeriod>('monthly');
+  const [storePlan, setStorePlan] = useState<NativeStorePlan | null>(null);
+  const [storeError, setStoreError] = useState('');
+  const native = isNative();
+  const nativeSalesEnabled = Boolean(import.meta.env.VITE_NATIVE_BILLING_ENABLED === 'true'
+    && (isIOS() ? pro?.native_sales?.ios_enabled : pro?.native_sales?.android_enabled));
+  const nativeProductId = pro?.plans?.find(plan => plan.billing_period === billingPeriod)?.[isIOS() ? 'apple_product_id' : 'google_product_id'] || '';
+
+  useEffect(() => {
+    setStorePlan(null);
+    setStoreError('');
+    if (!native || !nativeSalesEnabled || !nativeProductId || pro?.active) return;
+    let live = true;
+    void getNativeStorePlan(nativeProductId, 'subscription')
+      .then(plan => { if (live) setStorePlan(plan); })
+      .catch(reason => { if (live) setStoreError(reason instanceof Error ? reason.message : 'Store plan unavailable'); });
+    return () => { live = false; };
+  }, [native, nativeSalesEnabled, nativeProductId, pro?.active]);
 
   async function subscribe(selectedBillingPeriod: WorkerProBillingPeriod) {
-    if (!pro?.sales_enabled) return;
-    if (isNative()) {
-      toast.error('Native store billing is not connected in this build yet. Paid plan sales remain off until receipt verification is ready.');
-      return;
-    }
+    if (!pro || (!native && !pro.sales_enabled)) return;
     if (!termsAccepted) {
       toast.error('Please read and accept the current paid plan subscription terms');
       return;
@@ -34,6 +48,14 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
       const acceptance = await supabase.rpc('accept_current_worker_pro_terms');
       if (acceptance.error || !acceptance.data?.success) {
         throw new Error(acceptance.data?.error || acceptance.error?.message || 'Subscription terms acceptance could not be recorded');
+      }
+      if (native) {
+        if (!nativeSalesEnabled || !storePlan) throw new Error('This app store plan is unavailable');
+        await purchaseNativeStoreProduct(storePlan, 'subscription', {}, 'native-worker-pro');
+        await onRefresh();
+        toast.success('Your store subscription is verified');
+        setBusy(false);
+        return;
       }
       const payment = await supabase.rpc('create_worker_pro_web_payment', { p_billing_period: selectedBillingPeriod });
       if (payment.error || !payment.data?.success) {
@@ -71,10 +93,25 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     window.location.assign(String(result.data.url));
   }
 
-  if (loading) return <State text="Loading paid Worker plan…" />;
-  if (error || !pro) return <State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />;
+  async function restore() {
+    setBusy(true);
+    try {
+      const ids = [...(pro?.plans || []).map(plan => isIOS() ? plan.apple_product_id : plan.google_product_id),
+        pro?.provider === (isIOS() ? 'apple' : 'google') ? pro?.product_id : ''].filter(Boolean) as string[];
+      const count = await restoreNativeStoreSubscriptions(ids);
+      await onRefresh();
+      toast.success(count ? 'Store subscription restored' : 'No active store subscription found for this account');
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : 'Store restoration failed');
+    } finally { setBusy(false); }
+  }
+
+  // Ownership of existing records does not end with the subscription. Unknown
+  // entitlement permits read/export only; all writes stay server-authorised.
+  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} />;
+  if (loading) return <div className="space-y-4"><State text="Loading paid Worker plan…" />{tools}</div>;
+  if (error || !pro) return <div className="space-y-4"><State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />{tools}</div>;
   const storeName = isIOS() ? 'App Store' : isAndroid() ? 'Google Play' : 'Paystack';
-  const native = isNative();
   const planOptions = Array.isArray(pro.plans) && pro.plans.length > 0 ? pro.plans : [{
     billing_period: 'monthly' as const,
     period: 'P1M' as const,
@@ -88,12 +125,14 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     discount_percent: 0,
   }];
   const requestedPlan = planOptions.find((plan) => plan.billing_period === billingPeriod);
-  const selectedPlan = requestedPlan?.web_available
+  const selectedPlan = native ? requestedPlan : requestedPlan?.web_available
     ? requestedPlan
     : planOptions.find((plan) => plan.web_available) || requestedPlan;
   const selectedBillingPeriod = selectedPlan?.billing_period || billingPeriod;
   const anyWebPlanAvailable = planOptions.some((plan) => plan.web_available);
-  const checkoutAvailable = Boolean(pro.sales_enabled && selectedPlan?.web_available && !native);
+  const checkoutAvailable = native
+    ? Boolean(nativeSalesEnabled && storePlan && selectedPlan && pro.terms_content)
+    : Boolean(pro.sales_enabled && selectedPlan?.web_available);
   const activeUntil = pro.current_period_end ? new Date(pro.current_period_end).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
   return (
@@ -103,10 +142,10 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-200">Optional paid tools</p>
             <h2 className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">{pro.product_name || 'WeHouse Works'}{pro.active && <GoldTickBadge />}</h2>
-            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for your Service Provider profile. Gold PRO means an active subscription. Identity and professional checks are reviewed separately.</p>
+            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for Service Workers. The gold badge appears only on an active Worker membership. Identity and professional checks stay separate.</p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-lg font-bold">{native ? 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>
+            <p className="text-lg font-bold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>
             <p className="text-[8px] text-[#737887]">{native ? `shown by ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'} on web`}</p>
           </div>
         </div>
@@ -122,7 +161,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {pro.features.map((feature) => <div key={feature} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.05] bg-black/10 px-3 text-[10px] text-[#C9CCD5]"><span className="text-amber-300">✓</span>{feature}</div>)}
         </div>
-        {!pro.active && pro.sales_enabled && anyWebPlanAvailable && !native && (
+        {!pro.active && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-white/[.07] bg-black/10 p-3">
             <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Billing period">
               {planOptions.map((plan) => (
@@ -130,13 +169,13 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
                   key={plan.billing_period}
                   type="button"
                   aria-pressed={selectedBillingPeriod === plan.billing_period}
-                  disabled={!plan.web_available}
+                  disabled={native ? !(isIOS() ? plan.apple_product_id : plan.google_product_id) : !plan.web_available}
                   onClick={() => setBillingPeriod(plan.billing_period)}
                   className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedBillingPeriod === plan.billing_period ? 'border-amber-300/35 bg-amber-300/10' : 'border-white/[.06] bg-white/[.02]'}`}
                 >
                   <span className="block text-[10px] font-semibold">{plan.label}</span>
-                  <span className="mt-1 block text-[9px] text-[#8B90A0]">₦{Number(plan.price_ngn).toLocaleString()}</span>
-                  {plan.billing_period === 'yearly' && plan.saving_ngn > 0 && (
+                  <span className="mt-1 block text-[9px] text-[#8B90A0]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `₦${Number(plan.price_ngn).toLocaleString()}`}</span>
+                  {!native && plan.billing_period === 'yearly' && plan.saving_ngn > 0 && (
                     <span className="mt-1 block text-[8px] font-semibold text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
                   )}
                 </button>
@@ -157,12 +196,13 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
         ) : checkoutAvailable ? (
           <button onClick={() => void subscribe(selectedBillingPeriod)} disabled={busy || !termsAccepted || !pro.terms_content} className="mt-4 h-12 w-full rounded-xl bg-amber-300 text-[11px] font-bold text-[#241A03] disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Choose ${selectedBillingPeriod} with ${storeName}`}</button>
         ) : native ? (
-          <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">Native purchases will open only after verified {storeName} receipt handling and legal launch approval are deployed. Your free Worker profile and review status are unchanged.</p>
+          <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">{storeError || `Paid sales on ${storeName} are not open yet.`} Your free Worker profile and review status are unchanged.</p>
         ) : (
           <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
-      {pro.active ? <WorkerProTools profile={profile} /> : null}
+      {native && <button onClick={() => void restore()} disabled={busy || import.meta.env.VITE_NATIVE_BILLING_ENABLED !== 'true'} className="w-full rounded-xl border border-white/[.08] px-4 py-3 text-[10px] font-semibold disabled:opacity-40">Restore store subscription</button>}
+      {tools}
     </div>
   );
 }

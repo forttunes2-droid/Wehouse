@@ -1,3 +1,4 @@
-import DualRangeSlider from './DualRangeSlider';
-
-export default function RoommateBudgetField({minimum,maximum,onChange}:{minimum:number;maximum:number;onChange:(minimum:number,maximum:number)=>void}){return <div><p className="mb-2 text-[9px] font-semibold uppercase tracking-wide text-[#74798A]">Housing budget</p><DualRangeSlider min={minimum} max={maximum} floor={180000} ceiling={5000000} step={10000} onChange={onChange}/></div>}
+export default function RoommateBudgetField({minimum,maximum,onChange}:{minimum:number;maximum:number;onChange:(minimum:number,maximum:number)=>void}) {
+  const input = "mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-[#151820] px-3 text-base text-white";
+  return <fieldset><legend className="text-sm font-medium text-[#C8C3D3]">Your yearly rent share</legend><p className="mt-1 text-sm leading-6 text-[#AAA3B3]">Bills and other charges excluded.</p><div className="mt-3 grid grid-cols-2 gap-3"><label className="text-sm">Minimum (₦)<input aria-label="Minimum annual rent share" className={input} type="number" inputMode="numeric" min={1} step={1000} value={minimum || ''} onChange={event => onChange(Number(event.target.value),maximum)} /></label><label className="text-sm">Maximum (₦)<input aria-label="Maximum annual rent share" className={input} type="number" inputMode="numeric" min={1} step={1000} value={maximum || ''} onChange={event => onChange(minimum,Number(event.target.value))} /></label></div></fieldset>;
+}

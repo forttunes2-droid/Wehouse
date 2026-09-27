@@ -18,7 +18,8 @@ begin
       'get_discoverable_hotels()', 'get_discoverable_listings()',
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
       'get_hotel_review_summary(integer)',
-      'get_short_let_date_availability(text,date,date)'
+      'get_short_let_date_availability(text,date,date)',
+      'preview_resource_invitation(text)'
     ]);
   if unexpected is not null then
     raise exception 'Unexpected anonymous privileged RPC access: %',unexpected;

@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -46,14 +48,7 @@ export default function PropertyAccessRecorder({
     if (videoRef.current) videoRef.current.srcObject = null;
     setReady(false);
   }
-  useEffect(() => {
-    if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [open]);
+  const dialogRef = useDialogInteraction(() => close(), open);
   useEffect(() => {
     if (!recordedFile) {
       setPreview("");
@@ -268,9 +263,9 @@ export default function PropertyAccessRecorder({
           </div>
         </div>
       )}
-      {open && (
-        <div
-          className="fixed inset-0 z-[150] overflow-hidden bg-black"
+      {open && createPortal(
+        <div ref={dialogRef} tabIndex={-1}
+          className="fixed inset-0 z-[100250] overflow-hidden bg-black"
           role="dialog"
           aria-modal="true"
           aria-label="Guided property access recording"
@@ -351,7 +346,7 @@ export default function PropertyAccessRecorder({
                   : "Tap once—do not pause during the walkthrough"}
             </p>
           </div>
-        </div>
+        </div>, document.body
       )}
     </section>
   );

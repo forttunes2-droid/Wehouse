@@ -80,9 +80,9 @@ select hotel_id,'Standard',20000
 from public.hotels where name='Activity Contract Hotel';
 
 insert into public.hotel_team_members(
-  hotel_id,member_user_id,hotel_role,status,invited_by
+  hotel_id,member_user_id,hotel_role,status,invited_by,capabilities
 )
-select hotel_id,'activity-hotel-team','manager','active','activity-owner'
+select hotel_id,'activity-hotel-team','manager','active','activity-owner',array['stay.read']
 from public.hotels where name='Activity Contract Hotel';
 
 insert into public.hotel_bookings(

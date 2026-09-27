@@ -1,3 +1,4 @@
+import { markRecordedVoiceNote } from "@/lib/chatMediaPolicy";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type VoiceDraft = { file: File; url: string; duration: number };
@@ -70,6 +71,7 @@ export default function useVoiceRecorder() {
         const extension = type.includes("mp4") ? "m4a" : "webm";
         const blob = new Blob(chunksRef.current, { type });
         const file = new File([blob], `voice-${Date.now()}-${duration}s.${extension}`, { type });
+        markRecordedVoiceNote(file);
         const next = { file, url: URL.createObjectURL(blob), duration };
         draftRef.current = next;
         setDraft(next);

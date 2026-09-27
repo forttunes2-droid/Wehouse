@@ -5,6 +5,7 @@ type Props = {
   className?: string;
   containerClassName?: string;
   autoPlay?: boolean;
+  paused?: boolean;
   muted?: boolean;
   durationHint?: number;
   onDuration?: (seconds: number) => void;
@@ -17,6 +18,7 @@ export default function VideoPlayer({
   className = "aspect-video w-full bg-black object-contain",
   containerClassName = "bg-black",
   autoPlay = false,
+  paused = false,
   muted = false,
   durationHint = 0,
   onDuration,
@@ -25,6 +27,8 @@ export default function VideoPlayer({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
+  const surfaceTap = useRef<{ id: number; x: number; y: number } | null>(null);
+  const pointerTapHandledUntil = useRef(0);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(durationHint || durationFromSource(src));
   // Mobile browsers normally allow autoplay only when muted. Showcase should
@@ -41,14 +45,22 @@ export default function VideoPlayer({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !autoPlay) return;
+    if (!video || !autoPlay || paused) return;
     video.muted = true;
     void video.play().catch(() => {
       // Do not call this a playback failure merely because a browser requires
       // one user gesture. The visible play control remains available.
       setPlaying(false);
     });
-  }, [autoPlay, src]);
+  }, [autoPlay, src, paused]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (paused) video?.pause();
+    const hide = () => { if (document.hidden) video?.pause(); };
+    document.addEventListener("visibilitychange", hide);
+    return () => { document.removeEventListener("visibilitychange", hide); video?.pause(); };
+  }, [paused, src]);
 
   async function toggle() {
     const video = videoRef.current;
@@ -99,7 +111,7 @@ export default function VideoPlayer({
       <video
         ref={videoRef}
         src={src}
-        autoPlay={autoPlay}
+        autoPlay={autoPlay && !paused}
         muted={silent}
         playsInline
         preload="metadata"
@@ -107,7 +119,7 @@ export default function VideoPlayer({
         onLoadedMetadata={(event) => readMetadata(event.currentTarget)}
         onDurationChange={(event) => updateDuration(event.currentTarget)}
         onCanPlay={(event) => {
-          if (!autoPlay) return;
+          if (!autoPlay || paused) return;
           event.currentTarget.muted = true;
           void event.currentTarget.play().catch(() => undefined);
         }}
@@ -131,13 +143,34 @@ export default function VideoPlayer({
         <div className="absolute inset-0 grid place-items-center bg-[#0D1016] px-6 text-center">
           <div>
             <p className="text-xs font-semibold text-white">Video cannot play on this device</p>
-            <p className="mt-1 text-[9px] leading-4 text-[#858B9A]">Use MP4 (H.264) or WebM (VP8), then try again.</p>
+            <p className="mt-1 text-xs leading-4 text-[#858B9A]">Use MP4 (H.264) or WebM (VP8), then try again.</p>
           </div>
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => void toggle()}
+          onPointerDown={event => {
+            surfaceTap.current = event.isPrimary && event.button === 0
+              ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
+          }}
+          onPointerMove={event => {
+            const tap = surfaceTap.current;
+            if (tap && Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 8) surfaceTap.current = null;
+          }}
+          onPointerCancel={() => { surfaceTap.current = null; }}
+          onPointerUp={event => {
+            const tap = surfaceTap.current; surfaceTap.current = null;
+            if (!tap || tap.id !== event.pointerId || Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 8) return;
+            // A valid tap should work immediately after a gallery swipe, even
+            // when the browser suppresses that touch's compatibility click.
+            // Captured swipes, drags and multi-touch never reach this path.
+            pointerTapHandledUntil.current = Date.now() + 700;
+            void toggle();
+          }}
+          onClick={event => {
+            if (event.detail === 0 || Date.now() > pointerTapHandledUntil.current) void toggle();
+          }}
+          data-media-toggle
           className="absolute inset-0 grid place-items-center"
           aria-label={playing ? "Pause video" : "Play video"}
         >
@@ -148,12 +181,12 @@ export default function VideoPlayer({
       )}
       {!failed ? (
         <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-8">
-          <button type="button" onClick={() => void toggle()} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label={playing ? "Pause video" : "Play video"}>{playing ? "Ⅱ" : "▶"}</button>
-          <span className="w-9 shrink-0 font-mono text-[8px] text-white/75">{formatDuration(current)}</span>
-          <input type="range" min={0} max={Math.max(duration, .1)} step=".1" value={Math.min(current, duration || 0)} onChange={(event) => { const value = Number(event.target.value); if (videoRef.current) videoRef.current.currentTime = value; setCurrent(value); }} className="h-1 min-w-0 flex-1 accent-violet-400" aria-label="Video position" />
-          <span className="w-9 shrink-0 text-right font-mono text-[8px] text-white/75">{formatDuration(duration)}</span>
-          <button type="button" onClick={() => { const next = !silent; setSilent(next); if (videoRef.current) videoRef.current.muted = next; }} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label={silent ? "Unmute video" : "Mute video"}>{silent ? "⌁" : "◖"}</button>
-          <button type="button" onClick={() => void openFullscreen()} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label="View video full screen">⛶</button>
+          <button type="button" onClick={() => void toggle()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label={playing ? "Pause video" : "Play video"}>{playing ? "Ⅱ" : "▶"}</button>
+          <span className="w-9 shrink-0 font-mono text-xs text-white/75">{formatDuration(current)}</span>
+          <input type="range" min={0} max={Math.max(duration, .1)} step=".1" value={Math.min(current, duration || 0)} onChange={(event) => { const value = Number(event.target.value); if (videoRef.current) videoRef.current.currentTime = value; setCurrent(value); }} className="h-11 min-w-0 flex-1 accent-violet-400" aria-label="Video position" />
+          <span className="w-9 shrink-0 text-right font-mono text-xs text-white/75">{formatDuration(duration)}</span>
+          <button type="button" onClick={() => { const next = !silent; setSilent(next); if (videoRef.current) videoRef.current.muted = next; }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label={silent ? "Unmute video" : "Mute video"}>{silent ? "⌁" : "◖"}</button>
+          <button type="button" onClick={() => void openFullscreen()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label="View video full screen">⛶</button>
         </div>
       ) : null}
     </div>

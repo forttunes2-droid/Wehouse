@@ -1,3 +1,4 @@
+import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 
 const headers = {
@@ -21,8 +22,9 @@ Deno.serve(async (req) => {
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: { user }, error: authError } = await admin.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (authError || !user) return json({ success: false, error: 'Invalid or expired session' }, 401);
+    if (!await hasLiveSession(admin, user.id, authHeader.replace(/^Bearer\s+/i, ''))) return json({success:false,error:'Session ended. Sign in again.'},401);
     const { data: profile } = await admin.from('profiles').select('user_id,role,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
-    if (!profile || profile.role !== 'worker' || profile.deleted || profile.suspended || profile.banned) return json({ success: false, error: 'Active Worker account required' }, 403);
+    if (!profile || !await hasActiveWorkspace(admin,profile.user_id,'worker') || profile.deleted || profile.suspended || profile.banned) return json({ success: false, error: 'Active Worker account required' }, 403);
     const { data: subscription } = await admin.from('worker_pro_subscriptions').select('provider,provider_subscription_id').eq('worker_id', profile.user_id).maybeSingle();
     if (!subscription || subscription.provider !== 'paystack' || !subscription.provider_subscription_id) return json({ success: false, error: 'A Paystack paid Worker subscription was not found' }, 404);
     const response = await fetch(`https://api.paystack.co/subscription/${encodeURIComponent(subscription.provider_subscription_id)}/manage/link`, { headers: { Authorization: `Bearer ${paystackSecret}` } });

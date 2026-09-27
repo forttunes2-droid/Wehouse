@@ -1,0 +1,47 @@
+\set ON_ERROR_STOP on
+begin;
+create function pg_temp.expect(value boolean, description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description; end if;end$$;
+grant execute on function pg_temp.expect(boolean,text) to authenticated,anon,service_role;
+set local session_replication_role=replica;
+insert into auth.users(id,email,aud,role) values('92000000-0000-4000-8000-000000000001','recovery-contract@example.invalid','authenticated','authenticated');
+insert into auth.identities(id,provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at) values('92000000-0000-4000-8000-000000000002','original-google-sub','92000000-0000-4000-8000-000000000001','{"sub":"original-google-sub"}','google',now()-interval '1 day',now()-interval '2 days',now());
+insert into public.profiles(auth_id,email,user_id,username,role,profile_complete,account_kind) values('92000000-0000-4000-8000-000000000001','recovery-contract@example.invalid','recovery-contract','recovery-contract','user',true,'consumer');
+insert into auth.sessions(id,user_id,created_at,updated_at) values('92000000-0000-4000-8000-000000000003','92000000-0000-4000-8000-000000000001',now()-interval '1 day',now());
+set local session_replication_role=origin;
+select set_config('request.jwt.claims','{"role":"anon"}',true);
+set local role anon;
+select public.begin_identity_provider_password_recovery('recovery-contract','google') as attempt \gset
+reset role;
+select pg_temp.expect((select linked_identity_id='92000000-0000-4000-8000-000000000002' and linked_provider_id='original-google-sub' from public.identity_provider_password_recovery_attempts where attempt_id=:'attempt'),'Identity binding frozen before new OAuth');
+select set_config('request.jwt.claims',jsonb_build_object('sub','92000000-0000-4000-8000-000000000001','role','authenticated','session_id','92000000-0000-4000-8000-000000000003','amr',jsonb_build_array(jsonb_build_object('method','oauth','timestamp',floor(extract(epoch from now())))))::text,true);
+select pg_temp.expect(not public._recovery_proof_is_current(:'attempt'),'Old session fails even with an OAuth claim');
+update auth.sessions set created_at=now() where id='92000000-0000-4000-8000-000000000003';
+select pg_temp.expect(not public._recovery_proof_is_current(:'attempt'),'New session without a recent provider sign-in fails');
+update auth.identities set last_sign_in_at=now() where id='92000000-0000-4000-8000-000000000002';
+select pg_temp.expect(public._recovery_proof_is_current(:'attempt'),'New matching provider session succeeds');
+update auth.identities set provider_id='replacement-google-sub' where id='92000000-0000-4000-8000-000000000002';
+select pg_temp.expect(not public._recovery_proof_is_current(:'attempt'),'Relinked provider cannot satisfy old request');
+update auth.identities set provider_id='original-google-sub' where id='92000000-0000-4000-8000-000000000002';
+set local role authenticated;
+select public.verify_identity_provider_password_recovery(:'attempt','google');
+select public.claim_identity_provider_password_recovery(:'attempt');
+reset role;
+select set_config('test.recovery_attempt',:'attempt',true);
+set local role authenticated;
+do $$begin
+ begin perform public.claim_identity_provider_password_recovery(current_setting('test.recovery_attempt')::uuid);raise exception 'FAIL: recovery was reusable';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
+ perform pg_temp.expect(not has_function_privilege(current_user,'public.auth_session_is_active(uuid,uuid)','execute'),'Ordinary clients cannot enumerate sessions');
+end$$;
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select pg_temp.expect(not public.finish_identity_provider_password_recovery(:'attempt','92000000-0000-4000-8000-000000000001',true),'Remaining Auth session prevents false cleanup success');
+reset role;
+delete from auth.sessions where user_id='92000000-0000-4000-8000-000000000001';
+set local role service_role;
+select pg_temp.expect(public.finish_identity_provider_password_recovery(:'attempt','92000000-0000-4000-8000-000000000001',true),'Completed signout and audit can finish');
+select pg_temp.expect(public.finish_identity_provider_password_recovery(:'attempt','92000000-0000-4000-8000-000000000001',true),'Confirmed cleanup retry is idempotent');
+select pg_temp.expect(not public.auth_session_is_active('92000000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000003'),'Ended session denied for sensitive operations');
+reset role;
+select pg_temp.expect((select count(*)=1 from public.user_activity where user_id='recovery-contract' and details->>'attempt_id'=:'attempt'),'Exactly one recovery audit');
+rollback;

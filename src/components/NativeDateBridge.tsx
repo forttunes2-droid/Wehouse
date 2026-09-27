@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 import { createPortal } from "react-dom";
 import { Calendar } from "@/components/ui/calendar";
 
@@ -31,6 +32,7 @@ function formatDate(value: Date) {
 }
 
 export default function NativeDateBridge() {
+  const dialogRoot = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<HTMLInputElement | null>(null);
   const [version, setVersion] = useState(0);
   const [pendingDate, setPendingDate] = useState<Date | undefined>();
@@ -59,7 +61,7 @@ export default function NativeDateBridge() {
       setVersion((value) => value + 1);
     }
     function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") setActive(null);
+      if (event.key === "Escape" && dialogRoot.current && isTopDialog(dialogRoot.current)) setActive(null);
     }
     const close = () => setActive(null);
     document.addEventListener("pointerdown", open, true);
@@ -86,15 +88,15 @@ export default function NativeDateBridge() {
 
   useEffect(() => {
     if (!active) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (!dialogRoot.current) return;
+    const release = isolateDialog(dialogRoot.current);
     const observer = new MutationObserver(() => {
       if (!active.isConnected) setActive(null);
     });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
-      document.body.style.overflow = previous;
+      release();
     };
   }, [active]);
 
@@ -151,8 +153,8 @@ export default function NativeDateBridge() {
   ).sort();
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[100000] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-5"
+    <div ref={dialogRoot} tabIndex={-1}
+      className="fixed inset-0 z-[100300] flex items-center justify-center overflow-y-auto bg-[#0E1118] p-5"
       onClick={() => setActive(null)}
     >
       <section

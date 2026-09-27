@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import WorkerActivationHome from "@/components/WorkerActivationHome";
 import WorkerJobsPanelV2, {
@@ -6,7 +6,9 @@ import WorkerJobsPanelV2, {
 } from "@/components/WorkerJobsPanelV2";
 import type { WorkerBookingConversation } from "@/components/WorkerJobsPanelV2";
 import WorkerShowcaseManager from "@/components/WorkerShowcaseManager";
+import SupportEntryCard from "@/components/SupportEntryCard";
 import WorkerProPanel from "@/components/WorkerProPanel";
+import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
 import AccountCenter, {
   type WorkspaceAccess,
   type WorkspaceChoice,
@@ -32,7 +34,7 @@ const LIVE_NAV = [
   { id: "account", label: "Account" },
 ];
 
-const ACTIVATION_NAV = [{ id: "home", label: "Setup" }];
+const ACTIVATION_NAV = [{ id: "home", label: "Setup" }, { id: "inbox", label: "Inbox" }];
 
 export default function WorkerWorkspaceModern({
   profile,
@@ -42,7 +44,9 @@ export default function WorkerWorkspaceModern({
   workspaceAccess,
   activeWorkspace,
   onSwitchWorkspace,
+  inboxOpenRequest = 0,
 }: {
+  inboxOpenRequest?: number;
   profile: Profile;
   onGoToSetup: () => void;
   onLogout: () => void;
@@ -69,10 +73,24 @@ export default function WorkerWorkspaceModern({
   const [accountView, setAccountView] = useState<
     "account" | "profile" | "paid_tools"
   >("account");
+  useEffect(() => {
+    if (!inboxOpenRequest) return;
+    setConversation(null); setTab("inbox");
+  }, [inboxOpenRequest]);
+  useEffect(() => {
+    const activated = (event: Event) => {
+      const detail = (event as CustomEvent<{ workerId?: string }>).detail;
+      if (detail?.workerId && detail.workerId !== profile.user_id) return;
+      setConversation(null);
+      setTab("account");
+      setAccountView("paid_tools");
+    };
+    window.addEventListener("wehouse:worker-pro-activated", activated);
+    return () => window.removeEventListener("wehouse:worker-pro-activated", activated);
+  }, [profile.user_id]);
   const safeTab =
     !live &&
     (tab === "jobs" ||
-      tab === "inbox" ||
       tab === "showcase" ||
       tab === "earnings" ||
       tab === "account")
@@ -144,6 +162,10 @@ export default function WorkerWorkspaceModern({
         />
       </div>
     );
+  } else if (!live && safeTab === "inbox") {
+    // Setup-related WeHouse messages remain reachable without exposing jobs or
+    // treating an unapproved worker as a public service provider.
+    content = <SupportEntryCard profile={profile} compact />;
   } else if (live && safeTab === "inbox") {
     content = (
       <WorkerInboxPanel
@@ -217,6 +239,7 @@ export default function WorkerWorkspaceModern({
       onWorkspaceSwitch={
         workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined
       }
+      onAccount={!live ? () => onNavigate?.("profile") : undefined}
       onLogout={onLogout}
     >
       {content}
@@ -278,6 +301,7 @@ function ServiceProviderPaidToolsAccount({
         error={workerPro.error}
         onRefresh={workerPro.refresh}
       />
+      <SponsoredCampaignPanel types={['worker']} />
     </AccountShell>
   );
 }

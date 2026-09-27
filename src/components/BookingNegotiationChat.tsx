@@ -1,3 +1,5 @@
+import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -30,7 +32,6 @@ import PrivateCallHistory from "@/components/PrivateCallHistory";
 import BackButton from "@/components/BackButton";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
-import VoiceNotePlayer from "@/components/VoiceNotePlayer";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import MessagePress from "@/components/MessagePress";
@@ -61,6 +62,9 @@ type ChatMessage = {
   sender_name?: string | null;
   content: string;
   attachments?: string[] | null;
+  attachment_types?: string[];
+  attachment_names?: string[];
+  attachment_failed?: boolean;
   is_read?: boolean | null;
   reactions?: Record<string, string>;
   decryption_failed?: boolean;
@@ -333,6 +337,7 @@ export default function BookingNegotiationChat({
   function chooseFiles(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
+      if (!isChatVisualType(file.type)) { toast.error(CHAT_MEDIA_ONLY_MESSAGE); return false; }
       if (file.size > MAX_FILE_SIZE) {
         toast.error(`${file.name} is larger than 25MB`);
         return false;
@@ -342,7 +347,7 @@ export default function BookingNegotiationChat({
     setFiles((current) => {
       const next = [...current, ...incoming].slice(0, MAX_FILES);
       if (current.length + incoming.length > MAX_FILES)
-        toast.error("You can send up to 6 files at once");
+        toast.error("You can send up to 6 photos or videos at once");
       return next;
     });
   }
@@ -423,7 +428,7 @@ export default function BookingNegotiationChat({
   async function toggleVoice() {
     if (voice.recording) return voice.finish();
     if (files.length >= MAX_FILES)
-      return toast.error("Remove a file before recording a voice note");
+      return toast.error("Remove an attachment before recording a voice note");
     try {
       await voice.start();
     } catch (error) {
@@ -1076,9 +1081,8 @@ export default function BookingNegotiationChat({
                           </div>
                         ) : null;
                       })()}
-                    {msg.attachments?.map((url: string, i: number) => (
-                      <BookingAttachment key={`${msg.id}-${i}`} url={url} />
-                    ))}
+                    <MessageMedia items={(msg.attachments || []).map((url, i) => ({url, type: msg.attachment_types?.[i], name: msg.attachment_names?.[i]}))} />
+                    {msg.attachment_failed && <AttachmentState error />}
                     {msg.content && <MessageContent content={msg.content} />}
                     <p
                       className={`mt-1 text-[8px] ${mine ? "text-violet-100/70" : "text-[#5C6070]"}`}
@@ -1142,32 +1146,7 @@ export default function BookingNegotiationChat({
               />
             ) : (
               <>
-                {files.length > 0 && (
-                  <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                    {files.map((file, index) => (
-                      <div
-                        key={`${file.name}-${index}`}
-                        className="flex shrink-0 items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[.05] px-3 py-2"
-                      >
-                        <p className="max-w-40 truncate text-[9px] text-violet-200">
-                          {file.type.startsWith("audio/")
-                            ? "🎤 Voice note"
-                            : file.name}
-                        </p>
-                        <button
-                          onClick={() =>
-                            setFiles((current) =>
-                              current.filter((_, i) => i !== index),
-                            )
-                          }
-                          className="text-[#8B90A0]"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel
                   recording={voice.recording}
                   seconds={voice.seconds}
@@ -1212,9 +1191,6 @@ export default function BookingNegotiationChat({
                 <div className="flex items-end gap-2">
                   <ChatAttachmentPicker
                     onFiles={chooseFiles}
-                    allowVideo
-                    allowDocuments
-                    allowAudio
                   />
                   <button
                     onClick={() => void toggleVoice()}
@@ -1719,78 +1695,10 @@ function MessageContent({ content }: { content: string }) {
   );
 }
 function BookingAttachment({ url }: { url: string }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-  if (isImage(url))
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          className="mb-2 block max-w-full overflow-hidden rounded-xl bg-black"
-        >
-          <img
-            src={url}
-            alt="Attachment"
-            loading="lazy"
-            decoding="async"
-            className="max-h-72 max-w-full object-contain"
-          />
-        </button>
-        {viewerOpen ? (
-          <MediaViewer
-            src={url}
-            kind="image"
-            title="Booking attachment"
-            onClose={() => setViewerOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  if (isAudio(url)) return <VoiceNotePlayer url={url} />;
-  if (isVideo(url))
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          className="relative mb-2 block aspect-video w-full max-w-md overflow-hidden rounded-xl bg-black"
-          aria-label="Open video attachment in WeHouse viewer"
-        >
-          <span className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.18),transparent_44%),#090B10]">
-            <span className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/55 pl-0.5 text-lg backdrop-blur">
-              ▶
-            </span>
-          </span>
-        </button>
-        {viewerOpen ? (
-          <MediaViewer
-            src={url}
-            kind="video"
-            title="Booking video"
-            onClose={() => setViewerOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  return (
-    <a
-      href={url}
-      download
-      className="mb-2 flex items-center gap-2 rounded-xl border border-white/[.08] bg-black/10 px-3 py-2 text-[10px] font-semibold text-violet-100"
-    >
-      <span>📎</span>
-      <span>Download attachment</span>
-    </a>
-  );
+  return <MessageMedia items={[{ url }]} />;
 }
 function isImage(v: string) {
   return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(v);
-}
-function isAudio(v: string) {
-  return /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(v);
-}
-function isVideo(v: string) {
-  return /\.(mp4|mov|webm)(\?|$)/i.test(v);
 }
 function Mic() {
   return (

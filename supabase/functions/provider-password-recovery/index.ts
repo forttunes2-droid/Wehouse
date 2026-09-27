@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders } from "jsr:@supabase/supabase-js@2/cors";
 
+import { finishRecoveryCleanup } from "../_shared/recoveryCleanup.ts";
+
 const responseHeaders = {
   ...corsHeaders,
   "Content-Type": "application/json",
@@ -88,53 +90,25 @@ Deno.serve(async (request) => {
         p_succeeded: false,
       });
       return json(
-        { success: false, error: "Password could not be changed. Try again." },
+        { success: false, error: "Password could not be confirmed. Start recovery again." },
         400,
       );
     }
 
-    const { data: finished, error: finishError } = await admin.rpc(
-      "finish_identity_provider_password_recovery",
-      {
-        p_attempt_id: attemptId,
-        p_auth_id: current.user.id,
-        p_succeeded: true,
-      },
+    const cleaned = await finishRecoveryCleanup(
+      () => admin.auth.admin.signOut(token, "global"),
+      () => admin.rpc("finish_identity_provider_password_recovery", {
+        p_attempt_id: attemptId, p_auth_id: current.user.id, p_succeeded: true,
+      }),
+      (ms) => new Promise(resolve => setTimeout(resolve, ms)),
     );
-    if (finishError || finished !== true) {
-      console.error("[provider-password-recovery] completion audit failed", {
-        auth_id: current.user.id,
-        attempt_id: attemptId,
-      });
+    if (!cleaned) {
+      // The password has changed. Do not ask the user to submit it again or
+      // falsely promise that every session was closed; the claim stays unusable.
+      console.error("[provider-password-recovery] cleanup needs attention", {attempt_id:attemptId});
+      return json({success:false,password_changed:true,code:"RECOVERY_CLEANUP_PENDING",
+        error:"Your password changed, but we could not confirm that every old session was closed. Sign in again and review your devices."});
     }
-
-    const closedAt = new Date().toISOString();
-    const { error: sessionCloseError } = await admin
-      .from("user_sessions")
-      .update({ is_active: false, is_current: false, logout_time: closedAt })
-      .eq("auth_id", current.user.id)
-      .eq("is_active", true);
-    if (sessionCloseError)
-      console.error("[provider-password-recovery] device-session close failed", {
-        auth_id: current.user.id,
-      });
-
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("user_id")
-      .eq("auth_id", current.user.id)
-      .maybeSingle();
-    if (profile?.user_id)
-      await admin.from("user_activity").insert({
-        user_id: profile.user_id,
-        auth_id: current.user.id,
-        action_type: "password_change",
-        details: { source: "linked_identity_recovery" },
-      });
-
-    // A recovered credential invalidates refresh sessions everywhere. The user
-    // signs in again deliberately with the new password or a linked provider.
-    await admin.auth.admin.signOut(token, "global").catch(() => {});
     return json({ success: true });
   } catch (error) {
     console.error("[provider-password-recovery] failed", {

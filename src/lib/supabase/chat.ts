@@ -1,9 +1,10 @@
+import { validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
 
-export type RoommatePeer={user_id:string;name:string;avatar:string|null;bio:string;city:string;state:string;school:string;occupation:string;isStudent:boolean;isBlocked:boolean};
+export type RoommatePeer={user_id:string;name:string;username?:string;avatar:string|null;bio:string;city:string;state:string;school:string;occupation:string;isStudent:boolean;isBlocked:boolean};
 
 export async function getConversations(userId:string){
   const{data,error}=await supabase.rpc('get_user_conversations',{p_user_id:userId});
@@ -20,32 +21,35 @@ export async function getRoommateConversationPeople(){
   const people:Record<string,RoommatePeer>={};
   for(const row of data||[]){
     if(!row.user_id)continue;
-    people[row.user_id]={user_id:row.user_id,name:row.full_name||row.username||'Roommate',avatar:row.avatar_url||null,bio:row.bio||'',city:row.city||'',state:row.state||'',school:row.school||'',occupation:row.occupation||'',isStudent:Boolean(row.is_student),isBlocked:Boolean(row.is_blocked)};
+    people[row.user_id]={user_id:row.user_id,name:row.full_name||row.username||'Roommate',username:row.username||'',avatar:row.avatar_url||null,bio:row.bio||'',city:row.city||'',state:row.state||'',school:row.school||'',occupation:row.occupation||'',isStudent:Boolean(row.is_student),isBlocked:Boolean(row.is_blocked)};
   }
   return{people,error};
 }
 
-export async function getMessages(conversationId:string,peerUserId?:string|null){
+export async function getMessages(conversationId:string,peerUserId?:string|null,onTextReady?:(messages:Message[])=>void){
   if(peerUserId)preparePrivateConversation('roommate',conversationId,peerUserId);
   const{data,error}=await supabase.rpc('get_private_encrypted_messages',{p_conversation_kind:'roommate',p_conversation_id:conversationId});
   if(error||!data)return{messages:(data||[]) as Message[],error};
-  const messages=await Promise.all((data as any[]).map(async row=>{
-    let content=String(row.legacy_content||'');
-    let decryptionFailed=false;
+  const rows=data as any[];
+  const text=await Promise.all(rows.map(async row=>{
+    let content=String(row.legacy_content||'');let decryptionFailed=false;
     if(row.ciphertext&&row.encryption_iv&&peerUserId){
       try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
-    const attachments:string[]=[];const attachmentTypes:string[]=[];
+    return{...row,content,decryption_failed:decryptionFailed,conversation_id:conversationId,seen:Boolean(row.is_read),attachments:[],attachment_types:[],reply_to_id:row.reply_to_id||null,reactions:row.reactions||{},media_loading:Boolean(row.legacy_attachments?.length||row.encrypted_attachments?.length)} as Message;
+  }));
+  onTextReady?.(text);
+  const messages=await Promise.all(rows.map(async(row,index)=>{
+    const attachments:string[]=[];const attachmentTypes:string[]=[];let failed=false;
     const legacyPaths=Array.isArray(row.legacy_attachments)?row.legacy_attachments.filter(Boolean):[];
     for(let index=0;index<legacyPaths.length;index++){
-      const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(legacyPaths[index],300);
-      if(!signedError&&signed?.signedUrl){
-        attachments.push(signed.signedUrl);
-        attachmentTypes.push(row.legacy_attachment_types?.[index]||'');
-      }
+      try{const{data:signed,error:signedError}=await supabase.storage.from('chat-files').createSignedUrl(legacyPaths[index],300);
+        if(signedError||!signed?.signedUrl)throw signedError||new Error('Attachment unavailable');
+        attachments.push(signed.signedUrl);attachmentTypes.push(row.legacy_attachment_types?.[index]||'');
+      }catch{failed=true}
     }
-    if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{/* Keep the readable message even when one file is unavailable. */}}
-    return{...row,content,decryption_failed:decryptionFailed,conversation_id:conversationId,seen:Boolean(row.is_read),attachments,attachment_types:attachmentTypes,reply_to_id:row.reply_to_id||null,reactions:row.reactions||{}} as Message;
+    if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{failed=true}}
+    return{...text[index],attachments,attachment_types:attachmentTypes,media_loading:false,media_error:failed} as Message;
   }));
   return{messages,error};
 }
@@ -65,8 +69,7 @@ export async function reactToMessage(conversationId:string,messageId:string,emoj
 
 export async function uploadRoommateChatAttachment(file:File,conversationId:string,peerUserId:string){
   try{
-    if(!file.type.startsWith('image/')&&!file.type.startsWith('audio/'))return{path:null,error:{message:'Roommate chat supports photos and voice notes only'} as any};
-    if(file.size>25*1024*1024)return{path:null,error:{message:'Attachment must be 25MB or smaller'} as any};
+    await validateChatUpload(file);
     let upload:Blob|File=file,contentType=file.type||'application/octet-stream',extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
     if(file.type.startsWith('image/')){const prepared=await prepareChatImageFile(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'attachment';

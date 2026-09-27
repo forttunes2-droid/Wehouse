@@ -73,20 +73,19 @@ test("password creation and change keep an eight-character minimum", async () =>
 });
 
 test("Personal navigation is exactly Explore, Bookings, Inbox and Account", async () => {
-  const [app, nav] = await Promise.all([
+  const [app, nav, personalNav] = await Promise.all([
     read("src/App.tsx"),
     read("src/lib/nav2.tsx"),
+    read("src/components/PersonalBottomNav.tsx"),
   ]);
-  const start = app.indexOf("const tabs = useMemo");
-  const end = app.indexOf("const navHistoryRef", start);
-  const tabs = app.slice(start, end);
-  assert.match(tabs, /label: "Explore"/);
-  assert.match(tabs, /label: "Bookings"/);
-  assert.match(tabs, /label: "Inbox"/);
-  assert.match(tabs, /label: "Account"/);
-  assert.match(tabs, /id: "conversation"/);
-  assert.doesNotMatch(tabs, /label: "Conversation"/);
-  assert.doesNotMatch(tabs, /id: "notifications"/);
+  assert.match(personalNav, /label: 'Explore'/);
+  assert.match(personalNav, /label: 'Bookings'/);
+  assert.match(personalNav, /label: 'Inbox'/);
+  assert.match(personalNav, /label: 'Account'/);
+  assert.match(personalNav, /id: 'conversation'/);
+  assert.doesNotMatch(personalNav, /label: 'Conversation'/);
+  assert.doesNotMatch(personalNav, /notifications/);
+  assert.match(app, /<PersonalBottomNav/);
   const userBlock = nav.slice(nav.indexOf("export function getUserNav"), nav.indexOf("export function getNavForRole"));
   assert.doesNotMatch(userBlock, /label: ['"]Conversation['"]/);
   assert.doesNotMatch(userBlock, /id: ['"]notifications['"]/);

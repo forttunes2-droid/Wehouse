@@ -1,16 +1,17 @@
 // ─── NATIVE HELPERS ───────────────────────────────
 // Bridge between web and Capacitor native features
+import { Capacitor } from '@capacitor/core';
 
 export const isNative = (): boolean => {
-  return typeof (window as any).Capacitor !== 'undefined';
+  return Capacitor.isNativePlatform();
 };
 
 export const isAndroid = (): boolean => {
-  return isNative() && (window as any).Capacitor?.getPlatform() === 'android';
+  return isNative() && Capacitor.getPlatform() === 'android';
 };
 
 export const isIOS = (): boolean => {
-  return isNative() && (window as any).Capacitor?.getPlatform() === 'ios';
+  return isNative() && Capacitor.getPlatform() === 'ios';
 };
 
 // ─── CAMERA ───────────────────────────────────────

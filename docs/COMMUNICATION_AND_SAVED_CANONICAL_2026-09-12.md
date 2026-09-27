@@ -76,7 +76,7 @@ Saved is a private favourite state for homes and hotels.
 
 Follow Search subscribes to search criteria.
 
-- Follow/unfollow/resume is managed from the current Explore search.
+- Follow/unfollow/resume is available from Explore; Account has a separate Followed searches subpage for viewing, reopening, pausing and removing follows. It is not a primary navigation tab.
 - Canonical criteria identity prevents duplicate semantic searches.
 - New matching homes/hotels create Inbox Activity.
 - Followed Search is not a Saved item and has no separate primary destination.

@@ -49,6 +49,9 @@ export function useWorkerPro(workerId?: string) {
       if (cancelled) return;
       if (entitlement?.active) {
         try { localStorage.removeItem('wh_worker_pro_payment_ref'); } catch {}
+        window.dispatchEvent(new CustomEvent('wehouse:worker-pro-activated', {
+          detail: { workerId, reference },
+        }));
         return;
       }
       if (attempts < 15) timer = setTimeout(() => void poll(), 2000);

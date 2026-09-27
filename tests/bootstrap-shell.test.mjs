@@ -13,7 +13,7 @@ test("WeHouse renders a branded shell before React mounts", async () => {
 
 test("startup failures replace the splash instead of hanging forever", async () => {
   const [preflight, main] = await Promise.all([
-    readFile("src/preflight.ts", "utf8"),
+    readFile("public/bootstrap.js", "utf8"),
     readFile("src/main.tsx", "utf8"),
   ]);
 
@@ -28,4 +28,12 @@ test("startup HTML does not preload retired map UI dependencies", async () => {
   const html = await readFile("index.html", "utf8");
   assert.doesNotMatch(html, /tile\.openstreetmap\.org/i);
   assert.doesNotMatch(html, /leaflet-container|wehouse-map-pin/i);
+});
+
+// Module imports evaluate before their entry body. This guard MUST stay outside
+// the bundled app, otherwise an environment import failure also prevents its guard.
+test("startup guard is independent of the application module graph", async () => {
+  const html = await readFile("index.html", "utf8");
+  assert.match(html, /<script src="\/bootstrap\.js\?v=__WH_VERSION__"><\/script>/);
+  assert.doesNotMatch(html, /src\/preflight\.ts/);
 });
