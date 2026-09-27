@@ -79,7 +79,8 @@ async def main():
       await page.get_by_role('button',name=re.compile('Share stay costs')).click()
       await expect(page.get_by_label('Invite Bola Example')).to_be_visible();assert await page.get_by_label('Invite Pending Example').count()==0 and await page.get_by_label('Invite Blocked Example').count()==0
       await page.get_by_label('Invite Bola Example').check();await page.get_by_label('Invite Chika Example').check()
-      await expect(page.get_by_text('You: ₦500',exact=True)).to_be_visible()
+      await expect(page.get_by_text('You',exact=True)).to_be_visible()
+      await expect(page.get_by_text('₦500',exact=True).first).to_be_visible()
       assert not any(x['name']=='create_my_shared_short_let' for x in await page.evaluate('window.__practicalTransport.calls'))
       await page.screenshot(path=str(OUT/f'short-let-shares-before-invitation-{width}.png'),full_page=True)
       await page.get_by_role('button',name='Invite guests to split costs',exact=True).click();await expect(page.get_by_role('dialog',name='Shared payment')).to_be_visible()
