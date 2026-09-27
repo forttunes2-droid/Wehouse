@@ -19,13 +19,13 @@ async def main():
     s=LinkScenario(); context=await browser.new_context(viewport={'width':390,'height':844},service_workers='block'); page=await context.new_page()
     await context.add_init_script("""localStorage.setItem('wh_workspace_experience-creator', %s);
       if (!sessionStorage.getItem('qa-seeded-property')) {
-        sessionStorage.setItem('wh_public_property_intent_v1', JSON.stringify({property:{kind:'hotel',id:'7'},expires:Date.now()+1800000}));
+        sessionStorage.setItem('wh_public_property_intent_v1', JSON.stringify({flow:'property_sign_in_v2',property:{kind:'hotel',id:'7'},expires:Date.now()+600000}));
         sessionStorage.setItem('qa-seeded-property','true');
       }""" % json.dumps(workspace))
     page.on('pageerror',lambda error:s.errors.append(str(error))); await page.route('**/*',s.route)
     try:
      # A public reference opens the actual property before sign-in.
-     await page.goto(BASE+'/tests/browser/experience.html?fixture=login')
+     await page.goto(BASE+'/tests/browser/experience.html?fixture=login#login')
      await expect(page.get_by_role('heading',name='Shared Garden Lodge',exact=True)).to_be_visible()
      await page.get_by_role('button',name='Save hotel').click()
      await expect(page.get_by_role('heading',name='Welcome',exact=True)).to_be_visible()
@@ -34,7 +34,7 @@ async def main():
      assert await page.evaluate("JSON.parse(sessionStorage.getItem('wh_public_property_intent_v1')).property.id")=='7'
      assert any(name=='get_public_hotel_detail' for name,_ in s.calls)
      # This simulates returning from a successful provider callback; only auth fixture changes.
-     await page.goto(BASE+'/tests/browser/experience.html?fixture=creator')
+     await page.goto(BASE+'/tests/browser/experience.html?fixture=creator#login')
      if workspace=='creator':
       await expect(page.get_by_role('dialog',name='Shared property')).to_be_visible()
       await expect(page.get_by_role('heading',name='Shared Garden Lodge',exact=True)).to_be_visible()
@@ -43,6 +43,8 @@ async def main():
      await expect(page.get_by_role('heading',name='Shared Garden Lodge',exact=True)).to_be_visible()
      assert await page.evaluate("localStorage.getItem('wh_workspace_experience-creator')")=='personal'
      assert await page.evaluate("sessionStorage.getItem('wh_public_property_intent_v1')") is None
+     await page.goto(BASE+'/tests/browser/experience.html?fixture=login#login')
+     await expect(page.get_by_role('heading',name='Shared Garden Lodge',exact=True)).to_have_count(0)
      assert not any(name=='get_public_listing_detail' and args.get('p_listing_id')=='7' for name,args in s.calls)
      assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth+1')
      assert not s.errors,s.errors

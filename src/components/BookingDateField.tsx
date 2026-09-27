@@ -29,10 +29,13 @@ export default function BookingDateField({ label, value, min, max, onChange }: {
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.addEventListener("wehouse:navigation", close);
     window.addEventListener("popstate", close);
     window.addEventListener("hashchange", close);
     return () => {
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener("wehouse:navigation", close);
       window.removeEventListener("popstate", close);
       window.removeEventListener("hashchange", close);
