@@ -130,7 +130,7 @@ function PageTransitionFallback() {
         </div>
         {!slow ? (
           <div className="mt-8 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[.07]" aria-hidden="true">
-            <div className="h-full w-1/2 animate-pulse rounded-full bg-violet-500 motion-reduce:animate-none" />
+            <div className="h-full w-1/2 rounded-full bg-violet-500" />
           </div>
         ) : (
           <div className="mt-8">
