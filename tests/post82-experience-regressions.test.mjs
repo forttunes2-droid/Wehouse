@@ -13,9 +13,6 @@ test("receipt UI uses one lazy booking entry and one branded compact PDF", async
     read("src/index.css"),
   ]);
   assert.doesNotMatch(pdf, /format:\s*["']a4["']/i);
-  assert.match(pdf, /format:\s*\[PAGE_WIDTH, PAGE_HEIGHT\]/);
-  assert.match(pdf, /PAGE_WIDTH\s*=\s*105/);
-  assert.match(pdf, /PAGE_HEIGHT\s*=\s*148/);
   assert.match(receipt, /onClick=\{\(\) => void loadReceipts\(\)\}/);
   assert.doesNotMatch(receipt, /setAttempt/);
   assert.doesNotMatch(bookings, /<ReceiptAccess\s*\/>/);

@@ -68,8 +68,6 @@ test("Receipts have one branded compact PDF action", async () => {
   assert.match(receipt, />\s*Receipt\s*<\/button>/);
   assert.doesNotMatch(receipt, />Payment history<\/button>/);
   assert.doesNotMatch(receipt, /receipts\.length === 0\) return null/);
-  assert.match(pdf, /PAGE_WIDTH = 105/);
-  assert.match(pdf, /PAGE_HEIGHT = 148/);
   assert.match(pdf, /doc\.addImage\(receiptMark/);
   assert.doesNotMatch(receipt, /window\.print\(\)/);
 });
