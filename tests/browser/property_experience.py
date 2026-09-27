@@ -252,8 +252,14 @@ async def main():
     assert download.suggested_filename=='WeHouse-receipt-WH-QA-2026.pdf'
     pdf=Path(await download.path()).read_bytes()
     assert pdf.startswith(b'%PDF-') and b'/Subtype /Image' in pdf, 'Receipt PDF must contain the WeHouse image mark'
+    pages=re.findall(rb'/Type\s*/Page\b',pdf)
+    box=re.search(rb'/MediaBox\s*\[0\s+0\s+([\d.]+)\s+([\d.]+)\]',pdf)
+    assert len(pages)==1 and box, 'An ordinary receipt must be one PDF page'
+    width,height=map(float,box.groups())
+    assert 240<=width<=300 and height<842, 'The PDF must be a narrow receipt, not a full A4 sheet'
+    (OUT/'wehouse-receipt-sample.pdf').write_bytes(pdf)
     assert not scenario.errors,scenario.errors
-    results.append({'case':'One receipt PDF action with brand image','passed':True})
+    results.append({'case':'One content-sized receipt PDF with brand image','passed':True,'pdf_pages':len(pages),'pdf_points':[width,height]})
    finally:
     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
    scenario=Scenario(); scenario.delay_account=2; context,page=await scenario.open(browser,'short',390)
