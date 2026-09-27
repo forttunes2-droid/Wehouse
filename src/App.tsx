@@ -108,7 +108,7 @@ const CreatorAuthModal = lazy(() => import("@/components/CreatorAuthModal"));
 const SupportChat = lazy(() => import("@/components/SupportChat"));
 const PrivateCallCenter = lazy(() => import("@/components/PrivateCallCenter"));
 
-function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) {
+function PageTransitionFallback() {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     const timer = window.setTimeout(() => setSlow(true), 25000);
@@ -120,30 +120,20 @@ function PageTransitionFallback({ signingIn = false }: { signingIn?: boolean }) 
       role="status"
       aria-label="Loading WeHouse"
     >
-      <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-md flex-col">
-        <div className="wh-auth-to-app-brand flex items-center gap-3 pt-3">
+      <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-md flex-col justify-center">
+        <div className="wh-auth-to-app-brand flex items-center gap-3">
           <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
           <div>
             <p className="text-base font-semibold tracking-tight">WeHouse</p>
-            <p className="mt-0.5 text-[10px] text-[#777E8E]">{signingIn ? "Signing you in" : "Opening your account"}</p>
+            <p className="mt-0.5 text-sm text-[#A7ADBA]">Opening your session…</p>
           </div>
         </div>
         {!slow ? (
-          <div className="wh-auth-to-app-shell mt-10 flex flex-1 flex-col">
-            <div className="h-3 w-28 rounded-full bg-white/[.08]" />
-            <div className="mt-3 h-7 w-48 rounded-xl bg-white/[.055]" />
-            <div className="mt-8 grid grid-cols-2 gap-3">
-              <div className="h-24 rounded-[20px] bg-white/[.045]" />
-              <div className="h-24 rounded-[20px] bg-violet-500/[.08]" />
-            </div>
-            <div className="mt-3 h-20 rounded-[20px] bg-white/[.035]" />
-            <div className="mt-3 h-16 rounded-[18px] bg-white/[.03]" />
-            <div className="mt-auto flex justify-around border-t border-white/[.05] pb-2 pt-4">
-              {[0,1,2,3].map((item) => <span key={item} className="h-8 w-8 rounded-full bg-white/[.045]" />)}
-            </div>
+          <div className="mt-8 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[.07]" aria-hidden="true">
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-violet-500 motion-reduce:animate-none" />
           </div>
         ) : (
-          <div className="grid flex-1 place-items-center text-center">
+          <div className="mt-8">
             <div className="max-w-xs">
               <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
               <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
@@ -1112,7 +1102,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     else handleSetNavPage(accountBackPage(navPage, roleRoot()));
   }, [handleSetNavPage, navPage, roleRoot]);
 
-  if (auth.isLoading) return <PageTransitionFallback signingIn />;
+  if (auth.isLoading) return <PageTransitionFallback />;
   if (baseProfile && !workspaceReady) return workspaceError ? (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#0A0A0F] p-6 text-center text-white">
       <h1 className="text-xl font-semibold">Unable to open your account</h1>

@@ -20,8 +20,3 @@ order by l.created_at desc,l.id desc limit 25;
 explain (analyze,buffers) select public.search_discoverable_homes(p_limit=>24);
 \echo 'Public home city RPC plan'
 explain (analyze,buffers) select public.search_discoverable_homes(p_city=>'Lafia',p_limit=>24);
-\echo 'Temporary local experiment: force a parameter-specific plan'
-alter function public.search_discoverable_homes(text,text,text,text,numeric,numeric,integer,integer,timestamptz,uuid,integer)
-  set plan_cache_mode = 'force_custom_plan';
-explain (analyze,buffers) select public.search_discoverable_homes(p_limit=>24);
-explain (analyze,buffers) select public.search_discoverable_homes(p_city=>'Lafia',p_limit=>24);

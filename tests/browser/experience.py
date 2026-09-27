@@ -15,14 +15,14 @@ A, B = 'aaaaaaaa-1111-4111-8111-111111111111', 'bbbbbbbb-2222-4222-8222-22222222
 ACCESS = {'identity': {'user_id': 'experience-creator', 'account_kind': 'consumer', 'compatibility_role': 'creator'}, 'personal_workspace': True, 'privileged_workspaces': [{'role': 'creator', 'scope_type': 'global'}]}
 ROWS = [{'conversation_id': id_, 'partner_id': f'{label}-customer', 'requester_name': label,
          'requester_role': 'property_partner', 'subject': 'Property access', 'status': 'in_progress',
-         'channel_kind': 'property_operations', 'context_type': 'property_inspection',
+         'channel_kind': 'property_operations', 'context_type': 'property_listing' if id_ == B else 'property_inspection',
          'context_id': id_, 'context_snapshot': {'property_title': f'{label} Home'},
          'unread_count': 1, 'last_message': f'{label} message', 'requester_state': 'Nasarawa', 'requester_lga': 'Lafia'}
         for id_, label in [(A, 'Alpha'), (B, 'Beta')]]
 
 def bundle(id_):
     label = 'Alpha' if id_ == A else 'Beta'
-    return {'conversation': {'conversation_id': id_}, 'messages': [
+    return {'conversation': {'conversation_id': id_, 'context_type': 'property_listing' if id_ == B else 'property_inspection'}, 'messages': [
         {'id': f'{id_}-1', 'sender_id': f'{label}-customer', 'sender_role': 'creator', 'sender_side': 'requester', 'sender_name': label, 'content': f'{label} customer message', 'created_at': '2026-09-22T00:00:00Z', 'is_read': False, 'attachments': []},
         {'id': f'{id_}-2', 'sender_id': 'experience-creator', 'sender_role': 'user', 'sender_side': 'wehouse', 'content': f'{label} team reply', 'created_at': '2026-09-22T00:01:00Z', 'is_read': True, 'attachments': []},
     ], 'internal_notes': [{'id': f'{id_}-note', 'sender_name': 'Team member', 'content': f'{label} private work note', 'created_at': '2026-09-22T00:02:00Z', 'attachments': []}], 'events': []}
@@ -52,6 +52,7 @@ class Scenario:
             if id_ == A and self.delay_a: await asyncio.sleep(self.delay_a)
             if self.fail_thread: data, status = {'message': 'Thread temporarily unavailable', 'code': 'QA_TEST'}, 503
             else: data = bundle(id_)
+        elif name == 'get_operational_subject_state': data = {'kind':'property','state':'removed' if args.get('p_conversation_id') == B else 'active'}
         elif name == 'mark_support_messages_read': data = None
         elif 'summary' in name: data = {'unread': 0, 'needs_action': 0, 'total': 0}
         elif name == 'get_my_legal_status': data = {}
@@ -143,6 +144,16 @@ async def run(browser):
         assert not s.errors, s.errors
         await context.close()
     await check('Slow old thread cannot overwrite new thread or mark it read', thread_race)
+
+    async def removed_property():
+        s = Scenario(); context, page = await s.page(browser, 'messages')
+        await page.get_by_role('button', name=re.compile('Beta')).click()
+        await expect(page.get_by_role('button', name='Property removed')).to_be_disabled()
+        await expect(page.get_by_text('The original property is no longer available.')).to_be_visible()
+        await expect(page.get_by_text('Beta customer message', exact=True)).to_be_visible()
+        assert any(name == 'get_operational_subject_state' and args.get('p_conversation_id') == B for name,args in s.calls)
+        await context.close()
+    await check('Removed property keeps conversation but blocks stale link', removed_property)
 
     async def thread_failure():
         s=Scenario(); s.fail_thread=True

@@ -354,6 +354,13 @@ export async function getOperationalConversationBundle(conversationId: string) {
     error: error || (valid ? null : new Error("The conversation response was incomplete. Please try again.")),
   };
 }
+export async function getOperationalSubjectState(conversationId: string) {
+  const { data, error } = await supabase.rpc("get_operational_subject_state", { p_conversation_id: conversationId });
+  const state = (data as { kind?: string; state?: string } | null)?.state;
+  return { state: state === "active" || state === "removed" ? state : "unknown", error } as {
+    state: "active" | "removed" | "unknown"; error: typeof error;
+  };
+}
 export async function getSupportCaseEvents(conversationId: string) {
   const { data, error } = await supabase.rpc("get_my_support_case_events", { p_conversation_id: conversationId });
   return { events: (data || []) as SupportCaseEvent[], error };

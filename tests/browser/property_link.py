@@ -29,6 +29,8 @@ async def main():
      await expect(page.get_by_role('heading',name='Shared Garden Lodge',exact=True)).to_be_visible()
      await page.get_by_role('button',name='Save hotel').click()
      await expect(page.get_by_role('heading',name='Welcome',exact=True)).to_be_visible()
+     await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
+     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_attribute('aria-current','page')
      assert await page.evaluate("JSON.parse(sessionStorage.getItem('wh_public_property_intent_v1')).property.id")=='7'
      assert any(name=='get_public_hotel_detail' for name,_ in s.calls)
      # This simulates returning from a successful provider callback; only auth fixture changes.

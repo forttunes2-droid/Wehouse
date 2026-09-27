@@ -13,11 +13,11 @@ const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetailCore'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetailExperience'));
 const noSavedHomes = new Set<string>();
-type Props = { active: boolean; busy?: boolean; sharedProperty?: SharedProperty | null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
 
 /** Only coordinates public navigation. Search, cards and property details are the
  * SAME components as the authenticated routes. No fake Profile or private reads. */
-export default function GuestBrowseEntry({ active, busy = false, sharedProperty, onDismissSharedProperty, onSignIn, onOpenLegal, notice, children }: Props) {
+export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, onDismissSharedProperty, onSignIn, onBrowse, onOpenLegal, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
   const [target, setTarget] = useState<SharedProperty | null>(() => sharedProperty || null);
@@ -57,7 +57,16 @@ export default function GuestBrowseEntry({ active, busy = false, sharedProperty,
     {isTestEnvironment && <p className="mx-auto max-w-7xl px-4 py-2 text-sm text-[#A7ADBA]">Test preview · Live accounts don’t work here. <a className="text-violet-300" href="https://www.wehouse.com.ng/">Open live WeHouse</a></p>}
     {notice && <p role="status" className="mx-auto max-w-7xl px-4 py-2 text-sm">{notice}</p>}
   </> }), [busy, target, notice, onSignIn]);
-  if (!active) return <>{children}</>;
+  if (!active && !showSignedOutNav) return <>{children}</>;
+  if (!active) return <>
+    <div className="wh-auth-with-guest-nav">{children}</div>
+    <PersonalBottomNav activePage="profile" signedOut onNavigate={next => {
+      if (next === 'profile' || busy) return;
+      setSection(next === 'search' ? 'explore' : next === 'my_reservations' ? 'bookings' : 'inbox');
+      setTarget(null);
+      onBrowse?.();
+    }} />
+  </>;
   if (invitationToken) return <PublicInvitationPreview
     token={invitationToken}
     onSignIn={() => {
@@ -82,7 +91,7 @@ export default function GuestBrowseEntry({ active, busy = false, sharedProperty,
       <PersonalBottomNav
         activePage={sectionPage[section]}
         onNavigate={(page) => {
-          if (page === 'profile') { requireSignIn(null, 'account'); return; }
+          if (page === 'profile') { setSection('explore'); requireSignIn(null, 'account'); return; }
           const next = page === 'search' ? 'explore' : page === 'my_reservations' ? 'bookings' : 'inbox';
           setSection(next);
           setTarget(null);
