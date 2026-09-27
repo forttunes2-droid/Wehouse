@@ -44,8 +44,8 @@ as $$
       and (p_radius_km is null or (p_radius_km between 0 and 20
         and p_lat between -90 and 90 and p_lng between -180 and 180
         and h.gps_latitude between p_lat - p_radius_km/111.2 and p_lat + p_radius_km/111.2
-        and h.gps_longitude between p_lng - p_radius_km/(111.2*greatest(0.01,abs(cos(radians(p_lat))))
-          and p_lng + p_radius_km/(111.2*greatest(0.01,abs(cos(radians(p_lat))))
+        and h.gps_longitude between p_lng - p_radius_km/111.2/greatest(0.01,abs(cos(radians(p_lat))))
+          and p_lng + p_radius_km/111.2/greatest(0.01,abs(cos(radians(p_lat))))
         and 6371.0*2*asin(least(1.0,sqrt(
           power(sin(radians(h.gps_latitude::double precision-p_lat)/2),2)
           +cos(radians(p_lat))*cos(radians(h.gps_latitude::double precision))

@@ -78,7 +78,7 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
       </>}
       </section>
       </div>
-      <p className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[#A3A8B7]">Want to split a Short Let stay? Reserve the dates first, then open your booking and choose “Split costs with connections.”</p>
+      <p className="shrink-0 border-t border-white/10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[#A3A8B7]">Want to split a Short Let stay? Reserve the dates first, then open your booking and choose “Share stay costs.”</p>
     </section>
   </div>, document.body);
 }
