@@ -83,5 +83,7 @@ select t.id, coalesce(
 update public.wallet_transactions t set wallet_id = a.wallet_id
 from attributed a where t.id = a.id and a.wallet_id is not null;
 
+alter table public.wallet_transactions alter column wallet_id set not null;
+
 create index if not exists wallet_transactions_wallet_recent
   on public.wallet_transactions(wallet_id, created_at desc);
