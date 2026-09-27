@@ -2,8 +2,8 @@ import SharedPropertyCard from "@/components/SharedPropertyCard";
 import { ChevronRight, Copy, Search, Share2, Users } from "lucide-react";
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getConversations, getRoommateConversationPeople } from '@/lib/supabase/chat';
-import { selectRoommateRecipients, type RoommateRecipient } from '@/lib/roommateRecipients';
+import { getRoommateConversationPeople } from '@/lib/supabase/chat';
+import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from '@/lib/roommateRecipients';
 import { propertyShareUrl, queuePropertyShare, sharePropertyExternally, type SharedProperty } from '@/lib/propertyShare';
 import { withTimeout } from '@/lib/withTimeout';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
@@ -23,12 +23,10 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
     setLoading(true); setError(''); setRecipients([]);
     void (async () => {
       try {
-        const [chats, peers] = await withTimeout(Promise.all([getConversations(userId), getRoommateConversationPeople()]), 15000, 'Connections took too long to load.');
+        const peers = await withTimeout(getRoommateConversationPeople(), 15000, 'Connections took too long to load.');
         if (!active) return;
-        if (chats.error || peers.error) throw chats.error || peers.error;
-        const result = selectRoommateRecipients(userId, chats.conversations, peers.people);
-        setRecipients(result.recipients);
-        if (result.missingIdentityCount) setError('Some connection names could not be loaded. Refresh to see them.');
+        if (peers.error) throw peers.error;
+        setRecipients(selectRoommateRecipientsFromPeers(userId, peers.connections));
       } catch { if (active) setError('Your connections could not be loaded. Please try again.'); }
       finally { if (active) setLoading(false); }
     })();

@@ -22,6 +22,7 @@ import { getMyPropertyHostConversations, type PropertyHostConversation } from "@
 import ChatCore from "@/pages/ChatCore";
 import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
+import ActivityHeader from "@/components/ActivityHeader";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
@@ -538,24 +539,9 @@ export default function Chat({
   if (view === "activity") {
     return (
       <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-        <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
-          <div className="mx-auto flex max-w-5xl items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setView("messages")}
-              aria-label="Back to Inbox messages"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg text-[#A1A6B5] active:bg-white/[.05]"
-            >
-              ←
-            </button>
-            <div>
-              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
-                Inbox
-              </p>
-              <h1 className="text-xl font-bold">Activity</h1>
-            </div>
-          </div>
-        </header>
+        <div className="sticky top-0 z-30 bg-[#090B10]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
+          <ActivityHeader onBack={() => setView("messages")} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
+        </div>
         <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
           <Notifications
             profile={profile}

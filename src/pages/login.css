@@ -18,7 +18,7 @@ body.wh-auth-open #root { background-color: #090b10 !important; color-scheme: da
 .wh-auth-layout {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   max-width: 480px;
   min-width: 0;

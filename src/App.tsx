@@ -1,6 +1,6 @@
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
 import { parsePropertyShareUrl, type SharedProperty } from "@/lib/propertyShare";
-import SharedPropertyWorkspacePrompt from "@/components/SharedPropertyWorkspacePrompt";
+import SharedPropertyWorkspaceView from "@/components/SharedPropertyWorkspaceView";
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
@@ -319,13 +319,22 @@ export default function App() {
     try { return readPropertyLinkIntent(window.location.href, sessionStorage); }
     catch { return parsePropertyShareUrl(window.location.href); }
   });
-  const consumePropertyIntent = useCallback(() => setPropertyIntent(null), []);
+  const consumePropertyIntent = useCallback(() => {
+    setPropertyIntent(null);
+    try {
+      savePropertyLinkIntent(null, sessionStorage);
+      if (parsePropertyShareUrl(window.location.href)) {
+        const page = window.history.state?.page;
+        window.history.replaceState(window.history.state, '', page && page !== 'login' ? `#${page}` : '#search');
+      }
+    } catch {}
+  }, []);
   useEffect(() => { try { savePropertyLinkIntent(propertyIntent, sessionStorage); } catch {} }, [propertyIntent]);
   useEffect(() => {
     const readLink = () => {
       let next = parsePropertyShareUrl(window.location.href);
       try { next = readPropertyLinkIntent(window.location.href, sessionStorage); } catch {}
-      if (next) setPropertyIntent(next);
+      setPropertyIntent(next);
     };
     window.addEventListener("hashchange", readLink);
     return () => window.removeEventListener("hashchange", readLink);
@@ -1129,6 +1138,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         serverError={auth.error}
         kickedOut={auth.kickedOut}
         pendingDevice={auth.pendingDevice}
+        publicProperty={propertyIntent}
+        onDismissPublicProperty={consumePropertyIntent}
       />
     );
   if (auth.page === "setup" && profile)
@@ -1566,7 +1577,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
 
   return (
     <CreatorAuthProvider>
-      {propertyIntent && profile && !isUserRole && <SharedPropertyWorkspacePrompt onConfirm={() => switchWorkspace("personal")} onDismiss={consumePropertyIntent} />}
+      {propertyIntent && profile && !isUserRole && <SharedPropertyWorkspaceView property={propertyIntent} onPersonal={() => switchWorkspace("personal")} onClose={consumePropertyIntent} />}
       {profile && invitationToken ? <ResourceInvitationAction
         token={invitationToken}
         onClose={dismissInvitationIntent}

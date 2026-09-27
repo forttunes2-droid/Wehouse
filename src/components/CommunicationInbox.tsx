@@ -9,6 +9,7 @@ import { conversationPresentation, getMySupportConversations, type SupportThread
 import HotelBookingChat from "@/components/HotelBookingChat";
 import { withTimeout } from "@/lib/withTimeout";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
+import ActivityHeader from "@/components/ActivityHeader";
 import PropertyHostBookingChat from "@/components/PropertyHostBookingChat";
 import { getMyPropertyHostConversations, type PropertyHostConversation } from "@/lib/supabase/property-host-chat";
 
@@ -114,10 +115,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   if (showActivity && !hostingOnly) {
     return (
       <div className="min-h-[65dvh]">
-        <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
-          <button type="button" onClick={closeActivity} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
-          <div><h2 className="text-sm font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#6F7586]">Property, booking, payment and account updates.</p></div>
-        </header>
+        <ActivityHeader onBack={closeActivity} subtitle="Property, booking, payment and account updates." />
         <Notifications profile={profile} scope="partner" embedded onNavigate={openActivityDestination} />
       </div>
     );

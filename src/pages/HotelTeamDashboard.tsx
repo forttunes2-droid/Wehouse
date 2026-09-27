@@ -9,6 +9,7 @@ import PartnerHotelOperations from "@/components/PartnerHotelOperations";
 import SupportEntryCard from "@/components/SupportEntryCard";
 import HotelBookingChat from "@/components/HotelBookingChat";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
+import ActivityHeader from "@/components/ActivityHeader";
 import Notifications from "@/pages/Notifications";
 import {
   getMyHotelConversations,
@@ -210,22 +211,7 @@ export default function HotelTeamDashboard({
       {hotelError ? <p role="alert" className="py-4 text-sm text-amber-200">Assigned hotels are unavailable. Refresh this page to try again.</p> : null}
       {showActivity ? (
         <section>
-          <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
-            <button
-              type="button"
-              onClick={closeActivity}
-              className="grid h-9 w-9 place-items-center text-[#A1A6B5]"
-              aria-label="Back to Inbox"
-            >
-              ←
-            </button>
-            <div>
-              <h2 className="text-sm font-semibold">Activity</h2>
-              <p className="mt-1 text-[9px] text-[#707687]">
-                Stay and hotel-operation updates.
-              </p>
-            </div>
-          </header>
+          <ActivityHeader onBack={closeActivity} subtitle="Stay and hotel-operation updates." />
           <Notifications
             profile={profile}
             scope="hotel"

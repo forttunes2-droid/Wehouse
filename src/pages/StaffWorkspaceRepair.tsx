@@ -13,6 +13,7 @@ import StaffSecurityOverviewV2 from "@/components/StaffSecurityOverviewV2";
 import StaffActivityTrailV2 from "@/components/StaffActivityTrailV2";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
+import ActivityHeader from "@/components/ActivityHeader";
 import { useStaffPermissions } from "@/hooks/useStaffPermissions";
 import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
 import type { Profile } from "@/types";
@@ -408,22 +409,7 @@ function OperationsInbox({
   if (activityOpen) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3 border-b border-white/[.06] pb-3">
-          <button
-            type="button"
-            onClick={() => setActivityOpen(false)}
-            className="grid h-10 w-10 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]"
-            aria-label="Back to Inbox messages"
-          >
-            ←
-          </button>
-          <div>
-            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
-              Inbox
-            </p>
-            <h2 className="text-sm font-semibold">Activity</h2>
-          </div>
-        </div>
+        <ActivityHeader onBack={() => setActivityOpen(false)} subtitle="Updates for your assigned work." />
         <Notifications
           profile={profile}
           scope="staff"
@@ -487,22 +473,7 @@ function SupportInbox({
   if (activityOpen) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3 border-b border-white/[.06] pb-3">
-          <button
-            type="button"
-            onClick={() => setActivityOpen(false)}
-            className="grid h-10 w-10 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]"
-            aria-label="Back to Inbox messages"
-          >
-            ←
-          </button>
-          <div>
-            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
-              Inbox
-            </p>
-            <h2 className="text-sm font-semibold">Activity</h2>
-          </div>
-        </div>
+        <ActivityHeader onBack={() => setActivityOpen(false)} subtitle="Updates for your assigned work." />
         <Notifications
           profile={profile}
           scope="staff"

@@ -5,6 +5,7 @@ import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import Notifications from "@/pages/Notifications";
 import SupportEntryCard from "@/components/SupportEntryCard";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
+import ActivityHeader from "@/components/ActivityHeader";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -145,10 +146,7 @@ export function WorkerInboxPanel({
 
   if (showActivity) return (
     <div>
-      <header className="mb-4 flex items-center gap-3 border-b border-white/[.06] pb-3">
-        <button type="button" onClick={() => setShowActivity(false)} aria-label="Back to Inbox" className="grid h-9 w-9 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]">←</button>
-        <div><p className="text-[8px] font-semibold uppercase tracking-[.14em] text-violet-300">Inbox</p><h2 className="mt-1 text-sm font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Job, payment, security and official updates.</p></div>
-      </header>
+      <ActivityHeader onBack={() => setShowActivity(false)} subtitle="Job, payment, security and official updates." />
       <Notifications profile={profile} scope="worker" embedded onNavigate={openActivitySource} onUnreadChange={reportActivityUnread} />
     </div>
   );

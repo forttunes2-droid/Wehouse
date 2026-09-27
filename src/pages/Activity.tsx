@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Profile } from '@/types';
 import Notifications from '@/pages/Notifications';
-import BackButton from '@/components/BackButton';
+import ActivityHeader from '@/components/ActivityHeader';
 
 type ActivityProps = {
   profile: Profile;
@@ -27,19 +27,9 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
 
   return (
     <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <BackButton
-            onClick={() => onNavigate('conversation')}
-            className="!ml-0"
-            ariaLabel="Back to Inbox"
-          />
-          <div>
-            <h1 className="text-lg font-bold sm:text-xl">Activity</h1>
-            <p className="mt-0.5 text-[9px] text-[#707687]">Updates and actions that affect you.</p>
-          </div>
-        </div>
-      </header>
+      <div className="sticky top-0 z-30 bg-[#090B10]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
+        <ActivityHeader onBack={() => onNavigate('conversation')} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
+      </div>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
         <Notifications
           profile={profile}
