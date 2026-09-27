@@ -23,7 +23,9 @@ BASELINE = "20260913181317"
 # repository prefix; ordered-version MD5 10c8de036205d63648e3c7876c45ad0e.
 # 20260927072525: read-only Production history 2026-09-27: 638 versions,
 # complete repository prefix after the 12 recorded property migration aliases.
-COMPLETED_RELEASES = {BASELINE, "20260919181136", "20260920032704", "20260920072341", "20260920080946", "20260920141020", "20260920163100", "20260920174906", "20260920190517", "20260921121000", "20260921235500", "20260922020000", "20260922170000", "20260926064500", "20260927072525"}
+# 20260927101830: additive bounded home search applied to Production through
+# Supabase at 20260927104022; public projection and both indexes verified.
+COMPLETED_RELEASES = {BASELINE, "20260919181136", "20260920032704", "20260920072341", "20260920080946", "20260920141020", "20260920163100", "20260920174906", "20260920190517", "20260921121000", "20260921235500", "20260922020000", "20260922170000", "20260926064500", "20260927072525", "20260927101830"}
 # These 12 property migrations were applied to Production under different
 # timestamps. Their stored SQL is byte-identical to the repository files. Keep
 # the real Production records; never replay the same DDL or rewrite history.
@@ -40,6 +42,7 @@ PRODUCTION_ALIASES = {
     "20260926065048": "20260926063000",
     "20260926070634": "20260926064000",
     "20260926070856": "20260926064500",
+    "20260927104022": "20260927101830",
 }
 PRODUCTION_HOST = "aws-1-eu-north-1.pooler.supabase.com"
 PRODUCTION_USER = "postgres.rkrhnkhppeihvmuwvsvn"
