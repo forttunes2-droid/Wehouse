@@ -8,8 +8,6 @@ import { Toaster } from 'sonner'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
 import { registerNativeOAuthHandler } from '@/lib/nativeOAuth'
-import NativeSelectBridge from '@/components/NativeSelectBridge'
-import NativeDateBridge from '@/components/NativeDateBridge'
 
 function NativeInit() {
   useEffect(() => { document.documentElement.dataset.whReactMounted = "true"; }, []);
@@ -119,8 +117,6 @@ async function mountWeHouse() {
     <ErrorBoundary>
       <NativeInit />
       <MobileViewportInit />
-      <NativeSelectBridge />
-      <NativeDateBridge />
       <App />
       <Toaster position="top-center" theme="dark" visibleToasts={1} duration={3200}
         offset="max(12px, env(safe-area-inset-top))" mobileOffset="max(12px, env(safe-area-inset-top))"

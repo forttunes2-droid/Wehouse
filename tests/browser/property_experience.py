@@ -69,6 +69,17 @@ class Scenario:
   await page.goto(BASE+'/tests/browser/property-experience.html?mode='+mode)
   return context,page
 async def fits(page): assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth+1')
+async def choose_booking_date(page,label,iso):
+ await page.get_by_role('button',name=label,exact=True).click()
+ dialog=page.get_by_role('dialog',name=f'Choose {label}',exact=True)
+ await expect(dialog).to_be_visible()
+ date=datetime.fromisoformat(iso)
+ day=dialog.get_by_role('button',name=re.compile(rf'{date.strftime("%B")} {date.day}(?:st|nd|rd|th)?, {date.year}'))
+ for _ in range(2):
+  if await day.is_visible(): break
+  await dialog.get_by_role('button',name='Go to the Next Month').click()
+ await day.click()
+ await expect(dialog).to_have_count(0)
 async def main():
  OUT.mkdir(parents=True,exist_ok=True); results=[]
  async with async_playwright() as p:
@@ -95,8 +106,8 @@ async def main():
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
      await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
      await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
-     await page.get_by_label('Check-in',exact=True).fill(TOMORROW)
-     await page.get_by_label('Check-out',exact=True).fill(CHECKOUT)
+     await choose_booking_date(page,'Check-in',TOMORROW)
+     await choose_booking_date(page,'Check-out',CHECKOUT)
      await expect(reserve).to_be_enabled()
      await expect(page.get_by_text('₦290,000',exact=True)).to_have_count(0)
      await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
