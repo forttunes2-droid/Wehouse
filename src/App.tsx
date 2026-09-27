@@ -1003,6 +1003,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     (id: string) => {
       setDetailId(id);
       handleSetNavPage("detail");
+      // A second listing is a new screen, even when the route name stays
+      // "detail". Do not restore the previous listing's scroll position.
+      pageScrollPositionsRef.current.set("detail", 0);
+      if (pageScrollRef.current) pageScrollRef.current.scrollTop = 0;
     },
     [handleSetNavPage],
   );
@@ -1370,6 +1374,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "detail":
         return isUserRole && detailId ? (
           <ListingDetail
+            key={detailId}
             listingId={detailId}
             onNavigate={goBack}
             isSaved={savedIds.has(detailId)}

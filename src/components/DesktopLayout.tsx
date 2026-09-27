@@ -46,6 +46,7 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
   'security',
   'devices',
   'detail',
+  'followed_searches',
   'hotel_detail',
   'hotel_booking',
   'my_bookings',

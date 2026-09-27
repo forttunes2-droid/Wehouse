@@ -348,8 +348,8 @@ export default function RoommateWorkspace({
       active="roommates"
       onNavigate={onNavigate}
     >
-      <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-6">
-        <header className="flex items-center gap-3 border-y border-white/[.07] py-4">
+      <main className="mx-auto max-w-4xl space-y-4 px-4 py-4 sm:px-6">
+        <header className="flex items-center gap-3 border-y border-white/[.07] py-3">
           <ProfileImage
             src={profile.avatar_url}
             name={profile.full_name || profile.username || "Your profile"}
@@ -369,7 +369,7 @@ export default function RoommateWorkspace({
         </header>
 
         {loadError && <section role="alert" className="border-y border-amber-500/20 py-4 text-sm leading-6"><p>{loadError}</p><button type="button" onClick={()=>void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></section>}
-        {prefs && prefs.practical_preferences_version !== 2 && <section className="border-y border-violet-500/20 py-4 text-sm leading-6"><p>Confirm your moving plans to find new matches. Existing connections and chats are unchanged.</p><button type="button" onClick={()=>setEditing(true)} className="min-h-11 font-semibold text-violet-300">Review preferences</button></section>}
+        {prefs && prefs.practical_preferences_version !== 2 && <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-4 text-xs leading-5"><p>Review your moving plans to find new matches. Your connections and chats are still here.</p><button type="button" onClick={()=>setEditing(true)} className="mt-2 min-h-10 font-semibold text-violet-300">Review preferences</button></section>}
         {!profileReady && (
           <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
             <p className="text-sm font-semibold">Add the basics first</p>
@@ -424,45 +424,36 @@ export default function RoommateWorkspace({
           />
         ) : (
           <>
-            <section className="border-y border-white/[.07] py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[.15em] text-[#6F7585]">
-                    Your annual rent share
-                  </p>
-                  <p className="mt-1 text-lg font-bold">
-                    ₦{Number(prefs.budget_min).toLocaleString()} – ₦
-                    {Number(prefs.budget_max).toLocaleString()}
-                  </p>
-                  {prefs.school_match && (
-                    <p className="mt-2 text-sm text-violet-300">
-                      Same school · {prefs.school_name}
-                    </p>
-                  )}
-                </div>
-                <span className={`text-sm font-bold uppercase tracking-[.12em] ${matchingActive ? "text-emerald-300" : "text-[#7B8190]"}`}>
-                  {matchingActive ? "Discoverable" : "Not discoverable"}
+            <section className="rounded-2xl border border-white/[.07] bg-[#11141C] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#989EAE]">Your annual rent share</p>
+                <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold ${matchingActive ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#989EAE]"}`}>
+                  {matchingActive ? "Discoverable" : "Paused"}
                 </span>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <p className="mt-2 text-base font-semibold">
+                ₦{Number(prefs.budget_min).toLocaleString()} – ₦{Number(prefs.budget_max).toLocaleString()}
+              </p>
+              {prefs.school_match && <p className="mt-1 text-xs text-violet-300">Same school · {prefs.school_name}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   onClick={() => setEditing(true)}
-                  className="min-h-10 rounded-xl border border-white/[.08] px-4 text-sm"
+                  className="min-h-10 rounded-xl border border-white/[.08] px-3 text-xs font-semibold"
                 >
                   Edit preferences
                 </button>
-                {matchingActive ? (
+                {prefs.practical_preferences_version !== 2 ? null : matchingActive ? (
                   <>
                     <button
                       onClick={() => void refresh()}
                       disabled={busy}
-                      className="min-h-10 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40"
+                      className="min-h-10 rounded-xl bg-violet-500 px-3 text-xs font-semibold disabled:opacity-40"
                     >
                       {busy ? "Refreshing…" : "Refresh matches"}
                     </button>
                     <button
                       onClick={() => void stop()}
-                      className="min-h-10 rounded-xl border border-white/[.08] px-4 text-sm"
+                      className="min-h-10 rounded-xl border border-white/[.08] px-3 text-xs font-semibold"
                     >
                       Stop new discovery
                     </button>
@@ -471,7 +462,7 @@ export default function RoommateWorkspace({
                   <button
                     onClick={() => void start()}
                     disabled={!canMatch || busy}
-                    className="min-h-10 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40"
+                    className="min-h-10 rounded-xl bg-violet-500 px-3 text-xs font-semibold disabled:opacity-40"
                   >
                     {busy ? "Starting…" : "Find new matches"}
                   </button>
@@ -490,15 +481,12 @@ export default function RoommateWorkspace({
               onChat={openConversation}
               onInterest={interest}
             />
-            {!matchingActive && matches.filter(isEstablishedMatch).length === 0 ? (
-              <section className="py-12 text-center">
-                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/[.08] text-xl text-violet-300">
-                  Ⅱ
-                </div>
-                <p className="mt-4 text-base font-semibold">
+            {!matchingActive && prefs.practical_preferences_version === 2 && matches.filter(isEstablishedMatch).length === 0 ? (
+              <section className="py-8 text-center">
+                <p className="text-sm font-semibold">
                   New discovery is paused
                 </p>
-                <p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-[#686D7E]">
+                <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#989EAE]">
                   People already interested in you remain above, and existing
                   connections remain visible here and in Inbox. Resume when you
                   want to discover new profiles.
