@@ -78,7 +78,7 @@ async def open_account_workspaces(page):
     await page.get_by_role('button', name='Account', exact=True).filter(visible=True).click()
     await expect(page.get_by_role('heading', name='Account', exact=True)).to_be_visible()
     await expect(page.get_by_role('button', name='Open workspaces', exact=True)).to_have_count(0)
-    await page.get_by_role('button', name=re.compile(r'^WeHouse')).click()
+    await page.get_by_role('button', name=re.compile(r'^Switch workspace')).click()
     await expect(page.get_by_role('heading', name='WeHouse', exact=True)).to_be_visible()
 
 async def run(browser):
