@@ -1,0 +1,44 @@
+name: Capacity Stage 1 baseline
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/capacity-stage1.yml'
+      - 'scripts/load-baseline.mjs'
+      - 'supabase/tests/load_baseline_fixture.sql'
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capacity-stage1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-public-read-baseline:
+    name: Isolated public read baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Start disposable local Supabase
+        run: npx --yes supabase@2.114.0 start
+      - name: Replay the exact repository migrations
+        run: npx --yes supabase@2.114.0 db reset --local
+      - name: Seed clearly synthetic discovery data
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/load_baseline_fixture.sql
+      - name: Measure bounded public RPC traffic
+        run: node scripts/load-baseline.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capacity-stage1-results
+          path: test-results/load-baseline.json
+          retention-days: 14
+      - name: Stop disposable services
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup
