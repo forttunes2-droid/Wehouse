@@ -47,7 +47,7 @@ async def main():
       await page.get_by_label('Email' if signup else 'Username or email',exact=True).fill('test@example.invalid')
       await page.locator('input[autocomplete="new-password"]' if signup else 'input[autocomplete="current-password"]').fill('not-a-real-password')
       await page.locator('form').get_by_role('button',name='Create account' if signup else 'Sign in',exact=True).click()
-      await expect(page.get_by_role('button',name='Creating account…' if signup else 'Signing in…',exact=True)).to_be_disabled()
+      await expect(page.locator('form').get_by_role('button',name='Creating account…' if signup else 'Signing in…',exact=True)).to_be_disabled()
       await expect(page.get_by_label('Email' if signup else 'Username or email',exact=True)).to_be_disabled()
       await page.locator('form').evaluate('(e)=>{e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));}')
       assert len(await page.evaluate('window.__authTest.calls'))==1
@@ -65,7 +65,7 @@ async def main():
        assert (await page.evaluate('window.__authTest.calls'))[-1]=={'name':'google','args':['test@example.invalid','signup']}
       else:
        await page.evaluate('window.__authTest.resolve({data:{session:{user:{id:"test-user"}}},error:null})')
-       await expect(page.get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
+       await expect(page.locator('form').get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
        await page.locator('form').evaluate('(e)=>e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))')
        assert len(await page.evaluate('window.__authTest.calls'))==1
        if mode=='success-device':
