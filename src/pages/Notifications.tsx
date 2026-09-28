@@ -215,6 +215,8 @@ function NotificationFeed({
       activityCache.set(cacheKey, next);
       return next;
     });
+    // Navigation can unmount this feed before its unread-count effect runs.
+    onUnreadChange?.(Math.max(0, rows.filter(item => !item.read).length - 1));
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     return true;
   }
@@ -318,6 +320,7 @@ function NotificationFeed({
       activityCache.set(cacheKey, next);
       return next;
     });
+    onUnreadChange?.(0);
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     toast.success("Activity marked as read");
   }

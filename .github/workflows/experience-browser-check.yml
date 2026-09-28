@@ -49,8 +49,8 @@ jobs:
       - run: npm ci
       - run: pip install playwright==1.57.0
       - run: python -m playwright install --with-deps chromium
-      - name: Confirm the video encoder is available for public media QA
-        run: ffmpeg -version
+      - name: Install video encoder for public media QA
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
       - name: Run isolated browser interactions
         run: |
           node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
