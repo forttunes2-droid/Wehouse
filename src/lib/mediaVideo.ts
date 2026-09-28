@@ -86,8 +86,8 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
     }
 
     const audioRate = 96_000;
-    const videoRate = Math.max(
-      250_000,
+    let videoRate = Math.max(
+      125_000,
       Math.min(2_200_000, Math.floor((targetBytes * 8) / seconds) - audioRate),
     );
     // Chromium may not create capture tracks until playback starts.
@@ -104,16 +104,20 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       throw new Error(`This device cannot capture this video. Export it below ${limits.outputLabel} and try again.`);
     }
 
-    const chunks: Blob[] = [];
-    const recorder = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: videoRate,
-      audioBitsPerSecond: audioRate,
-    });
-    const body = await new Promise<Blob>((resolve, reject) => {
+    const recordAtRate = (rate: number) => new Promise<Blob>((resolve, reject) => {
+      const chunks: Blob[] = [];
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: rate,
+        audioBitsPerSecond: audioRate,
+      });
+      let settled = false;
       const timeout = window.setTimeout(() => {
-        recorder.stop();
-        reject(new Error("Video compression timed out. Trim it and try again."));
+        if (recorder.state !== "inactive") recorder.stop();
+        if (!settled) {
+          settled = true;
+          reject(new Error("Video compression timed out. Trim it and try again."));
+        }
       }, Math.ceil(seconds * 1000) + 15_000);
       const cleanup = () => {
         window.clearTimeout(timeout);
@@ -125,16 +129,25 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       };
       recorder.onerror = () => {
         cleanup();
-        reject(new Error(`Video compression failed. Trim or export it below ${limits.outputLabel}.`));
+        if (!settled) {
+          settled = true;
+          reject(new Error(`Video compression failed. Trim or export it below ${limits.outputLabel}.`));
+        }
       };
       recorder.onstop = () => {
         cleanup();
-        resolve(new Blob(chunks, { type: mimeType.split(";")[0] }));
+        if (!settled) {
+          settled = true;
+          resolve(new Blob(chunks, { type: mimeType.split(";")[0] }));
+        }
       };
       video.onerror = () => {
         cleanup();
-        recorder.stop();
-        reject(new Error("Video playback failed during compression."));
+        if (recorder.state !== "inactive") recorder.stop();
+        if (!settled) {
+          settled = true;
+          reject(new Error("Video playback failed during compression."));
+        }
       };
       video.onended = () => {
         if (recorder.state !== "inactive") recorder.stop();
@@ -142,8 +155,40 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       recorder.start(1000);
     });
 
+    let body = await recordAtRate(videoRate);
+    // Browser encoders can exceed their requested bitrate. Measure the first
+    // result, then lower the rate and replay when it misses the size budget.
+    for (let attempt = 0; body.size > targetBytes && attempt < 3; attempt += 1) {
+      const nextRate = Math.max(
+        125_000,
+        Math.floor(videoRate * (targetBytes / body.size) * 0.88),
+      );
+      if (nextRate >= videoRate) break;
+      videoRate = nextRate;
+      video.pause();
+      if (video.currentTime > 0.01) {
+        await new Promise<void>((resolve, reject) => {
+          const seekTimeout = window.setTimeout(() => reject(new Error("Video rewind timed out.")), 3_000);
+          video.onseeked = () => {
+            window.clearTimeout(seekTimeout);
+            video.onseeked = null;
+            resolve();
+          };
+          video.currentTime = 0;
+        });
+      }
+      try {
+        await video.play();
+      } catch {
+        throw new Error("This device could not replay the video for compression. Trim it and try again.");
+      }
+      body = await recordAtRate(videoRate);
+    }
+
     if (!body.size || body.size > limits.maxOutputBytes)
       throw new Error(`This video remains over ${limits.outputLabel}. Trim it or export a smaller version before uploading.`);
+    if (body.size > targetBytes)
+      throw new Error("This video could not fit its compression target on this device. Trim it and try again.");
     const contentType = mimeType.split(";")[0];
     return { body, contentType, extension: contentType === "video/mp4" ? "mp4" : "webm" };
   } finally {
