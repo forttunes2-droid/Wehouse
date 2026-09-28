@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    /* Modern Dark Theme - 2026 */
-    --background: 240 20% 2%;
-    --foreground: 0 0% 100%;
-    --card: 240 14% 5%;
-    --card-foreground: 0 0% 100%;
-    --popover: 240 14% 5%;
-    --popover-foreground: 0 0% 100%;
+    /* The dark palette is shared by the public and workspace shells. */
+    --background: 225 28% 5%;
+    --foreground: 225 20% 96%;
+    --card: 222 20% 9%;
+    --card-foreground: 225 20% 96%;
+    --popover: 222 20% 9%;
+    --popover-foreground: 225 20% 96%;
     --primary: 258 100% 68%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 10% 10%;
     --secondary-foreground: 0 0% 100%;
     --muted: 240 10% 10%;
-    --muted-foreground: 240 8% 55%;
+    --muted-foreground: 220 15% 74%;
     --accent: 258 100% 68%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 8% 12%;
-    --input: 240 8% 12%;
+    --border: 222 12% 22%;
+    --input: 222 12% 22%;
     --ring: 258 100% 68%;
     --radius: 0.75rem;
     --sidebar-background: 240 20% 3%;
@@ -35,15 +35,15 @@
     --sidebar-ring: 258 100% 68%;
 
     /* WeHouse custom tokens */
-    --wh-bg: #050508;
-    --wh-surface: #0C0C12;
-    --wh-elevated: #14141C;
+    --wh-bg: #090B10;
+    --wh-surface: #11141C;
+    --wh-elevated: #171B24;
     --wh-violet: #7C5CFF;
     --wh-violet-glow: rgba(124,92,255,0.15);
-    --wh-text: #FFFFFF;
-    --wh-text-secondary: #7A7A8C;
-    --wh-text-muted: #4A4A5C;
-    --wh-border: rgba(255,255,255,0.06);
+    --wh-text: #F4F5F8;
+    --wh-text-secondary: #B8C0CF;
+    --wh-text-muted: #9AA4B6;
+    --wh-border: rgba(255,255,255,0.12);
   }
 }
 
@@ -307,7 +307,7 @@
 }
 
 .bottom-nav {
-  background: rgba(5, 5, 8, 0.95);
+  background: var(--wh-bg);
   border-top: 1px solid var(--wh-border);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }

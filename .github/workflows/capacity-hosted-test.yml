@@ -1,0 +1,37 @@
+name: Capacity hosted Test catalog (bounded)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/capacity-hosted-test.yml'
+      - 'scripts/load-hosted-test-catalog.mjs'
+      - 'supabase/tests/hosted_catalog_fixture.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capacity-hosted-test
+  cancel-in-progress: true
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Read only Test project catalog at at most five requests per second
+        env:
+          # A browser-safe publishable key for the dedicated Test project. RLS
+          # protects underlying tables; the runner never receives a secret key.
+          WEHOUSE_TEST_PUBLISHABLE_KEY: sb_publishable_Rv3lT3wV3AVqWIlxM3Dygw_E3q_aSlV
+        run: node scripts/load-hosted-test-catalog.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capacity-hosted-test-results
+          path: test-results/hosted-test-catalog.json
+          retention-days: 14

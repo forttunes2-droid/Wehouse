@@ -33,16 +33,16 @@ const categories: { id: DiscoveryKey; label: string; route: string; icon: ReactN
 
 export default function DiscoveryShell({ active, onNavigate, children }: ShellProps) {
   const guest = useDiscoveryAccess();
-  return <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_15%_-10%,rgba(124,58,237,.14),transparent_28rem),#090B10] pb-24 text-white">
+  return <div className="wh-discovery-shell min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)] lg:pb-12">
     <section className="mx-auto max-w-7xl px-4 pb-3 pt-5 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4"><p className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">WEHOUSE</p>{guest && <button type="button" onClick={guest.requireSignIn} disabled={guest.busy} aria-busy={guest.busy} className="min-h-11 px-3 text-sm font-semibold text-violet-300 disabled:opacity-50">{guest.busy ? "Signing in…" : "Sign in"}</button>}</div>
+      <div className="flex items-center justify-between gap-4"><p className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">WEHOUSE</p>{guest && <button type="button" onClick={guest.requireSignIn} disabled={guest.busy} aria-busy={guest.busy} className="min-h-11 px-3 text-sm font-semibold text-violet-300 disabled:opacity-50 lg:hidden">{guest.busy ? "Signing in…" : "Sign in"}</button>}</div>
       <h1 className="mt-2 text-2xl font-bold">Find what you need</h1>
     </section>
     {guest?.notice}
-    <header className="sticky top-0 z-40 border-y border-white/[.055] bg-[#090B10]">
+    <header className="sticky top-0 z-40 border-y border-[var(--wh-border)] bg-[var(--wh-bg)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <nav className="flex gap-5 overflow-x-auto scrollbar-hide" aria-label="Discover categories">
-          {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 text-[10px] font-semibold transition ${selected ? 'border-violet-400 text-white' : 'border-transparent text-[#777E8E] hover:text-white'}`}><span className={selected ? 'text-violet-300' : 'text-[#697080]'}>{item.icon}</span>{item.label}</button>; })}
+          {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 text-xs font-semibold transition ${selected ? 'border-violet-400 text-[var(--wh-text)]' : 'border-transparent text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]'}`}><span className={selected ? 'text-violet-300' : 'text-[var(--wh-text-muted)]'}>{item.icon}</span>{item.label}</button>; })}
         </nav>
       </div>
     </header>
@@ -51,17 +51,17 @@ export default function DiscoveryShell({ active, onNavigate, children }: ShellPr
 }
 
 export function DiscoveryToolbar({ value = '', onChange, placeholder = 'Search', showSearch = true, toolbarLabel, onFilters, filterCount = 0, locationLabel, locationDetail, locationActive = false, locationBusy = false, onLocation, onClearLocation, children }: ToolbarProps) {
-  return <section className="border-y border-white/[.065] py-3 sm:py-4">
+  return <section className="border-y border-[var(--wh-border)] py-3 sm:py-4">
     <div className="flex items-center gap-2">
-      {showSearch ? <label className="relative min-w-0 flex-1"><SearchIcon /><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} className="h-12 w-full rounded-full border border-white/[.09] bg-white/[.045] pl-10 pr-4 text-xs text-white outline-none placeholder:text-[#697080] focus:border-violet-400/50" /></label> : <div className="min-w-0 flex-1"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#777E8E]">{toolbarLabel || 'Choose location'}</p></div>}
+      {showSearch ? <label className="relative min-w-0 flex-1"><SearchIcon /><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} className="h-12 w-full rounded-full border border-[var(--wh-border)] bg-[var(--wh-surface)] pl-10 pr-4 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400/50" /></label> : <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--wh-text-secondary)]">{toolbarLabel || 'Choose location'}</p></div>}
       {onFilters && <button type="button" aria-label="Open filters" onClick={onFilters} className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-full border transition ${filterCount ? 'border-violet-400/35 bg-violet-500/[.12] text-violet-200' : 'border-white/[.09] bg-white/[.035] text-[#C4C8D2]'}`}><FilterIcon />{filterCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{filterCount}</span>}</button>}
     </div>
     {(onLocation || children) && <div className="mt-3 flex flex-wrap items-end gap-2">
       {children}
-      {onLocation && locationLabel && <button type="button" onClick={onLocation} disabled={locationBusy} className={`flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[9px] font-semibold transition disabled:opacity-50 ${locationActive ? 'border-violet-500/25 bg-violet-500/10 text-violet-200' : 'border-white/[.07] bg-black/10 text-[#8C92A1]'}`}><LocationIcon />{locationBusy ? 'Finding location…' : locationLabel}</button>}
-      {locationActive && onClearLocation && <button type="button" onClick={onClearLocation} className="rounded-xl px-2 py-2.5 text-[9px] font-semibold text-[#737A8A] hover:text-white">Clear</button>}
+      {onLocation && locationLabel && <button type="button" onClick={onLocation} disabled={locationBusy} className={`flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition disabled:opacity-50 ${locationActive ? 'border-violet-500/25 bg-violet-500/10 text-violet-200' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text-secondary)]'}`}><LocationIcon />{locationBusy ? 'Finding location…' : locationLabel}</button>}
+      {locationActive && onClearLocation && <button type="button" onClick={onClearLocation} className="rounded-xl px-2 py-2.5 text-xs font-semibold text-[var(--wh-text-secondary)] hover:text-white">Clear</button>}
     </div>}
-    {locationDetail && <p className="mt-2 text-[9px] leading-relaxed text-[#62697A]">{locationDetail}</p>}
+    {locationDetail && <p className="mt-2 text-xs leading-relaxed text-[var(--wh-text-secondary)]">{locationDetail}</p>}
   </section>;
 }
 
@@ -70,22 +70,22 @@ export function DiscoveryFilterSheet({ title = 'Filters', onClose, onClear, chil
   const dialogRef = useDialogInteraction(dismiss);
 
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100000] isolate flex bg-[#0F1218] text-white" role="presentation">
-    <section className="flex h-[100dvh] w-full flex-col overflow-hidden border-t border-white/[.08] bg-[#0F1218] shadow-[0_-24px_80px_rgba(0,0,0,.55)]" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100000] isolate flex bg-[var(--wh-surface)] text-[var(--wh-text)]" role="presentation">
+    <section className="flex h-[100dvh] w-full flex-col overflow-hidden border-t border-[var(--wh-border)] bg-[var(--wh-surface)] shadow-[0_-24px_80px_rgba(0,0,0,.55)]" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
       <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-white/15" />
-      <div className="shrink-0 border-b border-white/[.06] bg-[#090B10]/92 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl sm:px-6">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><h2 className="text-xl font-bold">{title}</h2><button type="button" onClick={dismiss} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.08] bg-white/[.035] text-xl text-[#A5AAB8]" aria-label="Close filters">×</button></div>
+      <div className="shrink-0 border-b border-[var(--wh-border)] bg-[var(--wh-bg)] px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><h2 className="text-xl font-bold">{title}</h2><button type="button" onClick={dismiss} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border)] bg-[var(--wh-elevated)] text-xl text-[var(--wh-text-secondary)]" aria-label="Close filters">×</button></div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6"><div className="mx-auto max-w-3xl space-y-5">{children}</div></div>
-      <div className="shrink-0 border-t border-white/[.06] bg-[#090B10]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"><div className="mx-auto flex max-w-3xl items-center gap-3">{onClear ? <button type="button" onClick={onClear} className="h-12 px-3 text-[10px] font-semibold text-[#9298A7]">Reset</button> : null}<button type="button" onClick={dismiss} className="h-12 flex-1 rounded-full bg-violet-500 text-xs font-bold text-white">{resultLabel || 'Show results'}</button></div></div>
+      <div className="shrink-0 border-t border-[var(--wh-border)] bg-[var(--wh-bg)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"><div className="mx-auto flex max-w-3xl items-center gap-3">{onClear ? <button type="button" onClick={onClear} className="h-12 px-3 text-xs font-semibold text-[var(--wh-text-secondary)]">Reset</button> : null}<button type="button" onClick={dismiss} className="h-12 flex-1 rounded-full bg-violet-500 text-xs font-bold text-white">{resultLabel || 'Show results'}</button></div></div>
     </section></div>,
     document.body,
   );
 }
 
-export function DiscoveryEmpty({ title, text }: { title: string; text: string }) { return <section className="border-y border-white/[.07] px-2 py-14 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#707788]">{text}</p></section>; }
+export function DiscoveryEmpty({ title, text }: { title: string; text: string }) { return <section className="border-y border-[var(--wh-border)] px-2 py-14 text-center"><p className="text-sm font-semibold">{title}</p><p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[var(--wh-text-secondary)]">{text}</p></section>; }
 
-function SearchIcon(){return <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#62697A]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>}
+function SearchIcon(){return <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--wh-text-muted)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>}
 function FilterIcon(){return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M7 12h10M10 18h4"/></svg>}
 function HomeIcon(){return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/></svg>}
 function PeopleIcon(){return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3.5 20c.5-4 2.4-6 5.5-6s5 2 5.5 6M14.5 15c2.9-.5 5 .9 6 4"/></svg>}

@@ -552,8 +552,8 @@ function HotelCard({
   const image = hotel.images?.[0];
   const roomCount = (hotel.hotel_rooms || []).length;
   return (
-    <article className="group border-b border-white/[.07] pb-5">
-      <div className={`relative overflow-hidden rounded-2xl bg-[#171B24] ${image ? "aspect-[4/3]" : "h-40"}`}>
+    <article className="group border-b border-[var(--wh-border)] pb-5">
+      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] ${image ? "aspect-[4/3]" : "h-40"}`}>
         <button
           type="button"
           onClick={onOpen}
@@ -562,12 +562,12 @@ function HotelCard({
           <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           {hotel.featured ? (
-            <span className="absolute left-3 top-3 rounded-full bg-violet-500 px-2.5 py-1 text-[7px] font-bold">
+            <span className="absolute left-3 top-3 rounded-full bg-violet-500 px-2.5 py-1 text-[10px] font-bold">
               FEATURED
             </span>
           ) : null}
           {distance != null ? (
-            <span className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2.5 py-1 text-[8px] font-semibold text-white">
+            <span className="absolute bottom-3 left-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">
               {distance < 1
                 ? `${Math.max(1, Math.round(distance * 1000))} m`
                 : `${distance.toFixed(1)} km`}
@@ -599,18 +599,18 @@ function HotelCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="line-clamp-2 text-[15px] font-bold">{hotel.name}</h2>
-            <p className="mt-1 truncate text-[9px] text-[#6F7585]">
+            <p className="mt-1 truncate text-xs text-[var(--wh-text-secondary)]">
               {locationLabel(hotel.area, hotel.city, hotel.state)}
             </p>
           </div>
           {Number(hotel.rating || 0) > 0 ? (
-            <span className="shrink-0 text-[9px] font-semibold text-amber-300">
+            <span className="shrink-0 text-xs font-semibold text-amber-300">
               ★ {Number(hotel.rating).toFixed(1)}
             </span>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3 text-[9px]">
-          <span className="text-[#858B9A]">
+        <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+          <span className="text-[var(--wh-text-secondary)]">
             {roomCount
               ? `${roomCount} room ${roomCount === 1 ? "type" : "types"}`
               : "Room details available inside"}
@@ -618,7 +618,7 @@ function HotelCard({
           <span className="font-semibold text-violet-300">View rooms & packages ›</span>
         </div>
         {hotel.amenities?.length > 0 ? (
-          <p className="mt-2 text-[8px] text-[#858B9A]">
+          <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">
             {hotel.amenities.length} {hotel.amenities.length === 1 ? "amenity" : "amenities"}
           </p>
         ) : null}

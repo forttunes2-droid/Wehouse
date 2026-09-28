@@ -22,15 +22,15 @@ export default function AccountShell({ profile, title, description, onBack, onWo
     : role.replace(/_/g, ' ').toUpperCase();
 
   return (
-    <div className="role-workspace min-h-[100dvh] bg-[#0A0A0F] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-white sm:pb-10">
-      <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#0A0A0F]">
+    <div className="role-workspace min-h-[100dvh] bg-[var(--wh-bg)] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-[var(--wh-text)] sm:pb-10">
+      <header className="sticky top-0 z-30 border-b border-[var(--wh-border)] bg-[var(--wh-bg)]">
         <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 py-4 sm:px-5 lg:px-8`}>
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
               <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
-              {description ? <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#74798B]">{description}</p> : null}
+              {description ? <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--wh-text-secondary)]">{description}</p> : null}
             </div>
             {onWorkspaceSwitch ? (
               <button
@@ -55,8 +55,8 @@ export default function AccountShell({ profile, title, description, onBack, onWo
 export function AccountSection({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <section>
-      {title ? <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[.16em] text-[#656C7C]">{title}</p> : null}
-      <div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">{children}</div>
+      {title ? <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[.16em] text-[var(--wh-text-secondary)]">{title}</p> : null}
+      <div className="overflow-hidden rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)]">{children}</div>
     </section>
   );
 }
@@ -82,23 +82,23 @@ export function AccountRow({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       disabled={onClick ? disabled : undefined}
-      className="flex min-h-[3.75rem] w-full items-center gap-3 border-b border-white/[.05] px-4 py-3 text-left last:border-b-0 transition hover:bg-white/[.025] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
+      className="flex min-h-[3.75rem] w-full items-center gap-3 border-b border-[var(--wh-border)] px-4 py-3 text-left last:border-b-0 transition hover:bg-white/[.045] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
     >
       {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">{icon}</span> : null}
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-[#E6E8EE]">{title}</span>
-        {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[#989EAE]">{detail}</span> : null}
+        <span className="block text-sm font-semibold text-[var(--wh-text)]">{title}</span>
+        {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[var(--wh-text-secondary)]">{detail}</span> : null}
       </span>
-      {trailing ?? (onClick ? <span aria-hidden="true" className="text-[#565D6D]">›</span> : null)}
+      {trailing ?? (onClick ? <span aria-hidden="true" className="text-[var(--wh-text-muted)]">›</span> : null)}
     </Wrapper>
   );
 }
 
 export function AccountInfo({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4">
-      <p className="text-[8px] font-bold uppercase tracking-[.13em] text-[#5F6676]">{label}</p>
-      <p className="mt-1.5 break-words text-[11px] font-semibold text-[#DDE0E7]">{value}</p>
+    <div className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4">
+      <p className="text-xs font-bold uppercase tracking-[.13em] text-[var(--wh-text-secondary)]">{label}</p>
+      <p className="mt-1.5 break-words text-sm font-semibold text-[var(--wh-text)]">{value}</p>
     </div>
   );
 }
