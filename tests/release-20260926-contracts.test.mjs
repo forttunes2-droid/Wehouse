@@ -31,7 +31,9 @@ test('Signed-out Personal uses Sign in instead of a fake Account destination', a
   assert.match(nav, /signedOut/);
   assert.match(nav, /'Sign in'/);
   assert.match(nav, /const Icon = tab\.icon/);
-  assert.match(nav, /const label = signedOut && tab\.id === 'profile' \? 'Sign in' : tab\.label/);
+  assert.match(nav, /signedOut && tab\.id === 'profile' \? 'Sign in' : tab\.label/);
+  assert.match(nav, /disabled=\{signInPending\}/);
+  assert.match(guest, /busy=\{busy\}/);
   assert.match(nav, /active:scale-\[\.98\]/);
   assert.doesNotMatch(nav, /SignInIcon|signInTab/);
   assert.match(nav, /function AccountIcon/);
