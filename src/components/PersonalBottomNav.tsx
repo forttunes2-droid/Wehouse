@@ -6,6 +6,7 @@ type Props = {
   inboxBadge?: number;
   className?: string;
   signedOut?: boolean;
+  busy?: boolean;
 };
 
 const tabs: Array<{ id: PersonalNavPage; label: string; icon: typeof SearchIcon }> = [
@@ -15,7 +16,7 @@ const tabs: Array<{ id: PersonalNavPage; label: string; icon: typeof SearchIcon 
   { id: 'profile', label: 'Account', icon: AccountIcon },
 ];
 
-export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, className = '', signedOut = false }: Props) {
+export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, className = '', signedOut = false, busy = false }: Props) {
   return (
     <nav
       className={`bottom-nav fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--wh-border)] bg-[var(--wh-bg)] pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-xl ${className}`}
@@ -25,7 +26,8 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
         {tabs.map((tab) => {
           const active = activePage === tab.id;
           const badge = tab.id === 'conversation' ? inboxBadge : 0;
-          const label = signedOut && tab.id === 'profile' ? 'Sign in' : tab.label;
+          const signInPending = signedOut && busy && tab.id === 'profile';
+          const label = signInPending ? 'Signing in…' : signedOut && tab.id === 'profile' ? 'Sign in' : tab.label;
           const Icon = tab.icon;
           return (
             <button
@@ -34,7 +36,8 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
               aria-label={label}
               aria-current={active ? 'page' : undefined}
               onClick={() => onNavigate(tab.id)}
-              className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 transition active:scale-[.98] ${
+              disabled={signInPending}
+              className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 transition active:scale-[.98] disabled:opacity-50 ${
                 active ? 'text-violet-300' : 'text-[var(--wh-text-secondary)]'
               }`}
             >

@@ -36,9 +36,11 @@ async def main():
       assert len(await page.evaluate('window.__authTest.calls'))==1
       # Native Back is not a dead-end. The same pending operation may not be
       # submitted again from the landing masthead while its outcome is unknown.
-      await page.go_back();await expect(page.get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
+      await page.go_back()
+      pending_signin=(page.locator('.wh-public-entry section').first if width<1024 else page.get_by_role('navigation',name='Main navigation')).get_by_role('button',name='Signing in…',exact=True)
+      await expect(pending_signin).to_be_disabled()
       await page.evaluate('window.__authTest.resolve({error:{message:"Network error"}})')
-      await expect(masthead_signin).to_be_enabled()
+      await expect(entry_signin).to_be_enabled()
      else:
       signup=mode=='signup-confirmation'
       await page.get_by_role('button',name='Create account' if signup else 'Continue with email',exact=True).click()
