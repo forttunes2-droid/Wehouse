@@ -369,7 +369,7 @@ export default function RoommateWorkspace({
         </header>
 
         {loadError && <section role="alert" className="border-y border-amber-500/20 py-4 text-sm leading-6"><p>{loadError}</p><button type="button" onClick={()=>void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></section>}
-        {prefs && prefs.practical_preferences_version !== 2 && <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-4 text-xs leading-5"><p>Review your moving plans to find new matches. Your connections and chats are still here.</p><button type="button" onClick={()=>setEditing(true)} className="mt-2 min-h-10 font-semibold text-violet-300">Review preferences</button></section>}
+        {prefs && prefs.practical_preferences_version !== 2 && <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-4 text-sm leading-6"><p>Your older preferences need State, LGA and move-in details before new matches can appear. Existing connections and chats stay available.</p></section>}
         {!profileReady && (
           <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
             <p className="text-sm font-semibold">Add the basics first</p>
@@ -440,7 +440,7 @@ export default function RoommateWorkspace({
                   onClick={() => setEditing(true)}
                   className="min-h-10 rounded-xl border border-white/[.08] px-3 text-xs font-semibold"
                 >
-                  Edit preferences
+                  {prefs.practical_preferences_version !== 2 ? "Update preferences" : "Edit preferences"}
                 </button>
                 {prefs.practical_preferences_version !== 2 ? null : matchingActive ? (
                   <>

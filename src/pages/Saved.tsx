@@ -86,6 +86,8 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
   const loading = snapshot.key !== loadKey || snapshot.loading;
   const places = snapshot.key === loadKey ? snapshot.places : [];
   const visible = useMemo(() => visibleSavedPlaces(places, filter), [places, filter]);
+  const availableTypes = useMemo(() => (['long_let', 'short_let', 'hotel'] as const)
+    .filter(type => places.some(place => place.type === type)), [places]);
 
   async function removeHotel(id: number) {
     if (busyHotelRef.current !== null) return;
@@ -115,14 +117,13 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
           <p className="text-sm leading-6">{snapshot.error}</p>
           <button type="button" onClick={() => setRetry(value => value + 1)} className="min-h-11 rounded-xl border border-violet-400/30 px-4 text-sm text-violet-300">Try again</button>
         </div> : <>
-          {places.length > 0 && <label className="mb-3 flex items-center justify-between gap-4 border-b border-white/[.06] pb-4 text-sm">
-            <span className="text-[#AAA3B3]">Property type</span>
-            <select value={filter} onChange={event => setFilter(event.target.value as 'all' | SavedPlaceType)}
-              className="min-h-11 max-w-full rounded-xl border border-white/[.1] bg-[#11141C] px-3 text-base text-white">
-              <option value="all">All places</option><option value="long_let">Long Let</option>
-              <option value="short_let">Short Let</option><option value="hotel">Hotels</option>
-            </select>
-          </label>}
+          {places.length > 0 && <div className="mb-3 border-b border-white/[.06] pb-4">
+            <p className="mb-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Saved type</p>
+            <div role="group" aria-label="Filter saved places by type" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              {([['all', 'All places'], ...availableTypes.map(type => [type, SAVED_TYPE_LABELS[type]])] as Array<[typeof filter, string]>).map(([type, label]) =>
+                <button key={type} type="button" aria-pressed={filter === type} onClick={() => setFilter(type)} className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-semibold ${filter === type ? 'border-violet-400 bg-violet-500 text-white' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text-secondary)]'}`}>{label}</button>)}
+            </div>
+          </div>}
           {visible.length ? <ul className="divide-y divide-white/[.06]">
             {visible.map(place => <SavedPlaceRow key={place.key} place={place}
               busy={place.type === 'hotel' && busyHotel !== null}

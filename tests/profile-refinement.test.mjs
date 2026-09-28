@@ -32,7 +32,8 @@ test('Roommate editor has one state and save, in-place edits, neutral optional f
  assert.equal((editor.match(/"Save preferences"/g)||[]).length,1);
  assert.match(editor,/setForm\(openedWith.current\);onCancel\(\)/);
  assert.match(editor,/roommateHousingError/);assert.match(editor,/roommatePreferenceError/);
- assert.match(editor,/<option value="">Not set<\/option>/);
+ assert.match(editor,/RoommateChoice/);
+ assert.doesNotMatch(editor,/<select\b|<option\b/);
  assert.doesNotMatch(editor,/"Skip"/);
  const profile=read('src/components/RoommatePublicProfile.tsx');
  assert.doesNotMatch(profile,/role="progressbar"|width:.*score|style=.*score/);

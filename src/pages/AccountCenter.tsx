@@ -11,6 +11,7 @@ import type { Profile } from "@/types";
 import PrivacySecuritySettings from "@/pages/PrivacySecuritySettings";
 import MediaViewer from "@/components/MediaViewer";
 import { getCurrentLegalDocuments } from "@/lib/supabase/legal";
+import { getCanonicalActivitySummary } from "@/lib/supabase/activity";
 import {
   workspaceLabel,
   workspaceGroup,
@@ -119,6 +120,7 @@ export default function AccountCenter({
     "worker" | "property_partner" | null
   >(null);
   const [photoPreview, setPhotoPreview] = useState(false);
+  const [workspaceUnread, setWorkspaceUnread] = useState<Record<string, number>>({});
 
   const canOpenCustomerHelp = ["personal", "worker", "property_partner", "hosting", "hotel"].includes(activeWorkspace);
   const isUser = activeWorkspace === "personal";
@@ -206,6 +208,28 @@ export default function AccountCenter({
     serviceProviderLive,
     ownAccess,
   ]);
+  const workspaceRolesKey = switchableWorkspaces.map(item => item.role).join(',');
+  const otherWorkspaceUnread = switchableWorkspaces.reduce((sum, item) =>
+    sum + (item.role === activeWorkspace ? 0 : (workspaceUnread[item.role] || 0)), 0);
+
+  useEffect(() => {
+    if (!ownAccess) return;
+    let current = true;
+    const refresh = async () => {
+      const roles = workspaceRolesKey.split(',').filter(role => role && role !== 'hosting');
+      const results = await Promise.all(roles.map(async role => {
+        const result = await getCanonicalActivitySummary(role);
+        return { role, ...result };
+      }));
+      if (!current) return;
+      setWorkspaceUnread(Object.fromEntries(results.filter(result => !result.error)
+        .map(result => [result.role, result.summary.unread])));
+    };
+    void refresh();
+    window.addEventListener('wehouse:workspace-activity', refresh);
+    window.addEventListener('wehouse:unread-changed', refresh);
+    return () => { current = false; window.removeEventListener('wehouse:workspace-activity', refresh); window.removeEventListener('wehouse:unread-changed', refresh); };
+  }, [ownAccess, profile.user_id, workspaceRolesKey]);
 
 
 
@@ -333,7 +357,7 @@ export default function AccountCenter({
           <AccountSection title="Personal">
             <AccountRow title="Personal" detail="Find places, book services and meet roommates" icon={<PersonIcon />}
               onClick={activeWorkspace === 'personal' ? undefined : () => onSwitchWorkspace('personal')}
-              trailing={activeWorkspace === 'personal' ? <span className="text-xs text-violet-300">Current</span> : undefined} />
+              trailing={activeWorkspace === 'personal' ? <span className="text-xs text-violet-300">Current</span> : workspaceUnread.personal ? <span className="rounded-full bg-violet-500/15 px-2 py-1 text-xs text-violet-200">{workspaceUnread.personal} new</span> : undefined} />
           </AccountSection>
         ) : null}
 
@@ -348,7 +372,7 @@ export default function AccountCenter({
                   title={workspace.label}
                   detail={workspace.detail}
                   onClick={activeWorkspace === workspace.role ? undefined : () => workspace.role === 'worker' && !serviceProviderLive && onWorkspaceActivated ? continueProfessionalOnboarding('worker') : onSwitchWorkspace(workspace.role)}
-                  trailing={activeWorkspace === workspace.role ? <span className="text-xs text-violet-300">Current</span> : undefined}
+                  trailing={activeWorkspace === workspace.role ? <span className="text-xs text-violet-300">Current</span> : workspaceUnread[workspace.role] ? <span className="rounded-full bg-violet-500/15 px-2 py-1 text-xs text-violet-200">{workspaceUnread[workspace.role]} new</span> : undefined}
                   icon={<ToolsIcon />}
                 />
               ))}
@@ -516,7 +540,7 @@ export default function AccountCenter({
         <AccountSection>
           <AccountRow
             title="Switch workspace"
-            detail={`Current: ${workspaceLabel(activeWorkspace)} · ${workspaceDetail}`}
+            detail={`Current: ${workspaceLabel(activeWorkspace)} · ${workspaceDetail}${otherWorkspaceUnread ? ` · ${otherWorkspaceUnread} unread in other workspaces` : ''}`}
             onClick={() => setPanel("workspaces")}
             icon={<ToolsIcon />}
           />

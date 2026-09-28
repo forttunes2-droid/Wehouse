@@ -37,6 +37,8 @@ import { toast } from "sonner";
 import type { WorkspaceChoice } from "@/pages/AccountCenter";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
+import { workspaceForActivity } from "@/lib/workspaceActivityAwareness";
+import { workspaceLabel } from "@/lib/workspacePresentation";
 import { clearInvitationIntent, parseInvitationToken, readInvitationIntent } from "@/lib/resourceInvitation";
 import ResourceInvitationAction, { PublicInvitationPreview } from "@/components/ResourceInvitationAction";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
@@ -843,8 +845,20 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             workspace?: string;
           };
           if (!audience.activity_event_id) return;
-          if (!["personal", "account"].includes(String(audience.workspace || "")))
+          if (!["personal", "account"].includes(String(audience.workspace || ""))) {
+            const target = workspaceForActivity(String(audience.workspace || ''), uid, workspaceAccess);
+            if (!target) return;
+            window.dispatchEvent(new Event('wehouse:workspace-activity'));
+            if (alertsEnabled) {
+              void playNotificationSound(uid);
+              toast(`New update in ${workspaceLabel(target)}`, {
+                id: `workspace:${target}:${audience.activity_event_id}`,
+                description: 'Open that workspace to see its update.',
+                action: { label: 'Switch', onClick: () => switchWorkspace(target) },
+              });
+            }
             return;
+          }
           const result = await getCanonicalActivity("personal", 25);
           if (result.error) return;
           const event = result.rows.find(
@@ -961,6 +975,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     profile?.pref_push_notif,
     isUserRole,
     handleSetNavPage,
+    workspaceAccess,
+    switchWorkspace,
   ]);
   const toggle = useCallback(
     async (id: string) => {
