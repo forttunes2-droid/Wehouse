@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   encryptionIdentityStatus,
   onPrivateMessageAccessChange,
@@ -6,14 +6,16 @@ import {
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
 
-export default function useSecureInboxAccess(profileId: string) {
+export default function useSecureInboxAccess(profileId: string, enabled = true) {
   const [access, setAccess] = useState<{
     profileId: string;
     status: PrivateConversationReadiness;
   } | null>(null);
-  const status = access?.profileId === profileId ? access.status : null;
+  const generation = useRef(0);
+  const status = enabled && access?.profileId === profileId ? access.status : null;
 
   const refresh = useCallback(async () => {
+    const request = ++generation.current;
     rememberPrivateMessagingProfile(profileId);
     const identity = await encryptionIdentityStatus();
     const next: PrivateConversationReadiness = identity.error
@@ -35,15 +37,17 @@ export default function useSecureInboxAccess(profileId: string) {
                 "Unlock private messages with your recovery passcode on this device.",
             }
           : { state: "ready", message: "Private messages unlocked" };
-    setAccess({ profileId, status: next });
+    if (request === generation.current) setAccess({ profileId, status: next });
     return next;
   }, [profileId]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (enabled) void refresh();
+    else setAccess(null);
+    return () => { generation.current += 1; };
+  }, [enabled, refresh]);
 
-  useEffect(() => onPrivateMessageAccessChange(() => void refresh()), [refresh]);
+  useEffect(() => enabled ? onPrivateMessageAccessChange(() => void refresh()) : undefined, [enabled, refresh]);
 
   return { status, refresh };
 }

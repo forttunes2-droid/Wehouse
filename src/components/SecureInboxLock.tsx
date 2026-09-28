@@ -4,13 +4,16 @@ import type { PrivateConversationReadiness } from "@/lib/e2ee";
 export default function SecureInboxLock({
   status,
   onReady,
+  onBack,
 }: {
   status: PrivateConversationReadiness | null;
   onReady: () => void;
+  onBack?: () => void;
 }) {
   return (
     <div className="grid min-h-[68dvh] place-items-center px-5 py-12 text-center text-white">
       <div className="max-w-sm">
+        {onBack && <button type="button" onClick={onBack} className="mb-6 min-h-11 rounded-full border border-white/[.12] px-4 text-sm font-semibold text-[#B8C0CF]">← Back to Inbox</button>}
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-300">
           {status ? (
             <svg
@@ -29,10 +32,10 @@ export default function SecureInboxLock({
           )}
         </span>
         <h2 className="mt-4 text-base font-bold">
-          {status ? "Private messages are locked" : "Checking private messages…"}
+          {status ? "Encrypted chat is locked" : "Checking encrypted chat…"}
         </h2>
         <p className="mt-2 text-[10px] leading-5 text-[#777E8F]">
-          {status?.message || "This device must be checked before Inbox opens."}
+          {status?.message || "Checking this device before opening the encrypted conversation."}
         </p>
       </div>
       {status && status.state !== "ready" ? (

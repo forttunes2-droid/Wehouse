@@ -37,7 +37,6 @@ import {
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
-import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
   getPropertyBookingJourney,
@@ -47,6 +46,7 @@ import {
 } from "@/lib/propertyBookingLifecycle";
 import { locationLabel } from "@/lib/locationPresentation";
 import { verifyPaymentWithRetry } from "@/lib/supabase/payment-verify";
+import { hotelArrivalGuidance } from "@/lib/hotelArrivalGuidance";
 import {
   getMyAccommodationProtection,
   reportMyAccommodationArrivalIssue,
@@ -820,9 +820,9 @@ export default function MyReservations({
     );
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] pb-8 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-white">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
+      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <h1 className="text-lg font-bold tracking-tight">Bookings</h1>
 
@@ -830,25 +830,19 @@ export default function MyReservations({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-2 border-b border-white/[.06] pb-3">
-          <WeHouseSelect
-            value={view}
-            options={VIEW_OPTIONS}
-            onChange={setView}
-            eyebrow="Bookings"
-            title="Booking type"
-            ariaLabel="Filter bookings by type"
-            className="w-full !min-w-0"
-          />
-          <WeHouseSelect
-            value={statusView}
-            options={STATUS_OPTIONS}
-            onChange={setStatusView}
-            eyebrow="Bookings"
-            title="Booking status"
-            ariaLabel="Filter bookings by status"
-            className="w-full !min-w-0"
-          />
+        <div className="space-y-3 border-b border-white/[.08] pb-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking type</p>
+            <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter bookings by type">
+              {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-semibold transition-colors ${view === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking status</p>
+            <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter bookings by status">
+              {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-semibold transition-colors ${statusView === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
+            </div>
+          </div>
         </div>
 
         {Object.keys(sourceErrors).length > 0 ? (
@@ -870,15 +864,15 @@ export default function MyReservations({
               <section key={section.id}>
                 <div className={statusView === "all" ? "flex items-center justify-between pb-2" : "sr-only"}>
                   <h2
-                    className={`text-[9px] font-bold uppercase tracking-[.14em] ${
+                    className={`text-xs font-bold uppercase tracking-[.14em] ${
                       section.id === "action"
                         ? "text-amber-300"
-                        : "text-[#747A8B]"
+                        : "text-[var(--wh-text-muted)]"
                     }`}
                   >
                     {section.label}
                   </h2>
-                  <span className="text-[9px] text-[#555C6D]">
+                  <span className="text-xs text-[#555C6D]">
                     {section.items.length}
                   </span>
                 </div>
@@ -994,14 +988,14 @@ function BookingSourceNotice({
         <p className="text-[10px] font-semibold text-amber-200">
           {labels.join(", ")} {labels.length === 1 ? "needs" : "need"} a refresh
         </p>
-        <p className="mt-1 text-[9px] text-[#8E8375]">
+        <p className="mt-1 text-xs text-[#8E8375]">
           Any booking already loaded stays visible.
         </p>
       </div>
       <button
         type="button"
         onClick={retry}
-        className="min-h-9 shrink-0 px-3 text-[9px] font-semibold text-amber-200"
+        className="min-h-9 shrink-0 px-3 text-xs font-semibold text-amber-200"
       >
         Try again
       </button>
@@ -1079,21 +1073,21 @@ function ServiceBookingDetail({
       onBack={onBack}
       action={<ReceiptAccess subjectType="service" subjectId={String(row.booking_id)} />}
     >
-      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#11141C]">
+      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[var(--wh-surface)]">
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-300">
                 WeHouse Service
               </p>
               <h2 className="mt-1 break-words text-base font-bold leading-5">
                 {detail.service_type || "Service booking"}
               </h2>
-              <p className="mt-1 text-[10px] text-[#777D8E]">
+              <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
                 {workerName}
               </p>
             </div>
-            <span className="shrink-0 text-[9px] font-semibold text-violet-200">
+            <span className="shrink-0 text-xs font-semibold text-violet-200">
               {serviceStatusLabel(status)}
             </span>
           </div>
@@ -1107,7 +1101,7 @@ function ServiceBookingDetail({
 
           {detail.address ? (
             <div className="border-b border-white/[.05] py-2">
-              <p className="text-[8px] uppercase text-[#5D6272]">Service location</p>
+              <p className="text-[11px] uppercase text-[#5D6272]">Service location</p>
               <p className="mt-0.5 break-words text-[10px] leading-4 text-[#C5C8D1]">
                 {detail.address}
               </p>
@@ -1115,7 +1109,7 @@ function ServiceBookingDetail({
           ) : null}
 
           <section className="mt-4 border-y border-white/[.06] py-3">
-            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-[#686F80]">
+            <p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#686F80]">
               Next step
             </p>
             <p className="mt-1 text-[10px] leading-4 text-[#A3A8B5]">
@@ -1212,7 +1206,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
     row.status === "pending"
       ? "Complete secure payment to confirm this stay"
       : row.status === "confirmed"
-        ? `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
+        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(hotel.check_in_time, "14:00"), hotel.timezone) || `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
         : row.status === "checked_in"
           ? `Check-out ${checkOut} by ${formatStayTime(hotel.check_out_time, "12:00")} (hotel local time)`
           : HOTEL_STATUS[String(row.status || "")] || "";
@@ -1272,7 +1266,7 @@ function BookingCard({
         <p className="break-words text-sm font-semibold leading-5">
           {title}
         </p>
-        <p className="mt-0.5 break-words text-[10px] leading-4 text-[#858B9A]">
+        <p className="mt-0.5 break-words text-[10px] leading-4 text-[var(--wh-text-muted)]">
           {subtitle}
         </p>
         {meta.length ? (
@@ -1281,10 +1275,10 @@ function BookingCard({
           </p>
         ) : null}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="shrink-0 text-[8px] font-bold uppercase tracking-[.12em] text-violet-300">
+          <span className="shrink-0 text-[11px] font-bold uppercase tracking-[.12em] text-violet-300">
             {eyebrow}
           </span>
-          {next ? <span className="text-[9px] leading-4 text-[#858B9A]">{next}</span> : null}
+          {next ? <span className="text-xs leading-4 text-[var(--wh-text-muted)]">{next}</span> : null}
         </div>
       </div>
       <span className="shrink-0 text-base text-[#4F5666]">›</span>
@@ -1383,7 +1377,7 @@ function PropertyBookingDetail({
       onBack={onBack}
       action={<ReceiptAccess subjectType="housing" subjectId={String(row.id)} />}
     >
-      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#11141C]">
+      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[var(--wh-surface)]">
         {row.listing_image ? (
           <img
             src={row.listing_image}
@@ -1396,13 +1390,13 @@ function PropertyBookingDetail({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-300">
                 {short ? "Short Let" : "Long Let"}
               </p>
               <h2 className="mt-1 break-words text-base font-bold leading-5">
                 {row.listing_title || "Apartment booking"}
               </h2>
-              <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
+              <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-muted)]">
                 {locationLabel(
                   row.listing_location,
                   row.listing_address,
@@ -1412,13 +1406,13 @@ function PropertyBookingDetail({
                   "Area unavailable"}
               </p>
             </div>
-            <span className="shrink-0 text-[9px] font-semibold text-violet-200">
+            <span className="shrink-0 text-xs font-semibold text-violet-200">
               {status}
             </span>
           </div>
 
           {recordCode ? (
-            <p className="mt-4 text-[9px] text-[#777D8E]">
+            <p className="mt-4 text-xs text-[var(--wh-text-muted)]">
               Move-in code{" "}
               <span className="font-bold tracking-wide text-violet-300">
                 {row.booking_code}
@@ -1465,13 +1459,13 @@ function PropertyBookingDetail({
           {row.hold_expires_at &&
           !journey.rentPaid &&
           !["occupied", "completed"].includes(row.status) ? (
-            <p className="mt-3 text-[9px] text-amber-300">
+            <p className="mt-3 text-xs text-amber-300">
               Reservation hold until {displayDateTime(row.hold_expires_at)}
             </p>
           ) : null}
 
           <section className="mt-4 border-y border-white/[.07] py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#737A8B]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-white/[.08] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-white/[.08] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
             <p className="mt-2 text-[10px] leading-5 text-[#858B9B]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
           <ShortLetPaymentReview row={row} />
@@ -1493,7 +1487,7 @@ function PropertyBookingDetail({
           {journey.action === "choose_inspection_or_rent" ? (
             <section className="mt-5">
               <p className="text-xs font-semibold">Choose one next step</p>
-              <p className="mt-1 text-[9px] leading-4 text-[#727889]">
+              <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
                 An inspection is optional. If you request it, rent waits until the visit is completed.
               </p>
               <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
@@ -1522,7 +1516,7 @@ function PropertyBookingDetail({
           {journey.action === "move_in_request" || (!short && journey.action === "handover" && editingMoveIn) ? (
             <section className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <p className="text-xs font-semibold">Choose your move-in time</p>
-              <p className="mt-1 text-[9px] leading-4 text-[#777D8E]">
+              <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
                 Times are in Nigeria time (WAT). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
               </p>
               <input aria-label="Move-in time in Nigeria (WAT)" type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs" />
@@ -1539,10 +1533,10 @@ function PropertyBookingDetail({
           {journey.action === "handover" && row.booking_code ? (
             <div className="mt-4 flex items-center justify-between gap-3 border-y border-emerald-500/15 py-2.5">
               <div className="min-w-0">
-                <p className="text-[8px] uppercase tracking-[.14em] text-emerald-300">
+                <p className="text-[11px] uppercase tracking-[.14em] text-emerald-300">
                   Handover code
                 </p>
-                <p className="mt-0.5 text-[8px] leading-4 text-[#6F7B72]">
+                <p className="mt-0.5 text-[11px] leading-4 text-[#6F7B72]">
                   Show only to {hostManaged ? "your authorised property host" : "Property Operations"} during verified handover.
                 </p>
               </div>
@@ -1563,7 +1557,7 @@ function PropertyBookingDetail({
           row.status === "completed" &&
           Number(row.security_deposit_snapshot || 0) > 0 ? (
             <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
                 Refundable caution fee
               </p>
               <p className="mt-2 text-[10px] leading-5 text-[#A6AAB5]">
@@ -1642,7 +1636,7 @@ function HotelBookingDetail({
     journeyStatus === "pending"
       ? "Complete secure payment to confirm the room."
       : journeyStatus === "confirmed"
-        ? "Arrive from the check-in time shown above. Show your code at reception."
+        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(row.hotels?.check_in_time || row.hotel?.check_in_time, "14:00"), row.hotels?.timezone || row.hotel?.timezone) || "Arrive from the check-in time shown above. Show your code at reception."
         : journeyStatus === "checked_in"
           ? "Your stay is in progress."
           : journeyStatus === "completed"
@@ -1659,7 +1653,7 @@ function HotelBookingDetail({
       onBack={onBack}
       action={<ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />}
     >
-      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[#11141C]">
+      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[var(--wh-surface)]">
         {roomImage ? (
           <img
             src={roomImage}
@@ -1676,11 +1670,11 @@ function HotelBookingDetail({
                 Hotel
               </p>
               <h2 className="mt-1 text-base font-bold leading-5">{name}</h2>
-              <p className="mt-1 text-[10px] text-[#777D8E]">
+              <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
                 {room} · {packageName}
               </p>
               {hotelAddress ? (
-                <p className="mt-1 text-[10px] leading-4 text-[#777D8E]">
+                <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-muted)]">
                   {hotelAddress}
                 </p>
               ) : null}
@@ -1745,7 +1739,7 @@ function HotelBookingDetail({
               ].map(([id, label], index) => (
                 <div key={id} className="text-center">
                   <div
-                    className={`mx-auto grid h-6 w-6 place-items-center rounded-full text-[9px] font-bold ${
+                    className={`mx-auto grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
                       !stopped && index <= current
                         ? "bg-violet-500 text-white"
                         : "bg-white/[.05] text-[#686E7E]"
@@ -1808,9 +1802,12 @@ function HotelBookingDetail({
           ) : null}
 
           {helpRelevant ? (
-            <button type="button" onClick={onDesk} className="mt-3 min-h-11 w-full border-t border-white/[.08] pt-3 text-xs font-semibold text-violet-300">
-              Get help from WeHouse
-            </button>
+            <div className="mt-4 border-t border-white/[.08] pt-3">
+              <p className="text-xs leading-5 text-[#B8C0CF]">Need to cancel a paid stay or missed check-in? WeHouse reviews the booking’s rate rule and what happened. A missed arrival does not automatically create a refund.</p>
+              <button type="button" onClick={onDesk} className="mt-2 min-h-11 rounded-xl border border-violet-400/25 px-4 text-xs font-semibold text-violet-300">
+                Request cancellation or refund review
+              </button>
+            </div>
           ) : null}
         </div>
       </section>
@@ -1840,7 +1837,7 @@ function AccommodationProtectionPanel({
       }`}
     >
       <p
-        className={`text-[9px] font-semibold uppercase tracking-wide ${
+        className={`text-xs font-semibold uppercase tracking-wide ${
           open ? "text-amber-300" : "text-emerald-300"
         }`}
       >
@@ -1897,8 +1894,8 @@ function ArrivalIssueDialog({
       aria-modal="true"
       aria-labelledby="arrival-issue-title"
     >
-      <div className="w-full max-w-lg rounded-3xl border border-white/[.09] bg-[#11141C] p-5 text-white shadow-2xl">
-        <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+      <div className="w-full max-w-lg rounded-3xl border border-white/[.09] bg-[var(--wh-surface)] p-5 text-white shadow-2xl">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
           Formal arrival issue
         </p>
         <h2 id="arrival-issue-title" className="mt-2 text-lg font-bold">
@@ -1910,7 +1907,7 @@ function ArrivalIssueDialog({
           case.
         </p>
         <label className="mt-4 block">
-          <span className="text-[9px] text-[#9DA2AF]">What is wrong?</span>
+          <span className="text-xs text-[#9DA2AF]">What is wrong?</span>
           <textarea
             autoFocus
             value={reason}
@@ -1966,12 +1963,12 @@ function BookingDetailShell({
     };
   }, []);
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] text-white">
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 backdrop-blur-xl">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] text-white">
+      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-14 max-w-2xl items-center gap-2 px-3 sm:px-5">
           <BackButton onClick={onBack} />
           <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-bold uppercase tracking-wide text-violet-400">Bookings</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-violet-400">Bookings</p>
             <h1 className="truncate text-sm font-semibold">{title}</h1>
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}
@@ -1997,7 +1994,7 @@ function hotelPaymentLabel(value: any) {
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-b border-white/[.05] py-2">
-      <p className="text-[10px] uppercase text-[#7F8594]">{label}</p>
+      <p className="text-[10px] uppercase text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-0.5 break-words text-xs font-medium leading-5 text-[#E2E4EA]">
         {value}
       </p>
@@ -2029,7 +2026,7 @@ function Empty({ view, statusView }: { view: View; statusView: StatusView }) {
           ? `No ${label} yet`
           : "No bookings match these filters"}
       </p>
-      <p className="mt-2 text-[10px] text-[#707788]">
+      <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
         {statusView === "all"
           ? "New records appear here automatically with their current next step."
           : "Choose another status or booking type to see more records."}
