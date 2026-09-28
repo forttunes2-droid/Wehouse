@@ -18,10 +18,10 @@ const tabs: Array<{ id: PersonalNavPage; label: string; icon: typeof SearchIcon 
 export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, className = '', signedOut = false }: Props) {
   return (
     <nav
-      className={`bottom-nav fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--wh-border)] bg-[var(--wh-bg)] pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-xl lg:bottom-auto lg:left-auto lg:right-8 lg:top-2 lg:w-auto lg:rounded-2xl lg:border lg:p-0 ${className}`}
+      className={`bottom-nav fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--wh-border)] bg-[var(--wh-bg)] pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-xl ${className}`}
       aria-label="Main navigation"
     >
-      <div className="mx-auto grid w-full max-w-lg grid-cols-4 px-2 pt-1.5 lg:flex lg:max-w-none lg:gap-1 lg:p-1">
+      <div className="mx-auto grid w-full max-w-lg grid-cols-4 px-2 pt-1.5">
         {tabs.map((tab) => {
           const active = activePage === tab.id;
           const badge = tab.id === 'conversation' ? inboxBadge : 0;
@@ -34,7 +34,7 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
               aria-label={label}
               aria-current={active ? 'page' : undefined}
               onClick={() => onNavigate(tab.id)}
-              className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 transition active:scale-[.98] lg:min-h-11 lg:flex-row lg:gap-2 lg:px-3 ${
+              className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 transition active:scale-[.98] ${
                 active ? 'text-violet-300' : 'text-[var(--wh-text-secondary)]'
               }`}
             >
@@ -43,7 +43,7 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
               }`}>
                 <Icon size={22} active={active} />
               </span>
-              <span className={`truncate text-[11px] leading-none lg:text-xs ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+              <span className={`truncate text-[11px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
               {badge > 0 && (
                 <span className="absolute right-[18%] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold leading-none text-white">
                   {badge > 99 ? '99+' : badge}
