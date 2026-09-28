@@ -1,3 +1,4 @@
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -134,19 +135,19 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
       ? <p className="mt-4 text-xs text-[#A0A5B2]">An eligible, published resource is required before promotion.</p>
       : <div className="mt-4 space-y-3">
         <label className="block text-xs">Promote
-          <select className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
-            value={selected} onChange={e => setSelected(e.target.value)}>
+          <WeHouseChoice className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
+            aria-label="Promote" value={selected} onChange={e => setSelected(e.target.value)}>
             {resources.map(item => <option key={`${item.resource_type}:${item.resource_id}`}
               value={`${item.resource_type}:${item.resource_id}`}>{item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.label}</option>)}
-          </select>
+          </WeHouseChoice>
         </label>
         {offer?.available ? <>
           <p className="text-xs text-[#A0A5B2]">{offer.market} · {offer.slot_count} slots{native ? ' · store price at checkout' : ` · ₦${Number(offer.daily_price_ngn).toLocaleString('en-NG')} per day`}</p>
           <label className="block text-xs">Duration
-            <select className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
-              value={duration} onChange={e => setDuration(Number(e.target.value))}>
+            <WeHouseChoice className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
+              aria-label="Duration" value={duration} onChange={e => setDuration(Number(e.target.value))}>
               {(offer.durations || []).map(days => <option key={days} value={days}>{days} days{native ? '' : ` · ₦${(Number(offer.daily_price_ngn) * days).toLocaleString('en-NG')}`}</option>)}
-            </select>
+            </WeHouseChoice>
           </label>
           <label className="flex items-start gap-2 text-xs leading-5 text-[#B8BBC5]">
             <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-amber-300" />

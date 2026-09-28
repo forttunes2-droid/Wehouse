@@ -1,3 +1,4 @@
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -95,7 +96,7 @@ export default function CustomerInspectionAssignmentPanel({
         </div>
       ) : candidates.length ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-          <select
+          <WeHouseChoice
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
             className="h-11 rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs outline-none focus:border-violet-500/40"
@@ -111,7 +112,7 @@ export default function CustomerInspectionAssignmentPanel({
                   : " · available"}
               </option>
             ))}
-          </select>
+          </WeHouseChoice>
           <button
             type="button"
             disabled={busy || !selected}

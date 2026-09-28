@@ -1,3 +1,4 @@
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -207,8 +208,8 @@ function WorkDocuments({ profile, canUsePaidTools }: { profile: Profile; canUseP
     {!canUsePaidTools && <p className="mt-2 text-sm leading-6 text-foreground/70">Your existing records stay available to read and export.</p>}
     {canUsePaidTools && creating && <form onSubmit={event => { event.preventDefault(); void save(); }} className="mt-5 space-y-4 border-y border-border py-5">
       <fieldset disabled={Boolean(busyId)} className="space-y-4">
-        <label className="block text-sm">Document type<select value={type} onChange={event => setType(event.target.value as WorkerDocumentType)} className={`${input} mt-2`}><option value="quote">Quote</option><option value="invoice">Invoice</option></select></label>
-        <label className="block text-sm">WeHouse job<select aria-label="WeHouse job" disabled={jobsLoading || Boolean(jobError)} value={bookingId} onChange={event => setBookingId(event.target.value)} className={`${input} mt-2`}><option value="">{jobsLoading ? "Loading your jobs…" : "Choose a job"}</option>{jobs.map(job => <option key={job.booking_id} value={job.booking_id}>{job.service_type || "Service job"} · {job.other_person_name || "Customer"} · #{job.booking_code || "—"}</option>)}</select></label>
+        <label className="block text-sm">Document type<WeHouseChoice aria-label="Document type" value={type} onChange={event => setType(event.target.value as WorkerDocumentType)} className={`${input} mt-2`}><option value="quote">Quote</option><option value="invoice">Invoice</option></WeHouseChoice></label>
+        <label className="block text-sm">WeHouse job<WeHouseChoice aria-label="WeHouse job" disabled={jobsLoading || Boolean(jobError)} value={bookingId} onChange={event => setBookingId(event.target.value)} className={`${input} mt-2`}><option value="">{jobsLoading ? "Loading your jobs…" : "Choose a job"}</option>{jobs.map(job => <option key={job.booking_id} value={job.booking_id}>{job.service_type || "Service job"} · {job.other_person_name || "Customer"} · #{job.booking_code || "—"}</option>)}</WeHouseChoice></label>
         {jobError && <div role="alert" className="text-sm"><p>{jobError}</p><button type="button" onClick={() => setRetryJobs(value => value + 1)} className={`${button} mt-2`}>Retry jobs</button></div>}
         <label className="block text-sm">Title<input required value={title} minLength={2} maxLength={120} onChange={event => setTitle(event.target.value)} className={`${input} mt-2`} /></label>
         <div className="divide-y divide-border">{lines.map((line, index) => <fieldset key={index} className="space-y-3 py-4">

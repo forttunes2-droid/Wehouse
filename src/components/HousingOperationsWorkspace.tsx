@@ -1,3 +1,4 @@
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { locationLabel } from "@/lib/locationPresentation";
 import { displayDate, nigeriaDate } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1113,7 +1114,7 @@ function HousingCase({
             </div>
           ) : assignment?.candidates?.length ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-              <select
+              <WeHouseChoice
                 value={selectedOfficer}
                 onChange={(event) => setSelectedOfficer(event.target.value)}
                 className="h-11 rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs outline-none focus:border-violet-500/40"
@@ -1123,7 +1124,7 @@ function HousingCase({
                 {assignment.candidates.map((officer) => (
                   <option key={officer.user_id} value={officer.user_id}>{officer.name}{officer.username ? ` · @${officer.username}` : ""}</option>
                 ))}
-              </select>
+              </WeHouseChoice>
               <button type="button" disabled={assignmentBusy || !selectedOfficer} onClick={() => void assignFieldOfficer()} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">
                 {assignmentBusy ? "Assigning…" : "Assign to conversation"}
               </button>

@@ -75,9 +75,9 @@ async def main():
       await page.get_by_role('button',name='Show more work',exact=True).click();await expect(tiles).to_have_count(27)
       assert len(set(await tiles.evaluate_all('(els)=>els.map(e=>e.getAttribute("aria-label"))')))==27
      elif mode=='owner':
-      await expect(tiles).to_have_count(24);await page.get_by_label('Post visibility',exact=True).select_option('hidden');await expect(tiles).to_have_count(1)
+      await expect(tiles).to_have_count(24);await page.get_by_label('Post visibility',exact=True).click();await page.get_by_role('dialog',name='Post visibility').get_by_role('button',name='Hidden posts').click();await expect(tiles).to_have_count(1)
       assert not any(x['name']=='set_my_worker_work_post_hidden' for x in await page.evaluate('window.__fixtureState.calls'))
-      await page.get_by_label('Post visibility',exact=True).select_option('all');await settled_capture(page,f'worker-own-showcase-{width}.png',media=True)
+      await page.get_by_label('Post visibility',exact=True).click();await page.get_by_role('dialog',name='Post visibility').get_by_role('button',name='All posts').click();await settled_capture(page,f'worker-own-showcase-{width}.png',media=True)
       await tiles.nth(0).click();await page.get_by_label('Post options',exact=True).click();await page.get_by_role('button',name='Hide from profile',exact=True).click()
       await expect(page.get_by_role('dialog',name='Sani Example work post')).to_have_count(0)
       assert len([x for x in await page.evaluate('window.__fixtureState.calls') if x['name']=='set_my_worker_work_post_hidden'])==1

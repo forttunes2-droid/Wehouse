@@ -1,3 +1,4 @@
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 import { createPortal } from "react-dom";
@@ -211,13 +212,13 @@ export default function NativeDateBridge() {
           <div className="border-t border-white/[.06] px-5 py-4">
             <label className="block text-[9px] font-semibold text-[#9EA4B2]">
               Time
-              <select value={pendingTime} onChange={(event) => setPendingTime(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs text-white outline-none">
+              <WeHouseChoice aria-label="Time" value={pendingTime} onChange={(event) => setPendingTime(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs text-white outline-none">
                 {timeOptions.map((value) => {
                   const [hour, minute] = value.split(":").map(Number);
                   const label = new Date(2000, 0, 1, hour, minute).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
                   return <option key={value} value={value}>{label}</option>;
                 })}
-              </select>
+              </WeHouseChoice>
             </label>
             <button type="button" disabled={dateTimeInvalid} onClick={() => commit(dateTimeValue)} className="mt-3 h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-35">Use this date and time</button>
             {dateTimeInvalid ? <p className="mt-2 text-[9px] text-amber-300">Choose a date and time inside the allowed window.</p> : null}
