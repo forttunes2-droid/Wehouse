@@ -1,3 +1,4 @@
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -281,7 +282,7 @@ function WorkerShowcaseContent({
                 className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
               />
               {jobsError && <div role="alert" className="text-sm text-[#A7ADBA]">Completed jobs could not be loaded. <button type="button" onClick={() => setJobsRetry(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></div>}
-              <select
+              <WeHouseChoice
                 aria-label="Link completed job"
                 value={bookingId}
                 disabled={busy}
@@ -295,7 +296,7 @@ function WorkerShowcaseContent({
                     {job.service_type || "Service"}
                   </option>
                 ))}
-              </select>
+              </WeHouseChoice>
               {bookingId && <p className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-3 text-sm leading-4 text-amber-200">The customer must confirm this work before the post is marked as a WeHouse job.</p>}
               {busy && (
                 <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-4" aria-live="polite">
@@ -327,7 +328,7 @@ function WorkerShowcaseContent({
         <h2 className="text-base font-semibold">Work posts</h2>
         <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white" aria-label="Add work">Add work</button>
       </div>
-      <label className="mb-4 block"><span className="sr-only">Post visibility</span><select aria-label="Post visibility" value={visibility} onChange={event => setVisibility(event.target.value)} className="min-h-11 rounded-xl border border-white/10 bg-[#151820] px-3 text-sm"><option value="all">All posts</option><option value="visible">Not hidden</option><option value="hidden">Hidden posts</option></select></label>
+      <label className="mb-4 block"><span className="sr-only">Post visibility</span><WeHouseChoice aria-label="Post visibility" value={visibility} onChange={event => setVisibility(event.target.value)} className="min-h-11 rounded-xl border border-white/10 bg-[#151820] px-3 text-sm"><option value="all">All posts</option><option value="visible">Not hidden</option><option value="hidden">Hidden posts</option></WeHouseChoice></label>
       <WorkerShowcaseGrid owner posts={workPosts} loading={loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void load(true)} />
 
       {viewer && (
