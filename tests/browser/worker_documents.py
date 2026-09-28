@@ -54,7 +54,7 @@ async def main():
       await expect(archive.get_by_label('WeHouse job',exact=True)).to_contain_text('Choose a job')
       await expect(archive.get_by_role('button',name='Save draft',exact=True)).to_be_disabled()
       await archive.get_by_label('WeHouse job',exact=True).click()
-      await page.get_by_role('dialog',name='WeHouse job').get_by_role('button',name='Cabinet repair',exact=False).click()
+      await page.get_by_role('dialog',name='WeHouse job').get_by_role('button',name='Carpentry · Test Customer · #TEST-JOB',exact=True).click()
       await archive.get_by_label('Title',exact=True).fill('Labour and materials')
       await archive.get_by_label('Line 1 description').fill('Materials I selected')
       await archive.get_by_label('Line 1 quantity').fill('2')
