@@ -104,9 +104,9 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       throw new Error(`This device cannot capture this video. Export it below ${limits.outputLabel} and try again.`);
     }
 
-    const recordAtRate = (rate: number) => new Promise<Blob>((resolve, reject) => {
+    const recordAtRate = (recordingStream: MediaStream, rate: number) => new Promise<Blob>((resolve, reject) => {
       const chunks: Blob[] = [];
-      const recorder = new MediaRecorder(stream, {
+      const recorder = new MediaRecorder(recordingStream, {
         mimeType,
         videoBitsPerSecond: rate,
         audioBitsPerSecond: audioRate,
@@ -155,7 +155,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       recorder.start(1000);
     });
 
-    let body = await recordAtRate(videoRate);
+    let body = await recordAtRate(stream, videoRate);
     // Browser encoders can exceed their requested bitrate. Measure the first
     // result, then lower the rate and replay when it misses the size budget.
     for (let attempt = 0; body.size > targetBytes && attempt < 3; attempt += 1) {
@@ -182,7 +182,14 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       } catch {
         throw new Error("This device could not replay the video for compression. Trim it and try again.");
       }
-      body = await recordAtRate(videoRate);
+      // captureStream tracks end when playback ends. Each retry needs a new
+      // stream created from the restarted source video.
+      captured?.getTracks().forEach((track) => track.stop());
+      const retryStream = capture();
+      captured = retryStream;
+      if (!retryStream.getVideoTracks().length)
+        throw new Error("This device could not recapture the video for compression. Trim it and try again.");
+      body = await recordAtRate(retryStream, videoRate);
     }
 
     if (!body.size || body.size > limits.maxOutputBytes)
