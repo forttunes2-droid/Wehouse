@@ -91,7 +91,7 @@ function WorkerShowcaseContent({
     const isVideo = selected.type.startsWith("video/");
     const isImage = selected.type.startsWith("image/");
     if (!isVideo && !isImage) return toast.error("Choose an image or video");
-    if (selected.size > (isVideo ? 50 : 12) * 1024 * 1024) {
+    if (selected.size > (isVideo ? 50_000_000 : 12 * 1024 * 1024)) {
       return toast.error(
         isVideo ? "Video must be under 50MB" : "Image must be under 12MB",
       );
@@ -130,7 +130,7 @@ function WorkerShowcaseContent({
       const preserveOriginal = ['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
       const preparedVideo = isVideo ? await preparePublicVideo(file) : null;
       const uploadBody = preparedVideo?.body || (preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024));
-      if (uploadBody.size > 2 * 1024 * 1024) throw new Error("This work post is over 2 MB. Trim the video or choose a smaller photo.");
+      if (uploadBody.size > 2_000_000) throw new Error("This work post is over 2 MB. Trim the video or choose a smaller photo.");
       const ext = preparedVideo?.extension || (preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg');
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");

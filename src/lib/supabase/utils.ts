@@ -15,7 +15,7 @@ export function compressImageFile(
   file: File,
   requestedMaxDim: number = 2560,
   requestedQuality: number = 0.86,
-  maxBytes: number = 2 * 1024 * 1024,
+  maxBytes: number = 2_000_000,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -82,7 +82,7 @@ export async function prepareChatImageFile(file: File): Promise<{
   contentType: string;
   extension: string;
 }> {
-  const targetBytes = 2 * 1024 * 1024;
+  const targetBytes = 2_000_000;
   const preservableTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
   // Keep animation intact. Other chat photos are JPEG-compressed before upload
   // once they exceed the small-message-media budget.

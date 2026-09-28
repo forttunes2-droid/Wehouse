@@ -41,7 +41,7 @@ jobs:
         if: always()
         with:
           name: browser-media-compression
-          path: test-results/experience/compression-*
+          path: test-results/experience/*-compressed.*
           retention-days: 7
   browser:
     runs-on: ubuntu-latest

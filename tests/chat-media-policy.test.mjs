@@ -38,10 +38,10 @@ test('supported video and voice containers pass signature checks; wrong containe
  for(const [data,name,type] of [[webm,'room.webm','video/webm'],[ftyp,'room.mp4','video/mp4'],[ftyp,'room.mov','video/quicktime']]) await policy.validateChatUpload(file(data,name,type));
  await assert.rejects(policy.validateMessageMedia(new Blob([png]),{type:'audio/webm',name:'voice.webm'}),/not a supported/);
 });
-test('video upload budget remains 2 MiB for short and long clips',()=>{
- assert.equal(videoMedia.videoTargetBytes(15),2*1024*1024);
- assert.equal(videoMedia.videoTargetBytes(30),2*1024*1024);
- assert.equal(videoMedia.videoTargetBytes(90),2*1024*1024);
+test('video upload budget remains 2 MB for short and long clips',()=>{
+ assert.equal(videoMedia.videoTargetBytes(15),2_000_000);
+ assert.equal(videoMedia.videoTargetBytes(30),2_000_000);
+ assert.equal(videoMedia.videoTargetBytes(90),2_000_000);
 });
 test('all existing upload boundaries enforce policy and only the recorder grants local voice provenance',()=>{
  for(const path of ['src/lib/supabase/chat.ts','src/lib/supabase/worker-bookings.ts','src/lib/supabase/hotel-chat.ts','src/lib/supabase/support.ts']) assert.match(fs.readFileSync(path,'utf8'),/await validateChatUpload\(file/);

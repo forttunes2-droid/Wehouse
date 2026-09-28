@@ -1,8 +1,8 @@
 /** Public and private videos are prepared in the browser before they reach Storage. */
-const MIB = 1024 * 1024;
-export const PUBLIC_VIDEO_MAX_BYTES = 2 * MIB;
-export const CHAT_VIDEO_MAX_BYTES = 2 * MIB;
-export const VIDEO_TARGET_PER_15_SECONDS_BYTES = 2 * MIB;
+const MB = 1_000_000;
+export const PUBLIC_VIDEO_MAX_BYTES = 2 * MB;
+export const CHAT_VIDEO_MAX_BYTES = 2 * MB;
+export const VIDEO_TARGET_PER_15_SECONDS_BYTES = 2 * MB;
 const MAX_REENCODE_SECONDS = 90;
 
 export type PreparedVideo = {
@@ -40,7 +40,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
   if (!["video/mp4", "video/quicktime", "video/webm"].includes(file.type))
     throw new Error("Choose an MP4, MOV or WebM video");
   if (file.size > limits.maxInputBytes)
-    throw new Error(`Choose a video under ${Math.round(limits.maxInputBytes / MIB)} MB before compression`);
+    throw new Error(`Choose a video under ${Math.round(limits.maxInputBytes / MB)} MB before compression`);
   const original: PreparedVideo = {
     body: file,
     contentType: file.type,
@@ -73,7 +73,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       throw new Error(`Trim this video to ${durationLimit} seconds or export it below ${limits.outputLabel} before uploading.`);
 
     const targetBytes = limits.scaleBudgetByDuration
-      ? Math.min(limits.maxOutputBytes, Math.max(2 * MIB, Math.round((seconds / 15) * 2 * MIB)))
+      ? Math.min(limits.maxOutputBytes, Math.max(2 * MB, Math.round((seconds / 15) * 2 * MB)))
       : videoTargetBytes(seconds, limits.maxOutputBytes);
     if (file.size <= targetBytes) return original;
 
@@ -209,7 +209,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
 
 export function preparePublicVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: 50 * MIB,
+    maxInputBytes: 50 * MB,
     maxOutputBytes: PUBLIC_VIDEO_MAX_BYTES,
     outputLabel: "2 MB",
   });
@@ -218,7 +218,7 @@ export function preparePublicVideo(file: File): Promise<PreparedVideo> {
 /** Private message media is compressed before encryption, then uploaded to Storage. */
 export function prepareChatVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: 25 * MIB,
+    maxInputBytes: 25 * MB,
     maxOutputBytes: CHAT_VIDEO_MAX_BYTES,
     outputLabel: "2 MB",
   });
@@ -227,8 +227,8 @@ export function prepareChatVideo(file: File): Promise<PreparedVideo> {
 /** Continuous private access and verification evidence needs legible detail. */
 export function prepareEvidenceVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: 100 * MIB,
-    maxOutputBytes: 13 * MIB,
+    maxInputBytes: 100 * MB,
+    maxOutputBytes: 13 * MB,
     outputLabel: "13 MB",
     maxDurationSeconds: 180,
     scaleBudgetByDuration: true,

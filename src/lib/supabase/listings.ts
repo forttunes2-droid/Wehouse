@@ -146,7 +146,7 @@ export async function uploadListingImage(file: File, listingId: string, onProgre
 export async function uploadListingVideo(file: File, listingId: string, onProgress: (percent: number) => void = () => {}) {
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
-  if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
+  if (file.size > 50_000_000) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   try {
     const prepared = await preparePublicVideo(file);
     const path = `listings/${listingId}/${crypto.randomUUID()}.${prepared.extension}`;
@@ -207,7 +207,7 @@ export async function uploadListingCandidateImage(file: File, scope: CandidateSc
 export async function uploadListingCandidateVideo(file: File, scope: Extract<CandidateScope, { kind: 'field' }>, onProgress: (percent: number) => void = () => {}) {
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
-  if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
+  if (file.size > 50_000_000) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   try {
     const prepared = await preparePublicVideo(file);
     const path = candidatePath(scope, prepared.extension);

@@ -78,7 +78,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     const accepted: LocalMedia[] = [];
     for (const file of files) {
       if (!VIDEO_TYPES.has(file.type)) { toast.error(`${file.name}: use MP4, MOV or WebM`); continue; }
-      if (file.size > 50 * 1024 * 1024) { toast.error(`${file.name}: video must be under 50MB`); continue; }
+      if (file.size > 50_000_000) { toast.error(`${file.name}: video must be under 50MB`); continue; }
       accepted.push({ file, preview: URL.createObjectURL(file) });
     }
     setVideos(current => {

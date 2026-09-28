@@ -1,5 +1,6 @@
 """Real Chromium encode/decode of an oversized public video, without Storage access."""
 import asyncio
+import base64
 import subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright
@@ -12,10 +13,10 @@ async def main():
         'ffmpeg', '-nostdin', '-y', '-loglevel', 'error',
         '-f', 'lavfi', '-i', 'testsrc2=size=960x540:rate=24',
         '-vf', 'noise=alls=60:allf=t+u', '-t', '15',
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '26M',
-        '-maxrate', '26M', '-bufsize', '52M', '-an', str(fixture),
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '25M',
+        '-maxrate', '25M', '-bufsize', '50M', '-an', str(fixture),
     ], check=True)
-    assert 45 * 1024 * 1024 < fixture.stat().st_size <= 50 * 1024 * 1024, 'The input must resemble a 50 MB upload'
+    assert 45_000_000 < fixture.stat().st_size <= 50_000_000, 'The input must resemble a 50 MB upload'
     chat_fixture = Path('test-results/experience/chat-compression-input.mp4')
     subprocess.run([
         'ffmpeg', '-nostdin', '-y', '-loglevel', 'error',
@@ -24,7 +25,7 @@ async def main():
         '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '12M',
         '-maxrate', '12M', '-bufsize', '24M', '-an', str(chat_fixture),
     ], check=True)
-    assert 2 * 1024 * 1024 < chat_fixture.stat().st_size <= 25 * 1024 * 1024
+    assert 2_000_000 < chat_fixture.stat().st_size <= 25_000_000
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
         page = await browser.new_page()
@@ -43,16 +44,25 @@ async def main():
               video.onerror = () => reject(new Error('The compressed output cannot play'));
               video.src = url;
             });
+            const encoded = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result).split(',')[1]);
+              reader.onerror = () => reject(new Error('Could not save compressed video'));
+              reader.readAsDataURL(prepared.body);
+            });
             return { input: source.size, output: prepared.body.size, cap: kind === 'chat' ? CHAT_VIDEO_MAX_BYTES : PUBLIC_VIDEO_MAX_BYTES,
               target: videoTargetBytes(video.duration),
-              type: prepared.contentType, duration: video.duration };
+              type: prepared.contentType, extension: prepared.extension, duration: video.duration, encoded };
           } finally { URL.revokeObjectURL(url); }
         }''', { 'kind': kind, 'sourcePath': source_path })
           assert 0 < result['output'] <= result['target'] <= result['cap'], result
           assert result['output'] < result['input'], result
-          assert result['target'] == 2 * 1024 * 1024, result
+          assert result['target'] == 2_000_000, result
           assert result['duration'] > 10, result
           assert result['type'] in ('video/mp4', 'video/webm'), result
+          saved = Path(f'test-results/experience/{kind}-compressed.{result["extension"]}')
+          saved.write_bytes(base64.b64decode(result.pop('encoded')))
+          assert saved.stat().st_size == result['output']
           print(f'{kind} video browser compression:', result)
         await browser.close()
 
