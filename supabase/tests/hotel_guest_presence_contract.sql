@@ -27,6 +27,9 @@ insert into public.hotel_room_units(unit_id,hotel_id,room_id,unit_label,status) 
 values(-7855,-7855,-7855,'101','ready');
 insert into public.payment_protection_transactions(id,booking_type,payer_user_id,payee_user_id,amount_total,amount_commission,amount_payee,commission_rate,protection_state,subject_type,subject_id)
 values('78555555-1000-4000-8000-000000000001','hotel_booking','presence-guest','presence-owner',40000,4800,35200,0.12,'protected','hotel_booking','-7855');
+insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
+values('accommodation_arrival_issue_window',99002,'{"default_hours":2,"minimum_hours":1,"maximum_hours":6}',
+  'active',now()-interval '1 minute','reviewed','Rollback-only hotel presence fixture','hotel-presence-contract');
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,canonical_state,payment_status,booking_code,payment_protection_id,arrival_issue_policy_version_id,arrival_issue_window_hours)
 select -7855,-7855,-7855,'presence-guest',timezone('Africa/Lagos',now())::date,timezone('Africa/Lagos',now())::date+2,2,40000,'confirmed','confirmed','paid','PRESENCE-REF','78555555-1000-4000-8000-000000000001'::uuid,policy_version_id,default_hours
 from public.current_accommodation_arrival_policy();
