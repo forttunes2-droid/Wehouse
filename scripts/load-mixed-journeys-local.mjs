@@ -58,9 +58,9 @@ for (let i = 0; i < 10; i++) {
   if (profile.error || !profile.data?.user_id) throw new Error(`Synthetic profile failed: ${profile.error?.message}`);
   const actor = { client, email, password, authId: created.data.user.id, userId: profile.data.user_id };
   actor.bookingId = await booking(actor, 20000 + i);
-  const conversation = await client.rpc('create_support_conversation', {
+  const conversation = await client.rpc('create_my_support_case', {
     p_subject: 'Synthetic capacity conversation', p_category: 'general',
-    p_context_type: 'general', p_context_id: null, p_context_snapshot: {}, p_priority: 'normal',
+    p_source_type: 'general', p_source_id: null, p_source_snapshot: {}, p_priority: 'normal',
   });
   if (conversation.error || !conversation.data) throw new Error(`Synthetic conversation failed: ${conversation.error?.message}`);
   actor.conversationId = conversation.data;
