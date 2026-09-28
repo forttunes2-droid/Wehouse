@@ -1,4 +1,4 @@
-import { validateChatUpload } from "@/lib/chatMediaPolicy";
+import { prepareChatImageFile, prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from "./client";
 import { propertyBookingStatusLabel, type PropertyJourneyAudience } from "@/lib/propertyBookingLifecycle";
 
@@ -315,10 +315,21 @@ export async function sendFirstContextualHelpMessage(
 }
 export async function uploadSupportDraftAttachment(draftId: string, requesterId: string, file: File) {
   try { await validateChatUpload(file, false); } catch (error) { return { path: null, error: { message: error instanceof Error ? error.message : "Choose a photo or video." } }; }
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100) || "attachment";
+  let body: Blob | File = file;
+  let contentType = file.type || undefined;
+  let extension = file.name.split(".").pop() || "bin";
+  if (file.type.startsWith("image/")) {
+    const prepared = await prepareChatImageFile(file);
+    body = prepared.body; contentType = prepared.contentType; extension = prepared.extension;
+  } else if (file.type.startsWith("video/")) {
+    const prepared = await prepareChatVideo(file);
+    body = prepared.body; contentType = prepared.contentType; extension = prepared.extension;
+  }
+  const safeBase = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]/g, "_").slice(-90) || "attachment";
+  const safeName = `${safeBase}.${extension}`;
   const path = `drafts/${requesterId}/${draftId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
-  const { error } = await supabase.storage.from("support-files").upload(path, file, {
-    cacheControl: "3600", upsert: false, contentType: file.type || undefined,
+  const { error } = await supabase.storage.from("support-files").upload(path, body, {
+    cacheControl: "3600", upsert: false, contentType,
   });
   return { path: error ? null : path, error };
 }
@@ -433,10 +444,21 @@ export async function getSupportInbox(
 }
 export async function uploadSupportAttachment(conversationId: string, file: File) {
   try { await validateChatUpload(file, false); } catch (error) { return { path: null, error: { message: error instanceof Error ? error.message : "Choose a photo or video." } }; }
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100) || "attachment";
+  let body: Blob | File = file;
+  let contentType = file.type || undefined;
+  let extension = file.name.split(".").pop() || "bin";
+  if (file.type.startsWith("image/")) {
+    const prepared = await prepareChatImageFile(file);
+    body = prepared.body; contentType = prepared.contentType; extension = prepared.extension;
+  } else if (file.type.startsWith("video/")) {
+    const prepared = await prepareChatVideo(file);
+    body = prepared.body; contentType = prepared.contentType; extension = prepared.extension;
+  }
+  const safeBase = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]/g, "_").slice(-90) || "attachment";
+  const safeName = `${safeBase}.${extension}`;
   const path = `${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
-  const { error } = await supabase.storage.from("support-files").upload(path, file, {
-    cacheControl: "3600", upsert: false, contentType: file.type || undefined,
+  const { error } = await supabase.storage.from("support-files").upload(path, body, {
+    cacheControl: "3600", upsert: false, contentType,
   });
   return { path: error ? null : path, error };
 }

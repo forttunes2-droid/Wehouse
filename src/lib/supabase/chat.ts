@@ -1,4 +1,4 @@
-import { validateChatUpload } from "@/lib/chatMediaPolicy";
+import { prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
@@ -75,6 +75,7 @@ export async function uploadRoommateChatAttachment(file:File,conversationId:stri
     await validateChatUpload(file);
     let upload:Blob|File=file,contentType=file.type||'application/octet-stream',extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
     if(file.type.startsWith('image/')){const prepared=await prepareChatImageFile(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
+    else if(file.type.startsWith('video/')){const prepared=await prepareChatVideo(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'attachment';
     const encrypted=await encryptPrivateAttachment('roommate',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
     const path=`e2ee/roommate/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;

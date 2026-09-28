@@ -21,7 +21,7 @@ async def main():
         page = await browser.new_page()
         await page.goto('http://127.0.0.1:4173/tests/browser/experience.html')
         result = await page.evaluate('''async () => {
-          const { preparePublicVideo, PUBLIC_VIDEO_MAX_BYTES } = await import('/src/lib/mediaVideo.ts');
+          const { preparePublicVideo, PUBLIC_VIDEO_MAX_BYTES, videoTargetBytes } = await import('/src/lib/mediaVideo.ts');
           const source = await (await fetch('/test-results/experience/compression-input.mp4')).blob();
           const prepared = await preparePublicVideo(new File([source], 'oversized.mp4', { type: 'video/mp4' }));
           const url = URL.createObjectURL(prepared.body);
@@ -34,10 +34,13 @@ async def main():
               video.src = url;
             });
             return { input: source.size, output: prepared.body.size, cap: PUBLIC_VIDEO_MAX_BYTES,
+              target: videoTargetBytes(video.duration),
               type: prepared.contentType, duration: video.duration };
           } finally { URL.revokeObjectURL(url); }
         }''')
-        assert 0 < result['output'] <= result['cap'], result
+        assert 0 < result['output'] <= result['target'] <= result['cap'], result
+        assert result['output'] < result['input'], result
+        assert result['target'] == 2 * 1024 * 1024, result
         assert result['duration'] > 10, result
         assert result['type'] in ('video/mp4', 'video/webm'), result
         print('Public video browser compression:', result)

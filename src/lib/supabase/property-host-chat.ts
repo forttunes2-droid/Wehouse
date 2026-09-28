@@ -1,4 +1,4 @@
-import { validateChatUpload, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
+import { prepareChatVideo, validateChatUpload, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { prepareChatImageFile } from "./utils";
 import { supabase } from "./client";
 
@@ -89,6 +89,9 @@ export async function uploadPropertyHostMedia(conversationId:string,userId:strin
   let extension=(file.name.split(".").pop()||"bin").replace(/[^a-zA-Z0-9]/g,"").toLowerCase();
   if(file.type.startsWith("image/")){
     const prepared=await prepareChatImageFile(file);
+    upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension;
+  }else if(file.type.startsWith("video/")){
+    const prepared=await prepareChatVideo(file);
     upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension;
   }
   const path=`${conversationId}/${userId}/${Date.now()}-${crypto.randomUUID()}.${extension||"bin"}`;

@@ -1,3 +1,6 @@
+export { prepareChatVideo } from "@/lib/mediaVideo";
+export { prepareChatImageFile } from "@/lib/supabase/utils";
+
 /** Chat is not document transfer. Keep identity/compliance upload workflows separate. */
 export const CHAT_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export const CHAT_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'] as const;

@@ -82,21 +82,26 @@ export async function prepareChatImageFile(file: File): Promise<{
   contentType: string;
   extension: string;
 }> {
-  const originalGraphics = new Set(["image/gif", "image/png", "image/webp"]);
-  if (originalGraphics.has(file.type) && file.size <= 8 * 1024 * 1024) {
+  const targetBytes = 2 * 1024 * 1024;
+  const preservableTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  // Keep animation intact. Other chat photos are JPEG-compressed before upload
+  // once they exceed the small-message-media budget.
+  if (file.type === "image/gif" || (preservableTypes.has(file.type) && file.size <= targetBytes)) {
     return {
       body: file,
       contentType: file.type,
       extension:
         file.type === "image/gif"
           ? "gif"
+          : file.type === "image/jpeg"
+            ? "jpg"
           : file.type === "image/png"
             ? "png"
             : "webp",
     };
   }
   return {
-    body: await compressImageFile(file, 1920, 0.85),
+    body: await compressImageFile(file, 1920, 0.85, targetBytes),
     contentType: "image/jpeg",
     extension: "jpg",
   };
