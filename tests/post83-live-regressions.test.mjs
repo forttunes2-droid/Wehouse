@@ -47,7 +47,8 @@ test("Login keeps a bounded composition and session restoration has a clear labe
   assert.match(css, /whWorkspaceHeaderIn/);
   assert.match(css, /whWorkspaceContentIn/);
   assert.match(app, /wh-workspace-enter/);
-  assert.match(app, /Opening your session/);
+  assert.match(app, /Checking your session and workspace/);
+  assert.match(app, /setSlow\(true\), 7000/);
   assert.match(css, /\.wh-auth-to-app-shell\s*\{\s*animation: none;/);
   assert.match(css, /\.page-transition\.wh-workspace-enter\s*\{\s*animation: none;/);
   assert.match(css, /whAuthToAppPiece/);

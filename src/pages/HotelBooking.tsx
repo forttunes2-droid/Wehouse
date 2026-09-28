@@ -171,14 +171,14 @@ export default function HotelBooking({
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#090B10]">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
         <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
 
   if (!room || !ratePlan)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#090B10] px-5 text-center text-white">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-5 text-center text-white">
         <div>
           <p className="text-sm font-semibold">Room package unavailable</p>
           <button onClick={onBack} className="mt-4 text-xs font-semibold text-violet-300">Choose another room</button>
@@ -187,13 +187,13 @@ export default function HotelBooking({
     );
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] pb-10 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-10 text-white">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5">
+      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 px-4 py-3 backdrop-blur-xl sm:px-5">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <BackButton onClick={onBack} />
           <div className="min-w-0">
-            <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">Secure hotel booking</p>
+            <p className="text-[11px] font-bold uppercase tracking-[.16em] text-violet-300">Secure hotel booking</p>
             <h1 className="mt-1 truncate text-sm font-semibold">{room.hotels.name}</h1>
           </div>
         </div>
@@ -204,53 +204,63 @@ export default function HotelBooking({
           {room.images?.[0] ? <img src={room.images[0]} alt={room.room_type} className="aspect-[16/8] w-full object-cover" /> : null}
           <div className="p-4">
             <div className="flex items-start justify-between gap-3">
-              <div><h2 className="text-base font-bold">{room.room_type}</h2><p className="mt-1 text-[9px] text-[#737A8A]">Up to {room.max_guests} guests{room.bed_type ? ` · ${room.bed_type}` : ""}</p></div>
-              <p className="text-sm font-bold text-violet-200">₦{Number(ratePlan.price_per_night).toLocaleString()}<span className="block text-right text-[8px] font-normal text-[#687080]">per night</span></p>
+              <div><h2 className="text-base font-bold">{room.room_type}</h2><p className="mt-1 text-xs text-[#737A8A]">Up to {room.max_guests} guests{room.bed_type ? ` · ${room.bed_type}` : ""}</p></div>
+              <p className="text-sm font-bold text-violet-200">₦{Number(ratePlan.price_per_night).toLocaleString()}<span className="block text-right text-[11px] font-normal text-[#687080]">per night</span></p>
             </div>
             <div className="mt-4 border-t border-white/[.06] pt-3">
               <p className="text-xs font-semibold">{ratePlan.name}</p>
-              <p className="mt-1 text-[9px] text-[#858B9A]">{mealLabels[ratePlan.meal_plan]} · {ratePlan.refundable ? `Refundable up to ${ratePlan.cancellation_hours || 0}h before arrival` : "Non-refundable"}</p>
-              {ratePlan.included_features?.length ? <p className="mt-2 text-[8px] text-emerald-300">Includes {ratePlan.included_features.join(" · ")}</p> : null}
+              <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{mealLabels[ratePlan.meal_plan]} · {ratePlan.refundable ? `Refundable up to ${ratePlan.cancellation_hours || 0}h before arrival` : "Non-refundable"}</p>
+              {ratePlan.included_features?.length ? <p className="mt-2 text-[11px] text-emerald-300">Includes {ratePlan.included_features.join(" · ")}</p> : null}
             </div>
           </div>
         </section>
 
         <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
           <h2 className="text-sm font-semibold">Stay dates</h2>
-          <p className="mt-1 text-[9px] text-[#6E7585]">Check-in from {formatHotelTime(room.hotels.check_in_time, "14:00")} · Check-out by {formatHotelTime(room.hotels.check_out_time, "12:00")}</p>
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">Check-in from {formatHotelTime(room.hotels.check_in_time, "14:00")} · Check-out by {formatHotelTime(room.hotels.check_out_time, "12:00")}</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <DateField label="Check-in" value={checkIn} min={tomorrowString} max={windowEndString} onChange={(value) => { setCheckIn(value); if (checkOut && checkOut <= value) setCheckOut(""); }} />
             <DateField label="Check-out" value={checkOut} min={minimumCheckout} max={windowEndString} onChange={setCheckOut} />
           </div>
-          {quoteLoading ? <p className="mt-3 text-[9px] text-violet-300">Checking live room inventory…</p> : null}
-          {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-[9px] text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
+          {quoteLoading ? <p className="mt-3 text-xs text-violet-300">Checking live room inventory…</p> : null}
+          {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
           {quote?.available && quote.nights && quote.total_price ? (
-            <div className="mt-4 flex items-center justify-between border-t border-white/[.06] pt-3"><p className="text-[10px] text-[#858B9A]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><p className="text-lg font-bold">₦{Number(quote.total_price).toLocaleString()}</p></div>
+            <div className="mt-4 flex items-center justify-between border-t border-white/[.06] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><p className="text-lg font-bold">₦{Number(quote.total_price).toLocaleString()}</p></div>
           ) : null}
         </section>
 
         <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
           <h2 className="text-sm font-semibold">Guest details</h2>
-          <p className="mt-1 text-[9px] leading-4 text-[#6E7585]">The hotel receives this booking context after verified payment. You do not need to message them first.</p>
+          <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">The hotel receives this booking context after verified payment. You do not need to message them first.</p>
           <div className="mt-4 space-y-3">
             <Field label="Full name" value={guestName} onChange={setGuestName} autoComplete="name" />
             <Field label="Phone number" value={guestPhone} onChange={setGuestPhone} type="tel" autoComplete="tel" />
             <div>
-              <p className="mb-1.5 text-[9px] text-[#777E8E]">Guests</p>
-              <div className="flex h-12 items-center justify-between rounded-xl border border-white/[.08] bg-[#171B24] px-2">
+              <p className="mb-1.5 text-xs text-[var(--wh-text-muted)]">Guests</p>
+              <div className="flex h-12 items-center justify-between rounded-xl border border-white/[.08] bg-[var(--wh-elevated)] px-2">
                 <button type="button" disabled={guestCount <= 1} onClick={() => setGuestCount((value) => Math.max(1, value - 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-white/[.07] text-lg disabled:opacity-25" aria-label="Remove guest">−</button>
                 <span className="text-sm font-bold">{guestCount}</span>
                 <button type="button" disabled={guestCount >= room.max_guests} onClick={() => setGuestCount((value) => Math.min(room.max_guests, value + 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-white/[.07] text-lg disabled:opacity-25" aria-label="Add guest">+</button>
               </div>
             </div>
-            <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">Special requests (optional)</span><textarea value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value.slice(0, 1200))} rows={3} placeholder="Arrival time, accessibility or room request" className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-sm outline-none focus:border-violet-500/40" /><span className="mt-2 block text-sm leading-6 text-[#A1A7B4]">Your request is attached to this reservation for the hotel team. It is not guaranteed until the hotel confirms it.</span></label>
+            <label><span className="mb-1.5 block text-xs text-[var(--wh-text-muted)]">Special requests (optional)</span><textarea value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value.slice(0, 1200))} rows={3} placeholder="Arrival time, accessibility or room request" className="w-full resize-none rounded-xl border border-white/[.08] bg-[var(--wh-elevated)] p-3 text-sm outline-none focus:border-violet-500/40" /><span className="mt-2 block text-sm leading-6 text-[#A1A7B4]">Your request is attached to this reservation for the hotel team. It is not guaranteed until the hotel confirms it.</span></label>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-violet-400/20 bg-violet-500/[.06] p-4" aria-label="Cancellation and arrival terms">
+          <h2 className="text-sm font-semibold text-white">Cancellation and arrival</h2>
+          <p className="mt-2 text-sm leading-6 text-[#B8C0CF]">
+            {ratePlan.refundable
+              ? `This rate is refundable when you request cancellation at least ${ratePlan.cancellation_hours ?? 0} hours before the hotel's check-in time. After that deadline, a refund is not automatic.`
+              : "This rate is non-refundable if you cancel or do not arrive. A payment or stay problem can still be reported to WeHouse for review."}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[#B8C0CF]">After payment, open this booking to contact WeHouse about a cancellation, missed arrival, or a stay the hotel could not provide.</p>
         </section>
 
         <button type="button" onClick={() => void book()} disabled={submitting || quoteLoading || !quote?.available} className="h-12 w-full rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">
           {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Pay ₦${Number(quote.total_price).toLocaleString()} securely` : "Choose available dates"}
         </button>
-        <p className="text-center text-[9px] leading-4 text-[#626979]">Your room, package, dates, guest and payment stay attached to one WeHouse booking record.</p>
+        <p className="text-center text-xs leading-4 text-[var(--wh-text-muted)]">Your room, package, dates, guest and payment stay attached to one WeHouse booking record.</p>
       </main>
     </div>
   );
@@ -258,7 +268,7 @@ export default function HotelBooking({
 
 
 function Field({ label, value, onChange, type = "text", autoComplete }: { label: string; value: string; onChange: (value: string) => void; type?: string; autoComplete?: string }) {
-  return <label><span className="mb-1.5 block text-[9px] text-[#777E8E]">{label}</span><input type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/40" /></label>;
+  return <label><span className="mb-1.5 block text-xs text-[var(--wh-text-muted)]">{label}</span><input type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40" /></label>;
 }
 
 function formatHotelTime(value: unknown, fallback: string) {

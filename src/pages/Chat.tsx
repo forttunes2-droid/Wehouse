@@ -23,8 +23,6 @@ import ChatCore from "@/pages/ChatCore";
 import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import ActivityHeader from "@/components/ActivityHeader";
-import SecureInboxLock from "@/components/SecureInboxLock";
-import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 
 type Props = {
@@ -131,10 +129,6 @@ export default function Chat({
   const [category, setCategory] = useState<InboxCategory>("all");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
   const [view, setView] = useState<"messages" | "activity">("messages");
-  const {
-    status: inboxSecurityStatus,
-    refresh: refreshInboxSecurity,
-  } = useSecureInboxAccess(profile.user_id);
 
   const otherId = useCallback(
     (row: Conversation) =>
@@ -290,7 +284,6 @@ export default function Chat({
 
   useEffect(() => {
     if (
-      inboxSecurityStatus?.state !== "ready" ||
       conversationId ||
       activeTarget ||
       view !== "messages"
@@ -355,7 +348,6 @@ export default function Chat({
   }, [
     activeTarget,
     conversationId,
-    inboxSecurityStatus?.state,
     load,
     profile.user_id,
     view,
@@ -415,15 +407,6 @@ export default function Chat({
 
   const target =
     activeTarget || (conversationId ? { conversationId, peerUserId } : null);
-
-  if (inboxSecurityStatus?.state !== "ready") {
-    return (
-      <SecureInboxLock
-        status={inboxSecurityStatus}
-        onReady={() => void refreshInboxSecurity()}
-      />
-    );
-  }
 
   if (target?.kind === "host" && target.hostConversation) {
     return <PropertyHostBookingChat conversation={target.hostConversation} profile={profile} onClose={() => { setActiveTarget(null); void load(true); }} onUpdated={() => void load(true)} />;
@@ -538,8 +521,8 @@ export default function Chat({
 
   if (view === "activity") {
     return (
-      <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-        <div className="sticky top-0 z-30 bg-[#090B10]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
+      <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-white">
+        <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
           <ActivityHeader onBack={() => setView("messages")} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
         </div>
         <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
@@ -556,8 +539,8 @@ export default function Chat({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-white">
+      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[var(--wh-bg)]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <h1 className="text-xl font-bold">{conversationOnly ? "Conversation" : "Inbox"}</h1>
           {!conversationOnly && <InboxActivityEntry compact unread={activityUnreadCount} onOpen={() => setView("activity")} />}

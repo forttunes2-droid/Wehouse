@@ -68,6 +68,7 @@ import BackButton from "@/components/BackButton";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
 import SecureMessagesPanel from "@/components/SecureMessagesPanel";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
 
 type Props = {
   profile: Profile;
@@ -213,7 +214,7 @@ export default function Chat({
   const {
     status: inboxSecurityStatus,
     refresh: refreshInboxSecurity,
-  } = useSecureInboxAccess(profile.user_id);
+  } = useSecureInboxAccess(profile.user_id, Boolean(active));
   const activeRef = useRef<Conversation | null>(null);
   const messageLoadGeneration = useRef(0);
   const sendingRef = useRef(false);
@@ -391,11 +392,10 @@ export default function Chat({
   );
 
   useEffect(() => {
-    if (inboxSecurityStatus?.state !== "ready") return;
     if (!conversationId) void loadInbox(Boolean(inboxCache.get(profile.user_id)));
-  }, [conversationId, inboxSecurityStatus?.state, loadInbox, profile.user_id]);
+  }, [conversationId, loadInbox, profile.user_id]);
   useEffect(() => {
-    if (!conversationId || inboxSecurityStatus?.state !== "ready") return;
+    if (!conversationId) return;
     let cancelled = false;
 
     if (initialKind === "worker" && initialBookingId) {
@@ -494,7 +494,6 @@ export default function Chat({
     return () => { cancelled = true; };
   }, [
     conversationId,
-    inboxSecurityStatus?.state,
     initialBookingId,
     initialHotelConversation,
     initialKind,
@@ -503,7 +502,7 @@ export default function Chat({
     profile.user_id,
   ]);
   useEffect(() => {
-    if (!active) {
+    if (!active || inboxSecurityStatus?.state !== "ready") {
       setMessages([]);
       setFiles([]);
       setMenuOpen(false);
@@ -543,7 +542,7 @@ export default function Chat({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [active, loadRoommateMessages, loadInbox]);
+  }, [active, inboxSecurityStatus?.state, loadRoommateMessages, loadInbox]);
   useEffect(() => {
     if (!active) {
       setSecureChat(null);
@@ -584,36 +583,46 @@ export default function Chat({
   }, [active, otherId]);
   useEffect(() => {
     if (
-      inboxSecurityStatus?.state !== "ready" ||
       active ||
       activeBooking ||
       activeHotel
     )
       return;
+    const scheduler = createRefreshScheduler(
+      async () => { await loadInbox(true); },
+      () => document.visibilityState === "visible",
+      180,
+    );
     const channel = supabase
       .channel(`message-inbox:${profile.user_id}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        () => void loadInbox(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "booking_messages" },
-        () => void loadInbox(true),
+        scheduler.request,
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
-        () => void loadInbox(true),
+        scheduler.request,
       )
       .subscribe();
-    const timer = window.setInterval(() => void loadInbox(true), 20000);
+    const resume = () => scheduler.request();
+    window.addEventListener("focus", resume);
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", resume);
     return () => {
-      window.clearInterval(timer);
+      scheduler.dispose();
+      window.removeEventListener("focus", resume);
+      window.removeEventListener("online", resume);
+      document.removeEventListener("visibilitychange", resume);
       void supabase.removeChannel(channel);
     };
-  }, [active, activeBooking, activeHotel, inboxSecurityStatus?.state, profile.user_id, loadInbox]);
+  }, [active, activeBooking, activeHotel, profile.user_id, loadInbox]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, files.length]);
@@ -980,11 +989,12 @@ export default function Chat({
     }
   }, [loadRoommateMessages, refreshInboxSecurity]);
 
-  if (inboxSecurityStatus?.state !== "ready") {
+  if (active && inboxSecurityStatus?.state !== "ready") {
     return (
       <SecureInboxLock
         status={inboxSecurityStatus}
         onReady={() => void finishInboxUnlock()}
+        onBack={() => { setActive(null); onConversationClose?.(); }}
       />
     );
   }
@@ -1111,7 +1121,7 @@ export default function Chat({
             </button>
           </div>
           {menuOpen && (
-            <div className="absolute right-3 top-[3.65rem] z-20 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[#171B24] p-1.5 shadow-2xl">
+            <div className="absolute right-3 top-[3.65rem] z-20 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
               <button
                 onClick={() => {
                   setMenuOpen(false);
@@ -1483,7 +1493,7 @@ export default function Chat({
 
   if (conversationId && !active) {
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[#090B10] px-6 text-center text-white">
+      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] px-6 text-center text-white">
         <div>
           {openingConversation ? (
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
@@ -1507,8 +1517,8 @@ export default function Chat({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[#090B10]/95 px-4 py-2.5 backdrop-blur-xl sm:py-4">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-white">
+      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[var(--wh-bg)]/95 px-4 py-2.5 backdrop-blur-xl sm:py-4">
         <div className="mx-auto flex max-w-5xl items-start gap-3">
           {selected.size ? (
             <button
@@ -1593,7 +1603,7 @@ export default function Chat({
                 Roommates, stays, services and WeHouse help
               </p>
             </div>
-            <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[#11141C] px-4 focus-within:border-violet-500/35">
+            <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[var(--wh-surface)] px-4 focus-within:border-violet-500/35">
               <SearchIcon />
               <input
                 value={inboxQuery}
@@ -1613,7 +1623,7 @@ export default function Chat({
               </div>
             </div>
             {loading ? (
-              <div className="mt-3 rounded-3xl border border-white/[.06] bg-[#11141C]">
+              <div className="mt-3 rounded-3xl border border-white/[.06] bg-[var(--wh-surface)]">
                 <Loading />
               </div>
             ) : visibleInboxItems.length === 0 ? (

@@ -111,7 +111,7 @@ const PrivateCallCenter = lazy(() => import("@/components/PrivateCallCenter"));
 function PageTransitionFallback() {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => setSlow(true), 25000);
+    const timer = window.setTimeout(() => setSlow(true), 7000);
     return () => window.clearTimeout(timer);
   }, []);
   return (
@@ -125,7 +125,7 @@ function PageTransitionFallback() {
           <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
           <div>
             <p className="text-base font-semibold tracking-tight">WeHouse</p>
-            <p className="mt-0.5 text-sm text-[#A7ADBA]">Opening your session…</p>
+            <p className="mt-0.5 text-sm text-[#A7ADBA]">Checking your session and workspace…</p>
           </div>
         </div>
         {!slow ? (
@@ -135,8 +135,8 @@ function PageTransitionFallback() {
         ) : (
           <div className="mt-8">
             <div className="max-w-xs">
-              <p className="text-sm text-[#AAA3B3]">Taking longer than usual.</p>
-              <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Check your connection or try again.</p>
+              <p className="text-sm text-[#B8C0CF]">This is taking longer than usual.</p>
+              <p className="mt-2 text-sm leading-6 text-[#B8C0CF]">Your connection or account service may be slow. You can retry now.</p>
               <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
             </div>
           </div>
