@@ -427,12 +427,12 @@ export default function Search({
 
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold">
+            <p className="text-sm font-semibold">
               {loading
                 ? "Loading apartments…"
                 : `Showing ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
             </p>
-            <p className="mt-1 text-[9px] text-[#666D7E]">{modeLabel}</p>
+            <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{modeLabel}</p>
           </div>
           <div className="flex items-center gap-3">
             {hasFilters ? (
@@ -440,7 +440,7 @@ export default function Search({
                 type="button"
                 disabled={savingSearch}
                 onClick={() => void toggleFollowSearch()}
-                className={`rounded-full border px-3 py-2 text-[9px] font-semibold disabled:opacity-40 ${
+                className={`rounded-full border px-3 py-2 text-xs font-semibold disabled:opacity-40 ${
                   followedSearch?.notifications_enabled
                     ? "border-emerald-500/25 text-emerald-300"
                     : "border-violet-500/20 text-violet-300"
@@ -459,7 +459,7 @@ export default function Search({
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-[9px] font-semibold text-[#858A99]"
+                className="text-xs font-semibold text-[var(--wh-text-secondary)]"
               >
                 Clear
               </button>
@@ -470,7 +470,7 @@ export default function Search({
         {loadError && !listings.length ? (
           <section className="border-y border-red-500/15 px-5 py-12 text-center">
             <p className="text-sm font-semibold">Apartments could not be loaded</p>
-            <p className="mt-2 text-[10px] text-[#777D8D]">{loadError}</p>
+            <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">{loadError}</p>
             <button
               type="button"
               onClick={() => setReload(value => value + 1)}

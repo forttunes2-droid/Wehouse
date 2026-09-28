@@ -60,7 +60,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   if (!active && !showSignedOutNav) return <>{children}</>;
   if (!active) return <>
     <div className="wh-auth-with-guest-nav">{children}</div>
-    <PersonalBottomNav activePage="profile" signedOut onNavigate={next => {
+    <PersonalBottomNav activePage="profile" signedOut busy={busy} onNavigate={next => {
       if (next === 'profile' || busy) return;
       setSection(next === 'search' ? 'explore' : next === 'my_reservations' ? 'bookings' : 'inbox');
       setTarget(null);
@@ -97,6 +97,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
           setTarget(null);
         }}
         signedOut
+        busy={busy}
       />
     </div>
   </DiscoveryAccessContext.Provider>;

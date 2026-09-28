@@ -22,8 +22,11 @@ async def main():
      await page.evaluate("""() => { window.__authTest={calls:[]};for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}}""")
      await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
      masthead_signin=page.locator('.wh-public-entry section').first.get_by_role('button',name='Sign in',exact=True)
+     # The masthead action is mobile-only; desktop enters through the visible
+     # personal navigation. Both routes lead to the same pending Auth state.
+     entry_signin=(masthead_signin if width<1024 else page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True))
      form_signin=page.locator('form').get_by_role('button',name='Sign in',exact=True)
-     await masthead_signin.click()
+     await entry_signin.click()
      if mode=='google-pending':
       await page.get_by_role('button',name='Continue with Google',exact=True).click()
       await expect(page.get_by_role('button',name='Opening Google…',exact=True)).to_be_disabled()
@@ -33,16 +36,18 @@ async def main():
       assert len(await page.evaluate('window.__authTest.calls'))==1
       # Native Back is not a dead-end. The same pending operation may not be
       # submitted again from the landing masthead while its outcome is unknown.
-      await page.go_back();await expect(page.get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
+      await page.go_back()
+      pending_signin=(page.locator('.wh-public-entry section').first if width<1024 else page.get_by_role('navigation',name='Main navigation')).get_by_role('button',name='Signing in…',exact=True)
+      await expect(pending_signin).to_be_disabled()
       await page.evaluate('window.__authTest.resolve({error:{message:"Network error"}})')
-      await expect(masthead_signin).to_be_enabled()
+      await expect(entry_signin).to_be_enabled()
      else:
       signup=mode=='signup-confirmation'
       await page.get_by_role('button',name='Create account' if signup else 'Continue with email',exact=True).click()
       await page.get_by_label('Email' if signup else 'Username or email',exact=True).fill('test@example.invalid')
       await page.locator('input[autocomplete="new-password"]' if signup else 'input[autocomplete="current-password"]').fill('not-a-real-password')
       await page.locator('form').get_by_role('button',name='Create account' if signup else 'Sign in',exact=True).click()
-      await expect(page.get_by_role('button',name='Creating account…' if signup else 'Signing in…',exact=True)).to_be_disabled()
+      await expect(page.locator('form').get_by_role('button',name='Creating account…' if signup else 'Signing in…',exact=True)).to_be_disabled()
       await expect(page.get_by_label('Email' if signup else 'Username or email',exact=True)).to_be_disabled()
       await page.locator('form').evaluate('(e)=>{e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));}')
       assert len(await page.evaluate('window.__authTest.calls'))==1
@@ -60,7 +65,7 @@ async def main():
        assert (await page.evaluate('window.__authTest.calls'))[-1]=={'name':'google','args':['test@example.invalid','signup']}
       else:
        await page.evaluate('window.__authTest.resolve({data:{session:{user:{id:"test-user"}}},error:null})')
-       await expect(page.get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
+       await expect(page.locator('form').get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
        await page.locator('form').evaluate('(e)=>e.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))')
        assert len(await page.evaluate('window.__authTest.calls'))==1
        if mode=='success-device':

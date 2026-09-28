@@ -5,6 +5,7 @@ on:
       - '.github/workflows/capacity-medium.yml'
       - 'scripts/seed-capacity-medium.sh'
       - 'scripts/load-catalog-scale.mjs'
+      - 'scripts/load-mixed-catalog.mjs'
       - 'supabase/tests/capacity_scale_*.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
@@ -60,6 +61,7 @@ jobs:
           sampler_pid=$!
           trap 'kill "$sampler_pid" 2>/dev/null || true; wait "$sampler_pid" 2>/dev/null || true' EXIT
           WEHOUSE_CAPACITY_PRESET=medium node scripts/load-catalog-scale.mjs
+          node scripts/load-mixed-catalog.mjs
       - name: Retain local gateway logs after the read stages
         if: always()
         run: |
@@ -73,6 +75,7 @@ jobs:
           name: capacity-medium-results
           path: |
             test-results/catalog-scale.json
+            test-results/catalog-mixed.json
             test-results/home-query-plan.txt
             test-results/capacity-resource-samples.log
             test-results/supabase_*.log
