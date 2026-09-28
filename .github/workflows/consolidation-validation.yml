@@ -121,6 +121,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
       - name: Exercise invitations, Hosting Help and Worker market capacity
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql
+      - name: Verify prepublication management choice and public media bounds
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_management_publication_contract.sql
       - name: Exercise Sponsored payment and placement contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Stop local Supabase

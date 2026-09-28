@@ -831,18 +831,12 @@ export default function MyReservations({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <div className="space-y-3 border-b border-white/[.08] pb-4">
-          <div>
-            <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking type</p>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Filter bookings by type">
-              {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold leading-4 transition-colors sm:px-4 ${view === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
-            </div>
+        <div className="border-b border-white/[.08] pb-3">
+          <div className="grid grid-cols-4 border-b border-white/[.07]" role="group" aria-label="Filter bookings by type">
+            {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-xs font-semibold transition-colors ${view === option.value ? "border-violet-400 text-violet-200" : "border-transparent text-[#9CA4B4]"}`}>{option.value === "all" ? "All" : option.value === "housing" ? "Homes" : option.label}</button>)}
           </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking status</p>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Filter bookings by status">
-              {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold leading-4 transition-colors sm:px-4 ${statusView === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
-            </div>
+          <div className="mt-3 grid grid-cols-4 gap-1.5" role="group" aria-label="Filter bookings by status">
+            {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 rounded-full border px-1.5 py-1.5 text-[11px] font-semibold leading-4 transition-colors ${statusView === option.value ? "border-violet-400/60 bg-violet-500/20 text-violet-100" : "border-white/[.1] bg-[var(--wh-elevated)] text-[#A8B0BF]"}`}>{option.value === "all" ? "All" : option.value === "active" ? "Upcoming" : option.label}</button>)}
           </div>
         </div>
 

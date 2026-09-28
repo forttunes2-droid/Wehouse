@@ -23,7 +23,7 @@ type ManagementState={
   assignments:Assignment[];
 };
 
-export default function PropertyManagementPanel({listingId,profile,onChanged,onModeChange}:{listingId:string;profile:Profile;onChanged?:()=>void;onModeChange?:(mode:"host"|"wehouse")=>void}){
+export default function PropertyManagementPanel({listingId,profile,onChanged,onModeChange,onContact}:{listingId:string;profile:Profile;onChanged?:()=>void;onModeChange?:(mode:"host"|"wehouse")=>void;onContact?:()=>void}){
   const [state,setState]=useState<ManagementState|null>(null);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
@@ -43,7 +43,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
   const configured=Boolean(state?.management_updated_at);
 
   async function setMode(mode:"host"|"wehouse"){
-    if(!owner||busy||!state)return;
+    if(!owner||busy||!state||configured)return;
     const sameActive=Boolean(state.management_updated_at)&&state.management_mode===mode&&(
       mode==="host"||state.wehouse_management_status==="requested"||state.wehouse_management_status==="approved"
     );
@@ -123,15 +123,16 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     <div className="flex items-center justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold">Property management</h3>
-        <p className="mt-1 text-[9px] text-[#747A8A]">Choose who operates new bookings for this live home.</p>
+        <p className="mt-1 text-[9px] text-[#747A8A]">{configured?"The operator for this published home is recorded. Ask WeHouse support to review any handoff.":"This older home needs its initial operator choice before new bookings."}</p>
       </div>
       <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${statusLabel==="Active"?"border-emerald-400/15 bg-emerald-400/[.06] text-emerald-300":statusLabel==="Pending"?"border-amber-300/15 bg-amber-300/[.06] text-amber-200":"border-white/[.08] text-[#A0A6B4]"}`}>{statusLabel}</span>
     </div>
 
-    {owner?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Who manages this property">
+    {owner&&!configured?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Who manages this property">
       <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">You or an assigned co-host</span></button>
       <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">WeHouse manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">Property Operations runs the stay</span></button>
     </div>:null}
+    {owner&&configured&&onContact?<button type="button" onClick={onContact} className="mt-3 min-h-11 rounded-xl border border-violet-400/20 px-4 text-xs font-semibold text-violet-200">Request a reviewed handoff</button>:null}
 
     {configured&&state.management_mode==="host"?<div className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 px-3.5 py-3">
       <div className="flex items-center justify-between gap-3">
@@ -147,7 +148,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     </div>:null}
 
     {configured&&state.management_mode==="wehouse"&&!wehouseActive?<div className="mt-3 rounded-xl border border-amber-300/10 bg-amber-300/[.035] px-3 py-2.5 text-[9px] leading-4 text-[#B9A985]">
-      {state.wehouse_management_status==="requested"?"Property Operations is reviewing this handoff. New WeHouse-managed bookings stay unavailable until accepted.":state.wehouse_management_status==="declined"?"WeHouse management was not accepted. Choose Host manages or contact support.":"Complete the management handoff before taking new bookings."}
+      {state.wehouse_management_status==="requested"?"Property Operations must accept management before new WeHouse-managed bookings are available.":state.wehouse_management_status==="declined"?"WeHouse management was not accepted. Contact support for a reviewed decision.":"Complete the management review before taking new bookings."}
     </div>:null}
 
     {configured&&state.management_mode==="wehouse"&&wehouseActive?<div className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 px-3.5 py-3">

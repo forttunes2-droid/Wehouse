@@ -24,6 +24,7 @@ type RequestRow = {
   property_display_name: string | null;
   property_type: string | null;
   sub_type: string | null;
+  requested_management_mode: "host" | "wehouse" | null;
   property_state: string | null;
   property_city: string | null;
   bedrooms: number | null;
@@ -67,7 +68,7 @@ type RequestRow = {
 };
 
 const fields =
-  "id,request_code,property_address,property_display_name,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
+  "id,request_code,property_address,property_display_name,property_type,sub_type,requested_management_mode,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
 const PAGE_SIZE = 40;
 
 function submissionsQuery(ownerId: string, assetKind: PartnerAssetKind, filter: SubmissionFilter) {
@@ -338,6 +339,17 @@ function RequestDetail({
   onCorrected: () => void;
 }) {
   const [managingHotel, setManagingHotel] = useState(false);
+  const [managementMode, setManagementMode] = useState(request.requested_management_mode);
+  const [managementBusy, setManagementBusy] = useState(false);
+  async function chooseManagement(mode: "host" | "wehouse") {
+    if (managementBusy || managementMode === mode) return;
+    setManagementBusy(true);
+    const { error } = await supabase.rpc("set_my_property_request_management_mode", { p_request_id: request.id, p_mode: mode });
+    setManagementBusy(false);
+    if (error) return toast.error(error.message);
+    setManagementMode(mode);
+    toast.success("Operating choice saved before publication");
+  }
   const images = request.photo_urls || [];
   const stage = request.lifecycle_stage || "access_required";
   const stopped = ["changes_requested", "rejected"].includes(stage);
@@ -425,6 +437,7 @@ function RequestDetail({
           )}
         </div>
       </section>
+      {request.property_type === "apartment" && stage !== "live" && !request.published_at ? <section className="rounded-2xl border border-white/[.08] bg-[#111119] p-4"><h3 className="text-sm font-semibold">Who manages this home?</h3><p className="mt-1 text-[10px] leading-5 text-[#8F98A8]">Set this before publication. A live home cannot silently change operator.</p><div className="mt-3 grid grid-cols-2 gap-2">{(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" disabled={managementBusy} aria-pressed={managementMode === mode} onClick={() => void chooseManagement(mode)} className={`min-h-12 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50 ${managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-violet-100" : "border-white/[.1] text-[#A4ACB9]"}`}>{mode === "host" ? "Host manages" : "WeHouse manages"}</button>)}</div></section> : null}
       {request.property_type === "hotel" ? (
         <section className="space-y-3">
           <div className="flex items-start justify-between gap-4">

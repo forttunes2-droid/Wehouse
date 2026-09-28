@@ -69,6 +69,7 @@ type Draft = {
   propertyState: string;
   propertyType: string;
   subType: StayType;
+  managementMode: "" | "host" | "wehouse";
   relationship: AuthorityRelationship;
   bedrooms: string;
   bathrooms: string;
@@ -95,6 +96,7 @@ type InspectionRequestItem = {
   property_state: string;
   property_type: string;
   sub_type: StayType | null;
+  management_mode?: "host" | "wehouse";
   authority_relationship: AuthorityRelationship;
   bedrooms: number | null;
   bathrooms: number | null;
@@ -147,6 +149,7 @@ function fresh(profile: Profile, copy?: Draft): Draft {
     propertyState: copy?.propertyState || profile.state || "",
     propertyType: copy?.propertyType || "apartment",
     subType: copy?.subType || "long_stay",
+    managementMode: "",
     relationship: copy?.relationship || "owner",
     bedrooms: "1",
     bathrooms: "1",
@@ -252,6 +255,7 @@ export default function PropertyInspectionRequestPanel({
       draft.propertyType.trim() &&
       draft.files.length >= MIN_PROPERTY_PHOTOS &&
       (draft.propertyType !== "apartment" || Number(draft.expectedRent) > 0) &&
+      (draft.propertyType !== "apartment" || ["host", "wehouse"].includes(draft.managementMode)) &&
       (draft.propertyType !== "apartment" ||
         draft.subType !== "short_let" ||
         (draft.propertyDisplayName.trim() &&
@@ -284,6 +288,7 @@ export default function PropertyInspectionRequestPanel({
     draft.propertyState.trim() !== String(profile.state || "").trim() ||
     draft.propertyType !== "apartment" ||
     draft.subType !== "long_stay" ||
+    Boolean(draft.managementMode) ||
     draft.relationship !== "owner" ||
     draft.bedrooms !== "1" ||
     draft.bathrooms !== "1" ||
@@ -594,6 +599,8 @@ export default function PropertyInspectionRequestPanel({
                   d.subType === "short_let" &&
                   Number(d.maxGuests) < 1
                 ? `Property ${invalid + 1}: choose a valid maximum guest limit`
+                : d.propertyType === "apartment" && !d.managementMode
+                  ? `Property ${invalid + 1}: choose who manages the home before submission`
                 : `Complete the required details for property ${invalid + 1}`,
       );
     }
@@ -734,6 +741,7 @@ export default function PropertyInspectionRequestPanel({
           property_state: d.propertyState.trim(),
           property_type: d.propertyType,
           sub_type: d.propertyType === "apartment" ? d.subType : null,
+          ...(d.propertyType === "apartment" ? { management_mode: d.managementMode as "host" | "wehouse" } : {}),
           authority_relationship: d.relationship,
           bedrooms: d.propertyType === "hotel" ? null : Number(d.bedrooms || 0),
           bathrooms:
@@ -1017,6 +1025,13 @@ export default function PropertyInspectionRequestPanel({
                             Nightly · furnished
                           </span>
                         </button>
+                      </div>
+                    </section>
+                    <section className="md:col-span-2" aria-label="Choose who operates this home">
+                      <p className="mb-2 text-xs font-semibold">Who will manage guest stays? *</p>
+                      <p className="mb-3 text-[10px] leading-5 text-[#9199A8]">Choose before publication. Existing bookings keep their assigned operator; a later change requires WeHouse review.</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-white" : "border-white/[.1] bg-[#171821] text-[#B3BBC8]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-[9px] leading-4 text-[#9CA4B4]">{mode === "host" ? "You or your approved co-host handles guests" : "Property Operations reviews and handles stays"}</span></button>)}
                       </div>
                     </section>
                     <Field

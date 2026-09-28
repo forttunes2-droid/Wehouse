@@ -299,7 +299,9 @@ function Case({
           {stage === "live" && hotelId ? (
             <CreatorHotelRecord hotelId={hotelId} fallback={row} />
           ) : stage === "live" && listingId ? (
-            <ManageListing listingId={String(listingId)} source={row} />
+            <><ManageListing listingId={String(listingId)} source={row} />
+              <WeHouseManagementReview listingId={String(listingId)} />
+            </>
           ) : (
             <SubmissionSummary row={row} stage={stage} />
           )}
@@ -365,6 +367,39 @@ function Case({
       </main>
     </PropertyRecordDialog>
   );
+}
+
+function WeHouseManagementReview({ listingId }: { listingId: string }) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  useEffect(() => {
+    let active = true;
+    void supabase.from("listings").select("management_mode,wehouse_management_status")
+      .eq("id", listingId).maybeSingle().then(({ data }) => {
+        if (active) setStatus(data?.management_mode === "wehouse" ? data.wehouse_management_status : null);
+      });
+    return () => { active = false; };
+  }, [listingId]);
+  if (status !== "requested") return null;
+  async function decide(approve: boolean) {
+    if (busy) return;
+    if (!approve && !reason.trim()) return toast.error("Explain why WeHouse cannot operate this home");
+    setBusy(true);
+    const { error } = await supabase.rpc("review_wehouse_property_management", {
+      p_listing_id: listingId, p_approve: approve, p_reason: reason.trim() || null,
+    });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    setStatus(approve ? "approved" : "declined");
+    toast.success(approve ? "WeHouse management accepted" : "Management request declined");
+  }
+  return <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[.04] p-4">
+    <h3 className="text-sm font-semibold">WeHouse management decision</h3>
+    <p className="mt-1 text-xs leading-5 text-[#A4ACBA]">Review the property and operational capacity before accepting guest responsibility. Bookings stay unavailable until accepted.</p>
+    <textarea value={reason} onChange={event => setReason(event.target.value)} rows={2} placeholder="Reason if declined" className="mt-3 w-full rounded-xl border border-white/10 bg-[#171923] p-3 text-xs outline-none" />
+    <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={busy} onClick={() => void decide(false)} className="min-h-11 rounded-xl border border-white/10 text-xs disabled:opacity-50">Decline</button><button type="button" disabled={busy} onClick={() => void decide(true)} className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">Accept management</button></div>
+  </section>;
 }
 
 function CreatorHotelRecord({

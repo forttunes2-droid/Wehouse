@@ -656,7 +656,7 @@ export function PropertyDetails({
           </button>
         </div>
       </section>
-      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onContact={contact} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
       {hostManaged&&property._can_control_commercials?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-white/[.07] pt-5">
         <div className="flex items-end justify-between gap-3">

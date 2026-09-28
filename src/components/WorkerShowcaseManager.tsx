@@ -6,6 +6,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
 import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
+import { preparePublicVideo } from "@/lib/mediaVideo";
 import VideoPlayer from "@/components/VideoPlayer";
 import WorkerShowcaseGrid from "@/components/WorkerShowcaseGrid";
 import { useWorkerShowcase, type ShowcasePost } from "@/hooks/useWorkerShowcase";
@@ -126,16 +127,17 @@ function WorkerShowcaseContent({
     setUploadProgress(0);
     let path = "";
     try {
-      const preserveOriginal = isVideo || (['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024);
-      const uploadBody = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);
-      const ext = isVideo ? (file.name.split(".").pop() || "mp4").toLowerCase() : preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg';
+      const preserveOriginal = ['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
+      const preparedVideo = isVideo ? await preparePublicVideo(file) : null;
+      const uploadBody = preparedVideo?.body || (preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024));
+      const ext = preparedVideo?.extension || (preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg');
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");
       await uploadStorageObjectWithProgress(
         "worker-showcase",
         path,
         uploadBody,
-        isVideo || preserveOriginal ? file.type : "image/jpeg",
+        preparedVideo?.contentType || (preserveOriginal ? file.type : "image/jpeg"),
         setUploadProgress,
       );
 

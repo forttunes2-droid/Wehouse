@@ -299,32 +299,49 @@ export default function Chat({
     );
     scheduler.request();
 
+    // Reorder a known thread immediately on its INSERT. The authoritative
+    // inbox projection follows shortly; a slow projection must not leave a
+    // newly active thread sitting below older messages on screen.
+    const onMessage = (kind: Thread["kind"]) => (payload: any) => {
+      const row = payload.new as { conversation_id?: string; created_at?: string } | undefined;
+      if (payload.eventType === "INSERT" && row?.conversation_id && row.created_at && Number.isFinite(Date.parse(row.created_at))) {
+        const newer = (previous: string | null | undefined) =>
+          !previous || Date.parse(row.created_at!) > Date.parse(previous) ? row.created_at! : previous;
+        if (kind === "roommate") setConversations(current => current.map(thread => thread.id === row.conversation_id ? { ...thread, last_message_at: newer(thread.last_message_at) } : thread));
+        if (kind === "worker") setBookingConversations(current => current.map(thread => thread.conversation_id === row.conversation_id ? { ...thread, last_message_time: newer(thread.last_message_time) } : thread));
+        if (kind === "hotel") setHotelConversations(current => current.map(thread => thread.conversation_id === row.conversation_id ? { ...thread, last_message_time: newer(thread.last_message_time) } : thread));
+        if (kind === "host") setHostConversations(current => current.map(thread => thread.conversation_id === row.conversation_id ? { ...thread, last_message_time: newer(thread.last_message_time) } : thread));
+        if (kind === "support") setSupportThreads(current => current.map(thread => thread.conversation_id === row.conversation_id ? { ...thread, last_message_time: newer(thread.last_message_time) } : thread));
+      }
+      scheduler.request();
+    };
+
     const channel = supabase
       .channel(`inbox-list:${profile.user_id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        scheduler.request,
+        onMessage("roommate"),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "booking_messages" },
-        scheduler.request,
+        onMessage("worker"),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "property_host_messages" },
-        scheduler.request,
+        onMessage("host"),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "hotel_booking_messages" },
-        scheduler.request,
+        onMessage("hotel"),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partner_support_messages" },
-        scheduler.request,
+        onMessage("support"),
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") scheduler.request();

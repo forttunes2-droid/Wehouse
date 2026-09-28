@@ -1,6 +1,7 @@
 import { supabase, uploadStorageObjectWithProgress } from './client';
 import type { Listing } from '@/types';
 import { compressImageFile } from './utils';
+import { preparePublicVideo } from '@/lib/mediaVideo';
 import { ROLE_RANK } from '@/types';
 
 // Public discovery and detail reads use server-side redaction. Raw listing rows
@@ -146,10 +147,10 @@ export async function uploadListingVideo(file: File, listingId: string, onProgre
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
   if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
-  const extension = file.name.split('.').pop() || 'mp4';
-  const path = `listings/${listingId}/${crypto.randomUUID()}.${extension}`;
   try {
-    await uploadStorageObjectWithProgress('listing-videos', path, file, file.type, onProgress);
+    const prepared = await preparePublicVideo(file);
+    const path = `listings/${listingId}/${crypto.randomUUID()}.${prepared.extension}`;
+    await uploadStorageObjectWithProgress('listing-videos', path, prepared.body, prepared.contentType, onProgress);
     return { url: supabase.storage.from('listing-videos').getPublicUrl(path).data.publicUrl, error: null };
   } catch (error: any) {
     return { url: null, error: { message: error?.message || 'Video upload failed' } };
@@ -207,9 +208,10 @@ export async function uploadListingCandidateVideo(file: File, scope: Extract<Can
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
   if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
-  const extension = file.name.split('.').pop()?.toLowerCase() || 'mp4';
-  const path = candidatePath(scope, extension);
   try {
+    // Private inspection evidence preserves the original capture for review.
+    const extension = file.type === 'video/quicktime' ? 'mov' : file.type === 'video/webm' ? 'webm' : 'mp4';
+    const path = candidatePath(scope, extension);
     await uploadStorageObjectWithProgress('listing-candidates', path, file, file.type, onProgress);
     return { url: path, error: null };
   } catch (error: any) {

@@ -610,6 +610,11 @@ export default function Chat({
         { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
         scheduler.request,
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "partner_support_messages" },
+        scheduler.request,
+      )
       .subscribe();
     const resume = () => scheduler.request();
     window.addEventListener("focus", resume);

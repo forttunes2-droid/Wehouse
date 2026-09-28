@@ -224,7 +224,9 @@ function NotificationFeed({
       toast.error("This update belongs to a different workspace. Refresh Activity.");
       return;
     }
-    void markRead(row);
+    // Finish the read write before opening another screen. Otherwise the
+    // Activity panel can unmount with a stale badge, especially for work posts.
+    await markRead(row);
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));
       return;
