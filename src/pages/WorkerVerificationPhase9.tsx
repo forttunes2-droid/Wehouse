@@ -5,6 +5,7 @@ import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklis
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
+import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 
 type Props = {
   profile: Profile;
@@ -142,17 +143,19 @@ export default function WorkerVerificationPhase9({
       phase: "uploading",
     });
     try {
+      const prepared = await prepareEvidenceVideo(file);
+      const compressed = new File([prepared.body], `skill-video.${prepared.extension}`, { type: prepared.contentType });
       const path = await upload(
-        file,
+        compressed,
         "worker-verification-videos",
         "skill-video",
       );
       setVideoPath(path);
       if (preview) URL.revokeObjectURL(preview);
-      setPreview(URL.createObjectURL(file));
+      setPreview(URL.createObjectURL(prepared.body));
       setUploadState({
         name: file.name,
-        size: file.size,
+        size: prepared.body.size,
         kind: "video",
         phase: "complete",
       });

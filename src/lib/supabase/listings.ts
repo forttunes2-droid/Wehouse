@@ -209,10 +209,9 @@ export async function uploadListingCandidateVideo(file: File, scope: Extract<Can
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
   if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   try {
-    // Private inspection evidence preserves the original capture for review.
-    const extension = file.type === 'video/quicktime' ? 'mov' : file.type === 'video/webm' ? 'webm' : 'mp4';
-    const path = candidatePath(scope, extension);
-    await uploadStorageObjectWithProgress('listing-candidates', path, file, file.type, onProgress);
+    const prepared = await preparePublicVideo(file);
+    const path = candidatePath(scope, prepared.extension);
+    await uploadStorageObjectWithProgress('listing-candidates', path, prepared.body, prepared.contentType, onProgress);
     return { url: path, error: null };
   } catch (error: any) {
     return { url: null, error: { message: error?.message || 'Video upload failed' } };

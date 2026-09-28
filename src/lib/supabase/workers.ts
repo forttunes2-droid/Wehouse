@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { prepareEvidenceVideo } from '@/lib/mediaVideo';
 import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, LegacyWorkerSubscription, Wallet, WalletTransaction, PaymentProtectionTransaction, Withdrawal, FinancialAuditLog } from '@/types';
 
 // ═══════════════════════════════════════════════════════════════
@@ -202,12 +203,14 @@ export async function uploadWorkerVerificationVideo(file: File, workerId: string
     return { path: null, signedUrl: null, error: { message: 'Video must be under 100MB' } as any };
   }
 
-  const ext = file.name.split('.').pop() || 'mp4';
-  const path = `worker-verifications/${workerId}/skill-demo-${Date.now()}.${ext}`;
+  let prepared;
+  try { prepared = await prepareEvidenceVideo(file); }
+  catch (error) { return { path: null, signedUrl: null, error: { message: error instanceof Error ? error.message : 'Video preparation failed' } }; }
+  const path = `worker-verifications/${workerId}/skill-demo-${Date.now()}.${prepared.extension}`;
 
   const { data, error } = await supabase.storage
     .from('worker-files')
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, prepared.body, { contentType: prepared.contentType, upsert: false });
 
   if (error) return { path: null, signedUrl: null, error };
 

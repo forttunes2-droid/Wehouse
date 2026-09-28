@@ -23,6 +23,7 @@ import {
   type Profile,
 } from "@/types";
 import MediaViewer from "./MediaViewer";
+import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 
 type Location = {
   lat: number;
@@ -172,11 +173,6 @@ function fresh(profile: Profile, copy?: Draft): Draft {
     hotelAmenities: "",
     hotelRooms: [newRoom()],
   };
-}
-function mediaExtension(file: File) {
-  if (file.type.includes("mp4")) return "mp4";
-  if (file.type.includes("quicktime")) return "mov";
-  return "webm";
 }
 const words = (value: string) =>
   value
@@ -649,13 +645,14 @@ export default function PropertyInspectionRequestPanel({
           throw new Error(
             `Property ${i + 1}: record at least ${MIN_PROPERTY_ACCESS_SECONDS} seconds of continuous access evidence`,
           );
-        const accessPath = `${profile.user_id}/${d.accessChallenge.id}/${crypto.randomUUID()}-${accessDuration}s.${mediaExtension(d.accessVideo)}`;
+        const preparedAccess = await prepareEvidenceVideo(d.accessVideo);
+        const accessPath = `${profile.user_id}/${d.accessChallenge.id}/${crypto.randomUUID()}-${accessDuration}s.${preparedAccess.extension}`;
         try {
           await uploadStorageObjectWithProgress(
             "property-access-private",
             accessPath,
-            d.accessVideo,
-            d.accessVideo.type || "video/webm",
+            preparedAccess.body,
+            preparedAccess.contentType,
             setUploadProgress,
           );
         } catch (error) {

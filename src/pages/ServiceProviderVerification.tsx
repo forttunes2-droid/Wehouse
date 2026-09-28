@@ -5,6 +5,7 @@ import type { Profile } from '@/types';
 import VideoPlayer from '@/components/VideoPlayer';
 import WorkerVerificationPhase9 from '@/pages/WorkerVerificationPhase9';
 import { useRpcRead } from '@/hooks/useRpcRead';
+import { prepareEvidenceVideo } from '@/lib/mediaVideo';
 
 type Props = {
   profile: Profile;
@@ -115,10 +116,12 @@ function EvidenceOnlyVerification({
     if (file.size > 50 * 1024 * 1024) return toast.error('Work video must be under 50MB');
     setUploadState({ name: file.name, phase: 'uploading' });
     try {
-      const path = await upload(file, 'worker-verification-videos', 'skill-video');
+      const prepared = await prepareEvidenceVideo(file);
+      const compressed = new File([prepared.body], `skill-video.${prepared.extension}`, { type: prepared.contentType });
+      const path = await upload(compressed, 'worker-verification-videos', 'skill-video');
       setVideoPath(path);
       if (preview) URL.revokeObjectURL(preview);
-      setPreview(URL.createObjectURL(file));
+      setPreview(URL.createObjectURL(prepared.body));
       setUploadState({ name: file.name, phase: 'complete' });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Video upload failed';

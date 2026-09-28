@@ -13,6 +13,7 @@ import PropertyAccessRecorder, {
 import BackButton from "@/components/BackButton";
 import { ListingMediaImage } from "./ListingCandidateMedia";
 import PartnerHotelOperations from "./PartnerHotelOperations";
+import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 
 export type SubmissionFilter = "all" | "submitted" | "public" | "rejected";
 export type PartnerAssetKind = "apartment" | "hotel";
@@ -690,18 +691,16 @@ function AccessEvidenceCorrection({
           "This access code expired. Create a new code and record again.",
       );
     }
-    const extension = recording.type.includes("mp4")
-      ? "mp4"
-      : recording.type.includes("quicktime")
-        ? "mov"
-        : "webm";
-    const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${extension}`;
+    let prepared;
+    try { prepared = await prepareEvidenceVideo(recording); }
+    catch (error) { setBusy(false); return toast.error(error instanceof Error ? error.message : "Recording preparation failed"); }
+    const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${prepared.extension}`;
     try {
       await uploadStorageObjectWithProgress(
         "property-access-private",
         path,
-        recording,
-        recording.type || "video/webm",
+        prepared.body,
+        prepared.contentType,
         setUploadProgress,
       );
     } catch (error) {

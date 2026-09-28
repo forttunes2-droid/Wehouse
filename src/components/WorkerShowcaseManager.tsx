@@ -130,6 +130,7 @@ function WorkerShowcaseContent({
       const preserveOriginal = ['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
       const preparedVideo = isVideo ? await preparePublicVideo(file) : null;
       const uploadBody = preparedVideo?.body || (preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024));
+      if (uploadBody.size > 2 * 1024 * 1024) throw new Error("This work post is over 2 MB. Trim the video or choose a smaller photo.");
       const ext = preparedVideo?.extension || (preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg');
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");
@@ -327,10 +328,12 @@ function WorkerShowcaseContent({
       )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Work posts</h2>
-        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white" aria-label="Add work">Add work</button>
+        <div><h2 className="text-lg font-semibold tracking-tight">Your work <span className="ml-1 text-sm font-medium text-[#A7ADBA]">{posts.length}</span></h2><p className="mt-1 text-sm text-[#A7ADBA]">Photos and short videos customers can browse.</p></div>
+        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25" aria-label="Add work">+ Add work</button>
       </div>
-      <label className="mb-4 block"><span className="sr-only">Post visibility</span><WeHouseChoice aria-label="Post visibility" value={visibility} onChange={event => setVisibility(event.target.value)} className="min-h-11 rounded-xl border border-white/10 bg-[#151820] px-3 text-sm"><option value="all">All posts</option><option value="visible">Not hidden</option><option value="hidden">Hidden posts</option></WeHouseChoice></label>
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Post visibility">
+        {([{ value: 'all', label: 'All' }, { value: 'visible', label: 'Published' }, { value: 'hidden', label: 'Hidden' }] as const).map(option => <button key={option.value} type="button" role="tab" aria-selected={visibility === option.value} onClick={() => setVisibility(option.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${visibility === option.value ? 'bg-violet-500 text-white' : 'border border-white/10 bg-[#151820] text-[#B8BECC]'}`}>{option.label}</button>)}
+      </div>
       <WorkerShowcaseGrid owner posts={workPosts} loading={loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void load(true)} />
 
       {viewer && (

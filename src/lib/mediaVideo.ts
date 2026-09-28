@@ -1,7 +1,7 @@
 /** Public and private videos are prepared in the browser before they reach Storage. */
 const MIB = 1024 * 1024;
-export const PUBLIC_VIDEO_MAX_BYTES = 13 * MIB;
-export const CHAT_VIDEO_MAX_BYTES = 25 * MIB;
+export const PUBLIC_VIDEO_MAX_BYTES = 2 * MIB;
+export const CHAT_VIDEO_MAX_BYTES = 2 * MIB;
 export const VIDEO_TARGET_PER_15_SECONDS_BYTES = 2 * MIB;
 const MAX_REENCODE_SECONDS = 90;
 
@@ -12,17 +12,10 @@ export type PreparedVideo = {
 };
 
 export function videoTargetBytes(
-  seconds: number,
+  _seconds: number,
   maximumBytes = PUBLIC_VIDEO_MAX_BYTES,
 ): number {
-  if (!Number.isFinite(seconds) || seconds <= 0) return VIDEO_TARGET_PER_15_SECONDS_BYTES;
-  return Math.min(
-    maximumBytes,
-    Math.max(
-      VIDEO_TARGET_PER_15_SECONDS_BYTES,
-      Math.round((seconds / 15) * VIDEO_TARGET_PER_15_SECONDS_BYTES),
-    ),
-  );
+  return Math.min(maximumBytes, VIDEO_TARGET_PER_15_SECONDS_BYTES);
 }
 
 const supportedRecorderType = () => {
@@ -39,13 +32,15 @@ type VideoLimits = {
   maxInputBytes: number;
   maxOutputBytes: number;
   outputLabel: string;
+  maxDurationSeconds?: number;
+  scaleBudgetByDuration?: boolean;
 };
 
 async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVideo> {
   if (!["video/mp4", "video/quicktime", "video/webm"].includes(file.type))
     throw new Error("Choose an MP4, MOV or WebM video");
   if (file.size > limits.maxInputBytes)
-    throw new Error(`Choose a video under ${limits.outputLabel} before compression`);
+    throw new Error(`Choose a video under ${Math.round(limits.maxInputBytes / MIB)} MB before compression`);
   const original: PreparedVideo = {
     body: file,
     contentType: file.type,
@@ -73,10 +68,13 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       throw error;
     }
     const seconds = video.duration;
-    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > MAX_REENCODE_SECONDS)
-      throw new Error(`Trim this video to 90 seconds or export it below ${limits.outputLabel} before uploading.`);
+    const durationLimit = limits.maxDurationSeconds || MAX_REENCODE_SECONDS;
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > durationLimit)
+      throw new Error(`Trim this video to ${durationLimit} seconds or export it below ${limits.outputLabel} before uploading.`);
 
-    const targetBytes = videoTargetBytes(seconds, limits.maxOutputBytes);
+    const targetBytes = limits.scaleBudgetByDuration
+      ? Math.min(limits.maxOutputBytes, Math.max(2 * MIB, Math.round((seconds / 15) * 2 * MIB)))
+      : videoTargetBytes(seconds, limits.maxOutputBytes);
     if (file.size <= targetBytes) return original;
 
     const mimeType = supportedRecorderType();
@@ -85,10 +83,10 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
       throw new Error(`This device cannot compress this video. Trim or export it below ${limits.outputLabel} and try again.`);
     }
 
-    const audioRate = 96_000;
+    const audioRate = seconds > 30 ? 40_000 : 64_000;
     let videoRate = Math.max(
-      125_000,
-      Math.min(2_200_000, Math.floor((targetBytes * 8) / seconds) - audioRate),
+      45_000,
+      Math.min(2_200_000, Math.floor(((targetBytes * 8) / seconds) * 0.86) - audioRate),
     );
     // Chromium may not create capture tracks until playback starts.
     try {
@@ -160,7 +158,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
     // result, then lower the rate and replay when it misses the size budget.
     for (let attempt = 0; body.size > targetBytes && attempt < 3; attempt += 1) {
       const nextRate = Math.max(
-        125_000,
+        45_000,
         Math.floor(videoRate * (targetBytes / body.size) * 0.88),
       );
       if (nextRate >= videoRate) break;
@@ -213,15 +211,26 @@ export function preparePublicVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
     maxInputBytes: 50 * MIB,
     maxOutputBytes: PUBLIC_VIDEO_MAX_BYTES,
-    outputLabel: "13 MB",
+    outputLabel: "2 MB",
   });
 }
 
 /** Private message media is compressed before encryption, then uploaded to Storage. */
 export function prepareChatVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: CHAT_VIDEO_MAX_BYTES,
+    maxInputBytes: 25 * MIB,
     maxOutputBytes: CHAT_VIDEO_MAX_BYTES,
-    outputLabel: "25 MB",
+    outputLabel: "2 MB",
+  });
+}
+
+/** Continuous private access and verification evidence needs legible detail. */
+export function prepareEvidenceVideo(file: File): Promise<PreparedVideo> {
+  return prepareVideo(file, {
+    maxInputBytes: 100 * MIB,
+    maxOutputBytes: 13 * MIB,
+    outputLabel: "13 MB",
+    maxDurationSeconds: 180,
+    scaleBudgetByDuration: true,
   });
 }
