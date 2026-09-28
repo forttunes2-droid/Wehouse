@@ -96,7 +96,9 @@ async def main():
      await expect(page.get_by_role('heading',name='Saved hotels',exact=True)).to_have_count(0)
      await expect(page.get_by_role('button',name='View Saved home unavailable',exact=True)).to_be_disabled()
      await fits(page); await page.screenshot(path=str(OUT/f'saved-unified-{width}.png'),full_page=True)
-     await page.get_by_label('Property type').select_option('hotel')
+     saved_types=page.get_by_role('group',name='Filter saved places by type')
+     await saved_types.get_by_role('button',name='Hotels',exact=True).click()
+     await expect(saved_types.get_by_role('button',name='Hotels',exact=True)).to_have_attribute('aria-pressed','true')
      await expect(page.get_by_role('button',name='View Garden Short Let',exact=True)).to_have_count(0)
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      assert await page.evaluate('window.__destination.kind')=='hotel'
@@ -185,7 +187,7 @@ async def main():
      (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
    scenario=Scenario(); context,page=await scenario.open(browser,'saved',390,touch=True)
    try:
-    await page.get_by_label('Property type').select_option('hotel')
+    await page.get_by_role('group',name='Filter saved places by type').get_by_role('button',name='Hotels',exact=True).click()
     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
     await page.get_by_role('button',name=re.compile('Garden Room')).click()
     await page.get_by_role('button',name=re.compile('Flexible room')).click()

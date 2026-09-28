@@ -118,6 +118,7 @@ test('Existing professional profiles remain visible before public approval and d
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
     '@/lib/notificationSound':{notificationSoundEnabled:()=>false,setNotificationSoundEnabled(){}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
+    '@/lib/supabase/activity':{getCanonicalActivitySummary:async()=>({count:0})},
   }).default;
   const render=(roles,workspace='personal',accessIdentity='person-a')=>{stateIndex=0;return renderToStaticMarkup(Account({
     profile:{user_id:'person-a',role:'user',worker_status:'profile_under_review'},

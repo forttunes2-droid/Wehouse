@@ -91,7 +91,7 @@ const VIEW_OPTIONS = [
   },
   {
     value: "services",
-    label: "WeHouse Services",
+    label: "Services",
     description: "Jobs booked with professionals",
   },
 ] as const;
@@ -833,14 +833,14 @@ export default function MyReservations({
         <div className="space-y-3 border-b border-white/[.08] pb-4">
           <div>
             <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking type</p>
-            <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter bookings by type">
-              {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-semibold transition-colors ${view === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Filter bookings by type">
+              {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold leading-4 transition-colors sm:px-4 ${view === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
             </div>
           </div>
           <div>
             <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking status</p>
-            <div className="scrollbar-hide -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Filter bookings by status">
-              {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 shrink-0 rounded-full border px-4 text-xs font-semibold transition-colors ${statusView === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Filter bookings by status">
+              {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold leading-4 transition-colors sm:px-4 ${statusView === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
             </div>
           </div>
         </div>

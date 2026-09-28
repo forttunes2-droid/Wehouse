@@ -1,0 +1,40 @@
+name: Isolated mixed journey preflight
+on:
+  pull_request:
+    paths:
+      - .github/workflows/mixed-journey-preflight.yml
+      - scripts/load-mixed-journeys-local.mjs
+      - supabase/tests/mixed_journey_fixture.sql
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-mixed-journeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Start disposable Supabase
+        run: npx --yes supabase@2.114.0 start
+      - name: Apply all migrations to an empty local database
+        run: npx --yes supabase@2.114.0 db reset --local
+      - name: Seed synthetic catalog and rates
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/load_baseline_fixture.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/mixed_journey_fixture.sql
+      - name: Run real Auth and mixed HTTP journeys
+        run: node scripts/load-mixed-journeys-local.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mixed-journey-preflight
+          path: test-results/mixed-journeys-local.json
+          retention-days: 7
+      - name: Stop disposable Supabase
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup

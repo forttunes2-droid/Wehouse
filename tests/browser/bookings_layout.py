@@ -29,6 +29,10 @@ async def main():
             await expect(stage.get_by_role('button', name='Active & upcoming')).to_have_attribute('aria-pressed', 'true')
             await kind.get_by_role('button', name='Hotels').click()
             await expect(kind.get_by_role('button', name='Hotels')).to_have_attribute('aria-pressed', 'true')
+            for group in (kind, stage):
+                for button in await group.get_by_role('button').all():
+                    bounds = await button.bounding_box()
+                    assert bounds and bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= width + 1, f'clipped booking filter at {width}px: {bounds}'
             assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), f'horizontal page overflow at {width}px'
             assert not errors, errors
             print(f'PASS bookings layout {width}px')
