@@ -2,6 +2,10 @@
 -- Disposable local Supabase only; loaded after load_baseline_fixture.sql.
 begin;
 set local session_replication_role = replica;
+-- Booking writes require the same active arrival policy snapshot as production.
+insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
+values('accommodation_arrival_issue_window',99001,'{"default_hours":2,"minimum_hours":1,"maximum_hours":6}',
+  'active',now()-interval '1 minute','reviewed','Disposable mixed-journey fixture','mixed-journey-fixture');
 insert into public.hotel_rate_plans (
   rate_plan_id, hotel_id, room_id, name, meal_plan, payment_timing,
   refundable, price_per_night, active
