@@ -56,7 +56,7 @@ for (let i = 0; i < 10; i++) {
   if (signed.error || signed.data.user?.id !== created.data.user.id) throw new Error(`Synthetic login failed: ${signed.error?.message}`);
   const profile = await client.rpc('create_my_profile', { p_email: email, p_role: 'user' });
   if (profile.error || !profile.data?.user_id) throw new Error(`Synthetic profile failed: ${profile.error?.message}`);
-  const actor = { client, authId: created.data.user.id, userId: profile.data.user_id };
+  const actor = { client, email, password, authId: created.data.user.id, userId: profile.data.user_id };
   actor.bookingId = await booking(actor, 20000 + i);
   const conversation = await client.rpc('create_support_conversation', {
     p_subject: 'Synthetic capacity conversation', p_category: 'general',
@@ -68,12 +68,17 @@ for (let i = 0; i < 10; i++) {
 }
 
 const journeys = [
-  { name: 'browse', weight: 55, run: async (actor, i) => {
+  { name: 'browse', weight: 50, run: async (actor, i) => {
     const hotel = i % 2 === 0;
     const result = await actor.client.rpc(hotel ? 'search_discoverable_hotels' : 'search_discoverable_homes', { p_limit: 24 });
     if (result.error || !result.data?.items?.length) throw new Error(result.error?.message || 'empty discovery');
   } },
-  { name: 'session', weight: 10, run: async actor => {
+  { name: 'login', weight: 10, run: async actor => {
+    const fresh = makeClient();
+    const result = await fresh.auth.signInWithPassword({ email: actor.email, password: actor.password });
+    if (result.error || result.data.user?.id !== actor.authId) throw new Error(result.error?.message || 'wrong login identity');
+  } },
+  { name: 'session', weight: 5, run: async actor => {
     const result = await actor.client.auth.getUser();
     if (result.error || result.data.user?.id !== actor.authId) throw new Error(result.error?.message || 'wrong session');
   } },
