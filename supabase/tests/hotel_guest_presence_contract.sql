@@ -23,7 +23,7 @@ insert into public.hotels(hotel_id,name,state,city,owner_id,status,timezone,chec
 values(-7855,'Presence Contract Hotel','Nasarawa','Lafia','presence-owner','active','Africa/Lagos','00:00','23:59');
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms)
 values(-7855,-7855,'Standard',20000,1);
-insert into public.hotel_room_units(unit_id,hotel_id,room_id,unit_label,status)
+insert into public.hotel_room_units(unit_id,hotel_id,room_id,unit_label,status) overriding system value
 values(-7855,-7855,-7855,'101','ready');
 insert into public.payment_protection_transactions(id,booking_type,payer_user_id,payee_user_id,amount_total,amount_commission,amount_payee,commission_rate,protection_state,subject_type,subject_id)
 values('78555555-1000-4000-8000-000000000001','hotel_booking','presence-guest','presence-owner',40000,4800,35200,0.12,'protected','hotel_booking','-7855');

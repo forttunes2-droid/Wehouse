@@ -24,7 +24,7 @@ declare
   v_code text;
   v_salt text;
 begin
-  if p_action not in ('checked_in','checked_out') then
+  if p_action is null or p_action not in ('checked_in','checked_out') then
     raise exception 'Choose arrival or departure';
   end if;
   select * into v_booking from public.hotel_bookings
@@ -71,7 +71,7 @@ declare
   v_proof private.hotel_stay_proofs;
   v_result public.hotel_bookings;
 begin
-  if p_action not in ('checked_in','checked_out') then raise exception 'Unsupported hotel action'; end if;
+  if p_action is null or p_action not in ('checked_in','checked_out') then raise exception 'Unsupported hotel action'; end if;
   select * into v_booking from public.hotel_bookings
   where booking_id=p_booking_id for update;
   if v_booking.booking_id is null then raise exception 'Hotel booking not found'; end if;
