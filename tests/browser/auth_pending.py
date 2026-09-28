@@ -22,8 +22,11 @@ async def main():
      await page.evaluate("""() => { window.__authTest={calls:[]};for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}}""")
      await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
      masthead_signin=page.locator('.wh-public-entry section').first.get_by_role('button',name='Sign in',exact=True)
+     # The masthead action is mobile-only; desktop enters through the visible
+     # personal navigation. Both routes lead to the same pending Auth state.
+     entry_signin=(masthead_signin if width<1024 else page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True))
      form_signin=page.locator('form').get_by_role('button',name='Sign in',exact=True)
-     await masthead_signin.click()
+     await entry_signin.click()
      if mode=='google-pending':
       await page.get_by_role('button',name='Continue with Google',exact=True).click()
       await expect(page.get_by_role('button',name='Opening Google…',exact=True)).to_be_disabled()
