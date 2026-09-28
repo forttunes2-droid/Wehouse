@@ -157,7 +157,7 @@ async def main():
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=received')
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
-     # Named recipients and unchanged encrypted Inbox gate on the actual sending path.
+     # Named recipients and encrypted roommate-thread gate on the actual sending path.
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
      await page.get_by_role('button',name='Share ↗',exact=True).click()
      dialog=page.get_by_role('dialog',name='Share property',exact=True)
@@ -168,7 +168,7 @@ async def main():
      await dialog.get_by_role('button',name=re.compile('Ada Example')).click()
      assert await page.evaluate('window.__conversation')=='chat-ada'
      assert await page.evaluate('window.__draftAtOpen')=={'kind':'listing','id':'short-home'}
-     await expect(page.get_by_role('heading',name='Private messages are locked',exact=True)).to_be_visible()
+     await expect(page.get_by_role('heading',name='Encrypted chat is locked',exact=True)).to_be_visible()
      assert not any(name in ['send_message','send_roommate_message','create_shared_housing_group'] for name,_ in scenario.calls)
      # Backend-returned Personal records must not appear in Partner Activity.
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=activity')
@@ -177,7 +177,7 @@ async def main():
      await page.get_by_role('button',name=re.compile('Partner guest update')).click()
      assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
      assert not scenario.errors,scenario.errors
-     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','PIN gate preserved and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
+     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','Encrypted thread gate and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
      print('PASS public property experience',width,flush=True)
     except Exception as error:
      results.append({'width':width,'passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors}); await page.screenshot(path=str(OUT/f'public-property-failure-{width}.png'),full_page=True); raise
