@@ -20,10 +20,10 @@ async def main():
      await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
      if mode=='management':
       await expect(page.get_by_role('heading',name='Property management',exact=True)).to_be_visible()
-      await expect(page.get_by_role('button',name='Host manages',exact=False)).to_have_attribute('aria-pressed','true')
+      await expect(page.get_by_text('The operator for this published home is recorded.',exact=False)).to_be_visible()
       await expect(page.get_by_text('Owner · Responsible Host',exact=True)).to_be_visible()
       await expect(page.get_by_text('Bola Manager',exact=True)).to_be_visible()
-      await expect(page.get_by_role('button',name='WeHouse manages',exact=False)).to_be_visible()
+      await expect(page.get_by_role('button',name='WeHouse manages',exact=False)).to_have_count(0)
       await expect(page.get_by_text('Hosting controls',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='Pause bookings',exact=True)).to_be_visible()
       await expect(page.get_by_label('Nightly price',exact=True)).to_have_value('25000')

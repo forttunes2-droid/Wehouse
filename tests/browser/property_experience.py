@@ -177,6 +177,7 @@ async def main():
      await expect(page.get_by_text('Partner guest update',exact=True)).to_be_visible()
      await expect(page.get_by_text('Personal saved search must stay Personal',exact=True)).to_have_count(0)
      await page.get_by_role('button',name=re.compile('Partner guest update')).click()
+     await page.wait_for_function('window.__activityDestination?.page === "hotel_booking"')
      assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
      assert not scenario.errors,scenario.errors
      results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','Encrypted thread gate and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
