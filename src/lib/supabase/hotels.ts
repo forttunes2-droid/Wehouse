@@ -156,6 +156,13 @@ export async function getHotelBookingsForUser(userId: string) {
   return { bookings: (Array.isArray(data) ? data : []) as (HotelBooking & { hotels: Hotel; hotel_rooms: HotelRoom; hotel_rate_plans?: HotelRatePlan | null })[], error };
 }
 
+export async function issueMyHotelStayCode(bookingId: number, action: 'checked_in' | 'checked_out') {
+  const { data, error } = await supabase.rpc('issue_my_hotel_stay_code', {
+    p_booking_id: bookingId, p_action: action,
+  });
+  return { code: data as string | null, error };
+}
+
 export async function getHotelBookingsForHotel(hotelId: number) {
   const { data, error } = await supabase
     .from('hotel_bookings')

@@ -173,6 +173,8 @@ export default function PartnerHotelOperations({
   } | null>(null);
   const [editingVenue, setEditingVenue] = useState<HotelVenue | "new" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [stayProof, setStayProof] = useState<{ booking: Booking; action: "checked_in" | "checked_out" } | null>(null);
+  const [guestCode, setGuestCode] = useState("");
   const capabilities = useMemo(() => new Set<HotelCapability>(liveCapabilities || []), [liveCapabilities]);
   const canReadStays = capabilities.has("stay.read");
   const canMessageGuests = capabilities.has("stay.message");
@@ -330,16 +332,19 @@ export default function PartnerHotelOperations({
     booking: Booking,
     status: "checked_in" | "checked_out",
   ) {
+    if (busy || guestCode.length !== 8) return;
     setBusy(true);
-    const { error } = await supabase.rpc("partner_transition_hotel_booking", {
+    const { data, error } = await supabase.rpc("partner_confirm_hotel_stay_with_code", {
       p_booking_id: booking.booking_id,
-      p_status: status,
+      p_action: status,
+      p_code: guestCode,
     });
     setBusy(false);
-    if (error) {
-      toast.error(error.message);
+    if (error || !data?.success) {
+      toast.error(error?.message || data?.error || "Guest code could not be verified");
       return;
     }
+    setStayProof(null); setGuestCode("");
     toast.success(status === "checked_in" ? "Guest checked in" : "Checkout completed");
     await load(true);
   }
@@ -472,9 +477,10 @@ export default function PartnerHotelOperations({
             <section id="reservations" className="scroll-mt-20">
               <div className="mb-4"><h3 className="text-base font-bold">Reservations and guests</h3><p className="mt-1 text-sm leading-5 text-[#A1A7B4]">Manage arrivals, stays and departures.</p></div>
               {focusedBooking ? <div className="mb-3 flex items-center justify-between gap-3 text-xs"><p>{bookings.some(row => String(row.booking_id) === focusedBooking) ? "Linked reservation" : "The linked reservation is unavailable or outside your current access."}</p><button className="min-h-11 shrink-0 text-violet-300" onClick={() => setFocusedBooking(undefined)}>Show all reservations</button></div> : null}
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto]"><input value={reservationQuery} onChange={(event) => setReservationQuery(event.target.value)} placeholder="Search guest, room, package or booking code" className="h-11 rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/35" /><WeHouseSelect value={reservationFilter} options={[{ value: "all", label: "All reservations" },{ value: "arrivals_today", label: "Arriving today" },{ value: "departures_today", label: "Leaving today" },{ value: "staying", label: "Staying now" },{ value: "attention", label: "Needs action" },{ value: "pending", label: "Payment holds" },{ value: "confirmed", label: "Confirmed stays" },{ value: "checked_in", label: "Checked in" },{ value: "checked_out", label: "Checked out" },{ value: "payment_conflict", label: "Payment review" },{ value: "cancelled", label: "Cancelled" }]} onChange={setReservationFilter} eyebrow="Reservations" title="Filter reservations" ariaLabel="Filter hotel reservations" /></div>
+              <input aria-label="Search hotel reservations" value={reservationQuery} onChange={(event) => setReservationQuery(event.target.value)} placeholder="Search guest, room, package or booking code" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs outline-none focus:border-violet-500/35" />
+              <HotelReservationFilters value={reservationFilter} onChange={setReservationFilter} />
               <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
-                {filteredBookings.map((row) => <ReservationRow key={row.booking_id} hotelName={hotel.name} hotel={hotel} row={row} busy={busy} readyRoomAvailable={roomUnits.some((unit) => unit.room_id === row.room_id && unit.status === "ready" && !unit.current_booking_id)} chat={hotelChats.find((item) => Number(item.booking_id) === Number(row.booking_id))} canMessage={canMessageGuests} canCheckIn={capabilities.has("stay.check_in") && capabilities.has("stay.assign_unit")} canCheckOut={capabilities.has("stay.check_out")} onChat={setActiveChat} transition={transition} />)}
+                {filteredBookings.map((row) => <ReservationRow key={row.booking_id} hotelName={hotel.name} hotel={hotel} row={row} busy={busy} readyRoomAvailable={roomUnits.some((unit) => unit.room_id === row.room_id && unit.status === "ready" && !unit.current_booking_id)} chat={hotelChats.find((item) => Number(item.booking_id) === Number(row.booking_id))} canMessage={canMessageGuests} canCheckIn={capabilities.has("stay.check_in") && capabilities.has("stay.assign_unit")} canCheckOut={capabilities.has("stay.check_out")} onChat={setActiveChat} transition={(booking,action) => { setGuestCode(""); setStayProof({ booking, action }); }} />)}
                 {filteredBookings.length === 0 ? <Empty text={bookings.length ? "No reservations match this search." : "No hotel reservations yet."} /> : null}
               </div>
             </section>
@@ -487,6 +493,13 @@ export default function PartnerHotelOperations({
       {editingRoom ? <RoomEditor hotelId={hotel.hotel_id} room={editingRoom === "new" ? undefined : editingRoom} close={() => setEditingRoom(null)} saved={async () => { setEditingRoom(null); await load(true); }} /> : null}
       {editingRate ? <RatePlanEditor room={editingRate.room} plan={editingRate.plan} close={() => setEditingRate(null)} saved={async () => { setEditingRate(null); await load(true); }} /> : null}
       {editingVenue ? <VenueEditor hotelId={hotel.hotel_id} factsLocked={hotel.status === "active"} venue={editingVenue === "new" ? undefined : editingVenue} close={() => setEditingVenue(null)} saved={async () => { setEditingVenue(null); await load(true); }} /> : null}
+      {stayProof ? <Sheet title={stayProof.action === "checked_in" ? "Verify guest arrival" : "Confirm guest departure"} subtitle={stayProof.action === "checked_in" ? "Meet the guest at reception, then enter the code shown in their booking." : "Confirm the guest is leaving, then enter the departure code shown in their booking. Early departure is allowed."} close={() => { if (!busy) { setStayProof(null); setGuestCode(""); } }}>
+        <form onSubmit={event => { event.preventDefault(); void transition(stayProof.booking,stayProof.action); }}>
+          <label className="block text-sm text-[#B9BECA]">Guest’s current 8-digit code<input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={guestCode} onChange={event => setGuestCode(event.target.value.replace(/\D/g,"").slice(0,8))} className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-[#171B24] px-4 text-lg tracking-[.2em] text-white" /></label>
+          <p className="mt-2 text-xs text-[#8B93A3]">The booking reference cannot confirm presence. Ask the guest to show this separate code in person.</p>
+          <button type="submit" disabled={busy || guestCode.length !== 8} className="mt-5 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">{busy ? "Verifying…" : stayProof.action === "checked_in" ? "Confirm check-in" : "Confirm departure"}</button>
+        </form>
+      </Sheet> : null}
       {activeChat && profile ? <HotelBookingChat specialRequest={canReadStays ? bookings.find(row => row.booking_id === activeChat.booking_id)?.special_requests : undefined} hotelView bookingId={activeChat.booking_id} conversationId={activeChat.conversation_id} profile={profile} title={activeChat.guest_name || "Guest"} subtitle={`${hotel.name} · Paid stay`} readOnly={!['confirmed','checked_in'].includes(activeChat.booking_status)} onClose={() => setActiveChat(null)} onUpdated={() => void load(true)} /> : null}
     </div>
   );
@@ -688,7 +701,7 @@ function VenueEditor({ hotelId, venue, factsLocked, close, saved }: { hotelId: n
   return <Sheet title={venue ? "Edit hotel place" : "Add hotel place"} subtitle={factsLocked ? "Verified name, type and description are locked; operating hours and package access remain editable." : "Restaurants and facilities are separate named parts of the hotel."} close={close}><div className="grid gap-3 sm:grid-cols-2"><fieldset disabled={factsLocked}><Field label="Name" value={form.name} set={(value) => setForm({ ...form, name: value })} placeholder="Jamo-Afrique Restaurant" /></fieldset><label><span className="mb-1 block text-sm text-[#A1A7B4]">Type</span><WeHouseChoice aria-label="Hotel place type" disabled={factsLocked} value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as HotelVenue["kind"] })} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs disabled:opacity-55">{["restaurant", "bar", "cafe", "spa", "lounge", "pool", "gym", "other"].map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</WeHouseChoice></label><Field label="Opening hours" value={form.hours} set={(value) => setForm({ ...form, hours: value })} placeholder="06:30–22:00 daily" /><Field label="Included package access" value={form.packageNotes} set={(value) => setForm({ ...form, packageNotes: value })} placeholder="Breakfast and VIP packages" /><label className="sm:col-span-2"><span className="mb-1 block text-sm text-[#A1A7B4]">Description</span><textarea disabled={factsLocked} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none disabled:opacity-55" /></label>{venue ? <label className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.08] px-3 text-sm"><input disabled={factsLocked} type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} className="accent-violet-500" />Show to guests</label> : null}</div><button type="button" onClick={() => void save()} disabled={busy} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{busy ? "Saving…" : "Save hotel place"}</button></Sheet>;
 }
 
-function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat, canMessage, canCheckIn: hasCheckInCapability, canCheckOut: hasCheckOutCapability, onChat, transition }: { hotelName: string; hotel: any; row: Booking; busy: boolean; readyRoomAvailable: boolean; chat?: HotelConversation; canMessage: boolean; canCheckIn: boolean; canCheckOut: boolean; onChat: (chat: ActiveHotelChat) => void; transition: (row: Booking, status: "checked_in" | "checked_out") => Promise<void> }) {
+function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat, canMessage, canCheckIn: hasCheckInCapability, canCheckOut: hasCheckOutCapability, onChat, transition }: { hotelName: string; hotel: any; row: Booking; busy: boolean; readyRoomAvailable: boolean; chat?: HotelConversation; canMessage: boolean; canCheckIn: boolean; canCheckOut: boolean; onChat: (chat: ActiveHotelChat) => void; transition: (row: Booking, status: "checked_in" | "checked_out") => void }) {
   const holdExpired = row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() <= Date.now();
   const effectiveStatus = holdExpired ? "expired" : row.status;
   const timeZone = hotel.timezone || "Africa/Lagos";
@@ -707,7 +720,7 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
         : canCheckIn
           ? "Guest and a ready room are eligible for check-in"
           : effectiveStatus === "checked_in"
-            ? "Guest is staying; checkout is available when they depart"
+            ? "Guest is staying; verify their departure code when they leave"
             : ["completed", "checked_out"].includes(effectiveStatus)
               ? "Stay finished; the assigned room is now in cleaning"
               : effectiveStatus === "payment_conflict"
@@ -728,14 +741,38 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
       <HotelSpecialRequest request={row.special_requests} hotelView />
       <div className="mt-3 flex flex-wrap gap-2">
         {guestChatWritable || guestChatReadable ? <button onClick={() => onChat({ ...(chat || { booking_id: row.booking_id }), guest_name: row.guest_name || row.profiles?.username || "Guest", booking_status: row.status })} className="h-10 flex-1 rounded-xl border border-violet-500/20 bg-violet-500/[.07] px-3 text-sm font-semibold text-violet-200">{guestChatReadable ? "View message history" : chat ? `Guest messages${chat.unread_count > 0 ? ` · ${chat.unread_count} new` : ""}` : "Message guest"}</button> : null}
-        {canCheckIn ? <button disabled={busy} onClick={() => void transition(row, "checked_in")} className="h-10 flex-1 rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">Check in guest</button> : null}
-        {canCheckOut ? <button disabled={busy} onClick={() => void transition(row, "checked_out")} className="h-10 flex-1 rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">Complete checkout</button> : null}
+        {canCheckIn ? <button disabled={busy} onClick={() => void transition(row, "checked_in")} className="h-10 flex-1 rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">Verify arrival</button> : null}
+        {canCheckOut ? <button disabled={busy} onClick={() => void transition(row, "checked_out")} className="h-10 flex-1 rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">Confirm departure</button> : null}
       </div>
     </article>
   );
 }
 
 type HotelTeamRow = { id: string; member_user_id: string; hotel_role: "manager" | "front_desk"; status: "invited" | "active"; capabilities: HotelCapability[]; name: string; username?: string | null };
+const PRIMARY_STAY_FILTERS = [
+  { value: "all", label: "All" }, { value: "arrivals_today", label: "Arriving" },
+  { value: "staying", label: "Staying" }, { value: "departures_today", label: "Leaving" },
+  { value: "attention", label: "Needs action" },
+];
+const OTHER_STAY_FILTERS = [
+  { value: "pending", label: "Payment holds" }, { value: "confirmed", label: "Confirmed" },
+  { value: "checked_in", label: "Checked in" }, { value: "checked_out", label: "Checked out" },
+  { value: "payment_conflict", label: "Payment review" }, { value: "cancelled", label: "Cancelled" },
+];
+function HotelReservationFilters({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const other = OTHER_STAY_FILTERS.find(item => item.value === value);
+  const buttonClass = (active: boolean) => `min-h-11 rounded-xl border px-2 text-xs font-semibold ${active ? "border-violet-400/45 bg-violet-500/15 text-violet-100" : "border-white/10 bg-white/[.025] text-[#A7ADBB]"}`;
+  return <div className="mt-3" role="group" aria-label="Hotel reservation filters">
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+      {PRIMARY_STAY_FILTERS.map(item => <button key={item.value} type="button" aria-pressed={value === item.value} onClick={() => onChange(item.value)} className={buttonClass(value === item.value)}>{item.label}</button>)}
+      <button type="button" aria-label={other ? `More filters, ${other.label} selected` : "More reservation filters"} aria-pressed={Boolean(other)} onClick={() => setOpen(true)} className={buttonClass(Boolean(other))}>{other?.label || "More"}</button>
+    </div>
+    {open ? <Sheet title="More reservation filters" subtitle="Choose a specific booking stage." close={() => setOpen(false)}>
+      <div className="grid grid-cols-2 gap-2">{OTHER_STAY_FILTERS.map(item => <button key={item.value} type="button" aria-pressed={value === item.value} onClick={() => { onChange(item.value); setOpen(false); }} className={`${buttonClass(value === item.value)} text-left px-3`}>{item.label}</button>)}</div>
+    </Sheet> : null}
+  </div>;
+}
 function HotelTeam({ hotelId, grantableCapabilities }: { hotelId: number; grantableCapabilities: HotelCapability[] }) {
   const [rows, setRows] = useState<HotelTeamRow[]>([]); const [identifier, setIdentifier] = useState(""); const [role, setRole] = useState<"manager" | "front_desk">("front_desk"); const [saving, setSaving] = useState(false); const [removing, setRemoving] = useState<string | null>(null);
   const load = useCallback(async () => {

@@ -24,6 +24,7 @@ import {
 } from "@/lib/supabase/housing-payments";
 import {
   getHotelBookingsForUser,
+  issueMyHotelStayCode,
   initializeHotelBookingPayment,
   updateBookingStatus,
 } from "@/lib/supabase/hotels";
@@ -1686,10 +1687,11 @@ function HotelBookingDetail({
 
           {showCode ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-violet-500/[.07] px-3 py-2.5">
-              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Check-in code</p><p className="mt-0.5 text-[10px] text-[#989EAE]">Show only to hotel staff.</p></div>
+              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[#989EAE]">Your reservation ID; arrival and departure use a separate code.</p></div>
               <p className="font-mono text-xs font-bold tracking-wider text-violet-200">{row.booking_code}</p>
             </div>
           ) : null}
+          {showCode ? <HotelPresenceCode bookingId={Number(row.booking_id)} status={journeyStatus as "confirmed" | "checked_in"} /> : null}
 
           {hotelAddress ? (
             <a
@@ -1787,7 +1789,7 @@ function HotelBookingDetail({
           ) ? (
             <>
               <button type="button" disabled={busy} onClick={onPay} className="mt-5 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">
-                {busy ? "Opening payment…" : "Pay securely"}
+                {busy ? "Opening payment…" : "Continue secure payment"}
               </button>
               <button type="button" disabled={busy} onClick={onCancel} className="mt-2 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-40">
                 Cancel reservation
@@ -1813,6 +1815,28 @@ function HotelBookingDetail({
       </section>
     </BookingDetailShell>
   );
+}
+
+function HotelPresenceCode({ bookingId, status }: { bookingId: number; status: "confirmed" | "checked_in" }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const action = status === "confirmed" ? "checked_in" : "checked_out";
+  useEffect(() => { setCode(""); }, [bookingId, status]);
+  async function issue() {
+    if (busy) return;
+    setBusy(true);
+    const { code: next, error } = await issueMyHotelStayCode(bookingId, action);
+    setBusy(false);
+    if (error || !next) return toast.error(error?.message || "Could not prepare your guest code");
+    setCode(next);
+  }
+  return <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+    <p className="text-xs font-semibold text-violet-200">{status === "confirmed" ? "Arriving at the hotel" : "Leaving the hotel"}</p>
+    <p className="mt-1 text-xs leading-5 text-[#A1A7B4]">{status === "confirmed" ? "When you are at reception, show this code to hotel staff so they can verify your arrival." : "When you leave, show a departure code to hotel staff. You may leave before the scheduled checkout time."}</p>
+    {code ? <p role="status" className="mt-3 rounded-lg bg-black/20 px-3 py-3 text-center font-mono text-lg font-semibold tracking-[.25em] text-white">{code}</p> : null}
+    {code ? <p className="mt-1 text-center text-[10px] text-[#A1A7B4]">Valid for 10 minutes. Do not send it in chat.</p> : null}
+    <button type="button" disabled={busy} onClick={() => void issue()} className="mt-3 min-h-11 w-full rounded-xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-40">{busy ? "Preparing code…" : code ? "Get a new code" : status === "confirmed" ? "Show arrival code" : "Show departure code"}</button>
+  </div>;
 }
 
 function AccommodationProtectionPanel({

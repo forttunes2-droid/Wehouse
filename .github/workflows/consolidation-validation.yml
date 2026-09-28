@@ -59,6 +59,8 @@ jobs:
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
       - name: Exercise actual arrival dates and booking-code authority
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/arrival_dates_contract.sql
+      - name: Exercise guest-held hotel arrival and departure codes
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_guest_presence_contract.sql
       - name: Exercise accommodation handover contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
       - name: Exercise identity policy and Service Provider review contract

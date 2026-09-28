@@ -122,6 +122,7 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       <div className="mt-6 space-y-2">
         {state.kind === 'success' && <button type="button" onClick={() => onNavigate(destination, state.receipt?.booking_id || undefined)} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{successActionLabel(successPurpose)}</button>}
         {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">Check payment again</button>}
+        {state.kind === 'error' && <button type="button" onClick={() => onNavigate('my_reservations')} className="h-12 w-full rounded-2xl border border-violet-400/25 bg-violet-500/[.08] text-sm font-semibold text-violet-200">Open bookings to continue payment</button>}
         {state.kind !== 'checking' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-white/[.08] text-xs font-semibold text-[#A7ADBA]">Back to WeHouse</button>}
       </div>
     </section>
