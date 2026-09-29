@@ -82,12 +82,12 @@ export function AccountRow({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       disabled={onClick ? disabled : undefined}
-      className="flex min-h-[3.75rem] w-full items-center gap-3 border-b border-[var(--wh-border)] px-4 py-3 text-left last:border-b-0 transition hover:bg-white/[.045] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
+      className="flex min-h-[4.25rem] w-full items-center gap-3 border-b border-[var(--wh-border)] px-4 py-3 text-left last:border-b-0 transition-colors duration-100 hover:bg-white/[.045] active:bg-violet-500/[.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
     >
       {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">{icon}</span> : null}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-[var(--wh-text)]">{title}</span>
-        {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[var(--wh-text-secondary)]">{detail}</span> : null}
+        {detail ? <span className="mt-0.5 block text-[13px] leading-5 text-[var(--wh-text-secondary)]">{detail}</span> : null}
       </span>
       {trailing ?? (onClick ? <span aria-hidden="true" className="text-[var(--wh-text-muted)]">›</span> : null)}
     </Wrapper>

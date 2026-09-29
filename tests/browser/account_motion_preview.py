@@ -1,0 +1,42 @@
+"""Phone captures and tab scroll behavior using real Account and Workspace components."""
+import asyncio,base64,subprocess
+from pathlib import Path
+from playwright.async_api import async_playwright,expect
+
+OUT=Path('test-results/experience');BUNDLE=Path('test-results/account-motion-offline')
+async def main():
+ subprocess.run(['node','tests/browser/build-account-motion-preview.mjs'],check=True)
+ OUT.mkdir(parents=True,exist_ok=True)
+ async with async_playwright() as p:
+  browser=await p.chromium.launch(headless=True,args=['--no-sandbox'])
+  page=await browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1)
+  errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+  await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>')
+  await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
+  for name in ('Account','Notifications','Workspaces'):
+   if name!='Account':
+    if name=='Workspaces':await page.get_by_role('button',name='Back').click()
+    await page.get_by_role('button',name='Notifications' if name=='Notifications' else 'Switch workspace').click()
+   await expect(page.get_by_role('heading',name='Account' if name=='Account' else 'WeHouse' if name=='Workspaces' else 'Notifications',exact=True)).to_be_visible()
+   if name=='Notifications':
+    assert await page.get_by_role('switch',name='In-app alerts').count()==1
+    assert await page.get_by_role('switch',name='In-app alerts').get_attribute('aria-checked')=='true'
+   await page.screenshot(path=str(OUT/f'account-{name.lower()}-390.png'),full_page=True)
+   print(f'WEHOUSE_PREVIEW_ACCOUNT_{name.upper()}='+base64.b64encode(await page.screenshot(type='jpeg',quality=48)).decode(),flush=True)
+  await page.evaluate('window.__showWorkspaceFixture()')
+  surface=page.locator('[data-test-scroll]')
+  tabs=page.locator('nav.fixed')
+  await expect(page.get_by_role('heading',name='Overview',exact=True).last).to_be_visible()
+  await surface.evaluate('(node)=>node.scrollTop=620')
+  await tabs.get_by_role('button',name='Properties').click()
+  await expect(page.locator('[data-test-stage="properties"]')).to_be_visible()
+  assert await surface.evaluate('(node)=>node.scrollTop')==0
+  await surface.evaluate('(node)=>node.scrollTop=320')
+  await tabs.get_by_role('button',name='Overview').click()
+  await expect(page.locator('[data-test-stage="overview"]')).to_be_visible()
+  assert await surface.evaluate('(node)=>node.scrollTop')==620
+  await tabs.get_by_role('button',name='Overview').click()
+  assert await surface.evaluate('(node)=>node.scrollTop')==0
+  assert not errors,errors
+  await browser.close()
+if __name__=='__main__':asyncio.run(main())

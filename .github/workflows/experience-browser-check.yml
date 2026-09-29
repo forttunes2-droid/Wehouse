@@ -104,6 +104,9 @@ jobs:
       - name: Capture Property Partner Pro phone and tablet screens
         if: ${{ !cancelled() }}
         run: python tests/browser/partner_pro_preview.py
+      - name: Capture Account phone screens and verify workspace tab motion
+        if: ${{ !cancelled() }}
+        run: python tests/browser/account_motion_preview.py
       - name: Verify real bundle startup failures remain safe and recoverable
         if: ${{ !cancelled() }}
         env:

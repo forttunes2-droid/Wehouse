@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import BackButton from '@/components/BackButton';
 import { WorkspaceHeadingContext } from '@/lib/workspaceHeading';
 
@@ -41,6 +41,9 @@ export default function WorkspaceFrameV2({
 }: Props) {
   void onLogout;
   const [more, setMore] = useState(false);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const tabScroll = useRef(new Map<string, number>());
+  const previousTab = useRef(active);
   const mobileSlotCount = items.length + (onAccount ? 1 : 0);
   const hasOverflow = mobileSlotCount > 5;
   const direct = hasOverflow ? items.slice(0, 4) : items;
@@ -48,20 +51,35 @@ export default function WorkspaceFrameV2({
   const accountInMore = hasOverflow && Boolean(onAccount);
   const accountDirect = !hasOverflow && Boolean(onAccount);
 
+  const scrollSurface = useCallback(() =>
+    frameRef.current?.closest<HTMLElement>(".scrollable-content")
+      || document.scrollingElement as HTMLElement | null, []);
+
+  useLayoutEffect(() => {
+    if (previousTab.current === active) return;
+    previousTab.current = active;
+    scrollSurface()?.scrollTo({ top: tabScroll.current.get(active) ?? 0, behavior: "auto" });
+  }, [active, scrollSurface]);
+
   function go(id: string) {
+    if (id === active) {
+      scrollSurface()?.scrollTo({ top: 0, behavior: "auto" });
+      setMore(false);
+      return;
+    }
+    tabScroll.current.set(active, scrollSurface()?.scrollTop ?? 0);
     setActive(id);
     setMore(false);
-    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function goAccount() {
     setMore(false);
     onAccount?.();
-    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   return (
     <div
+      ref={frameRef}
       data-workspace-frame="v2"
       className={`role-workspace min-h-[100dvh] bg-[#0A0A0F] text-white ${immersive ? "pb-0" : "pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:pb-0"}`}
     >

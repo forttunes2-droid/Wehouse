@@ -441,7 +441,7 @@ export default function AccountCenter({
           />
         </AccountSection>
         <p className="px-1 text-xs leading-5 text-[#8B92A3]">In-app alerts include a short, soft chime while WeHouse is open. Your device sound settings apply. Activity and unread badges remain available when you switch workspaces.</p>
-        <p className="px-1 text-[9px] text-[#656C7C]">
+        <p className="px-1 text-xs text-[#9AA2B3]">
           Changes save automatically.
         </p>
       </AccountShell>
@@ -505,11 +505,11 @@ export default function AccountCenter({
               <h2 className="truncate text-sm font-semibold">
                 {profile.full_name || `@${profile.username || "account"}`}
               </h2>
-              <span className="rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#9CA2B2]">
+              <span className="rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[11px] font-semibold text-[#B6BAC8]">
                 {workspaceLabel(activeWorkspace)}
               </span>
             </div>
-            <p className="mt-1 truncate text-[10px] text-[#777E8E]">
+            <p className="mt-1 truncate text-xs text-[#A0A7B6]">
               {profile.email || "No email"}
             </p>
 
@@ -673,25 +673,23 @@ function Toggle({
   return (
     <div className="flex min-h-[4.5rem] items-center justify-between gap-4 border-b border-white/[.05] px-4 py-3.5 last:border-b-0 sm:px-5">
       <div>
-        <p className="text-[12px] font-semibold">{label}</p>
-        <p className="mt-0.5 text-[9px] leading-relaxed text-[#6F7585]">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="mt-1 text-[13px] leading-5 text-[#A0A7B6]">
           {detail}
         </p>
       </div>
       <button
         type="button"
         disabled={disabled}
-        aria-pressed={value}
+        role="switch"
+        aria-label={label}
+        aria-checked={value}
         onClick={() => onChange(!value)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50 ${
-          value ? "bg-violet-500" : "bg-[#292D38]"
-        }`}
+        className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400 disabled:opacity-50"
       >
-        <span
-          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-            value ? "translate-x-5" : ""
-          }`}
-        />
+        <span className={`relative h-6 w-11 rounded-full transition-colors duration-150 ${value ? "bg-violet-500" : "bg-[#343A48]"}`}>
+          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ${value ? "translate-x-5" : ""}`} />
+        </span>
       </button>
     </div>
   );
