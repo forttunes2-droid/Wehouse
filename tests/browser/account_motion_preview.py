@@ -1,5 +1,5 @@
 """Phone captures and tab scroll behavior using real Account and Workspace components."""
-import asyncio,base64,subprocess
+import asyncio,base64,subprocess,re
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 
@@ -28,7 +28,7 @@ async def main():
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Appearance',exact=False).click()
   await expect(page.get_by_role('heading',name='Appearance')).to_be_visible()
-  await page.get_by_role('button',name='Light Bright surfaces and deep text').click()
+  await page.get_by_role('button',name=re.compile(r'^Light\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='light'
   await page.screenshot(path=str(OUT/'account-appearance-light-390.png'),full_page=True)
@@ -48,11 +48,11 @@ async def main():
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Appearance',exact=False).click()
   await page.emulate_media(color_scheme='light')
-  await page.get_by_role('button',name='Use device setting Follow your phone or computer').click()
+  await page.get_by_role('button',name=re.compile(r'^Automatic\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
   await page.emulate_media(color_scheme='dark')
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
-  await page.get_by_role('button',name='Dark Layered charcoal and soft contrast').click()
+  await page.get_by_role('button',name=re.compile(r'^Dark\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='dark'
   print('APPEARANCE_ACCOUNT_LIGHT_DARK_SYSTEM=passed',flush=True)
