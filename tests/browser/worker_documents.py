@@ -3,7 +3,7 @@ import asyncio, json, os, subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
 OUT=Path('test-results/experience'); BUNDLE=Path('test-results/worker-documents-offline')
-RECORD={'id':'doc-a','worker_id':'worker-a','customer_id':'customer-a','document_number':'WHQ-TEST','booking_id':'job-a','booking_code':'TEST-JOB','document_type':'quote','title':'Cabinet repair','items':[{'description':'Hinges and fitting','quantity':2,'unit_price':5000,'line_total':10000}], 'subtotal':10000,'total':10000,'currency':'NGN','document_status':'draft','payment_status':'not_applicable','payment_label':'Not applicable','note':'Sample job record, not a real customer'}
+RECORD={'id':'doc-a','worker_id':'worker-a','customer_id':'customer-a','document_number':'WHQ-TEST','booking_id':'job-a','booking_code':'TEST-JOB','document_type':'quote','title':'Cabinet repair','items':[{'description':'Hinges and fitting','quantity':2,'unit_price':5000,'line_total':10000}], 'subtotal':10000,'total':10000,'currency':'NGN','document_status':'draft','payment_status':'not_applicable','payment_label':'Not applicable','note':'Sample job record, not a real customer','created_at':'2026-09-25T00:00:00Z'}
 INSIGHTS={'completed_jobs':3,'released_earnings_ngn':10000,'active_jobs':1,'review_count':0,'repeat_customers':0,'worker_cancelled_jobs':0,'featured':{'signed_in_unique_impressions':0,'unique_profile_opens':0,'booking_requests':0},'definitions':{},'generated_at':'2026-09-25T00:00:00Z'}
 async def main():
  subprocess.run(['node','tests/browser/build-worker-documents.mjs'],check=True);OUT.mkdir(parents=True,exist_ok=True);results=[]
@@ -39,9 +39,10 @@ async def main():
       for action in ['New document','Send to customer','Mark offline payment']:
        await expect(archive.get_by_role('button',name=action,exact=True)).to_have_count(0)
       async with page.expect_download() as download:
-       await archive.get_by_role('button',name='Export',exact=True).click()
-      file=await download.value;assert file.suggested_filename=='WHQ-TEST.txt'
-      text=Path(await file.path()).read_text();assert 'Hinges and fitting' in text and '10000' in text.replace(',','')
+       await archive.get_by_role('button',name='Download PDF',exact=True).click()
+      file=await download.value;assert file.suggested_filename=='WHQ-TEST.pdf'
+      contents=Path(await file.path()).read_bytes()
+      assert contents.startswith(b'%PDF-') and b'Hinges and fitting' in contents and b'10,000' in contents
       assert not any(c['name'].startswith(('save_','send_','mark_')) for c in await page.evaluate('window.__documents.calls'))
      if active:
       await archive.get_by_role('button',name='New document',exact=True).click()
