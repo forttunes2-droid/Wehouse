@@ -88,8 +88,8 @@ async def main():
       await expect(page.get_by_text('Creator preview · comments are read only')).to_be_visible()
       await expect(page.get_by_label('Add a comment')).to_have_count(0)
       assert not any(call['name'] in ('add_my_worker_showcase_comment','set_my_worker_showcase_reaction') for call in await page.evaluate('window.__fixtureState.calls'))
-      await page.get_by_role('button',name='Back to work post').click()
-      await page.get_by_role('button',name='Back to work posts').click()
+      await page.get_by_role('button',name='Back to work post',exact=True).click()
+      await page.get_by_role('button',name='Back to work posts',exact=True).click()
      elif mode=='creator-list':
       await expect(page.get_by_role('heading',name='Service Worker oversight')).to_be_visible()
       await page.get_by_role('button',name='Preview Workers').click()
