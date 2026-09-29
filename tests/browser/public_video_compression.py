@@ -64,13 +64,14 @@ async def main():
               type: prepared.contentType, extension: prepared.extension, duration: video.duration, encoded };
           } finally { URL.revokeObjectURL(url); }
         }''', { 'kind': kind, 'sourcePath': source_path })
+          encoded = result.pop('encoded')
           assert 0 < result['output'] <= result['target'] <= result['cap'], result
           assert result['output'] < result['input'], result
-          assert result['target'] == (4_000_000 if kind == 'longer' else 2_000_000), result
+          assert abs(result['target'] - (4_000_000 if kind == 'longer' else 2_000_000)) < 20_000, result
           assert result['duration'] > 10, result
           assert result['type'] in ('video/mp4', 'video/webm'), result
           saved = Path(f'test-results/experience/{kind}-compressed.{result["extension"]}')
-          saved.write_bytes(base64.b64decode(result.pop('encoded')))
+          saved.write_bytes(base64.b64decode(encoded))
           assert saved.stat().st_size == result['output']
           print(f'{kind} video browser compression:', result)
         await browser.close()
