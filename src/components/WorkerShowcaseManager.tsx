@@ -54,6 +54,9 @@ function WorkerShowcaseContent({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [viewer, setViewer] = useState<Post | null>(null);
   const [mediaFailed, setMediaFailed] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editCaption, setEditCaption] = useState('');
+  const [savingCaption, setSavingCaption] = useState(false);
 
   const identity = useRef(profile.user_id); identity.current = profile.user_id;
   useEffect(() => {
@@ -218,6 +221,20 @@ function WorkerShowcaseContent({
     setViewer(null);await load();
   }
 
+  async function saveCaption() {
+    if (!editingPost || savingCaption) return;
+    setSavingCaption(true);
+    const { data, error } = await supabase.rpc('update_my_worker_showcase_caption', {
+      p_post_id: editingPost.id, p_caption: editCaption.trim(),
+    });
+    setSavingCaption(false);
+    if (error) return toast.error('Caption could not be saved. Please try again.');
+    setViewer(current => current?.id === editingPost.id ? { ...current, caption: data || null } : current);
+    setEditingPost(null);
+    await load();
+    toast.success('Caption updated');
+  }
+
   const workPosts = posts.filter(post => visibility === "all" || (visibility === "hidden" ? Boolean(post.hidden_at) : !post.hidden_at));
   const previewIsVideo = file?.type.startsWith("video/") || false;
 
@@ -341,6 +358,21 @@ function WorkerShowcaseContent({
         </div></ShowcaseComposer>
       )}
 
+      {editingPost && <ShowcaseComposer onClose={() => setEditingPost(null)} busy={savingCaption} label="Edit work post caption">
+        <div className="fixed inset-0 z-[100210] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
+          <header className="flex min-h-16 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 pt-[env(safe-area-inset-top)]">
+            <button type="button" onClick={() => setEditingPost(null)} disabled={savingCaption} className="min-h-11 text-sm text-[var(--wh-text-secondary)]">Cancel</button>
+            <h2 className="flex-1 text-center text-base font-semibold">Edit caption</h2>
+            <button type="button" onClick={() => void saveCaption()} disabled={savingCaption} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{savingCaption ? 'Saving…' : 'Save'}</button>
+          </header>
+          <div className="mx-auto w-full max-w-xl px-5 py-6">
+            <p className="text-sm text-[var(--wh-text-secondary)]">Update the story behind your work. Its media, job confirmation and reactions stay with this post.</p>
+            <textarea autoFocus aria-label="Work post caption" value={editCaption} maxLength={300} rows={6} onChange={event => setEditCaption(event.target.value)} className="mt-5 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-base outline-none focus:border-violet-500" />
+            <p className="mt-2 text-right text-xs text-[var(--wh-text-secondary)]">{editCaption.length} / 300</p>
+          </div>
+        </div>
+      </ShowcaseComposer>}
+
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-sm text-[var(--wh-text-secondary)]">{posts.length} {posts.length === 1 ? "post" : "posts"}</p>
         <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25" aria-label="Add work">Add work</button>
@@ -350,7 +382,7 @@ function WorkerShowcaseContent({
       </div>
       <WorkerShowcaseGrid owner posts={workPosts} loading={loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void load(true)} />
 
-      {viewer && (
+      {viewer && !editingPost && (
         <WorkerShowcasePostViewer
           post={viewer}
           workerName={workerDisplayName(profile)}
@@ -362,7 +394,7 @@ function WorkerShowcaseContent({
           onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
           mediaError={mediaFailed}
           onRetry={async () => { setMediaFailed(false); const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
-          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 shadow-lg"><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[#D7DCE6] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-300 disabled:opacity-40">Delete post</button></div></details>}
+          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 shadow-lg"><button type="button" onClick={() => { setEditCaption(viewer.caption || ''); setEditingPost(viewer); }} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[var(--wh-text)] disabled:opacity-40">Edit caption</button><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[var(--wh-text)] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-600 dark:text-red-300 disabled:opacity-40">Delete post</button></div></details>}
         />
       )}
       <ConfirmDialog {...dialogProps} />
@@ -370,8 +402,8 @@ function WorkerShowcaseContent({
   );
 }
 
-function ShowcaseComposer({ onClose, busy, children }: { onClose: () => void; busy: boolean; children: React.ReactNode }) {
+function ShowcaseComposer({ onClose, busy, children, label = 'New work post' }: { onClose: () => void; busy: boolean; children: React.ReactNode; label?: string }) {
   const dismiss = useRecordScreenBack(() => { if (!busy) onClose(); });
   const ref = useDialogInteraction(dismiss);
-  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="New work post" className="fixed inset-0 z-[100210] bg-[var(--wh-bg)]">{children}</div>, document.body);
+  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className="fixed inset-0 z-[100210] bg-[var(--wh-bg)]">{children}</div>, document.body);
 }

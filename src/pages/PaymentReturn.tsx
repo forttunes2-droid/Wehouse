@@ -32,6 +32,7 @@ function paymentReferenceFromLocation() {
 function destinationForPurpose(purpose: string | undefined, role: string): NavPage {
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
   if (purpose === 'sponsored_campaign') return role === 'worker' ? 'worker_dashboard' : 'property_partner';
+  if (purpose === 'partner_pro_access') return 'property_partner';
   if (['worker_booking', 'hotel_booking', 'apartment_reservation', 'apartment_rent', 'housing_reservation', 'reservation_fee', 'shared_housing_share', 'rent_plan_contribution'].includes(purpose || '')) return 'my_reservations';
   if (role === 'worker') return 'worker_dashboard';
   if (role === 'property_partner') return 'property_partner';
@@ -43,6 +44,7 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
 
 function successMessage(purpose?: string) {
   if (purpose === 'sponsored_campaign') return 'Sponsored payment confirmed. Your eligible campaign is now active and can appear in matching discovery results.';
+  if (purpose === 'partner_pro_access') return 'Property Partner Pro payment confirmed. Your portfolio tools are available through the paid period.';
   if (purpose === 'apartment_reservation') return 'Reservation payment confirmed. This property is now held for you and the housing workflow is unlocked.';
   if (purpose === 'apartment_rent') return 'Accommodation payment confirmed. Open your booking for arrival details.';
   if (purpose === 'worker_booking') return 'Service payment confirmed. Your job is now in the protected paid stage and remains attached to the service booking.';
@@ -53,6 +55,7 @@ function successMessage(purpose?: string) {
 
 function successActionLabel(purpose?: string) {
   if (purpose === 'sponsored_campaign') return 'View my campaigns';
+  if (purpose === 'partner_pro_access') return 'Open Property Partner Pro';
   if (purpose === 'worker_booking') return 'Open service booking';
   if (purpose === 'hotel_booking') return 'Open hotel booking';
   if (purpose === 'apartment_reservation') return 'Open apartment booking';
@@ -63,6 +66,7 @@ function successActionLabel(purpose?: string) {
 
 function paymentHeading(purpose?: string) {
   if (purpose === 'sponsored_campaign') return 'Sponsored campaign active';
+  if (purpose === 'partner_pro_access') return 'Property Partner Pro active';
   if (purpose === 'worker_booking') return 'Service payment confirmed';
   if (purpose === 'hotel_booking') return 'Hotel payment confirmed';
   if (purpose === 'apartment_reservation') return 'Reservation payment confirmed';
@@ -96,6 +100,9 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
         if (receipt && result.purpose === 'sponsored_campaign') {
           receipt = { ...receipt, description: 'Sponsored placement', merchant_name: 'WeHouse' };
         }
+        if (receipt && result.purpose === 'partner_pro_access') {
+          receipt = { ...receipt, description: 'Property Partner Pro access', merchant_name: 'WeHouse' };
+        }
       } catch { /* Keep the verified payment visible while receipt retrieval can retry. */ }
       if (!cancelled) setState({ kind: 'success', purpose: result.purpose, message: successMessage(result.purpose), receipt });
     })().catch(() => {
@@ -120,7 +127,12 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? paymentHeading(successPurpose) : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>
       <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{state.message}</p>
       <div className="mt-6 space-y-2">
-        {state.kind === 'success' && <button type="button" onClick={() => onNavigate(destination, state.receipt?.booking_id || undefined)} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{successActionLabel(successPurpose)}</button>}
+        {state.kind === 'success' && <button type="button" onClick={() => {
+          if (successPurpose === 'partner_pro_access') {
+            try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
+          }
+          onNavigate(destination, state.receipt?.booking_id || undefined);
+        }} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{successActionLabel(successPurpose)}</button>}
         {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">Check payment again</button>}
         {state.kind === 'error' && <button type="button" onClick={() => onNavigate('my_reservations')} className="h-12 w-full rounded-2xl border border-violet-400/25 bg-violet-500/[.08] text-sm font-semibold text-violet-200">Open bookings to continue payment</button>}
         {state.kind !== 'checking' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-[var(--wh-text-secondary)]">Back to WeHouse</button>}

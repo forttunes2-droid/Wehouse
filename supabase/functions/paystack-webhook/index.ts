@@ -487,6 +487,19 @@ Deno.serve(async (req) => {
         { status: data?.success || data?.requires_review ? 200 : 409 });
     }
 
+    if (payment.purpose === "partner_pro_access") {
+      const { data, error } = await db.rpc("confirm_partner_pro_paystack_charge", {
+        p_reference: reference,
+        p_transaction_id: transactionId,
+        p_amount_minor: amountMinor,
+        p_environment: environment === "production" ? "live" : "test",
+        p_source: "webhook",
+      });
+      if (error) return new Response("Partner Pro payment processing error", { status: 500 });
+      return new Response(data?.success ? "OK" : "Partner Pro payment needs review",
+        { status: data?.success || data?.requires_review ? 200 : 409 });
+    }
+
     if (payment.purpose === "worker_pro_subscription") {
       const occurredAt = eventTime(event);
       const customer = customerCode(event.data);

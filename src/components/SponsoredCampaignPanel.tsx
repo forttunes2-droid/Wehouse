@@ -138,7 +138,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     {loading ? <p role="status" className="text-xs text-[var(--wh-text-secondary)]">Loading your promotion options…</p> : resources.length === 0
       ? <p className="rounded-2xl bg-[var(--wh-interactive)] p-4 text-xs leading-5 text-[var(--wh-text-secondary)]">There is no published, eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} to promote yet. Your existing campaign history appears below.</p>
       : <div className="space-y-4">
-        <label className="block text-xs font-medium text-[#D7DAE3]">Choose what to promote
+        <label className="block text-xs font-medium text-[var(--wh-text)]">Choose what to promote
           <WeHouseChoice className="mt-2 h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"
             aria-label="Promote" value={selected} onChange={e => setSelected(e.target.value)}>
             {resources.map(item => <option key={`${item.resource_type}:${item.resource_id}`}
@@ -147,7 +147,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
         </label>
         {offer?.available ? <>
           <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">{offer.market} · {offer.slot_count} placement slots in this market</p>
-          <label className="block text-xs font-medium text-[#D7DAE3]">How long?
+          <label className="block text-xs font-medium text-[var(--wh-text)]">How long?
             <WeHouseChoice className="mt-2 h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"
               aria-label="Duration" value={duration} onChange={e => setDuration(Number(e.target.value))}>
               {(offer.durations || []).map(days => <option key={days} value={days}>{days} days</option>)}
@@ -155,7 +155,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
           </label>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-400/15 bg-violet-400/[.05] px-4 py-3">
             <span className="text-xs text-[var(--wh-text-secondary)]">{duration} days · {native ? 'Price in your app store' : `₦${Number(offer.daily_price_ngn).toLocaleString('en-NG')} per day`}</span>
-            <strong className="shrink-0 text-base text-white">{native ? storePlan?.price || 'Store price' : `₦${total.toLocaleString('en-NG')}`}</strong>
+            <strong className="shrink-0 text-base text-[var(--wh-text)]">{native ? storePlan?.price || 'Store price' : `₦${total.toLocaleString('en-NG')}`}</strong>
           </div>
           <label className="flex items-start gap-3 text-xs leading-5 text-[var(--wh-text-secondary)]">
             <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-violet-500" />
@@ -174,7 +174,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     {campaigns.length > 0 && <div className="mt-6 border-t border-[var(--wh-border-subtle)] pt-5">
       <h3 className="text-sm font-semibold">Your placements</h3>
       <ul className="mt-3 space-y-2">{campaigns.slice(0, 10).map(item => <li key={item.campaign_id} className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-4">
-        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-white">{item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.duration_days} days</p><p className="mt-1 text-[11px] text-[var(--wh-text-secondary)]">₦{Number(item.amount_ngn).toLocaleString('en-NG')}{item.ends_at ? ` · Ends ${new Date(item.ends_at).toLocaleDateString('en-NG')}` : ''}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status === 'active' && (!item.ends_at || new Date(item.ends_at) > new Date()) ? 'bg-emerald-500/10 text-emerald-300' : item.status === 'paused' ? 'bg-amber-400/10 text-amber-200' : 'bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{item.status === 'active' && item.ends_at && new Date(item.ends_at) <= new Date() ? 'Expired' : item.status.replace(/_/g, ' ')}</span></div>
+        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-[var(--wh-text)]">{item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.duration_days} days</p><p className="mt-1 text-[11px] text-[var(--wh-text-secondary)]">₦{Number(item.amount_ngn).toLocaleString('en-NG')}{item.ends_at ? ` · Ends ${new Date(item.ends_at).toLocaleDateString('en-NG')}` : ''}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status === 'active' && (!item.ends_at || new Date(item.ends_at) > new Date()) ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : item.status === 'paused' ? 'bg-amber-400/10 text-amber-700 dark:text-amber-200' : 'bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{item.status === 'active' && item.ends_at && new Date(item.ends_at) <= new Date() ? 'Expired' : item.status.replace(/_/g, ' ')}</span></div>
         {item.pause_reason && <p className="mt-3 text-[11px] leading-5 text-amber-200">WeHouse review: {item.pause_reason}</p>}
       </li>)}</ul>
     </div>}

@@ -78,6 +78,15 @@ export default function PropertyOwnerDashboard({
   delegatedOnly = false,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
+  useEffect(() => {
+    if (delegatedOnly) return;
+    try {
+      if (sessionStorage.getItem('wh_partner_return_tab') === 'pro') {
+        sessionStorage.removeItem('wh_partner_return_tab');
+        setTab('pro');
+      }
+    } catch { /* The workspace stays navigable if storage is unavailable. */ }
+  }, [delegatedOnly]);
   const tabs = delegatedOnly ? HOSTING_TABS : OWNER_TABS;
   const [propertyTargetId, setPropertyTargetId] = useState<
     string | undefined

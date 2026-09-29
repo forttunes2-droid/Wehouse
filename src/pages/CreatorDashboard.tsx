@@ -883,6 +883,7 @@ type PlatformSection =
   | "booking_money"
   | "workers"
   | "worker_plan"
+  | "partner_plan"
   | "sponsored"
   | "properties"
   | "legal";
@@ -915,6 +916,11 @@ const PLATFORM_SECTIONS: Array<{
     id: "worker_plan",
     label: "Paid Service Worker plan",
     note: "Plan name, prices, subscription terms and sales controls.",
+  },
+  {
+    id: "partner_plan",
+    label: "Property Partner Pro",
+    note: "Portfolio tools, prepaid prices, terms and sales control.",
   },
   {
     id: "sponsored",
@@ -1006,6 +1012,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
         </div>
       )}
       {section === "worker_plan" && <CreatorSettingsTabV2 profile={profile} groups={["worker_pro"]} embedded />}
+      {section === "partner_plan" && <CreatorSettingsTabV2 profile={profile} groups={["partner_pro"]} embedded />}
       {section === "sponsored" && <SponsoredMarketRules />}
       {section === "properties" && (
         <section>
