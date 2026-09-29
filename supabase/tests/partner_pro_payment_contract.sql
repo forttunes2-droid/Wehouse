@@ -76,12 +76,21 @@ begin
   perform public.pause_partner_pro_on_provider_event(p.paystack_reference,'refund.pending','test','refund:test-provider-1001');
   if (select count(*) from public.partner_pro_provider_events where payment_id=p.id)<>1 then
     raise exception 'Provider event replay created a duplicate'; end if;
-  if not public.resolve_partner_pro_provider_review('pro-buyer',true,'Provider confirmed dispute was cleared')
-    or not public.partner_pro_is_active('pro-buyer') then raise exception 'Resolved review did not restore access'; end if;
+  if not public.resolve_partner_pro_provider_review('pro-buyer',true,'Provider confirmed dispute was cleared') then
+    raise exception 'Review resolution failed'; end if;
+  if (select review_started_at from public.partner_pro_entitlements where partner_id='pro-buyer') is not null then
+    raise exception 'Review resolution left the pause in place'; end if;
   if (select current_period_end from public.partner_pro_entitlements where partner_id='pro-buyer') is distinct from v_end then
     raise exception 'Review restore changed the paid expiry'; end if;
+end $$;
+do $$
+declare p public.booking_payments;
+begin
+  if not public.partner_pro_is_active('pro-buyer') then raise exception 'Resolved review did not restore access'; end if;
+  select * into p from public.booking_payments where user_id='pro-buyer' and purpose='partner_pro_access';
   perform public.pause_partner_pro_on_provider_event(p.paystack_reference,'refund.processed','test','refund:processed:1001');
   perform public.resolve_partner_pro_provider_review('pro-buyer',false,'Provider processed full refund for purchase');
-  if public.partner_pro_is_active('pro-buyer') then raise exception 'Refund resolution left paid access active'; end if;
+  if (select current_period_end from public.partner_pro_entitlements where partner_id='pro-buyer')>now() then
+    raise exception 'Refund resolution left paid period'; end if;
 end $$;
 rollback;
