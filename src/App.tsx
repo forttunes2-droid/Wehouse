@@ -135,7 +135,7 @@ function PageTransitionFallback() {
           </div>
         </div>
         {!slow ? (
-          <div className="mt-8 h-1 w-full max-w-48 overflow-hidden rounded-full wh-skeleton" aria-hidden="true">
+          <div className="mt-8 h-1 w-full max-w-48 rounded-full bg-[var(--wh-skeleton)]" aria-hidden="true">
           </div>
         ) : (
           <div className="mt-8">
