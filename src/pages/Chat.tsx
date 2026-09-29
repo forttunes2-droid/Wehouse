@@ -93,6 +93,25 @@ type InboxListSnapshot = {
 };
 const inboxListCache = new Map<string, InboxListSnapshot>();
 
+function preserveRecentMessage<T>(
+  rows: T[], kind: Thread["kind"], id: (row: T) => string,
+  time: (row: T) => string | null | undefined,
+  update: (row: T, value: string) => T,
+  recent: Map<string, string>,
+): T[] {
+  return rows.map(row => {
+    const key = `${kind}:${id(row)}`;
+    const observed = recent.get(key);
+    if (!observed) return row;
+    const fromServer = time(row);
+    if (fromServer && Date.parse(fromServer) >= Date.parse(observed)) {
+      recent.delete(key);
+      return row;
+    }
+    return update(row, observed);
+  });
+}
+
 export default function Chat({
   profile,
   onNavigate,
@@ -124,6 +143,7 @@ export default function Chat({
   );
   const [loading, setLoading] = useState(!conversationId && !cachedInbox);
   const loadVersion = useRef(0);
+  const recentMessages = useRef(new Map<string, string>());
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<InboxCategory>("all");
@@ -164,6 +184,13 @@ export default function Chat({
 
       const publish = () => {
         if (request !== loadVersion.current) return;
+        // A realtime INSERT can arrive while one of these six reads is still
+        // in flight. Keep its newer timestamp until the projection catches up.
+        next.conversations = preserveRecentMessage(next.conversations, "roommate", row => row.id, row => row.last_message_at, (row, value) => ({ ...row, last_message_at: value }), recentMessages.current);
+        next.bookingConversations = preserveRecentMessage(next.bookingConversations, "worker", row => row.conversation_id, row => row.last_message_time, (row, value) => ({ ...row, last_message_time: value }), recentMessages.current);
+        next.hotelConversations = preserveRecentMessage(next.hotelConversations, "hotel", row => row.conversation_id, row => row.last_message_time, (row, value) => ({ ...row, last_message_time: value }), recentMessages.current);
+        next.hostConversations = preserveRecentMessage(next.hostConversations, "host", row => row.conversation_id, row => row.last_message_time, (row, value) => ({ ...row, last_message_time: value }), recentMessages.current);
+        next.supportThreads = preserveRecentMessage(next.supportThreads, "support", row => row.conversation_id, row => row.last_message_time, (row, value) => ({ ...row, last_message_time: value }), recentMessages.current);
         finished += 1;
         setConversations(next.conversations);
         setBookingConversations(next.bookingConversations);
@@ -311,6 +338,9 @@ export default function Chat({
     const onMessage = (kind: Thread["kind"]) => (payload: any) => {
       const row = payload.new as { conversation_id?: string; created_at?: string } | undefined;
       if (payload.eventType === "INSERT" && row?.conversation_id && row.created_at && Number.isFinite(Date.parse(row.created_at))) {
+        const key = `${kind}:${row.conversation_id}`;
+        const observed = recentMessages.current.get(key);
+        if (!observed || Date.parse(row.created_at) > Date.parse(observed)) recentMessages.current.set(key, row.created_at);
         const newer = (previous: string | null | undefined) =>
           !previous || Date.parse(row.created_at!) > Date.parse(previous) ? row.created_at! : previous;
         if (kind === "roommate") setConversations(current => current.map(thread => thread.id === row.conversation_id ? { ...thread, last_message_at: newer(thread.last_message_at) } : thread));
