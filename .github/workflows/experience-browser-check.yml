@@ -87,6 +87,8 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - name: Install video encoder for public media QA
         run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Capture Account phone screens and verify workspace tab motion
+        run: python tests/browser/account_motion_preview.py
       - name: Run isolated browser interactions
         run: |
           node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
@@ -104,9 +106,6 @@ jobs:
       - name: Capture Property Partner Pro phone and tablet screens
         if: ${{ !cancelled() }}
         run: python tests/browser/partner_pro_preview.py
-      - name: Capture Account phone screens and verify workspace tab motion
-        if: ${{ !cancelled() }}
-        run: python tests/browser/account_motion_preview.py
       - name: Verify real bundle startup failures remain safe and recoverable
         if: ${{ !cancelled() }}
         env:
