@@ -626,7 +626,7 @@ export default function WorkerDiscovery({
       )}
       {story && (
         <div
-          className="fixed inset-0 z-[95] bg-black/95"
+          className="wh-media-immersive fixed inset-0 z-[95] bg-black/95"
           onClick={() => setStory(null)}
         >
           <div
@@ -666,7 +666,7 @@ export default function WorkerDiscovery({
               className="max-h-[68dvh] w-full rounded-3xl bg-black object-contain"
             />
             {story.status.caption && (
-              <p className="mt-3 rounded-2xl bg-[var(--wh-interactive)] p-4 text-[11px] leading-relaxed text-[#D0D3DA]">
+              <p className="mt-3 rounded-2xl bg-[var(--wh-interactive)] p-4 text-[11px] leading-relaxed text-[var(--wh-text-secondary)]">
                 {story.status.caption}
               </p>
             )}
@@ -787,7 +787,7 @@ function WorkerCard({
         </p>
       )}
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold text-[#DDE0E7]">
+        <p className="text-[10px] font-semibold text-[var(--wh-text)]">
           {worker.worker_price
             ? `From ₦${Number(worker.worker_price).toLocaleString()}`
             : "Discuss price"}

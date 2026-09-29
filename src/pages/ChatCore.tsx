@@ -1743,7 +1743,7 @@ function RoommateInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${count ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
+          className={`mt-1 truncate text-[11px] ${count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {conv.last_message ||
             (recentCall
@@ -1797,7 +1797,7 @@ function WorkerInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {row.last_message || row.service_type || "Worker booking"}
         </p>
@@ -1853,7 +1853,7 @@ function HotelInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {row.last_message || "Paid stay conversation"}
         </p>
@@ -1903,7 +1903,7 @@ function SupportInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${thread.unread_count ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
+          className={`mt-1 truncate text-[11px] ${thread.unread_count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {thread.last_message || p.title}
         </p>

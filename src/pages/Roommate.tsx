@@ -597,7 +597,7 @@ function Matches({
           )}
           {hasMore ? (
             <div className="mt-4 flex justify-center">
-              <button type="button" disabled={loadingMore} onClick={() => void onLoadMore()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-[#D0D4DE] disabled:opacity-50">
+              <button type="button" disabled={loadingMore} onClick={() => void onLoadMore()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-[var(--wh-text)] disabled:opacity-50">
                 {loadingMore ? "Loading more…" : "Show more"}
               </button>
             </div>

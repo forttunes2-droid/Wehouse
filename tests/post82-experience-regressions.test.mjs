@@ -19,7 +19,7 @@ test("receipt UI uses one lazy booking entry and one branded compact PDF", async
   assert.doesNotMatch(serviceChat, /ReceiptAccess/);
   assert.match(pdf, /doc\.addImage\(receiptMark/);
   assert.doesNotMatch(receipt, /window\.print\(\)|>Print<\/button>/);
-  assert.match(css, /input\[type="date"\], input\[type="datetime-local"\] \{ color-scheme: dark/);
+  assert.match(css, /input\[type="date"\], input\[type="datetime-local"\] \{ color-scheme: inherit/);
 });
 
 test("internal profile projection uses the real Staff timestamp and canonical scope helper", async () => {

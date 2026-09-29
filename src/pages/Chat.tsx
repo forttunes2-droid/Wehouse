@@ -731,8 +731,8 @@ function ThreadRow({
           <p
             className={`min-w-0 flex-1 truncate text-[14px] ${
               view.unread
-                ? "font-bold text-white"
-                : "font-semibold text-[#E6E8ED]"
+                ? "font-bold text-[var(--wh-text)]"
+                : "font-semibold text-[var(--wh-text)]"
             }`}
           >
             {view.title}
@@ -751,7 +751,7 @@ function ThreadRow({
           <p
             className={`min-w-0 flex-1 truncate text-[13px] ${
               view.unread
-                ? "font-medium text-[#DADDE5]"
+                ? "font-medium text-[var(--wh-text)]"
                 : "text-[var(--wh-text-secondary)]"
             }`}
           >

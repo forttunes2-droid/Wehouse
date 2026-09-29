@@ -982,7 +982,7 @@ function BookingSourceNotice({
         <p className="text-[10px] font-semibold text-amber-200">
           {labels.join(", ")} {labels.length === 1 ? "needs" : "need"} a refresh
         </p>
-        <p className="mt-1 text-xs text-[#8E8375]">
+        <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
           Any booking already loaded stays visible.
         </p>
       </div>
@@ -1529,7 +1529,7 @@ function PropertyBookingDetail({
                 <p className="text-[11px] uppercase tracking-[.14em] text-emerald-300">
                   {short ? "Arrival code" : "Handover code"}
                 </p>
-                <p className="mt-0.5 text-[11px] leading-4 text-[#6F7B72]">
+                <p className="mt-0.5 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
                   Show only to {hostManaged ? "your authorised property host" : "Property Operations"} during verified handover.
                 </p>
               </div>
@@ -1672,7 +1672,7 @@ function HotelBookingDetail({
                 </p>
               ) : null}
             </div>
-            <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[10px] font-semibold text-[#D8D4E3]">
+            <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]">
               {status}
             </span>
           </div>
@@ -2011,7 +2011,7 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-b border-[var(--wh-border-subtle)] py-2">
       <p className="text-[10px] uppercase text-[var(--wh-text-muted)]">{label}</p>
-      <p className="mt-0.5 break-words text-xs font-medium leading-5 text-[#E2E4EA]">
+      <p className="mt-0.5 break-words text-xs font-medium leading-5 text-[var(--wh-text)]">
         {value}
       </p>
     </div>

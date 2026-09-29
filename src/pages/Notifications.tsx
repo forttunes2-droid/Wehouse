@@ -417,7 +417,7 @@ function NotificationFeed({
                           {activityKind(row)}
                         </span>
                         <span
-                          className={`block text-xs ${row.read ? "font-medium text-[var(--wh-text-secondary)]" : "font-semibold text-white"}`}
+                          className={`block text-xs ${row.read ? "font-medium text-[var(--wh-text-secondary)]" : "font-semibold text-[var(--wh-text)]"}`}
                         >
                           {activityTitle(row)}
                         </span>
