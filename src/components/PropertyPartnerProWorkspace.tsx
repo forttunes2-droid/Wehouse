@@ -111,6 +111,36 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
     const link = document.createElement('a'); link.href = url; link.download = 'wehouse-partner-available-earnings.csv'; link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  async function exportStatement() {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      pdf.setFillColor(27, 22, 38); pdf.rect(0, 0, 210, 43, 'F');
+      pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(13);
+      pdf.text('WEHOUSE  /  PROPERTY PARTNER', 17, 19);
+      pdf.setFontSize(21); pdf.text('Earnings statement', 17, 32);
+      pdf.setTextColor(41, 34, 49); pdf.setFontSize(12); pdf.text(profile.full_name || profile.username || 'Property Partner', 17, 58);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(106, 99, 113);
+      pdf.text(`Prepared ${new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}`, 17, 65);
+      pdf.text('Released net earnings only. Protected and disputed amounts are excluded.', 17, 73);
+      pdf.setDrawColor(227, 222, 234); pdf.line(17, 81, 193, 81);
+      let y = 91;
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(41, 34, 49); pdf.setFontSize(11);
+      pdf.text('Last 12 months', 17, y); pdf.text(`NGN ${periods.reduce((sum,row) => sum + row.net_amount, 0).toLocaleString('en-NG')}`, 193, y, { align: 'right' });
+      y += 12;
+      pdf.setFontSize(9);
+      for (const row of earningMonths) {
+        pdf.setFont('helvetica', 'normal'); pdf.text(new Date(`${row.month}-01T12:00:00`).toLocaleDateString('en-NG', { month: 'long', year: 'numeric' }), 17, y);
+        pdf.text(`${row.earnings} entries`, 117, y);
+        pdf.setFont('helvetica', 'bold'); pdf.text(`NGN ${row.net_amount.toLocaleString('en-NG')}`, 193, y, { align: 'right' });
+        y += 10; pdf.setDrawColor(238, 234, 241); pdf.line(17, y - 5, 193, y - 5);
+      }
+      if (!earningMonths.length) { pdf.setFont('helvetica', 'normal'); pdf.text('No released earnings in this period.', 17, y); }
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(106, 99, 113);
+      pdf.text('This operational statement is not a tax invoice or proof of bank payout.', 17, 280);
+      pdf.save('wehouse-partner-earnings-statement.pdf');
+    } catch { toast.error('Statement could not be prepared. Please try again.'); }
+  }
 
   if (planLoading) return <main className="mx-auto max-w-5xl px-4 py-10 text-sm text-[var(--wh-text-secondary)]" role="status">Loading Property Partner Pro…</main>;
   if (planError || !plan) return <main className="mx-auto max-w-5xl px-4 py-10 text-sm text-[var(--wh-text)]" role="alert">Property Partner Pro could not load. <button type="button" onClick={() => void loadPlan()} className="ml-2 font-semibold text-violet-500">Try again</button></main>;
@@ -162,7 +192,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
         {data?.stays_limited && <p className="mt-3 text-xs text-amber-700 dark:text-amber-200">Only the first 1,000 stays are shown. Open the property record for its complete schedule.</p>}
         {!stays.length ? <Empty>No eligible stays in this period.</Empty> : <div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">{stays.map(row => <article key={`${row.kind}:${row.booking_id}`} className="flex flex-wrap items-center justify-between gap-3 py-4"><div className="min-w-0"><p className="truncate text-sm font-semibold">{row.asset_title}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{date(row.check_in)} → {date(row.check_out)} · {row.kind === 'hotel' ? 'Hotel' : 'Home'}</p></div><span className="rounded-full bg-violet-400/10 px-3 py-1 text-xs capitalize text-violet-700 dark:text-violet-200">{row.status.replaceAll('_',' ')}</span></article>)}</div>}
       </section>}
-      {section === 'income' && <section aria-label="Portfolio income" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Available earnings</h2><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Net earnings released to you. Protected and disputed money is excluded.</p></div><button type="button" onClick={exportIncome} className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-sm font-semibold"><Download size={16}/> Download CSV</button></div><div className="mt-5 rounded-2xl bg-[var(--wh-surface)] p-5"><p className="text-xs text-[var(--wh-text-secondary)]">Released in the last 12 months</p><p className="mt-2 text-3xl font-semibold tracking-tight">{money(periods.reduce((sum,row)=>sum+row.net_amount,0))}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{periods.reduce((sum,row)=>sum+row.earnings,0)} earning entries</p></div>{earningMonths.length ? <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{earningMonths.map(row => <div key={row.month} className="flex items-center justify-between gap-3 py-3 text-sm"><div><span>{new Date(`${row.month}-01T12:00:00`).toLocaleDateString('en-NG',{month:'long',year:'numeric'})}</span><p className="text-xs text-[var(--wh-text-secondary)]">{row.earnings} earning entries</p></div><strong>{money(row.net_amount)}</strong></div>)}</div> : <Empty>No released earnings in the last 12 months. Your report will appear here when earnings become available.</Empty>}</section>}
+      {section === 'income' && <section aria-label="Portfolio income" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Available earnings</h2><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Net earnings released to you. Protected and disputed money is excluded.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={exportIncome} className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-sm font-semibold"><Download size={16}/> CSV</button><button type="button" onClick={() => void exportStatement()} className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-sm font-semibold"><Download size={16}/> Statement PDF</button></div></div><div className="mt-5 rounded-2xl bg-[var(--wh-surface)] p-5"><p className="text-xs text-[var(--wh-text-secondary)]">Released in the last 12 months</p><p className="mt-2 text-3xl font-semibold tracking-tight">{money(periods.reduce((sum,row)=>sum+row.net_amount,0))}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{periods.reduce((sum,row)=>sum+row.earnings,0)} earning entries</p></div>{earningMonths.length ? <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{earningMonths.map(row => <div key={row.month} className="flex items-center justify-between gap-3 py-3 text-sm"><div><span>{new Date(`${row.month}-01T12:00:00`).toLocaleDateString('en-NG',{month:'long',year:'numeric'})}</span><p className="text-xs text-[var(--wh-text-secondary)]">{row.earnings} earning entries</p></div><strong>{money(row.net_amount)}</strong></div>)}</div> : <Empty>No released earnings in the last 12 months. Your report will appear here when earnings become available.</Empty>}</section>}
       {section === 'tasks' && <section aria-label="Property tasks" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 sm:p-6"><h2 className="text-lg font-semibold">Maintenance and turnover</h2><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Track work for places you own. These tasks do not assign staff or change booking availability.</p>
         {selectedAsset ? <form onSubmit={event => { event.preventDefault(); void saveTask(); }} className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto_auto]"><input aria-label="Task title" value={title} onChange={event => setTitle(event.target.value.slice(0,160))} placeholder="e.g. Inspect room after checkout" className="min-h-12 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base outline-none focus:border-violet-400"/><input aria-label="Due date" type="date" value={dueOn} onChange={event => setDueOn(event.target.value)} className="min-h-12 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base"/><button type="submit" disabled={busy || title.trim().length < 3} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40"><Plus size={17}/> Add task</button></form> : <p className="mt-4 text-xs text-[var(--wh-text-secondary)]">Choose one property to add a task.</p>}
         {data?.tasks_limited && <p className="mt-3 text-xs text-amber-700 dark:text-amber-200">Only the first 200 tasks are shown.</p>}
