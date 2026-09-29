@@ -20,7 +20,7 @@ export default function BookingDateField({ label, value, min, max, onChange, con
   label: string; value: string; min?: string; max?: string; context?: string; onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const pointer = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const pointer = useRef<{ x: number; y: number; top: number; at: number; moved: boolean } | null>(null);
   const dialogRef = useDialogInteraction(() => setOpen(false), open);
   const selected = parseCalendarDate(value);
   const first = parseCalendarDate(min);
@@ -46,13 +46,15 @@ export default function BookingDateField({ label, value, min, max, onChange, con
   return <div className="min-w-0">
     <span className="mb-2 block text-xs text-[#A1A1AA]">{label}</span>
     <button type="button" aria-label={label} aria-haspopup="dialog" aria-expanded={open} disabled={unavailable}
-      onPointerDown={event => { pointer.current = { x: event.clientX, y: event.clientY, moved: false }; }}
+      onPointerDown={event => { pointer.current = { x: event.clientX, y: event.clientY, top: event.currentTarget.getBoundingClientRect().top, at: performance.now(), moved: false }; }}
       onPointerMove={event => { if (pointer.current && Math.hypot(event.clientX - pointer.current.x, event.clientY - pointer.current.y) > 8) pointer.current.moved = true; }}
       onPointerCancel={() => { if (pointer.current) pointer.current.moved = true; }}
       onClick={event => {
         // Some mobile browsers dispatch a click after a finger slides across a
         // control while scrolling. Only a deliberate tap may open the calendar.
-        const dragged = event.detail !== 0 && pointer.current?.moved;
+        const gesture = pointer.current;
+        const dragged = Boolean(gesture && performance.now() - gesture.at < 1000 &&
+          (gesture.moved || Math.abs(event.currentTarget.getBoundingClientRect().top - gesture.top) > 4));
         pointer.current = null;
         if (dragged) { event.preventDefault(); return; }
         setOpen(true);
