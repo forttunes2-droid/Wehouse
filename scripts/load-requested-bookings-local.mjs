@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { Agent, request as httpRequest } from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 
@@ -14,6 +15,10 @@ assert.ok(['127.0.0.1','localhost'].includes(origin.hostname),'Local stack requi
 const anon = status.ANON_KEY || status.anon_key || status.PUBLISHABLE_KEY || status.publishable_key;
 const secret = status.SERVICE_ROLE_KEY || status.service_role_key;
 assert.ok(anon && secret);
+// All 3,000 journeys begin together. Reuse a bounded transport pool so the
+// load generator does not exhaust its own ephemeral sockets before the local
+// gateway has a chance to handle the work.
+const rpcAgent = new Agent({ keepAlive: true, maxSockets: 300, maxFreeSockets: 100 });
 const admin = createClient(origin.href,secret,{auth:{persistSession:false,autoRefreshToken:false}});
 const suffix = randomBytes(5).toString('hex');
 const actors = [];
@@ -25,14 +30,26 @@ function save() { writeFileSync('test-results/requested-bookings.json',JSON.stri
 function future(offset) { const d=new Date(); return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+offset)).toISOString().slice(0,10); }
 function percentile(values,p) { return values.length ? Math.round(values[Math.ceil(values.length*p)-1]*10)/10 : null; }
 async function rpc(actor,name,body) {
-  const response = await fetch(new URL(`/rest/v1/rpc/${name}`,origin),{
-    method:'POST',headers:{apikey:anon,authorization:`Bearer ${actor.token}`,'content-type':'application/json'},
-    body:JSON.stringify(body),signal:AbortSignal.timeout(30000),
+  const payload=JSON.stringify(body);
+  return await new Promise((resolve,reject)=>{
+    const request=httpRequest(new URL(`/rest/v1/rpc/${name}`,origin),{
+      method:'POST',agent:rpcAgent,headers:{apikey:anon,authorization:`Bearer ${actor.token}`,
+        'content-type':'application/json','content-length':Buffer.byteLength(payload)},
+    },response=>{
+      let text=''; response.setEncoding('utf8');
+      response.on('data',chunk=>{text+=chunk;});
+      response.on('end',()=>{
+        let data; try {data=JSON.parse(text);} catch {data=text.slice(0,180);}
+        if (response.statusCode<200 || response.statusCode>=300)
+          reject(new Error(`${response.statusCode}:${String(data?.message || data?.error || data).slice(0,150)}`));
+        else resolve(data);
+      });
+      response.on('error',reject);
+    });
+    request.setTimeout(30000,()=>request.destroy(new Error('RPC response timeout')));
+    request.on('error',error=>reject(new Error(`${error.message}${error.code ? ` (${error.code})` : ''}`)));
+    request.end(payload);
   });
-  const text = await response.text(); let data;
-  try { data=JSON.parse(text); } catch { data=text.slice(0,180); }
-  if (!response.ok) throw new Error(`${response.status}:${String(data?.message || data?.error || data).slice(0,150)}`);
-  return data;
 }
 async function provision(i) {
   const email=`requested-${suffix}-${i}@example.invalid`,password=randomBytes(24).toString('base64url');
@@ -110,5 +127,6 @@ try {
   report.passed=report.stages.every(x=>x.errors===0)&&report.contention.accepted===10&&report.contention.inventory_denied===10&&report.contention.unexpected_errors.length===0&&report.invariants.unique_ids&&report.invariants.within_capacity;
 } catch(error) {report.fatal_error=String(error?.message || error).slice(0,300);report.passed=false;}
 report.finished_at=new Date().toISOString();save();
+rpcAgent.destroy();
 console.log(JSON.stringify({stages:report.stages,contention:report.contention,invariants:report.invariants,fatal_error:report.fatal_error,passed:report.passed}));
 if (!report.passed) process.exitCode=1;
