@@ -51,9 +51,13 @@ export default function WorkspaceFrameV2({
   const accountInMore = hasOverflow && Boolean(onAccount);
   const accountDirect = !hasOverflow && Boolean(onAccount);
 
-  const scrollSurface = useCallback(() =>
-    frameRef.current?.closest<HTMLElement>(".scrollable-content")
-      || document.scrollingElement as HTMLElement | null, []);
+  const scrollSurface = useCallback(() => {
+    const container = frameRef.current?.closest<HTMLElement>(".scrollable-content");
+    // The App shell can expand with its contents on phones. In that case the
+    // document is the real scroller even though the wrapper has overflow-y-auto.
+    return container && container.scrollHeight > container.clientHeight + 1
+      ? container : document.scrollingElement as HTMLElement | null;
+  }, []);
 
   useLayoutEffect(() => {
     if (previousTab.current === active) return;

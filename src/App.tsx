@@ -72,6 +72,13 @@ type IncomingMessageRow = {
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
 
+function pageScrollSurface(container: HTMLElement | null): HTMLElement | null {
+  // The wrapper has overflow-y-auto, but on phones it can grow with the page.
+  // Remember the document's position when it is the element actually scrolling.
+  return container && container.scrollHeight > container.clientHeight + 1
+    ? container : document.scrollingElement as HTMLElement | null;
+}
+
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
 const FollowedSearches = lazy(() => import("@/pages/FollowedSearches"));
@@ -605,7 +612,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       window.dispatchEvent(new Event("wehouse:navigation"));
       pageScrollPositionsRef.current.set(
         navPage,
-        pageScrollRef.current?.scrollTop || 0,
+        pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
       const safe = normalizePageForRole(
         userRole,
@@ -640,7 +647,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       );
       pageScrollPositionsRef.current.set(
         navPage,
-        pageScrollRef.current?.scrollTop || 0,
+        pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
       if (safe !== s.page || s.workspace !== activeWorkspace)
         window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
@@ -656,9 +663,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (pageScrollRef.current)
-        pageScrollRef.current.scrollTop =
-          pageScrollPositionsRef.current.get(navPage) || 0;
+      const surface = pageScrollSurface(pageScrollRef.current);
+      if (surface) surface.scrollTop = pageScrollPositionsRef.current.get(navPage) || 0;
     });
     return () => cancelAnimationFrame(frame);
   }, [navPage]);
@@ -1055,7 +1061,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       // A second listing is a new screen, even when the route name stays
       // "detail". Do not restore the previous listing's scroll position.
       pageScrollPositionsRef.current.set("detail", 0);
-      if (pageScrollRef.current) pageScrollRef.current.scrollTop = 0;
+      const surface = pageScrollSurface(pageScrollRef.current);
+      if (surface) surface.scrollTop = 0;
     },
     [handleSetNavPage],
   );

@@ -13,9 +13,9 @@ root.render(<AccountCenter profile={profile} workspaceAccess={access} activeWork
   onSwitchWorkspace={() => {}} onGoToPrivacy={() => {}} onGoToSaved={() => {}}
   onGoToSecurity={() => {}} onGoToProfileEdit={() => {}} />);
 
-function MotionWorkspace() {
+function MotionWorkspace({ bounded = true }: { bounded?: boolean }) {
   const [active,setActive]=useState('overview');
-  return <div className="scrollable-content h-[844px] overflow-y-auto" data-test-scroll>
+  return <div className={`scrollable-content overflow-y-auto ${bounded ? 'h-[844px]' : 'min-h-[100dvh]'}`} data-test-scroll>
     <WorkspaceFrameV2 label="WeHouse" title="Property Partner" items={[
       {id:'overview',label:'Overview'},{id:'properties',label:'Properties'},
     ]} active={active} setActive={setActive} onLogout={() => {}}>
@@ -27,3 +27,4 @@ function MotionWorkspace() {
   </div>;
 }
 (window as any).__showWorkspaceFixture = () => root.render(<MotionWorkspace />);
+(window as any).__showDocumentWorkspaceFixture = () => root.render(<MotionWorkspace key="document" bounded={false} />);

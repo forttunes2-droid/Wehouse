@@ -420,7 +420,7 @@ export default function AccountCenter({
         <AccountSection>
           <Toggle
             label="Email notifications"
-            detail="Allow WeHouse to send important account and service emails."
+            detail="Account, booking and service updates by email."
             value={emailNotifs}
             disabled={saving}
             onChange={(value) => {
@@ -430,7 +430,7 @@ export default function AccountCenter({
           />
           <Toggle
             label="In-app alerts"
-            detail="Show message and update alerts while WeHouse is open. Alerts from another workspace can take you there. This does not send phone notifications when the app is closed."
+            detail="Messages and activity from all your workspaces while WeHouse is open."
             value={pushNotifs}
             disabled={saving}
             onChange={(value) => {
@@ -440,7 +440,7 @@ export default function AccountCenter({
             }}
           />
         </AccountSection>
-        <p className="px-1 text-xs leading-5 text-[#8B92A3]">In-app alerts include a short, soft chime while WeHouse is open. Your device sound settings apply. Activity and unread badges remain available when you switch workspaces.</p>
+        <p className="px-1 text-xs leading-5 text-[#A0A7B6]">A soft chime plays when sound is allowed by your device. Background phone notifications are not available yet. Unread badges remain when you switch workspaces.</p>
         <p className="px-1 text-xs text-[#9AA2B3]">
           Changes save automatically.
         </p>
@@ -466,8 +466,6 @@ export default function AccountCenter({
     anyPublished &&
     (!published.privacy || legal.privacy_accepted) &&
     (!published.terms || legal.terms_accepted);
-
-  const workspaceDetail = switchableWorkspaces.map(item => item.label).join(' · ');
 
   return (
     <AccountShell
@@ -533,7 +531,7 @@ export default function AccountCenter({
         <AccountSection>
           <AccountRow
             title="Switch workspace"
-            detail={`Current: ${workspaceLabel(activeWorkspace)} · ${workspaceDetail}${otherWorkspaceUnread ? ` · ${otherWorkspaceUnread} unread in other workspaces` : ''}`}
+            detail={`${switchableWorkspaces.length} available · Current: ${workspaceLabel(activeWorkspace)}${otherWorkspaceUnread ? ` · ${otherWorkspaceUnread} unread elsewhere` : ''}`}
             onClick={() => setPanel("workspaces")}
             icon={<ToolsIcon />}
           />

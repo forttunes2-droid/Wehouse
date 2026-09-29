@@ -28,15 +28,28 @@ async def main():
   tabs=page.locator('nav.fixed')
   await expect(page.get_by_role('heading',name='Overview',exact=True).last).to_be_visible()
   await surface.evaluate('(node)=>node.scrollTop=620')
-  await tabs.get_by_role('button',name='Properties').click()
+  print('BOUNDED_BEFORE='+str(await surface.evaluate('(node)=>node.scrollTop')),flush=True)
+  await tabs.get_by_role('button',name='Properties').evaluate('(node)=>node.click()')
   await expect(page.locator('[data-test-stage="properties"]')).to_be_visible()
+  print('BOUNDED_PROPERTIES='+str(await surface.evaluate('(node)=>node.scrollTop')),flush=True)
   assert await surface.evaluate('(node)=>node.scrollTop')==0
   await surface.evaluate('(node)=>node.scrollTop=320')
-  await tabs.get_by_role('button',name='Overview').click()
+  print('BOUNDED_SECOND='+str(await surface.evaluate('(node)=>node.scrollTop')),flush=True)
+  await tabs.get_by_role('button',name='Overview').evaluate('(node)=>node.click()')
   await expect(page.locator('[data-test-stage="overview"]')).to_be_visible()
+  print('BOUNDED_RESTORED='+str(await surface.evaluate('(node)=>node.scrollTop')),flush=True)
   assert await surface.evaluate('(node)=>node.scrollTop')==620
-  await tabs.get_by_role('button',name='Overview').click()
+  await tabs.get_by_role('button',name='Overview').evaluate('(node)=>node.click()')
   assert await surface.evaluate('(node)=>node.scrollTop')==0
+  await page.evaluate('window.__showDocumentWorkspaceFixture()')
+  await expect(page.locator('[data-test-stage="overview"]')).to_be_visible()
+  await page.evaluate('window.scrollTo(0,620)')
+  assert await page.evaluate('document.scrollingElement.scrollTop')==620
+  await tabs.get_by_role('button',name='Properties').evaluate('(node)=>node.click()')
+  assert await page.evaluate('document.scrollingElement.scrollTop')==0
+  await page.evaluate('window.scrollTo(0,320)')
+  await tabs.get_by_role('button',name='Overview').evaluate('(node)=>node.click()')
+  assert await page.evaluate('document.scrollingElement.scrollTop')==620
   assert not errors,errors
   await browser.close()
 if __name__=='__main__':asyncio.run(main())
