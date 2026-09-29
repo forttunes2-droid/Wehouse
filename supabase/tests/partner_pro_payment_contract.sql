@@ -55,6 +55,7 @@ begin
 end $$;
 reset role;
 select set_config('request.jwt.claim.role','service_role',true);
+set local session_replication_role=origin;
 do $$
 declare p public.booking_payments; v jsonb; v_end timestamptz;
 begin

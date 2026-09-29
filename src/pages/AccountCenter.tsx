@@ -466,7 +466,7 @@ export default function AccountCenter({
         <div className="mt-6 grid gap-3 sm:grid-cols-3" role="group" aria-label="Choose appearance">
           {options.map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id}
             onClick={() => setAppearance(option.id)}
-            className={`group min-w-0 rounded-[24px] border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 ${appearance === option.id ? 'border-violet-500 bg-[var(--wh-accent-surface)]' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] hover:border-violet-400/50'}`}>
+            className={`group min-w-0 rounded-[24px] border p-3 text-left transition-[border-color,box-shadow] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 ${appearance === option.id ? 'border-violet-500 bg-[var(--wh-accent-surface)] shadow-[0_0_0_1px_rgba(96,53,206,.14)]' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] hover:border-violet-400/50'}`}>
             <span aria-hidden="true" className={`block h-28 overflow-hidden rounded-2xl border p-3 ${option.id === 'dark' ? 'border-[#32313f] bg-[#15141d]' : option.id === 'light' ? 'border-[#e4dfeb] bg-[#f7f4f8]' : 'border-[#bbb5ca] bg-gradient-to-r from-[#f7f4f8] from-50% to-[#15141d] to-50%'}`}>
               <span className={`block h-2 w-12 rounded-full ${option.id === 'dark' ? 'bg-[#8b6bd7]' : 'bg-[#6845b4]'}`} />
               <span className={`mt-4 block h-10 rounded-xl border p-2 ${option.id === 'dark' ? 'border-[#403d4c] bg-[#292731]' : 'border-[#e8e3ed] bg-white'}`}>

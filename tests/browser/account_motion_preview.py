@@ -30,6 +30,8 @@ async def main():
   await expect(page.get_by_role('heading',name='Appearance')).to_be_visible()
   await page.get_by_role('button',name=re.compile(r'^Light\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
+  await expect(page.get_by_role('button',name=re.compile(r'^Light\b'))).to_have_attribute('aria-pressed','true')
+  assert await page.get_by_role('button',name=re.compile(r'^Automatic\b')).evaluate('(node)=>getComputedStyle(node).backgroundColor')=='rgb(255, 255, 255)'
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='light'
   await page.screenshot(path=str(OUT/'account-appearance-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
