@@ -53,6 +53,7 @@ function WorkerShowcaseContent({
   const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [viewer, setViewer] = useState<Post | null>(null);
+  const [mediaFailed, setMediaFailed] = useState(false);
 
   const identity = useRef(profile.user_id); identity.current = profile.user_id;
   useEffect(() => {
@@ -75,10 +76,10 @@ function WorkerShowcaseContent({
     return () => { active = false; };
   }, [initialPostId, showcase.findPost]);
   async function openPost(post: Post) {
-    const worker = profile.user_id; setViewer(post);
+    const worker = profile.user_id; setMediaFailed(false); setViewer(post);
     if (post.url) return;
     try { const ready = await showcase.refreshPost(post); if (identity.current === worker) setViewer(current => current?.id === post.id ? ready : current); }
-    catch { toast.error("This work post could not be opened. Please try again."); }
+    catch { if (identity.current === worker) setMediaFailed(true); }
   }
 
   useEffect(
@@ -359,7 +360,8 @@ function WorkerShowcaseContent({
           position={workPosts.findIndex(post => post.id === viewer.id)} total={workPosts.length}
           onPrevious={workPosts.findIndex(post => post.id === viewer.id) > 0 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) - 1]) : undefined}
           onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
-          onRetry={async () => { const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
+          mediaError={mediaFailed}
+          onRetry={async () => { setMediaFailed(false); const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
           ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-white/10 bg-[#151820] p-2 shadow-lg"><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[#D7DCE6] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-300 disabled:opacity-40">Delete post</button></div></details>}
         />
       )}

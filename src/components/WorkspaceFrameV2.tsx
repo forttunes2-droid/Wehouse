@@ -84,9 +84,9 @@ export default function WorkspaceFrameV2({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {onAccount ? (
-                  <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[11px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
+                  <button onClick={goAccount} aria-label="Account" className={`${hasOverflow ? "flex" : "hidden"} min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 px-1 text-[11px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex`}>
                     <NavIcon id="account" />
-                    <span>Account</span>
+                    <span className="hidden sm:inline">Account</span>
                   </button>
                 ) : null}
               </div>

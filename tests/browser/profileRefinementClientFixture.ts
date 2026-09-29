@@ -40,7 +40,14 @@ export const supabase:any={
   if(name==='get_worker_marketplace_trust')return state.failTrust?bad():ok({reviewed:true,trusted:false,completed_jobs:7,rating:4.8,review_count:1});
   if(name==='get_public_worker_reviews')return state.failReviews?bad():ok([{id:'review-1',rating:5,comment:'Careful work and a tidy finish.',created_at:'2026-09-21T12:00:00Z',reviewer_name:'Ada Example',service_name:'Carpentry'}]);
   if(name==='get_worker_showcase_reactions')return ok([]);
-  if(name==='get_worker_showcase_post_comments')return state.failComments?bad():ok(state.comments.filter(row=>row.post_id===args.p_post_id));
+  if(name==='get_worker_showcase_post_comments_page'){
+    if(state.failComments)return bad();
+    const all=state.comments.filter(row=>row.post_id===args.p_post_id).reverse();
+    const offset=args.p_before_id?all.findIndex(row=>row.id===args.p_before_id)+1:0;
+    const rows=all.slice(offset,offset+(args.p_limit||30));
+    const last=rows.at(-1);
+    return ok({items:rows,total:all.length,has_more:offset+rows.length<all.length,next_cursor:last?{at:last.created_at,id:last.id}:null});
+  }
   if(name==='add_my_worker_showcase_comment'){state.comments.push({id:`comment-${state.comments.length}`,post_id:args.p_post_id,body:args.p_body,user_id:'viewer',created_at:'2026-09-24T12:00:00Z',display_name:'Ada Example',avatar_url:null});return ok(null);}
   if(name==='set_my_worker_showcase_reaction')return ok(args.p_emoji?{'♥':1}:{});
   if(name==='set_my_worker_work_post_hidden'){state.hidden=state.hidden.filter(id=>id!==args.p_post_id);if(args.p_hidden)state.hidden.push(args.p_post_id);return ok(null);}

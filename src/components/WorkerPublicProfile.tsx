@@ -9,7 +9,6 @@ import {
   workerRoleLabel,
 } from "@/lib/workerIdentity";
 import type { Profile } from "@/types";
-import { toast } from "sonner";
 import WorkerShowcaseGrid from "@/components/WorkerShowcaseGrid";
 import { useWorkerShowcase, type ShowcasePost } from "@/hooks/useWorkerShowcase";
 import { withTimeout } from "@/lib/withTimeout";
@@ -71,7 +70,7 @@ function WorkerProfileContent({
 }: Props) {
   const privateConversationMode = !showBookingAction && Boolean(communicationActions);
   const showcase = useWorkerShowcase(worker.user_id, false, !privateConversationMode);
-  const [viewer, setViewer] = useState<Post | null>(null), [section, setSection] = useState<"work" | "reviews">("work");
+  const [viewer, setViewer] = useState<Post | null>(null), [mediaFailed, setMediaFailed] = useState(false), [section, setSection] = useState<"work" | "reviews">("work");
   const [trust, setTrust] = useState<Trust | null>(null), [reviews, setReviews] = useState<PublicReview[]>([]);
   const [reviewLoading, setReviewLoading] = useState(true), [reviewError, setReviewError] = useState(""), [trustError, setTrustError] = useState("");
   const [attempt, setAttempt] = useState(0), [postReactions, setPostReactions] = useState<Record<string, { counts: Record<string, number>; mine: string | null }>>({});
@@ -79,10 +78,10 @@ function WorkerProfileContent({
   const openSequence = useRef(0);
   async function openPost(post: Post) {
     const request = ++openSequence.current, identity = worker.user_id;
-    setViewer(post);
+    setMediaFailed(false); setViewer(post);
     if (post.url) return;
     try { const ready = await showcase.refreshPost(post); if (request === openSequence.current && activeWorker.current === identity) setViewer(ready); }
-    catch { if (request === openSequence.current) toast.error("This work post could not be opened. Please try again."); }
+    catch { if (request === openSequence.current && activeWorker.current === identity) setMediaFailed(true); }
   }
   useEffect(() => { setViewer(null); setSection("work"); openSequence.current++; }, [worker.user_id, privateConversationMode]);
   useEffect(() => {
@@ -167,13 +166,14 @@ function WorkerProfileContent({
           workerName={displayName}
           workerAvatar={avatarUrl}
           readOnly={previewMode}
+          mediaError={mediaFailed}
           liked={Boolean(postReactions[viewer.id]?.mine)}
           likeCount={reactionTotal(postReactions[viewer.id]?.counts)}
           onClose={() => { openSequence.current++; setViewer(null); }}
           position={workPosts.findIndex(post => post.id === viewer.id)} total={workPosts.length}
           onPrevious={workPosts.findIndex(post => post.id === viewer.id) > 0 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) - 1]) : undefined}
           onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
-          onRetry={async () => { const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
+          onRetry={async () => { setMediaFailed(false); const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
           onOpenProfile={() => setViewer(null)}
           onLike={previewMode ? undefined : async () => {
             const previous = postReactions[viewer.id]?.mine;

@@ -110,4 +110,5 @@ try {
   report.passed=report.stages.every(x=>x.errors===0)&&report.contention.accepted===10&&report.contention.inventory_denied===10&&report.contention.unexpected_errors.length===0&&report.invariants.unique_ids&&report.invariants.within_capacity;
 } catch(error) {report.fatal_error=String(error?.message || error).slice(0,300);report.passed=false;}
 report.finished_at=new Date().toISOString();save();
+console.log(JSON.stringify({stages:report.stages,contention:report.contention,invariants:report.invariants,fatal_error:report.fatal_error,passed:report.passed}));
 if (!report.passed) process.exitCode=1;
