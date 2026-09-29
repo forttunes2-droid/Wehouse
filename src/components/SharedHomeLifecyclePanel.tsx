@@ -24,12 +24,12 @@ export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation
       .finally(() => { if (current === generation.current) setLoading(false); });
     return () => { generation.current += 1; };
   }, [profileId, attempt]);
-  if (loading && !groups.length) return <p role="status" className="py-5 text-sm text-[#AAA3B3]">Loading shared payments…</p>;
+  if (loading && !groups.length) return <p role="status" className="py-5 text-sm text-[var(--wh-text-secondary)]">Loading shared payments…</p>;
   if (!groups.length && !error) return null;
   return <section className="space-y-3">
-    <header><h2 className="text-base font-semibold">Shared homes</h2><p className="mt-2 text-sm leading-6 text-[#AAA3B3]">Review the people, invitation and individual payment shares together.</p></header>
+    <header><h2 className="text-base font-semibold">Shared homes</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Review the people, invitation and individual payment shares together.</p></header>
     {error && <div role="alert" className="text-sm leading-6 text-amber-200"><p>{error}</p><button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 font-semibold underline">Try again</button></div>}
-    <div className="divide-y divide-white/10 border-y border-white/10">{groups.map(group => {
+    <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{groups.map(group => {
       const mine = group.members.find(member => member.user_id === profileId);
       const lane = sharedHousingLane(group, profileId);
       return <article key={group.id} className="py-4">
@@ -37,7 +37,7 @@ export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation
           {group.listing?.image && <img src={group.listing.image} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-xl object-cover" />}
           <span className="min-w-0 flex-1"><span className="block text-sm text-violet-300">{group.product_type === 'short_let' ? 'Short Let' : 'Long Let'} · {lane === 'action' ? 'Needs your action' : lane === 'history' ? 'Payment history' : 'Shared reservation'}</span>
             <span className="mt-1 block break-words text-base font-semibold">{group.listing?.title || 'Shared home'}</span>
-            <span className="mt-1 block break-words text-sm leading-6 text-[#AAA3B3]">With {group.members.filter(member => member.user_id !== profileId).map(member => member.name).join(', ') || 'your connections'}</span>
+            <span className="mt-1 block break-words text-sm leading-6 text-[var(--wh-text-secondary)]">With {group.members.filter(member => member.user_id !== profileId).map(member => member.name).join(', ') || 'your connections'}</span>
             <span className="mt-2 block text-sm">Your share: ₦{Number(mine?.share_amount || 0).toLocaleString()} · {mine?.payment_status === 'paid' ? 'Paid' : 'View payment details'}</span>
           </span><span aria-hidden="true" className="text-violet-300">›</span>
         </button>

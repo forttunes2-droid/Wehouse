@@ -237,20 +237,20 @@ function WorkerShowcaseContent({
       {preparingVideo && <p role="status" className="text-sm text-violet-200">Preparing a smaller video for preview…</p>}
 
       {file && (
-        <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[#08090D]">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[.08] px-3">
+        <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[var(--wh-bg)]">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3">
             <button
               type="button"
               onClick={clearComposer}
               disabled={busy}
-              className="grid h-11 w-11 place-items-center rounded-full text-xl text-[#A8ADBA]"
+              className="grid h-11 w-11 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)]"
               aria-label="Close preview"
             >
               ×
             </button>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">New work post</p>
-              <p className="text-sm text-[#687080]">
+              <p className="text-sm text-[var(--wh-text-muted)]">
                 Preview before publishing
               </p>
             </div>
@@ -280,11 +280,11 @@ function WorkerShowcaseContent({
                   type="button"
                   onClick={() => input.current?.click()}
                   disabled={busy}
-                  className="rounded-full border border-white/[.1] px-4 py-2 text-sm font-semibold"
+                  className="rounded-full border border-[var(--wh-border-subtle)] px-4 py-2 text-sm font-semibold"
                 >
                   Replace media
                 </button>
-                <span className="self-center truncate text-sm text-[#6D7484]">
+                <span className="self-center truncate text-sm text-[var(--wh-text-muted)]">
                   {file.name}
                 </span>
               </div>
@@ -296,15 +296,15 @@ function WorkerShowcaseContent({
                 }
                 rows={3}
                 placeholder="Describe this work"
-                className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
+                className="w-full resize-none border-b border-[var(--wh-border-subtle)] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
               />
-              {jobsError && <div role="alert" className="text-sm text-[#A7ADBA]">Completed jobs could not be loaded. <button type="button" onClick={() => setJobsRetry(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></div>}
+              {jobsError && <div role="alert" className="text-sm text-[var(--wh-text-secondary)]">Completed jobs could not be loaded. <button type="button" onClick={() => setJobsRetry(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></div>}
               <WeHouseChoice
                 aria-label="Link completed job"
                 value={bookingId}
                 disabled={busy}
                 onChange={(event) => setBookingId(event.target.value)}
-                className="h-12 w-full border-b border-white/[.1] bg-[#08090D] text-xs outline-none disabled:opacity-50"
+                className="h-12 w-full border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] text-xs outline-none disabled:opacity-50"
               >
                 <option value="">Not linked to a completed WeHouse job</option>
                 {jobs.map((job) => (
@@ -322,13 +322,13 @@ function WorkerShowcaseContent({
                       <p className="text-sm font-semibold text-violet-200">
                         {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading showcase media" : "Publishing your showcase"}
                       </p>
-                      <p className="mt-1 text-xs text-[#777E8E]">
+                      <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                         {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Saving your post."}
                       </p>
                     </div>
                     {publishStage === "uploading" && <span className="text-xs font-bold text-violet-200">{uploadProgress}%</span>}
                   </div>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--wh-interactive)]">
                     <div
                       className={`h-full rounded-full bg-violet-500 transition-[width] ${publishStage === "uploading" ? "" : "w-1/3 animate-pulse"}`}
                       style={publishStage === "uploading" ? { width: `${uploadProgress}%` } : undefined}
@@ -342,11 +342,11 @@ function WorkerShowcaseContent({
       )}
 
       <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-[#A7ADBA]">{posts.length} {posts.length === 1 ? "post" : "posts"}</p>
+        <p className="text-sm text-[var(--wh-text-secondary)]">{posts.length} {posts.length === 1 ? "post" : "posts"}</p>
         <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25" aria-label="Add work">Add work</button>
       </div>
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Post visibility">
-        {([{ value: 'all', label: 'All' }, { value: 'visible', label: 'Published' }, { value: 'hidden', label: 'Hidden' }] as const).map(option => <button key={option.value} type="button" role="tab" aria-selected={visibility === option.value} onClick={() => setVisibility(option.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${visibility === option.value ? 'bg-violet-500 text-white' : 'border border-white/10 bg-[#151820] text-[#B8BECC]'}`}>{option.label}</button>)}
+        {([{ value: 'all', label: 'All' }, { value: 'visible', label: 'Published' }, { value: 'hidden', label: 'Hidden' }] as const).map(option => <button key={option.value} type="button" role="tab" aria-selected={visibility === option.value} onClick={() => setVisibility(option.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${visibility === option.value ? 'bg-violet-500 text-white' : 'border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]'}`}>{option.label}</button>)}
       </div>
       <WorkerShowcaseGrid owner posts={workPosts} loading={loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void load(true)} />
 
@@ -362,7 +362,7 @@ function WorkerShowcaseContent({
           onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
           mediaError={mediaFailed}
           onRetry={async () => { setMediaFailed(false); const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
-          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-white/10 bg-[#151820] p-2 shadow-lg"><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[#D7DCE6] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-300 disabled:opacity-40">Delete post</button></div></details>}
+          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 shadow-lg"><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[#D7DCE6] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-300 disabled:opacity-40">Delete post</button></div></details>}
         />
       )}
       <ConfirmDialog {...dialogProps} />
@@ -373,5 +373,5 @@ function WorkerShowcaseContent({
 function ShowcaseComposer({ onClose, busy, children }: { onClose: () => void; busy: boolean; children: React.ReactNode }) {
   const dismiss = useRecordScreenBack(() => { if (!busy) onClose(); });
   const ref = useDialogInteraction(dismiss);
-  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="New work post" className="fixed inset-0 z-[100210] bg-[#08090D]">{children}</div>, document.body);
+  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="New work post" className="fixed inset-0 z-[100210] bg-[var(--wh-bg)]">{children}</div>, document.body);
 }

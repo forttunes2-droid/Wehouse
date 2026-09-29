@@ -150,7 +150,7 @@ export default function PropertyPipelineWorkspace({
       <main className="absolute inset-0 overflow-y-auto p-5">
         <button type="button" onClick={onExitRecord} aria-label="Close property" className="min-h-11 text-sm font-semibold text-violet-300">← Back</button>
         <h2 className="mt-4 text-xl font-semibold">Property record</h2>
-        {loading ? <p role="status" className="mt-5 text-sm text-[#A1A7B4]">Loading property record…</p> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[#C0C4D0]">
+        {loading ? <p role="status" className="mt-5 text-sm text-[var(--wh-text-secondary)]">Loading property record…</p> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
           <p>{loadError ? "The property record could not be loaded. Please try again." : "This property is no longer available in your work coverage."}</p>
           <button type="button" onClick={() => { openedTarget.current = null; void load(); }} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
         </div>}
@@ -169,7 +169,7 @@ export default function PropertyPipelineWorkspace({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-bold">Property records</h3>
-          <p className="mt-1 text-[10px] text-[#707386]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             Each property stays in one record from submission through
             publication.
           </p>
@@ -177,17 +177,17 @@ export default function PropertyPipelineWorkspace({
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="shrink-0 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[9px] font-semibold text-[#8D92A2] disabled:opacity-40"
+          className="shrink-0 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[9px] font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40"
         >
           Refresh
         </button>
       </div>
       <div className="flex items-center justify-between gap-3 border-y border-white/[0.07] py-3">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-[#686F80]">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
             Show
           </p>
-          <p className="mt-1 text-[9px] text-[#555C6D]">
+          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
             {loadError ? "Unavailable" : `${shown.length} ${shown.length === 1 ? "record" : "records"}`}
           </p>
         </div>
@@ -204,7 +204,7 @@ export default function PropertyPipelineWorkspace({
       {loading ? (
         <Loading />
       ) : loadError ? (
-        <div role="alert" className="py-8 text-sm text-[#A1A1AA]">
+        <div role="alert" className="py-8 text-sm text-[var(--wh-text-secondary)]">
           <p>We couldn’t load your properties. Your records have not been removed.</p>
           <button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Try again</button>
         </div>
@@ -235,18 +235,18 @@ export default function PropertyPipelineWorkspace({
                 <p className="truncate text-sm font-semibold">
                   {propertyRecordTitle(r)}
                 </p>
-                <p className="mt-1 truncate text-[9px] text-[#6D7182]">
+                <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                   {r.property_city}, {r.property_state} ·{" "}
                   {String(r.property_type || "property").replace(/_/g, " ")}
                 </p>
-                <p className="mt-1 truncate text-[8px] text-[#555B6C]">
+                <p className="mt-1 truncate text-[8px] text-[var(--wh-text-muted)]">
                   {r.owner_name || r.owner_email || "Property Partner"} ·{" "}
                   {r.request_code}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Badge value={String(r.lifecycle_stage || "access_required")} />
-                <span className="text-[#5E6475]">›</span>
+                <span className="text-[var(--wh-text-muted)]">›</span>
               </div>
             </button>
           ))}
@@ -277,11 +277,11 @@ function Case({
     ["awaiting_review", "ready_to_prepare", "listing_prepared", "changes_requested"].includes(stage);
   return (
     <PropertyRecordDialog onClose={back}>
-      <main className="absolute inset-0 overflow-y-auto bg-[#0A0D14]">
-        <header className="sticky top-0 z-10 flex min-h-14 items-center gap-3 border-b border-white/[.07] bg-[#0A0D14]/95 px-4 backdrop-blur-xl">
+      <main className="absolute inset-0 overflow-y-auto bg-[var(--wh-surface)]">
+        <header className="sticky top-0 z-10 flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 px-4 backdrop-blur-xl">
           <button
             onClick={back}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-xl text-[#A0A5B4] active:bg-white/[.05]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)] active:bg-[var(--wh-interactive)]"
             aria-label="Close property"
           >
             ‹
@@ -290,7 +290,7 @@ function Case({
             <p className="truncate text-sm font-semibold">
               {propertyRecordTitle(row, "Property workflow")}
             </p>
-            <p className="truncate text-xs text-[#A1A7B4]">
+            <p className="truncate text-xs text-[var(--wh-text-secondary)]">
               {row.request_code} · {stageLabel(stage)}
             </p>
           </div>
@@ -319,7 +319,7 @@ function Case({
               <p className="text-xs font-semibold text-violet-300">
                 Inspection in progress
               </p>
-              <p className="mt-1 text-[10px] text-[#7A8091]">
+              <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">
                 {row.field_officer_name ||
                   "The assigned Field Operations member"}{" "}
                 handles the independent visit. Completion moves this property to
@@ -349,7 +349,7 @@ function Case({
               <p className="text-xs font-semibold text-amber-200">
                 {stageLabel(stage)}
               </p>
-              <p className="mt-1 text-[10px] leading-5 text-[#8B8290]">
+              <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
                 {row.rejection_reason ||
                   row.notes ||
                   "This submission is not moving forward until the recorded issue is resolved."}
@@ -396,9 +396,9 @@ function WeHouseManagementReview({ listingId }: { listingId: string }) {
   }
   return <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[.04] p-4">
     <h3 className="text-sm font-semibold">WeHouse management decision</h3>
-    <p className="mt-1 text-xs leading-5 text-[#A4ACBA]">Review the property and operational capacity before accepting guest responsibility. Bookings stay unavailable until accepted.</p>
-    <textarea value={reason} onChange={event => setReason(event.target.value)} rows={2} placeholder="Reason if declined" className="mt-3 w-full rounded-xl border border-white/10 bg-[#171923] p-3 text-xs outline-none" />
-    <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={busy} onClick={() => void decide(false)} className="min-h-11 rounded-xl border border-white/10 text-xs disabled:opacity-50">Decline</button><button type="button" disabled={busy} onClick={() => void decide(true)} className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">Accept management</button></div>
+    <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Review the property and operational capacity before accepting guest responsibility. Bookings stay unavailable until accepted.</p>
+    <textarea value={reason} onChange={event => setReason(event.target.value)} rows={2} placeholder="Reason if declined" className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none" />
+    <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={busy} onClick={() => void decide(false)} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] text-xs disabled:opacity-50">Decline</button><button type="button" disabled={busy} onClick={() => void decide(true)} className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">Accept management</button></div>
   </section>;
 }
 
@@ -429,22 +429,22 @@ function CreatorHotelRecord({
     })();
     return () => { active = false; };
   }, [hotelId, reloadKey]);
-  if (loading) return <p role="status" className="py-8 text-sm text-[#A1A7B4]">Loading hotel details…</p>;
-  if (!hotel) return <div role="alert" className="space-y-3 py-8 text-sm leading-6 text-[#C0C4D0]">
+  if (loading) return <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading hotel details…</p>;
+  if (!hotel) return <div role="alert" className="space-y-3 py-8 text-sm leading-6 text-[var(--wh-text-secondary)]">
     <p>The hotel record is unavailable or outside your work coverage.</p>
     <button type="button" onClick={() => setReloadKey(value => value + 1)} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
   </div>;
   const images = Array.isArray(hotel.images) ? hotel.images : [];
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden border-y border-white/[.07]">
+      <section className="overflow-hidden border-y border-[var(--wh-border-subtle)]">
         {images.length ? (
           <PropertyMediaCarousel
             images={images}
             title={hotel.name || "Hotel"}
           />
         ) : (
-          <div className="grid aspect-[16/9] place-items-center bg-white/[.025] text-sm text-[#A1A7B4]">
+          <div className="grid aspect-[16/9] place-items-center bg-[var(--wh-interactive)] text-sm text-[var(--wh-text-secondary)]">
             No hotel gallery
           </div>
         )}
@@ -459,7 +459,7 @@ function CreatorHotelRecord({
                   fallback.hotel_program?.name ||
                   fallback.property_address}
               </h2>
-              <p className="mt-1 text-sm text-[#A1A7B4]">
+              <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">
                 {locationLabel(hotel.address || fallback.property_address,
                   hotel.city || fallback.property_city,
                   hotel.state || fallback.property_state)}
@@ -468,7 +468,7 @@ function CreatorHotelRecord({
             <Badge value={hotel.status || "live"} />
           </div>
           {hotel.description && (
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#969BA9]">
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">
               {hotel.description}
             </p>
           )}
@@ -484,19 +484,19 @@ function CreatorHotelRecord({
               ))}
             </div>
           ) : null}
-          <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden border-y border-white/[.06] bg-white/[.06]">
-            <div className="bg-[#10131B] p-3">
+          <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden border-y border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]">
+            <div className="bg-[var(--wh-surface)] p-3">
               <p className="text-xl font-bold">{rooms.length}</p>
-              <p className="mt-1 text-sm text-[#A1A7B4]">Room types</p>
+              <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Room types</p>
             </div>
-            <div className="bg-[#10131B] p-3">
+            <div className="bg-[var(--wh-surface)] p-3">
               <p className="text-xl font-bold">
                 {rooms.reduce(
                   (sum, room) => sum + Number(room.total_rooms || 0),
                   0,
                 )}
               </p>
-              <p className="mt-1 text-sm text-[#A1A7B4]">
+              <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">
                 Rooms in inventory
               </p>
             </div>
@@ -506,12 +506,12 @@ function CreatorHotelRecord({
       <section>
         <div className="mb-3">
           <h3 className="text-base font-semibold">Room types</h3>
-          <p className="mt-1 text-sm text-[#A1A7B4]">
+          <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">
             Every room keeps its own public gallery, capacity, amenities, rate
             and inventory.
           </p>
         </div>
-        <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {rooms.map((room: any) => (
             <article key={room.room_id} className="py-5">
               {Array.isArray(room.images) && room.images.length ? (
@@ -523,20 +523,20 @@ function CreatorHotelRecord({
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
                   <h4 className="text-base font-semibold">{room.room_type}</h4>
-                  <p className="mt-1 text-sm text-[#A1A7B4]">
+                  <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">
                     {room.total_rooms} unit(s) · up to {room.max_guests} guests
                     {room.bed_type ? ` · ${room.bed_type}` : ""}
                   </p>
                 </div>
                 <p className="shrink-0 text-sm font-bold text-violet-200">
                   {money(room.price_per_night)}
-                  <span className="block text-right text-sm font-normal text-[#A1A7B4]">
+                  <span className="block text-right text-sm font-normal text-[var(--wh-text-secondary)]">
                     per night
                   </span>
                 </p>
               </div>
               {room.description && (
-                <p className="mt-3 text-sm leading-5 text-[#9297A5]">
+                <p className="mt-3 text-sm leading-5 text-[var(--wh-text-secondary)]">
                   {room.description}
                 </p>
               )}
@@ -545,7 +545,7 @@ function CreatorHotelRecord({
                   {room.amenities.map((item: string) => (
                     <span
                       key={item}
-                      className="rounded-full border border-white/[.07] px-2.5 py-1 text-sm text-[#A0A5B3]"
+                      className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-sm text-[var(--wh-text-secondary)]"
                     >
                       {item}
                     </span>
@@ -578,10 +578,10 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
           <h3 className="mt-1 text-base font-bold">
             {propertyRecordTitle(row)}
           </h3>
-          <p className="mt-1 text-[10px] text-[#6D7182]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             {row.property_city}, {row.property_state} · {row.request_code}
           </p>
-          <p className="mt-1 text-[10px] text-[#6D7182]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             Property Partner: {row.owner_name || row.owner_email}{" "}
             {row.owner_phone ? `· ${row.owner_phone}` : ""}
           </p>
@@ -600,7 +600,7 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
             />
           </div>
           {rooms.length > 0 && (
-            <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
+            <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {rooms.map((room: any, index: number) => (
                 <div key={`${room.name}-${index}`} className="py-4">
                   {room.media?.length ? (
@@ -614,7 +614,7 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
                       <p className="text-xs font-semibold">
                         {room.name || `Room ${index + 1}`}
                       </p>
-                      <p className="mt-1 text-[9px] text-[#707687]">
+                      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                         {room.inventory || 1} units · up to{" "}
                         {room.guest_capacity || 1} guests
                         {room.bed_type ? ` · ${room.bed_type}` : ""}
@@ -644,7 +644,7 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
         </div>
       )}
       {row.description && (
-        <p className="mt-4 rounded-xl bg-white/[0.025] p-3 text-[10px] leading-relaxed text-[#9699A8]">
+        <p className="mt-4 rounded-xl bg-white/[0.025] p-3 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
           {row.description}
         </p>
       )}
@@ -656,7 +656,7 @@ function PropertyLocation({ row }: { row: any }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <section className="flex items-center justify-between gap-4 border-y border-white/[.06] py-4">
+      <section className="flex items-center justify-between gap-4 border-y border-[var(--wh-border-subtle)] py-4">
         <div className="min-w-0">
           <p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">
             Verified visit location
@@ -664,14 +664,14 @@ function PropertyLocation({ row }: { row: any }) {
           <p className="mt-1 truncate text-xs font-semibold">
             {row.property_address}
           </p>
-          <p className="mt-1 text-[9px] text-[#6D7383]">
+          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
             {[row.property_city, row.property_state].filter(Boolean).join(", ")}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="shrink-0 rounded-full border border-white/[.09] px-4 py-2.5 text-[9px] font-semibold text-violet-200"
+          className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-4 py-2.5 text-[9px] font-semibold text-violet-200"
         >
           View map
         </button>
@@ -682,7 +682,7 @@ function PropertyLocation({ row }: { row: any }) {
           onClick={() => setOpen(false)}
         >
           <section
-            className="max-h-[90dvh] w-full overflow-y-auto rounded-t-[28px] border border-white/[.08] bg-[#10131B] p-4 sm:max-w-2xl sm:rounded-[28px]"
+            className="max-h-[90dvh] w-full overflow-y-auto rounded-t-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:max-w-2xl sm:rounded-[28px]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-4">
@@ -697,7 +697,7 @@ function PropertyLocation({ row }: { row: any }) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05]"
+                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)]"
                 aria-label="Close map"
               >
                 ×
@@ -814,7 +814,7 @@ function AccessReview({
             ? "Property Operations review required"
             : "Access evidence record"}
         </h3>
-        <p className="mt-1 text-[10px] text-[#73798A]">
+        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
           {reviewing ? (
             <>
               Confirm that code{" "}
@@ -898,7 +898,7 @@ function AccessReview({
           onClick={() => setCorrectionOpen(false)}
         >
           <section
-            className="w-full max-w-sm rounded-[28px] border border-white/[.09] bg-[#11141C] p-5"
+            className="w-full max-w-sm rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5"
             role="dialog"
             aria-modal="true"
             aria-label="Request access evidence correction"
@@ -908,7 +908,7 @@ function AccessReview({
               PROPERTY OPERATIONS
             </p>
             <h3 className="mt-2 text-lg font-bold">Request a new recording</h3>
-            <p className="mt-2 text-[10px] leading-5 text-[#858B9A]">
+            <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
               Tell the Property Partner exactly what must be corrected.
             </p>
             <textarea
@@ -917,12 +917,12 @@ function AccessReview({
               value={correction}
               onChange={(event) => setCorrection(event.target.value)}
               placeholder="Correction required"
-              className="mt-4 w-full resize-none rounded-2xl border border-white/[.09] bg-black/20 p-3 text-xs outline-none focus:border-violet-500/40"
+              className="mt-4 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-black/20 p-3 text-xs outline-none focus:border-violet-500/40"
             />
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => setCorrectionOpen(false)}
-                className="h-12 flex-1 rounded-full border border-white/[.09] text-xs font-semibold text-[#A1A6B3]"
+                className="h-12 flex-1 rounded-full border border-[var(--wh-border-subtle)] text-xs font-semibold text-[var(--wh-text-secondary)]"
               >
                 Cancel
               </button>
@@ -973,7 +973,7 @@ function Assign({ row, done }: { row: any; done: () => void }) {
   return (
     <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
       <h3 className="text-sm font-semibold">Assign independent inspection</h3>
-      <p className="mt-1 text-[10px] text-[#727789]">
+      <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
         The partner access recording is approved. Choose a Field Operations
         member in this property area.
       </p>
@@ -987,12 +987,12 @@ function Assign({ row, done }: { row: any; done: () => void }) {
             <button
               key={o.user_id}
               onClick={() => setPick(o.user_id)}
-              className={`w-full rounded-xl border p-3 text-left ${pick === o.user_id ? "border-violet-500 bg-violet-500/10" : "border-white/[0.06] bg-[#11151E]"}`}
+              className={`w-full rounded-xl border p-3 text-left ${pick === o.user_id ? "border-violet-500 bg-violet-500/10" : "border-white/[0.06] bg-[var(--wh-surface)]"}`}
             >
               <div className="flex justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold">{o.name}</p>
-                  <p className="mt-1 text-[9px] text-[#686D7F]">
+                  <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                     {o.assigned_lga}, {o.assigned_state} ·{" "}
                     {o.active_inspections} active
                   </p>
@@ -1098,8 +1098,8 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
         >
           ← Continue editing
         </button>
-        <div className="overflow-hidden rounded-[24px] bg-[#10131A]">
-          <div className="aspect-[16/10] bg-[#171B24]">
+        <div className="overflow-hidden rounded-[24px] bg-[var(--wh-surface)]">
+          <div className="aspect-[16/10] bg-[var(--wh-elevated)]">
             {photos[0] ? (
               <ListingMediaImage
                 reference={photos[0]}
@@ -1107,7 +1107,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="grid h-full place-items-center text-[10px] text-[#687083]">
+              <div className="grid h-full place-items-center text-[10px] text-[var(--wh-text-muted)]">
                 No property photo yet
               </div>
             )}
@@ -1134,10 +1134,10 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
                   ? " / night"
                   : " / year"}
             </p>
-            <p className="mt-3 whitespace-pre-wrap text-[10px] leading-5 text-[#8A90A0]">
+            <p className="mt-3 whitespace-pre-wrap text-[10px] leading-5 text-[var(--wh-text-secondary)]">
               {description || "No public description yet."}
             </p>
-            <div className="mt-3 flex gap-2 text-[9px] text-[#777D8E]">
+            <div className="mt-3 flex gap-2 text-[9px] text-[var(--wh-text-muted)]">
               <span>{row.bedrooms || 0} bedrooms</span>
               <span>·</span>
               <span>{row.bathrooms || 0} bathrooms</span>
@@ -1158,10 +1158,10 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
       </section>
     );
   return (
-    <section className="space-y-4 border-y border-white/[.06] py-4">
+    <section className="space-y-4 border-y border-[var(--wh-border-subtle)] py-4">
       <div>
         <h3 className="text-sm font-semibold">Prepare listing details</h3>
-        <p className="mt-1 text-[9px] leading-5 text-[#777C8E]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           Property Operations may write the public description and apartment
           title. Rent, stay type, deposit, rooms, capacity and amenities come
           from the accepted submission and cannot be changed here.
@@ -1183,7 +1183,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Public listing title"
-          className="h-11 w-full border-b border-white/[.08] bg-transparent text-sm outline-none"
+          className="h-11 w-full border-b border-[var(--wh-border-subtle)] bg-transparent text-sm outline-none"
         />
       )}
       <ReadOnlyFact
@@ -1195,16 +1195,16 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
         onChange={(e) => setDescription(e.target.value)}
         rows={5}
         placeholder="Public description"
-        className="w-full resize-none border-b border-white/[.08] bg-transparent py-2 text-sm outline-none"
+        className="w-full resize-none border-b border-[var(--wh-border-subtle)] bg-transparent py-2 text-sm outline-none"
       />
-      <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-3">
+      <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
         <p className="text-[9px] font-semibold">Submitted image pool</p>
-        <p className="mt-1 text-[9px] text-[#73798A]">
+        <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
           {(row.photo_urls || []).length} Property Partner ·{" "}
           {fieldPhotos === null ? "loading…" : fieldPhotos.length} Field
           Operations
         </p>
-        <p className="mt-1 text-[8px] leading-4 text-[#5F6677]">
+        <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
           These sources stay separate in final review so Admin or Creator can
           see who supplied every photo before selecting it.
         </p>
@@ -1230,11 +1230,11 @@ function HotelProgramSummary({ program }: { program: any }) {
       <p className="text-[10px] font-semibold text-violet-200">
         Submitted hotel programme
       </p>
-      <p className="mt-1 text-[9px] text-[#7D8393]">
+      <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
         {rooms.length} room type(s) · {(program?.amenities || []).length} hotel
         amenity item(s). Preparing creates these room types automatically.
       </p>
-      <div className="mt-2 divide-y divide-white/[.06]">
+      <div className="mt-2 divide-y divide-[var(--wh-border-subtle)]">
         {rooms.map((room: any, index: number) => (
           <div
             key={`${room.name}-${index}`}
@@ -1275,7 +1275,7 @@ function Prepared({
     <>
       <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
         <h3 className="text-sm font-semibold">Listing prepared — not public</h3>
-        <p className="mt-1 text-[10px] text-[#777C8E]">
+        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
           {row.listing?.title || "Prepared listing"} ·{" "}
           {money(row.listing?.price || 0)}
         </p>
@@ -1331,7 +1331,7 @@ function Prepared({
               : "Confirm the final gallery first"}
           </button>
         ) : (
-          <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-[10px] text-[#8A8E9E]">
+          <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-[10px] text-[var(--wh-text-secondary)]">
             Awaiting final Admin/Creator review. It is not visible to users.
           </p>
         )}
@@ -1351,10 +1351,10 @@ function ReviewStep({
 }) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${active ? "border-violet-500/20 bg-violet-500/[.06]" : "border-white/[.06] bg-white/[.025]"}`}
+      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${active ? "border-violet-500/20 bg-violet-500/[.06]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}
     >
       <span
-        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold ${active ? "bg-violet-500 text-white" : "bg-white/[.07] text-[#858B9B]"}`}
+        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold ${active ? "bg-violet-500 text-white" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
       >
         {number}
       </span>
@@ -1391,10 +1391,10 @@ function HotelDraft({
     <>
       <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
         <h3 className="text-sm font-semibold">Hotel setup — not public</h3>
-        <p className="mt-1 text-[10px] text-[#777C8E]">
+        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
           {row.hotel?.name || "Hotel draft"} · {rooms.length} room type(s)
         </p>
-        <p className="mt-3 rounded-xl border border-white/[.06] bg-white/[.025] p-3 text-[9px] leading-4 text-[#7D8393]">
+        <p className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
           Room types, prices, capacity and inventory are locked to the Property Partner submission. Corrections must be returned to the partner; WeHouse cannot invent or edit them here.
         </p>
         <HotelMediaReview
@@ -1432,7 +1432,7 @@ function HotelDraft({
               : "Review hotel and room galleries first"}
           </button>
         ) : (
-          <p className="mt-3 text-[10px] text-[#8A8E9E]">
+          <p className="mt-3 text-[10px] text-[var(--wh-text-secondary)]">
             Awaiting final Admin/Creator review of the hotel and each room
             gallery. It is not visible to users.
           </p>
@@ -1596,10 +1596,10 @@ function HotelMediaReview({
     }
   }
   return (
-    <section className="mt-4 border-t border-white/[.07] pt-4">
+    <section className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
       <div>
         <p className="text-[10px] font-semibold">Final hotel media review</p>
-        <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           Nothing new is selected automatically. Choose the exact
           hotel/common-area and room images that should go live.
         </p>
@@ -1684,13 +1684,13 @@ function GalleryPicker({
   onToggle: (url: string) => void;
 }) {
   return (
-    <section className="mt-4 border-y border-white/[.06] py-4">
+    <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold">{title}</p>
-          <p className="mt-1 text-[8px] text-[#6D7384]">{subtitle}</p>
+          <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{subtitle}</p>
         </div>
-        <span className="shrink-0 text-[8px] text-[#73798A]">
+        <span className="shrink-0 text-[8px] text-[var(--wh-text-muted)]">
           {selected.length}/{candidates.length}
         </span>
       </div>
@@ -1708,7 +1708,7 @@ function GalleryPicker({
                 key={url}
                 disabled={disabled}
                 onClick={() => onToggle(url)}
-                className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen ? "border-emerald-400" : "border-white/[.08] opacity-55"}`}
+                className={`relative aspect-[4/3] w-[78vw] max-w-lg shrink-0 snap-center overflow-hidden rounded-2xl border-2 bg-black ${chosen ? "border-emerald-400" : "border-[var(--wh-border-subtle)] opacity-55"}`}
               >
                 <ListingMediaImage
                   reference={url}
@@ -1830,17 +1830,17 @@ function FinalGalleryReview({
     }
   }
   return (
-    <section className="mt-4 border-t border-white/[.07] pt-4">
+    <section className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold">Final public gallery</p>
-          <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+          <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
             {authority
               ? "Review each source separately. Tap only the photos that should appear publicly; nothing is selected automatically."
               : "Only Admin or Creator can select which submitted photos go live."}
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-white/[.05] px-2 py-1 text-[8px]">
+        <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px]">
           {selected.length}/{fieldPhotos === null ? "…" : candidates.length}
         </span>
       </div>
@@ -1850,7 +1850,7 @@ function FinalGalleryReview({
           loads correctly.
         </p>
       ) : fieldPhotos === null ? (
-        <p className="mt-3 text-[9px] text-[#747A8B]">
+        <p className="mt-3 text-[9px] text-[var(--wh-text-muted)]">
           Loading submitted photos…
         </p>
       ) : candidates.length === 0 ? (
@@ -1879,7 +1879,7 @@ function FinalGalleryReview({
             <p className="text-[9px] font-semibold text-emerald-200">
               Final public gallery · {selected.length} selected
             </p>
-            <p className="mt-1 text-[8px] leading-4 text-[#747B89]">
+            <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
               Only the photos marked with a numbered green badge will be copied
               to the public listing. The badge number is their gallery order.
             </p>
@@ -1925,9 +1925,9 @@ function GallerySourceGroup({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="text-[10px] font-semibold">{title}</h4>
-          <p className="mt-1 text-[8px] text-[#686F80]">{description}</p>
+          <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{description}</p>
         </div>
-        <span className="shrink-0 text-[8px] text-[#686F80]">
+        <span className="shrink-0 text-[8px] text-[var(--wh-text-muted)]">
           {photos.length} photo{photos.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -1936,7 +1936,7 @@ function GallerySourceGroup({
           <p className="text-[9px] font-semibold text-amber-200">
             No photos from this source
           </p>
-          <p className="mt-1 text-[8px] leading-4 text-[#6F7482]">
+          <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
             This is visible here so a missing Field Operations submission cannot
             be mistaken for Partner media.
           </p>
@@ -1953,7 +1953,7 @@ function GallerySourceGroup({
                 disabled={!authority}
                 onClick={() => onToggle(url)}
                 aria-pressed={chosen}
-                className={`relative aspect-[4/3] overflow-hidden rounded-2xl border-2 bg-black text-left ${chosen ? "border-emerald-400" : "border-white/[.08] opacity-65"}`}
+                className={`relative aspect-[4/3] overflow-hidden rounded-2xl border-2 bg-black text-left ${chosen ? "border-emerald-400" : "border-[var(--wh-border-subtle)] opacity-65"}`}
               >
                 <ListingMediaImage
                   reference={url}
@@ -1992,7 +1992,7 @@ function SubmittedMedia({ row }: { row: any }) {
     ...videos.map((url: string) => ({ url, video: true })),
   ];
   return (
-    <section className="border-b border-white/[.06] py-4">
+    <section className="border-b border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.14em] text-emerald-300">
@@ -2001,12 +2001,12 @@ function SubmittedMedia({ row }: { row: any }) {
           <h4 className="mt-1 text-sm font-semibold">
             Partner-submitted property media
           </h4>
-          <p className="mt-1 text-[9px] text-[#717789]">
+          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
             Original property photos supplied with the listing request. Photos
             become final gallery options, not automatically public.
           </p>
         </div>
-        <span className="shrink-0 text-[9px] text-[#656B7D]">
+        <span className="shrink-0 text-[9px] text-[var(--wh-text-muted)]">
           {items.length} file(s)
         </span>
       </div>
@@ -2057,12 +2057,12 @@ function SubmittedMedia({ row }: { row: any }) {
           aria-modal="true"
           aria-label="Property Partner media preview"
         >
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[.07] px-4">
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--wh-border-subtle)] px-4">
             <p className="text-sm font-semibold">Property Partner submission</p>
             <button
               type="button"
               onClick={() => setActive(null)}
-              className="grid h-10 w-10 place-items-center rounded-full bg-white/[.07]"
+              className="grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)]"
               aria-label="Close media preview"
             >
               ×
@@ -2137,7 +2137,7 @@ function EvidenceReview({
   }, [inspectionId]);
   if (loading)
     return (
-      <div className="border-y border-white/[.06] py-4 text-[10px] text-[#707687]">
+      <div className="border-y border-[var(--wh-border-subtle)] py-4 text-[10px] text-[var(--wh-text-muted)]">
         Loading inspection evidence…
       </div>
     );
@@ -2164,7 +2164,7 @@ function EvidenceReview({
     done();
   }
   return (
-    <section className="border-y border-white/[.06] py-4">
+    <section className="border-y border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-end justify-between">
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
@@ -2173,12 +2173,12 @@ function EvidenceReview({
           <h4 className="mt-1 text-xs font-semibold">
             Independent field-visit evidence
           </h4>
-          <p className="mt-1 text-[9px] text-[#717789]">
+          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
             Captured by the assigned visitor. Field photos become final gallery
             options only after Property Operations accepts this evidence.
           </p>
         </div>
-        <span className="text-[9px] text-[#656B7D]">
+        <span className="text-[9px] text-[var(--wh-text-muted)]">
           {items.length} file(s)
         </span>
       </div>
@@ -2223,9 +2223,9 @@ function EvidenceReview({
         </div>
       )}
       {!readOnly && (
-        <div className="mt-4 rounded-2xl border border-white/[.06] bg-white/[.02] p-3">
+        <div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
           <p className="text-[9px] font-semibold text-[#D9DCE4]">Property Operations decision</p>
-          <p className="mt-1 text-[8px] leading-4 text-[#6F7687]">
+          <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
             The assigned Field Officer cannot approve their own evidence. {profile.role === "staff" ? "Your Operations role may review this property only within its branch." : "Admin and Creator may provide independent oversight."}
           </p>
           <textarea
@@ -2233,7 +2233,7 @@ function EvidenceReview({
             onChange={(event) => setNote(event.target.value)}
             rows={3}
             placeholder="Required only when requesting a correction"
-            className="mt-3 w-full resize-none rounded-xl border border-white/[.07] bg-[#0D1118] p-3 text-[10px] outline-none focus:border-violet-500/35"
+            className="mt-3 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-[10px] outline-none focus:border-violet-500/35"
           />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
@@ -2263,7 +2263,7 @@ function EvidenceReview({
           <button
             type="button"
             aria-label="Close evidence preview"
-            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl"
+            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)] text-xl"
           >
             ×
           </button>
@@ -2294,8 +2294,8 @@ function EvidenceReview({
 }
 function ReadOnlyFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2.5">
-      <p className="text-[8px] font-semibold uppercase tracking-wide text-[#62697A]">{label}</p>
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5">
+      <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-1 text-[11px] font-semibold text-[#D9DCE4]">{value || "Not supplied"}</p>
     </div>
   );
@@ -2335,7 +2335,7 @@ function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
     <>
       <section className="rounded-2xl border border-red-500/15 bg-red-500/[.035] p-4">
         <p className="text-xs font-semibold">Creator decision</p>
-        <p className="mt-1 text-[9px] leading-5 text-[#7E8493]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-secondary)]">
           Rejecting stops this submission before publication. Any unpublished
           draft is removed; published or actively reserved property cannot be
           deleted here.
@@ -2345,7 +2345,7 @@ function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           placeholder="Reason shown to the Property Partner"
-          className="mt-3 w-full resize-none rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none focus:border-red-500/30"
+          className="mt-3 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-black/20 p-3 text-xs outline-none focus:border-red-500/30"
         />
         <button
           type="button"
@@ -2362,15 +2362,15 @@ function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
 }
 function Badge({ value }: { value: string }) {
   return (
-    <span className="h-fit rounded-full bg-white/[0.06] px-2 py-1 text-[8px] font-semibold text-[#A6A9B7]">
+    <span className="h-fit rounded-full bg-white/[0.06] px-2 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">
       {stageLabel(value)}
     </span>
   );
 }
 function Info({ label, value }: { label: string; value: any }) {
   return (
-    <div className="border-b border-white/[.055] py-2.5">
-      <p className="text-[8px] uppercase tracking-wide text-[#5D6274]">
+    <div className="border-b border-[var(--wh-border-subtle)] py-2.5">
+      <p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">
         {label}
       </p>
       <p className="mt-1 text-[11px] font-semibold">{String(value)}</p>
@@ -2379,7 +2379,7 @@ function Info({ label, value }: { label: string; value: any }) {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[0.08] p-9 text-center text-[10px] text-[#686D7F]">
+    <div className="rounded-2xl border border-dashed border-white/[0.08] p-9 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

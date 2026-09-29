@@ -96,9 +96,9 @@ export default function ListingCard({
   const richCard = (
     <article
       onClick={onClick}
-      className="group cursor-pointer border-b border-white/[.07] pb-5"
+      className="group cursor-pointer border-b border-[var(--wh-border-subtle)] pb-5"
     >
-      <div className={`relative overflow-hidden rounded-2xl bg-[#141720] ${primary ? "aspect-[4/3]" : "h-40"}`}>
+      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] ${primary ? "aspect-[4/3]" : "h-40"}`}>
         <ShowcaseMediaThumbnail src={primary} mediaType="image"
           alt={displayTitle}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
@@ -134,12 +134,12 @@ export default function ListingCard({
               {listing.sub_type === "short_let" ? "Short Let" : "Long Let"}
             </p>
             <h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3>
-            <p className="mt-1 truncate text-[10px] text-[#686F80]">
+            <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
               {locationLabel(listing.address, listing.city, listing.state) ||
                 "Location unavailable"}
             </p>
           </div>
-          <div className="shrink-0 text-right text-[9px] text-[#9BA0AF]">
+          <div className="shrink-0 text-right text-[9px] text-[var(--wh-text-secondary)]">
             {listing.bedrooms > 0 ? (
               <p>
                 {listing.bedrooms} bed · {listing.bathrooms || 0} bath
@@ -155,7 +155,7 @@ export default function ListingCard({
             <span className="text-emerald-300">● Verified and available</span>
           ) : null}
           {listing.videos?.length > 0 ? (
-            <span className="text-[#747B8C]">▶ Video preview</span>
+            <span className="text-[var(--wh-text-muted)]">▶ Video preview</span>
           ) : null}
         </div>
       </div>
@@ -168,9 +168,9 @@ export default function ListingCard({
     <>
       <article
         onClick={onClick}
-        className="flex cursor-pointer gap-3 border-b border-white/[.07] py-3 sm:hidden"
+        className="flex cursor-pointer gap-3 border-b border-[var(--wh-border-subtle)] py-3 sm:hidden"
       >
-        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[#141720]">
+        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[var(--wh-elevated)]">
           <ShowcaseMediaThumbnail src={primary} mediaType="image"
             alt={displayTitle}
             className="h-full w-full object-cover"
@@ -196,11 +196,11 @@ export default function ListingCard({
           <h3 className="mt-1 line-clamp-2 text-[13px] font-bold leading-4">
             {displayTitle}
           </h3>
-          <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-[#737A8A]">
+          <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
             {locationLabel(listing.address, listing.city, listing.state) ||
               "Location unavailable"}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] text-[#8B91A0]">
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] text-[var(--wh-text-secondary)]">
             {listing.bedrooms > 0 ? (
               <span>
                 {listing.bedrooms} bed · {listing.bathrooms || 0} bath

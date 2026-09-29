@@ -204,7 +204,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
   const title = topic === "security" ? "Safety concern" : topic ? topics.find(item => item.id === topic)?.title || "Help" : "Help";
   return <AccountShell profile={profile} workspace={workspace} title={title} narrow onBack={topic ? backToHelp : onBack}>
     <div className="mx-auto w-full max-w-xl">
-    {loadError ? <div role="alert" className="border-y border-white/10 py-5 text-sm leading-6"><p>We couldn't load your help options.</p>{retryButton}</div> : !topic ? <div className="space-y-5">
+    {loadError ? <div role="alert" className="border-y border-[var(--wh-border-subtle)] py-5 text-sm leading-6"><p>We couldn't load your help options.</p>{retryButton}</div> : !topic ? <div className="space-y-5">
       <AccountSection>
         {topics.filter(item => !["general","security"].includes(item.id)).map(item => <AccountRow key={item.id} title={item.title} onClick={() => resetTopic(item.id)} />)}
       </AccountSection>
@@ -214,17 +214,17 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
         <AccountRow title="Account security" onClick={() => startSecurity("", "account_compromise")} disabled={!ready} />
         <AccountRow title="Report a safety concern" onClick={() => {resetTopic("security");setSecurityReason("safety_threat");}} />
       </AccountSection>
-      {loading && <p role="status" className="text-sm text-[#A7ADBA]">Loading your help options…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--wh-text-secondary)]">Loading your help options…</p>}
     </div> : <>
-      {loading || !ready ? <div role="status" className="py-5 text-sm text-[#A7ADBA]">Loading your help options…</div> : <>
+      {loading || !ready ? <div role="status" className="py-5 text-sm text-[var(--wh-text-secondary)]">Loading your help options…</div> : <>
         {topic === "property" && <HelpRecordPicker key={`${scope}:property`} title="Which property or stay?" targets={propertyTargets} onChoose={target => startProperty(helpTargetKey(target))} />}
-        {topic === "property" && !propertyTargets.length && <p className="py-5 text-sm text-[#A7ADBA]">No property or stay is linked to this account yet.</p>}
+        {topic === "property" && !propertyTargets.length && <p className="py-5 text-sm text-[var(--wh-text-secondary)]">No property or stay is linked to this account yet.</p>}
         {topic === "job" && <HelpRecordPicker key={`${scope}:job`} title="Which job or Worker profile?" targets={jobTargets} onChoose={target => startJob(helpTargetKey(target))} />}
-        {topic === "job" && !jobTargets.length && <p className="py-5 text-sm text-[#A7ADBA]">No job or Worker profile is linked to this account yet.</p>}
+        {topic === "job" && !jobTargets.length && <p className="py-5 text-sm text-[var(--wh-text-secondary)]">No job or Worker profile is linked to this account yet.</p>}
         {topic === "money" && <>
-          {workspace !== "personal" && <div className="mb-3 flex gap-2" role="group" aria-label="Payment help type">{([["payment_issue","Payments and refunds"],["payout_issue","Withdrawals"]] as const).map(([value,label]) => <button key={value} type="button" aria-pressed={moneyReason === value} onClick={() => setMoneyReason(value)} className={`min-h-11 rounded-xl border px-3 text-sm ${moneyReason === value ? "border-violet-400/50 text-violet-200" : "border-white/10 text-[#A7ADBA]"}`}>{label}</button>)}</div>}
+          {workspace !== "personal" && <div className="mb-3 flex gap-2" role="group" aria-label="Payment help type">{([["payment_issue","Payments and refunds"],["payout_issue","Withdrawals"]] as const).map(([value,label]) => <button key={value} type="button" aria-pressed={moneyReason === value} onClick={() => setMoneyReason(value)} className={`min-h-11 rounded-xl border px-3 text-sm ${moneyReason === value ? "border-violet-400/50 text-violet-200" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{label}</button>)}</div>}
           <HelpRecordPicker key={`${scope}:${moneyReason}`} title={moneyReason === "payout_issue" ? "Which withdrawal?" : "Which payment is this about?"} targets={moneyReason === "payout_issue" ? payoutTargets : paymentTargets} onChoose={target => startMoney(helpTargetKey(target))} includeHistory />
-          {!(moneyReason === "payout_issue" ? payoutTargets : paymentTargets).length && <p className="py-5 text-sm leading-6 text-[#A7ADBA]">{moneyReason === "payout_issue" ? "No withdrawal request is linked to this account yet." : "No payment or active payment attempt is linked to this workspace."}</p>}
+          {!(moneyReason === "payout_issue" ? payoutTargets : paymentTargets).length && <p className="py-5 text-sm leading-6 text-[var(--wh-text-secondary)]">{moneyReason === "payout_issue" ? "No withdrawal request is linked to this account yet." : "No payment or active payment attempt is linked to this workspace."}</p>}
         </>}
         {topic === "security" && <HelpRecordPicker key={`${scope}:safety`} title="Link a booking or job" targets={safetyTargets} onChoose={target => startSecurity(helpTargetKey(target))} onAccount={() => startSecurity()} />}
       </>}

@@ -19,14 +19,14 @@ export default function WorkerAvailabilityControl({ profile }: { profile: Profil
   }
 
   return (
-    <section className={`rounded-2xl border p-4 ${available ? "border-emerald-500/15 bg-emerald-500/[.04]" : "border-white/[.07] bg-[#10131B]"}`}>
+    <section className={`rounded-2xl border p-4 ${available ? "border-emerald-500/15 bg-emerald-500/[.04]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]"}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className={`text-[9px] font-bold uppercase tracking-[.16em] ${available ? "text-emerald-300" : "text-[#777E8E]"}`}>
+          <p className={`text-[9px] font-bold uppercase tracking-[.16em] ${available ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}>
             {available ? "AVAILABLE" : "NOT AVAILABLE"}
           </p>
           <h2 className="mt-1 text-sm font-semibold">Accept new booking requests</h2>
-          <p className="mt-1 text-[9px] leading-4 text-[#707687]">
+          <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">
             {available
               ? "Customers can find you in Discovery."
               : "You are hidden from Discovery. Existing jobs and conversations continue normally."}

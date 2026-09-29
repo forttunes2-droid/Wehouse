@@ -32,8 +32,8 @@ export default function IdentityAccessGate({
     return (
       <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Worker'} onWorkspaceSwitch={onWorkspaceSwitch}>
         <section role="status" aria-live="polite" className="space-y-4 py-5">
-          <p className="text-sm text-[#A1A1AA]">Opening your workspace…</p>
-          <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-white/[.04]" />)}</div>
+          <p className="text-sm text-[var(--wh-text-secondary)]">Opening your workspace…</p>
+          <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-[var(--wh-interactive)]" />)}</div>
         </section>
       </AccountShell>
     );
@@ -54,7 +54,7 @@ export default function IdentityAccessGate({
           <button
             type="button"
             onClick={() => void refresh()}
-            className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-[11px] font-semibold text-white"
+            className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-white"
           >
             Check again
           </button>
@@ -89,7 +89,7 @@ export default function IdentityAccessGate({
           <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
             {pending ? 'WEHOUSE IDENTITY REVIEW' : 'IDENTITY CONFIRMATION'}
           </p>
-          <p className="mt-2 text-xs leading-6 text-[#9AA0AF]">
+          <p className="mt-2 text-xs leading-6 text-[var(--wh-text-secondary)]">
             {pending
               ? `Your ${protectedWork} stay protected while a different authorised WeHouse Team member reviews this check.`
               : state.recurring_required

@@ -140,14 +140,14 @@ export default function StaffSecurityOverviewV2({
           SECURITY OPERATIONS
         </p>
         <h2 className="mt-3 text-2xl font-bold">Investigate, record and escalate branch security issues.</h2>
-        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#8990A1]">
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--wh-text-secondary)]">
           Security Operations can review signals, claim a case, keep internal notes,
           resolve a review or escalate it for an Admin/Creator decision. Security
           Operations cannot suspend or ban accounts.
         </p>
         <button
           onClick={onOpenCases}
-          className="mt-5 rounded-xl border border-white/[.08] bg-white/[.04] px-4 py-3 text-xs font-semibold"
+          className="mt-5 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-4 py-3 text-xs font-semibold"
         >
           Open security trail
         </button>
@@ -164,7 +164,7 @@ export default function StaffSecurityOverviewV2({
       <section>
         <div className="mb-3">
           <h3 className="text-base font-bold">Security case queue</h3>
-          <p className="mt-1 text-[10px] text-[#666D7E]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             One accountable case owns each investigation. Claim it before adding notes,
             escalating or resolving it.
           </p>
@@ -176,7 +176,7 @@ export default function StaffSecurityOverviewV2({
         ) : openCases.length === 0 ? (
           <Empty text="No open Security Operations cases in this branch." />
         ) : (
-          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
             {openCases.map((row) => {
               const mine = row.assigned_user_id === actorUserId;
               const unassigned = !row.assigned_user_id;
@@ -198,25 +198,25 @@ export default function StaffSecurityOverviewV2({
                       <span className="block truncate text-xs font-semibold">
                         {row.reason_label || row.reason_code}
                       </span>
-                      <span className="mt-1 block truncate text-[9px] text-[#777E8F]">
+                      <span className="mt-1 block truncate text-[9px] text-[var(--wh-text-muted)]">
                         {row.subject_name || row.subject_id} · {statusText(row.status)}
                       </span>
                       {row.last_note ? (
-                        <span className="mt-2 block line-clamp-2 text-[9px] leading-4 text-[#646B7B]">
+                        <span className="mt-2 block line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                           {row.last_note}
                         </span>
                       ) : null}
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className={`block text-[8px] font-semibold uppercase ${mine ? "text-emerald-300" : unassigned ? "text-violet-300" : "text-[#717888]"}`}>
+                      <span className={`block text-[8px] font-semibold uppercase ${mine ? "text-emerald-300" : unassigned ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}>
                         {mine ? "Assigned to you" : unassigned ? "Unassigned" : row.assigned_name || "Assigned"}
                       </span>
-                      <span className="mt-1 block text-[#62697A]">{isExpanded ? "⌃" : "⌄"}</span>
+                      <span className="mt-1 block text-[var(--wh-text-muted)]">{isExpanded ? "⌃" : "⌄"}</span>
                     </span>
                   </button>
 
                   {isExpanded ? (
-                    <div className="mt-4 rounded-2xl border border-white/[.06] bg-white/[.018] p-3">
+                    <div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
                       <div className="grid grid-cols-2 gap-2 text-[9px] sm:grid-cols-3">
                         <Fact label="Subject" value={statusText(row.subject_type)} />
                         <Fact label="Priority" value={statusText(row.priority)} />
@@ -241,7 +241,7 @@ export default function StaffSecurityOverviewV2({
                             value={note}
                             onChange={(event) => setNote(event.target.value)}
                             placeholder="Internal investigation note or decision context…"
-                            className="mt-3 min-h-24 w-full resize-none rounded-xl border border-white/[.08] bg-[#0B0E14] px-3 py-2 text-[10px] outline-none placeholder:text-[#555C6C] focus:border-violet-400/40"
+                            className="mt-3 min-h-24 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-2 text-[10px] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400/40"
                           />
                           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                             <Action
@@ -262,13 +262,13 @@ export default function StaffSecurityOverviewV2({
                               emphasis="good"
                             />
                           </div>
-                          <p className="mt-3 text-[8px] leading-4 text-[#5F6676]">
+                          <p className="mt-3 text-[8px] leading-4 text-[var(--wh-text-muted)]">
                             Escalation sends the case to the branch Admin and Creator Inbox.
                             Only Admin/Creator authority can restrict the account.
                           </p>
                         </>
                       ) : (
-                        <p className="mt-3 rounded-xl border border-white/[.06] p-3 text-[9px] leading-4 text-[#777E8F]">
+                        <p className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                           This investigation is owned by {row.assigned_name || "another Security Operations member"}.
                         </p>
                       )}
@@ -284,7 +284,7 @@ export default function StaffSecurityOverviewV2({
       <section>
         <div className="mb-3">
           <h3 className="text-base font-bold">Recorded signals</h3>
-          <p className="mt-1 text-[10px] text-[#666D7E]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             A signal is not a punishment. Open an investigation before any escalation.
           </p>
         </div>
@@ -309,7 +309,7 @@ export default function StaffSecurityOverviewV2({
                       {item.severity || "review"}
                     </span>
                   </div>
-                  <p className="mt-2 text-[10px] leading-relaxed text-[#818797]">{item.detail}</p>
+                  <p className="mt-2 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">{item.detail}</p>
                   {item.target_user_id ? (
                     <button
                       type="button"
@@ -330,11 +330,11 @@ export default function StaffSecurityOverviewV2({
       {recentClosed.length ? (
         <section>
           <h3 className="mb-3 text-sm font-bold">Recently resolved</h3>
-          <div className="divide-y divide-white/[.055] border-y border-white/[.055]">
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
             {recentClosed.map((row) => (
               <div key={row.operational_case_id} className="flex items-center gap-3 py-3">
-                <span className="text-[9px] font-semibold text-[#6D7485]">#{row.case_number}</span>
-                <span className="min-w-0 flex-1 truncate text-[10px] text-[#A3A8B5]">
+                <span className="text-[9px] font-semibold text-[var(--wh-text-muted)]">#{row.case_number}</span>
+                <span className="min-w-0 flex-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
                   {row.subject_name || row.subject_id}
                 </span>
                 <span className="text-[8px] uppercase text-emerald-300">{statusText(row.status)}</span>
@@ -345,7 +345,7 @@ export default function StaffSecurityOverviewV2({
       ) : null}
 
       {!data.auth_audit_available ? (
-        <p className="rounded-xl border border-white/[.06] bg-white/[.02] p-3 text-[9px] leading-relaxed text-[#666D7E]">
+        <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
           Detailed authentication events are not connected yet. WeHouse does not invent failed-login or password alerts when no source event exists.
         </p>
       ) : null}
@@ -369,7 +369,7 @@ function Action({
       ? "border-red-500/20 bg-red-500/[.05] text-red-200"
       : emphasis === "good"
         ? "border-emerald-500/20 bg-emerald-500/[.05] text-emerald-200"
-        : "border-white/[.08] bg-white/[.025] text-[#C1C5CF]";
+        : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]";
   return (
     <button
       type="button"
@@ -384,23 +384,23 @@ function Action({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
+    <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <p className="text-xl font-bold">{value}</p>
-      <p className="mt-1 text-[9px] text-[#697080]">{label}</p>
+      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{label}</p>
     </div>
   );
 }
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/[.025] p-3">
-      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
+    <div className="rounded-xl bg-[var(--wh-interactive)] p-3">
+      <p className="text-[8px] uppercase text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-1 truncate text-[9px] font-semibold capitalize">{value}</p>
     </div>
   );
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-10 text-center text-[10px] text-[#666D7E]">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-10 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

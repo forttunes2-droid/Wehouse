@@ -74,17 +74,17 @@ export default function WeHouseChoice({ value, onChange, children, disabled, cla
     {open && createPortal(<div ref={root} role="presentation" onClick={() => setOpen(false)}
       className="fixed inset-0 z-[100300] flex items-end bg-black/75 sm:items-center sm:justify-center sm:p-5">
       <section role="dialog" aria-modal="true" aria-labelledby={headingId} onClick={event => event.stopPropagation()}
-        className="flex max-h-[82dvh] w-full flex-col rounded-t-3xl border border-[var(--wh-border)] bg-[#11141C] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-white shadow-2xl sm:max-w-md sm:rounded-3xl">
+        className="flex max-h-[82dvh] w-full flex-col rounded-t-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[var(--wh-text)] shadow-2xl sm:max-w-md sm:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
           <h3 id={headingId} className="text-base font-semibold">{label}</h3>
-          <button type="button" aria-label="Close options" onClick={() => setOpen(false)} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-white/[.06]">×</button>
+          <button type="button" aria-label="Close options" onClick={() => setOpen(false)} className="grid min-h-11 min-w-11 place-items-center rounded-full bg-[var(--wh-interactive)]">×</button>
         </div>
         {options.length > 8 && <input ref={search} aria-label={`Search ${label.toLowerCase()}`} value={query} onChange={event => setQuery(event.target.value)}
-          placeholder="Search options" className="my-3 min-h-12 rounded-xl border border-white/10 bg-[#1A1E29] px-4 text-base text-white outline-none focus:border-violet-400" />}
+          placeholder="Search options" className="my-3 min-h-12 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-base text-[var(--wh-text)] outline-none focus:border-violet-400" />}
         <div className="min-h-0 overflow-y-auto overscroll-contain pt-2">
           {filtered.map(option => <button key={option.value} data-choice type="button" disabled={option.disabled}
             aria-pressed={option.value === String(value)} onClick={() => choose(option.value)}
-            className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-white/[.06] px-2 py-2 text-left text-sm last:border-0 disabled:opacity-40">
+            className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] px-2 py-2 text-left text-sm last:border-0 disabled:opacity-40">
             <span>{option.label}</span>{option.value === String(value) && <span aria-hidden="true" className="text-violet-300">✓</span>}
           </button>)}
           {!filtered.length && <p className="py-6 text-sm text-[var(--wh-text-secondary)]">No matching option</p>}

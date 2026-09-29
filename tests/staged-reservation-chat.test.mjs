@@ -76,13 +76,13 @@ test('hotel chat is a real portal and unstable close callbacks do not retrigger 
 });
 test('full-screen navigation dialogs use opaque page backgrounds; sharing uses a bounded sheet', () => {
   for (const path of ['src/components/UserProfileModal.tsx','src/components/SharedPropertyWorkspaceView.tsx']) {
-    const source=read(path); assert.doesNotMatch(source,/bg-black\/(70|75)/); assert.match(source,/bg-\[#090B10\]/);
+    const source=read(path); assert.doesNotMatch(source,/bg-black\/(70|75)/); assert.match(source,/bg-\[var\(--wh-bg\)\]/);
   }
   const shared=read('src/components/SharedPropertyWorkspaceView.tsx');
   assert.match(shared,/<ListingDetail/); assert.match(shared,/<HotelDetail/); assert.match(shared,/Open in Personal to save, message or book/);
   const share=read('src/components/PropertyShareDialog.tsx');
   assert.match(share,/max-h-\[92dvh\]/); assert.match(share,/rounded-t-3xl/); assert.match(share,/overflow-y-auto/);
-  assert.match(read('src/components/OperationalThreadSurface.tsx'),/fixed inset-0.*bg-\[#0E1219\]/);
+  assert.match(read('src/components/OperationalThreadSurface.tsx'),/fixed inset-0.*bg-\[var\(--wh-bg\)\]/);
 });
 
  test('guest entry uses redacted public reads and keeps all personal actions behind sign-in', () => {

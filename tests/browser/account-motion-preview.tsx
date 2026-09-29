@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import AccountCenter from '@/pages/AccountCenter';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
+import { startAppearanceSync } from '@/lib/appearance';
 import '@/index.css';
+
+startAppearanceSync();
 
 const profile: any = { auth_id:'preview-auth',user_id:'preview-user',role:'user',
   full_name:'Ada Example',username:'ada',email:'ada@example.invalid' };
@@ -19,7 +22,7 @@ function MotionWorkspace({ bounded = true }: { bounded?: boolean }) {
     <WorkspaceFrameV2 label="WeHouse" title="Property Partner" items={[
       {id:'overview',label:'Overview'},{id:'properties',label:'Properties'},
     ]} active={active} setActive={setActive} onLogout={() => {}}>
-      <div data-test-stage={active} style={{height:1600,background:'#121720',padding:16,borderRadius:16}}>
+      <div data-test-stage={active} style={{height:1600,background:'var(--wh-surface)',padding:16,borderRadius:16}}>
         <h2 className="text-xl">{active === 'overview' ? 'Overview' : 'Properties'}</h2>
         <p className="mt-4 text-sm">Your section retains its place when you return.</p>
       </div>

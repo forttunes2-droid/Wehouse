@@ -20,7 +20,7 @@ const optionalFields: Array<{ key: keyof RoommatePreferenceForm; label: string; 
   { key: "stay_duration", label: "Length of stay", options: [["3_months", "3 months"], ["6_months", "6 months"], ["1_year", "1 year"], ["1_year+", "More than a year"]] },
   { key: "pets_preference", label: "Pets", options: [["yes", "Welcome"], ["agreement", "By agreement"], ["no", "Not comfortable"]] },
 ];
-const input = "mt-2 min-h-12 w-full min-w-0 rounded-xl border border-white/10 bg-[#151820] px-3 text-base text-white outline-none focus:border-violet-400 disabled:opacity-40";
+const input = "mt-2 min-h-12 w-full min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base text-[var(--wh-text)] outline-none focus:border-violet-400 disabled:opacity-40";
 const labelFor = (value: string, options: Array<[string, string]>, fallback = "Choose") => options.find(([key]) => key === value)?.[1] || fallback;
 const genders: Array<[string,string]> = [["no_preference","Anyone"],["male","Male"],["female","Female"]];
 const arrangements: Array<[string,string]> = [["shared_bedroom","Shared bedroom"],["separate_bedrooms","Separate bedrooms in a shared home"],["either","Either"]];
@@ -61,7 +61,7 @@ export default function RoommatePreferencesPanel({ form, setForm, profileSchool,
   const habits = optionalFields.filter(field => form[field.key]).map(field => `${habitLabels[field.key]}: ${labelFor(String(form[field.key]),field.options)}`);
   return <section ref={root} aria-label="Roommate preferences" className="mx-auto max-w-xl py-2">
     <h2 className="mb-5 text-xl font-semibold tracking-tight">Roommate preferences</h2>
-    <fieldset disabled={busy} className="divide-y divide-white/[.08] border-y border-white/[.08] disabled:opacity-60">
+    <fieldset disabled={busy} className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)] disabled:opacity-60">
       {row("location","Where you want to live",[form.preferred_area,form.preferred_lga,form.preferred_state].filter(Boolean).join(", ") || "Choose your location",<>
         <div className="grid grid-cols-2 gap-3">
           <div className="text-sm">State<RoommateLocationChoice label="Preferred State" value={form.preferred_state} options={getAllStates()} onChange={value => setForm(current => ({...current,preferred_state:value,preferred_lga:"",preferred_area:""}))} /></div>
@@ -88,8 +88,8 @@ function PreferenceRow({id,title,summary,optional,open,onToggle,children}:{id:Se
   const contentId = useId();
   return <div data-preference-section={id}>
     <button type="button" aria-label={`Edit ${title.toLowerCase()}`} aria-expanded={open} aria-controls={contentId} onClick={onToggle} className="flex min-h-[76px] w-full items-center gap-4 py-4 text-left focus-visible:outline focus-visible:outline-violet-300">
-      <span className="min-w-0 flex-1"><span className="block text-base font-medium">{title}{optional && <span className="ml-2 text-xs font-normal text-[#A7ADBA]">Optional</span>}</span><span className="mt-1 block text-sm leading-5 text-[#A7ADBA]">{summary}</span></span>
-      <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-[#A7ADBA] ${open ? "rotate-180" : ""}`} />
+      <span className="min-w-0 flex-1"><span className="block text-base font-medium">{title}{optional && <span className="ml-2 text-xs font-normal text-[var(--wh-text-secondary)]">Optional</span>}</span><span className="mt-1 block text-sm leading-5 text-[var(--wh-text-secondary)]">{summary}</span></span>
+      <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-[var(--wh-text-secondary)] ${open ? "rotate-180" : ""}`} />
     </button>
     <div id={contentId} hidden={!open} className="space-y-5 pb-5">{open ? children : null}</div>
   </div>;

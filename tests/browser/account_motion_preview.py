@@ -23,7 +23,37 @@ async def main():
     assert await page.get_by_role('switch',name='In-app alerts').get_attribute('aria-checked')=='true'
    await page.screenshot(path=str(OUT/f'account-{name.lower()}-390.png'),full_page=True)
    print(f'WEHOUSE_PREVIEW_ACCOUNT_{name.upper()}='+base64.b64encode(await page.screenshot(type='jpeg',quality=48)).decode(),flush=True)
+  await page.get_by_role('button',name='Back').click()
+  await page.get_by_role('button',name='Appearance',exact=False).click()
+  await expect(page.get_by_role('heading',name='Appearance')).to_be_visible()
+  await page.get_by_role('button',name='Light Bright surfaces and deep text').click()
+  assert await page.evaluate('document.documentElement.dataset.whTheme')=='light'
+  assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='light'
+  await page.screenshot(path=str(OUT/'account-appearance-light-390.png'),full_page=True)
+  await page.get_by_role('button',name='Back').click()
+  await page.screenshot(path=str(OUT/'account-light-390.png'),full_page=True)
+  light_bg=await page.locator('main').evaluate('(node)=>getComputedStyle(node.parentElement).backgroundColor')
+  assert light_bg=='rgb(247, 248, 251)',light_bg
+  await page.get_by_role('button',name='Notifications').click()
+  await page.screenshot(path=str(OUT/'account-notifications-light-390.png'),full_page=True)
+  await page.get_by_role('button',name='Back').click()
+  await page.get_by_role('button',name='Switch workspace').click()
+  await page.screenshot(path=str(OUT/'account-workspaces-light-390.png'),full_page=True)
+  await page.get_by_role('button',name='Back').click()
+  await page.get_by_role('button',name='Appearance',exact=False).click()
+  await page.emulate_media(color_scheme='light')
+  await page.get_by_role('button',name='Use device setting Follow your phone or computer').click()
+  assert await page.evaluate('document.documentElement.dataset.whTheme')=='light'
+  await page.emulate_media(color_scheme='dark')
+  assert await page.evaluate('document.documentElement.dataset.whTheme')=='dark'
+  await page.get_by_role('button',name='Dark Layered charcoal and soft contrast').click()
+  assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='dark'
+  print('APPEARANCE_ACCOUNT_LIGHT_DARK_SYSTEM=passed',flush=True)
   await page.evaluate('window.__showWorkspaceFixture()')
+  await page.screenshot(path=str(OUT/'workspace-partner-dark-390.png'))
+  await page.evaluate('window.localStorage.setItem("wehouse:appearance","light"); window.dispatchEvent(new StorageEvent("storage",{key:"wehouse:appearance"}))')
+  await page.screenshot(path=str(OUT/'workspace-partner-light-390.png'))
+  assert await page.locator('[data-workspace-frame="v2"]').evaluate('(node)=>getComputedStyle(node).backgroundColor')=='rgb(247, 248, 251)'
   surface=page.locator('[data-test-scroll]')
   tabs=page.locator('nav.fixed')
   await expect(page.get_by_role('heading',name='Overview',exact=True).last).to_be_visible()

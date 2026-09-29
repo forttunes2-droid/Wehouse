@@ -466,8 +466,8 @@ export default function SupportChat({
   if (!open) return null;
 
   return createPortal(
-    <div ref={dialogRoot} tabIndex={-1} role="dialog" aria-modal="true" aria-label="WeHouse conversation" className="fixed inset-0 z-[100030] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090C11] text-white">
-      <header className="shrink-0 border-b border-white/[.06] bg-[#10141B] px-3 py-2.5 sm:px-4">
+    <div ref={dialogRoot} tabIndex={-1} role="dialog" aria-modal="true" aria-label="WeHouse conversation" className="fixed inset-0 z-[100030] isolate flex h-[100dvh] flex-col overflow-hidden bg-[var(--wh-bg)] text-[var(--wh-text)]">
+      <header className="shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-2.5 sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <BackButton onClick={dismiss} ariaLabel="Back" />
           <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/20 text-violet-200 font-bold">
@@ -481,7 +481,7 @@ export default function SupportChat({
               </h1>
 
             </div>
-            <p className="mt-0.5 truncate text-[9px] text-[#747A8B]">
+            <p className="mt-0.5 truncate text-[9px] text-[var(--wh-text-muted)]">
               {presentation.operational
                 ? [presentation.operator, presentation.meta].filter(Boolean).join(" · ")
                 : `${presentation.operator} · ${handlerLabel}`}
@@ -491,13 +491,13 @@ export default function SupportChat({
       </header>
 
       {!presentation.operational && (
-      <section className="shrink-0 border-b border-white/[.06] bg-[#0D1118] px-4 py-2.5">
+      <section className="shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 py-2.5">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-[10px] font-semibold text-[#D9DCE4]">
               {presentation.title}
             </p>
-            <p className="mt-0.5 truncate text-[8px] text-[#687081]">
+            <p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">
               {[
                 caseNumber ? `Case ${caseNumber}` : "",
                 thread ? supportStatusLabel(thread.status) : "New conversation",
@@ -586,7 +586,7 @@ export default function SupportChat({
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+      <footer className="shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         <div className="mx-auto max-w-4xl">
           {!loading && pendingContext && hasContext(pendingContext) && (
             <PendingContext
@@ -612,7 +612,7 @@ export default function SupportChat({
             <button
               onClick={() => fileRef.current?.click()}
               disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
               aria-label="Add photo or video"
             >
               <svg
@@ -629,7 +629,7 @@ export default function SupportChat({
                 <path d="m20.5 11.5-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.7 9.7a2 2 0 0 1-2.8-2.8l8.9-8.9" />
               </svg>
             </button>
-            <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.07] bg-[#1A1F28] px-3 py-1.5 focus-within:border-violet-500/35">
+            <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -651,7 +651,7 @@ export default function SupportChat({
                       ? "Reply with the information WeHouse requested"
                       : "Message WeHouse"
                 }
-                className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] leading-5 outline-none placeholder:text-[#62697A]"
+                className="max-h-28 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-[13px] leading-5 outline-none placeholder:text-[var(--wh-text-muted)]"
               />
             </div>
             <button
@@ -661,7 +661,7 @@ export default function SupportChat({
                 caseLocked ||
                 (!input.trim() && !files.length)
               }
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 text-white disabled:bg-white/[.05] disabled:text-[#666C7D]"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 text-white disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
               aria-label="Send"
             >
               {sending ? "…" : "➤"}
@@ -700,16 +700,16 @@ function RequesterCaseSummary({
       ].includes(event.event_type),
     );
   return (
-    <section className="mb-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[#121720]">
-      <div className="flex items-start justify-between gap-3 border-b border-white/[.06] p-4">
+    <section className="mb-4 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]">
+      <div className="flex items-start justify-between gap-3 border-b border-[var(--wh-border-subtle)] p-4">
         <div className="min-w-0">
-          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#71798B]">
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
             What you asked
           </p>
           <h2 className="mt-1 text-sm font-semibold text-[#F2F3F6]">
             {thread.subject || "Help from WeHouse"}
           </h2>
-          <p className="mt-1 text-[9px] text-[#6F7687]">
+          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
             {caseNumber ? `Request ${caseNumber}` : "WeHouse request"}
           </p>
         </div>
@@ -717,7 +717,7 @@ function RequesterCaseSummary({
       </div>
       <div className="grid gap-3 p-4 sm:grid-cols-2">
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-wide text-[#646C7D]">
+          <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
             Handled by
           </p>
           <p className="mt-1 text-[11px] font-medium text-[#D9DCE4]">
@@ -725,7 +725,7 @@ function RequesterCaseSummary({
           </p>
         </div>
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-wide text-[#646C7D]">
+          <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
             Who acts next
           </p>
           <p className="mt-1 text-[11px] font-medium text-violet-200">
@@ -733,24 +733,24 @@ function RequesterCaseSummary({
           </p>
         </div>
         <div className="sm:col-span-2">
-          <p className="text-[8px] font-semibold uppercase tracking-wide text-[#646C7D]">
+          <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
             What happens now
           </p>
-          <p className="mt-1 text-[10px] leading-4 text-[#A5AAB7]">
+          <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-secondary)]">
             {next.text}
           </p>
           {importantEvent?.note &&
           ["waiting_for_user", "escalated", "resolved"].includes(
             thread.status,
           ) ? (
-            <p className="mt-2 rounded-xl bg-white/[.035] px-3 py-2 text-[10px] leading-4 text-[#D7DAE1]">
+            <p className="mt-2 rounded-xl bg-[var(--wh-interactive)] px-3 py-2 text-[10px] leading-4 text-[#D7DAE1]">
               {importantEvent.note}
             </p>
           ) : null}
         </div>
       </div>
       {thread.status === "resolved" ? (
-        <div className="grid grid-cols-2 gap-2 border-t border-white/[.06] p-3">
+        <div className="grid grid-cols-2 gap-2 border-t border-[var(--wh-border-subtle)] p-3">
           <button
             type="button"
             disabled={Boolean(acting)}
@@ -769,7 +769,7 @@ function RequesterCaseSummary({
           </button>
         </div>
       ) : thread.status === "closed" ? (
-        <div className="border-t border-white/[.06] p-3">
+        <div className="border-t border-[var(--wh-border-subtle)] p-3">
           <button
             type="button"
             disabled={Boolean(acting)}
@@ -793,12 +793,12 @@ function CaseHistory({
   createdAt: string;
 }) {
   return (
-    <details className="border-t border-white/[.06] px-4 py-3">
+    <details className="border-t border-[var(--wh-border-subtle)] px-4 py-3">
       <summary className="cursor-pointer text-[9px] font-semibold text-violet-300">
         Request history · {events.length + 1} update
         {events.length === 0 ? "" : "s"}
       </summary>
-      <div className="mt-3 space-y-3 border-l border-white/[.08] pl-3">
+      <div className="mt-3 space-y-3 border-l border-[var(--wh-border-subtle)] pl-3">
         <HistoryItem
           label="Request sent to WeHouse"
           time={createdAt}
@@ -829,7 +829,7 @@ function HistoryItem({
   return (
     <div>
       <p className="text-[9px] font-medium text-[#D4D7DE]">{label}</p>
-      <p className="mt-0.5 text-[8px] text-[#62697A]">
+      <p className="mt-0.5 text-[8px] text-[var(--wh-text-muted)]">
         {new Date(time).toLocaleString([], {
           day: "numeric",
           month: "short",
@@ -838,7 +838,7 @@ function HistoryItem({
         })}
       </p>
       {note ? (
-        <p className="mt-1 text-[9px] leading-4 text-[#858B99]">{note}</p>
+        <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">{note}</p>
       ) : null}
     </div>
   );
@@ -900,11 +900,11 @@ function MessageBubble({
           {caseEventLabel(String(meta.event_type || "request_updated"))}
         </p>
         {msg.content ? (
-          <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#AEB3C0]">
+          <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[var(--wh-text-secondary)]">
             {msg.content}
           </p>
         ) : null}
-        <p className="mt-1 text-[8px] text-[#606778]">
+        <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">
           {formatTime(msg.created_at)}
         </p>
       </div>
@@ -933,12 +933,12 @@ function MessageBubble({
           />
         )}
         <p
-          className={`mb-1 px-1 text-[8px] font-medium ${mine ? "text-right text-violet-200/65" : "text-[#707789]"}`}
+          className={`mb-1 px-1 text-[8px] font-medium ${mine ? "text-right text-violet-200/65" : "text-[var(--wh-text-muted)]"}`}
         >
           {sender}
         </p>
         <div
-          className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-white/[.06] bg-[#171B24] text-[#E4E6EC]"}`}
+          className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[#E4E6EC]"}`}
         >
           {(msg.attachments || []).map((path: string, i: number) => (
             <SecureSupportAttachment
@@ -953,7 +953,7 @@ function MessageBubble({
             </p>
           )}
           <p
-            className={`mt-1 text-[8px] ${mine ? "text-violet-100/65" : "text-[#606677]"}`}
+            className={`mt-1 text-[8px] ${mine ? "text-violet-100/65" : "text-[var(--wh-text-muted)]"}`}
           >
             {formatTime(msg.created_at)}
             {mine && (
@@ -1039,7 +1039,7 @@ function LinkedOperationalContext({
   const checkIn = String(snapshot.check_in || "");
   const checkOut = String(snapshot.check_out || "");
   return (
-    <section className="mb-4 border-y border-white/[.06] bg-white/[.018] py-3">
+    <section className="mb-4 border-y border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] py-3">
       <div className="flex items-start gap-3">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">
           ⌂
@@ -1047,11 +1047,11 @@ function LinkedOperationalContext({
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold">{title}</p>
           {location && (
-            <p className="mt-1 truncate text-[9px] text-[#747B8C]">
+            <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
               {location}
             </p>
           )}
-          <p className="mt-1 truncate text-[9px] capitalize text-[#747B8C]">
+          <p className="mt-1 truncate text-[9px] capitalize text-[var(--wh-text-muted)]">
             {[status, code].filter(Boolean).join(" · ")}
           </p>
         </div>
@@ -1078,17 +1078,17 @@ function LinkedOperationalContext({
         ) : null}
       </div>
       {(checkIn || checkOut) && (
-        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[.05] pt-3 text-[9px] text-[#747B8C]">
+        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-[var(--wh-border-subtle)] pt-3 text-[9px] text-[var(--wh-text-muted)]">
           {checkIn && (
             <p>
-              <span className="text-[#555C6D]">Check-in</span>
+              <span className="text-[var(--wh-text-muted)]">Check-in</span>
               <br />
               {displayDate(checkIn)}
             </p>
           )}
           {checkOut && (
             <p>
-              <span className="text-[#555C6D]">Check-out</span>
+              <span className="text-[var(--wh-text-muted)]">Check-out</span>
               <br />
               {displayDate(checkOut)}
             </p>
@@ -1137,7 +1137,7 @@ function MessageContext({
         ) : null}
       </div>
       {facts.length > 0 && (
-        <div className="mt-2 grid gap-1 text-xs text-[#A5A0B3] sm:grid-cols-2">
+        <div className="mt-2 grid gap-1 text-xs text-[var(--wh-text-secondary)] sm:grid-cols-2">
           {facts.map(([key, value]) => <p key={String(key)}>{String(key)}: {String(value)}</p>)}
         </div>
       )}
@@ -1162,11 +1162,11 @@ function PendingContext({ context, onStartGeneralHelp }: {
     snapshot.check_out ? displayDate(String(snapshot.check_out)) : null,
   ].filter(Boolean).join(" · ");
   return (
-    <section aria-label="Conversation topic" className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] py-2 pl-3 pr-1">
+    <section aria-label="Conversation topic" className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-[var(--wh-interactive)] py-2 pl-3 pr-1">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] text-[#A5A0B3]">{label}</p>
+        <p className="text-[11px] text-[var(--wh-text-secondary)]">{label}</p>
         <p className="truncate text-[13px] font-semibold text-violet-100">{view.title}</p>
-        {details && <p className="truncate text-xs text-[#A5A0B3]">{details}</p>}
+        {details && <p className="truncate text-xs text-[var(--wh-text-secondary)]">{details}</p>}
       </div>
       {onStartGeneralHelp && (
         <button
@@ -1194,7 +1194,7 @@ function Welcome({
           W
         </div>
         <h2 className="mt-4 text-base font-semibold">Message WeHouse</h2>
-        <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[#747A8B]">
+        <p className="mx-auto mt-2 max-w-sm text-[11px] leading-5 text-[var(--wh-text-muted)]">
           {presentation.operational
             ? `Ask the WeHouse team about ${presentation.title}.`
             : "How can we help?"}
@@ -1219,7 +1219,7 @@ function ConversationLoadError({
   return (
     <div className="mx-auto mt-8 max-w-sm rounded-2xl border border-red-500/15 bg-red-500/[.04] p-5 text-center">
       <p className="text-xs font-semibold">Conversation could not be loaded</p>
-      <p className="mt-2 text-[9px] leading-4 text-[#858A98]">{text}</p>
+      <p className="mt-2 text-[9px] leading-4 text-[var(--wh-text-secondary)]">{text}</p>
       <button
         type="button"
         onClick={retry}
@@ -1266,9 +1266,9 @@ function DaySeparator({ value }: { value: string }) {
           });
   return (
     <div className="flex items-center gap-3 py-3">
-      <span className="h-px flex-1 bg-white/[.05]" />
-      <span className="text-[8px] font-semibold text-[#697080]">{label}</span>
-      <span className="h-px flex-1 bg-white/[.05]" />
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
+      <span className="text-[8px] font-semibold text-[var(--wh-text-muted)]">{label}</span>
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
     </div>
   );
 }

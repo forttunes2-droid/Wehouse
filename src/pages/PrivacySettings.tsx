@@ -26,7 +26,7 @@ export default function PrivacySettings({profile,onUpdate,onBack,embedded=false}
 
   const content=<>
 
-    {profile.role==='user'&&<section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#11141C]">
+    {profile.role==='user'&&<section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
       <Row label="Roommate profile visibility" text="Allow compatible roommate candidates to see your roommate profile while matching is active." value={settings.privacy_profile_visible} disabled={saving==='privacy_profile_visible'} onChange={v=>void toggle('privacy_profile_visible',v)}/>
       <Row label="Roommate discovery" text="Allow your profile to participate in roommate matching when you turn matching on." value={settings.privacy_search_visible} disabled={saving==='privacy_search_visible'} onChange={v=>void toggle('privacy_search_visible',v)}/>
     </section>}
@@ -35,4 +35,4 @@ export default function PrivacySettings({profile,onUpdate,onBack,embedded=false}
   return <AccountShell profile={profile} title="Privacy & Security" description="Visibility, sign-ins and account protection in one place." onBack={onBack}>{content}</AccountShell>
 }
 
-function Row({label,text,value,onChange,disabled}:{label:string;text:string;value:boolean;onChange:(v:boolean)=>void;disabled:boolean}){return <div className="flex min-h-[5rem] items-center justify-between gap-4 border-b border-white/[.05] p-4 last:border-b-0 sm:p-5"><div><p className="text-[12px] font-semibold">{label}</p><p className="mt-1 max-w-xl text-[9px] leading-relaxed text-[#6F7585]">{text}</p></div><button onClick={()=>onChange(!value)} disabled={disabled} aria-pressed={value} className={`relative h-6 w-11 shrink-0 rounded-full ${value?'bg-violet-500':'bg-[#2A2D38]'} disabled:opacity-50`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value?'translate-x-5':''}`}/></button></div>}
+function Row({label,text,value,onChange,disabled}:{label:string;text:string;value:boolean;onChange:(v:boolean)=>void;disabled:boolean}){return <div className="flex min-h-[5rem] items-center justify-between gap-4 border-b border-[var(--wh-border-subtle)] p-4 last:border-b-0 sm:p-5"><div><p className="text-[12px] font-semibold">{label}</p><p className="mt-1 max-w-xl text-[9px] leading-relaxed text-[var(--wh-text-muted)]">{text}</p></div><button onClick={()=>onChange(!value)} disabled={disabled} aria-pressed={value} className={`relative h-6 w-11 shrink-0 rounded-full ${value?'bg-violet-500':'bg-[#2A2D38]'} disabled:opacity-50`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${value?'translate-x-5':''}`}/></button></div>}

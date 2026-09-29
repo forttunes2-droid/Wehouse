@@ -9,7 +9,7 @@ export default function LegalReview({ documents, choices, onChange }: {
   const count = Number(Boolean(documents.privacy)) + Number(Boolean(documents.terms));
   if (!count) return null;
   return <section aria-label="Review legal documents" className="space-y-3">
-    <p className="text-sm leading-6 text-[#AAA3B3]">{count === 2 ? 'Read both documents and confirm below each one.' : 'Read the document and confirm below it.'}</p>
+    <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">{count === 2 ? 'Read both documents and confirm below each one.' : 'Read the document and confirm below it.'}</p>
     {(['privacy', 'terms'] as const).map(kind => {
       const document = documents[kind];
       return document ? <DocumentReview key={`${document.policy_version_id}:${document.checksum}`} document={document}
@@ -26,9 +26,9 @@ function DocumentReview({ document, kind, checked, onChange }: {
 }) {
   const [reachedEnd, setReachedEnd] = useState(false);
   const markEnd = useCallback(() => setReachedEnd(true), []);
-  return <details className="min-w-0 border-b border-white/10 pb-3">
+  return <details className="min-w-0 border-b border-[var(--wh-border-subtle)] pb-3">
     <summary className="min-h-12 cursor-pointer py-3 text-sm font-semibold text-violet-200">
-      {legalTitles[kind]} <span className="font-normal text-[#AAA3B3]">· v{document.version}{checked ? ' · Reviewed' : ''}</span>
+      {legalTitles[kind]} <span className="font-normal text-[var(--wh-text-secondary)]">· v{document.version}{checked ? ' · Reviewed' : ''}</span>
     </summary>
     <LegalDocumentBody body={document.body} onReachedEnd={markEnd} />
     <label className="mt-4 flex min-h-12 items-start gap-3 py-3 text-sm leading-6 text-[#F6F2FC]">

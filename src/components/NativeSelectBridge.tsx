@@ -94,12 +94,12 @@ export default function NativeSelectBridge() {
   }
 
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100300] flex items-center justify-center bg-[#0E1118] p-4" onClick={() => setActive(null)}>
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100300] flex items-center justify-center bg-[var(--wh-surface)] p-4" onClick={() => setActive(null)}>
       <section
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-white/[0.09] bg-[#0E1118] shadow-2xl shadow-black/70 sm:rounded-3xl"
+        className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-white/[0.09] bg-[var(--wh-surface)] shadow-2xl shadow-black/70 sm:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-4 py-4 sm:px-5">
@@ -107,7 +107,7 @@ export default function NativeSelectBridge() {
             <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">WEHOUSE</p>
             <h2 className="mt-1 truncate text-base font-semibold text-white">{title}</h2>
           </div>
-          <button type="button" onClick={() => setActive(null)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-lg text-[#A1A6B3]">×</button>
+          <button type="button" onClick={() => setActive(null)} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-lg text-[var(--wh-text-secondary)]">×</button>
         </header>
 
         <div className="max-h-[55dvh] overflow-y-auto p-2 sm:max-h-[420px]">
@@ -125,7 +125,7 @@ export default function NativeSelectBridge() {
           ))}
         </div>
 
-        <div className="border-t border-white/[0.06] px-4 py-3 pb-[max(.75rem,env(safe-area-inset-bottom))] text-[9px] text-[#626979] sm:px-5">
+        <div className="border-t border-white/[0.06] px-4 py-3 pb-[max(.75rem,env(safe-area-inset-bottom))] text-[9px] text-[var(--wh-text-muted)] sm:px-5">
           Choose one option.
         </div>
       </section>

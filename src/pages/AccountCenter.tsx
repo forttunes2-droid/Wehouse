@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setNotificationSoundEnabled } from "@/lib/notificationSound";
+import { setAppearance, useAppearance, type Appearance } from "@/lib/appearance";
 import AccountShell, {
   AccountRow,
   AccountSection,
@@ -69,6 +70,7 @@ type Legal = {
 };
 type Published = { privacy: boolean; terms: boolean };
 type Panel =
+  | "appearance"
   | "notifications"
   | "legal"
   | "privacy_security"
@@ -101,6 +103,7 @@ export default function AccountCenter({
   void onGoToSecurity;
   const p = profile as Profile & ProfilePreferences;
   const [panel, setPanel] = useState<Panel>(null);
+  const appearance = useAppearance();
   const [emailNotifs, setEmailNotifs] = useState(
     p.pref_email_notif !== false,
   );
@@ -440,18 +443,44 @@ export default function AccountCenter({
             }}
           />
         </AccountSection>
-        <p className="px-1 text-xs leading-5 text-[#A0A7B6]">A soft chime plays when sound is allowed by your device. Background phone notifications are not available yet. Unread badges remain when you switch workspaces.</p>
-        <p className="px-1 text-xs text-[#9AA2B3]">
+        <p className="px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">A soft chime plays when sound is allowed by your device. Background phone notifications are not available yet. Unread badges remain when you switch workspaces.</p>
+        <p className="px-1 text-xs text-[var(--wh-text-secondary)]">
           Changes save automatically.
         </p>
       </AccountShell>
     );
   }
 
+  if (panel === "appearance") {
+    const options: Array<{ id: Appearance; title: string; detail: string }> = [
+      { id: "system", title: "Use device setting", detail: "Follow your phone or computer" },
+      { id: "light", title: "Light", detail: "Bright surfaces and deep text" },
+      { id: "dark", title: "Dark", detail: "Layered charcoal and soft contrast" },
+    ];
+    return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
+      description="Choose how WeHouse looks in every workspace." onBack={() => setPanel(null)}>
+      <AccountSection title="Theme">
+        {options.map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id}
+          onClick={() => setAppearance(option.id)}
+          className="wh-interactive flex min-h-[4.75rem] w-full items-center gap-3 border-b border-[var(--wh-border)] px-4 py-3 text-left last:border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-violet-500 sm:px-5">
+          <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-elevated)] text-lg wh-accent-text">
+            {option.id === 'system' ? '◐' : option.id === 'light' ? '☼' : '☾'}
+          </span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{option.title}</span>
+            <span className="mt-0.5 block text-[13px] leading-5 text-[var(--wh-text-secondary)]">{option.detail}</span></span>
+          <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${appearance === option.id ? 'border-[var(--wh-violet)] bg-[var(--wh-violet)] text-white' : 'border-[var(--wh-border)]'}`}>
+            {appearance === option.id ? '✓' : null}
+          </span>
+        </button>)}
+      </AccountSection>
+      <p className="px-1 text-[13px] leading-5 text-[var(--wh-text-secondary)]">Your choice applies immediately and stays on this device.</p>
+    </AccountShell>;
+  }
+
   if (panel === "legal") {
     return (
       <AccountShell profile={profile} title="Legal documents" onBack={() => setPanel(null)}>
-        <div className="divide-y divide-white/10">
+        <div className="divide-y divide-[var(--wh-border-subtle)]">
           <LegalCard title="Privacy Policy" published={published.privacy} accepted={legal.privacy_accepted}
             onClick={() => openLegal("privacy_policy")} />
           <LegalCard title="Terms of Service" published={published.terms} accepted={legal.terms_accepted}
@@ -477,7 +506,7 @@ export default function AccountCenter({
     >
 
 
-      <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.08] via-[#12151D] to-[#0F1118] p-4 sm:p-5">
+      <section className="rounded-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 sm:p-5">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -486,7 +515,7 @@ export default function AccountCenter({
             aria-label={
               profile.avatar_url ? "Preview profile photo" : "No profile photo"
             }
-            className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.06] bg-violet-500/15 text-base font-bold text-violet-200 disabled:cursor-default"
+            className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-accent-surface)] text-base font-bold wh-accent-text disabled:cursor-default"
           >
             {profile.avatar_url ? (
               <img
@@ -503,11 +532,11 @@ export default function AccountCenter({
               <h2 className="truncate text-sm font-semibold">
                 {profile.full_name || `@${profile.username || "account"}`}
               </h2>
-              <span className="rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[11px] font-semibold text-[#B6BAC8]">
+              <span className="rounded-full border border-[var(--wh-border)] bg-[var(--wh-elevated)] px-2 py-1 text-[11px] font-semibold text-[var(--wh-text-secondary)]">
                 {workspaceLabel(activeWorkspace)}
               </span>
             </div>
-            <p className="mt-1 truncate text-xs text-[#A0A7B6]">
+            <p className="mt-1 truncate text-[13px] text-[var(--wh-text-secondary)]">
               {profile.email || "No email"}
             </p>
 
@@ -590,6 +619,8 @@ export default function AccountCenter({
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
+        <AccountRow title="Appearance" detail={`${appearance === 'system' ? 'Device setting' : appearance === 'light' ? 'Light' : 'Dark'} · Applies across WeHouse`}
+          onClick={() => setPanel("appearance")} icon={<AppearanceIcon />} />
         <AccountRow
           title="Notifications"
           detail="Email and in-app alert preferences"
@@ -669,10 +700,10 @@ function Toggle({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex min-h-[4.5rem] items-center justify-between gap-4 border-b border-white/[.05] px-4 py-3.5 last:border-b-0 sm:px-5">
+    <div className="flex min-h-[4.5rem] items-center justify-between gap-4 border-b border-[var(--wh-border-subtle)] px-4 py-3.5 last:border-b-0 sm:px-5">
       <div>
         <p className="text-sm font-semibold">{label}</p>
-        <p className="mt-1 text-[13px] leading-5 text-[#A0A7B6]">
+        <p className="mt-1 text-[13px] leading-5 text-[var(--wh-text-secondary)]">
           {detail}
         </p>
       </div>
@@ -714,7 +745,7 @@ function LegalCard({
       <p className="text-sm font-semibold">{title}</p>
       <p
         className={`mt-1 text-xs ${
-          accepted ? "text-emerald-300" : "text-[#6E7484]"
+          accepted ? "text-emerald-300" : "text-[var(--wh-text-muted)]"
         }`}
       >
         {!published ? "Not published" : accepted ? "Accepted" : "Review document"}
@@ -744,6 +775,9 @@ function HeartIcon() {
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
     </svg>
   );
+}
+function AppearanceIcon() {
+  return <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18Z" /></svg>;
 }
 function PersonIcon() {
   return (

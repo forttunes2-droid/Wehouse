@@ -161,7 +161,7 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
             <p className="text-xs font-semibold">
               Choose what people can browse
             </p>
-            <p className="mt-1 text-[9px] leading-relaxed text-[#6D7182]">
+            <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
               These are the main property groups shown in discovery. Add only
               categories that should exist in the marketplace.
             </p>
@@ -175,7 +175,7 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
               if (e.key === "Enter") addType();
             }}
             placeholder="Add a property group"
-            className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-violet-500/40"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
           />
           <button
             onClick={addType}
@@ -192,12 +192,12 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
           you save.
         </div>
       )}
-      <div className="rounded-2xl border border-white/[.06] bg-[#0D1017] p-3">
+      <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3">
         <div className="mb-3 flex items-start gap-3">
           <Step n="2" />
           <div>
             <p className="text-xs font-semibold">Order and visibility</p>
-            <p className="mt-1 text-[9px] text-[#656A7B]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               Move groups into the order customers should see them. Hide a group
               without deleting it.
             </p>
@@ -205,14 +205,14 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
         </div>
         <div className="space-y-2">
           {types.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/[.08] p-8 text-center text-[10px] text-[#666B7C]">
+            <div className="rounded-xl border border-dashed border-[var(--wh-border-subtle)] p-8 text-center text-[10px] text-[var(--wh-text-muted)]">
               Add at least one property group.
             </div>
           ) : (
             types.map((type, index) => (
               <div
                 key={type.id}
-                className={`flex items-center gap-3 rounded-xl border border-white/[.05] bg-[#151821] p-3 ${!type.is_active ? "opacity-55" : ""}`}
+                className={`flex items-center gap-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 ${!type.is_active ? "opacity-55" : ""}`}
               >
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/[.07] text-violet-200">
                   <svg
@@ -233,28 +233,28 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
                     onChange={(event) => rename(type.id, event.target.value)}
                     className="h-8 w-full rounded-lg border border-transparent bg-transparent px-2 text-xs font-medium outline-none transition focus:border-violet-500/30 focus:bg-black/20"
                   />
-                  <p className="mt-1 text-[8px] text-[#5F6475]">
+                  <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">
                     Position {index + 1}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <button
                     onClick={() => toggle(type.id)}
-                    className={`rounded-lg px-2 py-1.5 text-[8px] font-semibold ${type.is_active ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#8A8E9E]"}`}
+                    className={`rounded-lg px-2 py-1.5 text-[8px] font-semibold ${type.is_active ? "bg-emerald-500/10 text-emerald-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
                   >
                     {type.is_active ? "Visible" : "Hidden"}
                   </button>
                   <button
                     onClick={() => move(type.id, -1)}
                     disabled={index === 0}
-                    className="h-7 w-7 rounded-lg bg-white/[.04] text-[9px] disabled:opacity-20"
+                    className="h-7 w-7 rounded-lg bg-[var(--wh-interactive)] text-[9px] disabled:opacity-20"
                   >
                     ↑
                   </button>
                   <button
                     onClick={() => move(type.id, 1)}
                     disabled={index === types.length - 1}
-                    className="h-7 w-7 rounded-lg bg-white/[.04] text-[9px] disabled:opacity-20"
+                    className="h-7 w-7 rounded-lg bg-[var(--wh-interactive)] text-[9px] disabled:opacity-20"
                   >
                     ↓
                   </button>
@@ -273,7 +273,7 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
         </div>
       </div>
       <div
-        className={`rounded-2xl border p-3 ${dirty ? "border-violet-500/20 bg-violet-500/[.05]" : "border-white/[.06] bg-[#0D1017]"}`}
+        className={`rounded-2xl border p-3 ${dirty ? "border-violet-500/20 bg-violet-500/[.05]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]"}`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -282,7 +282,7 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
               <p className="text-xs font-semibold">
                 Publish marketplace changes
               </p>
-              <p className="mt-1 text-[9px] text-[#656A7B]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 {dirty
                   ? "You have unsaved catalog changes."
                   : "The property catalog is up to date."}
@@ -293,7 +293,7 @@ export default function PropertyTypeManager({ profile }: { profile: Profile }) {
             {dirty && !usingDefaults && (
               <button
                 onClick={discard}
-                className="h-10 rounded-xl border border-white/[.07] px-3 text-[9px] text-[#8D91A1]"
+                className="h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-[9px] text-[var(--wh-text-secondary)]"
               >
                 Discard
               </button>

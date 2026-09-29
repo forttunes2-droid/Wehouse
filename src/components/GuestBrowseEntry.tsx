@@ -54,7 +54,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     requireSignIn();
   }
   const access = useMemo(() => ({ busy, requireSignIn: () => requireSignIn(), notice: <>
-    {isTestEnvironment && <p className="mx-auto max-w-7xl px-4 py-2 text-sm text-[#A7ADBA]">Test preview · Live accounts don’t work here. <a className="text-violet-300" href="https://www.wehouse.com.ng/">Open live WeHouse</a></p>}
+    {isTestEnvironment && <p className="mx-auto max-w-7xl px-4 py-2 text-sm text-[var(--wh-text-secondary)]">Test preview · Live accounts don’t work here. <a className="text-violet-300" href="https://www.wehouse.com.ng/">Open live WeHouse</a></p>}
     {notice && <p role="status" className="mx-auto max-w-7xl px-4 py-2 text-sm">{notice}</p>}
   </> }), [busy, target, notice, onSignIn]);
   if (!active && !showSignedOutNav) return <>{children}</>;
@@ -81,8 +81,8 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   />;
   const sectionPage: Record<typeof section, PersonalNavPage> = { explore: 'search', bookings: 'my_reservations', inbox: 'conversation' };
   return <DiscoveryAccessContext.Provider value={access}>
-    <div className="wh-public-entry bg-[#090B10] text-white" data-shared-discovery>
-      {section === 'explore' ? <Suspense fallback={<div role="status" className="mx-auto max-w-7xl p-5 text-sm text-[#A7ADBA]">Loading places…</div>}>
+    <div className="wh-public-entry bg-[var(--wh-bg)] text-[var(--wh-text)]" data-shared-discovery>
+      {section === 'explore' ? <Suspense fallback={<div role="status" className="mx-auto max-w-7xl p-5 text-sm text-[var(--wh-text-secondary)]">Loading places…</div>}>
         {target ? target.kind === 'listing'
           ? <ListingDetail key={target.id} listingId={target.id} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />

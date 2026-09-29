@@ -397,7 +397,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
     return (
       <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.05] p-4">
         <p className="text-xs font-semibold text-violet-200">Live check awaiting WeHouse review</p>
-        <p className="mt-1 text-[9px] leading-relaxed text-[#858B9A]">Your private reference is saved. A different authorised WeHouse Team member must review it before this {identityLabel} workspace can go live. You do not need to submit it again.</p>
+        <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">Your private reference is saved. A different authorised WeHouse Team member must review it before this {identityLabel} workspace can go live. You do not need to submit it again.</p>
       </section>
     );
   }
@@ -406,39 +406,39 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
     return (
       <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-4">
         <p className="text-xs font-semibold text-emerald-300">Private face check complete</p>
-        <p className="mt-1 text-[9px] leading-relaxed text-[#747B8B]">Your reference selfie is stored privately with your {identityLabel} identity. The live camera check was not recorded or saved as a video.</p>
+        <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">Your reference selfie is stored privately with your {identityLabel} identity. The live camera check was not recorded or saved as a video.</p>
       </section>
     );
   }
 
   return (
-    <section className="overflow-hidden border-y border-white/[.07] bg-[#10141D]">
-      <div className="border-b border-white/[.05] p-4 sm:p-5">
+    <section className="overflow-hidden border-y border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
+      <div className="border-b border-[var(--wh-border-subtle)] p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">PRIVATE FACE CHECK</p>
             <h3 className="mt-1 text-lg font-bold">Confirm your {identityLabel} identity</h3>
           </div>
-          <span className="shrink-0 rounded-full border border-white/[.07] bg-white/[.03] px-2 py-1 text-[8px] font-semibold text-[#858B99]">PRIVATE</span>
+          <span className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-2 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">PRIVATE</span>
         </div>
         {rejectionReason && <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[.05] p-3 text-[9px] text-red-200">{rejectionReason}</div>}
       </div>
 
       {(stage === 'intro' || stage === 'loading') && (
         <div className="space-y-4 p-4 sm:p-5">
-          <div className="border-b border-white/[.06] pb-4">
+          <div className="border-b border-[var(--wh-border-subtle)] pb-4">
             <p className="text-xs font-semibold text-white">Private identity check</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-[#858C9B]">
+            <p className="mt-1 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
               WeHouse uses a live camera check to confirm that a real person is operating this account. We save a private identity reference for account security and future identity checks when needed. It is never shown on your public profile and can only be accessed by authorised WeHouse reviewers.
             </p>
-            <p className="mt-2 text-[9px] leading-relaxed text-[#6F7686]">
+            <p className="mt-2 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
               The live check also screens for liveness and spoofing. We do not save the live camera session as a video.
             </p>
           </div>
 
-          <label className="flex items-start gap-3 rounded-2xl border border-white/[.07] bg-black/10 p-3">
+          <label className="flex items-start gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
             <input type="checkbox" checked={consent} disabled={stage === 'loading'} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-violet-500" />
-            <span className="text-[9px] leading-relaxed text-[#808796]">I agree to this private identity check for my {identityLabel} workspace.</span>
+            <span className="text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">I agree to this private identity check for my {identityLabel} workspace.</span>
           </label>
 
           {status === 'due' ? <button onClick={() => void loadStoredReference()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Opening securely…' : 'Start live face check'}</button> : <button onClick={() => void startEnrollmentCheck()} disabled={!consent || busy || stage === 'loading'} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">{stage === 'loading' && busy ? 'Preparing live check…' : 'Start live face check'}</button>}

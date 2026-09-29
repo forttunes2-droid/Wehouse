@@ -14,13 +14,13 @@ export default function SharedPropertyWorkspaceView({ property, onClose, onPerso
   const back = useRecordScreenBack(onClose);
   const ref = useDialogInteraction(back);
   return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Shared property"
-    className="fixed inset-0 z-[100070] overflow-y-auto overscroll-contain bg-[#090B10] text-white">
-    <div className="sticky top-0 z-40 border-b border-white/10 bg-[#10131B] px-4 py-2 text-center">
+    className="fixed inset-0 z-[100070] overflow-y-auto overscroll-contain bg-[var(--wh-bg)] text-[var(--wh-text)]">
+    <div className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 py-2 text-center">
       <button type="button" onClick={onPersonal} className="min-h-10 text-sm font-semibold text-violet-200">
         Open in Personal to save, message or book
       </button>
     </div>
-    <Suspense fallback={<p role="status" className="p-6 text-sm text-[#A7ADBA]">Opening property…</p>}>
+    <Suspense fallback={<p role="status" className="p-6 text-sm text-[var(--wh-text-secondary)]">Opening property…</p>}>
       {property.kind === 'listing'
         ? <ListingDetail key={property.id} listingId={property.id} profile={null} isSaved={false}
             onNavigate={back} onToggleSave={onPersonal} onRequireAuth={onPersonal}

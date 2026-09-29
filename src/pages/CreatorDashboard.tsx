@@ -305,15 +305,15 @@ function Operations({
   if (!active)
     return (
       <div className="space-y-6">
-        <p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">
+        <p className="max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
           Choose the area you want to manage.
         </p>
         {OP_GROUPS.map((group) => (
           <section key={group}>
-            <h2 className="mb-1 text-[9px] font-bold uppercase tracking-[.16em] text-[#686F80]">
+            <h2 className="mb-1 text-[9px] font-bold uppercase tracking-[.16em] text-[var(--wh-text-muted)]">
               {group}
             </h2>
-            <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+            <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {OPS.filter((item) => item.group === group).map((item) => (
                 <button
                   key={item.id}
@@ -322,11 +322,11 @@ function Operations({
                 >
                   <span>
                     <strong className="block text-sm">{item.label}</strong>
-                    <span className="mt-1 block text-[9px] text-[#6D7384]">
+                    <span className="mt-1 block text-[9px] text-[var(--wh-text-muted)]">
                       {item.note}
                     </span>
                   </span>
-                  <span className="text-[#697082]">›</span>
+                  <span className="text-[var(--wh-text-muted)]">›</span>
                 </button>
               ))}
             </div>
@@ -405,7 +405,7 @@ function CreatorInbox({
     <div className="space-y-5">
       <InboxActivityEntry unread={summary.activityUnread} onOpen={() => setActivityOpen(true)} />
       <section>
-        <div className="mb-3 flex items-center justify-between border-b border-white/[.06] pb-3">
+        <div className="mb-3 flex items-center justify-between border-b border-[var(--wh-border-subtle)] pb-3">
           <div>
             <h2 className="text-xs font-semibold">Messages</h2>
 
@@ -439,7 +439,7 @@ function Nested({
 }) {
   return (
     <div className="space-y-5">
-      <header className="flex items-center gap-3 border-b border-white/[.07] pb-3">
+      <header className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
         <BackButton onClick={back} />
         <h2 className="text-lg font-bold">{title}</h2>
       </header>
@@ -506,14 +506,14 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Search accounts"
-        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#141720] px-3 text-xs outline-none focus:border-violet-500/40"
+        className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
       />
       {loading ? (
         <Loading />
       ) : error ? <div role="alert" className="py-4 text-sm text-amber-100"><p>Accounts could not be loaded.</p><button type="button" onClick={() => void refresh()} className="min-h-11 text-violet-300">Try again</button></div> : shown.length === 0 ? (
         <Empty text="No matching accounts." />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {shown.slice(0, 120).map((person) => (
             <button
               key={person.user_id}
@@ -538,10 +538,10 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
                 <span className="block truncate text-sm font-semibold">
                   {person.full_name || person.username || "WeHouse account"}
                 </span>
-                <span className="mt-1 block truncate text-[9px] text-[#666D7E]">
+                <span className="mt-1 block truncate text-[9px] text-[var(--wh-text-muted)]">
                   {person.email}
                 </span>
-                <span className="mt-2 block text-[8px] capitalize text-[#565D6E]">
+                <span className="mt-2 block text-[8px] capitalize text-[var(--wh-text-muted)]">
                   {role === "property_partner"
                     ? "Property Partner · Personal account"
                     : "Personal account"}{" · "}
@@ -550,7 +550,7 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
                     .join(", ") || "Location not set"}
                 </span>
               </span>
-              <span className="text-[#62697A]">›</span>
+              <span className="text-[var(--wh-text-muted)]">›</span>
             </button>
           ))}
         </div>
@@ -632,8 +632,8 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
     );
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
-        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One workspace, one active filter</p></div>
+      <div className="flex items-center justify-between gap-4 border-y border-[var(--wh-border-subtle)] py-3">
+        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Record type</p><p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">One workspace, one active filter</p></div>
         <WeHouseSelect value={view} options={[{ value: "worker", label: "Service Worker jobs" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={(next) => { setView(next); setSearch(""); setSelected(null); }} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {view === "worker" ? (
@@ -648,7 +648,7 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
             onChange={(event) => setSearch(event.target.value)}
             aria-label={`Search ${view} bookings`}
             placeholder="Search customer, property or booking code"
-            className="h-11 w-full border-b border-white/[.08] bg-transparent px-1 text-xs outline-none focus:border-violet-500/40"
+            className="h-11 w-full border-b border-[var(--wh-border-subtle)] bg-transparent px-1 text-xs outline-none focus:border-violet-500/40"
           />
           {loading ? (
             <Loading />
@@ -661,7 +661,7 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
               }
             />
           ) : (
-            <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
+            <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {shown.map((row) => {
                 const media = row.property?.images?.[0];
                 const title =
@@ -697,10 +697,10 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
                       <p className="truncate text-sm font-semibold">
                         {customer}
                       </p>
-                      <p className="mt-1 truncate text-[10px] text-[#9BA0AF]">
+                      <p className="mt-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
                         {title}
                       </p>
-                      <p className="mt-1 truncate text-[9px] text-[#686F7F]">
+                      <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                         {location.filter(Boolean).join(", ") ||
                           "Location unavailable"}{" "}
                         · {new Date(row.created_at).toLocaleString()}
@@ -723,10 +723,10 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
                           ).toLocaleString("en-NG")}
                         </p>
                       )}
-                      <span className="rounded-full bg-white/[.05] px-2 py-1 text-[8px] capitalize text-[#A2A7B5]">
+                      <span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px] capitalize text-[var(--wh-text-secondary)]">
                         {String(row.status || "recorded").replace(/_/g, " ")}
                       </span>
-                      <span className="ml-2 text-[#686F7F]">›</span>
+                      <span className="ml-2 text-[var(--wh-text-muted)]">›</span>
                     </div>
                   </button>
                 );
@@ -775,14 +775,14 @@ function BookingRecord({
   ];
   return (
     <section className="space-y-5">
-      <header className="flex items-start gap-3 border-b border-white/[.07] pb-4">
+      <header className="flex items-start gap-3 border-b border-[var(--wh-border-subtle)] pb-4">
         <BackButton onClick={onBack} />
         <div className="min-w-0 flex-1">
           <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
             {kind === "hotel" ? "Hotel booking" : "Apartment reservation"}
           </p>
           <h2 className="mt-1 truncate text-lg font-bold">{property}</h2>
-          <p className="mt-1 truncate text-[10px] text-[#707687]">
+          <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
             {row.booking_code || String(row.id || row.booking_id || "")}
           </p>
         </div>
@@ -790,13 +790,13 @@ function BookingRecord({
           {String(row.status || "recorded").replace(/_/g, " ")}
         </span>
       </header>
-      <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+      <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
         {facts.map(([label, value]) => (
           <div
             key={label}
             className="flex min-h-12 items-center justify-between gap-4 py-3 text-[10px]"
           >
-            <span className="text-[#6D7384]">{label}</span>
+            <span className="text-[var(--wh-text-muted)]">{label}</span>
             <span className="max-w-[68%] text-right font-semibold text-[#D8DAE2]">
               {value}
             </span>
@@ -804,8 +804,8 @@ function BookingRecord({
         ))}
       </div>
       {row.payment_status && (
-        <div className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
-          <p className="text-[9px] uppercase tracking-wide text-[#686F80]">
+        <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+          <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">
             Payment state
           </p>
           <p className="mt-2 text-sm font-semibold capitalize">
@@ -936,10 +936,10 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
   if (!section)
     return (
       <div className="space-y-4">
-        <div className="overflow-hidden border-y border-white/[.07]">
+        <div className="overflow-hidden border-y border-[var(--wh-border-subtle)]">
           {PLATFORM_SECTIONS.map((item, index) => (
             <div key={item.id}>
-              {index > 0 && <div className="ml-12 h-px bg-white/[.055]" />}
+              {index > 0 && <div className="ml-12 h-px bg-[var(--wh-interactive)]" />}
               <button
                 type="button"
                 onClick={() => setSection(item.id)}
@@ -950,11 +950,11 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
                 </span>
                 <span className="min-w-0 flex-1">
                   <strong className="block text-sm">{item.label}</strong>
-                  <span className="mt-1 block text-[9px] leading-4 text-[#6C7283]">
+                  <span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-muted)]">
                     {item.note}
                   </span>
                 </span>
-                <span className="text-[#646B7C]">›</span>
+                <span className="text-[var(--wh-text-muted)]">›</span>
               </button>
             </div>
           ))}
@@ -992,11 +992,11 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
             title="Worker marketplace rules"
             description="Worker onboarding and earned marketplace trust."
           />
-          <section className="border-t border-white/[.07] pt-5">
+          <section className="border-t border-[var(--wh-border-subtle)] pt-5">
             <h3 className="mb-1 text-sm font-semibold">
               Occupations and services
             </h3>
-            <p className="mb-4 text-[9px] leading-5 text-[#686F80]">
+            <p className="mb-4 text-[9px] leading-5 text-[var(--wh-text-muted)]">
               Occupation describes who the Worker is; services describe the work
               customers can request.
             </p>
@@ -1010,7 +1010,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
       {section === "properties" && (
         <section>
           <h3 className="mb-1 text-sm font-semibold">Property types</h3>
-          <p className="mb-4 text-[9px] leading-5 text-[#686F80]">
+          <p className="mb-4 text-[9px] leading-5 text-[var(--wh-text-muted)]">
             One canonical list shared by Property Partner submission and public
             discovery.
           </p>
@@ -1042,7 +1042,7 @@ function Section({
 }
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+    <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       {children}
     </div>
   );
@@ -1062,7 +1062,7 @@ function Top({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold">{title}</p>
-        <p className="mt-1 text-[9px] text-[#686F7F]">{sub}</p>
+        <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{sub}</p>
       </div>
       <div className="shrink-0 text-right">
         {amount != null && (
@@ -1070,7 +1070,7 @@ function Top({
             ₦{Number(amount || 0).toLocaleString("en-NG")}
           </p>
         )}
-        <span className="rounded-full bg-white/[.05] px-2 py-1 text-[8px] capitalize text-[#A2A7B5]">
+        <span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px] capitalize text-[var(--wh-text-secondary)]">
           {String(status).replace(/_/g, " ")}
         </span>
       </div>
@@ -1086,7 +1086,7 @@ function Loading() {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-12 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

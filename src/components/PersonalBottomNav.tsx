@@ -39,11 +39,11 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
               onClick={() => onNavigate(tab.id)}
               disabled={signInPending}
               className={`relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 transition active:scale-[.98] disabled:opacity-50 ${
-                active ? 'text-violet-300' : 'text-[var(--wh-text-secondary)]'
+                active ? 'wh-accent-text' : 'text-[var(--wh-text-secondary)]'
               }`}
             >
               <span className={`grid h-8 w-10 place-items-center rounded-xl transition ${
-                active ? 'bg-violet-500/10' : 'bg-transparent'
+                active ? 'bg-[var(--wh-accent-surface)]' : 'bg-transparent'
               }`}>
                 <Icon size={22} active={active} />
               </span>

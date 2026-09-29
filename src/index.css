@@ -44,6 +44,55 @@
     --wh-text-secondary: #B8C0CF;
     --wh-text-muted: #9AA4B6;
     --wh-border: rgba(255,255,255,0.12);
+    --wh-border-subtle: rgba(255,255,255,0.08);
+    --wh-interactive: rgba(255,255,255,0.045);
+    --wh-skeleton: rgba(255,255,255,0.07);
+    --wh-accent-text: #B9A8FF;
+    --wh-accent-surface: rgba(124,92,255,0.10);
+    --wh-overlay: rgba(0,0,0,0.55);
+  }
+
+  :root[data-wh-theme="light"] {
+    --background: 220 27% 98%;
+    --foreground: 222 25% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 25% 13%;
+    --primary: 258 71% 43%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 95%;
+    --secondary-foreground: 222 25% 13%;
+    --muted: 220 20% 95%;
+    --muted-foreground: 222 12% 37%;
+    --accent: 258 71% 43%;
+    --accent-foreground: 0 0% 100%;
+    --border: 220 18% 84%;
+    --input: 220 18% 84%;
+    --ring: 258 71% 43%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 25% 13%;
+    --sidebar-primary: 258 71% 43%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 95%;
+    --sidebar-accent-foreground: 222 25% 13%;
+    --sidebar-border: 220 18% 84%;
+    --sidebar-ring: 258 71% 43%;
+    --wh-bg: #F7F8FB;
+    --wh-surface: #FFFFFF;
+    --wh-elevated: #EFF1F7;
+    --wh-violet: #6035CE;
+    --wh-violet-glow: rgba(96,53,206,0.10);
+    --wh-text: #202433;
+    --wh-text-secondary: #4D5769;
+    --wh-text-muted: #596376;
+    --wh-border: rgba(38,48,71,0.15);
+    --wh-border-subtle: rgba(38,48,71,0.12);
+    --wh-interactive: rgba(38,48,71,0.045);
+    --wh-skeleton: rgba(38,48,71,0.09);
+    --wh-accent-text: #6035CE;
+    --wh-accent-surface: rgba(96,53,206,0.08);
+    --wh-overlay: rgba(21,24,34,0.45);
   }
 }
 
@@ -219,6 +268,42 @@
   border-radius: 16px;
 }
 
+/* Theme surfaces are shared by Personal, Worker, Partner and Account. */
+.wh-accent-text { color: var(--wh-accent-text); }
+.wh-accent-surface { background: var(--wh-accent-surface); }
+.wh-interactive:hover { background: var(--wh-interactive); }
+.wh-interactive:active { background: var(--wh-accent-surface); }
+.wh-skeleton { background: var(--wh-skeleton); animation: whSkeletonBreathe 1.5s ease-in-out infinite alternate; }
+@keyframes whSkeletonBreathe { to { opacity: .56; } }
+
+/* Existing accent utilities keep contrast when a workspace changes to light.
+   Solid primary buttons retain white labels; tinted labels become dark violet. */
+:root[data-wh-theme="light"] .text-violet-200,
+:root[data-wh-theme="light"] .text-violet-300,
+:root[data-wh-theme="light"] .text-violet-400 { color: var(--wh-accent-text); }
+:root[data-wh-theme="light"] .bg-violet-500,
+:root[data-wh-theme="light"] .bg-violet-600 { background-color: var(--wh-violet); }
+:root[data-wh-theme="light"] .bg-violet-500.text-white,
+:root[data-wh-theme="light"] .bg-violet-600.text-white,
+:root[data-wh-theme="light"] .bg-violet-500 .text-white,
+:root[data-wh-theme="light"] .bg-violet-600 .text-white { color: #fff; }
+:root[data-wh-theme="light"] .text-emerald-300 { color: #087443; }
+:root[data-wh-theme="light"] .text-amber-200,
+:root[data-wh-theme="light"] .text-amber-300 { color: #875300; }
+:root[data-wh-theme="light"] .text-red-300 { color: #af2d43; }
+.wh-media-immersive {
+  --wh-bg: #090B10;
+  --wh-surface: #11141C;
+  --wh-elevated: #171B24;
+  --wh-text: #F4F5F8;
+  --wh-text-secondary: #B8C0CF;
+  --wh-text-muted: #9AA4B6;
+  --wh-border: rgba(255,255,255,0.12);
+  --wh-border-subtle: rgba(255,255,255,0.08);
+  --wh-interactive: rgba(255,255,255,0.045);
+  color-scheme: dark;
+}
+
 /* Glow effects — violet accent */
 .glow-violet {
   box-shadow: 0 0 20px rgba(124, 92, 255, 0.15);
@@ -249,9 +334,13 @@
 }
 
 .shimmer {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%);
+  background: linear-gradient(90deg, var(--wh-interactive) 25%, var(--wh-skeleton) 50%, var(--wh-interactive) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wh-skeleton, .shimmer, .orb, .card-hover, .btn-press { animation: none !important; transition: none !important; transform: none !important; }
 }
 
 /* Input focus ring — violet */

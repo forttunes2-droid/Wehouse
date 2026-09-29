@@ -251,14 +251,14 @@ export default function HotelDetailExperience({
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F]">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
         <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
 
   if (!hotel)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
         <div className="text-center">
           <p className="text-sm font-semibold">Hotel information could not be loaded</p>
           <button onClick={() => setAttempt(value => value + 1)} className="min-h-11 px-3 text-sm text-violet-300">Try again</button>
@@ -278,23 +278,23 @@ export default function HotelDetailExperience({
   const shownAmenities = showAllAmenities ? amenities : amenities.slice(0, 6);
 
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-28 text-[var(--wh-text)]">
 
 
       {sendPropertyOpen && onGoToChat && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "hotel", id: String(hotelId) }} title={hotel.name} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
       <main className="mx-auto max-w-5xl space-y-5 px-4 pb-5 sm:px-6">
-        <section className="-mx-4 overflow-hidden border-y border-white/[.07] sm:mx-0 sm:rounded-2xl sm:border">
+        <section className="-mx-4 overflow-hidden border-y border-[var(--wh-border-subtle)] sm:mx-0 sm:rounded-2xl sm:border">
           <PropertyMediaCarousel images={images} title={hotel.name}>
             <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-3 pt-[max(.75rem,env(safe-area-inset-top))]">
               <BackButton onClick={onBack} ariaLabel="Back to hotels" className="bg-black/50 !text-white" />
               <button type="button" disabled={saving} onClick={() => void toggleSaved()} aria-label={saved ? 'Remove hotel from Saved' : 'Save hotel'} aria-pressed={saved} className="grid h-11 w-11 place-items-center rounded-full bg-black/50 text-white disabled:opacity-50"><Heart filled={saved} /></button>
             </div>
           </PropertyMediaCarousel>
-          <div className="bg-[#10131A] p-4 sm:p-5">
+          <div className="bg-[var(--wh-surface)] p-4 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
-                <p className="mt-1 text-sm text-[#747B8B]">
+                <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
                   {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
                   {distance != null
                     ? ` · about ${
@@ -312,7 +312,7 @@ export default function HotelDetailExperience({
               ) : null}
             </div>
             {hotel.description ? (
-              <p className="mt-4 text-sm leading-5 text-[#9399A8]">
+              <p className="mt-4 text-sm leading-5 text-[var(--wh-text-secondary)]">
                 {hotel.description}
               </p>
             ) : null}
@@ -323,10 +323,10 @@ export default function HotelDetailExperience({
       void sharePropertyExternally({ kind: "hotel", id: String(hotelId) }, hotel.name)
         .then(result => { if (result === "copied") toast.success("Hotel link copied"); })
         .catch(() => toast.error("This hotel could not be shared"));
-    }} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
+    }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
 
         {amenities.length ? (
-          <section className="border-y border-white/[.06] py-4">
+          <section className="border-y border-[var(--wh-border-subtle)] py-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold">Amenities</h2>
               {amenities.length > 6 ? (
@@ -343,7 +343,7 @@ export default function HotelDetailExperience({
               {shownAmenities.map((item) => (
                 <span
                   key={item}
-                  className="rounded-full border border-white/[.07] px-2.5 py-1.5 text-xs text-[#A0A6B4]"
+                  className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1.5 text-xs text-[var(--wh-text-secondary)]"
                 >
                   {item}
                 </span>
@@ -352,15 +352,15 @@ export default function HotelDetailExperience({
           </section>
         ) : null}
 
-        <section className="grid grid-cols-2 divide-x divide-white/[.06] border-y border-white/[.06] py-4">
+        <section className="grid grid-cols-2 divide-x divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)] py-4">
           <div className="pr-4">
-            <p className="text-xs uppercase tracking-wide text-[#686F80]">Check-in</p>
+            <p className="text-xs uppercase tracking-wide text-[var(--wh-text-muted)]">Check-in</p>
             <p className="mt-1 text-xs font-semibold">
               From {formatHotelTime(hotel.check_in_time, "14:00")}
             </p>
           </div>
           <div className="pl-4">
-            <p className="text-xs uppercase tracking-wide text-[#686F80]">Check-out</p>
+            <p className="text-xs uppercase tracking-wide text-[var(--wh-text-muted)]">Check-out</p>
             <p className="mt-1 text-xs font-semibold">
               By {formatHotelTime(hotel.check_out_time, "12:00")}
             </p>
@@ -370,7 +370,7 @@ export default function HotelDetailExperience({
         <HotelRoomChoices rooms={hotel.hotel_rooms || []} roomId={selectedRoom?.room_id} rateId={selectedRate?.rate_plan_id} nights={nights} onRoom={selectRoom} onRate={selectRate} />
 
         {selectedRate ? (
-          <section id="hotel-stay-dates" className="scroll-mt-4 border-y border-white/[.07] py-5">
+          <section id="hotel-stay-dates" className="scroll-mt-4 border-y border-[var(--wh-border-subtle)] py-5">
             <h2 className="text-sm font-semibold">Choose stay dates</h2>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <DateField
@@ -392,12 +392,12 @@ export default function HotelDetailExperience({
               />
             </div>
             {nights > 0 ? (
-              <div className="mt-4 flex items-end justify-between gap-4 border-t border-white/[.06] pt-4">
+              <div className="mt-4 flex items-end justify-between gap-4 border-t border-[var(--wh-border-subtle)] pt-4">
                 <div>
-                  <p className="text-xs text-[#686F80]">
+                  <p className="text-xs text-[var(--wh-text-muted)]">
                     {nights} night{nights === 1 ? "" : "s"} · {selectedRate.name}
                   </p>
-                  <p className="mt-1 text-xs text-[#5E6473]">
+                  <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                     Availability is rechecked before payment.
                   </p>
                 </div>
@@ -408,12 +408,12 @@ export default function HotelDetailExperience({
         ) : null}
 
         {hotel.venues?.length ? (
-          <section className="border-y border-white/[.06] py-5">
+          <section className="border-y border-[var(--wh-border-subtle)] py-5">
             <h2 className="text-sm font-semibold">At the hotel</h2>
-            <p className="mt-1 text-xs text-[#666D7E]">
+            <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
               Restaurants and facilities are hotel information, not separate WeHouse bookings.
             </p>
-            <div className="mt-3 divide-y divide-white/[.06]">
+            <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
               {hotel.venues.map((venue) => (
                 <div key={venue.venue_id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-3">
@@ -424,13 +424,13 @@ export default function HotelDetailExperience({
                       </p>
                     </div>
                     {venue.opening_hours ? (
-                      <p className="text-right text-xs text-[#858B9A]">
+                      <p className="text-right text-xs text-[var(--wh-text-secondary)]">
                         {venue.opening_hours}
                       </p>
                     ) : null}
                   </div>
                   {venue.description ? (
-                    <p className="mt-2 text-xs leading-4 text-[#858B9A]">
+                    <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">
                       {venue.description}
                     </p>
                   ) : null}
@@ -445,11 +445,11 @@ export default function HotelDetailExperience({
           </section>
         ) : null}
 
-        <section className="border-y border-white/[.06] py-5">
+        <section className="border-y border-[var(--wh-border-subtle)] py-5">
           <h2 className="text-sm font-semibold">Location</h2>
           <div className="mt-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm text-[#858B9A]">
+              <p className="text-sm text-[var(--wh-text-secondary)]">
                 {locationLabel(hotel.address, hotel.area, hotel.city, hotel.state)}
               </p>
 
@@ -467,11 +467,11 @@ export default function HotelDetailExperience({
           </div>
         </section>
 
-        <section className="border-y border-white/[.06] py-5">
+        <section className="border-y border-[var(--wh-border-subtle)] py-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">Guest reviews</h2>
-              <p className="mt-1 text-xs text-[#666D7E]">
+              <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                 {reviews.length} verified review{reviews.length === 1 ? "" : "s"}
               </p>
             </div>
@@ -487,7 +487,7 @@ export default function HotelDetailExperience({
           </div>
 
           {showReviewForm && reviewEligible ? (
-            <div className="mt-4 border-t border-white/[.06] pt-4">
+            <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((value) => (
                   <button
@@ -495,7 +495,7 @@ export default function HotelDetailExperience({
                     type="button"
                     onClick={() => setReviewRating(value)}
                     className={`text-lg ${
-                      value <= reviewRating ? "text-amber-300" : "text-[#444A58]"
+                      value <= reviewRating ? "text-amber-300" : "text-[var(--wh-text-muted)]"
                     }`}
                   >
                     ★
@@ -507,7 +507,7 @@ export default function HotelDetailExperience({
                 onChange={(event) => setReviewComment(event.target.value)}
                 rows={3}
                 placeholder="Share your completed stay"
-                className="mt-3 w-full resize-none border-b border-white/[.08] bg-transparent py-3 text-xs outline-none focus:border-violet-500/40"
+                className="mt-3 w-full resize-none border-b border-[var(--wh-border-subtle)] bg-transparent py-3 text-xs outline-none focus:border-violet-500/40"
               />
               <button
                 type="button"
@@ -520,7 +520,7 @@ export default function HotelDetailExperience({
             </div>
           ) : null}
 
-          <div className="mt-4 divide-y divide-white/[.06]">
+          <div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">
             {reviews.slice(0, 6).map((review) => (
               <article key={review.review_id} className="py-3 first:pt-0">
                 <div className="flex items-center justify-between gap-3">
@@ -532,14 +532,14 @@ export default function HotelDetailExperience({
                   </p>
                 </div>
                 {review.comment ? (
-                  <p className="mt-2 text-sm leading-5 text-[#858B9A]">
+                  <p className="mt-2 text-sm leading-5 text-[var(--wh-text-secondary)]">
                     {review.comment}
                   </p>
                 ) : null}
               </article>
             ))}
             {!reviews.length ? (
-              <p className="py-5 text-center text-sm text-[#666D7E]">
+              <p className="py-5 text-center text-sm text-[var(--wh-text-muted)]">
                 No verified reviews yet.
               </p>
             ) : null}
@@ -547,7 +547,7 @@ export default function HotelDetailExperience({
         </section>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <div className="mx-auto grid max-w-5xl grid-cols-[auto_minmax(0,1fr)] gap-2">
           <button
             type="button"
@@ -563,7 +563,7 @@ export default function HotelDetailExperience({
               if (section) document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               else proceed();
             }}
-            className="h-12 min-w-0 rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:bg-white/[.055] disabled:text-[#656B7A]"
+            className="h-12 min-w-0 rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
           >
             {!selectedRoom
               ? "Choose a room"

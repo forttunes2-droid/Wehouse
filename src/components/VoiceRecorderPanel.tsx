@@ -15,7 +15,7 @@ type Props = {
 export default function VoiceRecorderPanel({ recording, seconds, level, draft, onCancel, onFinish, onDiscard, onUse }: Props) {
   if (!recording && !draft) return null;
   return (
-    <div className="mb-2 rounded-2xl border border-white/[.07] bg-[#171A23] p-3">
+    <div className="mb-2 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3">
       {recording ? (
         <div className="flex items-center gap-3">
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-400" />
@@ -23,16 +23,16 @@ export default function VoiceRecorderPanel({ recording, seconds, level, draft, o
           <div className="flex h-7 min-w-0 flex-1 items-center justify-center gap-1" aria-label="Recording level">
             {Array.from({ length: 18 }, (_, index) => {
               const active = level * 18 > index;
-              return <span key={index} className={`w-1 rounded-full transition-all ${active ? "bg-violet-400" : "bg-white/10"}`} style={{ height: `${8 + ((index * 7) % 18)}px` }} />;
+              return <span key={index} className={`w-1 rounded-full transition-all ${active ? "bg-violet-400" : "bg-[var(--wh-interactive)]"}`} style={{ height: `${8 + ((index * 7) % 18)}px` }} />;
             })}
           </div>
-          <button type="button" onClick={onCancel} className="rounded-lg px-2 py-2 text-[9px] font-semibold text-[#A7ACBA]">Cancel</button>
+          <button type="button" onClick={onCancel} className="rounded-lg px-2 py-2 text-[9px] font-semibold text-[var(--wh-text-secondary)]">Cancel</button>
           <button type="button" onClick={onFinish} className="rounded-lg bg-white px-3 py-2 text-[9px] font-semibold text-black">Finish</button>
         </div>
       ) : draft ? (
         <div className="flex items-center gap-3">
           <DraftPlayback key={draft.url} draft={draft} />
-          <button type="button" onClick={onDiscard} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#A7ACBA] transition hover:bg-white/[.06] hover:text-red-300" aria-label="Discard voice note"><DiscardIcon /></button>
+          <button type="button" onClick={onDiscard} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--wh-text-secondary)] transition hover:bg-[var(--wh-interactive)] hover:text-red-300" aria-label="Discard voice note"><DiscardIcon /></button>
           <button type="button" onClick={() => onUse(draft.file)} className="rounded-lg bg-violet-500 px-3 py-2 text-[9px] font-semibold">Use voice note</button>
         </div>
       ) : null}
@@ -54,9 +54,9 @@ function DraftPlayback({ draft }: { draft: VoiceDraft }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <audio ref={ref} src={draft.url} preload="metadata" onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration)) setMediaDuration(duration); }} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)} onEnded={() => { setPlaying(false); setCurrent(0); }} />
-      <button type="button" onClick={toggle} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 text-[10px]" aria-label={playing ? "Pause voice preview" : "Play voice preview"}>{playing ? "Ⅱ" : "▶"}</button>
+      <button type="button" onClick={toggle} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-[10px]" aria-label={playing ? "Pause voice preview" : "Play voice preview"}>{playing ? "Ⅱ" : "▶"}</button>
       <input type="range" aria-label="Voice preview position" min={0} max={Math.max(mediaDuration, 0.1)} step="0.1" value={Math.min(current, mediaDuration)} onChange={(event) => { const value = Number(event.target.value); if (ref.current) ref.current.currentTime = value; setCurrent(value); }} className="h-1.5 min-w-0 flex-1 cursor-pointer accent-violet-400" />
-      <span className="shrink-0 text-right font-mono text-[8px] text-[#858A9A]">{formatDuration(current)} / {formatDuration(mediaDuration)}</span>
+      <span className="shrink-0 text-right font-mono text-[8px] text-[var(--wh-text-secondary)]">{formatDuration(current)} / {formatDuration(mediaDuration)}</span>
     </div>
   );
 }

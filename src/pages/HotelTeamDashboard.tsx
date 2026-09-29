@@ -161,7 +161,7 @@ export default function HotelTeamDashboard({
 
   if (selected)
     return (
-      <div className="min-h-dvh bg-[#0A0A0F] px-4 py-5 text-white sm:px-6">
+      <div className="min-h-dvh bg-[var(--wh-bg)] px-4 py-5 text-[var(--wh-text)] sm:px-6">
 
         <div className="mx-auto max-w-6xl">
           <PartnerHotelOperations
@@ -231,7 +231,7 @@ export default function HotelTeamDashboard({
           <div className="mb-3 mt-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">Guest messages</h2>
-              <p className="mt-1 text-[9px] text-[#707687]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 Current paid stays for hotels you may message.
               </p>
             </div>
@@ -241,7 +241,7 @@ export default function HotelTeamDashboard({
               </span>
             ) : null}
           </div>
-          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
             {visibleConversations.map((row) => (
               <button
                 key={row.conversation_id}
@@ -258,12 +258,12 @@ export default function HotelTeamDashboard({
                   </p>
                   <p
                     className={`mt-1 truncate text-[10px] ${
-                      row.unread_count ? "text-white" : "text-[#73798A]"
+                      row.unread_count ? "text-white" : "text-[var(--wh-text-muted)]"
                     }`}
                   >
                     {row.last_message || "Stay conversation ready"}
                   </p>
-                  <p className="mt-1 truncate text-[8px] text-[#565D6E]">
+                  <p className="mt-1 truncate text-[8px] text-[var(--wh-text-muted)]">
                     {row.hotel_name} · {row.room_name}
                   </p>
                 </div>
@@ -275,7 +275,7 @@ export default function HotelTeamDashboard({
               </button>
             ))}
             {!visibleConversations.length ? (
-              <p className="py-12 text-center text-[10px] text-[#6D7485]">
+              <p className="py-12 text-center text-[10px] text-[var(--wh-text-muted)]">
                 No guest conversations yet.
               </p>
             ) : null}
@@ -291,18 +291,18 @@ export default function HotelTeamDashboard({
               aria-label="Loading assigned hotels"
             />
           ) : hotels.length === 0 ? (
-            <div className="border-y border-dashed border-white/[.08] py-10 text-center text-xs text-[#687080]">
+            <div className="border-y border-dashed border-[var(--wh-border-subtle)] py-10 text-center text-xs text-[var(--wh-text-muted)]">
               No active hotel assignment is available.
             </div>
           ) : (
-            <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
+            <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {hotels.map((hotel) => (
                 <button
                   key={hotel.hotel_id}
                   onClick={() => { setInitialBookingId(undefined); setSelected(hotel); }}
                   className="flex w-full items-center gap-4 py-4 text-left"
                 >
-                  <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">
+                  <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">
                     {hotel.images?.[0] ? (
                       <img
                         src={hotel.images[0]}
@@ -312,21 +312,21 @@ export default function HotelTeamDashboard({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="grid h-full place-items-center text-[8px] text-[#697080]">
+                      <div className="grid h-full place-items-center text-[8px] text-[var(--wh-text-muted)]">
                         No photo
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{hotel.name}</p>
-                    <p className="mt-1 text-[9px] text-[#6D7485]">
+                    <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                       {[hotel.city, hotel.state].filter(Boolean).join(", ")}
                     </p>
                     <p className="mt-2 text-[8px] font-semibold uppercase tracking-wide text-violet-300">
                       {hotel.access_role === "manager" ? "Manager" : "Front desk"}
                     </p>
                   </div>
-                  <span aria-hidden="true" className="text-[#686F80]">›</span>
+                  <span aria-hidden="true" className="text-[var(--wh-text-muted)]">›</span>
                 </button>
               ))}
             </div>

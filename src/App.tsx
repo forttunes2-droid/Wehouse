@@ -122,7 +122,7 @@ function PageTransitionFallback() {
   }, []);
   return (
     <div
-      className="wh-auth-to-app min-h-[100dvh] bg-[#0A0A0F] px-4 py-5 text-[#F6F2FC]"
+      className="wh-auth-to-app min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-5 text-[var(--wh-text)]"
       role="status"
       aria-label="Loading WeHouse"
     >
@@ -131,18 +131,17 @@ function PageTransitionFallback() {
           <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
           <div>
             <p className="text-base font-semibold tracking-tight">WeHouse</p>
-            <p className="mt-0.5 text-sm text-[#A7ADBA]">Checking your session and workspace…</p>
+            <p className="mt-0.5 text-sm text-[var(--wh-text-secondary)]">Checking your session and workspace…</p>
           </div>
         </div>
         {!slow ? (
-          <div className="mt-8 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[.07]" aria-hidden="true">
-            <div className="h-full w-1/2 rounded-full bg-violet-500" />
+          <div className="mt-8 h-1 w-full max-w-48 overflow-hidden rounded-full wh-skeleton" aria-hidden="true">
           </div>
         ) : (
           <div className="mt-8">
             <div className="max-w-xs">
-              <p className="text-sm text-[#B8C0CF]">This is taking longer than usual.</p>
-              <p className="mt-2 text-sm leading-6 text-[#B8C0CF]">Your connection or account service may be slow. You can retry now.</p>
+              <p className="text-sm text-[var(--wh-text-secondary)]">This is taking longer than usual.</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Your connection or account service may be slow. You can retry now.</p>
               <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
             </div>
           </div>
@@ -155,23 +154,23 @@ function PageTransitionFallback() {
 function RouteTransitionFallback() {
   return (
     <div
-      className="grid min-h-[45vh] place-items-center bg-[#0A0A0F] px-6 text-white"
+      className="grid min-h-[45vh] place-items-center bg-[var(--wh-bg)] px-6 text-[var(--wh-text)]"
       role="status"
       aria-label="Opening page"
     >
       <div className="text-center">
-        <div aria-hidden="true" className="mx-auto h-[22px] w-[22px] animate-spin motion-reduce:animate-none rounded-full border-2 border-violet-300/20 border-t-violet-400" />
-        <p className="mt-3 text-sm text-[#A7AEBD]">Opening page…</p>
+        <div aria-hidden="true" className="mx-auto h-4 w-28 rounded-full wh-skeleton" />
+        <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">Opening page…</p>
       </div>
     </div>
   );
 }
 function ErrorFallback({ reset }: { reset: () => void }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0F] px-5 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
       <div className="max-w-sm text-center">
         <h2 className="text-lg font-semibold">Something went wrong</h2>
-        <p className="mb-6 mt-2 text-sm text-[#5C5E72]">
+        <p className="mb-6 mt-2 text-sm text-[var(--wh-text-secondary)]">
           The app encountered an error. Please try again.
         </p>
         <button
@@ -803,9 +802,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             },
             classNames: {
               toast:
-                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                "!rounded-2xl !border !border-violet-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
               title: "!text-[13px] !font-semibold",
-              description: "!text-[10px] !text-[#9AA1B2]",
+              description: "!text-[10px] !text-[var(--wh-text-secondary)]",
               actionButton:
                 "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
             },
@@ -928,9 +927,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             },
             classNames: {
               toast:
-                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                "!rounded-2xl !border !border-violet-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
               title: "!text-[13px] !font-semibold",
-              description: "!text-[10px] !text-[#9AA1B2]",
+              description: "!text-[10px] !text-[var(--wh-text-secondary)]",
               actionButton:
                 "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
             },
@@ -979,9 +978,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
               },
               classNames: {
                 toast:
-                  "!rounded-2xl !border !border-blue-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                  "!rounded-2xl !border !border-blue-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
                 title: "!text-[13px] !font-semibold",
-                description: "!text-[10px] !text-[#9AA1B2]",
+                description: "!text-[10px] !text-[var(--wh-text-secondary)]",
                 actionButton:
                   "!rounded-full !bg-blue-500 !px-3 !text-[9px] !font-semibold !text-white",
               },
@@ -1161,9 +1160,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
 
   if (auth.isLoading) return <PageTransitionFallback />;
   if (baseProfile && !workspaceReady) return workspaceError ? (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#0A0A0F] p-6 text-center text-white">
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[var(--wh-bg)] p-6 text-center text-[var(--wh-text)]">
       <h1 className="text-xl font-semibold">Unable to open your account</h1>
-      <p className="max-w-sm text-sm text-[#B5AFC1]" role="alert">{workspaceError}</p>
+      <p className="max-w-sm text-sm text-[var(--wh-text-secondary)]" role="alert">{workspaceError}</p>
       <button onClick={() => void reloadWorkspaces()} className="min-h-11 rounded-xl bg-violet-600 px-6 font-semibold">Try again</button>
       <button onClick={() => void auth.logout()} className="min-h-11 text-violet-300">Sign out</button>
     </main>
@@ -1650,7 +1649,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           <div
             key={`${baseProfile?.user_id}:${activeWorkspace}`}
             ref={pageScrollRef}
-            className="page-transition wh-workspace-enter min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
+            className="page-transition wh-workspace-enter min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[var(--wh-bg)] text-[var(--wh-text)] scrollable-content"
           >
             {renderPage()}
           </div>

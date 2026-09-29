@@ -15,7 +15,7 @@ export default function InlineFilterChips({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="overflow-x-auto border-y border-white/[.07] py-3 scrollbar-hide"
+      className="overflow-x-auto border-y border-[var(--wh-border-subtle)] py-3 scrollbar-hide"
     >
       <div className="flex min-w-max gap-2">
         {options.map((option) => {
@@ -29,7 +29,7 @@ export default function InlineFilterChips({
               className={`min-h-9 rounded-full px-3.5 text-[9px] font-semibold transition ${
                 active
                   ? "bg-violet-500 text-white"
-                  : "border border-white/[.07] bg-white/[.025] text-[#858B9B]"
+                  : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"
               }`}
             >
               {option.label}

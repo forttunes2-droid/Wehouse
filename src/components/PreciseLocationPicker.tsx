@@ -200,11 +200,11 @@ export default function PreciseLocationPicker({
       : "Your personal street address is private.";
 
   return (
-    <section className="border-y border-white/[.07] py-4">
+    <section className="border-y border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold">{title}</p>
-          <p className="mt-1 text-[9px] leading-5 text-[#787D8F]">{description}</p>
+          <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">{description}</p>
         </div>
           <button
             type="button"
@@ -219,7 +219,7 @@ export default function PreciseLocationPicker({
       <div className="mt-3">
         {subject === "personal" ? (
           <label className="block">
-            <span className="mb-1 block text-[9px] font-semibold text-[#A4A9B7]">
+            <span className="mb-1 block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
               Your street address
             </span>
             <textarea
@@ -227,17 +227,17 @@ export default function PreciseLocationPicker({
               value={value?.address || ""}
               placeholder="House number, street, area"
               onChange={(event) => updateAddress(event.target.value)}
-              className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40"
+              className="w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none focus:border-violet-500/40"
             />
           </label>
         ) : value?.address.trim() ? (
-          <p className="rounded-xl border border-white/[.07] bg-white/[.025] px-3 py-2.5 text-[10px] text-[#A9AEBA]">
+          <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5 text-[10px] text-[var(--wh-text-secondary)]">
             {value.address.trim()}
           </p>
         ) : null}
 
         <div className="mt-2 flex items-center justify-between gap-3">
-          <p className="text-[8px] leading-4 text-[#656B7B]">{addressHelp}</p>
+          <p className="text-[8px] leading-4 text-[var(--wh-text-muted)]">{addressHelp}</p>
 
         </div>
 
@@ -263,7 +263,7 @@ export default function PreciseLocationPicker({
           className={`mt-2 rounded-xl px-3 py-2 text-[9px] leading-5 ${
             /blocked|could not|cannot|No location/i.test(message)
               ? "bg-amber-500/10 text-amber-200"
-              : "text-[#9AA0AF]"
+              : "text-[var(--wh-text-secondary)]"
           }`}
           role={/blocked|could not|cannot|No location/i.test(message) ? "alert" : "status"}
         >

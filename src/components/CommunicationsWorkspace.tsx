@@ -373,7 +373,7 @@ export default function CommunicationsWorkspace({
         )}
         <div>
           {!hideViewTabs && <h2 className="text-base font-bold">New update</h2>}
-          <p className="mt-1 text-[10px] text-[#696E7F]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             Share a WeHouse Official update with the selected audience.
           </p>
         </div>
@@ -423,20 +423,20 @@ export default function CommunicationsWorkspace({
     return (
       <OperationalThreadSurface conversationId={selected.conversation_id} onClose={closeThread}>
       {(dismiss) => (
-      <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden bg-[#0E1219]">
-        <header className="flex items-center gap-3 border-b border-white/[.06] px-3 py-3 sm:px-4">
+      <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden bg-[var(--wh-surface)]">
+        <header className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3 py-3 sm:px-4">
           <button
             type="button"
             aria-label="Back to conversations"
             onClick={() => dismiss()}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#9DA3B2] hover:bg-white/[.05]"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
           >
             ←
           </button>
           <Avatar name={selected.requester_name || selected.requester_email} compact />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{requesterLabel}</p>
-            <p className="mt-0.5 truncate text-[11px] text-[#858B9B]">
+            <p className="mt-0.5 truncate text-[11px] text-[var(--wh-text-secondary)]">
               {selectedPresentation.operational
                 ? selectedPresentation.operator
                 : selectedPresentation.title}
@@ -449,14 +449,14 @@ export default function CommunicationsWorkspace({
           )}
         </header>
         {profile.role === "staff" && !staffOwnsConversation ? (
-          <section className="flex items-center justify-between gap-3 border-b border-white/[.06] bg-amber-500/[.04] px-4 py-3">
+          <section className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] bg-amber-500/[.04] px-4 py-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold text-amber-100">
                 {staffCanTakeConversation
                   ? "This work is not assigned yet"
                   : `Assigned to ${selected.assigned_staff_name || "another team member"}`}
               </p>
-              <p className="mt-1 text-[8px] text-[#777E8E]">
+              <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">
                 Opening a record never assigns it. Take it explicitly before replying or changing its state.
               </p>
             </div>
@@ -477,13 +477,13 @@ export default function CommunicationsWorkspace({
           </section>
         ) : null}
         {!selectedPresentation.operational && (
-        <section className="border-b border-white/[.06] bg-[#0B0F15] px-4 py-2.5">
+        <section className="border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-[10px] font-semibold text-[#D9DCE4]">
                 {selectedPresentation.title}
               </p>
-              <p className="mt-0.5 truncate text-[8px] text-[#687081]">
+              <p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">
                 {[
                   caseNumber ? `Case ${caseNumber}` : "WeHouse conversation",
                   publicRole(selected.requester_role),
@@ -518,12 +518,12 @@ export default function CommunicationsWorkspace({
           onSubmit={(action) => void updateCase(action)}
         />}
         {selectedPresentation.operational && (
-          <div className="flex items-center gap-3 border-b border-white/[.06] bg-violet-500/[.045] px-4 py-3">
+          <div className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] bg-violet-500/[.045] px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-violet-100">
                 {selectedPresentation.title}
               </p>
-              <p className="mt-1 truncate text-[11px] text-[#8A91A2]">
+              <p className="mt-1 truncate text-[11px] text-[var(--wh-text-secondary)]">
                 {selectedPresentation.meta}
               </p>
             </div>
@@ -532,7 +532,7 @@ export default function CommunicationsWorkspace({
                 type="button"
                 onClick={() => void openContext(dismiss)}
                 disabled={propertyLink && (linkedRecordState === "checking" || linkedRecordState === "removed")}
-                className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[11px] font-semibold disabled:bg-white/[.06] disabled:text-[#8A91A2]"
+                className="min-h-10 shrink-0 rounded-xl bg-violet-500 px-3 text-[11px] font-semibold disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-secondary)]"
               >
                 {propertyLink && linkedRecordState === "removed" ? "Property removed"
                   : propertyLink && linkedRecordState === "checking" ? "Checking property…"
@@ -545,7 +545,7 @@ export default function CommunicationsWorkspace({
             )}
           </div>
         )}
-        {propertyLink && linkedRecordState === "removed" && <p role="status" className="border-b border-white/[.06] px-4 py-2 text-xs leading-5 text-[#A7ADBA]">
+        {propertyLink && linkedRecordState === "removed" && <p role="status" className="border-b border-[var(--wh-border-subtle)] px-4 py-2 text-xs leading-5 text-[var(--wh-text-secondary)]">
           The original property is no longer available. This conversation and its replies remain here as a record.
         </p>}
         {internalNotes.length > 0 ? <InternalNotes notes={internalNotes} /> : null}
@@ -558,12 +558,12 @@ export default function CommunicationsWorkspace({
               <ThreadSkeleton />
             ) : threadError ? (
               <div className="grid min-h-52 place-items-center text-center">
-                <div><p role="alert" className="text-sm text-[#AAA3B3]">{threadError}</p>
+                <div><p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{threadError}</p>
                   <button type="button" onClick={() => void refreshMessages(selected.conversation_id)} className="mt-4 min-h-11 rounded-xl bg-violet-600 px-5 text-sm font-semibold">Try again</button>
                 </div>
               </div>
             ) : messages.length === 0 ? (
-              <div className="grid min-h-72 place-items-center text-center text-[11px] text-[#747A8B]">
+              <div className="grid min-h-72 place-items-center text-center text-[11px] text-[var(--wh-text-muted)]">
                 No customer messages yet.
               </div>
             ) : (
@@ -581,19 +581,19 @@ export default function CommunicationsWorkspace({
             <div ref={bottomRef} />
           </div>
         </main>
-        <footer className="shrink-0 border-t border-white/[.06] bg-[#10141B] p-2.5 pb-[max(.625rem,env(safe-area-inset-bottom))] sm:p-3">
+        <footer className="shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2.5 pb-[max(.625rem,env(safe-area-inset-bottom))] sm:p-3">
           <div className="mx-auto mb-2 flex max-w-4xl gap-2">
             <button
               type="button"
               onClick={() => setMessageVisibility("customer")}
-              className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${messageVisibility === "customer" ? "bg-violet-500 text-white" : "bg-white/[.05] text-[#8A90A0]"}`}
+              className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${messageVisibility === "customer" ? "bg-violet-500 text-white" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
             >
               Reply to customer
             </button>
             <button
               type="button"
               onClick={() => setMessageVisibility("internal")}
-              className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${messageVisibility === "internal" ? "bg-amber-500/20 text-amber-200" : "bg-white/[.05] text-[#8A90A0]"}`}
+              className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${messageVisibility === "internal" ? "bg-amber-500/20 text-amber-200" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
             >
               Internal work note
             </button>
@@ -612,7 +612,7 @@ export default function CommunicationsWorkspace({
               aria-label="Attach a photo or video"
               onClick={() => fileRef.current?.click()}
               disabled={conversationLocked}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/[.06] bg-white/[.035] text-[#9AA0B1] hover:bg-white/[.05]"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
             >
               ＋
             </button>
@@ -624,7 +624,7 @@ export default function CommunicationsWorkspace({
               onChange={(e) => addFiles(e.target.files)}
               className="hidden"
             />
-            <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.07] bg-[#1A1F28] px-3 py-1.5 focus-within:border-violet-500/35">
+            <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -658,12 +658,12 @@ export default function CommunicationsWorkspace({
                 conversationLocked ||
                 (!input.trim() && !files.length)
               }
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#666C7D]"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
             >
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className={`mx-auto mt-2 max-w-4xl text-center text-[10px] ${messageVisibility === "internal" ? "text-amber-300/70" : "text-[#656C7D]"}`}>
+          <p className={`mx-auto mt-2 max-w-4xl text-center text-[10px] ${messageVisibility === "internal" ? "text-amber-300/70" : "text-[var(--wh-text-muted)]"}`}>
             {messageVisibility === "internal"
               ? "Only authorized WeHouse team members can see this note."
               : `Customer reply from ${handlerLabel} · WeHouse`}
@@ -681,7 +681,7 @@ export default function CommunicationsWorkspace({
         <HeaderTabs view={view} setView={setView} unread={unread} />
       )}
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#606576]">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--wh-text-muted)]">
           ⌕
         </span>
         <input
@@ -692,32 +692,32 @@ export default function CommunicationsWorkspace({
               ? "Search customer, booking or property"
               : "Search people or messages"
           }
-          className="h-11 w-full rounded-2xl border border-white/[.07] bg-[#141820] pl-9 pr-3 text-xs outline-none focus:border-violet-500/35"
+          className="h-11 w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] pl-9 pr-3 text-xs outline-none focus:border-violet-500/35"
         />
       </div>
-      {listError ? <div className="rounded-xl border border-white/10 p-4">
-        <p role="alert" className="text-sm text-[#AAA3B3]">{listError}</p>
+      {listError ? <div className="rounded-xl border border-[var(--wh-border-subtle)] p-4">
+        <p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{listError}</p>
         <button type="button" onClick={() => void load()} className="mt-2 min-h-11 text-sm font-semibold text-violet-300">Try again</button>
       </div> : null}
       {loadingList ? (
         <ConversationListSkeleton />
       ) : listError && !rows.length ? null : shown.length === 0 ? (
-        <div className="grid min-h-36 place-items-center border-y border-white/[.06] px-5 text-center">
+        <div className="grid min-h-36 place-items-center border-y border-[var(--wh-border-subtle)] px-5 text-center">
           <div>
             <p className="text-sm font-semibold">No conversations</p>
-            <p className="mt-1 text-[10px] text-[#666B7C]">
+            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
               New messages will appear here.
             </p>
           </div>
         </div>
       ) : (
-        <section className="overflow-hidden border-y border-white/[.06]">
+        <section className="overflow-hidden border-y border-[var(--wh-border-subtle)]">
           {shown.map((row, index) => (
             <div key={row.conversation_id}>
-              {index > 0 && <div className="ml-[4.5rem] h-px bg-white/[.05]" />}
+              {index > 0 && <div className="ml-[4.5rem] h-px bg-[var(--wh-interactive)]" />}
               <button
                 onClick={() => void open(row)}
-                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--wh-interactive)]"
               >
                 <Avatar name={row.requester_name || row.requester_email} />
                 <div className="min-w-0 flex-1">
@@ -727,7 +727,7 @@ export default function CommunicationsWorkspace({
                         row.requester_email ||
                         "WeHouse member"}
                     </p>
-                    <span className="shrink-0 rounded-full bg-white/[.04] px-2 py-0.5 text-[8px] capitalize text-[#777C8D]">
+                    <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-0.5 text-[8px] capitalize text-[var(--wh-text-muted)]">
                       {publicRole(row.requester_role)}
                     </span>
                     <StatusBadge status={row.status} />
@@ -740,11 +740,11 @@ export default function CommunicationsWorkspace({
                   ) : (
                     <>
                       <p
-                        className={`mt-1 truncate text-[11px] ${Number(row.unread_count || 0) > 0 ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+                        className={`mt-1 truncate text-[11px] ${Number(row.unread_count || 0) > 0 ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
                       >
                         {row.last_message || "Conversation started"}
                       </p>
-                      <p className="mt-0.5 truncate text-[9px] text-[#596071]">
+                      <p className="mt-0.5 truncate text-[9px] text-[var(--wh-text-muted)]">
                         {[row.requester_lga, row.requester_state]
                           .filter(Boolean)
                           .join(", ") || "Location unavailable"}
@@ -758,7 +758,7 @@ export default function CommunicationsWorkspace({
                 <div className="shrink-0 self-start pt-0.5 text-right">
                   {row.last_message_time && (
                     <p
-                      className={`text-[8px] ${Number(row.unread_count || 0) > 0 ? "text-violet-300" : "text-[#555A6B]"}`}
+                      className={`text-[8px] ${Number(row.unread_count || 0) > 0 ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
                     >
                       {formatListTime(row.last_message_time)}
                     </p>
@@ -811,11 +811,11 @@ function CaseManagementPanel({
       ),
     );
   return (
-    <section className="border-b border-white/[.06] bg-[#11161E] px-4 py-4">
+    <section className="border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 py-4">
       <div className="mx-auto max-w-4xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#697183]">
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
               Request handling
             </p>
             <p className="mt-1 text-[12px] font-semibold text-[#ECEEF2]">
@@ -824,7 +824,7 @@ function CaseManagementPanel({
           </div>
           <StatusBadge status={row.status} large />
         </div>
-        <div className="mt-3 grid gap-3 rounded-2xl border border-white/[.06] bg-black/10 p-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 p-3 sm:grid-cols-3">
           <CaseFact
             label="Owner"
             value={row.assigned_staff_name || "Awaiting assignment"}
@@ -834,8 +834,8 @@ function CaseManagementPanel({
         </div>
         {importantEvent?.note &&
         ["waiting_for_user", "escalated", "resolved"].includes(row.status) ? (
-          <div className="mt-3 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2.5">
-            <p className="text-[8px] font-semibold uppercase tracking-wide text-[#646C7D]">
+          <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5">
+            <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
               Latest decision
             </p>
             <p className="mt-1 text-[10px] leading-4 text-[#CDD0D8]">
@@ -874,14 +874,14 @@ function CaseManagementPanel({
               onChange={(event) => onNoteChange(event.target.value)}
               rows={3}
               placeholder={caseActionPlaceholder(activeAction)}
-              className="mt-2 w-full resize-none rounded-xl border border-white/[.07] bg-[#0D1118] p-3 text-[11px] leading-5 outline-none placeholder:text-[#575E6F] focus:border-violet-500/35"
+              className="mt-2 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-[11px] leading-5 outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-500/35"
             />
             <div className="mt-2 flex justify-end gap-2">
               <button
                 type="button"
                 disabled={busy}
                 onClick={onCancel}
-                className="min-h-9 rounded-xl px-3 text-[9px] font-semibold text-[#8A90A0]"
+                className="min-h-9 rounded-xl px-3 text-[9px] font-semibold text-[var(--wh-text-secondary)]"
               >
                 Cancel
               </button>
@@ -896,12 +896,12 @@ function CaseManagementPanel({
             </div>
           </div>
         ) : null}
-        <details className="mt-3 border-t border-white/[.05] pt-3">
+        <details className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
           <summary className="cursor-pointer text-[9px] font-semibold text-violet-300">
             Request history · {events.length + 1} update
             {events.length === 0 ? "" : "s"}
           </summary>
-          <div className="mt-3 space-y-2 border-l border-white/[.08] pl-3">
+          <div className="mt-3 space-y-2 border-l border-[var(--wh-border-subtle)] pl-3">
             <StaffHistoryItem
               title="Request sent to WeHouse"
               time={row.created_at}
@@ -933,10 +933,10 @@ function CaseFact({
 }) {
   return (
     <div className={wide ? "sm:col-span-1" : ""}>
-      <p className="text-[8px] font-semibold uppercase tracking-wide text-[#626A7B]">
+      <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
         {label}
       </p>
-      <p className="mt-1 text-[10px] leading-4 text-[#CACDD5]">{value}</p>
+      <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-secondary)]">{value}</p>
     </div>
   );
 }
@@ -953,7 +953,7 @@ function StaffHistoryItem({
   return (
     <div>
       <p className="text-[9px] font-medium text-[#D2D5DC]">{title}</p>
-      <p className="mt-0.5 text-[8px] text-[#5E6575]">
+      <p className="mt-0.5 text-[8px] text-[var(--wh-text-muted)]">
         {new Date(time).toLocaleString([], {
           day: "numeric",
           month: "short",
@@ -962,7 +962,7 @@ function StaffHistoryItem({
         })}
       </p>
       {note ? (
-        <p className="mt-1 text-[9px] leading-4 text-[#858B99]">{note}</p>
+        <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">{note}</p>
       ) : null}
     </div>
   );
@@ -1107,12 +1107,12 @@ function ReservationContext({
   return (
     <>
       <p
-        className={`mt-1 truncate text-xs ${Number(row.unread_count || 0) > 0 ? "font-medium text-[#E3E5EB]" : "text-[#A0A5B3]"}`}
+        className={`mt-1 truncate text-xs ${Number(row.unread_count || 0) > 0 ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-secondary)]"}`}
       >
         {presentation.title}
         {presentation.meta ? ` · ${presentation.meta}` : ""}
       </p>
-      <p className="mt-1 truncate text-[10px] text-[#666D7E]">
+      <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
         {row.last_message || "Conversation started"}
       </p>
     </>
@@ -1128,10 +1128,10 @@ function HeaderTabs({
   unread: number;
 }) {
   return (
-    <div className="grid grid-cols-2 border-b border-white/[.06]">
+    <div className="grid grid-cols-2 border-b border-[var(--wh-border-subtle)]">
       <button
         onClick={() => setView("inbox")}
-        className={`relative min-h-12 text-xs font-semibold ${view === "inbox" ? "text-white" : "text-[#777B8D]"}`}
+        className={`relative min-h-12 text-xs font-semibold ${view === "inbox" ? "text-white" : "text-[var(--wh-text-muted)]"}`}
       >
         Chats{unread ? ` · ${unread}` : ""}
         {view === "inbox" && (
@@ -1140,7 +1140,7 @@ function HeaderTabs({
       </button>
       <button
         onClick={() => setView("broadcast")}
-        className={`relative min-h-12 text-xs font-semibold ${view === "broadcast" ? "text-white" : "text-[#8B8F9F]"}`}
+        className={`relative min-h-12 text-xs font-semibold ${view === "broadcast" ? "text-white" : "text-[var(--wh-text-secondary)]"}`}
       >
         Updates
         {view === "broadcast" && (
@@ -1157,13 +1157,13 @@ function publicRole(role?: string) {
 }
 function ConversationListSkeleton() {
   return (
-    <div className="border-y border-white/[.06]" aria-label="Loading conversations">
+    <div className="border-y border-[var(--wh-border-subtle)]" aria-label="Loading conversations">
       {[0,1,2].map((item) => (
         <div key={item} className="flex items-center gap-3 px-4 py-3.5">
-          <div className="h-12 w-12 shrink-0 rounded-full bg-white/[.05] shimmer" />
+          <div className="h-12 w-12 shrink-0 rounded-full bg-[var(--wh-interactive)] shimmer" />
           <div className="min-w-0 flex-1">
-            <div className="h-3 w-28 rounded-full bg-white/[.06] shimmer" />
-            <div className="mt-2 h-2.5 w-[72%] rounded-full bg-white/[.04] shimmer" />
+            <div className="h-3 w-28 rounded-full bg-[var(--wh-interactive)] shimmer" />
+            <div className="mt-2 h-2.5 w-[72%] rounded-full bg-[var(--wh-interactive)] shimmer" />
           </div>
         </div>
       ))}
@@ -1174,9 +1174,9 @@ function ConversationListSkeleton() {
 function ThreadSkeleton() {
   return (
     <div className="min-h-72 space-y-4 pt-2" aria-label="Loading conversation">
-      <div className="h-14 w-[58%] rounded-[18px] rounded-bl-md bg-white/[.045] shimmer" />
+      <div className="h-14 w-[58%] rounded-[18px] rounded-bl-md bg-[var(--wh-interactive)] shimmer" />
       <div className="ml-auto h-12 w-[42%] rounded-[18px] rounded-br-md bg-violet-500/[.10] shimmer" />
-      <div className="h-16 w-[66%] rounded-[18px] rounded-bl-md bg-white/[.045] shimmer" />
+      <div className="h-16 w-[66%] rounded-[18px] rounded-bl-md bg-[var(--wh-interactive)] shimmer" />
     </div>
   );
 }
@@ -1184,7 +1184,7 @@ function ThreadSkeleton() {
 function InternalNotes({ notes }: { notes: any[] }) {
   const latest = notes[notes.length - 1];
   return (
-    <details className="max-h-[30%] shrink-0 overflow-y-auto border-b border-white/[.06] bg-amber-500/[.025] px-4 py-2.5">
+    <details className="max-h-[30%] shrink-0 overflow-y-auto border-b border-[var(--wh-border-subtle)] bg-amber-500/[.025] px-4 py-2.5">
       <summary className="cursor-pointer list-none text-[10px] font-semibold text-amber-200/90">
         Internal notes · {notes.length}
         <span className="ml-2 font-normal text-amber-100/45">
@@ -1214,12 +1214,12 @@ function PendingMedia({ file, onRemove }: { file: File; onRemove: () => void }) 
     setUrl(next);
     return () => URL.revokeObjectURL(next);
   }, [file]);
-  return <div className="relative w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-[#1A1F28]">
+  return <div className="relative w-24 shrink-0 overflow-hidden rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]">
     {url ? file.type.startsWith("image/")
       ? <img src={url} alt="" className="h-20 w-full object-cover" />
       : <video src={url} muted playsInline className="h-20 w-full object-cover" />
-      : <div className="h-20 w-full animate-pulse bg-white/5" />}
-    <p className="truncate px-2 py-1.5 text-[11px] text-[#C9CDD6]" title={file.name}>{file.name}</p>
+      : <div className="h-20 w-full animate-pulse bg-[var(--wh-interactive)]" />}
+    <p className="truncate px-2 py-1.5 text-[11px] text-[var(--wh-text-secondary)]" title={file.name}>{file.name}</p>
     <button type="button" onClick={onRemove} aria-label={`Remove ${file.name}`}
       className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/80 text-sm text-white">×</button>
   </div>;
@@ -1235,7 +1235,7 @@ function Bubble({
   subjectTitle: string;
 }) {
   if (msg.action_type === "request_received" && msg.content === "Property conversation linked to this record.")
-    return <p className="mx-auto max-w-[90%] py-1 text-center text-xs leading-5 text-[#8A91A2]">
+    return <p className="mx-auto max-w-[90%] py-1 text-center text-xs leading-5 text-[var(--wh-text-secondary)]">
       Conversation started about {subjectTitle}. Messages remain here if the property is later removed.
     </p>;
   const meta = msg.action_metadata || {};
@@ -1252,12 +1252,12 @@ function Bubble({
           <ContextCard meta={meta} type={msg.action_type} />
         )}
         {!fromWeHouse ? (
-          <p className="mb-1 px-1 text-[9px] font-medium text-[#838A9B]">
+          <p className="mb-1 px-1 text-[9px] font-medium text-[var(--wh-text-secondary)]">
             {sender}
           </p>
         ) : null}
         <div
-          className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#171B24]"}`}
+          className={`rounded-[19px] px-3.5 py-2.5 ${fromWeHouse ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
         >
           {(msg.attachments || []).map((path: string, i: number) => (
             <SecureSupportAttachment
@@ -1272,7 +1272,7 @@ function Bubble({
             </p>
           )}
           <p
-            className={`mt-1 text-[10px] ${fromWeHouse ? "text-violet-100/70" : "text-[#747B8C]"}`}
+            className={`mt-1 text-[10px] ${fromWeHouse ? "text-violet-100/70" : "text-[var(--wh-text-muted)]"}`}
           >
             {new Date(msg.created_at).toLocaleTimeString([], {
               hour: "2-digit",

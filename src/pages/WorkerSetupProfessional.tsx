@@ -291,9 +291,9 @@ export default function WorkerSetupProfessional({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B11] pb-8 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-[var(--wh-text)]">
       <main className="mx-auto max-w-2xl px-4 py-5 sm:px-5">
-        <header className="mb-5 flex items-start gap-3 border-b border-white/[.06] pb-4">
+        <header className="mb-5 flex items-start gap-3 border-b border-[var(--wh-border-subtle)] pb-4">
           {onBack && <BackButton onClick={onBack} />}
           <div className="min-w-0 flex-1">
             <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">
@@ -303,7 +303,7 @@ export default function WorkerSetupProfessional({
               <h1 className="truncate text-xl font-bold">
                 {profile.worker_occupation ? "Edit profile" : "Set up your work profile"}
               </h1>
-              <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide text-[#777E8E]">
+              <span className="shrink-0 text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
                 Public after approval
               </span>
             </div>
@@ -311,7 +311,7 @@ export default function WorkerSetupProfessional({
         </header>
 
         <form onSubmit={save} className="space-y-3">
-          <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <ProfilePhotoEditor
               avatar={avatar}
               name={name}
@@ -326,21 +326,21 @@ export default function WorkerSetupProfessional({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <div className="mb-3">
               <h2 className="text-sm font-semibold">Services you offer</h2>
-              <p className="mt-1 text-[9px] leading-4 text-[#697080]">
+              <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                 Add each service customers can request from you. Keep one clear work title for your public profile.
               </p>
             </div>
 
             {services.length > 0 ? (
-              <div className="mb-4 divide-y divide-white/[.06] border-y border-white/[.06]">
+              <div className="mb-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
                 {services.map((item, index) => (
                   <div key={`${item.name}-${index}`} className="flex items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold">{item.name}</p>
-                      <p className="mt-1 truncate text-[9px] text-[#687080]">
+                      <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                         {item.categoryName}
                         {item.price
                           ? ` · From ₦${Number(item.price).toLocaleString()}`
@@ -359,9 +359,9 @@ export default function WorkerSetupProfessional({
                 ))}
               </div>
             ) : servicesLoading ? (
-              <p className="mb-4 text-[10px] text-[#737A8A]">Loading your services…</p>
+              <p className="mb-4 text-[10px] text-[var(--wh-text-muted)]">Loading your services…</p>
             ) : (
-              <p className="mb-4 text-[10px] text-[#737A8A]">Add the first service customers can request from you.</p>
+              <p className="mb-4 text-[10px] text-[var(--wh-text-muted)]">Add the first service customers can request from you.</p>
             )}
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -405,12 +405,12 @@ export default function WorkerSetupProfessional({
 
             <div className="mt-4">
               <Field label="Work title" value={occupation} set={setOccupation} />
-              <p className="mt-1.5 text-[8px] text-[#5F6676]">
+              <p className="mt-1.5 text-[8px] text-[var(--wh-text-muted)]">
                 One clear title shown on your public profile, such as Electrician, Hairstylist or Handyperson.
               </p>
             </div>
             <label className="mt-3 block">
-              <span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">
+              <span className="mb-1.5 block text-[10px] font-medium text-[var(--wh-text-muted)]">
                 Experience
               </span>
               <textarea
@@ -418,27 +418,27 @@ export default function WorkerSetupProfessional({
                 onChange={(event) => setExperience(event.target.value)}
                 rows={3}
                 placeholder="Example: 4 years installing and repairing home electrical systems"
-                className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181B24] p-3 text-xs outline-none placeholder:text-[#5E6473] focus:border-violet-500/40"
+                className="w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-500/40"
               />
             </label>
             <label className="mt-3 block">
-              <span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">
-                About your work <span className="text-[#5E6473]">(optional)</span>
+              <span className="mb-1.5 block text-[10px] font-medium text-[var(--wh-text-muted)]">
+                About your work <span className="text-[var(--wh-text-muted)]">(optional)</span>
               </span>
               <textarea
                 value={bio}
                 onChange={(event) => setBio(event.target.value)}
                 rows={3}
                 placeholder="What can customers expect from you?"
-                className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181B24] p-3 text-xs outline-none placeholder:text-[#5E6473] focus:border-violet-500/40"
+                className="w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-500/40"
               />
             </label>
           </section>
 
-          <section className="rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <div className="mb-3">
               <h2 className="text-sm font-semibold">Where do you work?</h2>
-              <p className="mt-1 text-[9px] text-[#697080]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 Customers discover you within this service area.
               </p>
             </div>
@@ -493,14 +493,14 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-medium text-[#7B8190]">
+      <span className="mb-1.5 block text-[10px] font-medium text-[var(--wh-text-muted)]">
         {label}
       </span>
       <input
         value={value}
         inputMode={inputMode}
         onChange={(event) => set(event.target.value)}
-        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181B24] px-3 text-xs outline-none focus:border-violet-500/40"
+        className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
       />
     </label>
   );

@@ -98,7 +98,7 @@ export default function SecureChatOnboarding({
         aria-modal="true"
         aria-labelledby="recovery-passcode-title"
       >
-        <section className="w-full max-w-md rounded-[28px] border border-white/[.08] bg-[#131720] p-5 shadow-2xl sm:p-6">
+        <section className="w-full max-w-md rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-5 shadow-2xl sm:p-6">
           <span
             className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-300"
             aria-hidden="true"
@@ -126,7 +126,7 @@ export default function SecureChatOnboarding({
                   : "Create a recovery passcode"
               : "Enter your passcode"}
           </h2>
-          <p className="mx-auto mt-2 max-w-sm text-center text-[11px] leading-5 text-[#9298A8]">
+          <p className="mx-auto mt-2 max-w-sm text-center text-[11px] leading-5 text-[var(--wh-text-secondary)]">
             {makingNewPasscode
               ? confirming
                 ? "Enter the same six digits again."
@@ -185,7 +185,7 @@ export default function SecureChatOnboarding({
                 setConfirmation("");
                 setConfirming(false);
               }}
-              className="mt-2 min-h-10 w-full text-[10px] font-medium text-[#8A90A0] disabled:opacity-50"
+              className="mt-2 min-h-10 w-full text-[10px] font-medium text-[var(--wh-text-secondary)] disabled:opacity-50"
             >
               Use different digits
             </button>
@@ -207,7 +207,7 @@ export default function SecureChatOnboarding({
               type="button"
               disabled={busy}
               onClick={cancelForgottenPasscodeReset}
-              className="mt-1 min-h-10 w-full text-[10px] font-medium text-[#8A90A0] disabled:opacity-50"
+              className="mt-1 min-h-10 w-full text-[10px] font-medium text-[var(--wh-text-secondary)] disabled:opacity-50"
             >
               Back to unlock
             </button>
@@ -219,7 +219,7 @@ export default function SecureChatOnboarding({
   }
 
   return (
-    <section className="rounded-2xl border border-white/[.07] bg-[#11141C] p-3 shadow-[0_12px_35px_rgba(0,0,0,.22)]">
+    <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 shadow-[0_12px_35px_rgba(0,0,0,.22)]">
       <div className="flex items-start gap-2.5">
         <span
           className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/12 text-violet-300"
@@ -242,18 +242,18 @@ export default function SecureChatOnboarding({
               ? `Waiting for ${personName}`
               : "Messages are temporarily unavailable"}
           </p>
-          <p className="mt-1 text-[9px] leading-4 text-[#8D92A2]">
+          <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
             {status.state === "peer_setup_required"
               ? `${personName} will be asked to protect private chats when they open this conversation.`
               : status.message}
           </p>
         </div>
       </div>
-      <div className="mt-3 border-t border-white/[.06] pt-3">
+      <div className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
         <button
           type="button"
           onClick={onReady}
-          className="min-h-10 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-violet-300"
+          className="min-h-10 w-full rounded-xl border border-[var(--wh-border-subtle)] text-[10px] font-semibold text-violet-300"
         >
           Check again
         </button>
@@ -275,7 +275,7 @@ function PinInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-3 block text-center text-[9px] font-semibold text-[#9AA0AF]">
+      <span className="mb-3 block text-center text-[9px] font-semibold text-[var(--wh-text-secondary)]">
         {label}
       </span>
       <span className="relative block">
@@ -290,8 +290,8 @@ function PinInput({
                   active
                     ? "border-violet-400 bg-violet-500/[.08] ring-4 ring-violet-500/10"
                     : filled
-                      ? "border-white/[.14] bg-[#0B0E14]"
-                      : "border-white/[.08] bg-[#0B0E14]"
+                      ? "border-white/[.14] bg-[var(--wh-surface)]"
+                      : "border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]"
                 }`}
               >
                 {filled ? "•" : ""}
@@ -316,7 +316,7 @@ function PinInput({
           className="absolute inset-0 h-full w-full cursor-text opacity-0"
         />
       </span>
-      <span className="mt-3 block text-center text-[8px] leading-4 text-[#666D7E]">
+      <span className="mt-3 block text-center text-[8px] leading-4 text-[var(--wh-text-muted)]">
         This protects private messages. It is not a property booking code.
       </span>
     </label>

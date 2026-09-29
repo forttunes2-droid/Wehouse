@@ -103,7 +103,7 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
     toast.success("Co-host removed. Active Host bookings moved to you.");await load();onChanged?.();
   }
 
-  if(loading)return <section className="border-y border-white/[.07] py-5"><p className="text-[10px] text-[#7C8291]">Loading management…</p></section>;
+  if(loading)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><p className="text-[10px] text-[var(--wh-text-secondary)]">Loading management…</p></section>;
   if(!state)return null;
 
   const wehouseActive=configured&&state.management_mode==="wehouse"&&state.wehouse_management_status==="approved";
@@ -119,61 +119,61 @@ export default function PropertyManagementPanel({listingId,profile,onChanged,onM
             ? "Declined"
             : "Needs action";
 
-  return <section className="border-y border-white/[.07] py-5">
+  return <section className="border-y border-[var(--wh-border-subtle)] py-5">
     <div className="flex items-center justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold">Property management</h3>
-        <p className="mt-1 text-[9px] text-[#747A8A]">{configured?"The operator for this published home is recorded. Ask WeHouse support to review any handoff.":"This older home needs its initial operator choice before new bookings."}</p>
+        <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{configured?"The operator for this published home is recorded. Ask WeHouse support to review any handoff.":"This older home needs its initial operator choice before new bookings."}</p>
       </div>
-      <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${statusLabel==="Active"?"border-emerald-400/15 bg-emerald-400/[.06] text-emerald-300":statusLabel==="Pending"?"border-amber-300/15 bg-amber-300/[.06] text-amber-200":"border-white/[.08] text-[#A0A6B4]"}`}>{statusLabel}</span>
+      <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${statusLabel==="Active"?"border-emerald-400/15 bg-emerald-400/[.06] text-emerald-300":statusLabel==="Pending"?"border-amber-300/15 bg-amber-300/[.06] text-amber-200":"border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{statusLabel}</span>
     </div>
 
     {owner&&!configured?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Who manages this property">
-      <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">You or an assigned co-host</span></button>
-      <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.09]":"border-white/[.07] bg-white/[.018]"}`}><span className="block text-xs font-semibold">WeHouse manages</span><span className="mt-1 block text-[9px] leading-4 text-[#7B8292]">Property Operations runs the stay</span></button>
+      <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">You or an assigned co-host</span></button>
+      <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="wehouse"} onClick={()=>void setMode("wehouse")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="wehouse"?"border-violet-400/35 bg-violet-500/[.09]":"border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}><span className="block text-xs font-semibold">WeHouse manages</span><span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">Property Operations runs the stay</span></button>
     </div>:null}
     {owner&&configured&&onContact?<button type="button" onClick={onContact} className="mt-3 min-h-11 rounded-xl border border-violet-400/20 px-4 text-xs font-semibold text-violet-200">Request a reviewed handoff</button>:null}
 
-    {configured&&state.management_mode==="host"?<div className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 px-3.5 py-3">
+    {configured&&state.management_mode==="host"?<div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 px-3.5 py-3">
       <div className="flex items-center justify-between gap-3">
-        <div><p className="text-[9px] text-[#707787]">Responsible operator</p><p className="mt-0.5 text-xs font-semibold">Host</p></div>
+        <div><p className="text-[9px] text-[var(--wh-text-muted)]">Responsible operator</p><p className="mt-0.5 text-xs font-semibold">Host</p></div>
         <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[8px] font-semibold text-violet-200">Direct control</span>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[8px] font-medium text-[#969CAB]">
-        <span className="rounded-lg bg-white/[.025] px-2 py-2">Guest chat</span>
-        <span className="rounded-lg bg-white/[.025] px-2 py-2">Access & arrival</span>
-        <span className="rounded-lg bg-white/[.025] px-2 py-2">Handover</span>
+      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[8px] font-medium text-[var(--wh-text-secondary)]">
+        <span className="rounded-lg bg-[var(--wh-interactive)] px-2 py-2">Guest chat</span>
+        <span className="rounded-lg bg-[var(--wh-interactive)] px-2 py-2">Access & arrival</span>
+        <span className="rounded-lg bg-[var(--wh-interactive)] px-2 py-2">Handover</span>
       </div>
-      <p className="mt-3 text-[8px] leading-4 text-[#646B7B]">WeHouse still handles protected payments, platform support and disputes.</p>
+      <p className="mt-3 text-[8px] leading-4 text-[var(--wh-text-muted)]">WeHouse still handles protected payments, platform support and disputes.</p>
     </div>:null}
 
     {configured&&state.management_mode==="wehouse"&&!wehouseActive?<div className="mt-3 rounded-xl border border-amber-300/10 bg-amber-300/[.035] px-3 py-2.5 text-[9px] leading-4 text-[#B9A985]">
       {state.wehouse_management_status==="requested"?"Property Operations must accept management before new WeHouse-managed bookings are available.":state.wehouse_management_status==="declined"?"WeHouse management was not accepted. Contact support for a reviewed decision.":"Complete the management review before taking new bookings."}
     </div>:null}
 
-    {configured&&state.management_mode==="wehouse"&&wehouseActive?<div className="mt-4 rounded-2xl border border-white/[.06] bg-black/10 px-3.5 py-3">
+    {configured&&state.management_mode==="wehouse"&&wehouseActive?<div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 px-3.5 py-3">
       <div className="flex items-center justify-between gap-3">
-        <div><p className="text-[9px] text-[#707787]">Responsible operator</p><p className="mt-0.5 text-xs font-semibold">WeHouse Property Operations</p></div>
+        <div><p className="text-[9px] text-[var(--wh-text-muted)]">Responsible operator</p><p className="mt-0.5 text-xs font-semibold">WeHouse Property Operations</p></div>
         <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[8px] font-semibold text-violet-200">Managed</span>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[8px] font-medium text-[#969CAB]">
-        <span className="rounded-lg bg-white/[.025] px-2 py-2">Guest coordination</span>
-        <span className="rounded-lg bg-white/[.025] px-2 py-2">Access & arrival</span>
-        <span className="rounded-lg bg-white/[.025] px-2 py-2">Handover</span>
+      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center text-[8px] font-medium text-[var(--wh-text-secondary)]">
+        <span className="rounded-lg bg-[var(--wh-interactive)] px-2 py-2">Guest coordination</span>
+        <span className="rounded-lg bg-[var(--wh-interactive)] px-2 py-2">Access & arrival</span>
+        <span className="rounded-lg bg-[var(--wh-interactive)] px-2 py-2">Handover</span>
       </div>
-      <p className="mt-3 text-[8px] leading-4 text-[#646B7B]">You keep ownership of the property record while WeHouse runs the operational stay flow.</p>
+      <p className="mt-3 text-[8px] leading-4 text-[var(--wh-text-muted)]">You keep ownership of the property record while WeHouse runs the operational stay flow.</p>
     </div>:null}
 
     {configured&&state.management_mode==="host"?<div className="mt-5">
-      <div className="flex items-center justify-between gap-3"><h4 className="text-xs font-semibold">Hosting team</h4><span className="text-[9px] text-[#747A8A]">{active.length} active</span></div>
-      <div className="mt-2 divide-y divide-white/[.06] border-y border-white/[.06]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[#747A8A]">{row.role==="owner"?"Owner":row.access_level==="full_hosting"?"Co-host · Full hosting":"Co-host · Operations"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
+      <div className="flex items-center justify-between gap-3"><h4 className="text-xs font-semibold">Hosting team</h4><span className="text-[9px] text-[var(--wh-text-muted)]">{active.length} active</span></div>
+      <div className="mt-2 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{active.map(row=><div key={row.assignment_id} className="flex items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.user_id===profile.user_id?"You":row.name||row.username||"Property Partner"}</p><p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">{row.role==="owner"?"Owner":row.access_level==="full_hosting"?"Co-host · Full hosting":"Co-host · Operations"}{row.user_id===state.management_host_user_id?" · Responsible Host":""}</p></div>{owner&&row.user_id!==state.management_host_user_id?<button type="button" disabled={busy} onClick={()=>void setResponsible(row.user_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300">Make responsible</button>:null}{owner&&row.role==="manager"?<button type="button" disabled={busy} onClick={()=>void revoke(row.assignment_id)} className="min-h-10 px-2 text-[10px] font-semibold text-red-300">Remove</button>:null}</div>)}</div>
       {owner?<div className="mt-4"><p className="text-[10px] font-semibold">Add co-host</p>
         <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Co-host access">
-          <button type="button" aria-pressed={inviteAccess==="operations"} onClick={()=>setInviteAccess("operations")} className={`min-h-12 rounded-xl border px-3 text-left text-[9px] ${inviteAccess==="operations"?"border-violet-400/30 bg-violet-500/[.07] text-violet-100":"border-white/[.07] text-[#8B91A0]"}`}><span className="block font-semibold">Operations</span><span className="mt-1 block text-[8px] opacity-75">Guests, arrival and handover</span></button>
-          <button type="button" aria-pressed={inviteAccess==="full_hosting"} onClick={()=>setInviteAccess("full_hosting")} className={`min-h-12 rounded-xl border px-3 text-left text-[9px] ${inviteAccess==="full_hosting"?"border-violet-400/30 bg-violet-500/[.07] text-violet-100":"border-white/[.07] text-[#8B91A0]"}`}><span className="block font-semibold">Full hosting</span><span className="mt-1 block text-[8px] opacity-75">Also future price and availability</span></button>
+          <button type="button" aria-pressed={inviteAccess==="operations"} onClick={()=>setInviteAccess("operations")} className={`min-h-12 rounded-xl border px-3 text-left text-[9px] ${inviteAccess==="operations"?"border-violet-400/30 bg-violet-500/[.07] text-violet-100":"border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}><span className="block font-semibold">Operations</span><span className="mt-1 block text-[8px] opacity-75">Guests, arrival and handover</span></button>
+          <button type="button" aria-pressed={inviteAccess==="full_hosting"} onClick={()=>setInviteAccess("full_hosting")} className={`min-h-12 rounded-xl border px-3 text-left text-[9px] ${inviteAccess==="full_hosting"?"border-violet-400/30 bg-violet-500/[.07] text-violet-100":"border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}><span className="block font-semibold">Full hosting</span><span className="mt-1 block text-[8px] opacity-75">Also future price and availability</span></button>
         </div>
-        <div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="@username" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div>
-        <button type="button" disabled={busy} onClick={()=>void shareInvite()} className="mt-2 min-h-11 w-full rounded-xl border border-white/[.08] text-[10px] font-semibold text-violet-300 disabled:opacity-40">Share invite link</button>
+        <div className="mt-2 flex gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="@username" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none focus:border-violet-500/40"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void invite()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">Invite</button></div>
+        <button type="button" disabled={busy} onClick={()=>void shareInvite()} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-[10px] font-semibold text-violet-300 disabled:opacity-40">Share invite link</button>
         <SentResourceInvitations resourceType="property" resourceId={listingId} />
       </div>:null}
     </div>:null}
@@ -197,7 +197,7 @@ export function PropertyHostInvitations({profile,onChanged}:{profile:Profile;onC
     await load();onChanged?.();window.dispatchEvent(new Event("wehouse:property-host-changed"));
   }
   if(!rows.length)return null;
-  return <section className="border-y border-violet-500/15 py-4"><p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Co-host invitations</p><div className="mt-2 divide-y divide-white/[.06]">{rows.map(row=><div key={row.assignment_id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.title||"Property"}</p><p className="mt-1 truncate text-[9px] text-[#747A8A]">{[row.city,row.state].filter(Boolean).join(", ")}</p></div><button type="button" disabled={Boolean(busy)} onClick={()=>void answer(row.assignment_id,true)} className="min-h-10 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-40">Accept</button><button type="button" disabled={Boolean(busy)} onClick={()=>void answer(row.assignment_id,false)} className="min-h-10 px-2 text-[10px] font-semibold text-[#9AA0AF]">Decline</button></div>)}</div></section>;
+  return <section className="border-y border-violet-500/15 py-4"><p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Co-host invitations</p><div className="mt-2 divide-y divide-[var(--wh-border-subtle)]">{rows.map(row=><div key={row.assignment_id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{row.title||"Property"}</p><p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">{[row.city,row.state].filter(Boolean).join(", ")}</p></div><button type="button" disabled={Boolean(busy)} onClick={()=>void answer(row.assignment_id,true)} className="min-h-10 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold disabled:opacity-40">Accept</button><button type="button" disabled={Boolean(busy)} onClick={()=>void answer(row.assignment_id,false)} className="min-h-10 px-2 text-[10px] font-semibold text-[var(--wh-text-secondary)]">Decline</button></div>)}</div></section>;
 }
 
 export function HostArrivalAction({stay,profile,onChanged}:{stay:any;profile:Profile;onChanged?:()=>void}){
@@ -216,5 +216,5 @@ export function HostArrivalAction({stay,profile,onChanged}:{stay:any;profile:Pro
     if(result.error)return toast.error(result.error.message);
     setCode("");toast.success(stay.stay_type==="short_let"?"Guest checked in":"Handover confirmed");onChanged?.();
   }
-  return <div className="mt-4 border-t border-violet-500/15 pt-4"><p className="text-[10px] font-semibold text-violet-200">{stay.stay_type==="short_let"?"Confirm guest arrival":"Confirm move-in handover"}</p><p className="mt-1 text-[9px] leading-4 text-[#747A8A]">Ask the guest to show their booking code at the property. The code is intentionally not shown in your dashboard.</p><div className="mt-2 flex gap-2"><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Guest booking code" autoCapitalize="characters" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151820] px-3 font-mono text-sm tracking-wide outline-none"/><button type="button" disabled={busy||!code.trim()} onClick={()=>void confirm()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{busy?"Checking…":"Confirm"}</button></div></div>;
+  return <div className="mt-4 border-t border-violet-500/15 pt-4"><p className="text-[10px] font-semibold text-violet-200">{stay.stay_type==="short_let"?"Confirm guest arrival":"Confirm move-in handover"}</p><p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">Ask the guest to show their booking code at the property. The code is intentionally not shown in your dashboard.</p><div className="mt-2 flex gap-2"><input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Guest booking code" autoCapitalize="characters" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 font-mono text-sm tracking-wide outline-none"/><button type="button" disabled={busy||!code.trim()} onClick={()=>void confirm()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{busy?"Checking…":"Confirm"}</button></div></div>;
 }

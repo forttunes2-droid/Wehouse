@@ -115,25 +115,25 @@ export default function PropertyHostControls({
     toast.success("Dates reopened");
   }
 
-  if(loading)return <section className="border-b border-white/[.07] py-5"><p className="text-[10px] text-[#7C8291]">Loading hosting controls…</p></section>;
-  if(!state)return <section className="border-b border-white/[.07] py-5"><button type="button" onClick={()=>void load()} className="min-h-10 text-[10px] font-semibold text-violet-300">Retry hosting controls</button></section>;
+  if(loading)return <section className="border-b border-[var(--wh-border-subtle)] py-5"><p className="text-[10px] text-[var(--wh-text-secondary)]">Loading hosting controls…</p></section>;
+  if(!state)return <section className="border-b border-[var(--wh-border-subtle)] py-5"><button type="button" onClick={()=>void load()} className="min-h-10 text-[10px] font-semibold text-violet-300">Retry hosting controls</button></section>;
 
   const shortLet=(state.sub_type||subType)==="short_let";
   const currentPrice=Number(state.price||0);
   const canManageCommercials=Boolean(state.can_manage_commercials);
 
-  if(!canManageCommercials)return <section className="border-b border-white/[.07] py-5">
+  if(!canManageCommercials)return <section className="border-b border-[var(--wh-border-subtle)] py-5">
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Hosting access</p>
         <p className="mt-1 text-sm font-semibold">Operations</p>
       </div>
-      <span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[9px] font-semibold text-[#A0A6B4]">Guest operations</span>
+      <span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[9px] font-semibold text-[var(--wh-text-secondary)]">Guest operations</span>
     </div>
-    <p className="mt-2 text-[9px] leading-5 text-[#707687]">You can operate assigned stays and guest handovers. Future price, booking availability and closed dates stay with the owner or a Full hosting co-host.</p>
+    <p className="mt-2 text-[9px] leading-5 text-[var(--wh-text-muted)]">You can operate assigned stays and guest handovers. Future price, booking availability and closed dates stay with the owner or a Full hosting co-host.</p>
   </section>;
 
-  return <section className="border-b border-white/[.07] py-5">
+  return <section className="border-b border-[var(--wh-border-subtle)] py-5">
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">Hosting controls</p>
@@ -143,17 +143,17 @@ export default function PropertyHostControls({
         type="button"
         disabled={Boolean(busy)}
         onClick={()=>void toggleBookings()}
-        className={`min-h-10 rounded-xl border px-3 text-[10px] font-semibold disabled:opacity-40 ${state.accepting_reservations?"border-white/[.08] text-[#A2A8B6]":"border-violet-500/25 bg-violet-500/[.07] text-violet-200"}`}
+        className={`min-h-10 rounded-xl border px-3 text-[10px] font-semibold disabled:opacity-40 ${state.accepting_reservations?"border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]":"border-violet-500/25 bg-violet-500/[.07] text-violet-200"}`}
       >
         {busy==="availability"?"Saving…":state.accepting_reservations?"Pause bookings":"Open bookings"}
       </button>
     </div>
 
     <div className="mt-4">
-      <label className="text-[9px] font-semibold text-[#8F95A4]">{shortLet?"Nightly price":"Rent"}</label>
+      <label className="text-[9px] font-semibold text-[var(--wh-text-secondary)]">{shortLet?"Nightly price":"Rent"}</label>
       <div className="mt-1.5 flex gap-2">
-        <div className="flex h-11 min-w-0 flex-1 items-center rounded-xl border border-white/[.08] bg-[#151820] px-3">
-          <span className="mr-1 text-xs text-[#777E8F]">₦</span>
+        <div className="flex h-11 min-w-0 flex-1 items-center rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3">
+          <span className="mr-1 text-xs text-[var(--wh-text-muted)]">₦</span>
           <input
             inputMode="decimal"
             value={price}
@@ -171,13 +171,13 @@ export default function PropertyHostControls({
           {busy==="price"?"Saving…":"Save"}
         </button>
       </div>
-      <p className="mt-1.5 text-[9px] text-[#686F7F]">{shortLet?`${money(currentPrice)} per night`:money(currentPrice)}</p>
+      <p className="mt-1.5 text-[9px] text-[var(--wh-text-muted)]">{shortLet?`${money(currentPrice)} per night`:money(currentPrice)}</p>
     </div>
 
-    {shortLet?<div className="mt-5 border-t border-white/[.06] pt-4">
+    {shortLet?<div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
       <div className="flex items-center justify-between gap-3">
         <h4 className="text-xs font-semibold">Closed dates</h4>
-        {state.min_nights&&state.max_nights?<span className="text-[9px] text-[#686F7F]">{state.min_nights}–{state.max_nights} nights</span>:null}
+        {state.min_nights&&state.max_nights?<span className="text-[9px] text-[var(--wh-text-muted)]">{state.min_nights}–{state.max_nights} nights</span>:null}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <BookingDateField label="From" value={from} onChange={setFrom} context="Closed dates" />
@@ -185,7 +185,7 @@ export default function PropertyHostControls({
       </div>
       <button type="button" disabled={Boolean(busy)||!from||!reopen} onClick={()=>void closeDates()} className="mt-2 min-h-11 w-full rounded-xl border border-violet-500/20 text-[10px] font-semibold text-violet-300 disabled:opacity-35">{busy==="dates"?"Saving…":"Close dates"}</button>
 
-      {state.date_blocks?.length?<div className="mt-3 divide-y divide-white/[.06] border-y border-white/[.06]">
+      {state.date_blocks?.length?<div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
         {state.date_blocks.map(block=><div key={block.block_id} className="flex items-center gap-3 py-3">
           <p className="min-w-0 flex-1 text-[10px] font-medium">{displayDate(block.start_date)} → {displayDate(block.reopen_date)}</p>
           <button type="button" disabled={Boolean(busy)} onClick={()=>void openDates(block.block_id)} className="min-h-10 px-2 text-[10px] font-semibold text-violet-300 disabled:opacity-35">{busy===block.block_id?"Opening…":"Open dates"}</button>

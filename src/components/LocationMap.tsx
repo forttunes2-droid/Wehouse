@@ -19,9 +19,9 @@ type Props = {
  */
 export default function LocationMap({ label = "Location" }: Props) {
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-[#10131B] p-4">
+    <section className="rounded-2xl border border-white/[0.08] bg-[var(--wh-surface)] p-4">
       <p className="text-[10px] font-semibold text-white">{label}</p>
-      <p className="mt-1 text-[9px] leading-5 text-[#6D7182]">
+      <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
         Use the written street address shown in this record. Technical location
         data is retained behind the WeHouse interface for verification and
         distance calculations.

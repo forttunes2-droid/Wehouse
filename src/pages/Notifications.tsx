@@ -339,12 +339,12 @@ function NotificationFeed({
         <Empty />
       ) : (
         <div className="space-y-5">
-          {!compact && <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+          {!compact && <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
                 Activity
               </p>
-              <p className="mt-1 text-[10px] text-[#8A909F]">
+              <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">
                 Meaningful updates and actions
               </p>
             </div>
@@ -372,7 +372,7 @@ function NotificationFeed({
             <div className="flex items-center justify-end">
               <button
                 onClick={() => void markAll()}
-                className="shrink-0 rounded-full border border-white/[.08] px-3 py-2 text-[9px] font-semibold text-violet-300"
+                className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 py-2 text-[9px] font-semibold text-violet-300"
               >
                 Mark all read
               </button>
@@ -382,7 +382,7 @@ function NotificationFeed({
             <div className="grid min-h-48 place-items-center text-center">
               <div>
                 <p className="text-sm font-semibold">No updates in this group</p>
-                <p className="mt-2 text-[10px] text-[#6C7282]">
+                <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
                   Choose another filter to see other meaningful activity.
                 </p>
               </div>
@@ -390,46 +390,46 @@ function NotificationFeed({
           ) : groups.map(([day, items]) => (
             <section key={day}>
               <h2
-                className={`mb-2 text-[9px] font-bold uppercase tracking-[.15em] ${day === "New" ? "text-violet-300" : "text-[#656B7C]"}`}
+                className={`mb-2 text-[9px] font-bold uppercase tracking-[.15em] ${day === "New" ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
               >
                 {day}
               </h2>
-              <div className="divide-y divide-white/[.055] border-y border-white/[.055]">
+              <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
                 {items.map((row) => (
                   <article
                     key={row.id}
-                    className={`relative overflow-hidden ${row.read ? "bg-transparent" : "bg-white/[.018]"}`}
+                    className={`relative overflow-hidden ${row.read ? "bg-transparent" : "bg-[var(--wh-interactive)]"}`}
                   >
                     {!row.read && (
                       <span className="absolute inset-y-3 left-0 w-0.5 rounded-r-full bg-violet-400" />
                     )}
                     <button
                       onClick={() => void open(row)}
-                      className="flex min-h-24 w-full items-start gap-3 p-3.5 text-left active:bg-white/[.025] sm:p-4"
+                      className="flex min-h-24 w-full items-start gap-3 p-3.5 text-left active:bg-[var(--wh-interactive)] sm:p-4"
                     >
                       <span
-                        className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-white/[.035] text-[#73798A]" : "bg-violet-500/12 text-violet-300"}`}
+                        className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]" : "bg-violet-500/12 text-violet-300"}`}
                       >
                         {icon(row.type)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="mb-1 block text-[7px] font-bold uppercase tracking-[.14em] text-[#62697A]">
+                        <span className="mb-1 block text-[7px] font-bold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
                           {activityKind(row)}
                         </span>
                         <span
-                          className={`block text-xs ${row.read ? "font-medium text-[#A3A7B3]" : "font-semibold text-white"}`}
+                          className={`block text-xs ${row.read ? "font-medium text-[var(--wh-text-secondary)]" : "font-semibold text-white"}`}
                         >
                           {activityTitle(row)}
                         </span>
                         {activityMessage(row) && (
                           <span
-                            className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[#717788]`}
+                            className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[var(--wh-text-muted)]`}
                           >
                             {activityMessage(row)}
                           </span>
                         )}
                         <span className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                          <span className="text-[8px] text-[#555C6D]">
+                          <span className="text-[8px] text-[var(--wh-text-muted)]">
                             {new Date(row.created_at).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -443,7 +443,7 @@ function NotificationFeed({
                       {!row.read ? (
                         <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-violet-400" />
                       ) : (
-                        <span className="mt-2 text-[#555C6D]">›</span>
+                        <span className="mt-2 text-[var(--wh-text-muted)]">›</span>
                       )}
                     </button>
                   </article>
@@ -471,12 +471,12 @@ function NotificationFeed({
 
   const confirmation = workPost && (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-[#08090D] text-white"
+      className="fixed inset-0 z-[100] flex flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]"
       role="dialog"
       aria-modal="true"
       aria-label="Confirm worker showcase post"
     >
-      <header className="flex h-14 items-center gap-3 border-b border-white/[.08] px-3">
+      <header className="flex h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3">
         <button
           onClick={() => setWorkPost(null)}
           disabled={confirmBusy}
@@ -489,7 +489,7 @@ function NotificationFeed({
           <p className="text-sm font-semibold">
             Does this show the completed work?
           </p>
-          <p className="text-[9px] text-[#707687]">
+          <p className="text-[9px] text-[var(--wh-text-muted)]">
             Confirm only the work from your linked WeHouse job
           </p>
         </div>
@@ -508,13 +508,13 @@ function NotificationFeed({
         </div>
         <div className="mx-auto max-w-xl space-y-4 p-4">
           {workPost.caption && (
-            <p className="text-xs leading-5 text-[#B4B8C3]">
+            <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">
               {workPost.caption}
             </p>
           )}
           {workPost.job_confirmation_status === "pending" ? (
             <>
-              <p className="text-[10px] leading-5 text-[#7D8393]">
+              <p className="text-[10px] leading-5 text-[var(--wh-text-secondary)]">
                 Yes adds the “Completed through WeHouse” badge. No keeps this as
                 an ordinary showcase post without that badge.
               </p>
@@ -522,7 +522,7 @@ function NotificationFeed({
                 <button
                   onClick={() => void answerWorkPost(false)}
                   disabled={confirmBusy}
-                  className="h-12 rounded-2xl border border-white/[.1] text-xs font-semibold disabled:opacity-40"
+                  className="h-12 rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40"
                 >
                   No, it does not
                 </button>
@@ -536,7 +536,7 @@ function NotificationFeed({
               </div>
             </>
           ) : (
-            <p className="rounded-2xl bg-white/[.04] p-4 text-xs text-[#A5AAB6]">
+            <p className="rounded-2xl bg-[var(--wh-interactive)] p-4 text-xs text-[var(--wh-text-secondary)]">
               This confirmation has already been answered.
             </p>
           )}
@@ -554,9 +554,9 @@ function NotificationFeed({
       </>
     );
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] pb-28 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-28 text-[var(--wh-text)]">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
           <h1 className="text-xl font-bold">Inbox</h1>
         </div>
@@ -609,7 +609,7 @@ function ActivityLoading() {
         <div className="mx-auto grid h-10 w-10 animate-pulse place-items-center rounded-2xl bg-violet-500 text-sm font-black">
           WH
         </div>
-        <p className="mt-3 text-[9px] text-[#686F80]">
+        <p className="mt-3 text-[9px] text-[var(--wh-text-muted)]">
           Loading recent activity…
         </p>
       </div>
@@ -624,7 +624,7 @@ function Empty() {
           ✓
         </div>
         <p className="mt-4 text-sm font-semibold">You’re up to date</p>
-        <p className="mt-2 max-w-xs text-[10px] leading-5 text-[#6C7282]">
+        <p className="mt-2 max-w-xs text-[10px] leading-5 text-[var(--wh-text-muted)]">
           Nothing needs your attention right now.
         </p>
       </div>
@@ -635,7 +635,7 @@ function ErrorState({ text, retry }: { text: string; retry: () => void }) {
   return (
     <div className="rounded-2xl border border-red-500/15 p-5 text-center">
       <p className="text-xs font-semibold">Activity could not be loaded</p>
-      <p className="mt-1 text-[9px] text-[#757B8A]">{text}</p>
+      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{text}</p>
       <button
         onClick={retry}
         className="mt-3 text-[10px] font-semibold text-violet-300"

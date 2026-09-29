@@ -98,12 +98,12 @@ export default function AdminSecurityCases({
 
   return (
     <div className="space-y-5">
-      <section className="border-b border-white/[.07] pb-4">
+      <section className="border-b border-[var(--wh-border-subtle)] pb-4">
         <p className="text-[9px] font-bold uppercase tracking-[.16em] text-red-300">
           Security decisions
         </p>
         <h2 className="mt-2 text-xl font-bold">Security Operations escalations</h2>
-        <p className="mt-2 max-w-2xl text-[10px] leading-5 text-[#777E8F]">
+        <p className="mt-2 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
           Security Operations investigates and records the case. Admin can
           review the account, temporarily restrict access when necessary, or resolve
           the case without an account restriction. Every decision requires a reason.
@@ -122,7 +122,7 @@ export default function AdminSecurityCases({
       ) : openRows.length === 0 ? (
         <Empty text="No open Security Operations cases need Admin attention." />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {openRows.map((row) => {
             const isExpanded = expanded === row.operational_case_id;
             const waiting = row.status === "decision_ready";
@@ -137,18 +137,18 @@ export default function AdminSecurityCases({
                   }}
                   className="flex w-full items-start gap-3 text-left"
                 >
-                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[9px] font-bold ${waiting ? "bg-red-500/10 text-red-300" : "bg-white/[.04] text-[#868D9E]"}`}>
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[9px] font-bold ${waiting ? "bg-red-500/10 text-red-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}>
                     #{row.case_number}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-semibold">
                       {row.reason_label || row.reason_code}
                     </span>
-                    <span className="mt-1 block truncate text-[9px] text-[#707788]">
+                    <span className="mt-1 block truncate text-[9px] text-[var(--wh-text-muted)]">
                       {row.subject_name || row.subject_id} · {statusText(row.status)}
                     </span>
                     {row.last_note ? (
-                      <span className="mt-2 block line-clamp-2 text-[9px] leading-4 text-[#606777]">
+                      <span className="mt-2 block line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                         {row.last_note}
                       </span>
                     ) : null}
@@ -159,7 +159,7 @@ export default function AdminSecurityCases({
                 </button>
 
                 {isExpanded ? (
-                  <div className="mt-4 rounded-2xl border border-white/[.06] bg-white/[.018] p-3">
+                  <div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <Fact label="Subject" value={statusText(row.subject_type)} />
                       <Fact label="Priority" value={statusText(row.priority)} />
@@ -200,7 +200,7 @@ export default function AdminSecurityCases({
                         </div>
 
                         {decision ? (
-                          <div className="mt-3 rounded-2xl border border-white/[.07] bg-[#0B0E14] p-3">
+                          <div className="mt-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3">
                             <p className="text-[9px] font-semibold">
                               {decision === "suspend"
                                 ? "Confirm temporary account suspension"
@@ -210,7 +210,7 @@ export default function AdminSecurityCases({
                               value={note}
                               onChange={(event) => setNote(event.target.value)}
                               placeholder="Required decision reason…"
-                              className="mt-2 min-h-24 w-full resize-none rounded-xl border border-white/[.08] bg-[#080B10] px-3 py-2 text-[10px] outline-none placeholder:text-[#555C6C] focus:border-violet-400/40"
+                              className="mt-2 min-h-24 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] px-3 py-2 text-[10px] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400/40"
                             />
                             <div className="mt-2 grid grid-cols-2 gap-2">
                               <button
@@ -220,7 +220,7 @@ export default function AdminSecurityCases({
                                   setDecision(null);
                                   setNote("");
                                 }}
-                                className="h-10 rounded-xl border border-white/[.08] text-[9px] font-semibold disabled:opacity-40"
+                                className="h-10 rounded-xl border border-[var(--wh-border-subtle)] text-[9px] font-semibold disabled:opacity-40"
                               >
                                 Cancel
                               </button>
@@ -237,7 +237,7 @@ export default function AdminSecurityCases({
                         ) : null}
                       </>
                     ) : (
-                      <p className="mt-4 rounded-xl border border-white/[.06] p-3 text-[9px] leading-4 text-[#777E8F]">
+                      <p className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                         Security Operations is still investigating this case. Account
                         controls appear after it is escalated for an Admin decision.
                       </p>
@@ -268,24 +268,24 @@ function DecisionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-2xl border p-3 text-left ${active ? "border-violet-400/40 bg-violet-500/[.08]" : "border-white/[.07] bg-white/[.02]"}`}
+      className={`rounded-2xl border p-3 text-left ${active ? "border-violet-400/40 bg-violet-500/[.08]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}
     >
       <span className="block text-[10px] font-semibold text-white">{label}</span>
-      <span className="mt-1 block text-[8px] leading-4 text-[#666D7E]">{note}</span>
+      <span className="mt-1 block text-[8px] leading-4 text-[var(--wh-text-muted)]">{note}</span>
     </button>
   );
 }
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/[.025] p-3">
-      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
+    <div className="rounded-xl bg-[var(--wh-interactive)] p-3">
+      <p className="text-[8px] uppercase text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-1 truncate text-[9px] font-semibold capitalize">{value}</p>
     </div>
   );
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666D7E]">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-12 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

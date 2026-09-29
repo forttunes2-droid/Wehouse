@@ -574,7 +574,7 @@ export default function Chat({
 
   if (view === "activity") {
     return (
-      <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-6 text-white">
+      <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-6 text-[var(--wh-text)]">
         <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
           <ActivityHeader onBack={() => setView("messages")} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
         </div>
@@ -592,8 +592,8 @@ export default function Chat({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[var(--wh-bg)]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)]">
+      <header className="sticky top-0 z-30 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <h1 className="text-xl font-bold">{conversationOnly ? "Conversation" : "Inbox"}</h1>
           {!conversationOnly && <InboxActivityEntry compact unread={activityUnreadCount} onOpen={() => setView("activity")} />}
@@ -603,34 +603,34 @@ export default function Chat({
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
         <section className="pt-4">
           <h2 className="sr-only">Messages</h2>
-          <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] px-3 focus-within:border-violet-500/45">
+          <label className="flex h-12 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 focus-within:border-violet-500/45">
             <SearchIcon />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search messages"
-              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-[#858B9B]"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-[var(--wh-text-secondary)]"
             />
           </label>
 
           <div role="group" aria-label="Message categories" className="mt-3 flex gap-1 overflow-x-auto">
             {([['all', 'All'], ['people', 'Roommates'], ['bookings', 'Bookings'], ['wehouse', 'WeHouse']] as const).map(([value, label]) => (
               <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)}
-                className={`min-h-11 shrink-0 rounded-full px-3 text-[13px] font-semibold ${category === value ? 'bg-violet-500/20 text-violet-200' : 'text-[#A1A7B5] hover:bg-white/[.04]'}`}>
+                className={`min-h-11 shrink-0 rounded-full px-3 text-[13px] font-semibold ${category === value ? 'bg-violet-500/20 text-violet-200' : 'text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]'}`}>
                 {label}
               </button>
             ))}
           </div>
 
-          {loadError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-[#C1BBCB]"><p>{loadError}</p><button type="button" onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
+          {loadError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-[var(--wh-text-secondary)]"><p>{loadError}</p><button type="button" onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
           {loading ? (
-            <p className="py-12 text-center text-sm text-[#A1A7B5]" role="status">Loading messages…</p>
+            <p className="py-12 text-center text-sm text-[var(--wh-text-secondary)]" role="status">Loading messages…</p>
           ) : visible.length === 0 && !loadError ? (
-            <div className="border-b border-dashed border-white/[.08] py-14 text-center">
+            <div className="border-b border-dashed border-[var(--wh-border-subtle)] py-14 text-center">
               <p className="text-sm font-semibold">
                 {query.trim() ? "No matching messages" : "No messages yet"}
               </p>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#606676]">
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[var(--wh-text-muted)]">
                 {query.trim()
                   ? "Try a person, hotel, service or WeHouse conversation name."
                   : category === "wehouse" ? "Your conversations with the WeHouse team appear here."
@@ -640,7 +640,7 @@ export default function Chat({
               </p>
             </div>
           ) : (
-            <div className="mt-3 divide-y divide-white/[.055] border-y border-white/[.06]">
+            <div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {visible.map((thread) => (
                 <ThreadRow
                   key={thread.id}
@@ -719,7 +719,7 @@ function ThreadRow({
     <button
       type="button"
       onClick={onOpen}
-      className="flex min-h-[4.5rem] w-full items-center gap-3 py-3 text-left active:bg-white/[.025]"
+      className="flex min-h-[4.5rem] w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]"
     >
       <Avatar
         src={view.avatar}
@@ -740,7 +740,7 @@ function ThreadRow({
           {view.time ? (
             <span
               className={`shrink-0 text-[11px] ${
-                view.unread ? "text-violet-300" : "text-[#8A90A0]"
+                view.unread ? "text-violet-300" : "text-[var(--wh-text-secondary)]"
               }`}
             >
               {view.time}
@@ -752,7 +752,7 @@ function ThreadRow({
             className={`min-w-0 flex-1 truncate text-[13px] ${
               view.unread
                 ? "font-medium text-[#DADDE5]"
-                : "text-[#7D8392]"
+                : "text-[var(--wh-text-secondary)]"
             }`}
           >
             {view.preview}
@@ -985,7 +985,7 @@ function SearchIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="shrink-0 text-[#747A8B]"
+      className="shrink-0 text-[var(--wh-text-muted)]"
     >
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />

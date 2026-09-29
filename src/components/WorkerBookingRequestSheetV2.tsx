@@ -144,15 +144,15 @@ export default function WorkerBookingRequestSheetV2({
     scheduleReady = Boolean(date && date >= min);
   return (
     <div
-      className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#0A0A0F]"
+      className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[var(--wh-bg)]"
       role="dialog"
       aria-modal="true"
     >
-      <header className="shrink-0 border-b border-white/[.06] px-4 py-3">
+      <header className="shrink-0 border-b border-[var(--wh-border-subtle)] px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <button
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full text-[#8C91A0]"
+            className="grid h-10 w-10 place-items-center rounded-full text-[var(--wh-text-secondary)]"
             aria-label="Close request"
           >
             ←
@@ -166,7 +166,7 @@ export default function WorkerBookingRequestSheetV2({
                 <WorkerTrustBadge />
               </h2>
           </div>
-          <span className="text-[9px] text-[#666D7D]">{step} of 3</span>
+          <span className="text-[9px] text-[var(--wh-text-muted)]">{step} of 3</span>
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-y-auto">
@@ -174,7 +174,7 @@ export default function WorkerBookingRequestSheetV2({
           {step === 1 && (
             <section>
               <h3 className="text-xl font-bold">What do you need?</h3>
-              <p className="mt-1 text-[11px] text-[#747A8A]">
+              <p className="mt-1 text-[11px] text-[var(--wh-text-muted)]">
                 Give the professional the job and location. Price is agreed in
                 the conversation.
               </p>
@@ -214,7 +214,7 @@ export default function WorkerBookingRequestSheetV2({
           {step === 2 && (
             <section>
               <h3 className="text-xl font-bold">Choose a preferred day</h3>
-              <p className="mt-1 text-[11px] text-[#747A8A]">
+              <p className="mt-1 text-[11px] text-[var(--wh-text-muted)]">
                 The professional can confirm or suggest another time in the
                 conversation.
               </p>
@@ -223,7 +223,7 @@ export default function WorkerBookingRequestSheetV2({
                   <button
                     key={item.value}
                     onClick={() => setDate(item.value)}
-                    className={`min-h-12 rounded-xl border px-3 text-left text-xs ${date === item.value ? "border-violet-500 bg-violet-500/10 text-violet-200" : "border-white/[.07] bg-white/[.025] text-[#ADB2BF]"}`}
+                    className={`min-h-12 rounded-xl border px-3 text-left text-xs ${date === item.value ? "border-violet-500 bg-violet-500/10 text-violet-200" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
                   >
                     {item.label}
                   </button>
@@ -234,18 +234,18 @@ export default function WorkerBookingRequestSheetV2({
                 onChange={(e) => setMessage(e.target.value)}
                 rows={3}
                 placeholder="Extra details (optional)"
-                className="mt-4 w-full resize-none rounded-2xl border border-white/[.08] bg-[#181B24] px-4 py-3 text-sm outline-none focus:border-violet-500/40"
+                className="mt-4 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 py-3 text-sm outline-none focus:border-violet-500/40"
               />
             </section>
           )}
           {step === 3 && (
             <section>
               <h3 className="text-xl font-bold">Review your request</h3>
-              <p className="mt-1 text-[11px] text-[#747A8A]">
+              <p className="mt-1 text-[11px] text-[var(--wh-text-muted)]">
                 Nothing is charged now. Sending opens one job conversation with
                 this professional.
               </p>
-              <div className="mt-6 divide-y divide-white/[.06] border-y border-white/[.06]">
+              <div className="mt-6 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
                 <Review label="Service" value={service} />
                 <Review label="Job" value={description} />
                 <Review label="Address" value={address} />
@@ -263,12 +263,12 @@ export default function WorkerBookingRequestSheetV2({
           )}
         </div>
       </main>
-      <footer className="shrink-0 border-t border-white/[.06] bg-[#0A0A0F] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <footer className="shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-lg gap-2">
           {step > 1 && (
             <button
               onClick={() => setStep((current) => (current - 1) as 1 | 2)}
-              className="h-12 w-24 rounded-xl border border-white/[.08] text-xs font-semibold"
+              className="h-12 w-24 rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
             >
               Back
             </button>
@@ -318,7 +318,7 @@ function Input({
       value={value}
       onChange={(e) => set(e.target.value)}
       placeholder={placeholder}
-      className="h-12 w-full rounded-2xl border border-white/[.08] bg-[#181B24] px-4 text-sm outline-none focus:border-violet-500/40"
+      className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm outline-none focus:border-violet-500/40"
     />
   );
 }
@@ -331,7 +331,7 @@ function FieldMessage({
 }) {
   return (
     <div
-      className={`rounded-2xl border px-4 py-4 text-xs ${error ? "border-red-500/15 bg-red-500/[.04] text-red-300" : "border-white/[.08] bg-[#181B24] text-[#8B91A0]"}`}
+      className={`rounded-2xl border px-4 py-4 text-xs ${error ? "border-red-500/15 bg-red-500/[.04] text-red-300" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"}`}
     >
       {children}
     </div>
@@ -340,7 +340,7 @@ function FieldMessage({
 function Review({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-5 py-4">
-      <span className="w-24 shrink-0 text-[10px] text-[#6F7585]">{label}</span>
+      <span className="w-24 shrink-0 text-[10px] text-[var(--wh-text-muted)]">{label}</span>
       <span className="text-[12px] font-medium text-[#E3E5EB]">{value}</span>
     </div>
   );

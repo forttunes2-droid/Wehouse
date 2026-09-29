@@ -819,7 +819,7 @@ export default function PropertyInspectionRequestPanel({
     }
   }
   return (
-    <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-[#11121A]">
+    <section className="overflow-hidden rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)]">
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between lg:p-5">
         <div>
           <div className="flex items-center gap-2">
@@ -831,7 +831,7 @@ export default function PropertyInspectionRequestPanel({
             )}
             {saveState !== "idle" && (
               <span
-                className={`text-[8px] font-semibold ${saveState === "error" ? "text-red-300" : "text-[#686E7E]"}`}
+                className={`text-[8px] font-semibold ${saveState === "error" ? "text-red-300" : "text-[var(--wh-text-muted)]"}`}
               >
                 {saveState === "loading"
                   ? "Loading…"
@@ -843,7 +843,7 @@ export default function PropertyInspectionRequestPanel({
               </span>
             )}
           </div>
-          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[#7D8091]">
+          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
             Choose Apartment or Hotel and complete the steps shown.
           </p>
         </div>
@@ -859,11 +859,11 @@ export default function PropertyInspectionRequestPanel({
       {open && (
         <form
           onSubmit={submit}
-          className="relative border-t border-white/[.05]"
+          className="relative border-t border-[var(--wh-border-subtle)]"
           aria-busy={submitting}
         >
           <fieldset disabled={submitting} className="contents">
-          <div className="border-b border-white/[.05] p-3 sm:p-4">
+          <div className="border-b border-[var(--wh-border-subtle)] p-3 sm:p-4">
             <SubmissionSteps draft={current} />
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {drafts.length > 1 &&
@@ -872,13 +872,13 @@ export default function PropertyInspectionRequestPanel({
                     key={d.id}
                     type="button"
                     onClick={() => setActive(i)}
-                    className={`shrink-0 rounded-xl border px-3 py-2 text-left ${active === i ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.06] bg-white/[.02]"}`}
+                    className={`shrink-0 rounded-xl border px-3 py-2 text-left ${active === i ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}
                   >
                     <span className="block text-[10px] font-semibold">
                       {d.propertyType === "hotel" ? "Hotel" : "Apartment"}{" "}
                       {i + 1}
                     </span>
-                    <span className="mt-0.5 block max-w-32 truncate text-[8px] text-[#666A7B]">
+                    <span className="mt-0.5 block max-w-32 truncate text-[8px] text-[var(--wh-text-muted)]">
                       {d.hotelName || d.propertyAddress || "Not named yet"}
                     </span>
                   </button>
@@ -897,7 +897,7 @@ export default function PropertyInspectionRequestPanel({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold">Property {active + 1}</p>
-                  <p className="mt-1 text-[9px] text-[#686C7D]">
+                  <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                     Complete one property at a time.
                   </p>
                 </div>
@@ -931,7 +931,7 @@ export default function PropertyInspectionRequestPanel({
                   set={(v) => patch(active, { propertyCity: v })}
                 />
                 <label className="space-y-1">
-                  <span className="text-[10px] text-[#8A8B9C]">
+                  <span className="text-[10px] text-[var(--wh-text-secondary)]">
                     Your relationship to this property *
                   </span>
                   <WeHouseSelect
@@ -952,9 +952,9 @@ export default function PropertyInspectionRequestPanel({
                   />
                 </label>
                 <section className="space-y-1">
-                  <p className="text-[10px] text-[#8A8B9C]">Property group *</p>
+                  <p className="text-[10px] text-[var(--wh-text-secondary)]">Property group *</p>
                   <div
-                    className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[#2A2A3A] bg-[#14151D] p-1"
+                    className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[#2A2A3A] bg-[var(--wh-surface)] p-1"
                     role="group"
                     aria-label="Property group"
                   >
@@ -964,7 +964,7 @@ export default function PropertyInspectionRequestPanel({
                       onClick={() =>
                         patch(active, { propertyType: "apartment" })
                       }
-                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "apartment" ? "bg-violet-500 text-white" : "text-[#7D8090]"}`}
+                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "apartment" ? "bg-violet-500 text-white" : "text-[var(--wh-text-muted)]"}`}
                     >
                       Apartment
                     </button>
@@ -972,7 +972,7 @@ export default function PropertyInspectionRequestPanel({
                       type="button"
                       aria-pressed={current.propertyType === "hotel"}
                       onClick={() => patch(active, { propertyType: "hotel" })}
-                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "hotel" ? "bg-violet-500 text-white" : "text-[#7D8090]"}`}
+                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "hotel" ? "bg-violet-500 text-white" : "text-[var(--wh-text-muted)]"}`}
                     >
                       Hotel
                     </button>
@@ -986,7 +986,7 @@ export default function PropertyInspectionRequestPanel({
                 {current.propertyType === "apartment" && (
                   <>
                     <section className="md:col-span-2">
-                      <p className="mb-2 text-[10px] text-[#8A8B9C]">
+                      <p className="mb-2 text-[10px] text-[var(--wh-text-secondary)]">
                         Stay type *
                       </p>
                       <div className="grid grid-cols-2 gap-2">
@@ -999,12 +999,12 @@ export default function PropertyInspectionRequestPanel({
                               securityDeposit: "",
                             })
                           }
-                          className={`rounded-xl border p-3 text-left ${current.subType === "long_stay" ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                          className={`rounded-xl border p-3 text-left ${current.subType === "long_stay" ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                         >
                           <span className="block text-xs font-semibold">
                             Long Let
                           </span>
-                          <span className="mt-1 block text-[8px] text-[#777C8D]">
+                          <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">
                             Annual rent
                           </span>
                         </button>
@@ -1013,12 +1013,12 @@ export default function PropertyInspectionRequestPanel({
                           onClick={() =>
                             patch(active, { subType: "short_let" })
                           }
-                          className={`rounded-xl border p-3 text-left ${current.subType === "short_let" ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                          className={`rounded-xl border p-3 text-left ${current.subType === "short_let" ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                         >
                           <span className="block text-xs font-semibold">
                             Short Let
                           </span>
-                          <span className="mt-1 block text-[8px] text-[#777C8D]">
+                          <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">
                             Nightly · furnished
                           </span>
                         </button>
@@ -1026,9 +1026,9 @@ export default function PropertyInspectionRequestPanel({
                     </section>
                     <section className="md:col-span-2" aria-label="Choose who operates this home">
                       <p className="mb-2 text-xs font-semibold">Who will manage guest stays? *</p>
-                      <p className="mb-3 text-[10px] leading-5 text-[#9199A8]">Choose before publication. Existing bookings keep their assigned operator; a later change requires WeHouse review.</p>
+                      <p className="mb-3 text-[10px] leading-5 text-[var(--wh-text-secondary)]">Choose before publication. Existing bookings keep their assigned operator; a later change requires WeHouse review.</p>
                       <div className="grid grid-cols-2 gap-2">
-                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-white" : "border-white/[.1] bg-[#171821] text-[#B3BBC8]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-[9px] leading-4 text-[#9CA4B4]">{mode === "host" ? "You or your approved co-host handles guests" : "Property Operations reviews and handles stays"}</span></button>)}
+                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-white" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">{mode === "host" ? "You or your approved co-host handles guests" : "Property Operations reviews and handles stays"}</span></button>)}
                       </div>
                     </section>
                     <Field
@@ -1062,7 +1062,7 @@ export default function PropertyInspectionRequestPanel({
                           span
                         />
                         <section className="space-y-2">
-                          <p className="text-[10px] text-[#8A8B9C]">
+                          <p className="text-[10px] text-[var(--wh-text-secondary)]">
                             Refundable caution
                           </p>
                           <div className="grid grid-cols-2 gap-2">
@@ -1074,18 +1074,18 @@ export default function PropertyInspectionRequestPanel({
                                   securityDeposit: "",
                                 })
                               }
-                              className={`rounded-xl border p-3 text-left ${!current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                              className={`rounded-xl border p-3 text-left ${!current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                             >
                               <span className="block text-[10px] font-semibold">No caution</span>
-                              <span className="mt-1 block text-[8px] text-[#777C8D]">Guest pays only the stay price</span>
+                              <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">Guest pays only the stay price</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => patch(active, { cautionEnabled: true })}
-                              className={`rounded-xl border p-3 text-left ${current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-white/[.07] bg-[#171821]"}`}
+                              className={`rounded-xl border p-3 text-left ${current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                             >
                               <span className="block text-[10px] font-semibold">Use caution</span>
-                              <span className="mt-1 block text-[8px] text-[#777C8D]">Separate refundable property protection</span>
+                              <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">Separate refundable property protection</span>
                             </button>
                           </div>
                         </section>
@@ -1116,7 +1116,7 @@ export default function PropertyInspectionRequestPanel({
                   />
                 )}
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-[10px] text-[#8A8B9C]">
+                  <span className="text-[10px] text-[var(--wh-text-secondary)]">
                     {current.propertyType === "hotel"
                       ? "Hotel and common-area photos *"
                       : "Apartment photos *"}
@@ -1133,13 +1133,13 @@ export default function PropertyInspectionRequestPanel({
                   />
                   <span className="flex min-h-12 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-4 text-xs font-semibold text-violet-200">
                     <span>Add photos</span>
-                    <span className="text-[10px] font-normal text-[#858A9A]">
+                    <span className="text-[10px] font-normal text-[var(--wh-text-secondary)]">
                       {current.files.length
                         ? `${current.files.length} selected`
                         : "At least 4"}
                     </span>
                   </span>
-                  <span className="block text-[9px] text-[#666A7B]">
+                  <span className="block text-[9px] text-[var(--wh-text-muted)]">
                     {current.propertyType === "hotel"
                       ? "These photos are for the hotel and common areas. Add each room’s photos inside that room type."
                       : "Add at least four clear photos. WeHouse will choose the final public gallery after the visit."}
@@ -1183,7 +1183,7 @@ export default function PropertyInspectionRequestPanel({
                   )}
                 </label>
                 <label className="space-y-1 md:col-span-2">
-                  <span className="text-[10px] text-[#8A8B9C]">
+                  <span className="text-[10px] text-[var(--wh-text-secondary)]">
                     {current.propertyType === "hotel"
                       ? "Hotel description"
                       : "Property details"}
@@ -1199,7 +1199,7 @@ export default function PropertyInspectionRequestPanel({
                         ? "Describe check-in, policies and what makes this hotel useful to guests"
                         : "Useful details about this property"
                     }
-                    className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"
+                    className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[var(--wh-elevated)] p-3 text-sm outline-none focus:border-violet-500/40"
                   />
                 </label>
                 {current.accessChallenge &&
@@ -1218,7 +1218,7 @@ export default function PropertyInspectionRequestPanel({
                         ? "Access code expired"
                         : "Access video"}
                     </p>
-                    <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+                    <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
                       {current.accessChallenge
                         ? "Create a fresh code before recording. We check it before any upload starts."
                         : "When you are at the property, create the code and record the entrance in one video."}
@@ -1241,7 +1241,7 @@ export default function PropertyInspectionRequestPanel({
                     <p className="text-[10px] font-semibold text-violet-200">
                       Short Let rule
                     </p>
-                    <p className="mt-1 text-[9px] text-[#85899A]">
+                    <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
                       Short Let apartments are furnished and priced per night.
                       A Property Partner may optionally enable a refundable caution amount.
                       When caution is enabled, the guest can record pre-existing condition
@@ -1281,11 +1281,11 @@ export default function PropertyInspectionRequestPanel({
           )}
           </fieldset>
           {submitting && (
-            <div className="absolute inset-0 z-20 flex items-end justify-center bg-[#090A0F]/65 p-4 backdrop-blur-[2px]" role="status">
-              <div className="sticky bottom-4 w-full max-w-sm rounded-2xl border border-violet-500/20 bg-[#151721] p-4 text-center shadow-2xl">
+            <div className="absolute inset-0 z-20 flex items-end justify-center bg-[var(--wh-bg)]/65 p-4 backdrop-blur-[2px]" role="status">
+              <div className="sticky bottom-4 w-full max-w-sm rounded-2xl border border-violet-500/20 bg-[var(--wh-elevated)] p-4 text-center shadow-2xl">
                 <p className="text-xs font-semibold">Sending property securely</p>
-                <p className="mt-1 text-[9px] text-[#888E9D]">Upload {uploadProgress ?? 0}% · keep this page open</p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{ width: `${uploadProgress ?? 0}%` }} /></div>
+                <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">Upload {uploadProgress ?? 0}% · keep this page open</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--wh-interactive)]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{ width: `${uploadProgress ?? 0}%` }} /></div>
               </div>
             </div>
           )}
@@ -1333,7 +1333,7 @@ function FilePreviewImage({
     />
   ) : (
     <span
-      className={`${className || ""} block animate-pulse bg-white/[.04]`}
+      className={`${className || ""} block animate-pulse bg-[var(--wh-interactive)]`}
       role="status"
       aria-label="Preparing preview"
     />
@@ -1368,11 +1368,11 @@ function SubmissionSteps({ draft }: { draft?: Draft }) {
       ];
   return (
     <div>
-      <p className="text-[9px] font-semibold text-[#8B90A0]">
+      <p className="text-[9px] font-semibold text-[var(--wh-text-secondary)]">
         {hotel ? "Hotel setup" : "Apartment setup"}
       </p>
       <div
-        className={`mt-2 grid ${hotel ? "grid-cols-4" : "grid-cols-3"} gap-1 text-center text-[8px] font-semibold text-[#686D7E]`}
+        className={`mt-2 grid ${hotel ? "grid-cols-4" : "grid-cols-3"} gap-1 text-center text-[8px] font-semibold text-[var(--wh-text-muted)]`}
       >
         {steps.map(([label, done]) => (
           <span key={String(label)} className={done ? "text-emerald-300" : ""}>
@@ -1399,12 +1399,12 @@ function Field({
 }) {
   return (
     <label className={`space-y-1 ${span ? "md:col-span-2" : ""}`}>
-      <span className="text-[10px] text-[#8A8B9C]">{label}</span>
+      <span className="text-[10px] text-[var(--wh-text-secondary)]">{label}</span>
       <input
         inputMode={inputMode}
         value={value}
         onChange={(e) => set(e.target.value)}
-        className="h-11 w-full rounded-xl border border-[#2A2A3A] bg-[#1A1A24] px-3 text-sm outline-none focus:border-violet-500/40"
+        className="h-11 w-full rounded-xl border border-[#2A2A3A] bg-[var(--wh-elevated)] px-3 text-sm outline-none focus:border-violet-500/40"
       />
     </label>
   );
@@ -1423,7 +1423,7 @@ function ChoiceChips({
   const selected = words(value);
   return (
     <section>
-      <p className="mb-2 text-[10px] text-[#8A8B9C]">{label}</p>
+      <p className="mb-2 text-[10px] text-[var(--wh-text-secondary)]">{label}</p>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const active = selected.includes(option);
@@ -1440,7 +1440,7 @@ function ChoiceChips({
                   ).join(", "),
                 )
               }
-              className={`min-h-9 rounded-full border px-3 py-2 text-[9px] font-semibold ${active ? "border-violet-500/35 bg-violet-500/15 text-violet-100" : "border-white/[.08] bg-white/[.025] text-[#858B9A]"}`}
+              className={`min-h-9 rounded-full border px-3 py-2 text-[9px] font-semibold ${active ? "border-violet-500/35 bg-violet-500/15 text-violet-100" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
             >
               {option}
             </button>
@@ -1453,7 +1453,7 @@ function ChoiceChips({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Add anything else, separated by commas"
-          className="h-10 w-full rounded-xl border border-white/[.07] bg-black/15 px-3 text-[10px] outline-none focus:border-violet-500/35"
+          className="h-10 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-black/15 px-3 text-[10px] outline-none focus:border-violet-500/35"
         />
       </label>
     </section>
@@ -1488,7 +1488,7 @@ function HotelProgramEditor({
     <section className="space-y-4 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 md:col-span-2">
       <div>
         <p className="text-sm font-semibold">Hotel setup</p>
-        <p className="mt-1 text-[9px] leading-5 text-[#777D8E]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           Add hotel facilities once, then configure each bookable room type.
         </p>
       </div>
@@ -1507,12 +1507,12 @@ function HotelProgramEditor({
         {draft.hotelRooms.map((room, index) => (
           <article
             key={room.id}
-            className="rounded-2xl border border-white/[.07] bg-[#12151E] p-3"
+            className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3"
           >
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold">Room type {index + 1}</p>
-                <p className="mt-0.5 text-[8px] text-[#676D7E]">
+                <p className="mt-0.5 text-[8px] text-[var(--wh-text-muted)]">
                   Guests book this inventory and rate.
                 </p>
               </div>
@@ -1551,7 +1551,7 @@ function HotelProgramEditor({
                 set={(value) => updateRoom(index, { maxGuests: digits(value) })}
               />
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[10px] text-[#8A8B9C]">Bed type</span>
+                <span className="text-[10px] text-[var(--wh-text-secondary)]">Bed type</span>
                 <WeHouseSelect
                   value={room.bedType}
                   onChange={(value) => updateRoom(index, { bedType: value })}
@@ -1565,7 +1565,7 @@ function HotelProgramEditor({
                 />
               </label>
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[10px] text-[#8A8B9C]">
+                <span className="text-[10px] text-[var(--wh-text-secondary)]">
                   Room description
                 </span>
                 <textarea
@@ -1575,7 +1575,7 @@ function HotelProgramEditor({
                   }
                   rows={3}
                   placeholder="Describe the room, its layout, view and what is included"
-                  className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3 text-sm outline-none focus:border-violet-500/40"
+                  className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[var(--wh-elevated)] p-3 text-sm outline-none focus:border-violet-500/40"
                 />
               </label>
             </div>
@@ -1588,7 +1588,7 @@ function HotelProgramEditor({
               />
             </div>
             <label className="mt-3 block">
-              <span className="mb-2 block text-[9px] text-[#7C8292]">
+              <span className="mb-2 block text-[9px] text-[var(--wh-text-secondary)]">
                 Room photos *
               </span>
               <input
@@ -1603,7 +1603,7 @@ function HotelProgramEditor({
               />
               <span className="flex min-h-11 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-3 text-[10px] font-semibold text-violet-200">
                 <span>Add room photos</span>
-                <span className="font-normal text-[#858A9A]">
+                <span className="font-normal text-[var(--wh-text-secondary)]">
                   {room.files.length
                     ? `${room.files.length} selected`
                     : "At least 1 for this room"}

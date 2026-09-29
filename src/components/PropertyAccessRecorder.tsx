@@ -209,17 +209,17 @@ export default function PropertyAccessRecorder({
       <h3 className="mt-2 text-sm font-semibold">
         One continuous entrance-to-interior walkthrough
       </h3>
-      <p className="mt-2 text-[10px] leading-5 text-[#858A9A]">
+      <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
         Write the code on paper. Start outside, show it clearly, open the
         entrance and walk through the property without stopping. The video stays
         private for WeHouse review.
       </p>
-      <div className="mt-3 rounded-2xl border border-white/[.08] bg-black/20 p-4 text-center">
-        <p className="text-[8px] uppercase tracking-[.16em] text-[#6C7181]">
+      <div className="mt-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/20 p-4 text-center">
+        <p className="text-[8px] uppercase tracking-[.16em] text-[var(--wh-text-muted)]">
           One-use code
         </p>
         <p className="mt-2 text-2xl font-black tracking-[.2em]">{code}</p>
-        <p className="mt-2 text-[8px] text-[#676C7C]">
+        <p className="mt-2 text-[8px] text-[var(--wh-text-muted)]">
           Expires {new Date(expiresAt).toLocaleString()}
         </p>
       </div>
@@ -247,7 +247,7 @@ export default function PropertyAccessRecorder({
               <p className="text-[10px] font-semibold text-emerald-300">
                 Access walkthrough ready
               </p>
-              <p className="mt-1 text-[8px] text-[#747A89]">
+              <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">
                 {formatDuration(recordedDuration)} ·{" "}
                 {(recordedFile.size / 1048576).toFixed(1)} MB · video + audio
               </p>
@@ -256,7 +256,7 @@ export default function PropertyAccessRecorder({
               type="button"
               disabled={disabled}
               onClick={() => onRecorded(null)}
-              className="rounded-lg border border-white/[.08] px-3 py-2 text-[9px] disabled:opacity-40"
+              className="rounded-lg border border-[var(--wh-border-subtle)] px-3 py-2 text-[9px] disabled:opacity-40"
             >
               Retake
             </button>

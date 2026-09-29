@@ -38,12 +38,12 @@ export default function WorkerReviewIdentityStatus({
   );
 
   return (
-    <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-[#666D7E]">
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
         WeHouse professional checks
       </p>
       {loading ? (
-        <p className="mt-2 text-[10px] text-[#666D7E]">
+        <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
           Checking professional status…
         </p>
       ) : (
@@ -59,7 +59,7 @@ export default function WorkerReviewIdentityStatus({
             <Badge good={!!data?.evidence_saved}>Work evidence</Badge>
             <Badge good={!!data?.submitted}>Submitted</Badge>
           </div>
-          <p className="mt-2 text-[10px] leading-relaxed text-[#73798A]">
+          <p className="mt-2 text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
             {ready
               ? "The required WeHouse professional checks are present. Final approval should focus on professional quality, conduct and work evidence."
               : "One or more required professional checks are still incomplete. Government ID is not part of this review."}

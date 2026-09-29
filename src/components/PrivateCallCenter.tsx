@@ -140,12 +140,12 @@ export default function PrivateCallCenter() {
   if (call.status === "ringing" && call.callee_id === userId)
     return (
       <div className="fixed inset-0 z-[190] grid place-items-end bg-black/75 p-3 backdrop-blur-md sm:place-items-center">
-        <section className="w-full rounded-[30px] border border-white/10 bg-[#11151D] p-6 text-center text-white sm:max-w-sm">
+        <section className="w-full rounded-[30px] border border-white/10 bg-[var(--wh-surface)] p-6 text-center text-white sm:max-w-sm">
           <CallAvatar call={call} />
           <h2 className="mt-4 text-xl font-bold">
             {call.peer_name || "WeHouse member"}
           </h2>
-          <p className="mt-1 text-[10px] text-[#818899]">Incoming {call.call_type} call</p>
+          <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">Incoming {call.call_type} call</p>
           <div className="mt-7 grid grid-cols-2 gap-3">
             <button
               onClick={() => void answer(false)}
@@ -165,7 +165,7 @@ export default function PrivateCallCenter() {
     );
   if (finished.has(call.status))
     return (
-      <div className="fixed inset-0 z-[190] grid place-items-center bg-[#090A0F]/96 text-white">
+      <div className="fixed inset-0 z-[190] grid place-items-center bg-[var(--wh-bg)]/96 text-white">
         <div className="text-center">
           <CallAvatar call={call} />
           <p className="mt-4 text-lg font-bold">Call {call.status}</p>
@@ -345,18 +345,18 @@ function RtcCall({
             <h2 className="mt-5 text-2xl font-bold">
               {call.peer_name || "WeHouse member"}
             </h2>
-            <p className="mt-2 text-[10px] text-[#8990A0]">
+            <p className="mt-2 text-[10px] text-[var(--wh-text-secondary)]">
               {connected ? "Connected" : connectionLabel}
             </p>
           </div>
-          {isVideo && <video ref={localVideo} autoPlay muted playsInline className="absolute right-4 top-4 h-40 w-28 rounded-2xl border border-white/20 bg-[#11151D] object-cover shadow-2xl sm:h-52 sm:w-36" />}
+          {isVideo && <video ref={localVideo} autoPlay muted playsInline className="absolute right-4 top-4 h-40 w-28 rounded-2xl border border-white/20 bg-[var(--wh-surface)] object-cover shadow-2xl sm:h-52 sm:w-36" />}
         </div>
         {!isVideo && <video ref={remoteMedia} autoPlay playsInline className="hidden" />}
         {error && (
           <div className="absolute inset-x-4 top-20 rounded-2xl bg-red-500/15 p-3 text-center text-[10px] text-red-100"><p>{error}</p><button onClick={reconnect} className="mt-2 rounded-lg bg-white/10 px-3 py-2 font-semibold">Try reconnecting</button></div>
         )}
       </main>
-      <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 bg-[#10131B] p-4 sm:gap-4 sm:p-5">
+      <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 bg-[var(--wh-surface)] p-4 sm:gap-4 sm:p-5">
         <button
           onClick={toggleMute}
           className="h-12 rounded-full bg-white/10 px-5 text-[10px]"

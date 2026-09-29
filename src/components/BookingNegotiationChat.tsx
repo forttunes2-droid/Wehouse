@@ -660,19 +660,19 @@ export default function BookingNegotiationChat({
     peerAvatar = isWorker ? booking?.user_avatar : booking?.worker_avatar;
   if (loading)
     return createPortal(
-      <div className="fixed inset-0 z-50 grid place-items-center bg-[#0A0A0F]">
+      <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--wh-bg)]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>,
       document.body,
     );
   return createPortal(
-    <div className="fixed inset-0 z-[100020] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#0A0A0F] text-white">
-      <header className="relative shrink-0 border-b border-white/[.06] bg-[#11131A]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+    <div className="fixed inset-0 z-[100020] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--wh-bg)] text-[var(--wh-text)]">
+      <header className="relative shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center gap-2.5">
           <BackButton onClick={onClose} />
           <button
             onClick={() => void openPeerProfile()}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left active:bg-white/[.04]"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left active:bg-[var(--wh-interactive)]"
           >
             <ChatAvatar name={peerName} src={peerAvatar} />
             <div className="min-w-0 flex-1">
@@ -689,7 +689,7 @@ export default function BookingNegotiationChat({
                 )}
               </div>
               <p
-                className={`mt-0.5 truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[#676D7D]"}`}
+                className={`mt-0.5 truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
               >
                 {presenceText ||
                   `${booking?.service_type || "Worker booking"} · #${booking?.booking_code || ""}`}
@@ -700,14 +700,14 @@ export default function BookingNegotiationChat({
             <>
               <button
                 onClick={() => void startCall("audio")}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D5D8E0] hover:bg-[var(--wh-interactive)]"
                 aria-label="Start audio call"
               >
                 <Phone />
               </button>
               <button
                 onClick={() => void startCall("video")}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] bg-white/[.035] text-[#D5D8E0] hover:bg-white/[.06]"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D5D8E0] hover:bg-[var(--wh-interactive)]"
                 aria-label="Start video call"
               >
                 <VideoCall />
@@ -716,14 +716,14 @@ export default function BookingNegotiationChat({
           )}
           <button
             onClick={() => setMenuOpen((value) => !value)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[#8E93A3] hover:bg-white/[.05]"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
             aria-label="Conversation options"
           >
             ⋯
           </button>
         </div>
         {menuOpen && (
-          <div className="absolute right-3 top-[3.65rem] z-30 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[#171B24] p-1.5 shadow-2xl">
+          <div className="absolute right-3 top-[3.65rem] z-30 w-56 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
             {jobSupportOpen && (
               <button
                 onClick={openSupport}
@@ -746,7 +746,7 @@ export default function BookingNegotiationChat({
           </div>
         )}
         {booking && (
-          <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-white/[.06] bg-white/[.025] p-3">
+          <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
             <button
               type="button"
               onClick={() => setDetailsOpen(true)}
@@ -756,7 +756,7 @@ export default function BookingNegotiationChat({
                 <span className="block truncate text-[10px] font-semibold">
                   {booking.service_type || "Service request"}
                 </span>
-                <span className="mt-1 block truncate text-[8px] text-[#686E7E]">
+                <span className="mt-1 block truncate text-[8px] text-[var(--wh-text-muted)]">
                   #{booking.booking_code || "—"} ·{" "}
                   {statusInfo?.label || "Booking"}
                 </span>
@@ -765,12 +765,12 @@ export default function BookingNegotiationChat({
                 View request ›
               </span>
             </button>
-            <div className="mb-2 mt-3 flex items-start justify-between gap-3 border-t border-white/[.055] pt-3">
+            <div className="mb-2 mt-3 flex items-start justify-between gap-3 border-t border-[var(--wh-border-subtle)] pt-3">
               <div className="min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-[#656A7A]">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
                   What happens next
                 </p>
-                <p className="mt-1 text-[10px] leading-5 text-[#B5BAC7]">
+                <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
                   {workerNextStep(booking.status, isWorker)}
                 </p>
               </div>
@@ -793,7 +793,7 @@ export default function BookingNegotiationChat({
                       <p className="text-[10px] font-semibold text-emerald-300">
                         Payment secured for this job
                       </p>
-                      <p className="mt-1 text-[9px] leading-relaxed text-[#808696]">
+                      <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">
                         The Worker is paid only after the work is completed and
                         you confirm it. If something goes wrong, raise a dispute
                         before confirming completion.
@@ -808,7 +808,7 @@ export default function BookingNegotiationChat({
                 "in_progress",
                 "completed_pending_approval",
               ].includes(booking.status) && (
-                <p className="mt-3 border-y border-emerald-500/15 py-3 text-[9px] leading-relaxed text-[#808696]">
+                <p className="mt-3 border-y border-emerald-500/15 py-3 text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">
                   Customer payment is secured. Your earnings become available
                   after completed work is confirmed.
                 </p>
@@ -818,7 +818,7 @@ export default function BookingNegotiationChat({
                 <p className="text-[9px] font-semibold text-amber-300">
                   Payment review required
                 </p>
-                <p className="mt-1 text-[9px] leading-relaxed text-[#8A8190]">
+                <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
                   Paystack verified a payment, but this booking could not finish
                   payment processing automatically. Do not pay or cancel again.
                   WeHouse must review it first.
@@ -895,7 +895,7 @@ export default function BookingNegotiationChat({
                 ].includes(booking.status) && (
                   <button
                     onClick={() => setShowCancelForm((v) => !v)}
-                    className="rounded-lg bg-white/[.04] px-3 py-1.5 text-[9px] text-[#858999]"
+                    className="rounded-lg bg-[var(--wh-interactive)] px-3 py-1.5 text-[9px] text-[var(--wh-text-secondary)]"
                   >
                     Cancel
                   </button>
@@ -903,7 +903,7 @@ export default function BookingNegotiationChat({
             </div>
             {showAcceptForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
-                <label className="block text-[9px] font-semibold text-[#A9AEBB]">
+                <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
                   Your price (₦)
                   <input
                     inputMode="numeric"
@@ -912,14 +912,14 @@ export default function BookingNegotiationChat({
                       setAcceptAmount(e.target.value.replace(/[^0-9]/g, ""))
                     }
                     placeholder="Enter the final price"
-                    className="mt-1 h-9 w-full rounded-lg border border-white/[.07] bg-[#181A23] px-3 text-xs outline-none"
+                    className="mt-1 h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
                   />
                 </label>
                 <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
                 <button
                   disabled={!Number(acceptAmount) || !acceptDate}
                   onClick={() => void handleWorkerAccept()}
-                  className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-white/[.06] disabled:text-[#666B79]"
+                  className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                 >
                   Confirm price &amp; accept booking
                 </button>
@@ -932,7 +932,7 @@ export default function BookingNegotiationChat({
                   onChange={(e) => setDisputeReason(e.target.value)}
                   rows={2}
                   placeholder="What went wrong?"
-                  className="w-full resize-none rounded-lg border border-white/[.07] bg-[#181A23] p-2 text-xs outline-none"
+                  className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
                 />
                 <button
                   onClick={() => void handleCustomerDispute()}
@@ -943,18 +943,18 @@ export default function BookingNegotiationChat({
               </div>
             )}
             {showCancelForm && (
-              <div className="mt-2 space-y-2 rounded-xl border border-white/[.07] bg-white/[.025] p-2">
+              <div className="mt-2 space-y-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-2">
                 <textarea
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   rows={2}
                   placeholder="Reason for cancellation"
-                  className="w-full resize-none rounded-lg border border-white/[.07] bg-[#181A23] p-2 text-xs outline-none"
+                  className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setShowCancelForm(false)}
-                    className="h-9 rounded-lg bg-white/[.04] text-[10px]"
+                    className="h-9 rounded-lg bg-[var(--wh-interactive)] text-[10px]"
                   >
                     Keep booking
                   </button>
@@ -978,7 +978,7 @@ export default function BookingNegotiationChat({
                 <p className="text-[10px] font-semibold text-violet-100">
                   Some messages are still locked
                 </p>
-                <p className="mt-1 text-[9px] leading-4 text-[#8C92A2]">
+                <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
                   Re-enter your Inbox PIN to unlock this conversation on this device.
                 </p>
               </div>
@@ -1008,7 +1008,7 @@ export default function BookingNegotiationChat({
             <div className="grid min-h-44 place-items-center text-center">
               <div>
                 <p className="text-sm font-semibold">No messages yet</p>
-                <p className="mt-2 text-[10px] text-[#666C7D]">
+                <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
                   Start with the work details, schedule and price.
                 </p>
               </div>
@@ -1049,7 +1049,7 @@ export default function BookingNegotiationChat({
                   className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[86%] overflow-hidden rounded-[20px] px-3.5 py-2.5 sm:max-w-[72%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.05] bg-[#161922]"}`}
+                    className={`max-w-[86%] overflow-hidden rounded-[20px] px-3.5 py-2.5 sm:max-w-[72%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                   >
                     {!mine && (
                       <p className="mb-1 text-[9px] font-semibold text-violet-300">
@@ -1061,7 +1061,7 @@ export default function BookingNegotiationChat({
                         const quoted = messageById.get(msg.reply_to_id);
                         return quoted ? (
                           <div
-                            className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
+                            className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-[var(--wh-interactive)]"}`}
                           >
                             <p className="truncate text-[8px] font-semibold text-violet-200">
                               {quoted.sender_id === profile.user_id
@@ -1081,7 +1081,7 @@ export default function BookingNegotiationChat({
                     {msg.attachment_failed && <AttachmentState error />}
                     {msg.content && <MessageContent content={msg.content} />}
                     <p
-                      className={`mt-1 text-[8px] ${mine ? "text-violet-100/70" : "text-[#5C6070]"}`}
+                      className={`mt-1 text-[8px] ${mine ? "text-violet-100/70" : "text-[var(--wh-text-muted)]"}`}
                     >
                       {new Date(msg.created_at).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -1126,11 +1126,11 @@ export default function BookingNegotiationChat({
           <div ref={bottomRef} />
         </div>
       </main>
-      <footer className="chat-input-container shrink-0 border-t border-white/[.06] bg-[#11131A]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+      <footer className="chat-input-container shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
         {openConversation && !contactBlocked ? (
           <div className="mx-auto max-w-4xl">
             {!secureChat ? (
-              <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/[.07] px-4 py-3 text-[10px] text-[#858B9B]">
+              <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] px-4 py-3 text-[10px] text-[var(--wh-text-secondary)]">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-violet-400" />
                 Opening conversation…
               </div>
@@ -1159,7 +1159,7 @@ export default function BookingNegotiationChat({
                   }}
                 />
                 {replyingTo && (
-                  <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
+                  <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-[var(--wh-interactive)] px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-[8px] font-semibold text-violet-300">
                         Replying to{" "}
@@ -1167,7 +1167,7 @@ export default function BookingNegotiationChat({
                           ? "yourself"
                           : replyingTo.sender_name || peerName}
                       </p>
-                      <p className="mt-0.5 truncate text-[10px] text-[#A1A6B4]">
+                      <p className="mt-0.5 truncate text-[10px] text-[var(--wh-text-secondary)]">
                         {replyingTo.content ||
                           (replyingTo.attachments?.length
                             ? "Attachment"
@@ -1177,7 +1177,7 @@ export default function BookingNegotiationChat({
                     <button
                       type="button"
                       onClick={() => setReplyingTo(null)}
-                      className="grid h-8 w-8 place-items-center text-[#818797]"
+                      className="grid h-8 w-8 place-items-center text-[var(--wh-text-secondary)]"
                       aria-label="Cancel reply"
                     >
                       ×
@@ -1195,11 +1195,11 @@ export default function BookingNegotiationChat({
                         ? "Finish voice recording"
                         : "Record voice message"
                     }
-                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-white/[.07] bg-white/[.035] text-[#858A9B]"}`}
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
                   >
                     <Mic />
                   </button>
-                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.07] bg-[#1A1A24] px-3 py-1.5 focus-within:border-violet-500/40">
+                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/40">
                     <textarea
                       rows={1}
                       value={input}
@@ -1217,7 +1217,7 @@ export default function BookingNegotiationChat({
                   <button
                     onClick={() => void handleSend()}
                     disabled={sending || (!input.trim() && !files.length)}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#626879]"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                   >
                     {sending ? "…" : "➤"}
                   </button>
@@ -1232,7 +1232,7 @@ export default function BookingNegotiationChat({
                 <p className="text-[10px] font-semibold text-amber-200">
                   Messages and private calls are stopped
                 </p>
-                <p className="mt-1 text-[9px] text-[#6F7586]">
+                <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                   {peerBlocked
                     ? "You blocked this person. Unblock them from their profile to restore contact."
                     : "This person blocked contact. The conversation history remains available."}
@@ -1251,7 +1251,7 @@ export default function BookingNegotiationChat({
         ) : (
           <div className="mx-auto max-w-4xl py-2">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] text-[#656A7A]">
+              <p className="text-[10px] text-[var(--wh-text-muted)]">
                 This job conversation is closed.
               </p>
               {jobSupportOpen && (
@@ -1264,14 +1264,14 @@ export default function BookingNegotiationChat({
               )}
             </div>
             {!isWorker && booking?.status === "approved_released" && (
-              <section className="mt-3 border-t border-white/[.06] pt-3">
+              <section className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
                 {review && !reviewOpen ? (
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-semibold text-amber-300">
                         {"★".repeat(Number(review.rating))}
                       </p>
-                      <p className="mt-1 text-[9px] text-[#6D7282]">
+                      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                         Your verified review ·{" "}
                         {review.comment
                           ? "Written review included"
@@ -1290,7 +1290,7 @@ export default function BookingNegotiationChat({
                     <p className="text-xs font-semibold">
                       Rate this completed job
                     </p>
-                    <p className="mt-1 text-[9px] text-[#6D7282]">
+                    <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                       Your rating and review appear on this professional’s
                       public profile.
                     </p>
@@ -1301,7 +1301,7 @@ export default function BookingNegotiationChat({
                           type="button"
                           aria-label={`${value} star${value === 1 ? "" : "s"}`}
                           onClick={() => setReviewRating(value)}
-                          className={`text-2xl ${value <= reviewRating ? "text-amber-300" : "text-[#373C48]"}`}
+                          className={`text-2xl ${value <= reviewRating ? "text-amber-300" : "text-[var(--wh-text-muted)]"}`}
                         >
                           ★
                         </button>
@@ -1313,7 +1313,7 @@ export default function BookingNegotiationChat({
                         setReviewComment(event.target.value.slice(0, 1200))
                       }
                       placeholder="Describe the work, communication and reliability (optional)"
-                      className="mt-3 min-h-20 w-full resize-none rounded-xl border border-white/[.07] bg-[#191B24] p-3 text-xs outline-none focus:border-violet-500/40"
+                      className="mt-3 min-h-20 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none focus:border-violet-500/40"
                     />
                     <div className="mt-2 flex gap-2">
                       <button
@@ -1326,7 +1326,7 @@ export default function BookingNegotiationChat({
                       {review && (
                         <button
                           onClick={() => setReviewOpen(false)}
-                          className="h-10 rounded-xl border border-white/[.07] px-4 text-[10px]"
+                          className="h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-[10px]"
                         >
                           Cancel
                         </button>
@@ -1551,8 +1551,8 @@ function ConversationIdentitySheet({
       footer={
         <>
         {isWorker && booking ? (
-          <div className="mt-5 border-t border-white/[.07] pt-4">
-            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">
+          <div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
+            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
               This booking
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1568,15 +1568,15 @@ function ConversationIdentitySheet({
               />
             </div>
             {booking.address ? (
-              <div className="mt-2 rounded-xl bg-white/[.035] p-3">
-                <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Job location</p>
-                <p className="mt-1 text-[10px] leading-4 text-[#B4B8C3]">{booking.address}</p>
+              <div className="mt-2 rounded-xl bg-[var(--wh-interactive)] p-3">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-[var(--wh-text-muted)]">Job location</p>
+                <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-secondary)]">{booking.address}</p>
               </div>
             ) : null}
             {booking.customer_message || booking.description ? (
-              <div className="mt-2 rounded-xl bg-white/[.035] p-3">
-                <p className="text-[8px] font-bold uppercase tracking-wide text-[#6F7585]">Original request</p>
-                <p className="mt-1 whitespace-pre-line text-[10px] leading-4 text-[#B4B8C3]">{booking.customer_message || booking.description}</p>
+              <div className="mt-2 rounded-xl bg-[var(--wh-interactive)] p-3">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-[var(--wh-text-muted)]">Original request</p>
+                <p className="mt-1 whitespace-pre-line text-[10px] leading-4 text-[var(--wh-text-secondary)]">{booking.customer_message || booking.description}</p>
               </div>
             ) : null}
           </div>
@@ -1588,7 +1588,7 @@ function ConversationIdentitySheet({
   );
 }
 function CaseFact({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl bg-white/[.035] p-3"><p className="text-[8px] uppercase tracking-wide text-[#6F7585]">{label}</p><p className="mt-1 capitalize text-[10px] font-semibold text-[#CFD2DA]">{value}</p></div>;
+  return <div className="rounded-xl bg-[var(--wh-interactive)] p-3"><p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p><p className="mt-1 capitalize text-[10px] font-semibold text-[#CFD2DA]">{value}</p></div>;
 }
 function DaySeparator({ value }: { value: string }) {
   const date = new Date(value),
@@ -1610,9 +1610,9 @@ function DaySeparator({ value }: { value: string }) {
           });
   return (
     <div className="flex items-center gap-3 py-3">
-      <span className="h-px flex-1 bg-white/[.05]" />
-      <span className="text-[8px] font-semibold text-[#697080]">{label}</span>
-      <span className="h-px flex-1 bg-white/[.05]" />
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
+      <span className="text-[8px] font-semibold text-[var(--wh-text-muted)]">{label}</span>
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
     </div>
   );
 }
@@ -1629,21 +1629,21 @@ function DeleteSheet({
       onClick={onCancel}
     >
       <section
-        className="w-full rounded-3xl border border-white/[.08] bg-[#151922] p-5 sm:max-w-sm"
+        className="w-full rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-5 sm:max-w-sm"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300">
           <TrashIcon />
         </div>
         <h2 className="text-base font-bold">Remove this conversation?</h2>
-        <p className="mt-2 text-[10px] leading-5 text-[#767C8C]">
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-muted)]">
           The job and its audit history stay intact, and the other participant
           keeps their copy. A new reply can make this conversation appear again.
         </p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button
             onClick={onCancel}
-            className="h-11 rounded-xl border border-white/[.08] text-[11px] font-semibold text-[#A4A9B7]"
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text-secondary)]"
           >
             Keep
           </button>
@@ -1768,7 +1768,7 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
   ];
   return (
     <div className="space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
-      <div className="border-b border-white/[.055] pb-3">
+      <div className="border-b border-[var(--wh-border-subtle)] pb-3">
         <div>
           <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">Original service request</p>
           <p className="mt-1 text-[10px] font-semibold text-[#E2E4EA]">#{booking.booking_code || "—"} · {booking.service_type || "Service request"}</p>
@@ -1777,7 +1777,7 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {facts.map(([label, value]) => (
           <div key={label}>
-            <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">
+            <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">
               {label}
             </p>
             <p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">
@@ -1786,21 +1786,21 @@ function JobRequestDetails({ booking }: { booking: Booking }) {
           </div>
         ))}
       </div>
-      <div className="border-t border-white/[.055] pt-3">
-        <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#626879]">
+      <div className="border-t border-[var(--wh-border-subtle)] pt-3">
+        <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">
           What the customer requested
         </p>
-        <p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[#B8BDCA]">
+        <p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[var(--wh-text-secondary)]">
           {booking.description ||
             booking.customer_message ||
             "No written description was supplied with this request."}
         </p>
       </div>
       {booking.request_attachments?.length ? (
-        <div className="grid gap-2 border-t border-white/[.055] pt-3 sm:grid-cols-2">
+        <div className="grid gap-2 border-t border-[var(--wh-border-subtle)] pt-3 sm:grid-cols-2">
           {booking.request_attachments.map((url, index) => (
             <div key={`${url}-${index}`}>
-              <p className="mb-1 text-[8px] text-[#6D7383]">
+              <p className="mb-1 text-[8px] text-[var(--wh-text-muted)]">
                 Request attachment {index + 1}
               </p>
               <BookingAttachment url={url} />
@@ -1824,18 +1824,18 @@ function JobRequestDetailsSheet({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[100120] flex h-[100dvh] flex-col bg-[#090B10] text-white"
+      className="fixed inset-0 z-[100120] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]"
       role="dialog"
       aria-modal="true"
       aria-label="Service request details"
     >
-      <header className="flex min-h-14 items-center gap-3 border-b border-white/[.07] px-3 pt-[env(safe-area-inset-top)]">
+      <header className="flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3 pt-[env(safe-area-inset-top)]">
         <BackButton onClick={onClose} className="!ml-0 !w-10" ariaLabel="Back to chat" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">
             {booking.service_type || "Service request"}
           </p>
-          <p className="mt-0.5 text-[9px] text-[#697081]">
+          <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
             #{booking.booking_code || "—"}
           </p>
         </div>

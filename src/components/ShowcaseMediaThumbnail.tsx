@@ -25,8 +25,8 @@ function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cove
     return () => window.clearTimeout(timer);
   }, [src, nearViewport, ready]);
   const loaded = () => { setReady(true); setFailed(false); };
-  return <span ref={root} data-media-thumbnail data-media-state={failed && !ready ? 'unavailable' : ready ? 'ready' : 'loading'} className="relative block h-full w-full overflow-hidden bg-[#161A23]">
-    {!ready && !failed && <span aria-hidden="true" className="absolute inset-0 bg-white/[.04] motion-safe:animate-pulse" />}
+  return <span ref={root} data-media-thumbnail data-media-state={failed && !ready ? 'unavailable' : ready ? 'ready' : 'loading'} className="relative block h-full w-full overflow-hidden bg-[var(--wh-elevated)]">
+    {!ready && !failed && <span aria-hidden="true" className="absolute inset-0 bg-[var(--wh-interactive)] motion-safe:animate-pulse" />}
     {src && mediaType === 'image' && <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={loaded} onError={() => setFailed(true)} className={`${className} ${ready ? '' : 'opacity-0'}`} />}
     {mediaType === 'video' && (poster ? <img src={poster} alt={alt} className={className} onError={() => { setPoster(''); setFailed(true); setReady(false); }} /> : src && nearViewport ? <video src={src} muted playsInline preload="metadata" crossOrigin="anonymous" aria-hidden="true" className={`${className} ${ready ? '' : 'opacity-0'}`}
       onLoadedMetadata={event => { const video = event.currentTarget; if (video.duration > 0) video.currentTime = Math.min(.1, video.duration / 2); }}
@@ -36,7 +36,7 @@ function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cove
         loaded(); video.pause();
         try { const canvas = document.createElement('canvas'); canvas.width = Math.min(480, video.videoWidth); canvas.height = Math.max(1, Math.round(canvas.width * video.videoHeight / video.videoWidth)); const context = canvas.getContext('2d'); if (context) { context.drawImage(video, 0, 0, canvas.width, canvas.height); setPoster(canvas.toDataURL('image/jpeg', .75)); } } catch { /* Keep the decoded frame when canvas access is unavailable. */ }
       }} onError={() => setFailed(true)} /> : null)}
-    {failed && !ready && <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2 text-center text-xs leading-4 text-[#A7ADBA]">{mediaType === 'image' ? <ImageOff size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}<span>{mediaType === 'image' ? 'Photo unavailable' : 'Preview unavailable · open video'}</span></span>}
+    {failed && !ready && <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2 text-center text-xs leading-4 text-[var(--wh-text-secondary)]">{mediaType === 'image' ? <ImageOff size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}<span>{mediaType === 'image' ? 'Photo unavailable' : 'Preview unavailable · open video'}</span></span>}
     {mediaType === 'video' && ready && <span aria-hidden="true" className="pointer-events-none absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/65 text-white"><Play size={14} fill="currentColor" /></span>}
   </span>;
 }

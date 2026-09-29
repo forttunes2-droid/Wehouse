@@ -42,15 +42,15 @@ export default function HotelTeamInvitations() {
 
   if (!rows.length) return null;
   return (
-    <section className="mb-5 overflow-hidden rounded-2xl border border-violet-500/15 bg-[#11141C]">
-      <header className="border-b border-white/[.06] px-4 py-3">
+    <section className="mb-5 overflow-hidden rounded-2xl border border-violet-500/15 bg-[var(--wh-surface)]">
+      <header className="border-b border-[var(--wh-border-subtle)] px-4 py-3">
         <h2 className="text-xs font-semibold">Hotel invitations</h2>
       </header>
-      <div className="divide-y divide-white/[.06]">
+      <div className="divide-y divide-[var(--wh-border-subtle)]">
         {rows.map((row) => (
           <article key={row.id} className="p-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white/[.035]">
+              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-interactive)]">
                 {row.hotel_image ? (
                   <ListingMediaImage reference={row.hotel_image} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -59,13 +59,13 @@ export default function HotelTeamInvitations() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold">{row.hotel_name}</p>
-                <p className="mt-1 text-[9px] text-[#777D8D]">
+                <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                   {row.inviter_name} invited you as {row.hotel_role === "manager" ? "Manager" : "Front desk"}
                 </p>
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={busy === row.id} onClick={() => void respond(row, false)} className="h-10 rounded-xl border border-white/[.08] text-[10px] font-semibold text-[#AEB4C1] disabled:opacity-40">Decline</button>
+              <button type="button" disabled={busy === row.id} onClick={() => void respond(row, false)} className="h-10 rounded-xl border border-[var(--wh-border-subtle)] text-[10px] font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">Decline</button>
               <button type="button" disabled={busy === row.id} onClick={() => void respond(row, true)} className="h-10 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">{busy === row.id ? "Updating…" : "Accept"}</button>
             </div>
           </article>

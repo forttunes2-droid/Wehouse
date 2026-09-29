@@ -88,17 +88,17 @@ export default function SupportEntryCard({
   }
   if (loading && compact)
     return (
-      <div className="px-4 py-4 text-[10px] text-[#666C7C]">
+      <div className="px-4 py-4 text-[10px] text-[var(--wh-text-muted)]">
         Loading WeHouse conversations…
       </div>
     );
-  if (loadError) return <div role="alert" className="py-4 text-sm text-[#A7ADBA]">WeHouse conversations could not be refreshed. <button type="button" onClick={() => void load()} className="min-h-11 px-2 font-medium text-violet-300">Try again</button></div>;
+  if (loadError) return <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]">WeHouse conversations could not be refreshed. <button type="button" onClick={() => void load()} className="min-h-11 px-2 font-medium text-violet-300">Try again</button></div>;
   if (!ordered.length && hideWhenEmpty) return null;
   if (!ordered.length)
     return (
       <div className="px-4 py-8 text-center">
         <p className="text-xs font-semibold">No WeHouse conversations yet</p>
-        <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[#656B7B]">
+        <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[var(--wh-text-muted)]">
           Open the relevant property, booking, payment or account action to
           contact the correct WeHouse work area.
         </p>
@@ -112,7 +112,7 @@ export default function SupportEntryCard({
         const status = supportStatus(thread.status);
         return (
           <div key={thread.conversation_id}>
-            {index > 0 && <div className="ml-[4.5rem] h-px bg-white/[.05]" />}
+            {index > 0 && <div className="ml-[4.5rem] h-px bg-[var(--wh-interactive)]" />}
             <SupportRow
               compact={compact}
               title={p.title}
@@ -160,26 +160,26 @@ function SupportRow({
       onClick={onOpen}
       className={
         compact
-          ? "flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
-          : "flex w-full items-center gap-3 rounded-2xl border border-white/[.06] bg-white/[.018] p-4 text-left transition hover:bg-white/[.025]"
+          ? "flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--wh-interactive)]"
+          : "flex w-full items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-4 text-left transition hover:bg-[var(--wh-interactive)]"
       }
     >
-      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/[.08] bg-[#171A22] font-bold text-violet-200">
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] font-bold text-violet-200">
         W
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-semibold text-white">{title}</p>
         <p
-          className={`mt-1 truncate text-[11px] ${unread ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+          className={`mt-1 truncate text-[11px] ${unread ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
         >
           {preview}
         </p>
-        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">{meta}</p>
+        <p className="mt-0.5 truncate text-[9px] text-[var(--wh-text-muted)]">{meta}</p>
       </div>
       <div className="shrink-0 self-start pt-0.5 text-right">
         {time && (
           <p
-            className={`text-[8px] ${unread ? "text-violet-300" : "text-[#555A6B]"}`}
+            className={`text-[8px] ${unread ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
           >
             {formatTime(time)}
           </p>

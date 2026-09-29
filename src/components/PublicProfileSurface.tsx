@@ -85,40 +85,40 @@ export default function PublicProfileSurface({
 
   return createPortal(
     <div ref={root} tabIndex={-1}
-      className={`fixed inset-0 z-[100100] isolate overflow-y-auto bg-[#090B10] text-white outline-none ${bottomAction ? "pb-24" : "pb-8"}`}
+      className={`fixed inset-0 z-[100100] isolate overflow-y-auto bg-[var(--wh-bg)] text-[var(--wh-text)] outline-none ${bottomAction ? "pb-24" : "pb-8"}`}
       role="dialog" aria-modal={suspended ? undefined : true} aria-hidden={suspended || undefined}
       aria-label={ariaLabel || `${name} profile`}>
       {/* Navigation and identity share one masthead. The name is not repeated in a detached bar. */}
       <header className={`mx-auto ${width} px-5 pb-5 pt-[max(.75rem,env(safe-area-inset-top))]`}>
         <div className="mb-4 flex min-h-11 items-center gap-2.5">
           <BackButton onClick={dismiss} ariaLabel={conversation ? "Back to conversation" : "Back"} />
-          <p className="text-xs font-medium text-[#9298A7]">{conversation ? "Conversation info" : "Profile"}</p>
+          <p className="text-xs font-medium text-[var(--wh-text-secondary)]">{conversation ? "Conversation info" : "Profile"}</p>
         </div>
         <div className={`flex items-center ${conversation ? "flex-col gap-3 text-center" : "gap-4"}`}>
           <button type="button" disabled={!avatar} onClick={() => avatar && setAvatarOpen(true)}
             aria-label={avatar ? `Preview ${name}'s profile photo` : "No profile photo"}
-            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.09] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default">
+            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default">
             {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : name[0]?.toUpperCase() || "W"}
           </button>
           <div className="min-w-0 flex-1">
             <h1 className="break-words text-xl font-semibold">{name}</h1>
-            {username ? <p className="mt-1 break-words text-xs text-[#858C9C]">@{username.replace(/^@/, "")}</p> : null}
-            {subtitle ? <p className="mt-2 text-xs text-[#A5ABB8]">{subtitle}</p> : null}
-            {presence ? <p className="mt-1 text-xs text-[#A5ABB8]">{presence}</p> : null}
-            {location ? <p className="mt-1 text-xs leading-5 text-[#858C9C]">{location}</p> : null}
+            {username ? <p className="mt-1 break-words text-xs text-[var(--wh-text-secondary)]">@{username.replace(/^@/, "")}</p> : null}
+            {subtitle ? <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">{subtitle}</p> : null}
+            {presence ? <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{presence}</p> : null}
+            {location ? <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{location}</p> : null}
             {badges ? <div className="mt-3 flex flex-wrap items-center gap-2">{badges}</div> : null}
           </div>
         </div>
         {actions ? <div className="mt-5 flex justify-center gap-5">{actions}</div> : null}
       </header>
       <main className={`mx-auto ${width} px-5 pb-8`}>
-        {about ? <section className="border-t border-white/[.07] py-5">
-          <h2 className="text-xs font-bold uppercase tracking-[.14em] text-[#858C9C]">About</h2>
-          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#B5BAC6]">{about}</p>
+        {about ? <section className="border-t border-[var(--wh-border-subtle)] py-5">
+          <h2 className="text-xs font-bold uppercase tracking-[.14em] text-[var(--wh-text-secondary)]">About</h2>
+          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--wh-text-secondary)]">{about}</p>
         </section> : null}
         {children ? <div className="space-y-5">{children}</div> : null}
       </main>
-      {bottomAction ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#090B10] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
+      {bottomAction ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
         <div className={`mx-auto ${width}`}>{bottomAction}</div>
       </div> : null}
       {avatarOpen && avatar ? <ProfilePhoto src={avatar} name={name} subtitle={subtitle} onClose={() => setAvatarOpen(false)} /> : null}
@@ -145,8 +145,8 @@ function ProfilePhoto({ src, name, subtitle, onClose }: {
 export function PublicProfileAction({ label, onClick, children }: {
   label: string; onClick: () => void; children: ReactNode;
 }) {
-  return <button type="button" onClick={onClick} className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-[#B9BDC8]">
-    <span className="grid h-11 w-11 place-items-center rounded-full border border-white/[.06] bg-white/[.055] text-[#D8DAE1]">{children}</span>
+  return <button type="button" onClick={onClick} className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-[var(--wh-text-secondary)]">
+    <span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D8DAE1]">{children}</span>
     {label}
   </button>;
 }

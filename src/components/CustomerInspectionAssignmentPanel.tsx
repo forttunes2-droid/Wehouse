@@ -66,7 +66,7 @@ export default function CustomerInspectionAssignmentPanel({
   if (loading)
     return (
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
-        <p className="text-[10px] text-[#7A8191]">Loading inspection assignment…</p>
+        <p className="text-[10px] text-[var(--wh-text-secondary)]">Loading inspection assignment…</p>
       </section>
     );
 
@@ -80,14 +80,14 @@ export default function CustomerInspectionAssignmentPanel({
         Property Operations · inspection
       </p>
       <h4 className="mt-1 text-sm font-semibold">Assign Field Operations</h4>
-      <p className="mt-1 text-[10px] leading-5 text-[#858B9A]">
+      <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
         This customer inspection stays owned by Property Operations. Choose the Field Operations officer for this property branch; they join the same reservation conversation instead of creating another customer chat.
       </p>
 
       {assigned ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.04] p-3">
           <div>
-            <p className="text-[9px] text-[#757D8D]">Assigned to this inspection</p>
+            <p className="text-[9px] text-[var(--wh-text-muted)]">Assigned to this inspection</p>
             <p className="mt-1 text-xs font-semibold text-emerald-300">
               {assignment.assigned_field_officer_name || assignment.assigned_field_officer_id}
             </p>
@@ -99,7 +99,7 @@ export default function CustomerInspectionAssignmentPanel({
           <WeHouseChoice
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
-            className="h-11 rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs outline-none focus:border-violet-500/40"
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
             aria-label="Field Operations officer for inspection"
           >
             <option value="">Choose Field Operations</option>

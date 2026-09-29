@@ -37,11 +37,11 @@ export default function RoommateBubble({
       className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${shared ? `border border-white/[.09] bg-[#171B24] ${mine ? "rounded-br-md" : "rounded-bl-md"}` : mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-white/[.06] bg-[#151821]"}`}
+        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${shared ? `border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] ${mine ? "rounded-br-md" : "rounded-bl-md"}` : mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
       >
         {quoted && (
           <div
-            className={`mb-2 rounded-xl border-l-2 px-2.5 py-2 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
+            className={`mb-2 rounded-xl border-l-2 px-2.5 py-2 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-[var(--wh-interactive)]"}`}
           >
             <p className="text-xs font-semibold opacity-90">
               {quoted.sender_id === msg.sender_id ? "Earlier message" : "Reply"}
@@ -60,20 +60,20 @@ export default function RoommateBubble({
           <SharedPropertyCard property={shared.property} onOpen={onOpenProperty} />
         </> : msg.content && <p className="whitespace-pre-wrap break-words text-sm leading-6">{msg.content}</p>}
         <p
-          className={`mt-1 text-right text-xs ${mine ? "text-violet-100/80" : "text-[#A5AAB8]"}`}
+          className={`mt-1 text-right text-xs ${mine ? "text-violet-100/80" : "text-[var(--wh-text-secondary)]"}`}
         >
           {time(msg.created_at)}
           {mine ? msg.delivery_state === "sending" ? " · Sending…" : msg.delivery_state === "failed" ? " · Not sent" : msg.seen ? " · Seen" : " · Sent" : ""}
         </p>
         {Object.keys(reactions).length > 0 && (
           <div
-            className={`absolute -bottom-3 ${mine ? "right-2" : "left-2"} flex gap-1 rounded-full border border-white/[.08] bg-[#171A22] px-2 py-0.5 text-[10px] shadow-lg`}
+            className={`absolute -bottom-3 ${mine ? "right-2" : "left-2"} flex gap-1 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 py-0.5 text-[10px] shadow-lg`}
           >
             {Object.entries(reactions).map(([emoji, count]) => (
               <span key={emoji}>
                 {emoji}
                 {count > 1 ? (
-                  <small className="ml-0.5 text-[7px] text-[#A6AAB6]">
+                  <small className="ml-0.5 text-[7px] text-[var(--wh-text-secondary)]">
                     {count}
                   </small>
                 ) : null}

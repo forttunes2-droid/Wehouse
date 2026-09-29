@@ -72,7 +72,7 @@ export default function WorkspaceSwitchSheet({
       role="presentation"
     >
       <section
-        className="wh-panel-enter w-full rounded-t-[28px] border border-white/[.08] bg-[#0F1219] px-4 pb-[max(1.1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-w-md sm:rounded-[24px] sm:p-4"
+        className="wh-panel-enter w-full rounded-t-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 pb-[max(1.1rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl sm:max-w-md sm:rounded-[24px] sm:p-4"
         role="dialog"
         aria-modal="true"
         aria-label="Switch workspace"
@@ -81,7 +81,7 @@ export default function WorkspaceSwitchSheet({
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
         <div className="flex items-start justify-between gap-3 pb-4">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-violet-500/[.10] text-sm font-bold text-violet-200">
+            <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-violet-500/[.10] text-sm font-bold text-violet-200">
               {identityAvatar ? (
                 <img src={identityAvatar} alt="" className="h-full w-full object-cover" />
               ) : (
@@ -93,7 +93,7 @@ export default function WorkspaceSwitchSheet({
                 WEHOUSE
               </p>
               <h2 className="mt-1 truncate text-base font-semibold">{identityName || "Your workspaces"}</h2>
-              <p className="mt-1 max-w-xs text-[10px] leading-5 text-[#777E8E]">
+              <p className="mt-1 max-w-xs text-[10px] leading-5 text-[var(--wh-text-muted)]">
                 One identity. Switch context deliberately; your profile and permissions stay unchanged.
               </p>
             </div>
@@ -102,7 +102,7 @@ export default function WorkspaceSwitchSheet({
             ref={closeButton}
             type="button"
             onClick={onClose}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[.045] text-[#9399A7]"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"
             aria-label="Close workspace switcher"
           >
             ×
@@ -143,12 +143,12 @@ export default function WorkspaceSwitchSheet({
                 }}
                 className={`flex min-h-[68px] w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-[background-color,border-color,transform] duration-200 ease-out active:scale-[.99] ${current
                   ? "border-violet-500/30 bg-violet-500/[.09]"
-                  : "border-white/[.06] bg-white/[.018] active:bg-white/[.05]"
+                  : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] active:bg-[var(--wh-interactive)]"
                 } disabled:cursor-default`}
               >
                 <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[14px] ${current
                   ? "bg-violet-500/16 text-violet-200"
-                  : "bg-white/[.045] text-[#9AA0AE]"
+                  : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"
                 }`}>
                   <WorkspaceIcon workspace={workspace} />
                 </span>
@@ -163,17 +163,17 @@ export default function WorkspaceSwitchSheet({
                       </span>
                     ) : null}
                   </span>
-                  <span className="mt-1 block truncate text-[9px] leading-4 text-[#747B8B]">
+                  <span className="mt-1 block truncate text-[9px] leading-4 text-[var(--wh-text-muted)]">
                     {detail}
                   </span>
                 </span>
-                {!current ? <span className="text-lg text-[#596071]">›</span> : null}
+                {!current ? <span className="text-lg text-[var(--wh-text-muted)]">›</span> : null}
               </button>
             );
           })}
         </div>
 
-        <p className="px-1 pt-4 text-[9px] leading-4 text-[#626979]">
+        <p className="px-1 pt-4 text-[9px] leading-4 text-[var(--wh-text-muted)]">
           Switching workspace changes what you are working on. It does not promote your account, widen coverage or combine Personal and work records.
         </p>
       </section>

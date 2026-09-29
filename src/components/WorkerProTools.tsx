@@ -32,7 +32,7 @@ const EMPTY_LINE: DraftLine = {
 export default function WorkerProTools({ profile, canUsePaidTools }: { profile: Profile; canUsePaidTools: boolean }) {
   const [view, setView] = useState<"insights" | "documents">("insights");
   return (
-    <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+    <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       {canUsePaidTools && <div className="flex flex-wrap gap-2" role="group" aria-label="Paid Worker tools">
         <ToolTab active={view === "insights"} onClick={() => setView("insights")}>Work Insights</ToolTab>
         <ToolTab active={view === "documents"} onClick={() => setView("documents")}>Quotes &amp; invoices</ToolTab>
@@ -45,7 +45,7 @@ export default function WorkerProTools({ profile, canUsePaidTools }: { profile: 
 }
 
 function ToolTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${active ? "bg-violet-500 text-white" : "border border-white/[.07] text-[#B8BECA]"}`}>{children}</button>;
+  return <button type="button" aria-pressed={active} onClick={onClick} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${active ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{children}</button>;
 }
 
 function WorkInsights() {
@@ -70,10 +70,10 @@ function WorkInsights() {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold">Work Insights</h3>
-        <p className="mt-1 text-xs leading-5 text-[#9AA3B3]">Numbers come from completed jobs, payments and verified customer reviews.</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Numbers come from completed jobs, payments and verified customer reviews.</p>
       </div>
       <div className="flex gap-1" role="group" aria-label="Insights period">
-        {([30, 90, 365] as const).map((value) => <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-10 rounded-lg px-3 text-xs font-semibold ${days === value ? "bg-white/[.1] text-white" : "text-[#9AA3B3]"}`}>{value === 365 ? "1 year" : `${value} days`}</button>)}
+        {([30, 90, 365] as const).map((value) => <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-10 rounded-lg px-3 text-xs font-semibold ${days === value ? "bg-[var(--wh-interactive)] text-white" : "text-[var(--wh-text-secondary)]"}`}>{value === 365 ? "1 year" : `${value} days`}</button>)}
       </div>
     </div>
     {loading ? <Empty text="Loading real work records…" /> : !data ? <Empty text="Insights are unavailable right now." /> : <>
@@ -85,16 +85,16 @@ function WorkInsights() {
         <Metric label="Repeat customers" value={String(data.repeat_customers)} detail={data.definitions.repeat_customers} />
         <Metric label="Worker cancellations" value={String(data.worker_cancelled_jobs)} detail={data.definitions.worker_cancelled_jobs} />
       </div>
-      <p className="mt-3 text-xs text-[#858D9D]">Updated {new Date(data.generated_at).toLocaleString()} · Empty records show zero.</p>
+      <p className="mt-3 text-xs text-[var(--wh-text-secondary)]">Updated {new Date(data.generated_at).toLocaleString()} · Empty records show zero.</p>
     </>}
   </div>;
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <article title={detail} className="min-h-28 rounded-2xl border border-white/[.08] bg-white/[.025] p-4">
-    <p className="text-xs font-medium text-[#A3ACBA]">{label}</p>
+  return <article title={detail} className="min-h-28 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-4">
+    <p className="text-xs font-medium text-[var(--wh-text-secondary)]">{label}</p>
     <p className="mt-2 break-words text-xl font-semibold text-[#ECEEF3]">{value}</p>
-    <p className="mt-1 line-clamp-2 text-xs leading-4 text-[#858D9D]">{detail}</p>
+    <p className="mt-1 line-clamp-2 text-xs leading-4 text-[var(--wh-text-secondary)]">{detail}</p>
   </article>;
 }
 
@@ -262,5 +262,5 @@ function downloadDocument(document: WorkerWorkDocument) {
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="mt-4 rounded-xl border border-dashed border-white/[.08] px-4 py-6 text-center text-sm text-[#A7ADBA]">{text}</div>;
+  return <div className="mt-4 rounded-xl border border-dashed border-[var(--wh-border-subtle)] px-4 py-6 text-center text-sm text-[var(--wh-text-secondary)]">{text}</div>;
 }

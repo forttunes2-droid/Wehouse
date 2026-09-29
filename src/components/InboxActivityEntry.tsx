@@ -11,10 +11,10 @@ export default function InboxActivityEntry({ compact = true, unread = 0, detail 
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 border-b border-white/[.06] py-3.5 text-left active:bg-white/[.025]"
+      className="flex w-full items-center gap-3 border-b border-[var(--wh-border-subtle)] py-3.5 text-left active:bg-[var(--wh-interactive)]"
       aria-label={`Open Activity${unread ? `, ${unread} unread` : ""}`}
     >
-      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/[.05] text-violet-300">
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-violet-300">
         <ActivityIcon />
       </div>
       <div className="min-w-0 flex-1">
@@ -22,14 +22,14 @@ export default function InboxActivityEntry({ compact = true, unread = 0, detail 
           <p className="text-sm font-semibold">Activity</p>
           {unread > 0 ? <span className="h-2 w-2 rounded-full bg-violet-400" /> : null}
         </div>
-        <p className="mt-1 text-xs leading-5 text-[#A1A1AA]">{detail}</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{detail}</p>
       </div>
       {unread > 0 ? (
         <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1.5 text-[8px] font-bold text-white">
           {unread > 99 ? "99+" : unread}
         </span>
       ) : null}
-      <span className="text-lg text-[#62697A]">›</span>
+      <span className="text-lg text-[var(--wh-text-muted)]">›</span>
     </button>
   );
 }

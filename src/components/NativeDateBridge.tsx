@@ -155,23 +155,23 @@ export default function NativeDateBridge() {
 
   return createPortal(
     <div ref={dialogRoot} tabIndex={-1}
-      className="fixed inset-0 z-[100300] flex items-center justify-center overflow-y-auto bg-[#0E1118] p-5"
+      className="fixed inset-0 z-[100300] flex items-center justify-center overflow-y-auto bg-[var(--wh-surface)] p-5"
       onClick={() => setActive(null)}
     >
       <section
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full overflow-hidden rounded-t-[28px] border border-white/[.09] bg-[#0E1118] text-white shadow-2xl shadow-black/70 sm:max-w-md sm:rounded-[28px]"
+        className="w-full overflow-hidden rounded-t-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-[var(--wh-text)] shadow-2xl shadow-black/70 sm:max-w-md sm:rounded-[28px]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-white/[.06] px-5 py-4">
+        <header className="flex items-start justify-between gap-3 border-b border-[var(--wh-border-subtle)] px-5 py-4">
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">
               WEHOUSE CALENDAR
             </p>
             <h2 className="mt-1 text-base font-semibold">{title}</h2>
-            <p className="mt-1 text-[10px] text-[#747A8B]">
+            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
               {values.selected
                 ? values.selected.toLocaleDateString(undefined, {
                     dateStyle: "long",
@@ -182,7 +182,7 @@ export default function NativeDateBridge() {
           <button
             type="button"
             onClick={() => setActive(null)}
-            className="grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-lg text-[#A7ACB9]"
+            className="grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)] text-lg text-[var(--wh-text-secondary)]"
             aria-label="Close calendar"
           >
             ×
@@ -198,21 +198,21 @@ export default function NativeDateBridge() {
             showOutsideDays={false}
             disabled={disabled}
             onSelect={choose}
-            className="w-full max-w-sm rounded-2xl bg-[#11151E] p-3 [--cell-size:2.65rem]"
+            className="w-full max-w-sm rounded-2xl bg-[var(--wh-surface)] p-3 [--cell-size:2.65rem]"
             classNames={{
               caption_label: "text-sm font-semibold text-white",
-              weekday: "flex-1 text-[.72rem] font-medium text-[#697080]",
+              weekday: "flex-1 text-[.72rem] font-medium text-[var(--wh-text-muted)]",
               today: "rounded-xl bg-violet-500/10 text-violet-200",
               selected: "rounded-xl bg-violet-500 text-white",
-              day_button: "rounded-xl hover:bg-white/[.06]",
+              day_button: "rounded-xl hover:bg-[var(--wh-interactive)]",
             }}
           />
         </div>
         {includesTime ? (
-          <div className="border-t border-white/[.06] px-5 py-4">
-            <label className="block text-[9px] font-semibold text-[#9EA4B2]">
+          <div className="border-t border-[var(--wh-border-subtle)] px-5 py-4">
+            <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
               Time
-              <WeHouseChoice aria-label="Time" value={pendingTime} onChange={(event) => setPendingTime(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-3 text-xs text-white outline-none">
+              <WeHouseChoice aria-label="Time" value={pendingTime} onChange={(event) => setPendingTime(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs text-[var(--wh-text)] outline-none">
                 {timeOptions.map((value) => {
                   const [hour, minute] = value.split(":").map(Number);
                   const label = new Date(2000, 0, 1, hour, minute).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -224,7 +224,7 @@ export default function NativeDateBridge() {
             {dateTimeInvalid ? <p className="mt-2 text-[9px] text-amber-300">Choose a date and time inside the allowed window.</p> : null}
           </div>
         ) : null}
-        <footer className="border-t border-white/[.06] px-5 py-3 pb-[max(.85rem,env(safe-area-inset-bottom))] text-[9px] text-[#646B7B]">
+        <footer className="border-t border-[var(--wh-border-subtle)] px-5 py-3 pb-[max(.85rem,env(safe-area-inset-bottom))] text-[9px] text-[var(--wh-text-muted)]">
           {includesTime ? "The selected time uses your device time zone." : "Dates outside this booking window are unavailable."}
         </footer>
       </section>

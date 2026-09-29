@@ -227,13 +227,13 @@ export default function DesktopLayout({
   const showWorkspaceBottom = workspaceRoot && workspaceTabs.length > 0;
 
   return (
-    <div className="flex min-h-[100dvh] min-w-0 bg-[#0A0A0F]">
+    <div className="flex min-h-[100dvh] min-w-0 bg-[var(--wh-bg)]">
       <aside
-        className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-white/[.04] bg-[#08080C] transition-all duration-300 lg:flex ${
+        className={`fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] transition-all duration-300 lg:flex ${
           collapsed ? 'w-[72px]' : 'w-[240px]'
         }`}
       >
-        <div className="flex h-16 items-center border-b border-white/[.04] px-4">
+        <div className="flex h-16 items-center border-b border-[var(--wh-border-subtle)] px-4">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-700">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -243,7 +243,7 @@ export default function DesktopLayout({
           {!collapsed && <span className="ml-3 whitespace-nowrap text-sm font-bold text-white">WeHouse</span>}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="ml-auto grid h-7 w-7 place-items-center rounded-lg bg-[#1A1A24] text-[#5C5E72] hover:text-white"
+            className="ml-auto grid h-7 w-7 place-items-center rounded-lg bg-[var(--wh-elevated)] text-[var(--wh-text-muted)] hover:text-[var(--wh-text)]"
             aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
           >
             {collapsed ? '›' : '‹'}
@@ -261,7 +261,7 @@ export default function DesktopLayout({
                 className={`relative flex h-10 w-full items-center gap-3 rounded-xl px-3 ${
                   active
                     ? 'border border-violet-500/20 bg-violet-500/10 text-violet-400'
-                    : 'text-[#8A8B9C] hover:bg-white/[.03] hover:text-white'
+                    : 'text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)] hover:text-white'
                 }`}
               >
                 <span className="shrink-0">{item.icon(active)}</span>
@@ -280,7 +280,7 @@ export default function DesktopLayout({
           })}
         </nav>
 
-        <div className="border-t border-white/[.04] p-3">
+        <div className="border-t border-[var(--wh-border-subtle)] p-3">
           <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
             <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet-500 to-violet-700 text-xs font-bold text-white">
               {userAvatar ? <img src={userAvatar} alt="" className="h-full w-full object-cover" /> : initials}
@@ -289,10 +289,10 @@ export default function DesktopLayout({
               <>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-white">{userName || 'User'}</p>
-                  <p className="truncate text-[9px] capitalize text-[#5C5E72]">{role || 'User'}</p>
+                  <p className="truncate text-[9px] capitalize text-[var(--wh-text-muted)]">{role || 'User'}</p>
                 </div>
                 {!dashboardOwnsAccount && role !== 'property_partner' && onLogout && (
-                  <button onClick={onLogout} title="Sign out" className="text-[#5C5E72] hover:text-red-400">
+                  <button onClick={onLogout} title="Sign out" className="text-[var(--wh-text-muted)] hover:text-red-400">
                     ↪
                   </button>
                 )}
@@ -328,17 +328,17 @@ export default function DesktopLayout({
           {moreOpen && (
             <div className="fixed inset-0 z-[69] bg-black/55 lg:hidden" onClick={() => setMoreOpen(false)}>
               <div
-                className="absolute inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-2xl border border-white/[.08] bg-[#11131B] p-2 shadow-2xl"
+                className="absolute inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2 shadow-2xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 {mobilePlan.extra.map((tab) => (
                   <button
                     key={tab.label}
                     onClick={() => openMirrored(tab)}
-                    className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-xs font-semibold text-[#D8DAE3] hover:bg-white/[.04]"
+                    className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-xs font-semibold text-[#D8DAE3] hover:bg-[var(--wh-interactive)]"
                   >
                     <span>{tab.label}</span>
-                    <span className="text-[#626678]">›</span>
+                    <span className="text-[var(--wh-text-muted)]">›</span>
                   </button>
                 ))}
                 {accountItem && (
@@ -347,17 +347,17 @@ export default function DesktopLayout({
                       setMoreOpen(false);
                       onNavigate('profile');
                     }}
-                    className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-xs font-semibold text-[#D8DAE3] hover:bg-white/[.04]"
+                    className="flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left text-xs font-semibold text-[#D8DAE3] hover:bg-[var(--wh-interactive)]"
                   >
                     <span>Account</span>
-                    <span className="text-[#626678]">›</span>
+                    <span className="text-[var(--wh-text-muted)]">›</span>
                   </button>
                 )}
               </div>
             </div>
           )}
 
-          <nav className="fixed inset-x-0 bottom-0 z-[70] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+          <nav className="fixed inset-x-0 bottom-0 z-[70] border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
             <div className="mx-auto flex min-h-16 max-w-lg items-stretch px-1">
               {mobilePlan.direct.map((tab, index) => {
                 const active = activeWorkspaceTab === tab.label;
@@ -376,7 +376,7 @@ export default function DesktopLayout({
                     key={tab.label}
                     onClick={() => openMirrored(tab)}
                     className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold ${
-                      active ? 'text-violet-300' : 'text-[#6E7282]'
+                      active ? 'text-violet-300' : 'text-[var(--wh-text-muted)]'
                     }`}
                   >
                     <WorkspaceNavIcon label={display} />
@@ -388,7 +388,7 @@ export default function DesktopLayout({
                 <button
                   onClick={() => accountItem && mobilePlan.extra.length === 0 ? onNavigate('profile') : setMoreOpen((value) => !value)}
                   className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[9px] font-semibold ${
-                    moreOpen ? 'text-violet-300' : 'text-[#6E7282]'
+                    moreOpen ? 'text-violet-300' : 'text-[var(--wh-text-muted)]'
                   }`}
                 >
                   <WorkspaceNavIcon label={accountItem && mobilePlan.extra.length === 0 ? 'Account' : 'More'} />
