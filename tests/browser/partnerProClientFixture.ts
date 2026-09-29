@@ -15,6 +15,7 @@ const data = {
   tasks,stays_limited:false,tasks_limited:false,
 };
 export const supabase:any={rpc:async(name:string,args:any)=>{
+  if(name==='get_my_partner_pro')return {data:{active:true,current_period_end:new Date(Date.now()+30*86400000).toISOString(),sales_enabled:true,monthly_price_ngn:5000,yearly_price_ngn:50000,terms_version:'test',terms_content:'Preview terms',terms_accepted:true,auto_renews:false},error:null};
   if(name==='get_my_partner_pro_overview')return {data:{...data,tasks:[...tasks]},error:null};
   if(name==='save_my_partner_pro_task'){
     if(args.p_task_id){const task=tasks.find(row=>row.id===args.p_task_id);if(task)task.status=args.p_done?'done':'open';}
