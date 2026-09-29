@@ -11,6 +11,7 @@ type Props = {
   onDuration?: (seconds: number) => void;
   onTime?: (seconds: number) => void;
   onPlaybackError?: () => void;
+  controlsPositionClassName?: string;
 };
 
 export default function VideoPlayer({
@@ -24,6 +25,7 @@ export default function VideoPlayer({
   onDuration,
   onTime,
   onPlaybackError,
+  controlsPositionClassName = "bottom-0",
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -180,7 +182,7 @@ export default function VideoPlayer({
         </button>
       )}
       {!failed ? (
-        <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-8">
+        <div className={`absolute inset-x-0 ${controlsPositionClassName} z-20 flex items-center gap-2 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-8`}>
           <button type="button" onClick={() => void toggle()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label={playing ? "Pause video" : "Play video"}>{playing ? "Ⅱ" : "▶"}</button>
           <span className="w-9 shrink-0 font-mono text-xs text-white/75">{formatDuration(current)}</span>
           <input type="range" min={0} max={Math.max(duration, .1)} step=".1" value={Math.min(current, duration || 0)} onChange={(event) => { const value = Number(event.target.value); if (videoRef.current) videoRef.current.currentTime = value; setCurrent(value); }} className="h-11 min-w-0 flex-1 accent-violet-400" aria-label="Video position" />

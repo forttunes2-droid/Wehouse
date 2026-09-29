@@ -16,7 +16,6 @@ insert into public.platform_settings(key,value,category,label,data_type,is_activ
 ('worker_identity_checks_enabled','false','security','Identity requirement','boolean',true)
 on conflict(key) do update set value=excluded.value,is_active=true;
 -- Identity disabled explicitly is a policy exemption, not a synthetic face pass.
-update public.legal_launch_approvals set status='pending',approved_at=null where gate_key='worker_marketplace';
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 set local role authenticated;
@@ -28,11 +27,9 @@ reset role;
 select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-000000000001","role":"authenticated","session_id":"publication-session"}',true);
 set local role authenticated;
 do $$declare outcome jsonb;begin
- begin perform public.creator_set_worker_marketplace(true,'Open reviewed discovery','93000000-0000-4000-8000-000000000099');raise exception 'FAIL: Unreviewed launch accepted';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
  begin perform public.creator_set_worker_publication('pub-worker',true,'Pause until inspection',null);raise exception 'FAIL: No elevation accepted';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
- outcome:=public.creator_record_worker_launch_review('Synthetic reviewer','rollback-only-review','Test-only marketplace review',now()-interval '1 day',now()+interval '7 days','93000000-0000-4000-8000-000000000099');
- perform pg_temp.expect(outcome->>'enabled'='false' and outcome->>'launch_approved'='true','Recording a review does not publish the marketplace');
- perform public.creator_set_worker_marketplace(true,'Open reviewed discovery','93000000-0000-4000-8000-000000000099');
+ outcome:=public.creator_set_worker_marketplace(true,'Open reviewed discovery','93000000-0000-4000-8000-000000000099');
+ perform pg_temp.expect(outcome->>'enabled'='true','Creator can deliberately open discovery without a fabricated external approval');
 end$$;
 reset role;
 select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-000000000003","role":"authenticated"}',true);

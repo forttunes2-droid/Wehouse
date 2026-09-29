@@ -1,11 +1,19 @@
-// This is a device preference. It never changes server-side notification delivery.
+// In-app alerts include a sound by default. A legacy per-device "off" choice
+// is honoured so an existing user is never surprised by a new audible alert.
 const prefix = "wehouse:notification-sound:";
 let lastPlayed = 0;
 let context: AudioContext | null = null;
 
+export async function unlockNotificationAudio(): Promise<void> {
+  try {
+    context ??= new AudioContext();
+    if (context.state !== "running") await context.resume();
+  } catch { /* A device may block web audio; visible alerts still work. */ }
+}
+
 export function notificationSoundEnabled(userId: string): boolean {
-  try { return localStorage.getItem(prefix + userId) === "on"; }
-  catch { return false; }
+  try { return localStorage.getItem(prefix + userId) !== "off"; }
+  catch { return true; }
 }
 
 export function setNotificationSoundEnabled(userId: string, enabled: boolean): void {
@@ -19,8 +27,8 @@ export async function playNotificationSound(userId: string, preview = false): Pr
   const now = Date.now();
   if (!preview && now - lastPlayed < 2500) return;
   try {
-    context ??= new AudioContext();
-    await context.resume(); // May be blocked until the user taps the sound setting.
+    await unlockNotificationAudio();
+    if (!context || context.state !== "running") return;
     const start = context.currentTime;
     const gain = context.createGain();
     gain.gain.setValueAtTime(0.0001, start);

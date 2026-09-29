@@ -130,9 +130,9 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       </div>
     </section>}
 
-    {(focus==='all'||focus==='password')&&<section className="border-y border-white/[.07] py-5">
+    {isCreator&&(focus==='all'||focus==='password')&&<section className="border-y border-white/[.07] py-5">
       <div className="flex items-start justify-between gap-4">
-        <div><h2 className="text-sm font-semibold">Authenticator app</h2><p className="mt-1 text-[11px] leading-5 text-[#7E8595]">{isCreator?'Used for sensitive Creator actions.':'You can enroll an authenticator here. WeHouse does not yet require its code at every sign-in.'} No code is sent by email or SMS.</p></div>
+        <div><h2 className="text-sm font-semibold">Creator action authenticator</h2><p className="mt-1 text-[11px] leading-5 text-[#7E8595]">A Supabase authenticator code confirms sensitive Creator actions after sign-in. It is not a code requested at every WeHouse sign-in. No code is sent by email or SMS.</p></div>
         <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${mfaFactorId?'bg-emerald-500/10 text-emerald-300':'bg-white/[.05] text-[#8A91A1]'}`}>{mfaFactorId?'Enrolled':'Not set'}</span>
       </div>
       {!mfaFactorId&&!mfaEnrollment?<button type="button" disabled={mfaBusy} onClick={()=>void beginMfa()} className="mt-4 min-h-11 rounded-xl border border-white/[.09] px-4 text-xs font-semibold disabled:opacity-50">{mfaBusy?'Starting…':'Set up authenticator'}</button>:null}
@@ -145,6 +145,8 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       </div>:null}
       {mfaFactorId?<button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-4 min-h-11 text-xs font-semibold text-[#A8ADBA] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button>:null}
     </section>}
+
+    {!isCreator&&mfaFactorId&&(focus==='all'||focus==='password')&&<section className="border-y border-white/[.07] py-5"><h2 className="text-sm font-semibold">Authenticator enrolled</h2><p className="mt-2 text-xs leading-5 text-[#8B92A3]">Your Supabase account has an authenticator factor. WeHouse does not currently use it to protect Personal, Worker or Property Partner actions. It is not requested on every sign-in.</p><button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-3 min-h-11 text-xs font-semibold text-[#A8ADBA] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button></section>}
 
     {isCreator&&(focus==='all'||focus==='password')&&<section className="border-y border-violet-500/15 py-5">
       <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Creator protection</p><h2 className="mt-1 text-sm font-semibold">Creator security password</h2><p className="mt-1 max-w-xl text-[11px] leading-5 text-[#7E8595]">Separate from the password used to sign in to WeHouse. Sensitive Creator actions use this password and your authenticator when enrolled.</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${creatorStatus?.enrolled?'bg-emerald-500/10 text-emerald-300':'bg-amber-500/10 text-amber-200'}`}>{creatorStatus?.enrolled?'Set':'Setup required'}</span></div>

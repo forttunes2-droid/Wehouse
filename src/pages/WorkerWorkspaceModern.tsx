@@ -71,7 +71,7 @@ export default function WorkerWorkspaceModern({
   const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
   const [accountView, setAccountView] = useState<
-    "account" | "profile" | "paid_tools"
+    "account" | "profile" | "paid_tools" | "sponsored"
   >("account");
   useEffect(() => {
     if (!inboxOpenRequest) return;
@@ -136,6 +136,8 @@ export default function WorkerWorkspaceModern({
           onBack={() => setAccountView("account")}
         />
       );
+    if (accountView === "sponsored")
+      return <AccountShell profile={profile} title="Sponsored" description="Campaigns and placements are separate from WeHouse Pro." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker']} /></AccountShell>;
     return (
       <AccountCenter
         profile={profile}
@@ -145,6 +147,7 @@ export default function WorkerWorkspaceModern({
         onGoToSecurity={() => {}}
         onGoToProfileEdit={() => setAccountView("profile")}
         onGoToWorkerPaidTools={live ? () => setAccountView("paid_tools") : undefined}
+        onGoToSponsored={live ? () => setAccountView("sponsored") : undefined}
         onNavigate={(page) => onNavigate?.(page)}
         onLogout={onLogout}
         workspaceAccess={workspaceAccess}
@@ -297,8 +300,8 @@ function ServiceProviderPaidToolsAccount({
   return (
     <AccountShell
       profile={profile}
-      title="WeHouse Works"
-      description="Optional business tools for Service Workers. Review and trust are earned separately."
+      title="WeHouse Pro · Work tools"
+      description="Optional business tools for this Service Worker workspace. Review and trust are earned separately."
       onBack={onBack}
     >
       <WorkerProPanel
@@ -308,7 +311,6 @@ function ServiceProviderPaidToolsAccount({
         error={workerPro.error}
         onRefresh={workerPro.refresh}
       />
-      <SponsoredCampaignPanel types={['worker']} />
     </AccountShell>
   );
 }

@@ -137,16 +137,16 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-2xl border border-violet-400/20 bg-[linear-gradient(135deg,#1B1730,#11131B_70%)] p-4 sm:p-5">
+      <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#151923] p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.12em] text-violet-200">Optional Worker tools</p>
-            <h2 className="mt-2 flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight">{pro.product_name || 'WeHouse Works'}{pro.active && <GoldTickBadge />}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-violet-200">WeHouse Pro · Service Worker</p>
+            <h2 className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{pro.product_name || 'Work tools'}{pro.active && <GoldTickBadge />}</h2>
           </div>
-          <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${pro.active ? 'bg-emerald-400/15 text-emerald-200' : checkoutAvailable ? 'bg-violet-400/15 text-violet-100' : 'bg-white/[.07] text-[#C4C7D1]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Not on sale yet'}</span>
+          <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${pro.active ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200' : checkoutAvailable ? 'border-violet-400/25 bg-violet-400/10 text-violet-100' : 'border-white/10 bg-white/[.04] text-[#C4C7D1]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Sales closed'}</span>
         </div>
-        {checkoutAvailable || pro.active ? <p className="mt-4 text-xl font-bold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : 'Price unavailable'}<span className="ml-2 text-xs font-medium text-[#ADB3C0]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
-        <p className="mt-4 max-w-xl text-sm leading-6 text-[#C3C6D2]">Business tools for Service Workers. The gold badge appears only on an active Worker membership. Identity and professional checks stay separate.</p>
+        <p className="mt-4 max-w-xl text-sm leading-6 text-[#C3C6D2]">Business tools for Service Workers: track completed jobs, make quotes and issue invoices. Membership does not change professional review or customer ranking.</p>
+        {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-white/10 pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[#ADB3C0]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
       </section>
 
       <section className="rounded-2xl border border-white/[.08] bg-[#10131B] p-4 sm:p-5">
@@ -157,7 +157,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           </div>
         </div>
         <div className="mt-4 divide-y divide-white/[.08] border-y border-white/[.08]">
-          {pro.features.map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[#D3D7E0]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-200">✓</span><span>{feature}</span></div>)}
+          {pro.features.filter(feature => !/sponsored|priority/i.test(feature)).map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[#D3D7E0]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-200">✓</span><span>{feature}</span></div>)}
         </div>
         {!pro.active && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-white/[.07] bg-black/10 p-3">

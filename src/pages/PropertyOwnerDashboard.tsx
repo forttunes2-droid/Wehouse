@@ -24,7 +24,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
 
-type PartnerTab = "properties" | "finance" | "communication";
+type PartnerTab = "properties" | "finance" | "communication" | "sponsored";
 const PROPERTY_PAGE_SIZE = 40;
 type Props = {
   inboxOpenRequest?: number;
@@ -53,6 +53,11 @@ const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }>
     key: "finance",
     label: "Finance",
     description: "Your wallet, earnings and withdrawals",
+  },
+  {
+    key: "sponsored",
+    label: "Sponsored",
+    description: "Manage paid placement for your properties and hotels",
   },
 ];
 const HOSTING_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
@@ -159,7 +164,8 @@ export default function PropertyOwnerDashboard({
               delegatedOnly={delegatedOnly} /> : null}
           </>
         )}
-        {!delegatedOnly && tab === "finance" && <><FinanceTab profile={profile} /><div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div></>}
+        {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
+        {!delegatedOnly && tab === "sponsored" && <div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div>}
       </WorkspaceFrameV2>
     </>
   );

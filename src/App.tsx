@@ -4,7 +4,7 @@ import SharedPropertyWorkspaceView from "@/components/SharedPropertyWorkspaceVie
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
-import { playNotificationSound } from "@/lib/notificationSound";
+import { playNotificationSound, unlockNotificationAudio } from "@/lib/notificationSound";
 import {
   useState,
   useEffect,
@@ -364,6 +364,16 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   const [invitationLoginOpen,setInvitationLoginOpen]=useState(false);
   const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
+  useEffect(() => {
+    if (!baseProfile?.user_id || baseProfile.pref_push_notif === false) return;
+    const unlock = () => { void unlockNotificationAudio(); };
+    window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    window.addEventListener('keydown', unlock, { once: true, capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
+  }, [baseProfile?.user_id, baseProfile?.pref_push_notif]);
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
   const otherWorkspaceRoles = workspaceReady && workspaceAccess?.personal_workspace

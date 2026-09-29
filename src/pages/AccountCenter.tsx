@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { notificationSoundEnabled, setNotificationSoundEnabled } from "@/lib/notificationSound";
+import { setNotificationSoundEnabled } from "@/lib/notificationSound";
 import AccountShell, {
   AccountRow,
   AccountSection,
@@ -28,6 +28,7 @@ type Props = {
   onGoToSecurity: () => void;
   onGoToProfileEdit: () => void;
   onGoToWorkerPaidTools?: () => void;
+  onGoToSponsored?: () => void;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
   workspaceAccess?: WorkspaceAccess | null;
@@ -88,6 +89,7 @@ export default function AccountCenter({
   onGoToSecurity,
   onGoToProfileEdit,
   onGoToWorkerPaidTools,
+  onGoToSponsored,
   onNavigate,
   onLogout,
   workspaceAccess,
@@ -105,7 +107,6 @@ export default function AccountCenter({
   const [pushNotifs, setPushNotifs] = useState(
     p.pref_push_notif !== false,
   );
-  const [alertSound, setAlertSound] = useState(() => notificationSoundEnabled(p.user_id));
   const [legal, setLegal] = useState<Legal>({
     privacy_accepted: false,
     terms_accepted: false,
@@ -434,20 +435,12 @@ export default function AccountCenter({
             disabled={saving}
             onChange={(value) => {
               setPushNotifs(value);
+              if (value) setNotificationSoundEnabled(profile.user_id, true);
               void saveNotificationPreference("pref_push_notif", value);
             }}
           />
-          <Toggle
-            label="Sound for alerts in WeHouse"
-            detail="Play a brief chime on this device while WeHouse is open and visible. Your browser may require one tap to allow audio."
-            value={alertSound}
-            disabled={!pushNotifs}
-            onChange={(value) => {
-              setNotificationSoundEnabled(profile.user_id, value);
-              setAlertSound(value);
-            }}
-          />
         </AccountSection>
+        <p className="px-1 text-xs leading-5 text-[#8B92A3]">In-app alerts include a short, soft chime while WeHouse is open. Your device sound settings apply. Activity and unread badges remain available when you switch workspaces.</p>
         <p className="px-1 text-[9px] text-[#656C7C]">
           Changes save automatically.
         </p>
@@ -558,9 +551,17 @@ export default function AccountCenter({
         ) : null}
         {onGoToWorkerPaidTools ? (
           <AccountRow
-            title="Paid tools"
-            detail="Optional business tools for your Service Worker workspace"
+            title="WeHouse Pro · Work tools"
+            detail="Subscription, work insights, quotes and invoices"
             onClick={onGoToWorkerPaidTools}
+            icon={<ToolsIcon />}
+          />
+        ) : null}
+        {onGoToSponsored ? (
+          <AccountRow
+            title="Sponsored"
+            detail="Manage paid placements separately from Pro tools"
+            onClick={onGoToSponsored}
             icon={<ToolsIcon />}
           />
         ) : null}

@@ -10,7 +10,7 @@ import MediaPagingActions from "@/components/MediaPagingActions";
 import { useMediaSwipe } from "@/hooks/useMediaSwipe";
 import VideoPlayer from "@/components/VideoPlayer";
 import BackButton from "@/components/BackButton";
-type Post = { id: string; media_type: "image" | "video"; caption: string | null; url?: string };
+type Post = { id: string; media_type: "image" | "video"; caption: string | null; url?: string; verified_job?: boolean; hidden_at?: string | null; job_confirmation_status?: string | null };
 type Comment = { id: string; user_id: string; body: string; created_at: string; display_name: string; avatar_url: string | null };
 type Props = { post: Post; workerName: string; workerAvatar?: string | null; ownerView?: boolean; readOnly?: boolean; liked?: boolean; likeCount?: number; onClose: () => void; onLike?: () => Promise<void>; ownerActions?: ReactNode; onOpenProfile?: () => void; position?: number; total?: number; onPrevious?: () => void; onNext?: () => void; onRetry?: () => Promise<void> };
 export default function WorkerShowcasePostViewer({ post, workerName, workerAvatar, ownerView = false, readOnly = false, liked = false, likeCount = 0, onClose, onLike, ownerActions, onOpenProfile, position = 0, total = 1, onPrevious, onNext, onRetry }: Props) {
@@ -64,20 +64,24 @@ export default function WorkerShowcasePostViewer({ post, workerName, workerAvata
   }
   return createPortal(<div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${workerName} work post`} className="fixed inset-0 z-[100200] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090B10] text-white outline-none"
     onKeyDown={event => { if (commentsOpen || (event.target as HTMLElement).closest("input,textarea,select,button")) return; if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); (event.key === "ArrowDown" ? onNext : onPrevious)?.(); } }}>
-    <header inert={commentsOpen} className="z-10 flex min-h-16 shrink-0 items-center gap-3 border-b border-white/10 bg-[#090B10] px-3 pt-[env(safe-area-inset-top)]">
+    <header inert={commentsOpen} className="absolute inset-x-0 top-0 z-10 flex min-h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 bg-gradient-to-b from-black/80 via-black/45 to-transparent px-3 pt-[env(safe-area-inset-top)] sm:px-5">
       <BackButton onClick={dismiss} ariaLabel="Back to work posts" />
-      {ownerView ? <div className="min-w-0 flex-1"><p className="text-sm font-semibold">Your work post</p><p className="text-xs text-[#A7ADBA]">{position >= 0 ? `${position + 1} of ${total}` : "Work sample"}</p></div> :
+      {ownerView ? <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{workerName}</p><p className="text-xs text-[#D7D9E2]">Your work post</p></div> :
         <button type="button" disabled={!onOpenProfile} onClick={onOpenProfile} className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default" aria-label={onOpenProfile ? `Open ${workerName}'s profile` : undefined}>
           <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-sm font-semibold">{workerAvatar ? <img src={workerAvatar} alt="" className="h-full w-full object-cover" /> : workerName[0]?.toUpperCase()}</span><span className="truncate text-sm font-semibold">{workerName}</span>
         </button>}{ownerActions && <div className="flex shrink-0 items-center gap-1">{ownerActions}</div>}
     </header>
-    <div inert={commentsOpen} className="relative min-h-0 flex-1 touch-pan-x bg-[#08090D]" data-showcase-stage {...paging}>
+    <div inert={commentsOpen} className="relative h-full w-full touch-pan-x bg-[#08090D]" data-showcase-stage {...paging}>
       <MediaStage key={`${post.id}:${post.url}`} post={post} workerName={workerName} paused={commentsOpen} onRetry={onRetry ? async () => { setRetrying(true); try { await onRetry(); } catch { toast.error("This media could not be loaded."); } finally { if (mounted.current) setRetrying(false); } } : undefined} retrying={retrying} />
     </div>
-    <footer inert={commentsOpen} className="shrink-0 border-t border-white/10 bg-[#090B10] px-4 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3">
-      {post.caption && <p className="mx-auto max-w-3xl whitespace-pre-wrap break-words text-sm leading-6 text-[#D2D6DF] max-h-24 overflow-y-auto">{post.caption}</p>}
-      <div className="mx-auto mt-1 flex max-w-3xl items-center justify-between gap-2"><div className="flex items-center gap-3">{onLike && <button type="button" onClick={() => void toggleLike()} disabled={likeBusy} aria-label={localLiked ? "Remove like" : "Like work post"} className="flex min-h-11 items-center gap-2 text-sm"><Heart size={21} className={localLiked ? "fill-violet-400 text-violet-400" : "text-[#CFD4DF]"} /><span>{localLikeCount || "Like"}</span></button>}<button type="button" onClick={openComments} aria-label="Open comments" className="flex min-h-11 items-center gap-2 text-sm"><MessageCircle size={21} /><span>{commentsLoaded ? comments.length : "Comments"}</span></button></div>
-      {total > 1 && position >= 0 && <div className="flex items-center gap-1"><span className="mr-1 text-xs text-[#A7ADBA]">{position + 1} / {total}</span><MediaPagingActions onPrevious={onPrevious} onNext={onNext} previousLabel="Previous work post" nextLabel="Next work post" /></div>}
+    <footer inert={commentsOpen} className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/70 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-24 sm:px-6">
+      <div className="mx-auto max-w-3xl">
+      {post.verified_job ? <span className="mb-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">Completed WeHouse job</span> : ownerView && post.job_confirmation_status === 'pending' ? <span className="mb-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">Awaiting customer confirmation</span> : null}
+      {ownerView && post.hidden_at && <span className="mb-2 ml-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">Hidden from profile</span>}
+      {post.caption && <p className="pointer-events-auto max-h-28 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6 text-white [text-shadow:0_1px_3px_rgba(0,0,0,.8)]">{post.caption}</p>}
+      <div className="pointer-events-auto mt-3 flex items-center justify-between gap-2"><div className="flex items-center gap-3">{onLike && <button type="button" onClick={() => void toggleLike()} disabled={likeBusy} aria-label={localLiked ? "Remove like" : "Like work post"} className="flex min-h-11 items-center gap-2 text-sm"><Heart size={21} className={localLiked ? "fill-violet-400 text-violet-400" : "text-white"} /><span>{localLikeCount || "Like"}</span></button>}<button type="button" onClick={openComments} aria-label="Open comments" className="flex min-h-11 items-center gap-2 text-sm"><MessageCircle size={21} /><span>{commentsLoaded ? comments.length : "Comments"}</span></button></div>
+      {total > 1 && position >= 0 && <div className="flex items-center gap-1"><span className="mr-1 text-xs text-white/80">{position + 1} / {total}</span><MediaPagingActions onPrevious={onPrevious} onNext={onNext} previousLabel="Previous work post" nextLabel="Next work post" /></div>}
+      </div>
       </div>
     </footer>
     {commentsOpen && <section role="region" aria-label="Work post comments" onClick={closeComments} className="absolute inset-0 z-20 flex flex-col justify-end bg-black/65">
@@ -98,5 +102,5 @@ function MediaStage({ post, workerName, paused, onRetry, retrying }: { post: Pos
   }, [post.url]);
   if (!post.url && !failed) return <div role="status" className="grid h-full place-items-center px-6 text-center text-sm text-[#A7ADBA]">Loading {post.media_type === 'video' ? 'video' : 'photo'}…</div>;
   if (!post.url || failed) return <div className="grid h-full place-items-center px-6 text-center"><div><p className="text-sm text-[#C7CDD9]">This media could not be loaded.</p>{onRetry && <button type="button" disabled={retrying} onClick={() => { setFailed(false); void onRetry(); }} className="mt-3 min-h-11 px-4 text-sm font-medium text-violet-300">{retrying ? "Loading…" : "Try again"}</button>}</div></div>;
-  return post.media_type === "video" ? <VideoPlayer src={post.url} autoPlay paused={paused} onPlaybackError={() => setFailed(true)} containerClassName="h-full w-full bg-[#08090D]" className="h-full w-full object-contain" /> : <img src={post.url} alt={`${workerName} work`} onError={() => setFailed(true)} className="h-full w-full object-contain" />;
+  return post.media_type === "video" ? <VideoPlayer src={post.url} autoPlay paused={paused} onPlaybackError={() => setFailed(true)} controlsPositionClassName="bottom-40 sm:bottom-36" containerClassName="h-full w-full bg-[#08090D]" className="h-full w-full object-contain" /> : <img src={post.url} alt={`${workerName} work`} onError={() => setFailed(true)} className="h-full w-full object-contain" />;
 }

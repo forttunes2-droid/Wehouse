@@ -45,7 +45,7 @@ export default function WorkerProTools({ profile, canUsePaidTools }: { profile: 
 }
 
 function ToolTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button type="button" aria-pressed={active} onClick={onClick} className={`min-h-10 rounded-xl px-3 text-[10px] font-semibold ${active ? "bg-violet-500 text-white" : "border border-white/[.07] text-[#9BA0AF]"}`}>{children}</button>;
+  return <button type="button" aria-pressed={active} onClick={onClick} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${active ? "bg-violet-500 text-white" : "border border-white/[.07] text-[#B8BECA]"}`}>{children}</button>;
 }
 
 function WorkInsights() {
@@ -70,10 +70,10 @@ function WorkInsights() {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold">Work Insights</h3>
-        <p className="mt-1 text-[9px] leading-4 text-[#73798A]">Only completed jobs, released earnings, verified reviews and recorded Sponsored activity.</p>
+        <p className="mt-1 text-xs leading-5 text-[#9AA3B3]">Numbers come from completed jobs, payments and verified customer reviews.</p>
       </div>
       <div className="flex gap-1" role="group" aria-label="Insights period">
-        {([30, 90, 365] as const).map((value) => <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)} className={`h-8 rounded-lg px-2.5 text-[9px] font-semibold ${days === value ? "bg-white/[.1] text-white" : "text-[#73798A]"}`}>{value === 365 ? "1 year" : `${value} days`}</button>)}
+        {([30, 90, 365] as const).map((value) => <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)} className={`min-h-10 rounded-lg px-3 text-xs font-semibold ${days === value ? "bg-white/[.1] text-white" : "text-[#9AA3B3]"}`}>{value === 365 ? "1 year" : `${value} days`}</button>)}
       </div>
     </div>
     {loading ? <Empty text="Loading real work records…" /> : !data ? <Empty text="Insights are unavailable right now." /> : <>
@@ -84,19 +84,17 @@ function WorkInsights() {
         <Metric label="Verified rating" value={data.review_count ? `${Number(data.rating).toFixed(1)} · ${data.review_count}` : "No reviews yet"} detail={data.definitions.rating} />
         <Metric label="Repeat customers" value={String(data.repeat_customers)} detail={data.definitions.repeat_customers} />
         <Metric label="Worker cancellations" value={String(data.worker_cancelled_jobs)} detail={data.definitions.worker_cancelled_jobs} />
-        <Metric label="Sponsored impressions" value={String(data.featured.signed_in_unique_impressions)} detail={data.definitions.featured} />
-        <Metric label="Sponsored bookings" value={String(data.featured.booking_requests)} detail={`Profile opens: ${data.featured.unique_profile_opens}. ${data.definitions.featured}`} />
       </div>
-      <p className="mt-3 text-[8px] text-[#606676]">Generated {new Date(data.generated_at).toLocaleString()} · Empty records stay zero; WeHouse does not invent estimates.</p>
+      <p className="mt-3 text-xs text-[#858D9D]">Updated {new Date(data.generated_at).toLocaleString()} · Empty records show zero.</p>
     </>}
   </div>;
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <article title={detail} className="min-h-24 rounded-xl border border-white/[.055] bg-black/10 p-3">
-    <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#686E7F]">{label}</p>
-    <p className="mt-2 break-words text-base font-bold text-[#ECEEF3]">{value}</p>
-    <p className="mt-1 line-clamp-2 text-[8px] leading-4 text-[#696F80]">{detail}</p>
+  return <article title={detail} className="min-h-28 rounded-2xl border border-white/[.08] bg-white/[.025] p-4">
+    <p className="text-xs font-medium text-[#A3ACBA]">{label}</p>
+    <p className="mt-2 break-words text-xl font-semibold text-[#ECEEF3]">{value}</p>
+    <p className="mt-1 line-clamp-2 text-xs leading-4 text-[#858D9D]">{detail}</p>
   </article>;
 }
 
