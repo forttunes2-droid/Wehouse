@@ -16,8 +16,36 @@ insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,c
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000001',true);
 set local role authenticated;
 do $$
+begin
+  if (public.get_my_partner_pro()->>'active')::boolean then raise exception 'Unpaid Partner marked active'; end if;
+  begin
+    perform public.get_my_partner_pro_overview();
+    raise exception 'Unpaid Partner accessed portfolio';
+  exception when others then
+    if sqlerrm='Unpaid Partner accessed portfolio' then raise; end if;
+  end;
+  begin
+    perform public.save_my_partner_pro_task('hotel','-76661','Unpaid task');
+    raise exception 'Unpaid Partner created task';
+  exception when others then
+    if sqlerrm='Unpaid Partner created task' then raise; end if;
+  end;
+end $$;
+reset role;
+with paid as (
+  insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,
+    amount,amount_total,currency,status,purpose)
+  values ('test-partner-1','test-partner-1','pro-owner','pro-owner',100,100,'NGN','paid','partner_pro_access'),
+    ('test-partner-2','test-partner-2','pro-other','pro-other',100,100,'NGN','paid','partner_pro_access')
+  returning id,user_id
+) insert into public.partner_pro_entitlements(partner_id,current_period_end,last_payment_id)
+  select user_id,now()+interval '1 month',id from paid;
+select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000001',true);
+set local role authenticated;
+do $$
 declare v jsonb; t uuid;
 begin
+  if not (public.get_my_partner_pro()->>'active')::boolean then raise exception 'Paid Partner missing access'; end if;
   v:=public.get_my_partner_pro_overview();
   if jsonb_array_length(v->'assets')<>1 or jsonb_array_length(v->'stays')<>1 then raise exception 'Owned portfolio missing or leaked: %',v; end if;
   begin
