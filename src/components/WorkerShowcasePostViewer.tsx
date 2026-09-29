@@ -91,6 +91,12 @@ export default function WorkerShowcasePostViewer({ post, workerName, workerAvata
 }
 function MediaStage({ post, workerName, paused, onRetry, retrying }: { post: Post; workerName: string; paused: boolean; onRetry?: () => Promise<void>; retrying: boolean }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (post.url) return;
+    const timer = window.setTimeout(() => setFailed(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [post.url]);
+  if (!post.url && !failed) return <div role="status" className="grid h-full place-items-center px-6 text-center text-sm text-[#A7ADBA]">Loading {post.media_type === 'video' ? 'video' : 'photo'}…</div>;
   if (!post.url || failed) return <div className="grid h-full place-items-center px-6 text-center"><div><p className="text-sm text-[#C7CDD9]">This media could not be loaded.</p>{onRetry && <button type="button" disabled={retrying} onClick={() => { setFailed(false); void onRetry(); }} className="mt-3 min-h-11 px-4 text-sm font-medium text-violet-300">{retrying ? "Loading…" : "Try again"}</button>}</div></div>;
   return post.media_type === "video" ? <VideoPlayer src={post.url} autoPlay paused={paused} onPlaybackError={() => setFailed(true)} containerClassName="h-full w-full bg-[#08090D]" className="h-full w-full object-contain" /> : <img src={post.url} alt={`${workerName} work`} onError={() => setFailed(true)} className="h-full w-full object-contain" />;
 }

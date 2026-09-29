@@ -357,6 +357,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [unreadCount, setUnreadCount] = useState(0),
     [supportUnreadCount, setSupportUnreadCount] = useState(0),
     [notificationCount, setNotificationCount] = useState(0),
+    [otherWorkspaceUnread, setOtherWorkspaceUnread] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const [inboxOpenRequest, setInboxOpenRequest] = useState(0);
@@ -368,6 +369,36 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   const baseProfile = auth.profile;
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
+  const otherWorkspaceRoles = workspaceReady && workspaceAccess?.personal_workspace
+    ? [...new Set((workspaceAccess.privileged_workspaces || []).map(item => item.role).filter(role => role !== 'hosting'))].sort().join(',')
+    : '';
+  useEffect(() => {
+    if (!baseProfile?.user_id || !otherWorkspaceRoles) {
+      setOtherWorkspaceUnread(0);
+      return;
+    }
+    let current = true;
+    const refresh = async () => {
+      const results = await Promise.all(otherWorkspaceRoles.split(',').map(role => getCanonicalActivitySummary(role)));
+      if (current && results.every(result => !result.error))
+        setOtherWorkspaceUnread(results.reduce((sum, result) => sum + result.summary.unread, 0));
+    };
+    void refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    window.addEventListener('wehouse:workspace-activity', refresh);
+    window.addEventListener('wehouse:unread-changed', refresh);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(onVisible, 60_000);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+      window.removeEventListener('wehouse:workspace-activity', refresh);
+      window.removeEventListener('wehouse:unread-changed', refresh);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [baseProfile?.user_id, otherWorkspaceRoles]);
   const navigationKey = baseProfile ? workspaceNavigationKey(baseProfile.user_id, activeWorkspace) : NAV_STORAGE_KEY;
   useEffect(() => {
     const syncInvitation = () => {
@@ -1657,6 +1688,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
               activePage={navPage as "search" | "my_reservations" | "conversation" | "profile"}
               onNavigate={(page) => goTo(page)}
               inboxBadge={unreadCount + supportUnreadCount + notificationCount}
+              accountBadge={otherWorkspaceUnread}
             />
           )}
         </div>

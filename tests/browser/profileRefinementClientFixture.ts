@@ -2,7 +2,7 @@
 const w = window as any;
 export const state = w.__profileFixture = {
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
-  wrongAccount: false, delayWorker: '', pending: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
+  wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
 };
 const ok = (data: any) => ({ data, error: null });
 const bad = () => ({ data: null, error: { message: 'Fixture unavailable' } });
@@ -48,7 +48,7 @@ export const supabase:any={
   if(name==='create_my_worker_showcase_post')return ok({id:'created-test-post'});
   throw new Error(`Unexpected fixture RPC ${name}`);
  },
- storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});return state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});return state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
+ storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});const result=()=>state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});const result=()=>state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
 };
 export const getWorkers=async()=>{state.calls.push({name:'get_public_workers'});return {workers:[{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',worker_bio:'Furniture fitting and repairs.',worker_skills:['Carpentry'],worker_price:15000,city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,role:'worker'}],error:null};};
 export const compressImageFile=async(file:File)=>file;

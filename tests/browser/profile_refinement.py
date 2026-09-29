@@ -34,7 +34,7 @@ async def main():
   if os.getenv('CHROMIUM_PATH'):opts['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**opts)
   for width in [320,390,768,1440]:
-   for mode in ['public','preview','creator-list','owner','owner-link','private','error','media-error','stale','help','help-error','help-wrong-user']:
+   for mode in ['public','preview','creator-list','owner','owner-link','private','error','media-error','pending-media','stale','help','help-error','help-wrong-user']:
     context=await browser.new_context(viewport={'width':width,'height':844},has_touch=True,service_workers='block');page=await context.new_page();page.set_default_timeout(6000)
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'case':mode,'width':width,'passed':False,'page_errors':errors}
     async def route(handler):
@@ -135,6 +135,13 @@ async def main():
       await expect(tiles).to_have_count(24);await tiles.nth(0).click();await expect(page.get_by_text('This media could not be loaded.',exact=True)).to_be_visible()
       await page.evaluate('window.__fixtureState.failMedia=false');await page.get_by_role('dialog',name='Sani Example work post').get_by_role('button',name='Try again').click()
       await expect(page.get_by_alt_text('Sani Example work',exact=True)).to_be_visible()
+     elif mode=='pending-media':
+      await expect(tiles).to_have_count(24)
+      await expect(tiles.nth(1)).not_to_contain_text('Video unavailable')
+      await tiles.nth(1).click()
+      await expect(page.get_by_role('status',name='Loading video…')).to_be_visible()
+      await page.evaluate('window.__fixtureState.pendingSigning.splice(0).forEach(resolve=>resolve())')
+      await expect(page.get_by_role('dialog',name='Sani Example work post').locator('video')).to_be_visible()
      elif mode=='stale':
       await page.wait_for_function('window.__fixtureState.pending.length>0')
       await page.evaluate('window.__switchWorker()');await expect(page.get_by_role('heading',name='Chika Example')).to_be_visible();await expect(tiles).to_have_count(24)

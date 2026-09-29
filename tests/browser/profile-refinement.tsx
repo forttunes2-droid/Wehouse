@@ -16,6 +16,7 @@ function Fixture(){
  if(mode==='error'){state.failPosts=true;state.failTrust=true;state.failReviews=true;}
  if(mode==='media-error')state.failMedia=true;
  if(mode==='stale')state.delayWorker='worker-a';
+ if(mode==='pending-media')state.delaySigning=true;
  const publicMode=!['owner','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
  if(mode==='help-error')state.failHelp=true;if(mode==='help-wrong-user')state.wrongAccount=true;
  return <><div className="mx-auto min-h-screen max-w-3xl bg-[#090B10] p-5 text-white"><h1 className="mb-5 text-xl font-semibold">{mode.startsWith('owner')?'Your showcase':'WeHouse'}</h1>

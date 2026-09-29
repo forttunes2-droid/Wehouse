@@ -429,7 +429,7 @@ export default function AccountCenter({
           />
           <Toggle
             label="In-app alerts"
-            detail="Show new-message and announcement popups while WeHouse is open."
+            detail="Show message and update alerts while WeHouse is open. Alerts from another workspace can take you there. This does not send phone notifications when the app is closed."
             value={pushNotifs}
             disabled={saving}
             onChange={(value) => {
@@ -438,8 +438,8 @@ export default function AccountCenter({
             }}
           />
           <Toggle
-            label="Alert sound on this device"
-            detail="Play a short sound for new in-app alerts while WeHouse is open. Your device may require you to tap once to allow audio."
+            label="Sound for alerts in WeHouse"
+            detail="Play a brief chime on this device while WeHouse is open and visible. Your browser may require one tap to allow audio."
             value={alertSound}
             disabled={!pushNotifs}
             onChange={(value) => {

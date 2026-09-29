@@ -79,6 +79,14 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
     if(error)return toast.error(error.message);
     setMfaFactorId('');toast.success('Authenticator removed');
   }
+  async function cancelMfa(){
+    if(!mfaEnrollment)return;
+    setMfaBusy(true);
+    const {error}=await supabase.auth.mfa.unenroll({factorId:mfaEnrollment.id});
+    setMfaBusy(false);
+    if(error)return toast.error(error.message||'Authenticator setup could not be cancelled');
+    setMfaEnrollment(null);setMfaCode('');
+  }
   async function saveCreatorSecurity(){
     if(!isCreator)return;
     if(!creatorAccountPassword)return toast.error('Enter your current account password');
@@ -124,8 +132,8 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
 
     {(focus==='all'||focus==='password')&&<section className="border-y border-white/[.07] py-5">
       <div className="flex items-start justify-between gap-4">
-        <div><h2 className="text-sm font-semibold">Two-step verification</h2><p className="mt-1 text-[11px] leading-5 text-[#7E8595]">Use an authenticator app as an independent factor. No code is sent by email or SMS.</p></div>
-        <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${mfaFactorId?'bg-emerald-500/10 text-emerald-300':'bg-white/[.05] text-[#8A91A1]'}`}>{mfaFactorId?'Enabled':'Not set'}</span>
+        <div><h2 className="text-sm font-semibold">Authenticator app</h2><p className="mt-1 text-[11px] leading-5 text-[#7E8595]">{isCreator?'Used for sensitive Creator actions.':'You can enroll an authenticator here. WeHouse does not yet require its code at every sign-in.'} No code is sent by email or SMS.</p></div>
+        <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${mfaFactorId?'bg-emerald-500/10 text-emerald-300':'bg-white/[.05] text-[#8A91A1]'}`}>{mfaFactorId?'Enrolled':'Not set'}</span>
       </div>
       {!mfaFactorId&&!mfaEnrollment?<button type="button" disabled={mfaBusy} onClick={()=>void beginMfa()} className="mt-4 min-h-11 rounded-xl border border-white/[.09] px-4 text-xs font-semibold disabled:opacity-50">{mfaBusy?'Starting…':'Set up authenticator'}</button>:null}
       {mfaEnrollment?<div className="mt-4 border-t border-white/[.06] pt-4">
@@ -133,7 +141,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
         {mfaEnrollment.qr?<img src={mfaEnrollment.qr} alt="Authenticator QR code" className="mt-3 h-44 w-44 rounded-xl bg-white p-2"/>:null}
         {mfaEnrollment.secret?<p className="mt-3 break-all text-[10px] text-[#8A91A1]">Manual key: <span className="font-mono text-[#D8DAE3]">{mfaEnrollment.secret}</span></p>:null}
         <label className="mt-3 block"><span className="text-[10px] text-[#777E8E]">6-digit code</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} className="mt-1 h-11 w-full max-w-xs rounded-xl border border-white/[.08] bg-[#181A23] px-3 text-base tracking-[.2em] outline-none"/></label>
-        <div className="mt-3 flex gap-2"><button type="button" disabled={mfaBusy||mfaCode.length!==6} onClick={()=>void confirmMfa()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{mfaBusy?'Verifying…':'Enable authenticator'}</button><button type="button" disabled={mfaBusy} onClick={()=>{setMfaEnrollment(null);setMfaCode('')}} className="min-h-11 px-3 text-xs text-[#9AA0AF]">Cancel</button></div>
+        <div className="mt-3 flex gap-2"><button type="button" disabled={mfaBusy||mfaCode.length!==6} onClick={()=>void confirmMfa()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{mfaBusy?'Verifying…':'Enable authenticator'}</button><button type="button" disabled={mfaBusy} onClick={()=>void cancelMfa()} className="min-h-11 px-3 text-xs text-[#9AA0AF]">Cancel</button></div>
       </div>:null}
       {mfaFactorId?<button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-4 min-h-11 text-xs font-semibold text-[#A8ADBA] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button>:null}
     </section>}
@@ -154,7 +162,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
     {canDelete&&(focus==='all'||focus==='close')&&<section className="rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 sm:p-5"><h2 className="text-sm font-semibold text-red-300">Close account</h2><p className="mt-1 text-[10px] leading-relaxed text-[#8C7077]">The server checks active bookings, balances and other obligations before allowing account closure.</p><div className="mt-4 space-y-3"><input value={deleteText} onChange={e=>setDeleteText(e.target.value)} placeholder="Type DELETE" className="h-11 w-full rounded-xl border border-red-500/15 bg-[#181319] px-3 text-xs outline-none"/><button onClick={()=>void closeAccount()} disabled={deleteText!=='DELETE'||deleting} className="w-full rounded-xl bg-red-500 px-4 py-3 text-xs font-semibold disabled:opacity-40">{deleting?'Closing…':'Close account'}</button></div></section>}
   </>;
   if(embedded)return content;
-  return <AccountShell profile={profile} title="Access & security" description="Password, two-step verification, trusted devices and active sessions." onBack={onBack}>{content}</AccountShell>
+  return <AccountShell profile={profile} title="Access & security" description="Password, authenticator, devices and active sessions." onBack={onBack}>{content}</AccountShell>
 }
 function Field({label,value,onChange}:{label:string;value:string;onChange:(v:string)=>void}){return <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">{label}</span><input type="password" value={value} onChange={e=>onChange(e.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181A23] px-3 text-xs outline-none focus:border-violet-500/40"/></label>}
 function DeviceRow({session,current,busy,onSignOut}:{session:DeviceSession;current:boolean;busy:boolean;onSignOut:(id:string)=>Promise<void>}){return <div className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-xs font-semibold text-[#E4E6EC]">{session.device||'Device'} · {session.browser||'Browser'}</p><p className="mt-1 text-[9px] text-[#6E7586]">{session.os||'System unavailable'} · signed in {new Date(session.login_time).toLocaleString()}</p></div><span className="shrink-0 rounded-full bg-emerald-500/[.08] px-2 py-1 text-[8px] font-semibold text-emerald-300">{current?'This device':'Active'}</span></div>{!current&&<button type="button" disabled={busy} onClick={()=>void onSignOut(session.id)} className="mt-3 h-9 rounded-xl border border-white/[.08] px-3 text-[9px] font-semibold text-[#A8ADBA] disabled:opacity-40">{busy?'Signing out…':'Sign out this device'}</button>}</div>}

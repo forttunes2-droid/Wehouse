@@ -4,6 +4,7 @@ type Props = {
   activePage: PersonalNavPage;
   onNavigate: (page: PersonalNavPage) => void;
   inboxBadge?: number;
+  accountBadge?: number;
   className?: string;
   signedOut?: boolean;
   busy?: boolean;
@@ -16,7 +17,7 @@ const tabs: Array<{ id: PersonalNavPage; label: string; icon: typeof SearchIcon 
   { id: 'profile', label: 'Account', icon: AccountIcon },
 ];
 
-export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, className = '', signedOut = false, busy = false }: Props) {
+export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge = 0, accountBadge = 0, className = '', signedOut = false, busy = false }: Props) {
   return (
     <nav
       className={`bottom-nav fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--wh-border)] bg-[var(--wh-bg)] pb-[max(6px,env(safe-area-inset-bottom))] backdrop-blur-xl ${className}`}
@@ -25,7 +26,7 @@ export default function PersonalBottomNav({ activePage, onNavigate, inboxBadge =
       <div className="mx-auto grid w-full max-w-lg grid-cols-4 px-2 pt-1.5">
         {tabs.map((tab) => {
           const active = activePage === tab.id;
-          const badge = tab.id === 'conversation' ? inboxBadge : 0;
+          const badge = tab.id === 'conversation' ? inboxBadge : tab.id === 'profile' ? accountBadge : 0;
           const signInPending = signedOut && busy && tab.id === 'profile';
           const label = signInPending ? 'Signing in…' : signedOut && tab.id === 'profile' ? 'Sign in' : tab.label;
           const Icon = tab.icon;

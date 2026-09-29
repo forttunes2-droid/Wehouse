@@ -7,7 +7,7 @@ export default function ShowcaseMediaThumbnail(props: Props) {
   return <Thumbnail key={`${props.mediaType}:${props.src || ''}`} {...props} />;
 }
 function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cover' }: Props) {
-  const [ready, setReady] = useState(false), [failed, setFailed] = useState(!src), [poster, setPoster] = useState('');
+  const [ready, setReady] = useState(false), [failed, setFailed] = useState(false), [poster, setPoster] = useState('');
   const [nearViewport, setNearViewport] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -18,7 +18,7 @@ function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cove
     observer.observe(node); return () => observer.disconnect();
   }, [nearViewport]);
   useEffect(() => {
-    if (!src || !nearViewport || ready) return;
+    if (!nearViewport || ready) return;
     const timer = window.setTimeout(() => setFailed(true), 12000);
     return () => window.clearTimeout(timer);
   }, [src, nearViewport, ready]);
