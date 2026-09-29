@@ -53,4 +53,34 @@ begin
   if not (public.get_my_partner_pro()->>'active')::boolean then raise exception 'Paid access missing'; end if;
   if jsonb_array_length(public.get_my_partner_pro_overview()->'assets')<>0 then raise exception 'Unexpected portfolio data'; end if;
 end $$;
+reset role;
+select set_config('request.jwt.claim.role','service_role',true);
+do $$
+declare p public.booking_payments; v jsonb; v_end timestamptz;
+begin
+  select * into p from public.booking_payments where user_id='pro-buyer' and purpose='partner_pro_access';
+  v_end:=(select current_period_end from public.partner_pro_entitlements where partner_id='pro-buyer');
+  if not public.pause_partner_pro_on_provider_event(p.paystack_reference,'refund.pending','test','refund:test-provider-1001') then
+    raise exception 'Provider review did not find Partner payment'; end if;
+  if public.partner_pro_is_active('pro-buyer') then raise exception 'Refund did not pause access'; end if;
+  perform set_config('request.jwt.claim.role','authenticated',true);
+  if not (public.get_my_partner_pro()->>'under_review')::boolean then raise exception 'Review is not visible to Partner'; end if;
+  begin
+    perform public.create_my_partner_pro_payment('monthly');
+    raise exception 'Checkout bypassed payment review';
+  exception when others then
+    if sqlerrm='Checkout bypassed payment review' then raise; end if;
+  end;
+  perform set_config('request.jwt.claim.role','service_role',true);
+  perform public.pause_partner_pro_on_provider_event(p.paystack_reference,'refund.pending','test','refund:test-provider-1001');
+  if (select count(*) from public.partner_pro_provider_events where payment_id=p.id)<>1 then
+    raise exception 'Provider event replay created a duplicate'; end if;
+  if not public.resolve_partner_pro_provider_review('pro-buyer',true,'Provider confirmed dispute was cleared')
+    or not public.partner_pro_is_active('pro-buyer') then raise exception 'Resolved review did not restore access'; end if;
+  if (select current_period_end from public.partner_pro_entitlements where partner_id='pro-buyer') is distinct from v_end then
+    raise exception 'Review restore changed the paid expiry'; end if;
+  perform public.pause_partner_pro_on_provider_event(p.paystack_reference,'refund.processed','test','refund:processed:1001');
+  perform public.resolve_partner_pro_provider_review('pro-buyer',false,'Provider processed full refund for purchase');
+  if public.partner_pro_is_active('pro-buyer') then raise exception 'Refund resolution left paid access active'; end if;
+end $$;
 rollback;

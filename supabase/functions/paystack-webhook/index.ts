@@ -396,6 +396,14 @@ Deno.serve(async (req) => {
           p_amount_minor: Number(event.data?.amount ?? 0),
         });
         if (error) return new Response("Sponsored provider event processing error", { status: 500 });
+        const partnerReview = await db.rpc("pause_partner_pro_on_provider_event", {
+          p_reference: reference,
+          p_event_type: event.event,
+          p_environment: environment === "production" ? "live" : "test",
+          p_event_key: eventId(event),
+        });
+        if (partnerReview.error)
+          return new Response("Partner Pro provider event processing error", { status: 500 });
       }
     }
 

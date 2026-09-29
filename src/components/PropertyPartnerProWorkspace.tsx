@@ -11,7 +11,7 @@ type Stay = { kind: Asset['kind']; asset_id: string; asset_title: string; bookin
 type Income = { month_key: string; net_amount: number; earnings: number };
 type Task = { id: string; asset_kind: Asset['kind']; asset_id: string; title: string; due_on: string | null; status: 'open' | 'done' };
 type Overview = { assets: Asset[]; stays: Stay[]; income: Income[]; tasks: Task[]; stays_limited: boolean; tasks_limited: boolean };
-type PartnerPlan = { active: boolean; current_period_end: string | null; sales_enabled: boolean;
+type PartnerPlan = { active: boolean; under_review?: boolean; current_period_end: string | null; sales_enabled: boolean;
   monthly_price_ngn: number; yearly_price_ngn: number; terms_version: string;
   terms_content: string; terms_accepted: boolean; auto_renews: false };
 type Section = 'calendar' | 'income' | 'tasks';
@@ -57,7 +57,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
   useEffect(() => { if (plan?.monthly_price_ngn === 0 && plan.yearly_price_ngn > 0) setPeriod('yearly'); }, [plan?.monthly_price_ngn, plan?.yearly_price_ngn]);
 
   async function purchase() {
-    if (purchasing || !plan?.sales_enabled || !accepted || isNative()) return;
+    if (purchasing || !plan?.sales_enabled || plan.under_review || !accepted || isNative()) return;
     setPurchasing(true);
     try {
       const terms = await supabase.rpc('accept_my_partner_pro_terms');
@@ -155,7 +155,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
         {([[CalendarDays,'Portfolio schedule','See upcoming stays across owned homes and hotels.'],[TrendingUp,'Income reports','Review released earnings and download a CSV.'],[ClipboardList,'Property tasks','Track maintenance and turnover per place.']] as const).map(([Icon,title,detail]) => <article key={title} className="rounded-2xl bg-[var(--wh-elevated)] p-4"><Icon size={20} className="text-violet-500"/><h2 className="mt-3 text-sm font-semibold">{title}</h2><p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{detail}</p></article>)}
       </div>
     </section>
-    {plan.sales_enabled && !isNative() && plan.terms_content ? <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 sm:p-8">
+    {plan.under_review ? <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your Partner Pro payment is under review after a provider refund or dispute notice. Paid tools and new checkout are paused while Finance reconciles it. Your ordinary listings and bookings are still available.</p> : plan.sales_enabled && !isNative() && plan.terms_content ? <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 sm:p-8">
       <h2 className="text-lg font-semibold">Choose access</h2><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">One month or one year, paid in advance. It does not renew automatically.</p>
       <div className="mt-5 grid gap-2 sm:grid-cols-2" role="group" aria-label="Partner Pro access period">
         {(['monthly','yearly'] as const).map(value => <button type="button" key={value} disabled={!(value === 'monthly' ? plan.monthly_price_ngn : plan.yearly_price_ngn)} aria-pressed={period === value} onClick={() => setPeriod(value)} className={`min-h-20 rounded-2xl border p-4 text-left disabled:opacity-40 ${period === value ? 'border-violet-500 bg-violet-500/10' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]'}`}><span className="block text-sm font-semibold">{value === 'monthly' ? 'One month' : 'One year'}</span><strong className="mt-1 block text-lg">{money(value === 'monthly' ? plan.monthly_price_ngn : plan.yearly_price_ngn)}</strong></button>)}
