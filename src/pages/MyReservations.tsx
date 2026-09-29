@@ -426,6 +426,7 @@ export default function MyReservations({
       { id: "history" as const, label: "History", items: groups.history },
     ].filter((section) => section.items.length > 0);
   }, [visibleRows, statusView]);
+  const visibleCount = sections.reduce((count, section) => count + section.items.length, 0);
 
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -859,7 +860,7 @@ export default function MyReservations({
         </div>
         <p className="mb-1 mt-4 text-xs font-semibold text-[var(--wh-text-muted)]">Status</p>
         <div className="grid grid-cols-4 border-b border-[var(--wh-border-subtle)]" role="group" aria-label="Filter bookings by status">
-          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${statusView === option.value ? "border-violet-400 text-violet-100" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
+          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${statusView === option.value ? "border-violet-400 text-[var(--wh-text)]" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
           <input type="search" aria-label="Search bookings" placeholder="Search place, service or booking code"
@@ -872,7 +873,7 @@ export default function MyReservations({
           </WeHouseChoice>
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
-          {sections.reduce((count, section) => count + section.items.length, 0)} {sections.reduce((count, section) => count + section.items.length, 0) === 1 ? "booking" : "bookings"}
+          {visibleCount} {visibleCount === 1 ? "booking" : "bookings"}
           {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-violet-300">Clear search and month</button>}
         </p>}
 
