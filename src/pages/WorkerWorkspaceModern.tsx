@@ -99,6 +99,12 @@ export default function WorkerWorkspaceModern({
 
   function openActivityDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
+    if (route === "worker_paid_tools") {
+      setConversation(null);
+      setAccountView("paid_tools");
+      setTab("account");
+      return;
+    }
     if (/worker_showcase|showcase_post/.test(route)) {
       setShowcaseTargetId(id);
       setTab("showcase");

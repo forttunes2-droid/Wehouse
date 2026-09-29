@@ -127,48 +127,57 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     }
   }
 
-  return <section className="rounded-3xl border border-amber-300/15 bg-[#10131B] p-5 text-white">
-    <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-300">Sponsored · paid visibility</p>
-    <h2 className="mt-2 text-lg font-semibold">Promote your {types.includes('worker') ? 'Worker profile' : 'home or hotel'}</h2>
-    <p className="mt-2 text-xs leading-5 text-[#9196A5]">Sponsored appears separately among matching results. It does not change reviews, verification, trust or organic order. Placement starts only after payment is verified.</p>
-    {loading ? <p className="mt-4 text-xs">Loading offers…</p> : resources.length === 0
-      ? <p className="mt-4 text-xs text-[#A0A5B2]">An eligible, published resource is required before promotion.</p>
-      : <div className="mt-4 space-y-3">
-        <label className="block text-xs">Promote
-          <WeHouseChoice className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
+  const total = Number(offer?.daily_price_ngn || 0) * duration;
+  return <section aria-labelledby="sponsored-title" className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#10131B] text-white">
+    <div className="border-b border-white/[.07] px-5 py-5 sm:px-6">
+      <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Optional promotion</p>
+      <h2 id="sponsored-title" className="mt-1 text-lg font-semibold">Sponsored placement</h2>
+      <p className="mt-2 max-w-2xl text-xs leading-5 text-[#A4AABB]">Show an eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} in a clearly marked Sponsored area for a chosen period. Payment never changes verification, reviews, or organic order.</p>
+    </div>
+    <div className="px-5 py-5 sm:px-6">
+    {loading ? <p role="status" className="text-xs text-[#A4AABB]">Loading your promotion options…</p> : resources.length === 0
+      ? <p className="rounded-2xl bg-white/[.03] p-4 text-xs leading-5 text-[#A4AABB]">There is no published, eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} to promote yet. Your existing campaign history appears below.</p>
+      : <div className="space-y-4">
+        <label className="block text-xs font-medium text-[#D7DAE3]">Choose what to promote
+          <WeHouseChoice className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
             aria-label="Promote" value={selected} onChange={e => setSelected(e.target.value)}>
             {resources.map(item => <option key={`${item.resource_type}:${item.resource_id}`}
               value={`${item.resource_type}:${item.resource_id}`}>{item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.label}</option>)}
           </WeHouseChoice>
         </label>
         {offer?.available ? <>
-          <p className="text-xs text-[#A0A5B2]">{offer.market} · {offer.slot_count} slots{native ? ' · store price at checkout' : ` · ₦${Number(offer.daily_price_ngn).toLocaleString('en-NG')} per day`}</p>
-          <label className="block text-xs">Duration
-            <WeHouseChoice className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
+          <p className="text-xs leading-5 text-[#9FA6B6]">{offer.market} · {offer.slot_count} placement slots in this market</p>
+          <label className="block text-xs font-medium text-[#D7DAE3]">How long?
+            <WeHouseChoice className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-[#171B24] px-3"
               aria-label="Duration" value={duration} onChange={e => setDuration(Number(e.target.value))}>
-              {(offer.durations || []).map(days => <option key={days} value={days}>{days} days{native ? '' : ` · ₦${(Number(offer.daily_price_ngn) * days).toLocaleString('en-NG')}`}</option>)}
+              {(offer.durations || []).map(days => <option key={days} value={days}>{days} days</option>)}
             </WeHouseChoice>
           </label>
-          <label className="flex items-start gap-2 text-xs leading-5 text-[#B8BBC5]">
-            <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-amber-300" />
-            <span>I understand this is paid, time limited visibility; it does not guarantee views or bookings.</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-400/15 bg-violet-400/[.05] px-4 py-3">
+            <span className="text-xs text-[#B9BECA]">{duration} days · {native ? 'Price in your app store' : `₦${Number(offer.daily_price_ngn).toLocaleString('en-NG')} per day`}</span>
+            <strong className="shrink-0 text-base text-white">{native ? storePlan?.price || 'Store price' : `₦${total.toLocaleString('en-NG')}`}</strong>
+          </div>
+          <label className="flex items-start gap-3 text-xs leading-5 text-[#B8BBC5]">
+            <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-violet-500" />
+            <span>I understand this is a paid, time limited placement. Views and bookings are not guaranteed.</span>
           </label>
           {native && (!nativeBillingEnabled || !storePlan) ? <p role="status" className="rounded-xl border border-white/10 p-3 text-xs leading-5 text-[#B8BBC5]">
             {storeError || `Sponsored purchases are unavailable in this ${isIOS() ? 'iOS' : 'Android'} build. Existing campaigns remain visible here.`}
-          </p> : <button disabled={!accepted || busy} onClick={() => void purchase()}
-            className="h-11 w-full rounded-xl bg-amber-400 px-4 text-xs font-semibold text-black disabled:opacity-40">
+          </p> : <button disabled={!accepted || busy || !duration} onClick={() => void purchase()}
+            className="min-h-12 w-full rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">
             {busy ? 'Opening secure checkout…' : native ? `Continue to ${isIOS() ? 'App Store' : 'Google Play'} · ${storePlan?.price}`
-              : `Continue to Paystack · ₦${(Number(offer.daily_price_ngn) * duration).toLocaleString('en-NG')}`}
+              : `Continue to Paystack · ₦${total.toLocaleString('en-NG')}`}
           </button>}
-        </> : <p className="text-xs text-[#A0A5B2]">Sponsored is not open for this resource’s market.</p>}
+          <p className="text-[11px] leading-5 text-[#808798]">Placement begins only after the payment is verified and the resource remains eligible.</p>
+        </> : <p className="rounded-2xl bg-white/[.03] p-4 text-xs leading-5 text-[#A0A5B2]">Sponsored is not open for this resource’s market.</p>}
       </div>}
-    {campaigns.length > 0 && <div className="mt-5 border-t border-white/10 pt-4">
-      <h3 className="text-xs font-semibold">Your campaigns</h3>
-      <ul className="mt-2 space-y-2 text-xs text-[#B8BBC5]">{campaigns.slice(0, 10).map(item => <li key={item.campaign_id} className="rounded-xl border border-white/5 p-3">
-        {item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.duration_days} days · ₦{Number(item.amount_ngn).toLocaleString('en-NG')} · <strong>{item.status === 'active' && item.ends_at && new Date(item.ends_at) <= new Date() ? 'expired' : item.status}</strong>
-        {item.ends_at && <span className="block text-[#858B9B]">Ends {new Date(item.ends_at).toLocaleDateString()}</span>}
-        {item.pause_reason && <span className="block text-amber-200">WeHouse review: {item.pause_reason}</span>}
+    {campaigns.length > 0 && <div className="mt-6 border-t border-white/[.07] pt-5">
+      <h3 className="text-sm font-semibold">Your placements</h3>
+      <ul className="mt-3 space-y-2">{campaigns.slice(0, 10).map(item => <li key={item.campaign_id} className="rounded-2xl border border-white/[.07] bg-white/[.02] p-4">
+        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-white">{item.resource_type === 'property' ? 'Home' : item.resource_type === 'hotel' ? 'Hotel' : 'Worker'} · {item.duration_days} days</p><p className="mt-1 text-[11px] text-[#9299A9]">₦{Number(item.amount_ngn).toLocaleString('en-NG')}{item.ends_at ? ` · Ends ${new Date(item.ends_at).toLocaleDateString('en-NG')}` : ''}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status === 'active' && (!item.ends_at || new Date(item.ends_at) > new Date()) ? 'bg-emerald-500/10 text-emerald-300' : item.status === 'paused' ? 'bg-amber-400/10 text-amber-200' : 'bg-white/[.06] text-[#AFB4C0]'}`}>{item.status === 'active' && item.ends_at && new Date(item.ends_at) <= new Date() ? 'Expired' : item.status.replace(/_/g, ' ')}</span></div>
+        {item.pause_reason && <p className="mt-3 text-[11px] leading-5 text-amber-200">WeHouse review: {item.pause_reason}</p>}
       </li>)}</ul>
     </div>}
+    </div>
   </section>;
 }
