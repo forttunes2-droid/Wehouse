@@ -11,7 +11,9 @@ async def main():
   browser=await p.chromium.launch(headless=True,args=['--no-sandbox'])
   page=await browser.new_page(viewport={'width':390,'height':844},device_scale_factor=1)
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-  await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>')
+  fixture_html='<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>'
+  await page.route('http://wehouse.test/**',lambda route:route.fulfill(status=200,content_type='text/html',body=fixture_html))
+  await page.goto('http://wehouse.test/theme-fixture')
   await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
   for name in ('Account','Notifications','Workspaces'):
    if name!='Account':
