@@ -49,12 +49,13 @@ type Props = {
   bookingActive?: boolean;
   onOpenBooking?: () => void;
   showBookingAction?: boolean;
+  previewMode?: boolean;
   communicationActions?: ReactNode;
   safetyAction?: ReactNode;
 };
 
 export default function WorkerPublicProfileV2(props: Props) {
-  const context = !props.showBookingAction && Boolean(props.communicationActions) ? "conversation" : "public";
+  const context = !props.showBookingAction && Boolean(props.communicationActions) ? "conversation" : props.previewMode ? "preview" : "public";
   return <WorkerProfileContent key={`${props.worker.user_id}:${context}`} {...props} />;
 }
 function WorkerProfileContent({
@@ -64,6 +65,7 @@ function WorkerProfileContent({
   bookingActive = false,
   onOpenBooking,
   showBookingAction = true,
+  previewMode = false,
   communicationActions,
   safetyAction,
 }: Props) {
@@ -147,8 +149,9 @@ function WorkerProfileContent({
       maxWidth="4xl"
       actions={communicationActions}
       badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
-      bottomAction={showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
+      bottomAction={previewMode ? <button type="button" disabled className="h-12 w-full rounded-2xl bg-violet-500/40 text-sm font-semibold text-white/70">Request service · preview only</button> : showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
+      {previewMode && <p className="rounded-xl border border-violet-400/20 bg-violet-400/[.08] px-4 py-3 text-sm leading-5 text-violet-100">Creator preview · customer actions are disabled. Public availability is controlled separately.</p>}
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-white/10 py-4 text-sm text-[#BCC2CF]">
         {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
       </section> : trustError ? <p className="text-sm text-[#A7ADBA]">{trustError} <button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></p> : null}
@@ -163,6 +166,7 @@ function WorkerProfileContent({
           post={viewer}
           workerName={displayName}
           workerAvatar={avatarUrl}
+          readOnly={previewMode}
           liked={Boolean(postReactions[viewer.id]?.mine)}
           likeCount={reactionTotal(postReactions[viewer.id]?.counts)}
           onClose={() => { openSequence.current++; setViewer(null); }}
@@ -171,7 +175,7 @@ function WorkerProfileContent({
           onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
           onRetry={async () => { const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
           onOpenProfile={() => setViewer(null)}
-          onLike={async () => {
+          onLike={previewMode ? undefined : async () => {
             const previous = postReactions[viewer.id]?.mine;
             const next = previous ? null : "♥";
             const { data, error } = await supabase.rpc("set_my_worker_showcase_reaction", { p_post_id: viewer.id, p_emoji: next });

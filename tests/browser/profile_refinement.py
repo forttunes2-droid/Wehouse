@@ -34,7 +34,7 @@ async def main():
   if os.getenv('CHROMIUM_PATH'):opts['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**opts)
   for width in [320,390,768,1440]:
-   for mode in ['public','owner','owner-link','private','error','media-error','stale','help','help-error','help-wrong-user']:
+   for mode in ['public','preview','creator-list','owner','owner-link','private','error','media-error','stale','help','help-error','help-wrong-user']:
     context=await browser.new_context(viewport={'width':width,'height':844},has_touch=True,service_workers='block');page=await context.new_page();page.set_default_timeout(6000)
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'case':mode,'width':width,'passed':False,'page_errors':errors}
     async def route(handler):
@@ -75,6 +75,33 @@ async def main():
       await expect(tiles.nth(0)).to_be_focused()
       await page.get_by_role('button',name='Show more work',exact=True).click();await expect(tiles).to_have_count(27)
       assert len(set(await tiles.evaluate_all('(els)=>els.map(e=>e.getAttribute("aria-label"))')))==27
+     elif mode=='preview':
+      await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
+      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await expect(tiles).to_have_count(24)
+      await settled_capture(page,f'worker-creator-preview-{width}.png',media=True)
+      await tiles.nth(0).click()
+      viewer=page.get_by_role('dialog',name='Sani Example work post')
+      await expect(viewer).to_be_visible()
+      await expect(viewer.get_by_role('button',name='Like work post')).to_have_count(0)
+      await viewer.get_by_role('button',name='Open comments').click()
+      await expect(page.get_by_text('Creator preview · comments are read only')).to_be_visible()
+      await expect(page.get_by_label('Add a comment')).to_have_count(0)
+      assert not any(call['name'] in ('add_my_worker_showcase_comment','set_my_worker_showcase_reaction') for call in await page.evaluate('window.__fixtureState.calls'))
+      await page.get_by_role('button',name='Back to work post').click()
+      await page.get_by_role('button',name='Back to work posts').click()
+     elif mode=='creator-list':
+      await expect(page.get_by_role('heading',name='Service Worker oversight')).to_be_visible()
+      await page.get_by_role('button',name='Preview Workers').click()
+      opener=page.get_by_role('button',name="Preview Sani Example's customer profile")
+      await expect(opener).to_be_visible();await opener.click()
+      await expect(page.get_by_role('dialog',name='Sani Example profile')).to_be_visible()
+      await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
+      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await page.screenshot(path=str(OUT/f'worker-creator-list-preview-{width}.png'))
+      await page.get_by_role('button',name='Back',exact=True).click()
+      await expect(opener).to_be_visible();await expect(opener).to_be_focused()
+      assert len([call for call in await page.evaluate('window.__fixtureState.calls') if call['name']=='get_public_workers'])==1
      elif mode=='owner':
       await expect(tiles).to_have_count(24);await page.get_by_role('tablist',name='Post visibility').get_by_role('tab',name='Hidden',exact=True).click();await expect(tiles).to_have_count(1)
       assert not any(x['name']=='set_my_worker_work_post_hidden' for x in await page.evaluate('window.__fixtureState.calls'))

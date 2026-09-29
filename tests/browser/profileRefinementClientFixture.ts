@@ -32,8 +32,10 @@ function help() {
 }
 export const supabase:any={
  from:query,
- rpc:async(name:string,args:any={})=>{
+  rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
+  if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true}]);
+  if(name==='creator_get_worker_publication')return ok({enabled:false,launch_approved:false,worker:null});
   if(name==='get_my_workspace_help_targets')return state.failHelp?bad():ok(help());
   if(name==='get_worker_marketplace_trust')return state.failTrust?bad():ok({reviewed:true,trusted:false,completed_jobs:7,rating:4.8,review_count:1});
   if(name==='get_public_worker_reviews')return state.failReviews?bad():ok([{id:'review-1',rating:5,comment:'Careful work and a tidy finish.',created_at:'2026-09-21T12:00:00Z',reviewer_name:'Ada Example',service_name:'Carpentry'}]);
@@ -48,5 +50,6 @@ export const supabase:any={
  },
  storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});return state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});return state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
 };
+export const getWorkers=async()=>{state.calls.push({name:'get_public_workers'});return {workers:[{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',worker_bio:'Furniture fitting and repairs.',worker_skills:['Carpentry'],worker_price:15000,city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,role:'worker'}],error:null};};
 export const compressImageFile=async(file:File)=>file;
 export const uploadStorageObjectWithProgress=async(...args:any[])=>{state.calls.push({name:'upload-media',path:args[1]});args.at(-1)?.(100);};

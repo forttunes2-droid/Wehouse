@@ -1,4 +1,6 @@
 import WorkerPublicationControls from "@/components/WorkerPublicationControls";
+import WorkerPublicProfile from "@/components/WorkerPublicProfile";
+import type { Profile } from "@/types";
 import { withTimeout } from "@/lib/withTimeout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -51,6 +53,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     [reason, setReason] = useState(""),
     [acting, setActing] = useState(false),
     [previewWorkers, setPreviewWorkers] = useState<Worker[] | null>(null),
+    [previewWorker, setPreviewWorker] = useState<Worker | null>(null),
     [previewBusy, setPreviewBusy] = useState(false),
     [previewError, setPreviewError] = useState(false);
 
@@ -375,10 +378,10 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
         </div>
         {previewError && <p role="alert" className="mt-3 text-sm text-amber-200">The Worker preview could not be loaded. Try again.</p>}
         {previewWorkers && <div className="mt-4 divide-y divide-white/10 border-t border-white/10">
-          {previewWorkers.length === 0 ? <p className="py-4 text-sm text-[#B3ADBF]">No Worker currently meets the publication and availability checks.</p> : previewWorkers.map(worker => <div key={worker.user_id} className="flex items-center gap-3 py-3">
+          {previewWorkers.length === 0 ? <p className="py-4 text-sm text-[#B3ADBF]">No Worker currently meets the individual publication and availability checks.</p> : previewWorkers.map(worker => <button type="button" key={worker.user_id} onClick={() => setPreviewWorker(worker)} className="flex min-h-16 w-full items-center gap-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300" aria-label={`Preview ${worker.full_name || worker.username || "Service Worker"}'s customer profile`}>
             <Avatar worker={worker} />
-            <div className="min-w-0"><p className="truncate text-sm font-semibold">{worker.full_name || worker.username || "Service Worker"}</p><p className="mt-1 text-sm text-[#B3ADBF]">{workerOccupation(worker)} · {[worker.city || worker.local_government, worker.state].filter(Boolean).join(", ") || "Location not set"}</p></div>
-          </div>)}
+            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{worker.full_name || worker.username || "Service Worker"}</span><span className="mt-1 block text-sm text-[#B3ADBF]">{workerOccupation(worker)} · {[worker.city || worker.local_government, worker.state].filter(Boolean).join(", ") || "Location not set"}</span></span><span aria-hidden="true" className="text-violet-200">›</span>
+          </button>)}
         </div>}
       </section>
       <input
@@ -429,6 +432,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           ))}
         </div>
       )}
+      {previewWorker && <WorkerPublicProfile worker={previewWorker as Profile} onBack={() => setPreviewWorker(null)} onBook={() => {}} previewMode />}
     </div>
   );
 }
