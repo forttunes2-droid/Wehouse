@@ -101,6 +101,9 @@ jobs:
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0
+      - name: Capture Property Partner Pro phone and tablet screens
+        if: ${{ !cancelled() }}
+        run: python tests/browser/partner_pro_preview.py
       - name: Verify real bundle startup failures remain safe and recoverable
         if: ${{ !cancelled() }}
         env:

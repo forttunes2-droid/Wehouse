@@ -23,8 +23,9 @@ import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
+import PropertyPartnerProWorkspace from "@/components/PropertyPartnerProWorkspace";
 
-type PartnerTab = "properties" | "finance" | "communication" | "sponsored";
+type PartnerTab = "properties" | "finance" | "communication" | "sponsored" | "pro";
 const PROPERTY_PAGE_SIZE = 40;
 type Props = {
   inboxOpenRequest?: number;
@@ -53,6 +54,11 @@ const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }>
     key: "finance",
     label: "Finance",
     description: "Your wallet, earnings and withdrawals",
+  },
+  {
+    key: "pro",
+    label: "Pro",
+    description: "Portfolio calendar, income reports and property tasks",
   },
   {
     key: "sponsored",
@@ -165,6 +171,7 @@ export default function PropertyOwnerDashboard({
           </>
         )}
         {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
+        {!delegatedOnly && tab === "pro" && <PropertyPartnerProWorkspace profile={profile} />}
         {!delegatedOnly && tab === "sponsored" && <div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div>}
       </WorkspaceFrameV2>
     </>

@@ -76,6 +76,8 @@
    conversations, sheets and bottom navigation, even for a zero translation. */
 .page-transition { animation: whPageFade 180ms ease-out; }
 .wh-panel-enter { animation: whPageEnter 190ms cubic-bezier(.2,.7,.2,1); }
+.wh-comments-sheet { animation: whCommentsEnter 190ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes whCommentsEnter { from { transform: translateY(20px); opacity: .7; } to { transform: translateY(0); opacity: 1; } }
 @keyframes whPageFade { from { opacity: 0; } to { opacity: 1; } }
 
 @keyframes whPageEnter {
@@ -156,6 +158,7 @@
 @keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
+  .wh-comments-sheet { animation: none; }
   .page-transition, .wh-panel-enter, .wh-workspace-stage,
   .wh-more-backdrop, .wh-more-sheet, .wh-bottom-tab-indicator,
   .wh-workspace-enter [data-workspace-frame="v2"] > header,

@@ -63,11 +63,13 @@ async def main():
       await page.wait_for_function('!!document.querySelector("[data-showcase-stage] video") && document.querySelector("[data-showcase-stage] video").readyState>=2')
       assert await viewer.locator('video').count()==1
       await page.screenshot(path=str(OUT/f'worker-post-viewer-{width}.png'))
+      if width==390:print('WEHOUSE_PREVIEW_VIEWER='+base64.b64encode(await page.screenshot(type='jpeg',quality=48)).decode(),flush=True)
       await viewer.get_by_role('button',name='Open comments',exact=True).click();await expect(page.get_by_role('region',name='Work post comments')).to_be_visible()
       assert await viewer.locator('video').evaluate('(v)=>v.paused')
       await page.get_by_label('Add a comment',exact=True).fill('Is this finish available in oak?');await page.get_by_role('button',name='Post',exact=True).click()
       await expect(page.get_by_text('Is this finish available in oak?',exact=True)).to_be_visible()
       await page.screenshot(path=str(OUT/f'worker-post-comments-{width}.png'))
+      if width==390:print('WEHOUSE_PREVIEW_COMMENTS='+base64.b64encode(await page.screenshot(type='jpeg',quality=48)).decode(),flush=True)
       await page.get_by_role('button',name='Back to work post',exact=True).click();await expect(viewer.get_by_role('button',name='Open comments')).to_be_focused()
       await swipe(page,page.locator('[data-showcase-stage]'),-100);await expect(viewer.get_by_text('3 / 24',exact=True)).to_be_visible()
       await swipe(page,page.locator('[data-showcase-stage]'),100);await expect(viewer.get_by_text('2 / 24',exact=True)).to_be_visible()

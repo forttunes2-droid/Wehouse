@@ -5,8 +5,11 @@ set -euo pipefail
 status=$(npx --yes supabase@2.114.0 status -o json)
 node -e 'const s=JSON.parse(process.argv[1]); const u=new URL(s.API_URL||s.api_url); if(!["localhost","127.0.0.1"].includes(u.hostname)||u.protocol!=="http:")process.exit(1)' "$status"
 free_gb=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
-if (( free_gb < 100 )); then echo "Need at least 100 GB free on disposable runner; found ${free_gb} GB" >&2; exit 1; fi
+required_gb=100
+if [[ "${WEHOUSE_CAPACITY_PRESET:-full}" == requested ]]; then required_gb=8; fi
+if (( free_gb < required_gb )); then echo "Need at least ${required_gb} GB free on disposable runner; found ${free_gb} GB" >&2; exit 1; fi
 case "${WEHOUSE_CAPACITY_PRESET:-full}" in
+  requested) homes=500000; hotels=50000; profiles=50000 ;;
   million) homes=1000000; hotels=1000000; profiles=1000000 ;;
   full) homes=3000000; hotels=4000000; profiles=20000000 ;;
   *) echo "Unknown catalog preset" >&2; exit 1 ;;
