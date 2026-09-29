@@ -37,6 +37,7 @@ import {
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
@@ -120,6 +121,19 @@ const STATUS_OPTIONS = [
 ] as const;
 const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
 const date = displayDate;
+function bookingMonth(value: string) {
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit" }).formatToParts(parsed);
+  return `${parts.find(part => part.type === "year")?.value}-${parts.find(part => part.type === "month")?.value}`;
+}
+function bookingSearchText(item: BookingItem) {
+  const row = item.row;
+  return [row.booking_code, row.reservation_code, row.service_type, row.other_person_name,
+    row.listing_title, row.listing?.title, row.hotels?.name, row.hotel?.name, row.hotel_name,
+    row.hotel_rooms?.room_type, row.room_name, row.stay_type, row.product_type]
+    .filter(Boolean).join(" ").toLocaleLowerCase();
+}
 const isUnpaidHousingDraft = (row: any) =>
   ["cancelled", "expired"].includes(String(row.status || "")) &&
   !row.paid_at &&
@@ -156,6 +170,8 @@ export default function MyReservations({
   const [inspections, setInspections] = useState<any[]>([]);
   const [view, setView] = useState<View>("all");
   const [statusView, setStatusView] = useState<StatusView>("all");
+  const [search, setSearch] = useState("");
+  const [month, setMonth] = useState("all");
   const [sourceErrors, setSourceErrors] = useState<BookingSourceErrors>({});
   const [loading, setLoading] = useState(true);
   const [activeHousing, setActiveHousing] = useState<any | null>(null);
@@ -387,13 +403,20 @@ export default function MyReservations({
     [housing, hotels, services, sharedGroups, profile.user_id, view],
   );
 
+  const months = useMemo(() => Array.from(new Set(rows.map(item => bookingMonth(item.date)).filter(Boolean))).sort().reverse(), [rows]);
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return rows.filter(item => (month === "all" || bookingMonth(item.date) === month)
+      && (!query || bookingSearchText(item).includes(query)));
+  }, [rows, month, search]);
+
   const sections = useMemo(() => {
     const groups: Record<BookingGroup, BookingItem[]> = {
       action: [],
       active: [],
       history: [],
     };
-    for (const item of rows as BookingItem[]) {
+    for (const item of visibleRows as BookingItem[]) {
       const group = bookingGroup(item);
       if (statusView === "all" || statusView === group) groups[group].push(item);
     }
@@ -402,7 +425,7 @@ export default function MyReservations({
       { id: "active" as const, label: "Active & upcoming", items: groups.active },
       { id: "history" as const, label: "History", items: groups.history },
     ].filter((section) => section.items.length > 0);
-  }, [rows, statusView]);
+  }, [visibleRows, statusView]);
 
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -838,6 +861,20 @@ export default function MyReservations({
         <div className="grid grid-cols-4 border-b border-[var(--wh-border-subtle)]" role="group" aria-label="Filter bookings by status">
           {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${statusView === option.value ? "border-violet-400 text-violet-100" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
         </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
+          <input type="search" aria-label="Search bookings" placeholder="Search place, service or booking code"
+            value={search} onChange={event => setSearch(event.target.value)}
+            className="h-12 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400" />
+          <WeHouseChoice value={month} onChange={event => setMonth(event.target.value)} aria-label="Booking month"
+            className="h-12 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)]">
+            <option value="all">Any month</option>
+            {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
+          </WeHouseChoice>
+        </div>
+        {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
+          {sections.reduce((count, section) => count + section.items.length, 0)} {sections.reduce((count, section) => count + section.items.length, 0) === 1 ? "booking" : "bookings"}
+          {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-violet-300">Clear search and month</button>}
+        </p>}
 
         {Object.keys(sourceErrors).length > 0 ? (
           <div className="mt-3">
@@ -851,7 +888,7 @@ export default function MyReservations({
         {loading ? (
           <Loading />
         ) : sections.length === 0 ? (
-          <Empty view={view} statusView={statusView} />
+          <Empty view={view} statusView={statusView} filtered={Boolean(search || month !== "all")} />
         ) : (
           <div className="mt-3 space-y-4">
             {sections.map((section) => (
@@ -2026,7 +2063,7 @@ function Loading() {
   );
 }
 
-function Empty({ view, statusView }: { view: View; statusView: StatusView }) {
+function Empty({ view, statusView, filtered = false }: { view: View; statusView: StatusView; filtered?: boolean }) {
   const label =
     view === "housing"
       ? "apartment bookings"
@@ -2038,14 +2075,14 @@ function Empty({ view, statusView }: { view: View; statusView: StatusView }) {
   return (
     <div className="border-y border-[var(--wh-border-subtle)] px-5 py-14 text-center">
       <p className="text-sm font-semibold">
-        {statusView === "all"
+        {statusView === "all" && !filtered
           ? `No ${label} yet`
           : "No bookings match these filters"}
       </p>
       <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
-        {statusView === "all"
+        {statusView === "all" && !filtered
           ? "New records appear here automatically with their current next step."
-          : "Choose another status or booking type to see more records."}
+          : "Try another month, search, status or booking type."}
       </p>
     </div>
   );
