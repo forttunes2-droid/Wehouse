@@ -69,9 +69,6 @@ type ConversationUnreadRow = {
 type IncomingMessageRow = {
   sender_id?: string;
   conversation_id?: string;
-  content?: string | null;
-  legacy_content?: string | null;
-  attachments?: unknown[] | null;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
 
@@ -783,12 +780,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (!alertsEnabled) return;
           void playNotificationSound(uid);
           toast("New message", {
-            description: String(
-              message.content ||
-                ((message.attachments || []).length
-                  ? "New attachment"
-                  : "Open Inbox to read it."),
-            ).slice(0, 110),
+            description: "Open Inbox to read it.",
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -814,11 +806,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (!alertsEnabled) return;
           void playNotificationSound(uid);
           toast("New service message", {
-            description: String(
-              message.content ||
-                message.legacy_content ||
-                "Open the conversation to read it.",
-            ).slice(0, 110),
+            description: "Open the conversation to read it.",
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -836,7 +824,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (!alertsEnabled) return;
           void playNotificationSound(uid);
           toast("New hotel message", {
-            description: String(message.content || "Open Inbox to read it.").slice(0, 110),
+            description: "Open Inbox to read it.",
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
