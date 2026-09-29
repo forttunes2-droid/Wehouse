@@ -24,7 +24,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
   return (
     <div className="role-workspace min-h-[100dvh] bg-[var(--wh-bg)] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-[var(--wh-text)] sm:pb-10">
       <header className="sticky top-0 z-30 border-b border-[var(--wh-border)] bg-[var(--wh-bg)]">
-        <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 py-4 sm:px-5 lg:px-8`}>
+        <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5 lg:px-8`}>
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">

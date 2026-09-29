@@ -19,7 +19,7 @@ function NativeInit() {
     void registerNativeOAuthHandler().catch(() => {});
     import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
       const light = resolvedAppearance() === 'light';
-      StatusBar.setStyle({ style: light ? Style.Dark : Style.Light }).catch(() => {});
+      StatusBar.setStyle({ style: light ? Style.Light : Style.Dark }).catch(() => {});
       StatusBar.setBackgroundColor({ color: light ? '#F7F8FB' : '#090B10' }).catch(() => {});
     });
     import('@capacitor/splash-screen').then(({ SplashScreen }) => {

@@ -30,7 +30,7 @@ export function applyAppearance() {
   if (isNative()) {
     void import('@capacitor/status-bar').then(({ StatusBar, Style }) =>
       Promise.allSettled([
-        StatusBar.setStyle({ style: resolved === 'dark' ? Style.Light : Style.Dark }),
+        StatusBar.setStyle({ style: resolved === 'dark' ? Style.Dark : Style.Light }),
         StatusBar.setBackgroundColor({ color }),
       ])
     ).catch(() => {});
