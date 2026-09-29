@@ -24,16 +24,15 @@ async def main():
             await page.goto(f'{BASE}/tests/browser/experience.html?fixture=bookings')
             await expect(page.get_by_role('heading', name='Bookings', exact=True)).to_be_visible()
             stage = page.get_by_role('group', name='Filter bookings by status')
-            kind = page.get_by_role('button', name='Booking type')
-            await expect(kind).to_contain_text('All types')
+            kinds = page.get_by_role('group', name='Filter bookings by type')
+            await expect(kinds.get_by_role('button', name='All bookings')).to_have_attribute('aria-pressed', 'true')
             Path('test-results/experience').mkdir(parents=True, exist_ok=True)
             await page.screenshot(path=f'test-results/experience/bookings-default-{width}.png', full_page=True)
             await stage.get_by_role('button', name='Active & upcoming').click()
             await expect(stage.get_by_role('button', name='Active & upcoming')).to_have_attribute('aria-pressed', 'true')
-            await kind.click()
-            await page.get_by_role('dialog', name='Booking type').get_by_role('button', name='Hotels').click()
-            await expect(kind).to_contain_text('Hotels')
-            for button in [kind, *await stage.get_by_role('button').all()]:
+            await kinds.get_by_role('button', name='Hotels').click()
+            await expect(kinds.get_by_role('button', name='Hotels')).to_have_attribute('aria-pressed', 'true')
+            for button in [*await kinds.get_by_role('button').all(), *await stage.get_by_role('button').all()]:
                 bounds = await button.bounding_box()
                 assert bounds and bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= width + 1, f'clipped booking filter at {width}px: {bounds}'
             await page.screenshot(path=f'test-results/experience/bookings-filtered-{width}.png', full_page=True)

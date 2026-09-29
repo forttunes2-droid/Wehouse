@@ -12,6 +12,7 @@ import WorkspaceSectionHeading from "@/components/WorkspaceSectionHeading";
 import CommunicationsWorkspace from "@/components/CommunicationsWorkspace";
 import PropertyPipelineWorkspace from "@/components/PropertyPipelineWorkspace";
 import CreatorWorkerOversight from "@/components/CreatorWorkerOversight";
+import WorkerPublicationControls from "@/components/WorkerPublicationControls";
 import WorkerCapacityManager from "@/components/WorkerCapacityManager";
 import SponsoredMarketRules from "@/components/SponsoredMarketRules";
 import StaffFinanceRecords from "@/components/StaffFinanceRecords";
@@ -983,6 +984,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
       {section === "booking_money" && <CreatorBookingMoneyRules />}
       {section === "workers" && (
         <div className="space-y-5">
+          <WorkerPublicationControls userId={profile.user_id} />
           <CreatorSettingsTabV2
             profile={profile}
             groups={["worker_trust"]}

@@ -2,7 +2,7 @@ import WorkerPublicationControls from "@/components/WorkerPublicationControls";
 import { withTimeout } from "@/lib/withTimeout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { getWorkers, supabase } from "@/lib/supabase";
 import InlineFilterChips from "@/components/InlineFilterChips";
 import { canonicalStatusOptions } from "@/lib/status";
 import { workerOccupation } from "@/lib/workerTaxonomy";
@@ -49,7 +49,21 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
     [reason, setReason] = useState(""),
-    [acting, setActing] = useState(false);
+    [acting, setActing] = useState(false),
+    [previewWorkers, setPreviewWorkers] = useState<Worker[] | null>(null),
+    [previewBusy, setPreviewBusy] = useState(false),
+    [previewError, setPreviewError] = useState(false);
+
+  async function refreshCustomerPreview() {
+    setPreviewBusy(true); setPreviewError(false);
+    try {
+      const { workers, error } = await withTimeout(getWorkers(), 15000, "Worker preview took too long.");
+      if (error) throw error;
+      setPreviewWorkers(workers);
+    } catch {
+      setPreviewWorkers(null); setPreviewError(true);
+    } finally { setPreviewBusy(false); }
+  }
 
   const { data, loading, error: listError, refresh: load } = useRpcRead<Worker[]>("creator_get_people", userId, { p_workspace: "worker" });
   const rows = useMemo(() => data || [], [data]);
@@ -351,6 +365,22 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
         </p>
       </div>
       <WorkerPublicationControls userId={userId} />
+      <section className="rounded-2xl border border-white/10 bg-[#11141C] p-4 sm:p-5" aria-label="Customer Worker discovery preview">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Customer discovery preview</h3>
+            <p className="mt-1 text-sm leading-5 text-[#B3ADBF]">Creator only. See the eligible Worker profiles returned by the customer discovery rules while the public marketplace is paused.</p>
+          </div>
+          <button type="button" onClick={() => void refreshCustomerPreview()} disabled={previewBusy} className="min-h-11 rounded-xl border border-violet-400/30 px-4 text-sm font-semibold text-violet-200 disabled:opacity-50">{previewBusy ? "Loading…" : previewWorkers ? "Refresh preview" : "Preview Workers"}</button>
+        </div>
+        {previewError && <p role="alert" className="mt-3 text-sm text-amber-200">The Worker preview could not be loaded. Try again.</p>}
+        {previewWorkers && <div className="mt-4 divide-y divide-white/10 border-t border-white/10">
+          {previewWorkers.length === 0 ? <p className="py-4 text-sm text-[#B3ADBF]">No Worker currently meets the publication and availability checks.</p> : previewWorkers.map(worker => <div key={worker.user_id} className="flex items-center gap-3 py-3">
+            <Avatar worker={worker} />
+            <div className="min-w-0"><p className="truncate text-sm font-semibold">{worker.full_name || worker.username || "Service Worker"}</p><p className="mt-1 text-sm text-[#B3ADBF]">{workerOccupation(worker)} · {[worker.city || worker.local_government, worker.state].filter(Boolean).join(", ") || "Location not set"}</p></div>
+          </div>)}
+        </div>}
+      </section>
       <input
         value={search}
         onChange={(event) => setSearch(event.target.value)}

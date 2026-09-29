@@ -37,7 +37,6 @@ import {
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
-import WeHouseChoice from "@/components/WeHouseChoice";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
@@ -825,18 +824,19 @@ export default function MyReservations({
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-white">
 
       <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 px-4 backdrop-blur-xl sm:px-5 lg:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 py-2">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 py-3">
           <h1 className="text-lg font-bold tracking-tight">Bookings</h1>
-          <WeHouseChoice value={view} onChange={event => setView(event.target.value as View)} title="Booking type" aria-label="Booking type"
-            className="max-w-[175px] rounded-xl border border-white/[.09] bg-[var(--wh-elevated)] px-3 text-xs font-semibold text-violet-100">
-            {VIEW_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.value === "all" ? "All types" : option.value === "housing" ? "Homes" : option.label}</option>)}
-          </WeHouseChoice>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-2 sm:px-5 lg:px-8">
+      <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+        <p className="mb-1 text-xs font-semibold text-[var(--wh-text-muted)]">Booking type</p>
+        <div className="grid grid-cols-4 gap-1 rounded-2xl bg-[var(--wh-elevated)] p-1" role="group" aria-label="Filter bookings by type">
+          {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 min-w-0 rounded-xl px-1 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${view === option.value ? "bg-violet-500 text-white shadow-sm" : "text-[#ADB3C0] hover:bg-white/[.06]"}`}>{option.value === "all" ? "All" : option.label}</button>)}
+        </div>
+        <p className="mb-1 mt-4 text-xs font-semibold text-[var(--wh-text-muted)]">Status</p>
         <div className="grid grid-cols-4 border-b border-white/[.08]" role="group" aria-label="Filter bookings by status">
-          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-12 min-w-0 border-b-2 px-1 py-2 text-xs font-semibold leading-4 transition-colors ${statusView === option.value ? "border-violet-400 text-violet-100" : "border-transparent text-[#A8B0BF]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
+          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${statusView === option.value ? "border-violet-400 text-violet-100" : "border-transparent text-[#A8B0BF]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
         </div>
 
         {Object.keys(sourceErrors).length > 0 ? (
