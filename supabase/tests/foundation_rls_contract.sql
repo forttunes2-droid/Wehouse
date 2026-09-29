@@ -20,6 +20,9 @@ begin
       'search_discoverable_hotels(text,text,text,text[],numeric,numeric,double precision,double precision,numeric,boolean,timestamp with time zone,integer,integer)',
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
       'get_hotel_review_summary(integer)',
+      -- This bounded reader returns IDs for eligible public home/hotel ads;
+      -- its Worker branch explicitly requires an authenticated viewer.
+      'get_sponsored_discovery(text,text,text,text,integer)',
       'get_short_let_date_availability(text,date,date)',
       'preview_resource_invitation(text)'
     ]);
