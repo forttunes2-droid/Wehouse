@@ -1,6 +1,7 @@
 """Real booking presentation at phone, tablet and desktop sizes with isolated API responses."""
 import asyncio
 import json
+from pathlib import Path
 from playwright.async_api import async_playwright, expect
 
 BASE = 'http://127.0.0.1:4173'
@@ -22,17 +23,20 @@ async def main():
             await page.route('**/*', route)
             await page.goto(f'{BASE}/tests/browser/experience.html?fixture=bookings')
             await expect(page.get_by_role('heading', name='Bookings', exact=True)).to_be_visible()
-            kind = page.get_by_role('group', name='Filter bookings by type')
             stage = page.get_by_role('group', name='Filter bookings by status')
-            await expect(kind.get_by_role('button', name='All bookings')).to_have_attribute('aria-pressed', 'true')
+            kind = page.get_by_role('button', name='Booking type')
+            await expect(kind).to_contain_text('All types')
+            Path('test-results/experience').mkdir(parents=True, exist_ok=True)
+            await page.screenshot(path=f'test-results/experience/bookings-default-{width}.png', full_page=True)
             await stage.get_by_role('button', name='Active & upcoming').click()
             await expect(stage.get_by_role('button', name='Active & upcoming')).to_have_attribute('aria-pressed', 'true')
-            await kind.get_by_role('button', name='Hotels').click()
-            await expect(kind.get_by_role('button', name='Hotels')).to_have_attribute('aria-pressed', 'true')
-            for group in (kind, stage):
-                for button in await group.get_by_role('button').all():
-                    bounds = await button.bounding_box()
-                    assert bounds and bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= width + 1, f'clipped booking filter at {width}px: {bounds}'
+            await kind.click()
+            await page.get_by_role('dialog', name='Booking type').get_by_role('button', name='Hotels').click()
+            await expect(kind).to_contain_text('Hotels')
+            for button in [kind, *await stage.get_by_role('button').all()]:
+                bounds = await button.bounding_box()
+                assert bounds and bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= width + 1, f'clipped booking filter at {width}px: {bounds}'
+            await page.screenshot(path=f'test-results/experience/bookings-filtered-{width}.png', full_page=True)
             assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), f'horizontal page overflow at {width}px'
             assert not errors, errors
             print(f'PASS bookings layout {width}px')

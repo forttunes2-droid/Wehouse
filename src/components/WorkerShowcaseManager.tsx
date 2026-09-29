@@ -6,7 +6,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
 import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
-import { preparePublicVideo } from "@/lib/mediaVideo";
+import { preparePublicVideo, PUBLIC_VIDEO_MAX_BYTES } from "@/lib/mediaVideo";
 import VideoPlayer from "@/components/VideoPlayer";
 import WorkerShowcaseGrid from "@/components/WorkerShowcaseGrid";
 import { useWorkerShowcase, type ShowcasePost } from "@/hooks/useWorkerShowcase";
@@ -48,6 +48,7 @@ function WorkerShowcaseContent({
   const [bookingId, setBookingId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
+  const [preparingVideo, setPreparingVideo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -87,7 +88,7 @@ function WorkerShowcaseContent({
     [preview],
   );
 
-  function chooseFile(selected: File) {
+  async function chooseFile(selected: File) {
     const isVideo = selected.type.startsWith("video/");
     const isImage = selected.type.startsWith("image/");
     if (!isVideo && !isImage) return toast.error("Choose an image or video");
@@ -97,8 +98,18 @@ function WorkerShowcaseContent({
       );
     }
     if (preview) URL.revokeObjectURL(preview);
-    setFile(selected);
-    setPreview(URL.createObjectURL(selected));
+    setFile(null);
+    setPreview("");
+    if (!isVideo) { setFile(selected); setPreview(URL.createObjectURL(selected)); return; }
+    setPreparingVideo(true);
+    try {
+      const prepared = await preparePublicVideo(selected);
+      const ready = new File([prepared.body], `${selected.name.replace(/\.[^.]+$/, "")}.${prepared.extension}`, { type: prepared.contentType });
+      setFile(ready);
+      setPreview(URL.createObjectURL(ready));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Video could not be prepared");
+    } finally { setPreparingVideo(false); }
   }
 
   function clearComposer() {
@@ -130,7 +141,7 @@ function WorkerShowcaseContent({
       const preserveOriginal = ['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
       const preparedVideo = isVideo ? await preparePublicVideo(file) : null;
       const uploadBody = preparedVideo?.body || (preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024));
-      if (uploadBody.size > 2_000_000) throw new Error("This work post is over 2 MB. Trim the video or choose a smaller photo.");
+      if (uploadBody.size > (isVideo ? PUBLIC_VIDEO_MAX_BYTES : 2_000_000)) throw new Error("This work post is too large. Trim the video or choose a smaller photo.");
       const ext = preparedVideo?.extension || (preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg');
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");
@@ -218,9 +229,11 @@ function WorkerShowcaseContent({
         className="hidden"
         onChange={(event) => {
           const selected = event.target.files?.[0];
-          if (selected) chooseFile(selected);
+          if (selected) void chooseFile(selected);
         }}
       />
+
+      {preparingVideo && <p role="status" className="text-sm text-violet-200">Preparing a smaller video for preview…</p>}
 
       {file && (
         <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[#08090D]">

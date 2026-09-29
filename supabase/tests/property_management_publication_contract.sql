@@ -55,7 +55,7 @@ end $$;
 reset role;
 do $$ begin
   if exists(select 1 from storage.buckets where id in ('listing-videos','worker-showcase','listing-candidates')
-    and file_size_limit <> 2000000) then
+    and file_size_limit <> 13000000) then
     raise exception 'Public media bucket is not bounded';
   end if;
   if exists(select 1 from storage.buckets where id in ('property-access-private','worker-verification-videos','worker-files')

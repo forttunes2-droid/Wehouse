@@ -37,6 +37,7 @@ import {
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
@@ -823,21 +824,19 @@ export default function MyReservations({
   return (
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-white">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
-        <div className="mx-auto max-w-5xl">
+      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 px-4 backdrop-blur-xl sm:px-5 lg:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 py-2">
           <h1 className="text-lg font-bold tracking-tight">Bookings</h1>
-
+          <WeHouseChoice value={view} onChange={event => setView(event.target.value as View)} title="Booking type" aria-label="Booking type"
+            className="max-w-[175px] rounded-xl border border-white/[.09] bg-[var(--wh-elevated)] px-3 text-xs font-semibold text-violet-100">
+            {VIEW_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.value === "all" ? "All types" : option.value === "housing" ? "Homes" : option.label}</option>)}
+          </WeHouseChoice>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <div className="border-b border-white/[.08] pb-3">
-          <div className="grid grid-cols-4 border-b border-white/[.07]" role="group" aria-label="Filter bookings by type">
-            {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-xs font-semibold transition-colors ${view === option.value ? "border-violet-400 text-violet-200" : "border-transparent text-[#9CA4B4]"}`}>{option.value === "all" ? "All" : option.value === "housing" ? "Homes" : option.label}</button>)}
-          </div>
-          <div className="mt-3 grid grid-cols-4 gap-1.5" role="group" aria-label="Filter bookings by status">
-            {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 rounded-full border px-1.5 py-1.5 text-[11px] font-semibold leading-4 transition-colors ${statusView === option.value ? "border-violet-400/60 bg-violet-500/20 text-violet-100" : "border-white/[.1] bg-[var(--wh-elevated)] text-[#A8B0BF]"}`}>{option.value === "all" ? "All" : option.value === "active" ? "Upcoming" : option.label}</button>)}
-          </div>
+      <main className="mx-auto max-w-5xl px-4 py-2 sm:px-5 lg:px-8">
+        <div className="grid grid-cols-4 border-b border-white/[.08]" role="group" aria-label="Filter bookings by status">
+          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-12 min-w-0 border-b-2 px-1 py-2 text-xs font-semibold leading-4 transition-colors ${statusView === option.value ? "border-violet-400 text-violet-100" : "border-transparent text-[#A8B0BF]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
         </div>
 
         {Object.keys(sourceErrors).length > 0 ? (

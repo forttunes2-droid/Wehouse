@@ -26,11 +26,20 @@ async def main():
         '-maxrate', '12M', '-bufsize', '24M', '-an', str(chat_fixture),
     ], check=True)
     assert 2_000_000 < chat_fixture.stat().st_size <= 25_000_000
+    longer_fixture = Path('test-results/experience/longer-compression-input.mp4')
+    subprocess.run([
+        'ffmpeg', '-nostdin', '-y', '-loglevel', 'error',
+        '-f', 'lavfi', '-i', 'testsrc2=size=960x540:rate=24',
+        '-vf', 'noise=alls=60:allf=t+u', '-t', '30',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '8M',
+        '-maxrate', '8M', '-bufsize', '16M', '-an', str(longer_fixture),
+    ], check=True)
+    assert 5_000_000 < longer_fixture.stat().st_size <= 50_000_000
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
         page = await browser.new_page()
         await page.goto('http://127.0.0.1:4173/tests/browser/experience.html')
-        for kind, source_path in [('public', fixture.name), ('chat', chat_fixture.name)]:
+        for kind, source_path in [('public', fixture.name), ('chat', chat_fixture.name), ('longer', longer_fixture.name)]:
           result = await page.evaluate('''async ({ kind, sourcePath }) => {
           const { preparePublicVideo, prepareChatVideo, PUBLIC_VIDEO_MAX_BYTES, CHAT_VIDEO_MAX_BYTES, videoTargetBytes } = await import('/src/lib/mediaVideo.ts');
           const source = await (await fetch('/test-results/experience/' + sourcePath)).blob();
@@ -57,7 +66,7 @@ async def main():
         }''', { 'kind': kind, 'sourcePath': source_path })
           assert 0 < result['output'] <= result['target'] <= result['cap'], result
           assert result['output'] < result['input'], result
-          assert result['target'] == 2_000_000, result
+          assert result['target'] == (4_000_000 if kind == 'longer' else 2_000_000), result
           assert result['duration'] > 10, result
           assert result['type'] in ('video/mp4', 'video/webm'), result
           saved = Path(f'test-results/experience/{kind}-compressed.{result["extension"]}')

@@ -1,7 +1,7 @@
 /** Public and private videos are prepared in the browser before they reach Storage. */
 const MB = 1_000_000;
-export const PUBLIC_VIDEO_MAX_BYTES = 2 * MB;
-export const CHAT_VIDEO_MAX_BYTES = 2 * MB;
+export const PUBLIC_VIDEO_MAX_BYTES = 13 * MB;
+export const CHAT_VIDEO_MAX_BYTES = 13 * MB;
 export const VIDEO_TARGET_PER_15_SECONDS_BYTES = 2 * MB;
 const MAX_REENCODE_SECONDS = 90;
 
@@ -12,10 +12,11 @@ export type PreparedVideo = {
 };
 
 export function videoTargetBytes(
-  _seconds: number,
+  seconds: number,
   maximumBytes = PUBLIC_VIDEO_MAX_BYTES,
 ): number {
-  return Math.min(maximumBytes, VIDEO_TARGET_PER_15_SECONDS_BYTES);
+  return Math.min(maximumBytes, Math.max(VIDEO_TARGET_PER_15_SECONDS_BYTES,
+    Math.round(seconds / 15 * VIDEO_TARGET_PER_15_SECONDS_BYTES)));
 }
 
 const supportedRecorderType = () => {
@@ -72,9 +73,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > durationLimit)
       throw new Error(`Trim this video to ${durationLimit} seconds or export it below ${limits.outputLabel} before uploading.`);
 
-    const targetBytes = limits.scaleBudgetByDuration
-      ? Math.min(limits.maxOutputBytes, Math.max(2 * MB, Math.round((seconds / 15) * 2 * MB)))
-      : videoTargetBytes(seconds, limits.maxOutputBytes);
+    const targetBytes = videoTargetBytes(seconds, limits.maxOutputBytes);
     if (file.size <= targetBytes) return original;
 
     const mimeType = supportedRecorderType();
@@ -211,7 +210,7 @@ export function preparePublicVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
     maxInputBytes: 50 * MB,
     maxOutputBytes: PUBLIC_VIDEO_MAX_BYTES,
-    outputLabel: "2 MB",
+    outputLabel: "13 MB",
   });
 }
 
@@ -220,7 +219,7 @@ export function prepareChatVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
     maxInputBytes: 25 * MB,
     maxOutputBytes: CHAT_VIDEO_MAX_BYTES,
-    outputLabel: "2 MB",
+    outputLabel: "13 MB",
   });
 }
 
