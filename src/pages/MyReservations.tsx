@@ -870,7 +870,7 @@ export default function MyReservations({
                     {section.items.length}
                   </span>
                 </div>
-                <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+                <div className="space-y-2">
                   {section.items.map((item) =>
                     item.kind === "housing" ? (
                       <HousingCard
@@ -1218,7 +1218,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   );
 }
 
-function BookingCard({
+export function BookingCard({
   eyebrow,
   title,
   subtitle,
@@ -1241,41 +1241,40 @@ function BookingCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 py-3 text-left transition-[background,transform] duration-150 active:scale-[.995] active:bg-white/[.025]"
+      aria-label={`Open ${eyebrow} booking for ${title}`}
+      className="w-full rounded-2xl border border-white/[.08] bg-[var(--wh-surface)] p-3 text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 sm:p-4"
     >
+      <div className="flex items-start gap-3">
       {image ? (
         <img
           src={image}
           alt=""
           loading="lazy"
           decoding="async"
-          className="h-12 w-14 shrink-0 rounded-xl object-cover"
+          className="h-16 w-16 shrink-0 rounded-xl object-cover"
         />
       ) : (
-        <div className="grid h-12 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-sm font-bold text-violet-300">
+        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xl font-bold text-violet-300">
           {fallback}
         </div>
       )}
       <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
         <p className="break-words text-sm font-semibold leading-5">
           {title}
         </p>
-        <p className="mt-0.5 break-words text-[10px] leading-4 text-[var(--wh-text-muted)]">
+        <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">
           {subtitle}
         </p>
         {meta.length ? (
-          <p className="mt-1 text-[10px] leading-4 text-[#8A909F]">
+          <p className="mt-2 text-xs leading-4 text-[#A8AFBC]">
             {meta.join(" · ")}
           </p>
         ) : null}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="shrink-0 text-[11px] font-bold uppercase tracking-[.12em] text-violet-300">
-            {eyebrow}
-          </span>
-          {next ? <span className="text-xs leading-4 text-[var(--wh-text-muted)]">{next}</span> : null}
-        </div>
       </div>
-      <span className="shrink-0 text-base text-[#4F5666]">›</span>
+      <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/[.05] text-base text-[#A9AFBC]">›</span>
+      </div>
+      {next && <div className="mt-3 flex items-start gap-2 border-t border-white/[.07] pt-3 text-xs leading-5"><span className="shrink-0 font-semibold text-violet-300">Next</span><span className="min-w-0 text-[#C4C9D4]">{next}</span></div>}
     </button>
   );
 }

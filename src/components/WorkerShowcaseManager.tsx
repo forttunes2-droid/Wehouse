@@ -340,9 +340,9 @@ function WorkerShowcaseContent({
         </div></ShowcaseComposer>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-lg font-semibold tracking-tight">Your work <span className="ml-1 text-sm font-medium text-[#A7ADBA]">{posts.length}</span></h2><p className="mt-1 text-sm text-[#A7ADBA]">Photos and short videos customers can browse.</p></div>
-        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25" aria-label="Add work">+ Add work</button>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-sm text-[#A7ADBA]">{posts.length} {posts.length === 1 ? "post" : "posts"}</p>
+        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25" aria-label="Add work">Add work</button>
       </div>
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Post visibility">
         {([{ value: 'all', label: 'All' }, { value: 'visible', label: 'Published' }, { value: 'hidden', label: 'Hidden' }] as const).map(option => <button key={option.value} type="button" role="tab" aria-selected={visibility === option.value} onClick={() => setVisibility(option.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${visibility === option.value ? 'bg-violet-500 text-white' : 'border border-white/10 bg-[#151820] text-[#B8BECC]'}`}>{option.label}</button>)}
@@ -354,6 +354,7 @@ function WorkerShowcaseContent({
           post={viewer}
           workerName={workerDisplayName(profile)}
           workerAvatar={workerAvatarUrl(profile)}
+          ownerView
           onClose={() => setViewer(null)}
           position={workPosts.findIndex(post => post.id === viewer.id)} total={workPosts.length}
           onPrevious={workPosts.findIndex(post => post.id === viewer.id) > 0 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) - 1]) : undefined}

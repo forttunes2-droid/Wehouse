@@ -233,6 +233,7 @@ export default function WorkerWorkspaceModern({
       label="WEHOUSE SERVICES · SERVICE WORKER"
       title={nav.find((item) => item.id === safeTab)?.label || "Service Worker"}
       description={description}
+      compact={safeTab === "showcase"}
       items={nav}
       active={safeTab}
       setActive={(id) => setTab(id as Tab)}

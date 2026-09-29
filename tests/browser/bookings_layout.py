@@ -37,6 +37,23 @@ async def main():
                 assert bounds and bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= width + 1, f'clipped booking filter at {width}px: {bounds}'
             await page.screenshot(path=f'test-results/experience/bookings-filtered-{width}.png', full_page=True)
             assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), f'horizontal page overflow at {width}px'
+            await page.goto(f'{BASE}/tests/browser/experience.html?fixture=booking-cards')
+            await expect(page.get_by_role('button', name='Open Short Let booking for Palm Court Apartment')).to_be_visible()
+            await expect(page.get_by_role('button', name='Open Hotel booking for Garden Lodge')).to_be_visible()
+            await expect(page.get_by_role('button', name='Open WeHouse Service booking for Electrical repair')).to_be_visible()
+            await page.get_by_role('button', name='Open Hotel booking for Garden Lodge').click()
+            assert await page.evaluate('window.__bookingCardOpen') == 'hotel'
+            await page.screenshot(path=f'test-results/experience/booking-cards-{width}.png', full_page=True)
+            assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), f'booking card overflow at {width}px'
+            await page.add_init_script("window.__nestedEvents=[];window.addEventListener('wehouse:nested-screen',event=>window.__nestedEvents.push(event.detail.open))")
+            await page.goto(f'{BASE}/tests/browser/experience.html?fixture=inbox-activity')
+            await expect(page.get_by_role('heading', name='Inbox', exact=True)).to_be_visible()
+            await page.get_by_role('button', name='Open Activity').click()
+            await expect(page.get_by_role('heading', name='Activity', exact=True)).to_be_visible()
+            assert await page.evaluate('window.__nestedEvents.at(-1)') is True, 'nested Activity did not hide app navigation'
+            await page.get_by_role('button', name='Back to Inbox').click()
+            await expect(page.get_by_role('heading', name='Inbox', exact=True)).to_be_visible()
+            assert await page.evaluate('window.__nestedEvents.at(-1)') is False, 'Inbox navigation did not return'
             assert not errors, errors
             print(f'PASS bookings layout {width}px')
             await context.close()

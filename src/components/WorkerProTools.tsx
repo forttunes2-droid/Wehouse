@@ -264,5 +264,5 @@ function downloadDocument(document: WorkerWorkDocument) {
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="mt-4 rounded-xl border border-dashed border-white/[.08] px-4 py-8 text-center text-[9px] text-[#6D7384]">{text}</div>;
+  return <div className="mt-4 rounded-xl border border-dashed border-white/[.08] px-4 py-6 text-center text-sm text-[#A7ADBA]">{text}</div>;
 }

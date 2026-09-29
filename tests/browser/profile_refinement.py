@@ -67,6 +67,7 @@ async def main():
       assert await viewer.locator('video').evaluate('(v)=>v.paused')
       await page.get_by_label('Add a comment',exact=True).fill('Is this finish available in oak?');await page.get_by_role('button',name='Post',exact=True).click()
       await expect(page.get_by_text('Is this finish available in oak?',exact=True)).to_be_visible()
+      await page.screenshot(path=str(OUT/f'worker-post-comments-{width}.png'))
       await page.get_by_role('button',name='Back to work post',exact=True).click();await expect(viewer.get_by_role('button',name='Open comments')).to_be_focused()
       await swipe(page,page.locator('[data-showcase-stage]'),-100);await expect(viewer.get_by_text('3 / 24',exact=True)).to_be_visible()
       await swipe(page,page.locator('[data-showcase-stage]'),100);await expect(viewer.get_by_text('2 / 24',exact=True)).to_be_visible()

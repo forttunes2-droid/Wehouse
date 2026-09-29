@@ -130,6 +130,12 @@ export default function Chat({
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
   const [view, setView] = useState<"messages" | "activity">("messages");
 
+  useEffect(() => {
+    if (view !== "activity") return;
+    window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: true } }));
+    return () => { window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: false } })); };
+  }, [view]);
+
   const otherId = useCallback(
     (row: Conversation) =>
       row.participant_a === profile.user_id
@@ -538,7 +544,7 @@ export default function Chat({
 
   if (view === "activity") {
     return (
-      <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-white">
+      <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-6 text-white">
         <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
           <ActivityHeader onBack={() => setView("messages")} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
         </div>
