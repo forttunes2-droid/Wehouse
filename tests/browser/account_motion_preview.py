@@ -29,26 +29,31 @@ async def main():
   await page.get_by_role('button',name='Appearance',exact=False).click()
   await expect(page.get_by_role('heading',name='Appearance')).to_be_visible()
   await page.get_by_role('button',name='Light Bright surfaces and deep text').click()
-  assert await page.evaluate('document.documentElement.dataset.whTheme')=='light'
+  await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='light'
   await page.screenshot(path=str(OUT/'account-appearance-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
+  await expect(page.get_by_role('heading',name='Account',exact=True)).to_be_visible()
   await page.screenshot(path=str(OUT/'account-light-390.png'),full_page=True)
   light_bg=await page.locator('main').evaluate('(node)=>getComputedStyle(node.parentElement).backgroundColor')
   assert light_bg=='rgb(247, 248, 251)',light_bg
   await page.get_by_role('button',name='Notifications').click()
+  await expect(page.get_by_role('heading',name='Notifications',exact=True)).to_be_visible()
+  await page.wait_for_timeout(140)
   await page.screenshot(path=str(OUT/'account-notifications-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Switch workspace').click()
+  await expect(page.get_by_role('heading',name='WeHouse',exact=True)).to_be_visible()
   await page.screenshot(path=str(OUT/'account-workspaces-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Appearance',exact=False).click()
   await page.emulate_media(color_scheme='light')
   await page.get_by_role('button',name='Use device setting Follow your phone or computer').click()
-  assert await page.evaluate('document.documentElement.dataset.whTheme')=='light'
+  await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
   await page.emulate_media(color_scheme='dark')
-  assert await page.evaluate('document.documentElement.dataset.whTheme')=='dark'
+  await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
   await page.get_by_role('button',name='Dark Layered charcoal and soft contrast').click()
+  await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='dark'
   print('APPEARANCE_ACCOUNT_LIGHT_DARK_SYSTEM=passed',flush=True)
   await page.evaluate('window.__showWorkspaceFixture()')

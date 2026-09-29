@@ -20,6 +20,18 @@ async def main():
     if width==390:
      jpg=await page.screenshot(type='jpeg',quality=45,full_page=False)
      print(f'WEHOUSE_PREVIEW_PARTNER_{section.upper()}='+base64.b64encode(jpg).decode(),flush=True)
+   if width==390:
+    await page.evaluate('document.documentElement.dataset.whTheme="light"')
+    await page.get_by_role('navigation',name='Property Pro tools').get_by_role('button',name='Calendar').click()
+    await expect(page.get_by_role('heading',name='Upcoming stays')).to_be_visible()
+    await page.screenshot(path=str(OUT/'partner-pro-calendar-light-390.png'),full_page=True)
+    await page.get_by_role('button',name='Choose property').click()
+    await expect(page.get_by_role('dialog',name='Choose a property')).to_be_visible()
+    await page.screenshot(path=str(OUT/'partner-pro-property-sheet-light-390.png'))
+    await page.get_by_role('dialog',name='Choose a property').get_by_role('button',name='Garden Lodge · Hotel').click()
+    await expect(page.get_by_text('Lafia Courtyard Home')).to_have_count(0)
+    await page.get_by_role('button',name='Choose property').click()
+    await page.get_by_role('dialog',name='Choose a property').get_by_role('button',name='All owned properties and hotels').click()
    assert not errors,errors
    await page.close()
   await browser.close()
