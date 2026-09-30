@@ -68,19 +68,19 @@ select public.set_my_worker_customer_record_consent('business-one',false);
 reset role;
 select set_config('request.jwt.claim.sub','78666666-0000-4000-8000-000000000001',true);
 set local role authenticated;
-do $ begin
+do $$ begin
   if jsonb_array_length(public.get_my_worker_pro_business()->'customers')<>0 then
     raise exception 'Revoked customer record remains visible'; end if;
   begin
     perform public.save_my_worker_pro_customer_note('business-guest','Consent was revoked');
     raise exception 'Note saved after consent removal';
   exception when others then if sqlerrm='Note saved after consent removal' then raise; end if; end;
-end $;
+end $$;
 reset role;
-do $ begin
+do $$ begin
   if exists(select 1 from public.worker_pro_customer_notes where worker_id='business-one') then
     raise exception 'Revocation retained a private note'; end if;
-end $;
+end $$;
 
 -- Synthetic verified charge, no provider call or actual payment.
 insert into public.booking_payments(id,payment_reference,paystack_reference,user_id,payer_user_id,
@@ -90,7 +90,7 @@ values('78666666-0000-4000-8000-000000000021','WHP-pro-review-contract','WHP-pro
   'NGN','paid','worker_pro_subscription','paystack','{"paystack_environment":"test"}');
 select set_config('request.jwt.claim.role','service_role',true);
 set local role service_role;
-do $ begin
+do $$ begin
   perform public.pause_worker_pro_on_provider_event('WHP-pro-review-contract','refund.pending','test','worker-review-test-1');
   perform public.pause_worker_pro_on_provider_event('WHP-pro-review-contract','refund.pending','test','worker-review-test-1');
   if public.worker_pro_is_active('business-one') then raise exception 'Refund did not pause paid access'; end if;
@@ -100,11 +100,11 @@ do $ begin
     perform public.pause_worker_pro_on_provider_event('WHP-pro-review-contract','refund.pending','live','worker-review-test-2');
     raise exception 'Wrong environment accepted';
   exception when others then if sqlerrm='Wrong environment accepted' then raise; end if; end;
-end $;
+end $$;
 reset role;
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;
-do $ begin
+do $$ begin
   if not (public.get_my_worker_pro()->>'under_review')::boolean then raise exception 'Review missing from plan'; end if;
   begin
     perform public.get_my_worker_pro_business();
@@ -114,12 +114,13 @@ do $ begin
     perform public.resolve_worker_pro_provider_review('78666666-0000-4000-8000-000000000021',true,'Customer bypass attempt');
     raise exception 'Customer resolved Finance review';
   exception when others then if sqlerrm='Customer resolved Finance review' then raise; end if; end;
-end $;
+end $$;
 reset role;
+set local session_replication_role=origin;
 -- Simulate a later lifecycle update: it must not clear the separate review.
 update public.worker_pro_subscriptions set status='active',current_period_end=now()+interval '2 months'
   where worker_id='business-one';
-do $ begin
+do $$ begin
   if public.worker_pro_is_active('business-one') then raise exception 'Renewal bypassed review'; end if;
   begin
     insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,
@@ -128,22 +129,22 @@ do $ begin
       'worker_subscription','worker_subscription',5000,5000,5000,0,'NGN','pending','worker_pro_subscription','paystack');
     raise exception 'New checkout bypassed review';
   exception when others then if sqlerrm<>'Worker Pro payment is under Finance review' then raise; end if; end;
-end $;
+end $$;
 set local session_replication_role=replica;
 select set_config('request.jwt.claim.role','service_role',true);
 set local role service_role;
 select public.resolve_worker_pro_provider_review('78666666-0000-4000-8000-000000000021',true,
   'Sandbox dispute was reconciled and cleared');
-do $ begin
+do $$ begin
   if not public.worker_pro_is_active('business-one') then raise exception 'Cleared review did not restore unexpired access'; end if;
   perform public.pause_worker_pro_on_provider_event('WHP-pro-review-contract','refund.pending','test','worker-review-test-1');
   if not public.worker_pro_is_active('business-one') then raise exception 'Old event replay reopened resolved review'; end if;
-end $;
+end $$;
 select public.pause_worker_pro_on_provider_event('WHP-pro-review-contract','refund.processed','test','worker-review-test-3');
 select public.resolve_worker_pro_provider_review('78666666-0000-4000-8000-000000000021',false,
   'Provider refund completed; subscription reconciled');
-do $ begin
+do $$ begin
   if public.worker_pro_is_active('business-one') then raise exception 'Revoked access remains active'; end if;
-end $;
+end $$;
 
 rollback;
