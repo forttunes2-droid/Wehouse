@@ -120,7 +120,7 @@ CREATE OR REPLACE FUNCTION public.get_my_worker_pro()
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public'
-AS $function$
+AS $function$;
 declare
   v_worker_id text;
   v_subscription public.worker_pro_subscriptions;
