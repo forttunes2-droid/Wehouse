@@ -192,7 +192,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
             </label>
           </div>
         )}
-        {pro.active ? (
+        {pro.active || (underReview && pro.provider) ? (
           <button onClick={() => void manage()} disabled={busy} className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-sm font-semibold disabled:opacity-40">{busy ? 'Opening…' : 'Manage or cancel subscription'}</button>
         ) : checkoutAvailable ? (
           <button onClick={() => void subscribe(selectedBillingPeriod)} disabled={busy || !termsAccepted || !pro.terms_content} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-sm font-bold text-white disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Choose ${selectedBillingPeriod} with ${storeName}`}</button>
