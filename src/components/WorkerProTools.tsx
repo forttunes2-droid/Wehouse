@@ -1,4 +1,5 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
+import WorkerProBusinessTools from "@/components/WorkerProBusinessTools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -30,15 +31,16 @@ const EMPTY_LINE: DraftLine = {
 };
 
 export default function WorkerProTools({ profile, canUsePaidTools }: { profile: Profile; canUsePaidTools: boolean }) {
-  const [view, setView] = useState<"insights" | "documents">("insights");
+  const [view, setView] = useState<"insights" | "documents" | "business">("insights");
   return (
     <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       {canUsePaidTools && <div className="flex flex-wrap gap-2" role="group" aria-label="Paid Worker tools">
         <ToolTab active={view === "insights"} onClick={() => setView("insights")}>Work Insights</ToolTab>
         <ToolTab active={view === "documents"} onClick={() => setView("documents")}>Quotes &amp; invoices</ToolTab>
+        <ToolTab active={view === "business"} onClick={() => setView("business")}>Business tools</ToolTab>
       </div>}
       <div className={canUsePaidTools ? "mt-4" : ""}>
-        {canUsePaidTools && view === "insights" ? <WorkInsights key={profile.user_id} /> : <WorkDocuments key={profile.user_id} profile={profile} canUsePaidTools={canUsePaidTools} />}
+        {canUsePaidTools && view === "insights" ? <WorkInsights key={profile.user_id} /> : canUsePaidTools && view === "business" ? <WorkerProBusinessTools key={profile.user_id} profile={profile} /> : <WorkDocuments key={profile.user_id} profile={profile} canUsePaidTools={canUsePaidTools} />}
       </div>
     </section>
   );

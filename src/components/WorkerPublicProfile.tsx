@@ -35,6 +35,7 @@ type PublicReview = {
   reviewer_name: string;
   service_name: string;
 };
+type PublicPackage = { id: string; title: string; description: string; price_ngn: number };
 type PostReaction = {
   post_id: string;
   emoji: string;
@@ -72,6 +73,8 @@ function WorkerProfileContent({
   const showcase = useWorkerShowcase(worker.user_id, false, !privateConversationMode);
   const [viewer, setViewer] = useState<Post | null>(null), [mediaFailed, setMediaFailed] = useState(false), [section, setSection] = useState<"work" | "reviews">("work");
   const [trust, setTrust] = useState<Trust | null>(null), [reviews, setReviews] = useState<PublicReview[]>([]);
+  const [packages, setPackages] = useState<PublicPackage[]>([]);
+  const [featuredPosts, setFeaturedPosts] = useState<Post[]>([]);
   const [reviewLoading, setReviewLoading] = useState(true), [reviewError, setReviewError] = useState(""), [trustError, setTrustError] = useState("");
   const [attempt, setAttempt] = useState(0), [postReactions, setPostReactions] = useState<Record<string, { counts: Record<string, number>; mine: string | null }>>({});
   const activeWorker = useRef(worker.user_id); activeWorker.current = worker.user_id;
@@ -86,7 +89,7 @@ function WorkerProfileContent({
   useEffect(() => { setViewer(null); setSection("work"); openSequence.current++; }, [worker.user_id, privateConversationMode]);
   useEffect(() => {
     let active = true;
-    setTrust(null); setReviews([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
+    setTrust(null); setReviews([]); setPackages([]); setFeaturedPosts([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
     if (privateConversationMode) return;
     void withTimeout(supabase.rpc("get_worker_marketplace_trust", { p_worker_id: worker.user_id }), 15000, "Profile totals took too long.").then(result => {
       if (!active) return;
@@ -102,8 +105,16 @@ function WorkerProfileContent({
       for (const reaction of (result.data || []) as PostReaction[]) { grouped[reaction.post_id] ||= { counts: {}, mine: null }; grouped[reaction.post_id].counts[reaction.emoji] = Number(reaction.reaction_count || 0); if (reaction.mine) grouped[reaction.post_id].mine = reaction.emoji; }
       setPostReactions(grouped);
     }).catch(() => undefined);
+    void withTimeout(supabase.rpc('get_worker_pro_service_packages', { p_worker_id: worker.user_id }), 15000, 'Packages took too long.').then(result => {
+      if (active && !result.error && Array.isArray(result.data)) setPackages(result.data as PublicPackage[]);
+    }).catch(() => undefined);
+    void withTimeout(supabase.rpc('get_worker_pro_featured_posts', {p_worker_id:worker.user_id}),15000,'Featured work took too long.').then(async result=>{
+      if(!active || result.error || !Array.isArray(result.data))return;
+      const posts=await Promise.all(result.data.slice(0,3).map((id:string)=>showcase.findPost(id).catch(()=>null)));
+      if(active)setFeaturedPosts(posts.filter((post):post is Post=>Boolean(post)));
+    }).catch(()=>undefined);
     return () => { active = false; };
-  }, [worker.user_id, privateConversationMode, attempt]);
+  }, [worker.user_id, privateConversationMode, attempt, showcase.findPost]);
 
   const skills = workerServiceNames(worker),
     occupation = workerRoleLabel(worker),
@@ -155,6 +166,8 @@ function WorkerProfileContent({
         {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
       </section> : trustError ? <p className="text-sm text-[var(--wh-text-secondary)]">{trustError} <button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></p> : null}
       {skills.length > 1 ? <section><h2 className="text-sm font-semibold text-[#D6DBE5]">Services</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{skills.join(" · ")}</p></section> : null}
+      {featuredPosts.length>0 && <section aria-label="Featured work" className="space-y-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-violet-600 dark:text-violet-300">Worker Pro portfolio</p><h2 className="mt-1 text-lg font-semibold">Featured work</h2></div><WorkerShowcaseGrid posts={featuredPosts} loading={false} onOpen={post=>void openPost(post)} onRetry={()=>setAttempt(n=>n+1)}/></section>}
+      {packages.length > 0 && <section aria-label="Service packages" className="space-y-3"><h2 className="text-base font-semibold">Service packages</h2><p className="text-xs text-[var(--wh-text-secondary)]">Example starting prices from this Worker. Request and payment still go through the normal WeHouse booking flow.</p><div className="grid gap-2 sm:grid-cols-2">{packages.map(pkg => <article key={pkg.id} className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4"><div className="flex justify-between gap-2"><h3 className="text-sm font-semibold">{pkg.title}</h3><strong className="text-sm">From ₦{Number(pkg.price_ngn).toLocaleString('en-NG')}</strong></div><p className="mt-2 whitespace-pre-wrap text-sm text-[var(--wh-text-secondary)]">{pkg.description}</p></article>)}</div></section>}
       <div role="tablist" aria-label="Worker profile content" className="flex border-b border-[var(--wh-border-subtle)]">{([['work', 'Work posts'], ['reviews', 'Reviews']] as const).map(([key, label]) => <button key={key} type="button" role="tab" id={`worker-${key}-tab`} aria-controls={`worker-${key}-panel`} aria-selected={section === key} tabIndex={section === key ? 0 : -1} onClick={() => setSection(key)} onKeyDown={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const next = event.key === 'Home' ? 'work' : event.key === 'End' ? 'reviews' : section === 'work' ? 'reviews' : 'work'; setSection(next); document.getElementById(`worker-${next}-tab`)?.focus(); } }} className={`min-h-12 flex-1 border-b-2 px-4 text-sm font-medium ${section === key ? "border-violet-400 text-violet-200" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{label}</button>)}</div>
       {section === "work" ? <section role="tabpanel" id="worker-work-panel" aria-labelledby="worker-work-tab"><WorkerShowcaseGrid posts={workPosts} loading={showcase.loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void showcase.load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void showcase.load(true)} /></section> : <section role="tabpanel" id="worker-reviews-panel" aria-labelledby="worker-reviews-tab">
         {reviewLoading ? <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading reviews…</p> : reviewError ? <div role="alert" className="py-6 text-sm text-[var(--wh-text-secondary)]">{reviewError}<button type="button" onClick={() => setAttempt(n => n + 1)} className="ml-2 min-h-11 text-violet-300">Try again</button></div> : reviews.length ? <div className="divide-y divide-[var(--wh-border-subtle)]">{reviews.map(review => <article key={review.id} className="py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{review.reviewer_name}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{review.service_name} · {new Date(review.created_at).toLocaleDateString()}</p></div><p aria-label={`${review.rating} out of 5`} className="text-sm text-amber-300">{"★".repeat(Math.max(0, Math.min(5, Number(review.rating))))}</p></div>{review.comment && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{review.comment}</p>}</article>)}</div> : <p className="py-10 text-center text-sm text-[var(--wh-text-secondary)]">No customer reviews yet.</p>}

@@ -4,6 +4,8 @@ import { getMySharedHousingGroups, type SharedHousingGroup } from "@/lib/supabas
 import { sharedHousingLane } from "@/lib/sharedHousingPresentation";
 import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
+import StayArrivalInstructions from "@/components/StayArrivalInstructions";
+import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
 import ShortLetPaymentReview from "@/components/ShortLetPaymentReview";
 import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
@@ -1149,6 +1151,8 @@ function ServiceBookingDetail({
             </p>
           </section>
 
+          {status === 'approved_released' && detail.worker_id && <WorkerCustomerRecordConsent workerId={String(detail.worker_id)} />}
+
           <button
             type="button"
             onClick={onConversation}
@@ -1487,6 +1491,8 @@ function PropertyBookingDetail({
             )}
           </div>
 
+          {short && journey.rentPaid && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
+
           {row.hold_expires_at &&
           !journey.rentPaid &&
           !["occupied", "completed"].includes(row.status) ? (
@@ -1757,6 +1763,7 @@ function HotelBookingDetail({
           </div>
 
           <HotelSpecialRequest request={row.special_requests} />
+          {row.payment_status === 'paid' && <StayArrivalInstructions kind="hotel" bookingId={String(row.booking_id)} />}
 
           <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--wh-text-secondary)]">

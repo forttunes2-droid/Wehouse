@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ClipboardList, Download, Plus, TrendingUp } from 'lucide-react';
+import { CalendarDays, Check, ClipboardList, Download, Plus, TrendingUp, BedDouble } from 'lucide-react';
+import PartnerProArrivalTools from '@/components/PartnerProArrivalTools';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
@@ -14,7 +15,7 @@ type Overview = { assets: Asset[]; stays: Stay[]; income: Income[]; tasks: Task[
 type PartnerPlan = { active: boolean; under_review?: boolean; current_period_end: string | null; sales_enabled: boolean;
   monthly_price_ngn: number; yearly_price_ngn: number; terms_version: string;
   terms_content: string; terms_accepted: boolean; auto_renews: false };
-type Section = 'calendar' | 'income' | 'tasks';
+type Section = 'calendar' | 'income' | 'tasks' | 'occupancy';
 const key = (kind: string, id: string) => `${kind}:${id}`;
 const money = (amount: number) => `₦${Number(amount || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
 const date = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -177,16 +178,17 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
         <Stat value={String(tasks.filter(row => row.status === 'open').length)} label="Open tasks" />
       </div>
     </header>
-    <nav aria-label="Property Pro tools" className="grid grid-cols-3 gap-1 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1">
-      {([['calendar','Calendar',CalendarDays],['income','Income',TrendingUp],['tasks','Tasks',ClipboardList]] as const).map(([id,label,Icon]) =>
+    <nav aria-label="Property Pro tools" className="grid grid-cols-2 gap-1 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1 sm:grid-cols-4">
+      {([['calendar','Calendar',CalendarDays],['income','Income',TrendingUp],['tasks','Tasks',ClipboardList],['occupancy','Occupancy',BedDouble]] as const).map(([id,label,Icon]) =>
         <button key={id} type="button" aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold sm:text-sm ${section === id ? 'bg-violet-500 text-white' : 'text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]'}`}><Icon size={17} /><span>{label}</span></button>)}
     </nav>
     {loading ? <p role="status" className="py-12 text-center text-sm text-[var(--wh-text-secondary)]">Loading your portfolio…</p> : error ? <section role="alert" className="rounded-2xl border border-red-400/20 p-5 text-sm">Portfolio tools could not load. <button type="button" onClick={() => void load()} className="ml-2 text-violet-600 underline dark:text-violet-300">Try again</button></section> : <>
-      {section !== 'income' && <div><p className="mb-2 text-sm text-[var(--wh-text-secondary)]">Property</p>
+      {section !== 'income' && section !== 'occupancy' && <div><p className="mb-2 text-sm text-[var(--wh-text-secondary)]">Property</p>
         <WeHouseSelect value={asset} onChange={setAsset} title="Choose a property" ariaLabel="Choose property"
           className="min-h-12 w-full text-[13px] sm:max-w-md"
           options={[{value:'all',label:'All owned properties and hotels'},...assets.map(item=>({value:key(item.kind,item.id),label:`${item.title} · ${item.kind === 'home' ? 'Home' : 'Hotel'}`}))]} />
       </div>}
+      {section === 'occupancy' && <PartnerProArrivalTools assets={assets} />}
       {section === 'calendar' && <section aria-label="Portfolio calendar" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 sm:p-6">
         <div className="flex items-center gap-3"><CalendarDays className="text-violet-600 dark:text-violet-300" size={20} /><div><h2 className="text-lg font-semibold">Upcoming stays</h2><p className="text-xs text-[var(--wh-text-secondary)]">Confirmed or paid stays, from 30 days ago through the next 180 days.</p></div></div>
         {data?.stays_limited && <p className="mt-3 text-xs text-amber-700 dark:text-amber-200">Only the first 1,000 stays are shown. Open the property record for its complete schedule.</p>}

@@ -38,6 +38,8 @@ export const supabase:any={
   if(name==='creator_get_worker_publication')return ok({enabled:false,launch_approved:false,worker:null});
   if(name==='get_my_workspace_help_targets')return state.failHelp?bad():ok(help());
   if(name==='get_worker_marketplace_trust')return state.failTrust?bad():ok({reviewed:true,trusted:false,completed_jobs:7,rating:4.8,review_count:1});
+  if(name==='get_worker_pro_service_packages')return ok([]);
+  if(name==='get_worker_pro_featured_posts')return ok([]);
   if(name==='get_public_worker_reviews')return state.failReviews?bad():ok([{id:'review-1',rating:5,comment:'Careful work and a tidy finish.',created_at:'2026-09-21T12:00:00Z',reviewer_name:'Ada Example',service_name:'Carpentry'}]);
   if(name==='get_worker_showcase_reactions')return ok([]);
   if(name==='get_worker_showcase_post_comments_page'){

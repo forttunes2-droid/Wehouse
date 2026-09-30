@@ -157,7 +157,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           </div>
         </div>
         <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-          {pro.features.filter(feature => !/sponsored|priority/i.test(feature)).map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[#D3D7E0]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-200">✓</span><span>{feature}</span></div>)}
+          {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule and in-app work reminders', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[#D3D7E0]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-200">✓</span><span>{feature}</span></div>)}
         </div>
         {!pro.active && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
