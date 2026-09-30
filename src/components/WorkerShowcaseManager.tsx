@@ -40,6 +40,11 @@ function WorkerShowcaseContent({
   const { ask, dialogProps } = useConfirm();
   const input = useRef<HTMLInputElement>(null);
   const soundInput = useRef<HTMLInputElement>(null);
+  const editPreview = useRef<HTMLVideoElement>(null);
+  const voiceRecorder = useRef<MediaRecorder | null>(null);
+  const voiceStream = useRef<MediaStream | null>(null);
+  const voiceTimer = useRef(0);
+  const voiceDiscard = useRef(false);
   const showcase = useWorkerShowcase(profile.user_id, true);
   const { posts, loading, load } = showcase;
   const [visibility, setVisibility] = useState("all");
@@ -58,6 +63,7 @@ function WorkerShowcaseContent({
   const [sound, setSound] = useState<File | null>(null);
   const [soundVolume, setSoundVolume] = useState(0.6);
   const [editDirty, setEditDirty] = useState(false);
+  const [recordingVoice, setRecordingVoice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -107,6 +113,45 @@ function WorkerShowcaseContent({
     },
     [preview],
   );
+  useEffect(()=>()=>{
+    window.clearTimeout(voiceTimer.current);
+    if(voiceRecorder.current?.state==='recording')voiceRecorder.current.stop();
+    voiceStream.current?.getTracks().forEach(track=>track.stop());
+  },[]);
+
+  function stopVoiceover() {
+    window.clearTimeout(voiceTimer.current);
+    if (voiceRecorder.current?.state==='recording') voiceRecorder.current.stop();
+    editPreview.current?.pause();
+  }
+  async function recordVoiceover() {
+    if (!originalVideo || recordingVoice || busy || preparingVideo) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder==='undefined') return toast.error('Microphone recording is unavailable on this device. You can add an audio file instead.');
+    const mimeType=['audio/mp4','audio/webm;codecs=opus','audio/webm'].find(type=>MediaRecorder.isTypeSupported(type));
+    if (!mimeType) return toast.error('This device cannot record a compatible voiceover. Add an audio file instead.');
+    try {
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      voiceDiscard.current=false;
+      voiceStream.current=stream;
+      const recorder=new MediaRecorder(stream,{mimeType});
+      voiceRecorder.current=recorder;
+      const chunks:Blob[]=[];
+      recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
+      recorder.onstop=()=>{
+        window.clearTimeout(voiceTimer.current);
+        stream.getTracks().forEach(track=>track.stop()); voiceStream.current=null;voiceRecorder.current=null;
+        editPreview.current?.pause();setRecordingVoice(false);
+        const body=new Blob(chunks,{type:mimeType.split(';')[0]});
+        if(body.size && !voiceDiscard.current){setSound(new File([body],`voiceover.${mimeType.startsWith('audio/mp4')?'m4a':'webm'}`,{type:body.type}));setEditDirty(true);toast.success('Voiceover recorded. Apply the edit to preview it.');}
+      };
+      recorder.onerror=()=>{stopVoiceover();toast.error('Voiceover recording failed. Try an audio file.');};
+      const video=editPreview.current;
+      if(video){video.muted=true;video.currentTime=trimStart;}
+      recorder.start(250);setRecordingVoice(true);
+      if(video) void video.play().catch(()=>undefined);
+      voiceTimer.current=window.setTimeout(stopVoiceover,Math.ceil(Math.min(90,trimEnd-trimStart)*1000));
+    } catch {voiceStream.current?.getTracks().forEach(track=>track.stop());voiceStream.current=null;setRecordingVoice(false);toast.error('Microphone permission is needed to record. You can add an audio file instead.');}
+  }
 
   async function chooseFile(selected: File) {
     const isVideo = selected.type.startsWith("video/");
@@ -135,6 +180,8 @@ function WorkerShowcaseContent({
   }
 
   function clearComposer() {
+    voiceDiscard.current=true;
+    stopVoiceover();
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview("");
@@ -308,7 +355,7 @@ function WorkerShowcaseContent({
             <button
               type="button"
               onClick={clearComposer}
-              disabled={busy || preparingVideo || editDirty}
+              disabled={busy || preparingVideo}
               className="grid h-11 w-11 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)]"
               aria-label="Close preview"
             >
@@ -322,7 +369,7 @@ function WorkerShowcaseContent({
             </div>
             <button
               onClick={() => void publish()}
-              disabled={busy}
+              disabled={busy || recordingVoice || preparingVideo || editDirty}
               className="min-h-11 rounded-xl bg-violet-500 px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {busy ? publishStage === 'preparing' ? "Preparing…" : publishStage === 'uploading' ? `${uploadProgress}%` : "Saving…" : "Publish"}
@@ -331,7 +378,7 @@ function WorkerShowcaseContent({
           <main className="min-h-0 flex-1 overflow-y-auto">
             <div className="grid min-h-[48dvh] place-items-center bg-black">
               {previewIsVideo ? (
-                <VideoPlayer src={preview} className="max-h-[60dvh] w-full bg-black object-contain" />
+                originalVideo ? <video ref={editPreview} src={preview} controls playsInline preload="metadata" className="max-h-[60dvh] w-full bg-black object-contain" /> : <VideoPlayer src={preview} className="max-h-[60dvh] w-full bg-black object-contain" />
               ) : (
                 <img
                   src={preview}
@@ -345,15 +392,16 @@ function WorkerShowcaseContent({
                 <h2 className="text-sm font-semibold">Edit video</h2><p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Trim to 90 seconds and mix your own audio file. Use audio you have permission to share; WeHouse does not provide a music catalogue.</p>
                 <div className="mt-3 grid grid-cols-2 gap-3"><label className="text-xs">Start (seconds)<input type="number" min="0" max={Math.max(0,trimEnd-1)} step="0.1" value={trimStart} disabled={preparingVideo||busy} onChange={event=>{setTrimStart(Number(event.target.value));setEditDirty(true);}} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3"/></label><label className="text-xs">End (seconds)<input type="number" min={trimStart+1} max={duration} step="0.1" value={trimEnd} disabled={preparingVideo||busy} onChange={event=>{setTrimEnd(Number(event.target.value));setEditDirty(true);}} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3"/></label></div>
                 <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">Original length {duration.toFixed(1)} seconds · Clip {Math.max(0,trimEnd-trimStart).toFixed(1)} seconds</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" disabled={busy||preparingVideo} onClick={()=>soundInput.current?.click()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">{sound?'Replace audio':'Add your audio'}</button>{sound && <><span className="max-w-40 truncate text-xs">{sound.name}</span><button type="button" onClick={()=>{setSound(null);setEditDirty(true);}} className="min-h-11 text-xs underline">Remove</button></>}</div>
+                <div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" disabled={busy||preparingVideo||recordingVoice} onClick={()=>soundInput.current?.click()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">{sound?'Replace audio':'Add your audio'}</button><button type="button" disabled={busy||preparingVideo} onClick={()=>recordingVoice?stopVoiceover():void recordVoiceover()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">{recordingVoice?'Stop voiceover':'Record voiceover'}</button>{sound && <><span className="max-w-40 truncate text-xs">{sound.name}</span><button type="button" disabled={recordingVoice} onClick={()=>{setSound(null);setEditDirty(true);}} className="min-h-11 text-xs underline">Remove</button></>}</div>
+                {recordingVoice && <p role="status" className="mt-2 text-xs text-red-400">Recording from the start of the selected clip. Stop when you finish speaking.</p>}
                 {sound && <label className="mt-3 block text-xs">Added audio volume <input aria-label="Added audio volume" type="range" min="0" max="1" step="0.05" value={soundVolume} onChange={event=>{setSoundVolume(Number(event.target.value));setEditDirty(true);}} className="mt-2 w-full accent-violet-500"/></label>}
-                <button type="button" disabled={busy||preparingVideo||trimEnd-trimStart<1||trimEnd-trimStart>90||trimEnd>duration||trimStart<0} onClick={()=>void applyVideoEdit()} className="mt-3 min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{preparingVideo?'Preparing edit…':'Apply edit and preview'}</button>
+                <button type="button" disabled={busy||preparingVideo||recordingVoice||trimEnd-trimStart<1||trimEnd-trimStart>90||trimEnd>duration||trimStart<0} onClick={()=>void applyVideoEdit()} className="mt-3 min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{preparingVideo?'Preparing edit…':'Apply edit and preview'}</button>
               </section>}
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => input.current?.click()}
-                  disabled={busy}
+                  disabled={busy || recordingVoice}
                   className="rounded-full border border-[var(--wh-border-subtle)] px-4 py-2 text-sm font-semibold"
                 >
                   Replace media
