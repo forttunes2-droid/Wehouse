@@ -18,12 +18,15 @@ async def main():
     await expect(page.get_by_role('heading',name={'Calendar':'Upcoming stays','Income':'Available earnings','Tasks':'Maintenance and turnover','Occupancy':'Next 30 days'}[section])).to_be_visible()
     if section=='Occupancy':
      await expect(page.get_by_text('9 booked of 60 listed unit nights')).to_be_visible()
-     await page.get_by_label('Place').select_option('hotel:42')
+     await page.get_by_role('button',name='Arrival instructions property').click()
+     await page.get_by_role('dialog',name='Arrival instructions property').get_by_role('button',name='Garden Lodge · hotel',exact=True).click()
      await page.get_by_role('textbox',name='Guest arrival instructions').fill('Check in at the garden reception.')
      await page.get_by_role('button',name='Save instructions').click()
      await expect(page.get_by_role('button',name='Save instructions')).to_be_enabled()
-     await page.get_by_label('Place').select_option('home:home-1')
-     await page.get_by_label('Place').select_option('hotel:42')
+     await page.get_by_role('button',name='Arrival instructions property').click()
+     await page.get_by_role('dialog',name='Arrival instructions property').get_by_role('button',name='Lafia Courtyard Home · home',exact=True).click()
+     await page.get_by_role('button',name='Arrival instructions property').click()
+     await page.get_by_role('dialog',name='Arrival instructions property').get_by_role('button',name='Garden Lodge · hotel',exact=True).click()
      await expect(page.get_by_role('textbox',name='Guest arrival instructions')).to_have_value('Check in at the garden reception.')
     await page.screenshot(path=str(OUT/f'partner-pro-{section.lower()}-{width}.png'),full_page=True)
     if width==390:

@@ -37,6 +37,8 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     return () => { live = false; };
   }, [native, nativeSalesEnabled, nativeProductId, pro?.active]);
 
+  useEffect(() => { setTermsAccepted(false); }, [profile.user_id, pro?.terms_version, pro?.terms_content]);
+
   async function subscribe(selectedBillingPeriod: WorkerProBillingPeriod) {
     if (!pro || (!native && !pro.sales_enabled)) return;
     if (!termsAccepted) {
@@ -140,10 +142,10 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
       <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.12em] text-violet-200">WeHouse Pro · Service Worker</p>
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-violet-700 dark:text-violet-200">WeHouse Pro · Service Worker</p>
             <h2 className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{pro.product_name || 'Work tools'}{pro.active && <GoldTickBadge />}</h2>
           </div>
-          <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${pro.active ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200' : checkoutAvailable ? 'border-violet-400/25 bg-violet-400/10 text-violet-100' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Sales closed'}</span>
+          <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${pro.active ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-700 dark:text-emerald-200' : checkoutAvailable ? 'border-violet-400/25 bg-violet-400/10 text-violet-700 dark:text-violet-100' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Sales closed'}</span>
         </div>
         <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">Business tools for Service Workers: track completed jobs, make quotes and issue invoices. Membership does not change professional review or customer ranking.</p>
         {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[var(--wh-text-secondary)]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
@@ -157,7 +159,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           </div>
         </div>
         <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-          {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule and in-app work reminders', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[#D3D7E0]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-200">✓</span><span>{feature}</span></div>)}
+          {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule and in-app work reminders', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><span>{feature}</span></div>)}
         </div>
         {!pro.active && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
@@ -174,13 +176,13 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
                   <span className="block text-sm font-semibold">{plan.label}</span>
                   <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `₦${Number(plan.price_ngn).toLocaleString()}`}</span>
                   {!native && plan.billing_period === 'yearly' && plan.saving_ngn > 0 && (
-                    <span className="mt-1 block text-xs font-semibold text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
+                    <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
                   )}
                 </button>
               ))}
             </div>
             <details>
-              <summary className="cursor-pointer text-sm font-semibold text-[#D6D8DF]">Read paid plan subscription terms ({pro.terms_version || 'not published'})</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--wh-text)]">Read paid plan subscription terms ({pro.terms_version || 'not published'})</summary>
               <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{pro.terms_content || 'Subscription terms are not available. Sales must remain off.'}</p>
             </details>
             <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">

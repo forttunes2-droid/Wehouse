@@ -25,7 +25,7 @@ async def main():
      if active and width==390 and mode=='active':
       await page.get_by_role('button',name='Business tools',exact=True).click()
       business=page.get_by_role('region',name='Worker Pro business tools')
-      await expect(business.get_by_text('Carpentry · #TEST-JOB')).to_be_visible()
+      await expect(business.locator('strong').filter(has_text='Carpentry · #TEST-JOB')).to_be_visible()
       await business.get_by_role('button',name='Packages',exact=True).click()
       await business.get_by_role('textbox',name='Title').fill('Cabinet repair')
       await business.get_by_role('textbox',name='What is included').fill('Replace hinges and align doors')

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import WeHouseChoice from '@/components/WeHouseChoice';
 import { supabase } from '@/lib/supabase';
 
 type Asset = { kind: 'home' | 'hotel'; id: string; title: string };
@@ -17,9 +18,12 @@ export default function PartnerProArrivalTools({ assets }: { assets: Asset[] }) 
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error: failure } = await supabase.rpc('get_my_partner_pro_arrival_setup');
-    if (failure || !Array.isArray(data?.occupancy) || !Array.isArray(data?.instructions)) setError(true);
-    else { setError(false); setOccupancy(data.occupancy); setInstructions(data.instructions); }
+    try {
+      const { data, error: failure } = await supabase.rpc('get_my_partner_pro_arrival_setup');
+      if (failure || !Array.isArray(data?.occupancy) || !Array.isArray(data?.instructions)) {
+        setError(true); setOccupancy([]); setInstructions([]);
+      } else { setError(false); setOccupancy(data.occupancy); setInstructions(data.instructions); }
+    } catch { setError(true); setOccupancy([]); setInstructions([]); }
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -56,7 +60,7 @@ export default function PartnerProArrivalTools({ assets }: { assets: Asset[] }) 
       <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 sm:p-6">
         <h2 className="text-lg font-semibold">Guest arrival instructions</h2>
         <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Add directions, entry steps or a reception note. These appear in the guest’s paid booking. Avoid permanent door codes or other secrets that should be sent closer to arrival.</p>
-        <label className="mt-4 block text-sm font-medium">Place<select value={selected} onChange={event=>choose(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3"><option value="">Choose a place</option>{assets.map(row=><option key={assetKey(row.kind,row.id)} value={assetKey(row.kind,row.id)}>{row.title} · {row.kind}</option>)}</select></label>
+        <label className="mt-4 block text-sm font-medium">Place<WeHouseChoice aria-label="Arrival instructions property" value={selected} onChange={event=>choose(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3"><option value="">Choose a place</option>{assets.map(row=><option key={assetKey(row.kind,row.id)} value={assetKey(row.kind,row.id)}>{row.title} · {row.kind}</option>)}</WeHouseChoice></label>
         {current && <><textarea aria-label="Guest arrival instructions" rows={5} maxLength={1500} value={draft} onChange={event=>setDraft(event.target.value)} placeholder="e.g. Enter through reception on Main Street. Ask for the WeHouse booking desk." className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-sm"/><div className="mt-2 flex items-center justify-between gap-2"><span className="text-xs text-[var(--wh-text-secondary)]">{draft.length}/1500 · Clear and save to remove</span><button type="button" disabled={busy} onClick={()=>void save()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{busy?'Saving…':'Save instructions'}</button></div></>}
       </section>
     </>}

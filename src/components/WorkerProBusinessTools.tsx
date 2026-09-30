@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import WeHouseChoice from '@/components/WeHouseChoice';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 
@@ -34,8 +35,14 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
   const alerted = useRef(new Set<string>());
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error: failure } = await supabase.rpc('get_my_worker_pro_business');
-    if (failure || !data || !Array.isArray(data.schedule) || !Array.isArray(data.receipts)) {
+    let data: Book | null = null;
+    let failure = false;
+    try {
+      const result = await supabase.rpc('get_my_worker_pro_business');
+      data = result.data as Book | null;
+      failure = Boolean(result.error);
+    } catch { failure = true; }
+    if (failure || !data || !['schedule', 'customers', 'packages', 'reminders', 'receipts'].every(key => Array.isArray(data[key as keyof Book]))) {
       setBook(empty); setError(true);
     } else {
       setBook(data as Book); setError(false);
@@ -109,11 +116,11 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
     {loading ? <p role="status" className="py-6 text-sm">Loading your business tools…</p> : error ?
       <div role="alert" className={card}>Business tools could not load. <button type="button" onClick={() => void load()} className="ml-2 underline">Try again</button></div> : <>
       {tab==='schedule' && <div className="space-y-4">
-        <div className={card}><h3 className="text-base font-semibold">Upcoming work</h3><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Confirmed jobs use their existing scheduled date. A reminder appears here and while WeHouse is open.</p>
+        <div className={card}><h3 className="text-base font-semibold">Upcoming work</h3><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Confirmed jobs use their existing scheduled date. Reminders appear while this business-tools screen is open. They are not background, email or push notifications.</p>
           {book.schedule.length ? <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{book.schedule.map(job => <div key={job.id} className="py-3 text-sm"><strong>{job.service_type || 'Service job'} · #{job.booking_code || job.id.slice(0,8)}</strong><p className="text-[var(--wh-text-secondary)]">{job.customer_name} · {label(job.scheduled_date)} · {job.status.replaceAll('_',' ')}</p></div>)}</div> : <p className="mt-4 text-sm text-[var(--wh-text-secondary)]">No scheduled jobs in this period.</p>}</div>
         <form onSubmit={event => { event.preventDefault(); if (!Number.isFinite(new Date(reminderAt).getTime())) return; void write('save_my_worker_pro_reminder',{p_booking_id:reminderJob,p_due_at:new Date(reminderAt).toISOString(),p_note:reminderNote,p_done:false},'Reminder saved').then(saved=>{ if (saved) { setReminderAt(''); setReminderNote(''); } }); }} className={card}>
           <h3 className="text-base font-semibold">Set a work reminder</h3><div className="mt-3 grid gap-3">
-            <label className="text-sm">Job<select required value={reminderJob} onChange={event=>setReminderJob(event.target.value)} className={`${field} mt-1`}><option value="">Choose a job</option>{book.schedule.map(job=><option key={job.id} value={job.id}>{job.service_type || 'Service'} · #{job.booking_code || job.id.slice(0,8)}</option>)}</select></label>
+            <label className="text-sm">Job<WeHouseChoice aria-label="Reminder job" value={reminderJob} onChange={event=>setReminderJob(event.target.value)} className={`${field} mt-1`}><option value="">Choose a job</option>{book.schedule.map(job=><option key={job.id} value={job.id}>{job.service_type || 'Service'} · #{job.booking_code || job.id.slice(0,8)}</option>)}</WeHouseChoice></label>
             <label className="text-sm">When<input required type="datetime-local" value={reminderAt} onChange={event=>setReminderAt(event.target.value)} className={`${field} mt-1`}/></label>
             <label className="text-sm">What to remember<input required minLength={3} maxLength={240} value={reminderNote} onChange={event=>setReminderNote(event.target.value)} className={`${field} mt-1`}/></label>
             <button type="submit" disabled={busy || !reminderJob || !reminderAt} className={action}>Save reminder</button>

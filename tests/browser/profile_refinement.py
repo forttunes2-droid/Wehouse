@@ -111,7 +111,7 @@ async def main():
       await tiles.nth(0).click();await page.get_by_label('Post options',exact=True).click();await page.get_by_role('button',name='Hide from profile',exact=True).click()
       await expect(page.get_by_role('dialog',name='Sani Example work post')).to_have_count(0)
       assert len([x for x in await page.evaluate('window.__fixtureState.calls') if x['name']=='set_my_worker_work_post_hidden'])==1
-      await page.locator('input[type=file]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
+      await page.locator('input[type=file][accept^="image/"]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
       await expect(page.get_by_role('dialog',name='New work post')).to_be_visible()
       await page.get_by_placeholder('Describe this work').fill('Sample cabinet fitting')
       await expect(page.get_by_label('Link completed job')).to_be_visible()
