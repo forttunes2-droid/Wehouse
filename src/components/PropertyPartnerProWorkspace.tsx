@@ -53,6 +53,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
     } else { setData(result.data as Overview); setError(false); }
     setLoading(false);
   }, []);
+  useEffect(() => { setAccepted(false); }, [profile.user_id, plan?.terms_version, plan?.terms_content]);
   useEffect(() => { void loadPlan(); }, [loadPlan, profile.user_id]);
   useEffect(() => { if (plan?.active) void load(); }, [load, plan?.active, profile.user_id]);
   useEffect(() => { if (plan?.monthly_price_ngn === 0 && plan.yearly_price_ngn > 0) setPeriod('yearly'); }, [plan?.monthly_price_ngn, plan?.yearly_price_ngn]);

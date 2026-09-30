@@ -22,6 +22,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   const [storePlan, setStorePlan] = useState<NativeStorePlan | null>(null);
   const [storeError, setStoreError] = useState('');
   const native = isNative();
+  const underReview = Boolean(pro && 'under_review' in pro && pro.under_review === true);
   const nativeSalesEnabled = Boolean(import.meta.env.VITE_NATIVE_BILLING_ENABLED === 'true'
     && (isIOS() ? pro?.native_sales?.ios_enabled : pro?.native_sales?.android_enabled));
   const nativeProductId = pro?.plans?.find(plan => plan.billing_period === billingPeriod)?.[isIOS() ? 'apple_product_id' : 'google_product_id'] || '';
@@ -40,7 +41,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   useEffect(() => { setTermsAccepted(false); }, [profile.user_id, pro?.terms_version, pro?.terms_content]);
 
   async function subscribe(selectedBillingPeriod: WorkerProBillingPeriod) {
-    if (!pro || (!native && !pro.sales_enabled)) return;
+    if (!pro || underReview || (!native && !pro.sales_enabled)) return;
     if (!termsAccepted) {
       toast.error('Please read and accept the current paid plan subscription terms');
       return;
@@ -132,9 +133,9 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     : planOptions.find((plan) => plan.web_available) || requestedPlan;
   const selectedBillingPeriod = selectedPlan?.billing_period || billingPeriod;
   const anyWebPlanAvailable = planOptions.some((plan) => plan.web_available);
-  const checkoutAvailable = native
+  const checkoutAvailable = !underReview && (native
     ? Boolean(nativeSalesEnabled && storePlan && selectedPlan && pro.terms_content)
-    : Boolean(pro.sales_enabled && selectedPlan?.web_available);
+    : Boolean(pro.sales_enabled && selectedPlan?.web_available));
   const activeUntil = pro.current_period_end ? new Date(pro.current_period_end).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
   return (
@@ -161,7 +162,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
         <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule and in-app work reminders', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><span>{feature}</span></div>)}
         </div>
-        {!pro.active && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
+        {!pro.active && !underReview && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
             <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Billing period">
               {planOptions.map((plan) => (
@@ -201,6 +202,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <p className="mt-4 text-sm leading-6 text-[var(--wh-text-secondary)]">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
+      {underReview && <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your Worker Pro payment is under Finance review after a provider refund or dispute notice. Paid tools and new checkout are paused. Your free Worker profile, bookings and existing work documents remain available.</p>}
       {native && <button onClick={() => void restore()} disabled={busy || import.meta.env.VITE_NATIVE_BILLING_ENABLED !== 'true'} className="w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-[10px] font-semibold disabled:opacity-40">Restore store subscription</button>}
       {tools}
     </div>

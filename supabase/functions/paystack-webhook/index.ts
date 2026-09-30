@@ -404,6 +404,14 @@ Deno.serve(async (req) => {
         });
         if (partnerReview.error)
           return new Response("Partner Pro provider event processing error", { status: 500 });
+        const workerReview = await db.rpc("pause_worker_pro_on_provider_event", {
+          p_reference: reference,
+          p_event_type: event.event,
+          p_environment: environment === "production" ? "live" : "test",
+          p_event_key: eventId(event),
+        });
+        if (workerReview.error)
+          return new Response("Worker Pro provider event processing error", { status: 500 });
       }
     }
 

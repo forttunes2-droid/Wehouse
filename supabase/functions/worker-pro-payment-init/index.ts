@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
     if (!response.ok || !initialized?.status || !initialized?.data?.authorization_url || !initialized?.data?.access_code) return json({ success: false, error: initialized?.message || 'Paystack could not initialize paid plan checkout' }, response.status >= 500 ? 502 : 400);
     const nextMetadata = {
       ...metadata,
+      paystack_environment: paystackSecret.startsWith('sk_live_') ? 'live' : 'test',
       paystack_access_code: String(initialized.data.access_code),
       paystack_authorization_url: String(initialized.data.authorization_url),
       paystack_plan_verified_at: new Date().toISOString(),
