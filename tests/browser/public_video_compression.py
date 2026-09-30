@@ -1,6 +1,7 @@
 """Real Chromium encode/decode of an oversized public video, without Storage access."""
 import asyncio
 import base64
+import json
 import subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright
@@ -35,6 +36,8 @@ async def main():
         '-maxrate', '8M', '-bufsize', '16M', '-an', str(longer_fixture),
     ], check=True)
     assert 5_000_000 < longer_fixture.stat().st_size <= 50_000_000
+    audio_fixture = Path('test-results/experience/work-post-original-sound.wav')
+    subprocess.run(['ffmpeg','-nostdin','-y','-loglevel','error','-f','lavfi','-i','sine=frequency=440:duration=4',str(audio_fixture)],check=True)
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
         page = await browser.new_page()
@@ -74,6 +77,22 @@ async def main():
           saved.write_bytes(base64.b64decode(encoded))
           assert saved.stat().st_size == result['output']
           print(f'{kind} video browser compression:', result)
+        edited = await page.evaluate('''async () => {
+          const { editWorkPostVideo } = await import('/src/lib/workPostVideoEditor.ts');
+          const source=await (await fetch('/test-results/experience/chat-compression-input.mp4')).blob();
+          const audio=await (await fetch('/test-results/experience/work-post-original-sound.wav')).blob();
+          const prepared=await editWorkPostVideo(new File([source],'work.mp4',{type:'video/mp4'}),2,5,
+            new File([audio],'owned-sound.wav',{type:'audio/wav'}),0.5);
+          const reader=new FileReader();
+          const encoded=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(prepared.body);});
+          return {size:prepared.body.size,extension:prepared.extension,encoded};
+        }''')
+        edited_path=Path(f'test-results/experience/work-post-edited.{edited["extension"]}')
+        edited_path.write_bytes(base64.b64decode(edited['encoded']))
+        probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration:stream=codec_type','-of','json',str(edited_path)]))
+        assert 2.4 < float(probe['format']['duration']) < 4.0,probe
+        assert {'video','audio'}.issubset({stream['codec_type'] for stream in probe['streams']}),probe
+        print('work-post trim and owned audio browser edit:',{'bytes':edited['size'],'duration':probe['format']['duration']})
         await browser.close()
 
 
