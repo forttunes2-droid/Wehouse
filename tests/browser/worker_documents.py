@@ -22,6 +22,20 @@ async def main():
      await page.evaluate('s=>window.__documents=s',{'mode':mode,'records':[RECORD,other],'insights':INSIGHTS,'calls':[],'pending':[],'failDocs':mode=='doc-error','malformed':mode=='malformed','failJobs':mode=='jobs-error'})
      await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
      active=mode in ['active','jobs-error','lapse']
+     if active and width==390 and mode=='active':
+      await page.get_by_role('button',name='Business tools',exact=True).click()
+      business=page.get_by_role('region',name='Worker Pro business tools')
+      await expect(business.get_by_text('Carpentry · #TEST-JOB')).to_be_visible()
+      await business.get_by_role('button',name='Packages',exact=True).click()
+      await business.get_by_role('textbox',name='Title').fill('Cabinet repair')
+      await business.get_by_role('textbox',name='What is included').fill('Replace hinges and align doors')
+      await business.get_by_role('spinbutton',name='Starting price (₦)').fill('12000')
+      await business.get_by_role('button',name='Save package').click()
+      assert any(c['name']=='save_my_worker_pro_package' and c['args']['p_price_ngn']==12000 for c in await page.evaluate('window.__documents.calls'))
+      await business.get_by_role('button',name='Receipts',exact=True).click()
+      async with page.expect_download() as receipt_download:
+       await business.get_by_role('button',name='Download PDF').click()
+      assert Path(await (await receipt_download.value).path()).read_bytes().startswith(b'%PDF-')
      if active:await page.get_by_role('button',name='Quotes & invoices',exact=True).click()
      archive=page.get_by_role('region',name='Your work documents')
      await expect(archive).to_be_visible()

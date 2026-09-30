@@ -16,7 +16,8 @@ returns uuid[] language sql stable security definer set search_path='pg_catalog'
     select post.id,selected.ord from public.worker_pro_featured_profiles f
     cross join lateral unnest(f.post_ids) with ordinality selected(post_id,ord)
     join public.worker_showcase_posts post on post.id=selected.post_id
-      and post.worker_id=f.worker_id and post.hidden_at is null
+      and post.worker_id=f.worker_id and post.hidden_at is null and post.deleted_at is null
+      and (post.expires_at is null or post.expires_at>now())
     where f.worker_id=p_worker_id and public.worker_pro_is_active(f.worker_id)
       and (coalesce((public._worker_publication_state(f.worker_id)->>'publicly_visible')::boolean,false)
         or f.worker_id=public.current_profile_user_id()
@@ -31,7 +32,8 @@ returns uuid[] language plpgsql security definer set search_path='pg_catalog','p
 declare v_actor text:=public.worker_pro_current_actor(); v_posts uuid[]; v_result uuid[];
 begin
   if not exists(select 1 from public.worker_showcase_posts
-    where id=p_post_id and worker_id=v_actor and hidden_at is null) then
+    where id=p_post_id and worker_id=v_actor and hidden_at is null and deleted_at is null
+      and (expires_at is null or expires_at>now())) then
     raise exception 'Visible owned work post required'; end if;
   perform 1 from public.profiles where user_id=v_actor for update;
   select post_ids into v_posts from public.worker_pro_featured_profiles where worker_id=v_actor;
