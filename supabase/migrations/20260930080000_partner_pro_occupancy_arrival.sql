@@ -85,7 +85,7 @@ begin
       where r.id=p_booking_id and r.user_id=v_actor
       and r.status not in ('cancelled','expired','refunded')
       and (r.rent_payment_status='paid' or r.manual_payment_status in ('paid','completed'));
-  elsif p_kind='hotel' and p_booking_id~'^[0-9]{1,10}$' then
+  elsif p_kind='hotel' then
     select b.hotel_id::text into v_asset from public.hotel_bookings b
       where b.booking_id::text=p_booking_id and b.user_id=v_actor and b.payment_status='paid'
         and b.status not in ('cancelled','expired','refunded','payment_conflict');

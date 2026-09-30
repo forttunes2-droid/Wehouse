@@ -63,7 +63,7 @@ declare v_actor text:=public.worker_pro_current_actor();
 begin
   return jsonb_build_object(
     'schedule',coalesce((select jsonb_agg(to_jsonb(j) order by j.scheduled_date,j.booking_code)
-      from (select id,booking_code,service_type,scheduled_date,status,
+      from (select b.id,b.booking_code,b.service_type,b.scheduled_date,b.status,
         coalesce(nullif(customer.full_name,''),customer.username,'Customer') customer_name
         from public.worker_bookings b left join public.profiles customer on customer.user_id=b.user_id
         where b.worker_id=v_actor and b.scheduled_date between current_date-30 and current_date+365

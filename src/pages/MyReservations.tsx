@@ -1491,7 +1491,7 @@ function PropertyBookingDetail({
             )}
           </div>
 
-          {short && journey.rentPaid && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
+          {journey.rentPaid && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
 
           {row.hold_expires_at &&
           !journey.rentPaid &&
