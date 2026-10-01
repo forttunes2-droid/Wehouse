@@ -1,4 +1,4 @@
-name: Requested catalog and booking burst (disposable)
+name: 500k profile and one-million property capacity (disposable)
 on:
   pull_request:
     paths:
@@ -24,13 +24,13 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Require disposable runner space
-        run: test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 8
+        run: test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 16
       - name: Start local Supabase and replay migrations
         run: |
           npx --yes supabase@2.114.0 start
           npx --yes supabase@2.114.0 db reset --local
-      - name: Seed 500,000 synthetic homes and 50,000 hotels
-        run: WEHOUSE_CAPACITY_PRESET=requested bash scripts/seed-capacity-scale.sh
+      - name: Seed 500,000 profiles and exactly one million properties
+        run: WEHOUSE_CAPACITY_PRESET=launch bash scripts/seed-capacity-scale.sh
       - name: Seed hotel rates and physical room units
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_requested_booking_fixture.sql
       - name: Size local gateway for the booking burst
@@ -38,9 +38,13 @@ jobs:
           docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=4096 supabase_kong_wehouse kong reload
           docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf | grep -Eq 'worker_connections[[:space:]]+4096;'
       - name: Measure catalog reads
-        run: WEHOUSE_CAPACITY_PRESET=requested node scripts/load-catalog-scale.mjs
+        run: WEHOUSE_CAPACITY_PRESET=launch node scripts/load-catalog-scale.mjs
       - name: Attempt 600 and 3000 distinct-user booking bursts
-        run: node scripts/load-requested-bookings-local.mjs
+        run: WEHOUSE_CAPACITY_PRESET=launch node scripts/load-requested-bookings-local.mjs
+      - name: Record database cardinality and storage
+        if: always()
+        run: |
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select pg_database_size(current_database()),(select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -5000000 and -1000001),(select count(*) from public.profiles where user_id like 'load-user-%')" > test-results/requested-database-counts.txt || true
       - name: Retain local resource and gateway evidence
         if: always()
         run: |

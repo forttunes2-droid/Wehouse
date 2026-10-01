@@ -21,10 +21,14 @@ assert.ok(anon && secret);
 const rpcAgent = new Agent({ keepAlive: true, maxSockets: 300, maxFreeSockets: 100 });
 const admin = createClient(origin.href,secret,{auth:{persistSession:false,autoRefreshToken:false}});
 const suffix = randomBytes(5).toString('hex');
+const catalog = process.env.WEHOUSE_CAPACITY_PRESET === 'launch'
+  ? {homes:500000,hotels:500000,synthetic_profiles:500000}
+  : {homes:500000,hotels:50000,synthetic_profiles:50000};
+assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['launch','requested'].includes(process.env.WEHOUSE_CAPACITY_PRESET),'Unknown booking catalog preset');
 const actors = [];
 let rpcSamples = [];
 const report = { scope:'Disposable local Supabase, real synthetic Auth users, HTTP hotel quotes and booking RPCs',
-  catalog:{homes:500000,hotels:50000}, payment:'No Paystack payment, webhook, check-in or hosted infrastructure exercised',
+  catalog, payment:'No Paystack payment, webhook, check-in or hosted infrastructure exercised',
   started_at:new Date().toISOString(), provisioned:0, stages:[], contention:null, invariants:null };
 mkdirSync('test-results',{recursive:true});
 function save() { writeFileSync('test-results/requested-bookings.json',JSON.stringify(report,null,2)+'\n'); }
@@ -122,8 +126,8 @@ async function stage(name,start,count,offset) {
 }
 try {
   const counts=execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-Atc',
-    "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -1050000 and -1000001)"],{encoding:'utf8'}).trim();
-  assert.equal(counts,'500000|50000','Exact catalog size required');
+    "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -5000000 and -1000001)"],{encoding:'utf8'}).trim();
+  assert.equal(counts,`${catalog.homes}|${catalog.hotels}`,'Exact catalog size required');
   await pool(3601,30,async i=>{await provision(i);if(report.provisioned%300===0){console.log(`Provisioned ${report.provisioned}/3601`);save();}});
   await book(actors[3600],target(0,12));
   await stage('600-user spread',0,600,30);
