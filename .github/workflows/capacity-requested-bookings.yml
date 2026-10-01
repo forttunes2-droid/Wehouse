@@ -37,6 +37,8 @@ jobs:
         run: |
           docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=4096 supabase_kong_wehouse kong reload
           docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf | grep -Eq 'worker_connections[[:space:]]+4096;'
+      - name: Record hotel query execution plans
+        run: node scripts/explain-capacity-hotels.mjs
       - name: Measure catalog reads
         run: WEHOUSE_CAPACITY_PRESET=launch node scripts/load-catalog-scale.mjs
       - name: Attempt 600 and 3000 distinct-user booking bursts
