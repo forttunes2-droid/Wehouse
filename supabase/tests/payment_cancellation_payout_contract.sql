@@ -35,10 +35,17 @@ begin
 
   if hotel_cancel not ilike '%status=''pending''%'
      or hotel_cancel not ilike '%payment_status<>''paid''%' then
-    raise exception 'Hotel self-cancellation is not limited to unpaid pending bookings';
+    raise exception 'Hotel unpaid pending cancellation guard is missing';
   end if;
-  if hotel_cancel not ilike '%Only your unpaid pending Hotel booking can be cancelled%' then
-    raise exception 'Hotel cancellation fail-closed contract changed';
+  if hotel_cancel not ilike '%Active Personal account required%'
+     or hotel_cancel not ilike '%user_id=actor for update%'
+     or hotel_cancel not ilike '%cancellation_snapshot is null%'
+     or hotel_cancel not ilike '%deadline'' is null%'
+     or hotel_cancel not ilike '%now()>(b.cancellation_snapshot->>''deadline'')::timestamptz%'
+     or hotel_cancel not ilike '%Payment requires Finance reconciliation before cancellation%'
+     or hotel_cancel not ilike '%refund_hotel_cancellation%'
+     or hotel_cancel ilike '%set payment_status=''refunded''%' then
+    raise exception 'Hotel cancellation bypasses saved terms, payment review or provider refund confirmation';
   end if;
 
   if worker_cancel not ilike '%booking_requested%'
