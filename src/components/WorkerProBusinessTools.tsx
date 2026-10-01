@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import WorkerProJobCosts from '@/components/WorkerProJobCosts';
+import { downloadCalendar } from '@/lib/proCalendar';
 import WeHouseChoice from '@/components/WeHouseChoice';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
@@ -10,7 +12,7 @@ type Package = { id: string; title: string; description: string; price_ngn: numb
 type Reminder = { id: string; booking_id: string; due_at: string; note: string; done_at: string | null };
 type Receipt = { booking_id: string; booking_code: string | null; service_type: string | null; customer_name: string; total_ngn: number; worker_earnings_ngn: number; completed_at: string; note: string };
 type Book = { schedule: Job[]; customers: Customer[]; packages: Package[]; reminders: Reminder[]; receipts: Receipt[] };
-type Tab = 'schedule' | 'customers' | 'packages' | 'receipts';
+type Tab = 'schedule' | 'customers' | 'packages' | 'receipts' | 'costs';
 const empty = { schedule: [], customers: [], packages: [], reminders: [], receipts: [] } as Book;
 const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
 const label = (value: string) => new Date(value).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -107,7 +109,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
       pdf.save(`wehouse-service-${row.booking_code || row.booking_id.slice(0,8)}.pdf`);
     } catch { toast.error('Receipt PDF could not be prepared.'); }
   }
-  const tabs: Array<[Tab,string]> = [['schedule','Schedule'],['customers','Customers'],['packages','Packages'],['receipts','Receipts']];
+  const tabs: Array<[Tab,string]> = [['schedule','Schedule'],['customers','Customers'],['packages','Packages'],['receipts','Receipts'],['costs','Job costs']];
   return <section aria-label="Worker Pro business tools" className="space-y-4">
     <div role="group" aria-label="Business tools" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {tabs.map(([id,name]) => <button key={id} type="button" aria-pressed={tab===id} onClick={() => setTab(id)}
@@ -115,8 +117,9 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
     </div>
     {loading ? <p role="status" className="py-6 text-sm">Loading your business tools…</p> : error ?
       <div role="alert" className={card}>Business tools could not load. <button type="button" onClick={() => void load()} className="ml-2 underline">Try again</button></div> : <>
+      {tab==='costs' && <WorkerProJobCosts key={profile.user_id} />}
       {tab==='schedule' && <div className="space-y-4">
-        <div className={card}><h3 className="text-base font-semibold">Upcoming work</h3><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Confirmed jobs use their existing scheduled date. Reminders appear while this business-tools screen is open. They are not background, email or push notifications.</p>
+        <div className={card}><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-semibold">Upcoming work</h3><button type="button" disabled={!book.schedule.length} onClick={()=>downloadCalendar(book.schedule.map(job=>({id:`worker-${job.id}`,title:`${job.service_type || 'Service job'} · #${job.booking_code || job.id.slice(0,8)}`,start:job.scheduled_date})),'wehouse-work-calendar.ics')} className="min-h-11 rounded-xl border px-3 text-sm disabled:opacity-40">Export calendar</button></div><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Confirmed jobs use their existing scheduled date. Reminders appear while this business-tools screen is open. They are not background, email or push notifications.</p>
           {book.schedule.length ? <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{book.schedule.map(job => <div key={job.id} className="py-3 text-sm"><strong>{job.service_type || 'Service job'} · #{job.booking_code || job.id.slice(0,8)}</strong><p className="text-[var(--wh-text-secondary)]">{job.customer_name} · {label(job.scheduled_date)} · {job.status.replaceAll('_',' ')}</p></div>)}</div> : <p className="mt-4 text-sm text-[var(--wh-text-secondary)]">No scheduled jobs in this period.</p>}</div>
         <form onSubmit={event => { event.preventDefault(); if (!Number.isFinite(new Date(reminderAt).getTime())) return; void write('save_my_worker_pro_reminder',{p_booking_id:reminderJob,p_due_at:new Date(reminderAt).toISOString(),p_note:reminderNote,p_done:false},'Reminder saved').then(saved=>{ if (saved) { setReminderAt(''); setReminderNote(''); } }); }} className={card}>
           <h3 className="text-base font-semibold">Set a work reminder</h3><div className="mt-3 grid gap-3">

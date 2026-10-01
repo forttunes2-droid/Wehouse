@@ -28,8 +28,12 @@ type Quote = {
   total_price?: number;
   blocked_date?: string;
   rate_plan_name?: string;
+  cancellation_deadline?: string | null;
+  cancellation_timezone?: string;
+  refund_amount_ngn?: number;
 };
 
+const money = (value: number) => `₦${value.toLocaleString('en-NG')}`;
 const mealLabels: Record<HotelRatePlan["meal_plan"], string> = {
   room_only: "Room only",
   breakfast: "Breakfast included",
@@ -254,7 +258,8 @@ export default function HotelBooking({
               ? `This rate is refundable when you request cancellation at least ${ratePlan.cancellation_hours ?? 0} hours before the hotel's check-in time. After that deadline, a refund is not automatic.`
               : "This rate is non-refundable if you cancel or do not arrive. A payment or stay problem can still be reported to WeHouse for review."}
           </p>
-          <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">After payment, open this booking to contact WeHouse about a cancellation, missed arrival, or a stay the hotel could not provide.</p>
+          {quote?.cancellation_deadline && <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Full refund {money(Number(quote.refund_amount_ngn || 0))} if cancelled by {new Date(quote.cancellation_deadline).toLocaleString('en-NG',{timeZone:quote.cancellation_timezone || 'Africa/Lagos'})} ({quote.cancellation_timezone || 'Africa/Lagos'}). The confirmed booking saves these terms.</p>}
+          <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Eligible paid bookings can be cancelled from your booking. Refunds go to the original payment method and remain processing until confirmed. Contact WeHouse for exceptions or a stay the hotel could not provide.</p>
         </section>
 
         <button type="button" onClick={() => void book()} disabled={submitting || quoteLoading || !quote?.available} className="h-12 w-full rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">

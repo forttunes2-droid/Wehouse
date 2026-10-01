@@ -445,7 +445,7 @@ export default function MyReservations({
     const { error } = await updateBookingStatus(id, "cancelled");
     setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success("Hotel reservation cancelled");
+    toast.success(row.payment_status === "paid" ? "Stay cancelled. Refund queued for the original payment method." : "Hotel reservation cancelled");
     await load();
   }
 
@@ -949,7 +949,7 @@ export default function MyReservations({
       <ConfirmDialog
         isOpen={Boolean(pending)}
         title="Cancel this reservation?"
-        description="This releases the reservation and cannot be undone."
+        description={pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the reservation and cannot be undone."}
         confirmLabel="Cancel reservation"
         variant="danger"
         onCancel={() => setPending(null)}
@@ -1763,6 +1763,12 @@ function HotelBookingDetail({
           </div>
 
           <HotelSpecialRequest request={row.special_requests} />
+          {row.cancellation_snapshot && <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5">
+            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
+            <p className="mt-1 text-[var(--wh-text-secondary)]">These booked terms remain fixed if the hotel later changes its rate. Exceptions can be sent to WeHouse for review.</p>
+          </div>}
+          {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {money(row.refund_amount_ngn)} · {row.refund_status==='completed'?'Completed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status!=='completed'?'The stay is cancelled; the money has not yet been confirmed returned.':''}</p>}
+          {row.status==='confirmed' && row.payment_status==='paid' && row.cancellation_snapshot?.refundable && Date.now()<=new Date(row.cancellation_snapshot.deadline).getTime() && <button type="button" disabled={busy} onClick={onCancel} className="mt-3 min-h-11 w-full rounded-xl border border-red-500/30 px-3 text-xs font-semibold">Cancel stay and request full refund</button>}
           {row.payment_status === 'paid' && <StayArrivalInstructions kind="hotel" bookingId={String(row.booking_id)} />}
 
           <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">

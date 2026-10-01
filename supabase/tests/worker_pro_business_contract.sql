@@ -43,6 +43,13 @@ begin
   v:=public.get_my_worker_pro_business();
   if jsonb_array_length(v->'schedule')<>1 or jsonb_array_length(v->'customers')<>1 then
     raise exception 'Business records wrong: %',v; end if;
+  perform public.save_my_worker_pro_job_cost('78666666-0000-4000-8000-000000000012',2500,'Materials and transport');
+  v:=public.get_my_worker_pro_job_costs();
+  if jsonb_array_length(v)<>2 or not exists(select 1 from jsonb_array_elements(v) x where (x->>'cost_ngn')::numeric=2500 and (x->>'released_earnings_ngn')::numeric=11000) then raise exception 'Job cost/released earnings mismatch'; end if;
+  begin
+    perform public.save_my_worker_pro_job_cost('78666666-0000-4000-8000-000000000013',1,'Wrong Worker');
+    raise exception 'Cross-Worker job cost accepted';
+  exception when others then if sqlerrm='Cross-Worker job cost accepted' then raise; end if; end;
   pkg:=public.save_my_worker_pro_package(null,'Cleaning','Room cleaning service',12000,true);
   if pkg is null then raise exception 'Package missing'; end if;
   if jsonb_array_length(public.get_worker_pro_service_packages('business-one'))<>1 then

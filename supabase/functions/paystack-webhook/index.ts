@@ -415,6 +415,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (["refund.pending","refund.processing","refund.needs-attention","refund.failed","refund.processed"].includes(event.event)) {
+      const reference = text(event.data?.transaction_reference || event.data?.transaction?.reference);
+      const amountMinor = Number(event.data?.amount ?? 0);
+      if (!reference || !Number.isSafeInteger(amountMinor) || amountMinor <= 0 || text(event.data?.currency).toUpperCase() !== "NGN")
+        return new Response("Refund receipt requires reconciliation", {status:400});
+      const refund = await db.rpc("process_verified_paystack_refund_event", {
+        p_provider_event_key: "refund:" + event.event + ":" + text(event.data?.id) + ":" + payloadHash,
+        p_event_type: event.event, p_original_reference: reference,
+        p_refund_reference: text(event.data?.reference), p_provider_refund_id: text(event.data?.id),
+        p_payload_sha256: payloadHash, p_signature_verified_at: new Date().toISOString(),
+        p_amount_minor: amountMinor, p_currency: "NGN",
+      });
+      if (refund.error || refund.data?.success !== true) return new Response("Refund reconciliation error", {status:500});
+      return new Response("OK", {status:200});
+    }
+
     if (event.event !== "charge.success") {
       return (
         (await recordProLifecycleEvent(db, event, payloadHash, environment)) ||
