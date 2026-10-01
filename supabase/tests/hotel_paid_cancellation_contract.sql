@@ -12,6 +12,8 @@ values('79666666-1000-4000-8000-000000000001','hotel_stay','refund-guest','refun
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,canonical_state,payment_status,payment_reference,payment_protection_id,cancellation_snapshot)
 values(-7966,-7966,-7966,'refund-guest',current_date+3,current_date+5,2,40000,'confirmed','confirmed','paid','TEST-HOTEL-REFUND','79666666-1000-4000-8000-000000000001',
  jsonb_build_object('version',1,'refundable',true,'deadline',now()+interval '1 day','timezone','Africa/Lagos','refund_amount_ngn',40000,'fee_ngn',0));
+insert into public.hotel_room_units(unit_id,hotel_id,room_id,unit_label,status)
+overriding system value values(-7966,-7966,-7966,'101','ready');
 insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,price_per_night,refundable,cancellation_hours)
 overriding system value values(-7966,-7966,-7966,'Refund contract rate',20000,true,24);
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status,cancellation_snapshot)
@@ -20,6 +22,10 @@ values(-7967,-7966,-7966,'refund-guest',current_date+6,current_date+7,1,20000,'c
 (-7969,-7966,-7966,'refund-guest',current_date+10,current_date+11,1,20000,'confirmed','paid',null);
 insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,hotel_booking_id,amount,amount_total,verified_amount,currency,status,purpose,verified_at,paid_at,paystack_transaction_id)
 values('TEST-HOTEL-REFUND','TEST-HOTEL-REFUND','refund-guest','refund-guest',-7966,40000,40000,40000,'NGN','paid','hotel_booking',now(),now(),'TEST-TRANSACTION');
+insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
+values('accommodation_arrival_issue_window',99003,'{"default_hours":2,"minimum_hours":1,"maximum_hours":6}',
+ 'active',now()-interval '1 minute','reviewed','Rollback-only cancellation fixture','hotel-refund-contract');
+update public.hotels set approved_at=now(),published_at=now(),timezone='Africa/Lagos',check_in_time='14:00' where hotel_id=-7966;
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','79666666-0000-4000-8000-000000000003',true);
 set local role authenticated;
@@ -36,11 +42,19 @@ do $$ declare id integer; begin
   exception when others then if sqlerrm<>'This booking requires WeHouse cancellation review' then raise; end if; end;
  end loop;
 end $$;
+do $$ declare q jsonb; booked jsonb; expected timestamptz; begin
+ q:=public.quote_hotel_room_rate(-7966,-7966,-7966,current_date+12,current_date+14);
+ expected:=((current_date+11+time '14:00') at time zone 'Africa/Lagos');
+ if (q->>'cancellation_deadline')::timestamptz is distinct from expected then raise exception 'Hotel-local quote deadline wrong'; end if;
+ select to_jsonb(x) into booked from public.create_my_hotel_booking_with_rate(-7966,-7966,-7966,current_date+12,current_date+14,1,'Refund Guest','08000000000',null) x;
+ if (booked->'cancellation_snapshot'->>'deadline')::timestamptz is distinct from expected then raise exception 'Booking did not snapshot local deadline'; end if;
+ perform public.cancel_my_hotel_booking((booked->>'booking_id')::integer);
+end $$;
 select public.cancel_my_hotel_booking(-7966);
 select public.cancel_my_hotel_booking(-7966);
 do $$ declare v jsonb; begin
  select x into v from jsonb_array_elements(public.get_my_hotel_bookings()) x where (x->>'booking_id')::integer=-7966;
- if v->>'status'<>'cancelled' or v->>'payment_status'<>'paid' or v->>'refund_status'<>'pending' then raise exception 'Cancellation falsely claimed a refund: %',v; end if;
+ if v is null or v->>'status'<>'cancelled' or v->>'payment_status'<>'paid' or v->>'refund_status'<>'pending' then raise exception 'Cancellation falsely claimed a refund: %',v; end if;
 end $$;
 reset role;
 do $$ begin
@@ -66,4 +80,13 @@ do $$ begin
  if (select refunded_amount from public.payment_protection_transactions where id='79666666-1000-4000-8000-000000000001')<>40000 then raise exception 'Refund replay changed money'; end if;
  if (select status from public.financial_action_outbox where idempotency_key='hotel-cancellation:-7966')<>'completed' then raise exception 'Refund action not complete'; end if;
 end $$;
+select set_config('request.jwt.claim.sub','79666666-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claim.role','authenticated',true);
+set local role authenticated;
+do $$ declare receipt jsonb; begin
+ receipt:=public.get_my_payment_receipts('TEST-HOTEL-REFUND',null,null)->0;
+ if receipt is null or receipt->>'status'<>'refunded' or receipt->>'refund_processed_at' is null
+  or receipt->'cancellation_snapshot'->>'timezone' is distinct from 'Africa/Lagos' then raise exception 'Refund receipt missing booked terms or confirmation date'; end if;
+end $$;
+reset role;
 rollback;
