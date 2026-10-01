@@ -5,9 +5,11 @@ insert into public.listings(id,listing_id,title,price,property_type,status,avail
 values
 ('f1000000-0000-0000-0000-000000000001','capacity-detail-contract-public','Public fixture',100,'apartment','available','available',gen_random_uuid(),now()),
 ('f1000000-0000-0000-0000-000000000002','capacity-detail-contract-hidden','Unapproved fixture',100,'apartment','available','available',gen_random_uuid(),null);
-insert into public.hotels(hotel_id,name,state,city,address,status,approved_at,published_at)
-values(-19000001,'Capacity price contract A','Nasarawa','Capacity contract','Synthetic','active',now(),now()),
-(-19000002,'Capacity price contract B','Nasarawa','Capacity contract','Synthetic','active',now(),now());
+insert into public.profiles(auth_id,email,user_id,role,profile_complete)
+values('capacity-price-contract-auth','capacity-price-contract-owner@example.invalid','capacity-price-contract-owner','user',true);
+insert into public.hotels(hotel_id,name,state,city,address,owner_id,status,approved_at,published_at)
+values(-19000001,'Capacity price contract A','Nasarawa','Capacity contract','Synthetic','capacity-price-contract-owner','active',now(),now()),
+(-19000002,'Capacity price contract B','Nasarawa','Capacity contract','Synthetic','capacity-price-contract-owner','active',now(),now());
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms)
 values(-19100001,-19000001,'Synthetic',100,10),(-19100002,-19000002,'Synthetic',100,10);
 insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night,active)
