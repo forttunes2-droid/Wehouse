@@ -22,6 +22,7 @@ const rpcAgent = new Agent({ keepAlive: true, maxSockets: 300, maxFreeSockets: 1
 const admin = createClient(origin.href,secret,{auth:{persistSession:false,autoRefreshToken:false}});
 const suffix = randomBytes(5).toString('hex');
 const actors = [];
+let rpcSamples = [];
 const report = { scope:'Disposable local Supabase, real synthetic Auth users, HTTP hotel quotes and booking RPCs',
   catalog:{homes:500000,hotels:50000}, payment:'No Paystack payment, webhook, check-in or hosted infrastructure exercised',
   started_at:new Date().toISOString(), provisioned:0, stages:[], contention:null, invariants:null };
@@ -31,6 +32,8 @@ function future(offset) { const d=new Date(); return new Date(Date.UTC(d.getUTCF
 function percentile(values,p) { return values.length ? Math.round(values[Math.ceil(values.length*p)-1]*10)/10 : null; }
 async function rpc(actor,name,body) {
   const payload=JSON.stringify(body);
+  const submitted=performance.now();
+  let socketAt=null;
   return await new Promise((resolve,reject)=>{
     const request=httpRequest(new URL(`/rest/v1/rpc/${name}`,origin),{
       method:'POST',agent:rpcAgent,headers:{apikey:anon,authorization:`Bearer ${actor.token}`,
@@ -39,6 +42,8 @@ async function rpc(actor,name,body) {
       let text=''; response.setEncoding('utf8');
       response.on('data',chunk=>{text+=chunk;});
       response.on('end',()=>{
+        const ended=performance.now();
+        rpcSamples.push({name,transport_queue_ms:(socketAt ?? ended)-submitted,response_ms:ended-(socketAt ?? submitted),total_ms:ended-submitted});
         let data; try {data=JSON.parse(text);} catch {data=text.slice(0,180);}
         if (response.statusCode<200 || response.statusCode>=300)
           reject(new Error(`${response.statusCode}:${String(data?.message || data?.error || data).slice(0,150)}`));
@@ -46,6 +51,7 @@ async function rpc(actor,name,body) {
       });
       response.on('error',reject);
     });
+    request.on('socket',()=>{socketAt=performance.now();});
     request.setTimeout(30000,()=>request.destroy(new Error('RPC response timeout')));
     request.on('error',error=>reject(new Error(`${error.message}${error.code ? ` (${error.code})` : ''}`)));
     request.end(payload);
@@ -89,6 +95,7 @@ async function book(actor,t) {
   return booking.booking_id;
 }
 async function stage(name,start,count,offset) {
+  rpcSamples=[];
   const began=performance.now();
   const results=await Promise.all(Array.from({length:count},async(_,i)=>{
     const time=performance.now();
@@ -102,6 +109,14 @@ async function stage(name,start,count,offset) {
     errors:failures.length,error_examples:[...new Set(failures.map(row=>row.error))].slice(0,10),
     p50_ms:percentile(successful,.5),p95_ms:percentile(successful,.95),p99_ms:percentile(successful,.99),
     elapsed_seconds:Math.round(elapsed*100)/100,completed_per_second:Math.round(count/elapsed*10)/10};
+  row.transport_max_sockets=rpcAgent.maxSockets;
+  row.rpc_timings=Object.fromEntries(['quote_hotel_room_rate','create_my_hotel_booking_with_rate'].map(name=>{
+    const samples=rpcSamples.filter(x=>x.name===name);
+    return [name,{completed:samples.length,
+      transport_queue_p95_ms:percentile(samples.map(x=>x.transport_queue_ms).sort((a,b)=>a-b),.95),
+      response_p95_ms:percentile(samples.map(x=>x.response_ms).sort((a,b)=>a-b),.95),
+      total_p95_ms:percentile(samples.map(x=>x.total_ms).sort((a,b)=>a-b),.95)}];
+  }));
   report.stages.push(row); save();
   console.log(`${name}: ${row.accepted}/${count}, p95=${row.p95_ms}ms, errors=${row.errors}`);
 }
