@@ -67,6 +67,9 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     if (r.nights) field("Stay", `${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`);
     if (r.stay_amount != null) field("Stay price", money(r.stay_amount));
     if (Number(r.deposit_amount) > 0) field("Refundable caution", money(Number(r.deposit_amount)));
+    if (r.cancellation_snapshot) field("Booked cancellation terms", r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline
+      ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})`
+      : "Non-refundable for ordinary cancellation");
     field("Payment provider", "Paystack");
     field("Payment reference", r.reference);
     y += 1;

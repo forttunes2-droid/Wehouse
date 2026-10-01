@@ -33,6 +33,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
         {r.nights && <ReceiptLine label="Stay" value={`${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`} />}
         {r.stay_amount != null && <ReceiptLine label="Stay price" value={money(r.stay_amount)} />}
         {Number(r.deposit_amount) > 0 && <ReceiptLine label="Refundable caution" value={money(Number(r.deposit_amount))} />}
+        {r.cancellation_snapshot && <ReceiptLine label="Booked cancellation terms" value={r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})` : 'Non-refundable for ordinary cancellation'} />}
         <ReceiptLine label="Payment provider" value="Paystack" />
       </dl>
       <div className="mt-6 border-t border-[#E8E5EC] pt-4"><p className="text-xs text-[var(--wh-text-muted)]">Payment reference</p><p className="mt-1 break-all font-mono text-xs font-semibold leading-5">{r.reference}</p></div>

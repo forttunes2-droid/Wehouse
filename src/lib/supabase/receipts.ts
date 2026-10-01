@@ -8,6 +8,7 @@ export type PaymentReceipt = {
   description: string; package_name?: string | null; booking_id?: string | null;
   booking_type?: "hotel" | "service" | "housing" | null;
   check_in?: string | null; check_out?: string | null; nights?: number | null;
+  cancellation_snapshot?: {refundable:boolean;deadline:string|null;timezone:string;refund_amount_ngn:number} | null;
   guests?: number | null; stay_amount?: number | null; deposit_amount?: number | null;
 };
 
