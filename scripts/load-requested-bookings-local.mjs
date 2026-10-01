@@ -99,7 +99,7 @@ async function book(actor,t) {
   return booking.booking_id;
 }
 function databaseQuery(query) {
-  return execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-Atc',query],{encoding:'utf8'}).trim();
+  return execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','supabase_admin','-d','postgres','-v','ON_ERROR_STOP=1','-Atc',query],{encoding:'utf8'}).trim();
 }
 function databaseStats() {
   return JSON.parse(databaseQuery(`select coalesce(jsonb_agg(t),'[]') from (
