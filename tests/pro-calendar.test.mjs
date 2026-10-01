@@ -6,7 +6,7 @@ import ts from 'typescript';
 const exports={};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/proCalendar.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports,TextEncoder});
 test('calendar exports exclusive stay dates and escapes event injection',()=>{
- const text=exports.calendarText([{id:'home-1',title:'Place, A; B\nEND:VEVENT',start:'2026-10-03',end:'2026-10-05'}],new Date('2026-10-01T00:00:00Z'));
+ const text=exports.calendarText([{id:'home-1',title:'Place, A; B\rEND:VEVENT',start:'2026-10-03',end:'2026-10-05'}],new Date('2026-10-01T00:00:00Z'));
  assert.ok(text.includes('DTSTART;VALUE=DATE:20261003\r\nDTEND;VALUE=DATE:20261005'));
  assert.ok(text.includes('SUMMARY:Place\\, A\\; B\\nEND:VEVENT'));
  assert.equal(text.split('\r\n').filter(x=>x==='END:VEVENT').length,1);

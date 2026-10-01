@@ -1,5 +1,5 @@
 type CalendarEntry = { id: string; title: string; start: string; end?: string };
-const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,');
+const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,');
 const day = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value.slice(0,10)) ? value.slice(0,10).replaceAll('-','') : null;
 export function calendarText(entries: CalendarEntry[], now = new Date()) {
   const stamp = now.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');

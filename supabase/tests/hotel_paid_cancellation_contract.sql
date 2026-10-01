@@ -19,7 +19,8 @@ overriding system value values(-7966,-7966,-7966,'Refund contract rate',20000,tr
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status,cancellation_snapshot)
 values(-7967,-7966,-7966,'refund-guest',current_date+6,current_date+7,1,20000,'confirmed','paid',jsonb_build_object('refundable',false)),
 (-7968,-7966,-7966,'refund-guest',current_date+8,current_date+9,1,20000,'confirmed','paid',jsonb_build_object('refundable',true,'deadline',now()-interval '1 second')),
-(-7969,-7966,-7966,'refund-guest',current_date+10,current_date+11,1,20000,'confirmed','paid',null);
+(-7969,-7966,-7966,'refund-guest',current_date+10,current_date+11,1,20000,'confirmed','paid',null),
+(-7970,-7966,-7966,'refund-guest',current_date+10,current_date+11,1,20000,'confirmed','paid',jsonb_build_object('refundable',true));
 insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,hotel_booking_id,amount,amount_total,verified_amount,currency,status,purpose,verified_at,paid_at,paystack_transaction_id)
 values('TEST-HOTEL-REFUND','TEST-HOTEL-REFUND','refund-guest','refund-guest',-7966,40000,40000,40000,'NGN','paid','hotel_booking',now(),now(),'TEST-TRANSACTION');
 insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
@@ -37,7 +38,7 @@ reset role;
 select set_config('request.jwt.claim.sub','79666666-0000-4000-8000-000000000002',true);
 set local role authenticated;
 do $$ declare id integer; begin
- foreach id in array array[-7967,-7968,-7969] loop
+ foreach id in array array[-7967,-7968,-7969,-7970] loop
   begin perform public.cancel_my_hotel_booking(id); raise exception 'Ineligible refund accepted';
   exception when others then if sqlerrm<>'This booking requires WeHouse cancellation review' then raise; end if; end;
  end loop;
