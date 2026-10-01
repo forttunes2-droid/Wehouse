@@ -41,6 +41,10 @@ jobs:
         run: node scripts/explain-capacity-hotels.mjs
       - name: Measure catalog reads
         run: WEHOUSE_CAPACITY_PRESET=launch node scripts/load-catalog-scale.mjs
+      - name: Enable nested query timing in the disposable database
+        run: |
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "alter system set pg_stat_statements.track='all';"
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "select pg_reload_conf();"
       - name: Attempt 600 and 3000 distinct-user booking bursts
         run: WEHOUSE_CAPACITY_PRESET=launch node scripts/load-requested-bookings-local.mjs
       - name: Record database cardinality and storage

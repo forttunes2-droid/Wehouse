@@ -98,7 +98,22 @@ async function book(actor,t) {
   if (!booking?.booking_id || booking.user_id!==actor.userId) throw new Error('wrong booking owner or missing ID');
   return booking.booking_id;
 }
+function databaseQuery(query) {
+  return execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-Atc',query],{encoding:'utf8'}).trim();
+}
+function databaseStats() {
+  return JSON.parse(databaseQuery(`select coalesce(jsonb_agg(t),'[]') from (
+    select left(regexp_replace(query,'[[:space:]]+',' ','g'),1200) query,calls,
+      round(total_exec_time::numeric,1) total_ms,round(mean_exec_time::numeric,3) mean_ms,
+      round(max_exec_time::numeric,1) max_ms,shared_blks_hit,shared_blks_read,temp_blks_written
+    from extensions.pg_stat_statements
+    where query not like '%pg_stat_statements%'
+    order by total_exec_time desc limit 20
+  ) t`));
+}
+
 async function stage(name,start,count,offset) {
+  databaseQuery('select extensions.pg_stat_statements_reset()');
   rpcSamples=[];
   const began=performance.now();
   const results=await Promise.all(Array.from({length:count},async(_,i)=>{
@@ -121,6 +136,7 @@ async function stage(name,start,count,offset) {
       response_p95_ms:percentile(samples.map(x=>x.response_ms).sort((a,b)=>a-b),.95),
       total_p95_ms:percentile(samples.map(x=>x.total_ms).sort((a,b)=>a-b),.95)}];
   }));
+  row.database_top_queries=databaseStats();
   report.stages.push(row); save();
   console.log(`${name}: ${row.accepted}/${count}, p95=${row.p95_ms}ms, errors=${row.errors}`);
 }
