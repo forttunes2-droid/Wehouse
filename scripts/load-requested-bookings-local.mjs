@@ -128,7 +128,11 @@ try {
   const counts=execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-Atc',
     "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -5000000 and -1000001)"],{encoding:'utf8'}).trim();
   assert.equal(counts,`${catalog.homes}|${catalog.hotels}`,'Exact catalog size required');
+  const provisionBegan=performance.now();
   await pool(3601,30,async i=>{await provision(i);if(report.provisioned%300===0){console.log(`Provisioned ${report.provisioned}/3601`);save();}});
+  report.provisioning_seconds=Math.round((performance.now()-provisionBegan)/10)/100;
+  save();
+  console.log(`Auth/profile provisioning: ${report.provisioned} accounts in ${report.provisioning_seconds}s`);
   await book(actors[3600],target(0,12));
   await stage('600-user spread',0,600,30);
   await stage('3000-user spread',600,3000,60);
@@ -147,5 +151,5 @@ try {
 } catch(error) {report.fatal_error=String(error?.message || error).slice(0,300);report.passed=false;}
 report.finished_at=new Date().toISOString();save();
 rpcAgent.destroy();
-console.log(JSON.stringify({stages:report.stages,contention:report.contention,invariants:report.invariants,fatal_error:report.fatal_error,passed:report.passed}));
+console.log(JSON.stringify({provisioned:report.provisioned,provisioning_seconds:report.provisioning_seconds,stages:report.stages,contention:report.contention,invariants:report.invariants,fatal_error:report.fatal_error,passed:report.passed}));
 if (!report.passed) process.exitCode=1;
