@@ -34,6 +34,18 @@ async def main():
       await expect(business.get_by_label('When',exact=True)).to_have_value('')
       await expect(business.get_by_role('button',name='Save reminder',exact=True)).to_be_disabled()
       assert any(c['name']=='save_my_worker_pro_reminder' and c['args']['p_booking_id']=='job-a' and c['args']['p_note']=='Bring cabinet hinges' for c in await page.evaluate('window.__documents.calls'))
+      await business.get_by_role('button',name='Job costs',exact=True).click()
+      await business.get_by_label('Total job costs (₦)',exact=True).fill('2500')
+      await business.get_by_label('Cost details',exact=True).fill('Hinges and transport')
+      await business.get_by_role('button',name='Save job cost',exact=True).click()
+      await expect(business.get_by_text('Released earnings ₦22,000 · Net after recorded costs ₦19,500',exact=True)).to_be_visible()
+      async with page.expect_download() as cost_download:
+       await business.get_by_role('button',name='Export costs CSV',exact=True).click()
+      assert '19500' in Path(await (await cost_download.value).path()).read_text()
+      await business.get_by_role('button',name='Schedule',exact=True).click()
+      async with page.expect_download() as calendar_download:
+       await business.get_by_role('button',name='Export calendar',exact=True).click()
+      assert 'DTSTART;VALUE=DATE:20261005' in Path(await (await calendar_download.value).path()).read_text()
       await business.get_by_role('button',name='Packages',exact=True).click()
       await business.get_by_role('textbox',name='Title').fill('Cabinet repair')
       await business.get_by_role('textbox',name='What is included').fill('Replace hinges and align doors')

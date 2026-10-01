@@ -80,11 +80,11 @@ begin
   perform public.save_my_partner_pro_arrival_instructions('hotel','-76661','Arrive at main reception.');
   if (public.get_my_partner_pro_arrival_setup()->'instructions'->0->>'instructions')<>'Arrive at main reception.' then
     raise exception 'Owner instructions not saved'; end if;
-end $;
+end $$;
 reset role;
 set local session_replication_role=origin;
 set local role authenticated;
-do $ declare t uuid; v jsonb; begin
+do $$ declare t uuid; v jsonb; begin
  t:=public.create_my_partner_pro_recurring_task('hotel','-76661','Check smoke alarms',current_date-1,30);
  perform public.save_my_partner_pro_task('hotel','-76661',null,null,t,true);
  perform public.save_my_partner_pro_task('hotel','-76661',null,null,t,true);
@@ -95,7 +95,7 @@ do $ declare t uuid; v jsonb; begin
   perform public.save_my_partner_pro_task('hotel','-76661',null,null,t,false);
   raise exception 'Repeating predecessor reopened';
  exception when others then if sqlerrm='Repeating predecessor reopened' then raise; end if; end;
-end $;
+end $$;
 reset role;
 set local session_replication_role=replica;
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000002',true);

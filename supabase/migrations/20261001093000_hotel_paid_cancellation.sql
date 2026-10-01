@@ -262,7 +262,7 @@ begin
 end
 $function$;
 create or replace function public.quote_hotel_room_rate(p_hotel_id integer,p_room_id integer,p_rate_plan_id integer,p_check_in date,p_check_out date)
-returns jsonb language plpgsql security definer set search_path='pg_catalog','public','private' as $
+returns jsonb language plpgsql security definer set search_path='pg_catalog','public','private' as $$
 declare h public.hotels; rp public.hotel_rate_plans; q jsonb; deadline timestamptz;
 begin
  if p_check_in is null or p_check_out is null or p_check_in<=current_date or p_check_out<=p_check_in then raise exception 'Choose valid future check-in and check-out dates'; end if;
@@ -273,7 +273,7 @@ begin
  deadline:=((p_check_in+h.check_in_time) at time zone h.timezone)-make_interval(hours=>coalesce(rp.cancellation_hours,0));
  return q||jsonb_build_object('cancellation_deadline',case when rp.refundable then deadline else null end,
  'cancellation_timezone',h.timezone,'refund_amount_ngn',case when rp.refundable then (q->>'total_price')::numeric else 0 end);
-end $;
+end $$;
 
 CREATE OR REPLACE FUNCTION public.process_verified_paystack_charge(p_provider_event_key text, p_event_type text, p_provider_reference text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text, p_transaction_id text DEFAULT NULL::text)
  RETURNS jsonb

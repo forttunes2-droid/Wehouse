@@ -63,6 +63,7 @@ export default function HotelBooking({
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<{booking_id:number;total_price:number;cancellation_snapshot?:{refundable:boolean;deadline:string;timezone:string;refund_amount_ngn:number}}|null>(null);
 
   useEffect(() => {
     let live = true;
@@ -153,7 +154,14 @@ export default function HotelBooking({
       toast.error(error?.message || "Booking could not be created");
       return;
     }
-    const payment = await initializeHotelBookingPayment(booking.booking_id);
+    setPendingBooking(booking as typeof pendingBooking);
+    setSubmitting(false);
+  }
+
+  async function openPayment() {
+    if (!pendingBooking || submitting) return;
+    setSubmitting(true);
+    const payment = await initializeHotelBookingPayment(pendingBooking.booking_id);
     if (payment.error || !payment.result?.success) {
       setSubmitting(false);
       toast.error(payment.error?.message || payment.result?.error || "Secure payment could not start");
@@ -172,6 +180,10 @@ export default function HotelBooking({
     }
     window.location.assign(String(payment.result.authorization_url));
   }
+
+  if (pendingBooking) return <main className="mx-auto max-w-lg space-y-4 p-5 text-[var(--wh-text)]"><BackButton onBack={onBack}/><h1 className="text-xl font-semibold">Review your saved booking</h1><p className="text-sm">Total {money(Number(pendingBooking.total_price))}. The room hold expires if you do not complete payment.</p>
+    {pendingBooking.cancellation_snapshot?.refundable ? <p className="text-sm leading-6">Full refund {money(Number(pendingBooking.cancellation_snapshot.refund_amount_ngn))} if cancelled by {new Date(pendingBooking.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:pendingBooking.cancellation_snapshot.timezone})} ({pendingBooking.cancellation_snapshot.timezone}). These terms are saved for this booking.</p> : <p className="text-sm leading-6">Non-refundable for ordinary cancellation or missed arrival. Payment or stay problems can be reported to WeHouse for review.</p>}
+    <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Eligible refunds go to the original payment method and are complete only after provider confirmation.</p><button type="button" disabled={submitting} onClick={()=>void openPayment()} className="min-h-12 w-full rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{submitting?'Opening Paystack…':'Accept saved terms and continue to payment'}</button></main>;
 
   if (loading)
     return (
@@ -263,7 +275,7 @@ export default function HotelBooking({
         </section>
 
         <button type="button" onClick={() => void book()} disabled={submitting || quoteLoading || !quote?.available} className="h-12 w-full rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">
-          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Pay ₦${Number(quote.total_price).toLocaleString()} securely` : "Choose available dates"}
+          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ₦${Number(quote.total_price).toLocaleString()}` : "Choose available dates"}
         </button>
         <p className="text-center text-xs leading-4 text-[var(--wh-text-muted)]">Your room, package, dates, guest and payment stay attached to one WeHouse booking record.</p>
       </main>
