@@ -313,7 +313,7 @@ begin
   if p_event_type<>'charge.success'
     or nullif(btrim(p_provider_event_key),'') is null
     or nullif(btrim(p_provider_reference),'') is null
-    or p_payload_sha256 !~ '^[0-9a-f]{64}
+    or p_payload_sha256 !~ '^[0-9a-f]{64}$'
     or p_signature_verified_at is null
     or p_amount_minor<=0
     or upper(p_currency)<>'NGN'
@@ -712,5 +712,4 @@ begin
   end;
 end
 $function$;
-
 commit;
