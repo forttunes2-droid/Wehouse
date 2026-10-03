@@ -986,7 +986,7 @@ function BookingSourceNotice({
   );
 }
 
-function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function ServiceCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const amount = Number(row.negotiated_amount || 0);
   const status = serviceStatusLabel(String(row.booking_status || ""));
   return (
@@ -1000,6 +1000,7 @@ function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       meta={amount > 0 ? [money(amount)] : []}
       next={serviceNextAction(row.booking_status)}
       onOpen={onOpen}
+      compact={compact}
     />
   );
 }
@@ -1133,7 +1134,7 @@ function serviceStatusLabel(status: string) {
   return labels[status] || "Active";
 }
 
-function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const short = row.stay_type === "short_let";
   const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
@@ -1180,11 +1181,12 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       status={propertyBookingStatusLabel(row)}
       next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? propertyBookingStatusLabel(row) : journey.title)}
       onOpen={onOpen}
+      compact={compact}
     />
   );
 }
 
-function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
   const checkIn = date(row.check_in_date || row.check_in);
@@ -1209,6 +1211,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       meta={[`${checkIn} – ${checkOut}`]}
       next={next}
       onOpen={onOpen}
+      compact={compact}
     />
   );
 }
@@ -1223,6 +1226,7 @@ export function BookingCard({
   meta,
   next,
   onOpen,
+  compact = false,
 }: {
   eyebrow: string;
   status?: string;
