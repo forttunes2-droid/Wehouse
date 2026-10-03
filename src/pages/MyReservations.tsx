@@ -1033,9 +1033,11 @@ function BookingSourceNotice({
 
 function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const amount = Number(row.negotiated_amount || 0);
+  const status = serviceStatusLabel(String(row.booking_status || ""));
   return (
     <BookingCard
       eyebrow="WeHouse Service"
+      status={status}
       title={row.service_type || "Service request"}
       subtitle={row.other_person_name || "WeHouse professional"}
       image={null}
@@ -1220,6 +1222,7 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       image={row.listing_image || null}
       fallback="⌂"
       meta={dates}
+      status={propertyBookingStatusLabel(row)}
       next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? propertyBookingStatusLabel(row) : journey.title)}
       onOpen={onOpen}
     />
@@ -1243,6 +1246,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   return (
     <BookingCard
       eyebrow="Hotel"
+      status={HOTEL_STATUS[String(row.status || "")] || "Active"}
       title={hotel.name || row.hotel_name || "Hotel reservation"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
       image={image}
@@ -1310,7 +1314,7 @@ export function BookingCard({
           {meta.length ? (
             <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">{meta.join(" · ")}</p>
           ) : null}
-          {next ? (
+          {next && status === undefined ? (
             <p className="mt-2 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
               <span className="font-semibold text-violet-300">Next</span> · {next}
             </p>
