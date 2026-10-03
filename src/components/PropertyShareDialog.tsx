@@ -11,7 +11,7 @@ import BackButton from '@/components/BackButton';
 import { useDialogInteraction } from '@/hooks/useDialogInteraction';
 import { toast } from 'sonner';
 
-type Props = { userId: string; property: SharedProperty; title: string; onClose: () => void; onConversation: (id: string) => void };
+type Props = { userId: string; property: SharedProperty; title: string; stayType?: 'short_let' | 'long_stay'; onClose: () => void; onConversation: (id: string) => void };
 export default function PropertyShareDialog({ userId, property, title, onClose, onConversation }: Props) {
   const [recipients, setRecipients] = useState<RoommateRecipient[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState('');
