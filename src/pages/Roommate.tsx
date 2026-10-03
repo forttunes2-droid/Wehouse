@@ -92,6 +92,7 @@ export default function RoommateWorkspace({
     [loadingMore, setLoadingMore] = useState(false),
     [interestBusy, setInterestBusy] = useState<string | null>(null),
     [openingChatId, setOpeningChatId] = useState<string | null>(null),
+    [acceptedIncomingIds, setAcceptedIncomingIds] = useState<string[]>([]),
     [focusedContextId, setFocusedContextId] = useState<string | null>(
       initialContextId || null,
     );
@@ -136,7 +137,7 @@ export default function RoommateWorkspace({
         : {matches:fetched.matches.filter(isEstablishedMatch),hasMore:false,error:null};
       if (generation !== requestGeneration.current) return [];
       const rows = uniqueMatches(result.matches);
-      setPrefs(p); setReceived(incoming.interests); setMatches(rows); setHasMore(result.hasMore);
+      setPrefs(p); setReceived(incoming.interests); setAcceptedIncomingIds([]); setMatches(rows); setHasMore(result.hasMore);
       roommateCache.set(profile.user_id,{prefs:p,matches:rows,received:incoming.interests,hasMore:result.hasMore});
       if (!editingRef.current) {
         const nextForm = roommatePreferenceForm(p, profile.school || "");
@@ -336,9 +337,10 @@ export default function RoommateWorkspace({
     );
     setInterestBusy(null);
     if (error) return toast.error(error.message);
-    setReceived((current) =>
-      current.filter((row) => row.interest_id !== item.interest_id),
-    );
+    setReceived((current) => current.filter((row) => row.interest_id !== item.interest_id));
+    if (response === "accepted") {
+      setAcceptedIncomingIds(current => current.includes(item.sender_user_id) ? current : [...current, item.sender_user_id]);
+    }
     if (response === "declined")
       return toast.success("Passed privately. No conversation was created.");
     toast.success("Interest accepted. Your connection is ready.", {
