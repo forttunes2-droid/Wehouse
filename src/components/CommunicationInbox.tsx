@@ -42,6 +42,8 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
 
   const loadMessages = useCallback(async () => {
     const request = ++generation.current;
+    let completed = 0;
+    setLoading(true);
     setLoadError(false);
 
     const updateResult = (kind: "hotel" | "host" | "support", result: any) => {
@@ -50,6 +52,8 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
       if (kind === "host" && !result.error) setHostChats(result.conversations || []);
       if (kind === "support" && !result.error) setSupportThreads(result.conversations || []);
       if (result.error) setLoadError(true);
+      completed += 1;
+      if (completed === 1 && request === generation.current) setLoading(false);
     };
 
     const requests: Array<["hotel" | "host" | "support", Promise<any>]> = hostingOnly
