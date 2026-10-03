@@ -11,16 +11,17 @@ test("Bookings use one compact presentation language", async () => {
     read("src/index.css"),
   ]);
 
-  assert.match(bookings, /text-sm font-semibold leading-5/);
-  assert.match(bookings, /h-40 w-full object-cover sm:h-48/);
-  assert.match(bookings, /max-w-2xl px-3 py-4 sm:px-5/);
+  assert.match(bookings, /divide-y divide-\\[var\\(--wh-border-subtle\\)\\]/);
+  assert.match(bookings, /overflow-x-auto/);
+  assert.match(bookings, /Booking filters/);
+  assert.match(bookings, /text-\\[13px\\]/);
   assert.match(bookings, /font-mono text-xs font-bold/);
   const bookingCardBlock = bookings.slice(bookings.indexOf("function BookingCard"), bookings.indexOf("function formatStayTime"));
   const serviceBlock = bookings.slice(bookings.indexOf("function ServiceBookingDetail"), bookings.indexOf("function HousingCard"));
   const propertyBlock = bookings.slice(bookings.indexOf("function PropertyBookingDetail"), bookings.indexOf("function HotelBookingDetail"));
   const hotelBlock = bookings.slice(bookings.indexOf("function HotelBookingDetail"), bookings.indexOf("function AccommodationProtectionPanel"));
   assert.match(bookingCardBlock, /aria-label=\{`Open \$\{eyebrow\} booking for \$\{title\}`\}/);
-  assert.match(bookingCardBlock, /rounded-2xl border/);
+  assert.match(bookingCardBlock, /compact \? "bg-\\[var\\(--wh-surface\\)\\] px-3 py-3"/);
   assert.match(serviceBlock, /BookingDetailShell/);
   assert.match(serviceBlock, /getBookingDetails/);
   assert.match(serviceBlock, /Open conversation/);
