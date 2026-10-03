@@ -25,7 +25,7 @@ async def main():
             await expect(page.get_by_role('heading', name='Bookings', exact=True)).to_be_visible()
             stage = page.locator('[aria-label="Booking filters"]').nth(0)
             kinds = stage
-            await expect(kinds.locator('button[aria-label="All status"]').first).to_have_attribute('aria-pressed', 'true')
+            await expect(kinds.locator('button[aria-label="All"]').first).to_have_attribute('aria-pressed', 'true')
             Path('test-results/experience').mkdir(parents=True, exist_ok=True)
             await page.screenshot(path=f'test-results/experience/bookings-default-{width}.png', full_page=True)
             await stage.locator('button[aria-label="Upcoming"]').click()
