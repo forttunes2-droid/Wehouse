@@ -69,7 +69,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       <button type="button" onClick={dismiss}
         className="absolute right-3 z-30 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-2xl leading-none text-white shadow-lg transition active:scale-95"
         style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
-        aria-label="Close media viewer">
+        aria-label="Close media preview">
         <span aria-hidden="true">×</span>
       </button>
 
