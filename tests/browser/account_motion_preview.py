@@ -57,7 +57,7 @@ async def main():
   await page.get_by_role('button',name=re.compile(r'^Dark\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='dark'
-  print('APPEARANCE_ACCOUNT_LIGHT_DARK_SYSTEM=passed',flush=True)
+  print('APPEARANCE_ACCOUNT_LIGHT_DARK=passed',flush=True)
   await page.evaluate('window.__showWorkspaceFixture()')
   await page.screenshot(path=str(OUT/'workspace-partner-dark-390.png'))
   await page.evaluate('window.localStorage.setItem("wehouse:appearance","light"); window.dispatchEvent(new StorageEvent("storage",{key:"wehouse:appearance"}))')
