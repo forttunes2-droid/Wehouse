@@ -54,9 +54,8 @@ export async function getHotelMessages(conversationId: string, bookingId: number
   let signedByPath = new Map<string, string>();
   if (uniquePaths.length) {
     try {
-      const { data: signedRows } = await supabase.storage
-        .from("hotel-chat-files")
-        .createSignedUrls(uniquePaths, 3600);
+      const storage=(supabase.storage.from("hotel-chat-files") as any);
+      const { data: signedRows } = await storage.createSignedUrls(uniquePaths, 3600);
       signedByPath = new Map(
         (signedRows || [])
           .filter((item: any) => Boolean(item?.path && item?.signedUrl))
