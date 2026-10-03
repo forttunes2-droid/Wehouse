@@ -452,24 +452,20 @@ export default function AccountCenter({
   }
 
   if (panel === "appearance") {
-    const options: Array<{ id: Appearance; title: string }> = [
-      { id: "light", title: "Light" },
-      { id: "system", title: "System" },
-      { id: "dark", title: "Dark" },
-    ];
+    const dark = appearance === "dark";
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
-      description="Choose how WeHouse looks on this device." onBack={() => setPanel(null)}>
+      description="Switch WeHouse between light and dark mode." onBack={() => setPanel(null)}>
       <section className="mx-auto max-w-2xl">
-        <div className="flex rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1" role="group" aria-label="Choose appearance">
-          {options.map(option => (
-            <button key={option.id} type="button" aria-pressed={appearance === option.id}
-              onClick={() => setAppearance(option.id)}
-              className={`min-h-11 min-w-0 flex-1 rounded-xl px-3 text-xs font-semibold transition-colors ${appearance === option.id ? "bg-violet-500 text-white" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
-              {option.title}
-            </button>
-          ))}
-        </div>
-        <p className="mt-3 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Light and Dark use the same WeHouse layout, spacing and controls. System follows your phone.</p>
+        <button type="button" role="switch" aria-checked={dark} onClick={() => setAppearance(dark ? "light" : "dark")}
+          className="flex min-h-16 w-full items-center gap-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 text-left transition-colors active:bg-[var(--wh-interactive)]">
+          <span className={`relative h-8 w-14 shrink-0 rounded-full p-1 transition-colors ${dark ? "bg-violet-500" : "bg-[var(--wh-interactive)]"}`}>
+            <span className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${dark ? "translate-x-6" : "translate-x-0"}`} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{dark ? "Dark mode" : "Light mode"}</span>
+            <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">One switch. The whole WeHouse interface follows it.</span>
+          </span>
+        </button>
       </section>
     </AccountShell>;
   }
