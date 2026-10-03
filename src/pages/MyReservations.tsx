@@ -373,23 +373,11 @@ export default function MyReservations({
       && (!query || bookingSearchText(item).includes(query)));
   }, [rows, month, search]);
 
-  const sections = useMemo(() => {
-    const groups: Record<BookingGroup, BookingItem[]> = {
-      action: [],
-      active: [],
-      history: [],
-    };
-    for (const item of visibleRows as BookingItem[]) {
-      const group = bookingGroup(item);
-      if (statusView === "all" || statusView === group) groups[group].push(item);
-    }
-    return [
-      { id: "action" as const, label: "Needs your action", items: groups.action },
-      { id: "active" as const, label: "Active & upcoming", items: groups.active },
-      { id: "history" as const, label: "History", items: groups.history },
-    ].filter((section) => section.items.length > 0);
-  }, [visibleRows, statusView]);
-  const visibleCount = sections.reduce((count, section) => count + section.items.length, 0);
+  const filteredRows = useMemo(
+    () => (visibleRows as BookingItem[]).filter((item) => statusView === "all" || bookingGroup(item) === statusView),
+    [visibleRows, statusView],
+  );
+  const visibleCount = filteredRows.length;
 
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -887,52 +875,24 @@ export default function MyReservations({
         ) : sections.length === 0 ? (
           <Empty view={view} statusView={statusView} filtered={Boolean(search || month !== "all")} />
         ) : (
-          <div className="mt-3 space-y-4">
-            {sections.map((section) => (
-              <section key={section.id}>
-                <div className={statusView === "all" ? "flex items-center justify-between pb-2" : "sr-only"}>
-                  <h2
-                    className={`text-xs font-bold uppercase tracking-[.14em] ${
-                      section.id === "action"
-                        ? "text-amber-300"
-                        : "text-[var(--wh-text-muted)]"
-                    }`}
-                  >
-                    {section.label}
-                  </h2>
-                  <span className="text-xs text-[var(--wh-text-muted)]">
-                    {section.items.length}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {section.items.map((item) =>
-                    item.kind === "housing" ? (
-                      <HousingCard
-                        key={item.row.id}
-                        row={item.row}
-                        onOpen={() => setActiveHousing(item.row)}
-                      />
-                    ) : item.kind === "shared" ? (
-                      <BookingCard key={`shared-${item.row.id}`} eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
-                        title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
-                        image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in?[`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`]:[]}
-                        next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} />
-                    ) : item.kind === "hotel" ? (
-                      <HotelCard
-                        key={item.row.booking_id}
-                        row={item.row}
-                        onOpen={() => setActiveHotel(item.row)}
-                      />
-                    ) : (
-                      <ServiceCard
-                        key={
-                          item.row.booking_id || item.row.conversation_id
-                        }
-                        row={item.row}
-                        onOpen={() => setActiveService(item.row)}
-                      />
-                    ),
-                  )}
+          <div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+            {filteredRows.map((item) =>
+              item.kind === "housing" ? (
+                <HousingCard key={item.row.id} row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
+              ) : item.kind === "shared" ? (
+                <BookingCard key={`shared-${item.row.id}`} eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
+                  title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
+                  image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in?[`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`]:[]}
+                  status={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited' ? "To do" : "Shared"}
+                  next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} compact />
+              ) : item.kind === "hotel" ? (
+                <HotelCard key={item.row.booking_id} row={item.row} onOpen={() => setActiveHotel(item.row)} compact />
+              ) : (
+                <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={() => setActiveService(item.row)} compact />
+              )
+            )}
+          </div>
+
                 </div>
               </section>
             ))}
@@ -1031,7 +991,7 @@ function BookingSourceNotice({
   );
 }
 
-function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function ServiceCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const amount = Number(row.negotiated_amount || 0);
   const status = serviceStatusLabel(String(row.booking_status || ""));
   return (
@@ -1178,7 +1138,7 @@ function serviceStatusLabel(status: string) {
   return labels[status] || "Active";
 }
 
-function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const short = row.stay_type === "short_let";
   const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
@@ -1229,7 +1189,7 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   );
 }
 
-function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
   const checkIn = date(row.check_in_date || row.check_in);
@@ -1284,7 +1244,7 @@ export function BookingCard({
       type="button"
       onClick={onOpen}
       aria-label={`Open ${eyebrow} booking for ${title}`}
-      className="w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 sm:p-4"
+      className={`w-full text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${compact ? "bg-[var(--wh-surface)] px-3 py-3" : "rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 sm:p-4"}`}
     >
       <div className="flex items-start gap-3">
         {image ? (
@@ -1293,10 +1253,10 @@ export function BookingCard({
             alt=""
             loading="lazy"
             decoding="async"
-            className="h-14 w-14 shrink-0 rounded-xl object-cover"
+            className={`${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 object-cover`}
           />
         ) : (
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-lg font-bold text-violet-300">
+          <div className={`grid ${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center bg-violet-500/[.08] text-lg font-bold text-violet-300`}>
             {fallback}
           </div>
         )}
@@ -1309,12 +1269,12 @@ export function BookingCard({
               </span>
             ) : null}
           </div>
-          <p className="mt-1 break-words text-sm font-semibold leading-5">{title}</p>
+          <p className={`mt-1 break-words font-semibold leading-5 ${compact ? "text-[13px]" : "text-sm"}`}>{title}</p>
           <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">{subtitle}</p>
           {meta.length ? (
             <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">{meta.join(" · ")}</p>
           ) : null}
-          {next && status === undefined ? (
+          {next ? (
             <p className="mt-2 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
               <span className="font-semibold text-violet-300">Next</span> · {next}
             </p>
