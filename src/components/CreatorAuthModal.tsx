@@ -81,7 +81,7 @@ export default function CreatorAuthModal() {
                   autoComplete="current-password"
                   value={creatorSecret}
                   onChange={(event) => setCreatorSecret(event.target.value)}
-                  className="h-12 w-full rounded-xl border border-white/[.08] bg-[#171B24] px-4 pr-16 text-sm outline-none focus:border-violet-500/50"
+                  className="h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 pr-16 text-sm outline-none focus:border-violet-500/50"
                 />
                 <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute inset-y-0 right-3 text-[9px] font-semibold text-[var(--wh-accent-text)]">
                   {showPassword ? 'Hide' : 'Show'}
