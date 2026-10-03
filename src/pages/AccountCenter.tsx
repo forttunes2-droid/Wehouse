@@ -452,35 +452,25 @@ export default function AccountCenter({
   }
 
   if (panel === "appearance") {
-    const options: Array<{ id: Appearance; title: string; detail: string }> = [
-      { id: "system", title: "Automatic", detail: "Follows your device" },
-      { id: "light", title: "Light", detail: "Warm, open and clear" },
-      { id: "dark", title: "Dark", detail: "Calm, deep and focused" },
+    const options: Array<{ id: Appearance; title: string }> = [
+      { id: "system", title: "Automatic" },
+      { id: "light", title: "Light" },
+      { id: "dark", title: "Dark" },
     ];
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
-      description="Make every WeHouse space feel like yours." onBack={() => setPanel(null)}>
-      <section aria-labelledby="appearance-heading" className="mx-auto max-w-2xl">
-        <p className="text-[11px] font-bold uppercase tracking-[.18em] wh-accent-text">Your space</p>
-        <h2 id="appearance-heading" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Find your light.</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">A familiar WeHouse experience, tuned to how you like to see it.</p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3" role="group" aria-label="Choose appearance">
-          {options.map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id}
-            onClick={() => setAppearance(option.id)}
-            className={`group min-w-0 rounded-[24px] border p-3 text-left transition-[border-color,box-shadow] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 ${appearance === option.id ? 'border-violet-500 bg-[var(--wh-accent-surface)] shadow-[0_0_0_1px_rgba(96,53,206,.14)]' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] hover:border-violet-400/50'}`}>
-            <span aria-hidden="true" className={`block h-28 overflow-hidden rounded-2xl border p-3 ${option.id === 'dark' ? 'border-[#32313f] bg-[#15141d]' : option.id === 'light' ? 'border-[#e4dfeb] bg-[#f7f4f8]' : 'border-[#bbb5ca] bg-gradient-to-r from-[#f7f4f8] from-50% to-[#15141d] to-50%'}`}>
-              <span className={`block h-2 w-12 rounded-full ${option.id === 'dark' ? 'bg-[#8b6bd7]' : 'bg-[#6845b4]'}`} />
-              <span className={`mt-4 block h-10 rounded-xl border p-2 ${option.id === 'dark' ? 'border-[#403d4c] bg-[#292731]' : 'border-[#e8e3ed] bg-white'}`}>
-                <span className={`block h-1.5 w-3/4 rounded-full ${option.id === 'dark' ? 'bg-[#d2ccd9]' : 'bg-[#38313f]'}`} />
-                <span className={`mt-2 block h-1.5 w-1/2 rounded-full ${option.id === 'dark' ? 'bg-[#827c8f]' : 'bg-[#b7b0bd]'}`} />
-              </span>
-            </span>
-            <span className="mt-3 flex items-start justify-between gap-2 px-1 pb-1">
-              <span><span className="block text-sm font-semibold text-[var(--wh-text)]">{option.title}</span><span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{option.detail}</span></span>
-              <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs ${appearance === option.id ? 'border-violet-500 bg-violet-500 text-white' : 'border-[var(--wh-border)]'}`}>{appearance === option.id ? '✓' : null}</span>
-            </span>
-          </button>)}
+      description="Choose how WeHouse looks on this device." onBack={() => setPanel(null)}>
+      <section className="mx-auto max-w-2xl">
+        <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1" role="group" aria-label="Choose appearance">
+          {options.map(option => (
+            <button key={option.id} type="button" aria-pressed={appearance === option.id}
+              onClick={() => setAppearance(option.id)}
+              className={`flex min-h-12 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-semibold transition-colors ${appearance === option.id ? "bg-[var(--wh-accent-surface)] text-[var(--wh-text)]" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
+              <span>{option.title}</span>
+              <span aria-hidden="true" className={`grid h-5 w-5 place-items-center rounded-full border text-[10px] ${appearance === option.id ? "border-violet-500 bg-violet-500 text-white" : "border-[var(--wh-border)]"}`}>{appearance === option.id ? "✓" : ""}</span>
+            </button>
+          ))}
         </div>
-        <p className="mt-5 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Changes apply immediately across your workspaces on this device.</p>
+        <p className="mt-3 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Automatic follows your device. Light and Dark stay consistent across Personal and every workspace.</p>
       </section>
     </AccountShell>;
   }
