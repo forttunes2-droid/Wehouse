@@ -154,9 +154,15 @@ export async function updateMatchStatus(
 
 export async function getReceivedRoommateInterests() {
   const { data, error } = await supabase.rpc(
-    "get_my_received_roommate_interests",
+    "get_my_received_roommate_interests_v2",
   );
-  return { interests: (data || []) as ReceivedRoommateInterest[], error };
+  const interests: ReceivedRoommateInterest[] = (data || []).map((row: any) => ({
+    ...row,
+    match_highlights: Array.isArray(row.match_highlights) ? row.match_highlights : [],
+    discuss_before_deciding: Array.isArray(row.discuss_before_deciding) ? row.discuss_before_deciding : [],
+    compared_answers: Number(row.compared_answers || 0),
+  }));
+  return { interests, error };
 }
 
 export async function respondToRoommateInterest(
