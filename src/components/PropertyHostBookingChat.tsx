@@ -69,8 +69,12 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
     setInput("");setFiles([]);setReplyingTo(null);
     const paths:string[]=[],types:string[]=[];
     try{
-      for(const file of queued){
-        const upload=await uploadPropertyHostMedia(conversation.conversation_id,profile.user_id,file);
+      const uploadedFiles = await Promise.all(
+        queued.map((file) => uploadPropertyHostMedia(conversation.conversation_id, profile.user_id, file)),
+      );
+      for (let index = 0; index < uploadedFiles.length; index++) {
+        const upload = uploadedFiles[index];
+        const file = queued[index];
         if(upload.error||!upload.path||!upload.type)throw new Error(upload.error?.message||`Could not upload ${file.name}`);
         paths.push(upload.path);types.push(file.type.startsWith("image/")?"image":"video");
       }
