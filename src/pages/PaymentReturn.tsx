@@ -1,6 +1,5 @@
 import { withTimeout } from "@/lib/withTimeout";
-import { ReceiptDocument, ReceiptPrintButton } from "@/components/PaymentReceipt";
-import { getPaymentReceipts, type PaymentReceipt } from "@/lib/supabase/receipts";
+import { getPaymentReceipts } from "@/lib/supabase/receipts";
 import { useEffect, useMemo, useState } from 'react';
 import { verifyPaymentWithRetry } from '@/lib/supabase/payment-verify';
 import type { Profile } from '@/types';
@@ -13,7 +12,6 @@ type Props = {
 
 type State =
   | { kind: 'checking'; message: string }
-  | { kind: 'success'; message: string; purpose?: string; receipt?: PaymentReceipt }
   | { kind: 'error'; message: string };
 
 function paymentReferenceFromLocation() {
@@ -94,52 +92,35 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
         return;
       }
       try { localStorage.removeItem('wh_worker_verification_payment_ref'); } catch {}
-      let receipt: PaymentReceipt | undefined;
+      let bookingId: string | undefined;
       try {
-        receipt = (await getPaymentReceipts(reference))[0];
-        if (receipt && result.purpose === 'sponsored_campaign') {
-          receipt = { ...receipt, description: 'Sponsored placement', merchant_name: 'WeHouse' };
-        }
-        if (receipt && result.purpose === 'partner_pro_access') {
-          receipt = { ...receipt, description: 'Property Partner Pro access', merchant_name: 'WeHouse' };
-        }
-      } catch { /* Keep the verified payment visible while receipt retrieval can retry. */ }
-      if (!cancelled) setState({ kind: 'success', purpose: result.purpose, message: successMessage(result.purpose), receipt });
+        const receipt = (await getPaymentReceipts(reference))[0];
+        bookingId = receipt?.booking_id || undefined;
+      } catch { /* Navigation does not depend on receipt loading. */ }
+      if (result.purpose === 'partner_pro_access') {
+        try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
+      }
+      if (!cancelled) onNavigate(destinationForPurpose(result.purpose, profile.role), bookingId);
     })().catch(() => {
       if (!cancelled) setState({ kind: 'error', message: 'We could not check your payment. Please try again; do not pay a second time.' });
     });
     return () => { cancelled = true; };
-  }, [reference, receiptAttempt]);
-
-  const destination = state.kind === 'success' ? destinationForPurpose(state.purpose, profile.role) : destinationForPurpose(undefined, profile.role);
+  }, [reference, receiptAttempt, onNavigate, profile.role]);
 
   function retry() {
     setState({ kind: 'checking', message: 'Checking your payment…' });
     setReceiptAttempt(value => value + 1);
   }
 
-  const successPurpose = state.kind === 'success' ? state.purpose : undefined;
-
-  return <div className="min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-8 text-[var(--wh-text)]"><div className="mx-auto max-w-md">
-    <div className="mb-8 flex items-center gap-3"><img src="/brand-mark-dark.svg" alt="WeHouse" className="h-11 w-11" /><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">WEHOUSE PAYMENTS</p><h1 className="mt-1 text-lg font-bold">Payment confirmation</h1></div></div>
-    <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-2xl">
-      <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : '…'}</div>
-      <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? paymentHeading(successPurpose) : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>
+  return <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
+    <div className="w-full max-w-sm text-center">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-500/10 text-xl font-bold text-violet-300">{state.kind === 'error' ? '!' : '…'}</div>
+      <h1 className="mt-5 text-lg font-bold">{state.kind === 'error' ? 'Payment confirmation needs attention' : 'Confirming your payment'}</h1>
       <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{state.message}</p>
-      <div className="mt-6 space-y-2">
-        {state.kind === 'success' && <button type="button" onClick={() => {
-          if (successPurpose === 'partner_pro_access') {
-            try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
-          }
-          onNavigate(destination, state.receipt?.booking_id || undefined);
-        }} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{successActionLabel(successPurpose)}</button>}
-        {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">Check payment again</button>}
-        {state.kind === 'error' && <button type="button" onClick={() => onNavigate('my_reservations')} className="h-12 w-full rounded-2xl border border-violet-400/25 bg-violet-500/[.08] text-sm font-semibold text-violet-200">Open bookings to continue payment</button>}
-        {state.kind !== 'checking' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-[var(--wh-text-secondary)]">Back to WeHouse</button>}
-      </div>
-    </section>
-    {state.kind === 'success' && <section className="mt-5 space-y-3">
-      {state.receipt ? <><ReceiptDocument receipt={state.receipt} /><ReceiptPrintButton receipt={state.receipt} /></> : <div role="status" className="text-sm text-[var(--wh-text-secondary)]"><p>Your payment is confirmed. The receipt could not be loaded yet.</p><button onClick={retry} className="mt-2 min-h-11 font-semibold text-violet-300">Load receipt again</button></div>}
-    </section>}
-  </div></div>;
+      {state.kind === 'error' ? <div className="mt-5 space-y-2">
+        {reference && <button type="button" onClick={retry} className="h-11 w-full rounded-xl bg-violet-600 text-sm font-semibold text-white">Check payment again</button>}
+        <button type="button" onClick={() => onNavigate('my_reservations')} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold">Open bookings</button>
+      </div> : null}
+    </div>
+  </div>;
 }
