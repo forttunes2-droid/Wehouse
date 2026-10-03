@@ -91,7 +91,6 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   async function saveCreatorSecurity(){
     if(!isCreator)return;
     setCreatorError('');
-    if(!creatorAccountPassword){setCreatorError('Enter your current WeHouse account password to confirm this change.');return;}
     if(creatorSecret.length<12){setCreatorError('Use at least 12 characters for the Creator protection password.');return;}
     if(creatorSecret!==creatorSecretConfirm){setCreatorError('The two protection passwords do not match.');return;}
     setCreatorBusy(true);
@@ -168,7 +167,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
           ) : (
             <div className="mt-4 space-y-3 border-t border-violet-500/10 pt-4">
               <div className="flex flex-wrap gap-1.5 text-[9px] text-[var(--wh-text-muted)]"><span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1">12+ characters</span><span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1">Account confirmation</span>{mfaFactorId?<span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1">Authenticator</span>:null}</div>
-              <Field label="Current WeHouse account password" value={creatorAccountPassword} onChange={setCreatorAccountPassword}/>
+              <div><Field label="Current WeHouse account password (optional)" value={creatorAccountPassword} onChange={setCreatorAccountPassword}/><p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">If you use Google/provider sign-in and do not have a WeHouse password, leave this blank. Your signed-in session is used for first setup; an existing protection password still requires the authenticator.</p></div>
               <Field label="New protection password" value={creatorSecret} onChange={setCreatorSecret}/>
               <Field label="Confirm protection password" value={creatorSecretConfirm} onChange={setCreatorSecretConfirm}/>
               {creatorError?<p role="alert" className="rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-[10px] leading-5 text-red-300">{creatorError}</p>:null}
