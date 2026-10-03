@@ -986,7 +986,7 @@ function BookingSourceNotice({
   );
 }
 
-function ServiceCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
+function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const amount = Number(row.negotiated_amount || 0);
   const status = serviceStatusLabel(String(row.booking_status || ""));
   return (
@@ -1184,7 +1184,7 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
   );
 }
 
-function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
+function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
   const checkIn = date(row.check_in_date || row.check_in);
