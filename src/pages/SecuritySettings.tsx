@@ -126,7 +126,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
         <p className="text-xs font-semibold">Forgot your password?</p>
         <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">Recover with the Google identity already linked to this WeHouse account. The one-use check expires after ten minutes; no reset email is sent.</p>
-        <button type="button" onClick={()=>void startPasswordRecovery()} disabled={changing} className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-xs font-semibold text-[#D1D4DC] disabled:opacity-50">Recover with linked Google</button>
+        <button type="button" onClick={()=>void startPasswordRecovery()} disabled={changing} className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-xs font-semibold text-[var(--wh-text)] disabled:opacity-50">Recover with linked Google</button>
       </div>
     </section>}
 
