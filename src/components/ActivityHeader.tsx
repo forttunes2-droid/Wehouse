@@ -1,6 +1,6 @@
 import BackButton from '@/components/BackButton';
 
-export default function ActivityHeader({ onBack, subtitle, className = '' }: {
+export default function ActivityHeader({ onBack, className = '' }: {
   onBack: () => void; subtitle?: string; className?: string;
 }) {
   return <header className={`mb-4 flex items-center gap-3 border-b border-[var(--wh-border-subtle)] pb-3 ${className}`}>
