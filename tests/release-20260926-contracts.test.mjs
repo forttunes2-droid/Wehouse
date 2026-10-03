@@ -133,7 +133,7 @@ test('Creator sensitive actions use a separate server-hashed secret and independ
   assert.match(modal, /Creator security password/);
   assert.match(security, /Set up authenticator/);
   assert.match(security, /Current WeHouse account password/);
-  assert.match(security, /New Creator security password/);
+  assert.match(security, /New protection password/);
 });
 
 test('Host conversations stay separate from WeHouse support and media storage is booking-scoped', async () => {
