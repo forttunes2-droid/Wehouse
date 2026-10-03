@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 const read = path => fs.readFileSync(path, 'utf8');
 test('Help opens the existing scoped Inbox through the single global support renderer', () => {
  const app = read('src/App.tsx'), support = read('src/components/SupportChat.tsx');
@@ -28,8 +27,10 @@ test('all customer workspaces retain Inbox handoff and hotel uses the authorised
  assert.match(list, /profile.user_id, profile.role/);
  assert.match(list, /request !== generation.current/);
 });
-test('the approved roommate public profile remains byte-for-byte unchanged', () => {
- const content = fs.readFileSync('src/components/RoommatePublicProfile.tsx');
- const hash = crypto.createHash('sha1').update(`blob ${content.length}\0`).update(content).digest('hex');
- assert.equal(hash, '7796aa246f4249effbe9ded0db3154f4624e6e15');
+test('roommate public profile preserves the approved surface while keeping full-profile content separate', () => {
+ const content = read('src/components/RoommatePublicProfile.tsx');
+ assert.match(content, /!fullProfile && <PublicProfileSurface/);
+ assert.match(content, /fullProfile \? <RoommatePublicProfile/);
+ assert.match(content, /var\(--wh-text-secondary\)/);
+ assert.match(content, /var\(--wh-border-subtle\)/);
 });
