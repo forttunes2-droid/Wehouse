@@ -55,6 +55,7 @@ import {
 } from "@/lib/activityFeed";
 import {
   getCanonicalActivity,
+  getCanonicalActivitySummary,
   markCanonicalActivityRead,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
