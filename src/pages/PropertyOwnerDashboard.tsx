@@ -240,7 +240,7 @@ function PropertiesWorkspace({
             </div>
           </div>
         </div>
-      )}      {delegatedOnly || filter === "public" || publishedTarget ? (
+      )}      {delegatedOnly || filter === "public" || filter === "all" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
           delegatedOnly={delegatedOnly}
@@ -250,6 +250,7 @@ function PropertiesWorkspace({
           onTargetClose={() => { setPublishedTarget(undefined); onTargetClose?.(); }}
           onDetailChange={setViewingDetail}
           onOpenInbox={onOpenInbox}
+          showRequests={filter === "all" && !delegatedOnly}
         />
       ) : (
         <PartnerSubmittedRequests
@@ -932,3 +933,17 @@ function friendly(value: any) {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
+      {showRequests ? (
+        <section className="mt-8 border-t border-[var(--wh-border-subtle)] pt-5">
+          <div className="mb-3">
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Requests</p>
+            <h2 className="mt-1 text-sm font-semibold">Properties still moving through WeHouse</h2>
+          </div>
+          <PartnerSubmittedRequests
+            profile={profile}
+            filter="all"
+            assetKind="all"
+            onOpenPublished={() => undefined}
+          />
+        </section>
+      ) : null}
