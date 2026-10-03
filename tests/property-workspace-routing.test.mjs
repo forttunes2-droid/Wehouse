@@ -54,10 +54,10 @@ test('hotel parent routing does not overwrite an exact inspection or apartment r
   assert.deepEqual(plain(activity.resolveActivityDestination({ type: 'reservation.move_in_requested', source_type: 'reservation', source_id: 'reservation-a', destination_route: 'operations_properties', destination_params: { reservation_id: 'reservation-a', listing_id: 'listing-b' } })), { route: 'reservation', id: 'reservation-a' });
 });
 
-test('All and Live use one published manager; Activity preserves its mounted origin', () => {
+test('All, Live and linked records use one published manager; Activity preserves its mounted origin', () => {
   const owner = read('src/pages/PropertyOwnerDashboard.tsx');
   const requests = read('src/components/PartnerSubmittedRequests.tsx');
-  assert.match(owner, /filter === "public" \|\| publishedTarget/);
+  assert.match(owner, /filter === "public" \|\| filter === "all" \|\| publishedTarget/);
   assert.match(requests, /request.lifecycle_stage === "live" && onOpenPublished/);
   assert.match(owner, /inert=\{Boolean\(propertyTargetId\)\}/);
   assert.match(owner, /getMyHotelBookingTarget\(id\)/);
