@@ -78,6 +78,7 @@ export default function RoommateWorkspace({
   const editingRef = useRef(false);
   const [loadError, setLoadError] = useState("");
   const cached = roommateCache.get(profile.user_id);
+  const [acceptedIncomingUserIds, setAcceptedIncomingUserIds] = useState<Set<string>>(() => new Set());
   const [prefs, setPrefs] = useState<RoommatePreferences | null>(() => cached?.prefs || null),
     [matches, setMatches] = useState<RoommateMatchResult[]>(() => cached?.matches || []),
     [received, setReceived] = useState<ReceivedRoommateInterest[]>(() => cached?.received || []),
@@ -337,6 +338,7 @@ export default function RoommateWorkspace({
     setInterestBusy(null);
     if (error) return toast.error(error.message);
     setReceived((current) => current.filter((row) => row.interest_id !== item.interest_id));
+    if (response === "accepted") setAcceptedIncomingUserIds((current) => new Set(current).add(item.sender_user_id));
     if (response === "declined")
       return toast.success("Passed privately. No conversation was created.");
     toast.success("Interest accepted. Your connection is ready.", {
@@ -492,6 +494,7 @@ export default function RoommateWorkspace({
             <Matches
               rows={matches}
               receivedUserIds={new Set(received.map((row) => row.sender_user_id))}
+              acceptedIncomingIds={acceptedIncomingUserIds}
               focusedId={focusedContextId}
               discoveryActive={matchingActive}
               hasMore={hasMore}
@@ -577,9 +580,9 @@ function Matches({
 }) {
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const openProfile = rows.find((row) => row.id === openProfileId) || null;
-  const established = rows.filter(isEstablishedMatch);
+  const established = rows.filter((row) => isEstablishedMatch(row) || acceptedIncomingIds.has(row.matched_user_id));
   const discoverable = discoveryActive
-    ? rows.filter((row) => !isEstablishedMatch(row) && row.status !== "accepted" && !receivedUserIds.has(row.matched_user_id))
+    ? rows.filter((row) => !isEstablishedMatch(row) && !acceptedIncomingIds.has(row.matched_user_id) && row.status !== "accepted" && !receivedUserIds.has(row.matched_user_id))
     : [];
 
   return (
