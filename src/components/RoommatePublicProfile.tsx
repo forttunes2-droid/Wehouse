@@ -36,7 +36,7 @@ export default function RoommatePublicProfile({
   const hasScore = Number.isFinite(score) && (comparedAnswers === undefined || comparedAnswers > 0);
   const conversationMode = context === "conversation";
   return <>
-    <PublicProfileSurface
+    {!fullProfile && <PublicProfileSurface
       suspended={fullProfile}
       conversation={conversationMode}
       name={person.name}
@@ -69,7 +69,7 @@ export default function RoommatePublicProfile({
         </section>}
       </>}
       {footer}
-    </PublicProfileSurface>
+    </PublicProfileSurface>}
     {/* Keep the originating info screen mounted: Back restores that exact step,
         with the same permission-filtered person data, rather than starting over. */}
     {fullProfile ? <RoommatePublicProfile person={person} score={score} matchLabel={matchLabel} highlights={highlights} discuss={discuss} comparedAnswers={comparedAnswers}
@@ -78,7 +78,7 @@ export default function RoommatePublicProfile({
 }
 function Detail({ label, value }: { label: string; value: string }) {
   return <div className="flex items-start justify-between gap-6 py-4">
-    <span className="text-xs text-[#858C9C]">{label}</span>
-    <strong className="max-w-[68%] text-right text-sm font-medium text-[#D7DAE3]">{value}</strong>
+    <span className="text-xs text-[var(--wh-text-muted)]">{label}</span>
+    <strong className="max-w-[68%] text-right text-sm font-medium text-[var(--wh-text)]">{value}</strong>
   </div>;
 }
