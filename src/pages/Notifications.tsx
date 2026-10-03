@@ -600,19 +600,11 @@ function icon(type: string) {
 }
 function ActivityLoading() {
   return (
-    <div
-      className="grid min-h-40 place-items-center"
-      role="status"
-      aria-label="Loading activity"
-    >
-      <div className="text-center">
-        <div className="mx-auto grid h-10 w-10 animate-pulse place-items-center rounded-2xl bg-violet-500 text-sm font-black">
-          WH
-        </div>
-        <p className="mt-3 text-[9px] text-[var(--wh-text-muted)]">
-          Loading recent activity…
-        </p>
-      </div>
+    <div className="space-y-2 py-3" role="status" aria-label="Loading activity">
+      <div className="h-10 animate-pulse rounded-xl bg-[var(--wh-interactive)]" />
+      <div className="h-20 animate-pulse rounded-xl bg-[var(--wh-interactive)]" />
+      <div className="h-20 animate-pulse rounded-xl bg-[var(--wh-interactive)]" />
+      <p className="pt-1 text-[10px] text-[var(--wh-text-muted)]">Loading recent activity…</p>
     </div>
   );
 }
