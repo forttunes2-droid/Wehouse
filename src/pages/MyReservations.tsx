@@ -1133,7 +1133,7 @@ function serviceStatusLabel(status: string) {
   return labels[status] || "Active";
 }
 
-function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
+function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   const short = row.stay_type === "short_let";
   const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
