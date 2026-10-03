@@ -42,11 +42,12 @@ export default function PublicProfileSurface({
   useEffect(() => {
     const element = root.current;
     if (!element) return;
-    // Capture the real opener before dialog isolation moves focus into the surface.
+    const release = isolateDialog(element);
+    // StrictMode replays this effect after the dialog has already taken focus.
+    // Capture the real opener once, not the dialog from the second effect run.
     if (!returnFocus.current && document.activeElement instanceof HTMLElement) {
       returnFocus.current = document.activeElement;
     }
-    const release = isolateDialog(element);
     window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: true } }));
     const history = bindProfileScreenHistory(window, id, () => close.current());
     controller.current = history;
@@ -73,15 +74,10 @@ export default function PublicProfileSurface({
       element?.removeEventListener("keydown", keydown);
       release();
       window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')) } }));
-      const restoreFocus = () => {
+      queueMicrotask(() => {
         const opener = returnFocus.current;
         if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-      };
-      if (typeof requestAnimationFrame === "function") {
-        requestAnimationFrame(() => requestAnimationFrame(restoreFocus));
-      } else {
-        setTimeout(restoreFocus, 0);
-      }
+      });
     };
   }, [id]);
 
