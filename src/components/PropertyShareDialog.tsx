@@ -76,8 +76,6 @@ export default function PropertyShareDialog({ userId, property, title, stayType,
       </>}
       </section>
       </div>
-      {stayType === 'short_let' && <p className="shrink-0 border-t border-[var(--wh-border-subtle)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[var(--wh-text-secondary)]">To split a Short Let stay, reserve the dates first. Then open your booking and choose “Share stay costs.”</p>}
-      {stayType === 'long_stay' && <p className="shrink-0 border-t border-[var(--wh-border-subtle)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[var(--wh-text-secondary)]">To split a Long Let reservation, choose “Reserve with a roommate” on this listing. Sending a property link does not request payment.</p>}
     </section>
   </div>, document.body);
 }
