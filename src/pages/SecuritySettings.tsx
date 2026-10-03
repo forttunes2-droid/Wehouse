@@ -29,6 +29,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   const [creatorSecretConfirm,setCreatorSecretConfirm]=useState('');
   const [creatorOtp,setCreatorOtp]=useState('');
   const [creatorBusy,setCreatorBusy]=useState(false);
+  const [creatorError,setCreatorError]=useState('');
   const canDelete=['user','worker','property_partner'].includes(profile.role);
   const isCreator=profile.role==='creator';
   const device=useMemo(()=>parseDeviceInfo(),[]);
@@ -89,18 +90,23 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   }
   async function saveCreatorSecurity(){
     if(!isCreator)return;
-    if(!creatorAccountPassword)return toast.error('Enter your current account password');
-    if(creatorSecret.length<12)return toast.error('Creator security password must be at least 12 characters');
-    if(creatorSecret!==creatorSecretConfirm)return toast.error('Creator security passwords do not match');
+    setCreatorError('');
+    if(!creatorAccountPassword){setCreatorError('Enter your current WeHouse account password to confirm this change.');return;}
+    if(creatorSecret.length<12){setCreatorError('Use at least 12 characters for the Creator protection password.');return;}
+    if(creatorSecret!==creatorSecretConfirm){setCreatorError('The two protection passwords do not match.');return;}
     setCreatorBusy(true);
     const {data,error}=await supabase.functions.invoke('creator-security-setup',{body:{
       account_password:creatorAccountPassword,new_creator_secret:creatorSecret,otp_code:creatorOtp
     }});
     setCreatorBusy(false);
     if(error||!data?.success){
-      if(data?.needs_mfa)return toast.error('Enter your current authenticator code');
-      if(data?.needs_mfa_enrollment)return toast.error('Enroll an authenticator before resetting Creator security');
-      return toast.error(data?.error||error?.message||'Creator security could not be saved');
+      const message = data?.needs_mfa
+        ? 'Enter the current 6-digit authenticator code.'
+        : data?.needs_mfa_enrollment
+          ? 'Enroll an authenticator before changing an existing Creator protection password.'
+          : data?.error || error?.message || 'Creator protection could not be saved.';
+      setCreatorError(message);
+      return;
     }
     setCreatorAccountPassword('');setCreatorSecret('');setCreatorSecretConfirm('');setCreatorOtp('');setCreatorSetupOpen(false);
     toast.success(creatorStatus?.enrolled?'Creator security password changed':'Creator security password created');
@@ -161,9 +167,11 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
             <button type="button" onClick={()=>setCreatorSetupOpen(true)} className="mt-3 min-h-10 rounded-xl bg-violet-500 px-4 text-xs font-semibold">{creatorStatus?.enrolled?'Change protection password':'Set protection password'}</button>
           ) : (
             <div className="mt-4 space-y-3 border-t border-violet-500/10 pt-4">
+              <div className="flex flex-wrap gap-1.5 text-[9px] text-[var(--wh-text-muted)]"><span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1">12+ characters</span><span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1">Account confirmation</span>{mfaFactorId?<span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1">Authenticator</span>:null}</div>
               <Field label="Current WeHouse account password" value={creatorAccountPassword} onChange={setCreatorAccountPassword}/>
               <Field label="New Creator security password" value={creatorSecret} onChange={setCreatorSecret}/>
               <Field label="Confirm Creator security password" value={creatorSecretConfirm} onChange={setCreatorSecretConfirm}/>
+              {creatorError?<p role="alert" className="rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-[10px] leading-5 text-red-300">{creatorError}</p>:null}
               {mfaFactorId?<label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">Authenticator code</span><input inputMode="numeric" maxLength={6} value={creatorOtp} onChange={e=>setCreatorOtp(e.target.value.replace(/\D/g,'').slice(0,6))} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none"/></label>:null}
               <div className="flex gap-2"><button type="button" disabled={creatorBusy} onClick={()=>void saveCreatorSecurity()} className="min-h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{creatorBusy?'Saving…':'Save protection password'}</button><button type="button" disabled={creatorBusy} onClick={()=>setCreatorSetupOpen(false)} className="min-h-11 px-3 text-xs text-[var(--wh-text-secondary)]">Cancel</button></div>
             </div>
