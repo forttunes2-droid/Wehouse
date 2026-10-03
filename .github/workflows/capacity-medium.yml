@@ -30,7 +30,7 @@ jobs:
         run: test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 8
       - name: Start local Supabase and replay migrations
         run: |
-          npx --yes supabase@2.114.0 start
+          npx --yes supabase@2.114.0 start --exclude inbucket
           npx --yes supabase@2.114.0 db reset --local
       - name: Seed 50k homes, 100k hotels and 50k synthetic profiles
         run: bash scripts/seed-capacity-medium.sh

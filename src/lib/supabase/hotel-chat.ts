@@ -1,4 +1,4 @@
-import { validateChatUpload, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
+import { prepareChatVideo, validateChatUpload, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { parseHotelConversationBundle, type HotelChatMessage, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { prepareChatImageFile } from "./utils";
 import { supabase } from "./client";
@@ -126,6 +126,11 @@ export async function uploadHotelChatAttachment(
   let extension = (file.name.split(".").pop() || "bin").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   if (file.type.startsWith("image/")) {
     const prepared = await prepareChatImageFile(file);
+    upload = prepared.body;
+    contentType = prepared.contentType;
+    extension = prepared.extension;
+  } else if (file.type.startsWith("video/")) {
+    const prepared = await prepareChatVideo(file);
     upload = prepared.body;
     contentType = prepared.contentType;
     extension = prepared.extension;

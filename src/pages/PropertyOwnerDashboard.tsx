@@ -23,8 +23,9 @@ import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
+import PropertyPartnerProWorkspace from "@/components/PropertyPartnerProWorkspace";
 
-type PartnerTab = "properties" | "finance" | "communication";
+type PartnerTab = "properties" | "finance" | "communication" | "sponsored" | "pro";
 const PROPERTY_PAGE_SIZE = 40;
 type Props = {
   inboxOpenRequest?: number;
@@ -54,6 +55,16 @@ const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }>
     label: "Finance",
     description: "Your wallet, earnings and withdrawals",
   },
+  {
+    key: "pro",
+    label: "Pro",
+    description: "Portfolio calendar, income reports and property tasks",
+  },
+  {
+    key: "sponsored",
+    label: "Sponsored",
+    description: "Manage paid placement for your properties and hotels",
+  },
 ];
 const HOSTING_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   { key: "properties", label: "Homes", description: "Host the homes assigned to you" },
@@ -67,6 +78,15 @@ export default function PropertyOwnerDashboard({
   delegatedOnly = false,
 }: Props) {
   const [tab, setTab] = useState<PartnerTab>("properties");
+  useEffect(() => {
+    if (delegatedOnly) return;
+    try {
+      if (sessionStorage.getItem('wh_partner_return_tab') === 'pro') {
+        sessionStorage.removeItem('wh_partner_return_tab');
+        setTab('pro');
+      }
+    } catch { /* The workspace stays navigable if storage is unavailable. */ }
+  }, [delegatedOnly]);
   const tabs = delegatedOnly ? HOSTING_TABS : OWNER_TABS;
   const [propertyTargetId, setPropertyTargetId] = useState<
     string | undefined
@@ -159,7 +179,9 @@ export default function PropertyOwnerDashboard({
               delegatedOnly={delegatedOnly} /> : null}
           </>
         )}
-        {!delegatedOnly && tab === "finance" && <><FinanceTab profile={profile} /><div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div></>}
+        {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
+        {!delegatedOnly && tab === "pro" && <PropertyPartnerProWorkspace profile={profile} />}
+        {!delegatedOnly && tab === "sponsored" && <div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div>}
       </WorkspaceFrameV2>
     </>
   );
@@ -211,13 +233,13 @@ function PropertiesWorkspace({
   return (
     <div className="space-y-5">
       {!delegatedOnly && !viewingDetail && !creating && (
-        <div className="border-b border-white/[.06] pb-4">
+        <div className="border-b border-[var(--wh-border-subtle)] pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[#666C7C]">
+              <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[var(--wh-text-muted)]">
                 Property workspace
               </p>
-              <p className="mt-1 text-xs text-[#AEB3C1]">One list, filtered by type and lifecycle</p>
+              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">One list, filtered by type and lifecycle</p>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
               <WeHouseSelect value={assetKind} options={[{ value: "apartment", label: "Apartments" }, { value: "hotel", label: "Hotels" }]} onChange={setAssetKind} eyebrow="Properties" title="Property type" ariaLabel="Filter by property type" className="w-full !min-w-0" />
@@ -447,7 +469,7 @@ function PropertiesTab({
             Live {assetKind === "hotel" ? "hotels" : "apartments"}
           </h2>
         </div>
-        <span className="rounded-full bg-white/[.04] px-3 py-1 text-[10px] text-[#888A9B]">
+        <span className="rounded-full bg-[var(--wh-interactive)] px-3 py-1 text-[10px] text-[var(--wh-text-secondary)]">
           {assets.length}{hasMore ? "+" : ""}
         </span>
       </div>
@@ -459,14 +481,14 @@ function PropertiesTab({
           text="A property appears here after it is ready and published by WeHouse."
         />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {assets.map((property) => (
             <button
               key={property.id}
               onClick={() => setSelected(property)}
-              className="flex w-full items-center gap-3 py-4 text-left transition hover:bg-white/[.02]"
+              className="flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--wh-interactive)]"
             >
-              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[#171722]">
+              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--wh-elevated)]">
                 {property.images?.[0] ? (
                   <ListingMediaImage
                     reference={property.images[0]}
@@ -475,7 +497,7 @@ function PropertiesTab({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-[#46485A]">
+                  <div className="grid h-full place-items-center text-[var(--wh-text-muted)]">
                     No image
                   </div>
                 )}
@@ -486,7 +508,7 @@ function PropertiesTab({
                     <p className="truncate text-sm font-semibold">
                       {property.title || "Property"}
                     </p>
-                    <p className="mt-1 truncate text-[10px] text-[#66687B]">
+                    <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
                       {[property.city, property.state]
                         .filter(Boolean)
                         .join(", ")}
@@ -515,7 +537,7 @@ function PropertiesTab({
         </div>
       )}
       {!loading && hasMore && <button type="button" onClick={() => void loadMore()}
-        disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold text-violet-200 disabled:opacity-50">
+        disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-violet-200 disabled:opacity-50">
         {loadingMore ? "Loading more…" : assetKind === "hotel" ? "Load more hotels" : "Load more homes"}
       </button>}
     </section>
@@ -605,11 +627,11 @@ export function PropertyDetails({
     <div className="space-y-5">
       <button
         onClick={closeRecord}
-        className="text-xs text-[#888A9B] hover:text-white"
+        className="text-xs text-[var(--wh-text-secondary)] hover:text-white"
       >
         ← Back to properties
       </button>
-      <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#111119]">
+      <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {property.images?.length || property.videos?.length ? (
           <PropertyMediaCarousel
             images={property.images}
@@ -623,7 +645,7 @@ export function PropertyDetails({
               <h2 className="break-words text-xl font-bold">
                 {property.title || "Property"}
               </h2>
-              <p className="mt-1 break-words text-xs text-[#747689]">
+              <p className="mt-1 break-words text-xs text-[var(--wh-text-muted)]">
                 {locationLabel(property.address, property.city, property.state)}
               </p>
             </div>
@@ -639,47 +661,47 @@ export function PropertyDetails({
             <Info label="Bedrooms" value={property.bedrooms ?? "—"} />
             <Info label="Bathrooms" value={property.bathrooms ?? "—"} />
           </div>
-          <div className="mt-4 border-y border-white/[.06] py-3">
+          <div className="mt-4 border-y border-[var(--wh-border-subtle)] py-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">Published home status</p>
-                <p className="mt-1 text-[10px] leading-5 text-[#898F9F]">{partnerPropertyStateMessage(property,hostManaged,managementConfigured)}</p>
+                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Published home status</p>
+                <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{partnerPropertyStateMessage(property,hostManaged,managementConfigured)}</p>
               </div>
               <Status value={property.availability_status || property.status || "available"} />
             </div>
           </div>
           <button
             onClick={contact}
-            className="mt-4 min-h-10 px-1 text-[10px] font-semibold text-[#8D93A2] hover:text-violet-300"
+            className="mt-4 min-h-10 px-1 text-[10px] font-semibold text-[var(--wh-text-secondary)] hover:text-violet-300"
           >
             WeHouse support
           </button>
         </div>
       </section>
-      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      <PropertyManagementPanel listingId={String(property.id)} profile={profile} onContact={contact} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
       {hostManaged&&property._can_control_commercials?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
-      <section className="border-t border-white/[.07] pt-5">
+      <section className="border-t border-[var(--wh-border-subtle)] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#696F80]">{!managementConfigured?"Operations":hostManaged?"Host operations":"Property operations"}</p>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">{!managementConfigured?"Operations":hostManaged?"Host operations":"Property operations"}</p>
             <h2 className="mt-1 text-sm font-bold">Reservations</h2>
-            <p className="mt-1 text-[9px] text-[#707687]">{!managementConfigured?"Choose who manages this live home before new bookings.":hostManaged?"Responsible Host operates these reservations.":wehouseManaged?"WeHouse Property Operations operates these reservations.":""}</p>
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{!managementConfigured?"Choose who manages this live home before new bookings.":hostManaged?"Responsible Host operates these reservations.":wehouseManaged?"WeHouse Property Operations operates these reservations.":""}</p>
           </div>
           <div className="flex items-center gap-3">
             {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-10 px-1 text-[10px] font-semibold text-violet-300">Messages</button>:null}
-            <span className="text-[9px] text-[#696F7F]">{stays.length}</span>
+            <span className="text-[9px] text-[var(--wh-text-muted)]">{stays.length}</span>
           </div>
         </div>
         {loadingStays ? (
           <Loading />
         ) : stays.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-dashed border-white/[.08] px-5 py-8 text-center">
+          <div className="mt-4 rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-8 text-center">
             <p className="text-xs font-semibold">
               {(property.availability_status || property.status) === "reserved"
                 ? hostManaged ? "Reservation active" : "Reserved through WeHouse"
                 : "No reservations yet"}
             </p>
-            <p className="mt-2 text-[9px] text-[#666C7C]">
+            <p className="mt-2 text-[9px] text-[var(--wh-text-muted)]">
               {(property.availability_status || property.status) === "reserved"
                 ? hostManaged
                   ? "The booking is secured. The guest journey and next host action will appear here."
@@ -694,7 +716,7 @@ export function PropertyDetails({
             </p>
           </div>
         ) : (
-          <div className="mt-4 divide-y divide-white/[.06] border-y border-white/[.06]">
+          <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
             {orderedStays.map((stay) => (
               <article
                 id={`partner-stay-${stay.reservation_id}`}
@@ -709,7 +731,7 @@ export function PropertyDetails({
                       </p>
                     </div>
                     {stay.stay_type === "short_let" ? (
-                      <p className="mt-1 text-[9px] text-[#696F80]">
+                      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                         {stay.management_mode_snapshot === "host" ? "Host-managed stay" : "WeHouse-managed stay"}
                       </p>
                     ) : null}
@@ -750,7 +772,7 @@ export function PropertyDetails({
                     />
                   </div>
                 )}
-                <p className="mt-3 text-[9px] leading-5 text-[#888E9D]">
+                <p className="mt-3 text-[9px] leading-5 text-[var(--wh-text-secondary)]">
                   {partnerStayMessage(stay)}
                 </p>
                 <HostArrivalAction stay={stay} profile={profile} onChanged={() => setStayRefresh(value => value + 1)} />
@@ -793,8 +815,8 @@ function FinanceTab({ profile }: { profile: Profile }) {
 }
 function Info({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-white/[.06] bg-[#111119] p-4">
-      <p className="text-[9px] uppercase tracking-wide text-[#616375]">
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+      <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">
         {label}
       </p>
       <p className="mt-1 break-words text-xs font-medium capitalize text-[#D3D4DC]">
@@ -828,9 +850,9 @@ function Status({ value }: { value: string }) {
 }
 function Empty({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] bg-white/[.015] px-5 py-12 text-center">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-5 py-12 text-center">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[#626477]">
+      <p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
         {text}
       </p>
     </div>

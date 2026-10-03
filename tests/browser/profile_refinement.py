@@ -34,7 +34,7 @@ async def main():
   if os.getenv('CHROMIUM_PATH'):opts['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**opts)
   for width in [320,390,768,1440]:
-   for mode in ['public','owner','owner-link','private','error','media-error','stale','help','help-error','help-wrong-user']:
+   for mode in ['public','preview','creator-list','owner','owner-link','private','error','media-error','pending-media','stale','help','help-error','help-wrong-user']:
     context=await browser.new_context(viewport={'width':width,'height':844},has_touch=True,service_workers='block');page=await context.new_page();page.set_default_timeout(6000)
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'case':mode,'width':width,'passed':False,'page_errors':errors}
     async def route(handler):
@@ -63,10 +63,13 @@ async def main():
       await page.wait_for_function('!!document.querySelector("[data-showcase-stage] video") && document.querySelector("[data-showcase-stage] video").readyState>=2')
       assert await viewer.locator('video').count()==1
       await page.screenshot(path=str(OUT/f'worker-post-viewer-{width}.png'))
+      if width==390:print('WEHOUSE_PREVIEW_VIEWER='+base64.b64encode(await page.screenshot(type='jpeg',quality=48)).decode(),flush=True)
       await viewer.get_by_role('button',name='Open comments',exact=True).click();await expect(page.get_by_role('region',name='Work post comments')).to_be_visible()
       assert await viewer.locator('video').evaluate('(v)=>v.paused')
       await page.get_by_label('Add a comment',exact=True).fill('Is this finish available in oak?');await page.get_by_role('button',name='Post',exact=True).click()
       await expect(page.get_by_text('Is this finish available in oak?',exact=True)).to_be_visible()
+      await page.screenshot(path=str(OUT/f'worker-post-comments-{width}.png'))
+      if width==390:print('WEHOUSE_PREVIEW_COMMENTS='+base64.b64encode(await page.screenshot(type='jpeg',quality=48)).decode(),flush=True)
       await page.get_by_role('button',name='Back to work post',exact=True).click();await expect(viewer.get_by_role('button',name='Open comments')).to_be_focused()
       await swipe(page,page.locator('[data-showcase-stage]'),-100);await expect(viewer.get_by_text('3 / 24',exact=True)).to_be_visible()
       await swipe(page,page.locator('[data-showcase-stage]'),100);await expect(viewer.get_by_text('2 / 24',exact=True)).to_be_visible()
@@ -74,14 +77,41 @@ async def main():
       await expect(tiles.nth(0)).to_be_focused()
       await page.get_by_role('button',name='Show more work',exact=True).click();await expect(tiles).to_have_count(27)
       assert len(set(await tiles.evaluate_all('(els)=>els.map(e=>e.getAttribute("aria-label"))')))==27
+     elif mode=='preview':
+      await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
+      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await expect(tiles).to_have_count(24)
+      await settled_capture(page,f'worker-creator-preview-{width}.png',media=True)
+      await tiles.nth(0).click()
+      viewer=page.get_by_role('dialog',name='Sani Example work post')
+      await expect(viewer).to_be_visible()
+      await expect(viewer.get_by_role('button',name='Like work post')).to_have_count(0)
+      await viewer.get_by_role('button',name='Open comments').click()
+      await expect(page.get_by_text('Creator preview · comments are read only')).to_be_visible()
+      await expect(page.get_by_label('Add a comment')).to_have_count(0)
+      assert not any(call['name'] in ('add_my_worker_showcase_comment','set_my_worker_showcase_reaction') for call in await page.evaluate('window.__fixtureState.calls'))
+      await page.get_by_role('button',name='Back to work post',exact=True).click()
+      await page.get_by_role('button',name='Back to work posts',exact=True).click()
+     elif mode=='creator-list':
+      await expect(page.get_by_role('heading',name='Service Worker oversight')).to_be_visible()
+      await page.get_by_role('button',name='Preview Workers').click()
+      opener=page.get_by_role('button',name="Preview Sani Example's customer profile")
+      await expect(opener).to_be_visible();await opener.click()
+      await expect(page.get_by_role('dialog',name='Sani Example profile')).to_be_visible()
+      await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
+      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await page.screenshot(path=str(OUT/f'worker-creator-list-preview-{width}.png'))
+      await page.get_by_role('button',name='Back',exact=True).click()
+      await expect(opener).to_be_visible();await expect(opener).to_be_focused()
+      assert len([call for call in await page.evaluate('window.__fixtureState.calls') if call['name']=='get_public_workers'])==1
      elif mode=='owner':
-      await expect(tiles).to_have_count(24);await page.get_by_label('Post visibility',exact=True).click();await page.get_by_role('dialog',name='Post visibility').get_by_role('button',name='Hidden posts').click();await expect(tiles).to_have_count(1)
+      await expect(tiles).to_have_count(24);await page.get_by_role('tablist',name='Post visibility').get_by_role('tab',name='Hidden',exact=True).click();await expect(tiles).to_have_count(1)
       assert not any(x['name']=='set_my_worker_work_post_hidden' for x in await page.evaluate('window.__fixtureState.calls'))
-      await page.get_by_label('Post visibility',exact=True).click();await page.get_by_role('dialog',name='Post visibility').get_by_role('button',name='All posts').click();await settled_capture(page,f'worker-own-showcase-{width}.png',media=True)
+      await page.get_by_role('tablist',name='Post visibility').get_by_role('tab',name='All',exact=True).click();await expect(tiles).to_have_count(24);await settled_capture(page,f'worker-own-showcase-{width}.png',media=True)
       await tiles.nth(0).click();await page.get_by_label('Post options',exact=True).click();await page.get_by_role('button',name='Hide from profile',exact=True).click()
       await expect(page.get_by_role('dialog',name='Sani Example work post')).to_have_count(0)
       assert len([x for x in await page.evaluate('window.__fixtureState.calls') if x['name']=='set_my_worker_work_post_hidden'])==1
-      await page.locator('input[type=file]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
+      await page.locator('input[type=file][accept^="image/"]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
       await expect(page.get_by_role('dialog',name='New work post')).to_be_visible()
       await page.get_by_placeholder('Describe this work').fill('Sample cabinet fitting')
       await expect(page.get_by_label('Link completed job')).to_be_visible()
@@ -107,6 +137,13 @@ async def main():
       await expect(tiles).to_have_count(24);await tiles.nth(0).click();await expect(page.get_by_text('This media could not be loaded.',exact=True)).to_be_visible()
       await page.evaluate('window.__fixtureState.failMedia=false');await page.get_by_role('dialog',name='Sani Example work post').get_by_role('button',name='Try again').click()
       await expect(page.get_by_alt_text('Sani Example work',exact=True)).to_be_visible()
+     elif mode=='pending-media':
+      await expect(tiles).to_have_count(24)
+      await expect(tiles.nth(1)).not_to_contain_text('Video unavailable')
+      await tiles.nth(1).click()
+      await expect(page.get_by_role('status',name='Loading video…')).to_be_visible()
+      await page.evaluate('window.__fixtureState.pendingSigning.splice(0).forEach(resolve=>resolve())')
+      await expect(page.get_by_role('dialog',name='Sani Example work post').locator('video')).to_be_visible()
      elif mode=='stale':
       await page.wait_for_function('window.__fixtureState.pending.length>0')
       await page.evaluate('window.__switchWorker()');await expect(page.get_by_role('heading',name='Chika Example')).to_be_visible();await expect(tiles).to_have_count(24)

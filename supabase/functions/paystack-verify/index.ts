@@ -201,6 +201,24 @@ serve(async (req) => {
         error: data?.error, purpose: payment.purpose, amount: verifiedAmount, result: data }),
         { status: 200, headers: cors });
     }
+    if (payment.purpose === "partner_pro_access") {
+      if (!transactionId || !["test", "live"].includes(String(verified.data.domain)))
+        return new Response(JSON.stringify({ success: false, error: "Provider receipt is incomplete" }),
+          { status: 400, headers: cors });
+      const { data, error } = await admin.rpc("confirm_partner_pro_paystack_charge", {
+        p_reference: reference,
+        p_transaction_id: transactionId,
+        p_amount_minor: amountMinor,
+        p_environment: verified.data.domain,
+        p_source: "edge_function",
+      });
+      if (error) return new Response(JSON.stringify({ success: false, error: error.message }),
+        { status: 500, headers: cors });
+      return new Response(JSON.stringify({ success: Boolean(data?.success), verified: true,
+        recorded: true, charged: true, requires_review: Boolean(data?.requires_review),
+        error: data?.error, purpose: payment.purpose, amount: verifiedAmount, result: data }),
+        { status: 200, headers: cors });
+    }
     async function recordPaymentMode() {
       const { error } = await admin.rpc("record_verified_payment_mode", {
         p_reference: reference, p_transaction_id: transactionId,

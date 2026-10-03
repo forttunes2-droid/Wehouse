@@ -57,8 +57,14 @@ jobs:
         run: |
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';")" -ge 90
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
+      - name: Exercise indexed public listing identifiers and visibility
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/public_detail_identifier_contract.sql
       - name: Exercise actual arrival dates and booking-code authority
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/arrival_dates_contract.sql
+      - name: Exercise paid hotel cancellation and refund reconciliation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_paid_cancellation_contract.sql
+      - name: Exercise guest-held hotel arrival and departure codes
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_guest_presence_contract.sql
       - name: Exercise accommodation handover contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
       - name: Exercise identity policy and Service Provider review contract
@@ -91,6 +97,14 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operational_conversation_bundle_contract.sql
       - name: Exercise property routing inventory and revoked hotel Activity
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_workspace_routing_contract.sql
+      - name: Exercise Partner Pro ownership, task mutation and calendar isolation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_partner_pro_contract.sql
+      - name: Exercise Worker Pro business records, paid access and ownership
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_pro_business_contract.sql
+      - name: Exercise Partner Pro terms, checkout and verified entitlement
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/partner_pro_payment_contract.sql
+      - name: Exercise work-post comment pagination and hidden-post isolation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_showcase_comment_pages_contract.sql
       - name: Hotel conversation context and recipient receipts
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
       - name: Practical reciprocal roommate rules
@@ -119,6 +133,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
       - name: Exercise invitations, Hosting Help and Worker market capacity
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql
+      - name: Verify prepublication management choice and public media bounds
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_management_publication_contract.sql
       - name: Exercise Sponsored payment and placement contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Stop local Supabase

@@ -4,7 +4,7 @@ import SharedPropertyWorkspaceView from "@/components/SharedPropertyWorkspaceVie
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
-import { playNotificationSound } from "@/lib/notificationSound";
+import { playNotificationSound, unlockNotificationAudio } from "@/lib/notificationSound";
 import {
   useState,
   useEffect,
@@ -69,11 +69,15 @@ type ConversationUnreadRow = {
 type IncomingMessageRow = {
   sender_id?: string;
   conversation_id?: string;
-  content?: string | null;
-  legacy_content?: string | null;
-  attachments?: unknown[] | null;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
+
+function pageScrollSurface(container: HTMLElement | null): HTMLElement | null {
+  // The wrapper has overflow-y-auto, but on phones it can grow with the page.
+  // Remember the document's position when it is the element actually scrolling.
+  return container && container.scrollHeight > container.clientHeight + 1
+    ? container : document.scrollingElement as HTMLElement | null;
+}
 
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
@@ -118,7 +122,7 @@ function PageTransitionFallback() {
   }, []);
   return (
     <div
-      className="wh-auth-to-app min-h-[100dvh] bg-[#0A0A0F] px-4 py-5 text-[#F6F2FC]"
+      className="wh-auth-to-app min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-5 text-[var(--wh-text)]"
       role="status"
       aria-label="Loading WeHouse"
     >
@@ -127,18 +131,17 @@ function PageTransitionFallback() {
           <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
           <div>
             <p className="text-base font-semibold tracking-tight">WeHouse</p>
-            <p className="mt-0.5 text-sm text-[#A7ADBA]">Checking your session and workspace…</p>
+            <p className="mt-0.5 text-sm text-[var(--wh-text-secondary)]">Checking your session and workspace…</p>
           </div>
         </div>
         {!slow ? (
-          <div className="mt-8 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[.07]" aria-hidden="true">
-            <div className="h-full w-1/2 rounded-full bg-violet-500" />
+          <div className="mt-8 h-1 w-full max-w-48 rounded-full bg-[var(--wh-skeleton)]" aria-hidden="true">
           </div>
         ) : (
           <div className="mt-8">
             <div className="max-w-xs">
-              <p className="text-sm text-[#B8C0CF]">This is taking longer than usual.</p>
-              <p className="mt-2 text-sm leading-6 text-[#B8C0CF]">Your connection or account service may be slow. You can retry now.</p>
+              <p className="text-sm text-[var(--wh-text-secondary)]">This is taking longer than usual.</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Your connection or account service may be slow. You can retry now.</p>
               <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
             </div>
           </div>
@@ -151,23 +154,23 @@ function PageTransitionFallback() {
 function RouteTransitionFallback() {
   return (
     <div
-      className="grid min-h-[45vh] place-items-center bg-[#0A0A0F] px-6 text-white"
+      className="grid min-h-[45vh] place-items-center bg-[var(--wh-bg)] px-6 text-[var(--wh-text)]"
       role="status"
       aria-label="Opening page"
     >
       <div className="text-center">
-        <div aria-hidden="true" className="mx-auto h-[22px] w-[22px] animate-spin motion-reduce:animate-none rounded-full border-2 border-violet-300/20 border-t-violet-400" />
-        <p className="mt-3 text-sm text-[#A7AEBD]">Opening page…</p>
+        <div aria-hidden="true" className="mx-auto h-4 w-28 rounded-full wh-skeleton" />
+        <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">Opening page…</p>
       </div>
     </div>
   );
 }
 function ErrorFallback({ reset }: { reset: () => void }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0F] px-5 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
       <div className="max-w-sm text-center">
         <h2 className="text-lg font-semibold">Something went wrong</h2>
-        <p className="mb-6 mt-2 text-sm text-[#5C5E72]">
+        <p className="mb-6 mt-2 text-sm text-[var(--wh-text-secondary)]">
           The app encountered an error. Please try again.
         </p>
         <button
@@ -357,6 +360,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [unreadCount, setUnreadCount] = useState(0),
     [supportUnreadCount, setSupportUnreadCount] = useState(0),
     [notificationCount, setNotificationCount] = useState(0),
+    [otherWorkspaceUnread, setOtherWorkspaceUnread] = useState(0),
     [nestedScreen, setNestedScreen] = useState(false),
     [error, setError] = useState<Error | null>(null);
   const [inboxOpenRequest, setInboxOpenRequest] = useState(0);
@@ -366,8 +370,48 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   const [invitationLoginOpen,setInvitationLoginOpen]=useState(false);
   const inboxOpenSequence = useRef(0);
   const baseProfile = auth.profile;
+  useEffect(() => {
+    if (!baseProfile?.user_id || baseProfile.pref_push_notif === false) return;
+    const unlock = () => { void unlockNotificationAudio(); };
+    window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    window.addEventListener('keydown', unlock, { once: true, capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
+  }, [baseProfile?.user_id, baseProfile?.pref_push_notif]);
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
+  const otherWorkspaceRoles = workspaceReady && workspaceAccess?.personal_workspace
+    ? [...new Set((workspaceAccess.privileged_workspaces || []).map(item => item.role).filter(role => role !== 'hosting'))].sort().join(',')
+    : '';
+  useEffect(() => {
+    if (!baseProfile?.user_id || !otherWorkspaceRoles) {
+      setOtherWorkspaceUnread(0);
+      return;
+    }
+    let current = true;
+    const refresh = async () => {
+      const results = await Promise.all(otherWorkspaceRoles.split(',').map(role => getCanonicalActivitySummary(role)));
+      if (current && results.every(result => !result.error))
+        setOtherWorkspaceUnread(results.reduce((sum, result) => sum + result.summary.unread, 0));
+    };
+    void refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    window.addEventListener('wehouse:workspace-activity', refresh);
+    window.addEventListener('wehouse:unread-changed', refresh);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(onVisible, 60_000);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+      window.removeEventListener('wehouse:workspace-activity', refresh);
+      window.removeEventListener('wehouse:unread-changed', refresh);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [baseProfile?.user_id, otherWorkspaceRoles]);
   const navigationKey = baseProfile ? workspaceNavigationKey(baseProfile.user_id, activeWorkspace) : NAV_STORAGE_KEY;
   useEffect(() => {
     const syncInvitation = () => {
@@ -567,7 +611,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       window.dispatchEvent(new Event("wehouse:navigation"));
       pageScrollPositionsRef.current.set(
         navPage,
-        pageScrollRef.current?.scrollTop || 0,
+        pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
       const safe = normalizePageForRole(
         userRole,
@@ -602,7 +646,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       );
       pageScrollPositionsRef.current.set(
         navPage,
-        pageScrollRef.current?.scrollTop || 0,
+        pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
       if (safe !== s.page || s.workspace !== activeWorkspace)
         window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
@@ -618,9 +662,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (pageScrollRef.current)
-        pageScrollRef.current.scrollTop =
-          pageScrollPositionsRef.current.get(navPage) || 0;
+      const surface = pageScrollSurface(pageScrollRef.current);
+      if (surface) surface.scrollTop = pageScrollPositionsRef.current.get(navPage) || 0;
     });
     return () => cancelAnimationFrame(frame);
   }, [navPage]);
@@ -752,21 +795,16 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (!alertsEnabled) return;
           void playNotificationSound(uid);
           toast("New message", {
-            description: String(
-              message.content ||
-                ((message.attachments || []).length
-                  ? "New attachment"
-                  : "Open Inbox to read it."),
-            ).slice(0, 110),
+            description: "Open Inbox to read it.",
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
             },
             classNames: {
               toast:
-                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                "!rounded-2xl !border !border-violet-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
               title: "!text-[13px] !font-semibold",
-              description: "!text-[10px] !text-[#9AA1B2]",
+              description: "!text-[10px] !text-[var(--wh-text-secondary)]",
               actionButton:
                 "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
             },
@@ -783,11 +821,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (!alertsEnabled) return;
           void playNotificationSound(uid);
           toast("New service message", {
-            description: String(
-              message.content ||
-                message.legacy_content ||
-                "Open the conversation to read it.",
-            ).slice(0, 110),
+            description: "Open the conversation to read it.",
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -805,7 +839,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (!alertsEnabled) return;
           void playNotificationSound(uid);
           toast("New hotel message", {
-            description: String(message.content || "Open Inbox to read it.").slice(0, 110),
+            description: "Open Inbox to read it.",
             action: {
               label: "View",
               onClick: () => openMessages(message.conversation_id),
@@ -893,9 +927,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             },
             classNames: {
               toast:
-                "!rounded-2xl !border !border-violet-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                "!rounded-2xl !border !border-violet-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
               title: "!text-[13px] !font-semibold",
-              description: "!text-[10px] !text-[#9AA1B2]",
+              description: "!text-[10px] !text-[var(--wh-text-secondary)]",
               actionButton:
                 "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
             },
@@ -944,9 +978,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
               },
               classNames: {
                 toast:
-                  "!rounded-2xl !border !border-blue-400/20 !bg-[#121621]/95 !text-white !shadow-2xl !backdrop-blur-xl",
+                  "!rounded-2xl !border !border-blue-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
                 title: "!text-[13px] !font-semibold",
-                description: "!text-[10px] !text-[#9AA1B2]",
+                description: "!text-[10px] !text-[var(--wh-text-secondary)]",
                 actionButton:
                   "!rounded-full !bg-blue-500 !px-3 !text-[9px] !font-semibold !text-white",
               },
@@ -1026,7 +1060,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       // A second listing is a new screen, even when the route name stays
       // "detail". Do not restore the previous listing's scroll position.
       pageScrollPositionsRef.current.set("detail", 0);
-      if (pageScrollRef.current) pageScrollRef.current.scrollTop = 0;
+      const surface = pageScrollSurface(pageScrollRef.current);
+      if (surface) surface.scrollTop = 0;
     },
     [handleSetNavPage],
   );
@@ -1125,9 +1160,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
 
   if (auth.isLoading) return <PageTransitionFallback />;
   if (baseProfile && !workspaceReady) return workspaceError ? (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#0A0A0F] p-6 text-center text-white">
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[var(--wh-bg)] p-6 text-center text-[var(--wh-text)]">
       <h1 className="text-xl font-semibold">Unable to open your account</h1>
-      <p className="max-w-sm text-sm text-[#B5AFC1]" role="alert">{workspaceError}</p>
+      <p className="max-w-sm text-sm text-[var(--wh-text-secondary)]" role="alert">{workspaceError}</p>
       <button onClick={() => void reloadWorkspaces()} className="min-h-11 rounded-xl bg-violet-600 px-6 font-semibold">Try again</button>
       <button onClick={() => void auth.logout()} className="min-h-11 text-violet-300">Sign out</button>
     </main>
@@ -1328,7 +1363,6 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             onGoToChat={goToChat}
             onNavigate={openUserDestination}
             onEditProfile={goToProfileEdit}
-            onOpenListing={goToDetail}
             initialContextId={roommateContextId}
           />
         ) : (
@@ -1614,7 +1648,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           <div
             key={`${baseProfile?.user_id}:${activeWorkspace}`}
             ref={pageScrollRef}
-            className="page-transition wh-workspace-enter min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[#0A0A0F] scrollable-content"
+            className="page-transition wh-workspace-enter min-h-[100dvh] w-full min-w-0 overflow-x-hidden overflow-y-auto bg-[var(--wh-bg)] text-[var(--wh-text)] scrollable-content"
           >
             {renderPage()}
           </div>
@@ -1657,6 +1691,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
               activePage={navPage as "search" | "my_reservations" | "conversation" | "profile"}
               onNavigate={(page) => goTo(page)}
               inboxBadge={unreadCount + supportUnreadCount + notificationCount}
+              accountBadge={otherWorkspaceUnread}
             />
           )}
         </div>

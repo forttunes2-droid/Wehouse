@@ -145,7 +145,7 @@ export default function StaffFinanceRecords({
               ? "Payouts"
               : "Ledger & Audit"}
         </h2>
-        <p className="mt-1 text-[10px] text-[#707687]">
+        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
           {view === "payments"
             ? "Verified incoming payment records."
             : view === "payouts"
@@ -164,7 +164,7 @@ export default function StaffFinanceRecords({
             return (
               <article
                 key={`${row._kind || view}-${row.id || index}`}
-                className="rounded-2xl border border-white/[.06] bg-[#10141D] p-4"
+                className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -175,11 +175,11 @@ export default function StaffFinanceRecords({
                         "Finance record"}
                     </p>
                     {row.owner_name && (
-                      <p className="mt-1 text-[10px] text-[#A2A7B4]">
+                      <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">
                         {row.owner_name} · {statusLabel(row.owner_type)}
                       </p>
                     )}
-                    <p className="mt-1 break-words text-[9px] text-[#666D7E]">
+                    <p className="mt-1 break-words text-[9px] text-[var(--wh-text-muted)]">
                       {row.description ||
                         row.refund_reason ||
                         bankSummary(row) ||
@@ -197,13 +197,13 @@ export default function StaffFinanceRecords({
                     {money(row) && (
                       <p className="text-xs font-bold">{money(row)}</p>
                     )}
-                    <p className="mt-1 text-[8px] uppercase text-[#6C7282]">
+                    <p className="mt-1 text-[8px] uppercase text-[var(--wh-text-muted)]">
                       {statusLabel(row.status || row.status_after || "recorded")}
                     </p>
                   </div>
                 </div>
                 {withdrawal && (pending || processing) && (
-                  <div className="mt-3 flex gap-2 border-t border-white/[.05] pt-3">
+                  <div className="mt-3 flex gap-2 border-t border-[var(--wh-border-subtle)] pt-3">
                     {pending && (
                       <>
                         <button
@@ -258,7 +258,7 @@ export default function StaffFinanceRecords({
                         setRejectionReason(event.target.value)
                       }
                       placeholder="Explain what must be corrected before another withdrawal request."
-                      className="mt-2 min-h-20 w-full resize-none rounded-xl border border-white/[.08] bg-[#0B0E14] px-3 py-2 text-[10px] outline-none placeholder:text-[#555C6C] focus:border-rose-400/40"
+                      className="mt-2 min-h-20 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-2 text-[10px] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-rose-400/40"
                     />
                     <div className="mt-2 flex gap-2">
                       <button
@@ -268,7 +268,7 @@ export default function StaffFinanceRecords({
                           setRejecting(null);
                           setRejectionReason("");
                         }}
-                        className="min-h-9 flex-1 rounded-lg border border-white/[.08] text-[9px] font-semibold text-[#A8ADBA] disabled:opacity-40"
+                        className="min-h-9 flex-1 rounded-lg border border-[var(--wh-border-subtle)] text-[9px] font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40"
                       >
                         Cancel
                       </button>
@@ -315,7 +315,7 @@ function time(value: any) {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666D7E]">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-12 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

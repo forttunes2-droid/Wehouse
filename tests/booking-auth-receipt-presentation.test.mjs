@@ -19,7 +19,8 @@ test("Bookings use one compact presentation language", async () => {
   const serviceBlock = bookings.slice(bookings.indexOf("function ServiceBookingDetail"), bookings.indexOf("function HousingCard"));
   const propertyBlock = bookings.slice(bookings.indexOf("function PropertyBookingDetail"), bookings.indexOf("function HotelBookingDetail"));
   const hotelBlock = bookings.slice(bookings.indexOf("function HotelBookingDetail"), bookings.indexOf("function AccommodationProtectionPanel"));
-  assert.doesNotMatch(bookingCardBlock, /text-xl/);
+  assert.match(bookingCardBlock, /aria-label=\{`Open \$\{eyebrow\} booking for \$\{title\}`\}/);
+  assert.match(bookingCardBlock, /rounded-2xl border/);
   assert.match(serviceBlock, /BookingDetailShell/);
   assert.match(serviceBlock, /getBookingDetails/);
   assert.match(serviceBlock, /Open conversation/);

@@ -6,6 +6,8 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { Profile } from "@/types";
 import { compressImageFile, uploadStorageObjectWithProgress } from "@/lib/supabase";
+import { preparePublicVideo, PUBLIC_VIDEO_MAX_BYTES } from "@/lib/mediaVideo";
+import { editWorkPostVideo, workVideoDuration } from "@/lib/workPostVideoEditor";
 import VideoPlayer from "@/components/VideoPlayer";
 import WorkerShowcaseGrid from "@/components/WorkerShowcaseGrid";
 import { useWorkerShowcase, type ShowcasePost } from "@/hooks/useWorkerShowcase";
@@ -37,6 +39,12 @@ function WorkerShowcaseContent({
 }) {
   const { ask, dialogProps } = useConfirm();
   const input = useRef<HTMLInputElement>(null);
+  const soundInput = useRef<HTMLInputElement>(null);
+  const editPreview = useRef<HTMLVideoElement>(null);
+  const voiceRecorder = useRef<MediaRecorder | null>(null);
+  const voiceStream = useRef<MediaStream | null>(null);
+  const voiceTimer = useRef(0);
+  const voiceDiscard = useRef(false);
   const showcase = useWorkerShowcase(profile.user_id, true);
   const { posts, loading, load } = showcase;
   const [visibility, setVisibility] = useState("all");
@@ -47,10 +55,24 @@ function WorkerShowcaseContent({
   const [bookingId, setBookingId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
+  const [preparingVideo, setPreparingVideo] = useState(false);
+  const [originalVideo, setOriginalVideo] = useState<File | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [sound, setSound] = useState<File | null>(null);
+  const [soundVolume, setSoundVolume] = useState(0.6);
+  const [editDirty, setEditDirty] = useState(false);
+  const [recordingVoice, setRecordingVoice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [viewer, setViewer] = useState<Post | null>(null);
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editCaption, setEditCaption] = useState('');
+  const [savingCaption, setSavingCaption] = useState(false);
+  const [featuredIds, setFeaturedIds] = useState<string[]>([]);
 
   const identity = useRef(profile.user_id); identity.current = profile.user_id;
   useEffect(() => {
@@ -61,6 +83,12 @@ function WorkerShowcaseContent({
     }).catch(() => { if (active) setJobsError(true); });
     return () => { active = false; };
   }, [profile.user_id, jobsRetry]);
+  useEffect(()=>{
+    let active=true;setFeaturedIds([]);
+    if (profile.pro_active) void supabase.rpc('get_worker_pro_featured_posts',{p_worker_id:profile.user_id})
+      .then(({data,error})=>{if(active&&!error&&Array.isArray(data))setFeaturedIds(data);});
+    return()=>{active=false;};
+  },[profile.user_id,profile.pro_active]);
   useEffect(() => {
     if (!initialPostId) return;
     let active = true;
@@ -73,10 +101,10 @@ function WorkerShowcaseContent({
     return () => { active = false; };
   }, [initialPostId, showcase.findPost]);
   async function openPost(post: Post) {
-    const worker = profile.user_id; setViewer(post);
+    const worker = profile.user_id; setMediaFailed(false); setViewer(post);
     if (post.url) return;
     try { const ready = await showcase.refreshPost(post); if (identity.current === worker) setViewer(current => current?.id === post.id ? ready : current); }
-    catch { toast.error("This work post could not be opened. Please try again."); }
+    catch { if (identity.current === worker) setMediaFailed(true); }
   }
 
   useEffect(
@@ -85,34 +113,104 @@ function WorkerShowcaseContent({
     },
     [preview],
   );
+  useEffect(()=>()=>{
+    window.clearTimeout(voiceTimer.current);
+    if(voiceRecorder.current?.state==='recording')voiceRecorder.current.stop();
+    voiceStream.current?.getTracks().forEach(track=>track.stop());
+  },[]);
 
-  function chooseFile(selected: File) {
+  function stopVoiceover() {
+    window.clearTimeout(voiceTimer.current);
+    if (voiceRecorder.current?.state==='recording') voiceRecorder.current.stop();
+    editPreview.current?.pause();
+  }
+  async function recordVoiceover() {
+    if (!originalVideo || recordingVoice || busy || preparingVideo) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder==='undefined') return toast.error('Microphone recording is unavailable on this device. You can add an audio file instead.');
+    const mimeType=['audio/mp4','audio/webm;codecs=opus','audio/webm'].find(type=>MediaRecorder.isTypeSupported(type));
+    if (!mimeType) return toast.error('This device cannot record a compatible voiceover. Add an audio file instead.');
+    try {
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      voiceDiscard.current=false;
+      voiceStream.current=stream;
+      const recorder=new MediaRecorder(stream,{mimeType});
+      voiceRecorder.current=recorder;
+      const chunks:Blob[]=[];
+      recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
+      recorder.onstop=()=>{
+        window.clearTimeout(voiceTimer.current);
+        stream.getTracks().forEach(track=>track.stop()); voiceStream.current=null;voiceRecorder.current=null;
+        editPreview.current?.pause();setRecordingVoice(false);
+        const body=new Blob(chunks,{type:mimeType.split(';')[0]});
+        if(body.size && !voiceDiscard.current){setSound(new File([body],`voiceover.${mimeType.startsWith('audio/mp4')?'m4a':'webm'}`,{type:body.type}));setEditDirty(true);toast.success('Voiceover recorded. Apply the edit to preview it.');}
+      };
+      recorder.onerror=()=>{stopVoiceover();toast.error('Voiceover recording failed. Try an audio file.');};
+      const video=editPreview.current;
+      if(video){video.muted=true;video.currentTime=trimStart;}
+      recorder.start(250);setRecordingVoice(true);
+      if(video) void video.play().catch(()=>undefined);
+      voiceTimer.current=window.setTimeout(stopVoiceover,Math.ceil(Math.min(90,trimEnd-trimStart)*1000));
+    } catch {voiceStream.current?.getTracks().forEach(track=>track.stop());voiceStream.current=null;setRecordingVoice(false);toast.error('Microphone permission is needed to record. You can add an audio file instead.');}
+  }
+
+  async function chooseFile(selected: File) {
     const isVideo = selected.type.startsWith("video/");
     const isImage = selected.type.startsWith("image/");
     if (!isVideo && !isImage) return toast.error("Choose an image or video");
-    if (selected.size > (isVideo ? 50 : 12) * 1024 * 1024) {
+    if (selected.size > (isVideo ? 50_000_000 : 12 * 1024 * 1024)) {
       return toast.error(
         isVideo ? "Video must be under 50MB" : "Image must be under 12MB",
       );
     }
     if (preview) URL.revokeObjectURL(preview);
-    setFile(selected);
-    setPreview(URL.createObjectURL(selected));
+    setFile(null);
+    setPreview("");
+    setOriginalVideo(null); setDuration(0); setSound(null); setEditDirty(false); setTrimStart(0); setTrimEnd(0);
+    if (!isVideo) { setFile(selected); setPreview(URL.createObjectURL(selected)); return; }
+    setPreparingVideo(true);
+    try {
+      const seconds = await workVideoDuration(selected);
+      if (!Number.isFinite(seconds) || seconds <= 0) throw new Error('Video duration is unavailable');
+      setOriginalVideo(selected); setDuration(seconds); setTrimEnd(Math.min(seconds,90));
+      setEditDirty(seconds > 90);
+      setFile(selected); setPreview(URL.createObjectURL(selected));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Video could not be prepared");
+    } finally { setPreparingVideo(false); }
   }
 
   function clearComposer() {
+    voiceDiscard.current=true;
+    stopVoiceover();
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview("");
+    setOriginalVideo(null); setDuration(0); setSound(null); setEditDirty(false);
     setCaption("");
     setBookingId("");
     if (input.current) input.current.value = "";
+  }
+
+  async function applyVideoEdit() {
+    if (!originalVideo || preparingVideo || busy) return;
+    setPreparingVideo(true);
+    try {
+      const edited=await editWorkPostVideo(originalVideo,trimStart,trimEnd,sound,soundVolume);
+      const ready=new File([edited.body],`${originalVideo.name.replace(/\.[^.]+$/,'')}-edit.${edited.extension}`,{type:edited.contentType});
+      const prepared=await preparePublicVideo(ready);
+      const result=new File([prepared.body],`${originalVideo.name.replace(/\.[^.]+$/,'')}-edit.${prepared.extension}`,{type:prepared.contentType});
+      if(preview) URL.revokeObjectURL(preview);
+      setFile(result); setPreview(URL.createObjectURL(result)); setEditDirty(false);
+      toast.success('Edited video ready to preview');
+    } catch(error) {toast.error(error instanceof Error?error.message:'Could not prepare the edited video');}
+    finally {setPreparingVideo(false);}
   }
 
   const saving = useRef(false);
   async function publish() {
     if (saving.current) return;
     if (!file) return toast.error("Choose a photo or video first");
+    if (editDirty || preparingVideo) return toast.error('Apply and preview the video edit before publishing');
     if (profile.worker_status !== "verified" || !profile.worker_verified) {
       return toast.error(
         "Finish WeHouse review before publishing work",
@@ -126,16 +224,18 @@ function WorkerShowcaseContent({
     setUploadProgress(0);
     let path = "";
     try {
-      const preserveOriginal = isVideo || (['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024);
-      const uploadBody = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);
-      const ext = isVideo ? (file.name.split(".").pop() || "mp4").toLowerCase() : preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg';
+      const preserveOriginal = ['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
+      const preparedVideo = isVideo ? await preparePublicVideo(file) : null;
+      const uploadBody = preparedVideo?.body || (preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024));
+      if (uploadBody.size > (isVideo ? PUBLIC_VIDEO_MAX_BYTES : 2_000_000)) throw new Error("This work post is too large. Trim the video or choose a smaller photo.");
+      const ext = preparedVideo?.extension || (preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg');
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");
       await uploadStorageObjectWithProgress(
         "worker-showcase",
         path,
         uploadBody,
-        isVideo || preserveOriginal ? file.type : "image/jpeg",
+        preparedVideo?.contentType || (preserveOriginal ? file.type : "image/jpeg"),
         setUploadProgress,
       );
 
@@ -203,6 +303,29 @@ function WorkerShowcaseContent({
     setViewer(null);await load();
   }
 
+  async function saveCaption() {
+    if (!editingPost || savingCaption) return;
+    setSavingCaption(true);
+    const { data, error } = await supabase.rpc('update_my_worker_showcase_caption', {
+      p_post_id: editingPost.id, p_caption: editCaption.trim(),
+    });
+    setSavingCaption(false);
+    if (error) return toast.error('Caption could not be saved. Please try again.');
+    setViewer(current => current?.id === editingPost.id ? { ...current, caption: data || null } : current);
+    setEditingPost(null);
+    await load();
+    toast.success('Caption updated');
+  }
+
+  async function toggleFeatured(post: Post) {
+    const desired=!featuredIds.includes(post.id);
+    setBusy(true);
+    const {data,error}=await supabase.rpc('set_my_worker_pro_featured_post',{p_post_id:post.id,p_featured:desired});
+    setBusy(false);
+    if(error || !Array.isArray(data)) return toast.error(error?.message || 'Could not change featured work');
+    setFeaturedIds(data); toast.success(desired?'Added to your featured work':'Removed from featured work');
+  }
+
   const workPosts = posts.filter(post => visibility === "all" || (visibility === "hidden" ? Boolean(post.hidden_at) : !post.hidden_at));
   const previewIsVideo = file?.type.startsWith("video/") || false;
 
@@ -215,31 +338,38 @@ function WorkerShowcaseContent({
         className="hidden"
         onChange={(event) => {
           const selected = event.target.files?.[0];
-          if (selected) chooseFile(selected);
+          if (selected) void chooseFile(selected);
         }}
       />
+      <input ref={soundInput} type="file" accept="audio/*" className="hidden" onChange={event=>{
+        const selected=event.target.files?.[0]; if(!selected)return;
+        if(!selected.type.startsWith('audio/') || selected.size>15_000_000) {toast.error('Choose an audio file under 15 MB');return;}
+        setSound(selected);setEditDirty(true);
+      }}/>
+
+      {preparingVideo && <p role="status" className="text-sm text-violet-200">Preparing video preview…</p>}
 
       {file && (
-        <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[#08090D]">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[.08] px-3">
+        <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[var(--wh-bg)]">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3">
             <button
               type="button"
               onClick={clearComposer}
-              disabled={busy}
-              className="grid h-11 w-11 place-items-center rounded-full text-xl text-[#A8ADBA]"
+              disabled={busy || preparingVideo}
+              className="grid h-11 w-11 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)]"
               aria-label="Close preview"
             >
               ×
             </button>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">New work post</p>
-              <p className="text-sm text-[#687080]">
+              <p className="text-sm text-[var(--wh-text-muted)]">
                 Preview before publishing
               </p>
             </div>
             <button
               onClick={() => void publish()}
-              disabled={busy}
+              disabled={busy || recordingVoice || preparingVideo || editDirty}
               className="min-h-11 rounded-xl bg-violet-500 px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {busy ? publishStage === 'preparing' ? "Preparing…" : publishStage === 'uploading' ? `${uploadProgress}%` : "Saving…" : "Publish"}
@@ -248,7 +378,7 @@ function WorkerShowcaseContent({
           <main className="min-h-0 flex-1 overflow-y-auto">
             <div className="grid min-h-[48dvh] place-items-center bg-black">
               {previewIsVideo ? (
-                <VideoPlayer src={preview} className="max-h-[60dvh] w-full bg-black object-contain" />
+                originalVideo ? <video ref={editPreview} src={preview} controls playsInline preload="metadata" className="max-h-[60dvh] w-full bg-black object-contain" /> : <VideoPlayer src={preview} className="max-h-[60dvh] w-full bg-black object-contain" />
               ) : (
                 <img
                   src={preview}
@@ -258,16 +388,25 @@ function WorkerShowcaseContent({
               )}
             </div>
             <div className="mx-auto max-w-xl space-y-4 px-4 py-5">
+              {originalVideo && <section aria-label="Edit work video" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4">
+                <h2 className="text-sm font-semibold">Edit video</h2><p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Trim to 90 seconds and mix your own audio file. Use audio you have permission to share; WeHouse does not provide a music catalogue.</p>
+                <div className="mt-3 grid grid-cols-2 gap-3"><label className="text-xs">Start (seconds)<input type="number" min="0" max={Math.max(0,trimEnd-1)} step="0.1" value={trimStart} disabled={preparingVideo||busy} onChange={event=>{setTrimStart(Number(event.target.value));setEditDirty(true);}} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3"/></label><label className="text-xs">End (seconds)<input type="number" min={trimStart+1} max={duration} step="0.1" value={trimEnd} disabled={preparingVideo||busy} onChange={event=>{setTrimEnd(Number(event.target.value));setEditDirty(true);}} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3"/></label></div>
+                <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">Original length {duration.toFixed(1)} seconds · Clip {Math.max(0,trimEnd-trimStart).toFixed(1)} seconds</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" disabled={busy||preparingVideo||recordingVoice} onClick={()=>soundInput.current?.click()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">{sound?'Replace audio':'Add your audio'}</button><button type="button" disabled={busy||preparingVideo} onClick={()=>recordingVoice?stopVoiceover():void recordVoiceover()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">{recordingVoice?'Stop voiceover':'Record voiceover'}</button>{sound && <><span className="max-w-40 truncate text-xs">{sound.name}</span><button type="button" disabled={recordingVoice} onClick={()=>{setSound(null);setEditDirty(true);}} className="min-h-11 text-xs underline">Remove</button></>}</div>
+                {recordingVoice && <p role="status" className="mt-2 text-xs text-red-400">Recording from the start of the selected clip. Stop when you finish speaking.</p>}
+                {sound && <label className="mt-3 block text-xs">Added audio volume <input aria-label="Added audio volume" type="range" min="0" max="1" step="0.05" value={soundVolume} onChange={event=>{setSoundVolume(Number(event.target.value));setEditDirty(true);}} className="mt-2 w-full accent-violet-500"/></label>}
+                <button type="button" disabled={busy||preparingVideo||recordingVoice||trimEnd-trimStart<1||trimEnd-trimStart>90||trimEnd>duration||trimStart<0} onClick={()=>void applyVideoEdit()} className="mt-3 min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{preparingVideo?'Preparing edit…':'Apply edit and preview'}</button>
+              </section>}
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => input.current?.click()}
-                  disabled={busy}
-                  className="rounded-full border border-white/[.1] px-4 py-2 text-sm font-semibold"
+                  disabled={busy || recordingVoice}
+                  className="rounded-full border border-[var(--wh-border-subtle)] px-4 py-2 text-sm font-semibold"
                 >
                   Replace media
                 </button>
-                <span className="self-center truncate text-sm text-[#6D7484]">
+                <span className="self-center truncate text-sm text-[var(--wh-text-muted)]">
                   {file.name}
                 </span>
               </div>
@@ -279,15 +418,15 @@ function WorkerShowcaseContent({
                 }
                 rows={3}
                 placeholder="Describe this work"
-                className="w-full resize-none border-b border-white/[.1] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
+                className="w-full resize-none border-b border-[var(--wh-border-subtle)] bg-transparent py-3 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
               />
-              {jobsError && <div role="alert" className="text-sm text-[#A7ADBA]">Completed jobs could not be loaded. <button type="button" onClick={() => setJobsRetry(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></div>}
+              {jobsError && <div role="alert" className="text-sm text-[var(--wh-text-secondary)]">Completed jobs could not be loaded. <button type="button" onClick={() => setJobsRetry(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></div>}
               <WeHouseChoice
                 aria-label="Link completed job"
                 value={bookingId}
                 disabled={busy}
                 onChange={(event) => setBookingId(event.target.value)}
-                className="h-12 w-full border-b border-white/[.1] bg-[#08090D] text-xs outline-none disabled:opacity-50"
+                className="h-12 w-full border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] text-xs outline-none disabled:opacity-50"
               >
                 <option value="">Not linked to a completed WeHouse job</option>
                 {jobs.map((job) => (
@@ -305,13 +444,13 @@ function WorkerShowcaseContent({
                       <p className="text-sm font-semibold text-violet-200">
                         {publishStage === "preparing" ? "Preparing your media" : publishStage === "uploading" ? "Uploading showcase media" : "Publishing your showcase"}
                       </p>
-                      <p className="mt-1 text-xs text-[#777E8E]">
+                      <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                         {publishStage === "uploading" ? "Keep this screen open until the upload completes." : "Saving your post."}
                       </p>
                     </div>
                     {publishStage === "uploading" && <span className="text-xs font-bold text-violet-200">{uploadProgress}%</span>}
                   </div>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--wh-interactive)]">
                     <div
                       className={`h-full rounded-full bg-violet-500 transition-[width] ${publishStage === "uploading" ? "" : "w-1/3 animate-pulse"}`}
                       style={publishStage === "uploading" ? { width: `${uploadProgress}%` } : undefined}
@@ -324,24 +463,43 @@ function WorkerShowcaseContent({
         </div></ShowcaseComposer>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Work posts</h2>
-        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white" aria-label="Add work">Add work</button>
+      {editingPost && <ShowcaseComposer onClose={() => setEditingPost(null)} busy={savingCaption} label="Edit work post caption">
+        <div className="fixed inset-0 z-[100210] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
+          <header className="flex min-h-16 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 pt-[env(safe-area-inset-top)]">
+            <button type="button" onClick={() => setEditingPost(null)} disabled={savingCaption} className="min-h-11 text-sm text-[var(--wh-text-secondary)]">Cancel</button>
+            <h2 className="flex-1 text-center text-base font-semibold">Edit caption</h2>
+            <button type="button" onClick={() => void saveCaption()} disabled={savingCaption} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{savingCaption ? 'Saving…' : 'Save'}</button>
+          </header>
+          <div className="mx-auto w-full max-w-xl px-5 py-6">
+            <p className="text-sm text-[var(--wh-text-secondary)]">Update the story behind your work. Its media, job confirmation and reactions stay with this post.</p>
+            <textarea autoFocus aria-label="Work post caption" value={editCaption} maxLength={300} rows={6} onChange={event => setEditCaption(event.target.value)} className="mt-5 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-base outline-none focus:border-violet-500" />
+            <p className="mt-2 text-right text-xs text-[var(--wh-text-secondary)]">{editCaption.length} / 300</p>
+          </div>
+        </div>
+      </ShowcaseComposer>}
+
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-sm text-[var(--wh-text-secondary)]">{posts.length} {posts.length === 1 ? "post" : "posts"}</p>
+        <button type="button" onClick={() => input.current?.click()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/25" aria-label="Add work">Add work</button>
       </div>
-      <label className="mb-4 block"><span className="sr-only">Post visibility</span><WeHouseChoice aria-label="Post visibility" value={visibility} onChange={event => setVisibility(event.target.value)} className="min-h-11 rounded-xl border border-white/10 bg-[#151820] px-3 text-sm"><option value="all">All posts</option><option value="visible">Not hidden</option><option value="hidden">Hidden posts</option></WeHouseChoice></label>
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Post visibility">
+        {([{ value: 'all', label: 'All' }, { value: 'visible', label: 'Published' }, { value: 'hidden', label: 'Hidden' }] as const).map(option => <button key={option.value} type="button" role="tab" aria-selected={visibility === option.value} onClick={() => setVisibility(option.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${visibility === option.value ? 'bg-violet-500 text-white' : 'border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]'}`}>{option.label}</button>)}
+      </div>
       <WorkerShowcaseGrid owner posts={workPosts} loading={loading} error={showcase.error} onOpen={post => void openPost(post)} onRetry={() => void load()} more={showcase.more} loadingMore={showcase.loadingMore} onMore={() => void load(true)} />
 
-      {viewer && (
+      {viewer && !editingPost && (
         <WorkerShowcasePostViewer
           post={viewer}
           workerName={workerDisplayName(profile)}
           workerAvatar={workerAvatarUrl(profile)}
+          ownerView
           onClose={() => setViewer(null)}
           position={workPosts.findIndex(post => post.id === viewer.id)} total={workPosts.length}
           onPrevious={workPosts.findIndex(post => post.id === viewer.id) > 0 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) - 1]) : undefined}
           onNext={workPosts.findIndex(post => post.id === viewer.id) >= 0 && workPosts.findIndex(post => post.id === viewer.id) < workPosts.length - 1 ? () => void openPost(workPosts[workPosts.findIndex(post => post.id === viewer.id) + 1]) : undefined}
-          onRetry={async () => { const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
-          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-white/10 bg-[#151820] p-2 shadow-lg"><button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[#D7DCE6] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-300 disabled:opacity-40">Delete post</button></div></details>}
+          mediaError={mediaFailed}
+          onRetry={async () => { setMediaFailed(false); const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
+          ownerActions={<details key={viewer.id} className="relative"><summary aria-label="Post options" className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-xl text-xl">⋯</summary><div className="absolute right-0 top-12 z-30 min-w-40 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 shadow-lg"><button type="button" onClick={() => { setEditCaption(viewer.caption || ''); setEditingPost(viewer); }} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[var(--wh-text)] disabled:opacity-40">Edit caption</button>{profile.pro_active && !viewer.hidden_at && <button type="button" onClick={()=>void toggleFeatured(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[var(--wh-text)] disabled:opacity-40">{featuredIds.includes(viewer.id)?'Remove from featured work':'Feature on Pro profile'}</button>}<button type="button" onClick={() => void setHidden(viewer, !viewer.hidden_at)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-[var(--wh-text)] disabled:opacity-40">{viewer.hidden_at ? "Show on profile" : "Hide from profile"}</button><button type="button" onClick={() => void remove(viewer)} disabled={busy} className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-red-600 dark:text-red-300 disabled:opacity-40">Delete post</button></div></details>}
         />
       )}
       <ConfirmDialog {...dialogProps} />
@@ -349,8 +507,8 @@ function WorkerShowcaseContent({
   );
 }
 
-function ShowcaseComposer({ onClose, busy, children }: { onClose: () => void; busy: boolean; children: React.ReactNode }) {
+function ShowcaseComposer({ onClose, busy, children, label = 'New work post' }: { onClose: () => void; busy: boolean; children: React.ReactNode; label?: string }) {
   const dismiss = useRecordScreenBack(() => { if (!busy) onClose(); });
   const ref = useDialogInteraction(dismiss);
-  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="New work post" className="fixed inset-0 z-[100210] bg-[#08090D]">{children}</div>, document.body);
+  return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className="fixed inset-0 z-[100210] bg-[var(--wh-bg)]">{children}</div>, document.body);
 }

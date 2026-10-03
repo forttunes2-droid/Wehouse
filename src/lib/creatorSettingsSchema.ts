@@ -1,6 +1,6 @@
 export type Kind='text'|'email'|'number'|'toggle'|'textarea';
 export type Def={key:string;label:string;description:string;kind:Kind;defaultValue:string;min?:number;max?:number;step?:number;category?:string};
-export type CreatorSettingsGroupId = 'identity' | 'worker_pro' | 'worker_trust' | 'access';
+export type CreatorSettingsGroupId = 'identity' | 'worker_pro' | 'partner_pro' | 'worker_trust' | 'access';
 type Group={id:CreatorSettingsGroupId;label:string;description:string;note?:string;settings:Def[]};
 
 export const CREATOR_SETTING_GROUPS:Group[]=[
@@ -23,6 +23,13 @@ export const CREATOR_SETTING_GROUPS:Group[]=[
   {key:'worker_pro_payment_grace_days',label:'Failed-payment grace (days)',description:'Optional access after a failed renewal. Zero keeps access only through the already-paid period.',kind:'number',defaultValue:'0',min:0,max:14,step:1,category:'worker_pro'},
   {key:'worker_pro_support_response_hours',label:'Priority support target (hours)',description:'Ordinary platform-help response target. Safety, payment, refund and dispute handling never depends on payment.',kind:'number',defaultValue:'24',min:1,max:168,step:1,category:'worker_pro'},
   {key:'worker_pro_sales_enabled',label:'Enable paid plan web sales',description:'Opens web checkout only after legal approval, published terms, and at least one verified Paystack plan.',kind:'toggle',defaultValue:'false',category:'worker_pro'},
+ ]},
+ {id:'partner_pro',label:'Property Partner Pro',description:'Optional portfolio tools. Ordinary listings, bookings and basic receipts remain available without payment.',note:'One month and one year are prepaid access periods without automatic renewal. Prices and terms are set here; changing either closes new sales until you review and reopen them. Sponsored placement has its own price and purchase.',settings:[
+  {key:'partner_pro_monthly_price_ngn',label:'One month web price (₦)',description:'Prepaid access for one month.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'partner_pro'},
+  {key:'partner_pro_yearly_price_ngn',label:'One year web price (₦)',description:'Prepaid access for one year.',kind:'number',defaultValue:'0',min:0,max:10000000,step:1,category:'partner_pro'},
+  {key:'partner_pro_terms_version',label:'Published terms version',description:'New text or prices require a new version and acceptance.',kind:'text',defaultValue:'',category:'partner_pro'},
+  {key:'partner_pro_terms_content',label:'Paid access terms',description:'Explain features, access expiry, renewal and refunds before opening sales.',kind:'textarea',defaultValue:'',category:'partner_pro'},
+  {key:'partner_pro_sales_enabled',label:'Open Partner Pro web sales',description:'Enable purchases after setting a price and publishing complete terms.',kind:'toggle',defaultValue:'false',category:'partner_pro'},
  ]},
  {id:'worker_trust',label:'WeHouse Trusted',description:'Marketplace trust is earned from real WeHouse performance after professional approval.',note:'A Worker is first WeHouse Reviewed. WeHouse Trusted is earned later from completed jobs, rating, Worker-caused cancellations and unresolved disputes.',settings:[
   {key:'worker_trust_enabled',label:'Enable WeHouse Trusted',description:'Turn on automatic earned marketplace trust only after Worker-booking reputation data is ready.',kind:'toggle',defaultValue:'false',category:'worker_trust'},

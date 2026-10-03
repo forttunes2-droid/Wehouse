@@ -323,10 +323,10 @@ export default function CreatorBookingMoneyRules() {
     );
 
   if (loadError || !policy) return (
-    <section role="alert" className="rounded-xl border border-white/10 p-4">
+    <section role="alert" className="rounded-xl border border-[var(--wh-border-subtle)] p-4">
       <h3 className="text-sm font-semibold">Booking &amp; money rules</h3>
-      <p className="mt-2 text-sm text-[#A4A9B6]">{loadError || "Your saved money rules are unavailable."}</p>
-      <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-xl border border-white/10 px-4 text-sm text-violet-300">Try again</button>
+      <p className="mt-2 text-sm text-[var(--wh-text-secondary)]">{loadError || "Your saved money rules are unavailable."}</p>
+      <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm text-violet-300">Try again</button>
     </section>
   );
 
@@ -340,17 +340,17 @@ export default function CreatorBookingMoneyRules() {
 
   return (
     <section className="space-y-6">
-      <header className="border-b border-white/[.07] pb-4">
+      <header className="border-b border-[var(--wh-border-subtle)] pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">Booking & money rules</h3>
-            <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#747B8C]">
+            <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
               One versioned source of truth for reservations, cancellations,
               deposits, commissions and protected-payment timing. Existing
               bookings keep the rules they accepted.
             </p>
           </div>
-          <span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[8px] font-semibold text-[#8E95A5]">
+          <span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">
             {latestVersion ? `Active policy versions · up to v${latestVersion}` : "Active policy"}
           </span>
         </div>
@@ -375,7 +375,7 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Partner damage-claim window" suffix="hours after checkout" value={rules.short_let.partner_claim_hours} min={1} max={168} onChange={(value) => setShort("partner_claim_hours", value)} />
         <NumberRule label="Guest response window" suffix="hours" value={rules.short_let.guest_response_hours} min={1} max={168} onChange={(value) => setShort("guest_response_hours", value)} />
         <NumberRule label="Arrival issue window" suffix="hours after verified check-in" value={rules.short_let.arrival_issue_hours} min={1} max={24} onChange={(value) => setShort("arrival_issue_hours", value)} />
-        <p className="col-span-full text-[9px] leading-5 text-[#6F7687]">
+        <p className="col-span-full text-[9px] leading-5 text-[var(--wh-text-muted)]">
           Death or hospitalisation exception, rebooking mitigation and the rule
           that a security deposit can never become a cancellation/no-show charge
           are enforced by the server bundle and are not casual toggles.
@@ -412,37 +412,37 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Controlled release eligibility" suffix="hours" value={rules.service_worker.release_eligible_hours} min={1} max={168} onChange={(value) => setWorker("release_eligible_hours", value)} />
       </RuleSection>
 
-      <section className="border-t border-white/[.07] pt-5">
+      <section className="border-t border-[var(--wh-border-subtle)] pt-5">
         <h4 className="text-xs font-semibold">Publish changes</h4>
-        <p className="mt-1 text-[9px] leading-5 text-[#6F7687]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           Publishing creates new immutable policy versions. It does not rewrite
           older bookings, receipts or accepted rules.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-[9px] text-[#858C9D]">
+          <label className="text-[9px] text-[var(--wh-text-secondary)]">
             Effective time
             <input
               type="datetime-local"
               value={effectiveAt}
               onChange={(event) => setEffectiveAt(event.target.value)}
-              className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-xs text-white outline-none focus:border-violet-500/40"
+              className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs text-[var(--wh-text)] outline-none focus:border-violet-500/40"
             />
-            <span className="mt-1 block text-[8px] text-[#62697A]">
+            <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">
               Leave blank to publish now.
             </span>
           </label>
-          <label className="text-[9px] text-[#858C9D]">
+          <label className="text-[9px] text-[var(--wh-text-secondary)]">
             Change reason
             <input
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="Why are these rules changing?"
-              className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-xs text-white outline-none focus:border-violet-500/40"
+              className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs text-[var(--wh-text)] outline-none focus:border-violet-500/40"
             />
           </label>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[9px] text-[#6F7687]">
+          <p className="text-[9px] text-[var(--wh-text-muted)]">
             {dirty ? "Unpublished changes" : "No unpublished changes"}
           </p>
           <button
@@ -502,16 +502,16 @@ function ShortLetReserveDateRule() {
     toast.success(effectiveAt?'Reserve date rule scheduled':'Reserve date rule published');
     setReason('');setEffectiveAt('');await loadReserveRule();
   }
-  if(loading)return <section className="border-y border-white/[.07] py-5"><p className="text-sm text-[#8A91A1]">Loading Short Let Reserve date rule…</p></section>;
-  if(error||!rule||!draft)return <section className="border-y border-white/[.07] py-5"><h4 className="text-xs font-semibold">Short Let · Reserve date</h4><p className="mt-2 text-sm text-amber-200">{error||'Reserve date rule unavailable.'}</p><button type="button" onClick={()=>void loadReserveRule()} className="mt-3 min-h-11 rounded-xl border border-white/[.08] px-4 text-xs font-semibold">Try again</button></section>;
+  if(loading)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><p className="text-sm text-[var(--wh-text-secondary)]">Loading Short Let Reserve date rule…</p></section>;
+  if(error||!rule||!draft)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><h4 className="text-xs font-semibold">Short Let · Reserve date</h4><p className="mt-2 text-sm text-amber-200">{error||'Reserve date rule unavailable.'}</p><button type="button" onClick={()=>void loadReserveRule()} className="mt-3 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-xs font-semibold">Try again</button></section>;
   return <section className="border-y border-violet-500/15 py-5">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Short Let money</p><h4 className="mt-1 text-sm font-semibold">Reserve date</h4><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#7D8495]">This payment reserves the selected dates. Stay charge and any refundable security deposit are paid later and remain separate.</p></div><span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[9px] text-[#8E95A5]">v{rule.version}</span></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Short Let money</p><h4 className="mt-1 text-sm font-semibold">Reserve date</h4><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[var(--wh-text-secondary)]">This payment reserves the selected dates. Stay charge and any refundable security deposit are paid later and remain separate.</p></div><span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[9px] text-[var(--wh-text-secondary)]">v{rule.version}</span></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
-      <label className="text-[10px] text-[#A4A9B6]">Reservation fee (₦)<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label>
-      <label className="text-[10px] text-[#A4A9B6]">Checkout time (minutes)<input type="number" min={5} max={120} value={draft.payment_hold_minutes} onChange={e=>setDraft({...draft,payment_hold_minutes:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label>
-      <label className="text-[10px] text-[#A4A9B6]">Stay balance due (hours)<input type="number" min={1} max={168} value={draft.balance_due_hours} onChange={e=>setDraft({...draft,balance_due_hours:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee (₦)<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[var(--wh-text-secondary)]">Checkout time (minutes)<input type="number" min={5} max={120} value={draft.payment_hold_minutes} onChange={e=>setDraft({...draft,payment_hold_minutes:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[var(--wh-text-secondary)]">Stay balance due (hours)<input type="number" min={1} max={168} value={draft.balance_due_hours} onChange={e=>setDraft({...draft,balance_due_hours:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
     </div>
-    {dirty?<div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] text-[#A4A9B6]">Effective time<input type="datetime-local" value={effectiveAt} onChange={e=>setEffectiveAt(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label><label className="text-[10px] text-[#A4A9B6]">Change reason<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Why is this changing?" className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#151820] px-3 text-sm"/></label></div>:null}
+    {dirty?<div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] text-[var(--wh-text-secondary)]">Effective time<input type="datetime-local" value={effectiveAt} onChange={e=>setEffectiveAt(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label><label className="text-[10px] text-[var(--wh-text-secondary)]">Change reason<input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Why is this changing?" className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label></div>:null}
     <div className="mt-4 flex justify-end"><button type="button" disabled={!dirty||reason.trim().length<5||saving} onClick={()=>requestElevation('policy_publish',id=>void publish(id))} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold disabled:opacity-40">{saving?'Publishing…':effectiveAt?'Review & schedule':'Review & publish'}</button></div>
   </section>;
 }
@@ -529,9 +529,9 @@ function RuleSection({
     <section>
       <div className="mb-3">
         <h4 className="text-xs font-semibold">{title}</h4>
-        <p className="mt-1 text-[9px] leading-5 text-[#6F7687]">{note}</p>
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">{note}</p>
       </div>
-      <div className="grid gap-x-5 border-y border-white/[.06] sm:grid-cols-2">
+      <div className="grid gap-x-5 border-y border-[var(--wh-border-subtle)] sm:grid-cols-2">
         {children}
       </div>
     </section>
@@ -560,12 +560,12 @@ function NumberRule({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex min-h-16 items-center justify-between gap-4 border-b border-white/[.05] py-3 text-[10px]">
-      <span className={disabled ? "text-[#555B69]" : "text-[#A4A9B6]"}>
+    <label className="flex min-h-16 items-center justify-between gap-4 border-b border-[var(--wh-border-subtle)] py-3 text-[10px]">
+      <span className={disabled ? "text-[var(--wh-text-muted)]" : "text-[var(--wh-text-secondary)]"}>
         {label}
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
-        {prefix ? <span className="text-[#707687]">{prefix}</span> : null}
+        {prefix ? <span className="text-[var(--wh-text-muted)]">{prefix}</span> : null}
         <input
           type="number"
           min={min}
@@ -574,10 +574,10 @@ function NumberRule({
           disabled={disabled}
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="h-9 w-20 rounded-lg border border-white/[.08] bg-[#151820] px-2 text-right text-xs outline-none focus:border-violet-500/40 disabled:opacity-35"
+          className="h-9 w-20 rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-right text-xs outline-none focus:border-violet-500/40 disabled:opacity-35"
         />
         {suffix ? (
-          <span className="max-w-32 text-[8px] leading-4 text-[#656C7D]">
+          <span className="max-w-32 text-[8px] leading-4 text-[var(--wh-text-muted)]">
             {suffix}
           </span>
         ) : null}
@@ -598,10 +598,10 @@ function ToggleRule({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex min-h-16 items-center justify-between gap-4 border-b border-white/[.05] py-3">
+    <div className="flex min-h-16 items-center justify-between gap-4 border-b border-[var(--wh-border-subtle)] py-3">
       <span>
-        <span className="block text-[10px] text-[#A4A9B6]">{label}</span>
-        <span className="mt-1 block text-[8px] leading-4 text-[#656C7D]">
+        <span className="block text-[10px] text-[var(--wh-text-secondary)]">{label}</span>
+        <span className="mt-1 block text-[8px] leading-4 text-[var(--wh-text-muted)]">
           {note}
         </span>
       </span>
@@ -610,7 +610,7 @@ function ToggleRule({
         aria-pressed={value}
         aria-label={label}
         onClick={() => onChange(!value)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition duration-200 ${value ? "bg-violet-500" : "bg-white/[.1]"}`}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition duration-200 ${value ? "bg-violet-500" : "bg-[var(--wh-interactive)]"}`}
       >
         <span
           className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all duration-200 ${value ? "left-6" : "left-1"}`}
@@ -622,9 +622,9 @@ function ToggleRule({
 
 function LockedRule({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-h-16 items-center justify-between gap-4 border-b border-white/[.05] py-3">
-      <span className="text-[10px] text-[#A4A9B6]">{label}</span>
-      <span className="rounded-full border border-white/[.08] px-2.5 py-1 text-[8px] font-semibold text-[#8A91A1]">
+    <div className="flex min-h-16 items-center justify-between gap-4 border-b border-[var(--wh-border-subtle)] py-3">
+      <span className="text-[10px] text-[var(--wh-text-secondary)]">{label}</span>
+      <span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">
         {value}
       </span>
     </div>

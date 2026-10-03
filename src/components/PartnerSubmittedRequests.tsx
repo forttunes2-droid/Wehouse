@@ -13,6 +13,7 @@ import PropertyAccessRecorder, {
 import BackButton from "@/components/BackButton";
 import { ListingMediaImage } from "./ListingCandidateMedia";
 import PartnerHotelOperations from "./PartnerHotelOperations";
+import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 
 export type SubmissionFilter = "all" | "submitted" | "public" | "rejected";
 export type PartnerAssetKind = "apartment" | "hotel";
@@ -24,6 +25,7 @@ type RequestRow = {
   property_display_name: string | null;
   property_type: string | null;
   sub_type: string | null;
+  requested_management_mode: "host" | "wehouse" | null;
   property_state: string | null;
   property_city: string | null;
   bedrooms: number | null;
@@ -67,7 +69,7 @@ type RequestRow = {
 };
 
 const fields =
-  "id,request_code,property_address,property_display_name,property_type,sub_type,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
+  "id,request_code,property_address,property_display_name,property_type,sub_type,requested_management_mode,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
 const PAGE_SIZE = 40;
 
 function submissionsQuery(ownerId: string, assetKind: PartnerAssetKind, filter: SubmissionFilter) {
@@ -255,7 +257,7 @@ export default function PartnerSubmittedRequests({
             <button
               type="button"
               onClick={() => void refresh()}
-              className="rounded-lg border border-white/[.07] px-3 py-2 text-[9px] text-[#888A9B]"
+              className="rounded-lg border border-[var(--wh-border-subtle)] px-3 py-2 text-[9px] text-[var(--wh-text-secondary)]"
             >
               Refresh
             </button>
@@ -265,15 +267,15 @@ export default function PartnerSubmittedRequests({
           ) : requests.length === 0 ? (
             <Empty filter={filter} />
           ) : (
-            <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+            <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {requests.map((request) => (
                 <button
                   key={request.id}
                   type="button"
                   onClick={() => openRequest(request)}
-                  className="flex w-full items-center gap-3 py-4 text-left transition active:bg-white/[.025]"
+                  className="flex w-full items-center gap-3 py-4 text-left transition active:bg-[var(--wh-interactive)]"
                 >
-                  <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#191A24]">
+                  <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">
                     {request.photo_urls?.[0] ? (
                       <ListingMediaImage
                         reference={request.photo_urls[0]}
@@ -281,7 +283,7 @@ export default function PartnerSubmittedRequests({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="grid h-full place-items-center text-[9px] text-[#595C6D]">
+                      <div className="grid h-full place-items-center text-[9px] text-[var(--wh-text-muted)]">
                         No photo
                       </div>
                     )}
@@ -293,12 +295,12 @@ export default function PartnerSubmittedRequests({
                       </p>
                       <Status request={request} />
                     </div>
-                    <p className="mt-1 truncate text-[9px] text-[#696C7D]">
+                    <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                       {[request.property_city, request.property_state]
                         .filter(Boolean)
                         .join(", ")}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[8px] text-[#777A8B]">
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[8px] text-[var(--wh-text-muted)]">
                       <span>{request.request_code || "Request sent"}</span>
                       {request.submission_batch_id && request.submission_batch_position != null && (
                           <span className="rounded-full bg-violet-500/10 px-2 py-1 text-violet-300">
@@ -315,7 +317,7 @@ export default function PartnerSubmittedRequests({
             </div>
           )}
           {!loading && hasMore && <button type="button" onClick={() => void loadMore()}
-            disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold text-violet-200 disabled:opacity-50">
+            disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-violet-200 disabled:opacity-50">
             {loadingMore ? "Loading more…" : "Load more properties"}
           </button>}
         </section>
@@ -338,6 +340,17 @@ function RequestDetail({
   onCorrected: () => void;
 }) {
   const [managingHotel, setManagingHotel] = useState(false);
+  const [managementMode, setManagementMode] = useState(request.requested_management_mode);
+  const [managementBusy, setManagementBusy] = useState(false);
+  async function chooseManagement(mode: "host" | "wehouse") {
+    if (managementBusy || managementMode === mode) return;
+    setManagementBusy(true);
+    const { error } = await supabase.rpc("set_my_property_request_management_mode", { p_request_id: request.id, p_mode: mode });
+    setManagementBusy(false);
+    if (error) return toast.error(error.message);
+    setManagementMode(mode);
+    toast.success("Operating choice saved before publication");
+  }
   const images = request.photo_urls || [];
   const stage = request.lifecycle_stage || "access_required";
   const stopped = ["changes_requested", "rejected"].includes(stage);
@@ -368,16 +381,16 @@ function RequestDetail({
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <BackButton onClick={onBack} />
-        <span className="text-xs text-[#A1A3B1]">Submitted properties</span>
+        <span className="text-xs text-[var(--wh-text-secondary)]">Submitted properties</span>
       </div>
-      <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#111119]">
+      <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {images.length > 0 ? (
           <PropertyMediaCarousel
             images={images}
             title={propertyRecordTitle(request, "Submitted property")}
           />
         ) : (
-          <div className="grid aspect-[16/8] place-items-center bg-gradient-to-br from-violet-500/10 to-transparent text-[10px] text-[#696D7D]">
+          <div className="grid aspect-[16/8] place-items-center bg-gradient-to-br from-violet-500/10 to-transparent text-[10px] text-[var(--wh-text-muted)]">
             No property media supplied
           </div>
         )}
@@ -390,7 +403,7 @@ function RequestDetail({
               <h2 className="mt-2 text-xl font-bold">
                 {propertyRecordTitle(request, "Submitted property")}
               </h2>
-              <p className="mt-1 text-[10px] text-[#747789]">
+              <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
                 {[request.property_city, request.property_state]
                   .filter(Boolean)
                   .join(", ")}
@@ -415,22 +428,23 @@ function RequestDetail({
           </div>
           {request.description && (
             <div className="mt-4">
-              <p className="text-[9px] uppercase tracking-wide text-[#66697A]">
+              <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">
                 Property details
               </p>
-              <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#A5A7B3]">
+              <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[var(--wh-text-secondary)]">
                 {request.description}
               </p>
             </div>
           )}
         </div>
       </section>
+      {request.property_type === "apartment" && stage !== "live" && !request.published_at ? <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4"><h3 className="text-sm font-semibold">Who manages this home?</h3><p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">Set this before publication. A live home cannot silently change operator.</p><div className="mt-3 grid grid-cols-2 gap-2">{(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" disabled={managementBusy} aria-pressed={managementMode === mode} onClick={() => void chooseManagement(mode)} className={`min-h-12 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50 ${managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-violet-100" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{mode === "host" ? "Host manages" : "WeHouse manages"}</button>)}</div></section> : null}
       {request.property_type === "hotel" ? (
         <section className="space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h3 className="text-sm font-semibold">Hotel rooms</h3>
-              <p className="mt-1 text-[9px] text-[#696D7D]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 Each room type keeps its own gallery, description, amenities, rate
                 and inventory.
               </p>
@@ -448,7 +462,7 @@ function RequestDetail({
           {(request.hotel_program?.room_types || []).map((room, index) => (
             <article
               key={`${room.name}-${index}`}
-              className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#111119]"
+              className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]"
             >
               {room.media?.length ? (
                 <PropertyMediaCarousel
@@ -462,7 +476,7 @@ function RequestDetail({
                     <h4 className="text-sm font-semibold">
                       {room.name || `Room ${index + 1}`}
                     </h4>
-                    <p className="mt-1 text-[9px] text-[#73798A]">
+                    <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                       Up to {room.guest_capacity || 1} guests
                       {room.bed_type ? ` · ${room.bed_type}` : ""} ·{" "}
                       {room.inventory || 1} available
@@ -470,13 +484,13 @@ function RequestDetail({
                   </div>
                   <p className="text-sm font-bold text-violet-200">
                     ₦{Number(room.nightly_rate || 0).toLocaleString()}
-                    <span className="block text-right text-[8px] font-normal text-[#656B7C]">
+                    <span className="block text-right text-[8px] font-normal text-[var(--wh-text-muted)]">
                       per night
                     </span>
                   </p>
                 </div>
                 {room.description && (
-                  <p className="mt-3 text-[10px] leading-5 text-[#969BA9]">
+                  <p className="mt-3 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
                     {room.description}
                   </p>
                 )}
@@ -485,7 +499,7 @@ function RequestDetail({
                     {room.amenities.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-white/[.07] px-2.5 py-1 text-[8px] text-[#A0A5B3]"
+                        className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[8px] text-[var(--wh-text-secondary)]"
                       >
                         {item}
                       </span>
@@ -496,11 +510,11 @@ function RequestDetail({
             </article>
           ))}
           {!request.hotel_program?.room_types?.length ? (
-            <div className="rounded-2xl border border-dashed border-white/[.08] bg-[#111119] px-4 py-6 text-center">
+            <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 py-6 text-center">
               <p className="text-xs font-semibold text-[#D5D7E1]">
                 No room types added yet
               </p>
-              <p className="mt-1 text-[9px] leading-5 text-[#73798A]">
+              <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
                 Add the rooms guests can reserve, with separate prices, photos,
                 amenities and inventory.
               </p>
@@ -516,7 +530,7 @@ function RequestDetail({
           onCorrected={onCorrected}
         />
       )}
-      <section className="border-y border-white/[.06] py-4">
+      <section className="border-y border-[var(--wh-border-subtle)] py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">Publication status</h3>
@@ -527,13 +541,13 @@ function RequestDetail({
             {stopped ? friendly(stage) : `${progress} of 5`}
           </span>
         </div>
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--wh-interactive)]">
           <div
             className={`h-full rounded-full ${progress === 5 ? "bg-emerald-400" : "bg-violet-400"}`}
             style={{ width: `${progress * 20}%` }}
           />
         </div>
-        <div className="mt-2 flex justify-between text-[8px] text-[#686E7E]">
+        <div className="mt-2 flex justify-between text-[8px] text-[var(--wh-text-muted)]">
           <span>{steps[Math.max(0, progress - 1)]}</span>
           <span>{progress}/5</span>
         </div>
@@ -543,16 +557,16 @@ function RequestDetail({
             {new Date(request.scheduled_date).toLocaleString()}
           </p>
         )}
-        <p className="mt-3 text-[9px] leading-5 text-[#777C8D]">
+        <p className="mt-3 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           {journeyNext(stage)}
         </p>
       </section>
       {(request.notes || request.rejection_reason) && (
-        <section className="rounded-2xl border border-white/[.06] bg-[#111119] p-4">
-          <p className="text-[9px] uppercase tracking-wide text-[#66697A]">
+        <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+          <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">
             Latest WeHouse update
           </p>
-          <p className="mt-2 text-xs leading-6 text-[#A5A7B3]">
+          <p className="mt-2 text-xs leading-6 text-[var(--wh-text-secondary)]">
             {request.rejection_reason || request.notes}
           </p>
         </section>
@@ -560,7 +574,7 @@ function RequestDetail({
       {request.gps_latitude != null && request.gps_longitude != null && (
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4">
           <p className="text-xs font-semibold">Location recorded privately</p>
-          <p className="mt-1 text-[10px] text-[#777E90]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
             The exact property location is available only to authorized WeHouse operations for
             inspection and handover.
           </p>
@@ -677,18 +691,16 @@ function AccessEvidenceCorrection({
           "This access code expired. Create a new code and record again.",
       );
     }
-    const extension = recording.type.includes("mp4")
-      ? "mp4"
-      : recording.type.includes("quicktime")
-        ? "mov"
-        : "webm";
-    const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${extension}`;
+    let prepared;
+    try { prepared = await prepareEvidenceVideo(recording); }
+    catch (error) { setBusy(false); return toast.error(error instanceof Error ? error.message : "Recording preparation failed"); }
+    const path = `${profile.user_id}/${challenge.id}/${crypto.randomUUID()}-${duration}s.${prepared.extension}`;
     try {
       await uploadStorageObjectWithProgress(
         "property-access-private",
         path,
-        recording,
-        recording.type || "video/webm",
+        prepared.body,
+        prepared.contentType,
         setUploadProgress,
       );
     } catch (error) {
@@ -722,7 +734,7 @@ function AccessEvidenceCorrection({
         <p className="text-xs font-semibold text-amber-200">
           Correct this submission
         </p>
-        <p className="mt-1 text-[9px] leading-5 text-[#85899A]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-secondary)]">
           Record replacement access evidence here. It stays attached to this
           property and returns to Property Operations review without creating a
           duplicate.
@@ -772,7 +784,7 @@ function AccessEvidenceSummary({ status }: { status: string | null }) {
   const submitted = status === "submitted";
   return (
     <section
-      className={`border-y py-4 ${verified ? "border-emerald-500/15" : rejected ? "border-amber-500/15" : "border-white/[.06]"}`}
+      className={`border-y py-4 ${verified ? "border-emerald-500/15" : rejected ? "border-amber-500/15" : "border-[var(--wh-border-subtle)]"}`}
     >
       <div className="flex items-center gap-3">
         <span
@@ -790,7 +802,7 @@ function AccessEvidenceSummary({ status }: { status: string | null }) {
                   ? "Private access recording received"
                   : "Access evidence unavailable"}
           </p>
-          <p className="mt-1 text-[9px] leading-4 text-[#74798A]">
+          <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">
             {verified
               ? "The private access recording passed review."
               : rejected
@@ -828,8 +840,8 @@ function journeyNext(stage: string) {
 
 function Info({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="border-b border-white/[.055] py-3">
-      <p className="text-[8px] uppercase text-[#5F6273]">{label}</p>
+    <div className="border-b border-[var(--wh-border-subtle)] py-3">
+      <p className="text-[8px] uppercase text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-1 truncate text-[10px] font-semibold capitalize">
         {value || "—"}
       </p>
@@ -887,9 +899,9 @@ function Empty({ filter }: { filter: SubmissionFilter }) {
               "Use Add properties above to send your first property.",
             ];
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-12 text-center">
       <p className="text-sm font-semibold">{copy[0]}</p>
-      <p className="mt-2 text-[10px] text-[#66697A]">{copy[1]}</p>
+      <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">{copy[1]}</p>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { Profile } from '@/types';
 import VideoPlayer from '@/components/VideoPlayer';
 import WorkerVerificationPhase9 from '@/pages/WorkerVerificationPhase9';
 import { useRpcRead } from '@/hooks/useRpcRead';
+import { prepareEvidenceVideo } from '@/lib/mediaVideo';
 
 type Props = {
   profile: Profile;
@@ -33,7 +34,7 @@ export default function ServiceProviderVerification(props: Props) {
 
   if (loading)
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[#0A0A0F] text-white">
+      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] text-[var(--wh-text)]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
@@ -43,7 +44,7 @@ export default function ServiceProviderVerification(props: Props) {
       <SimpleShell onBack={props.onBack}>
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4 text-[11px] leading-5 text-amber-100/80">
           {error || 'Service Worker onboarding could not be loaded.'}
-          <button type="button" onClick={() => void refresh()} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] font-semibold text-white">Try again</button>
+          <button type="button" onClick={() => void refresh()} className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] font-semibold text-white">Try again</button>
         </section>
       </SimpleShell>
     );
@@ -115,10 +116,12 @@ function EvidenceOnlyVerification({
     if (file.size > 50 * 1024 * 1024) return toast.error('Work video must be under 50MB');
     setUploadState({ name: file.name, phase: 'uploading' });
     try {
-      const path = await upload(file, 'worker-verification-videos', 'skill-video');
+      const prepared = await prepareEvidenceVideo(file);
+      const compressed = new File([prepared.body], `skill-video.${prepared.extension}`, { type: prepared.contentType });
+      const path = await upload(compressed, 'worker-verification-videos', 'skill-video');
       setVideoPath(path);
       if (preview) URL.revokeObjectURL(preview);
-      setPreview(URL.createObjectURL(file));
+      setPreview(URL.createObjectURL(prepared.body));
       setUploadState({ name: file.name, phase: 'complete' });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Video upload failed';
@@ -172,7 +175,7 @@ function EvidenceOnlyVerification({
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
         <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICES</p>
         <h2 className="mt-1 text-base font-semibold">Service Worker onboarding is free</h2>
-        <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
           Complete your professional profile, add a short work video and submit it to WeHouse for review.
         </p>
       </section>
@@ -187,7 +190,7 @@ function EvidenceOnlyVerification({
         </Card>
       ) : reviewing ? (
         <Card title="Review in progress" text="WeHouse is reviewing the professional evidence you submitted.">
-          <div className="rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2.5 text-[9px] text-[#8990A0]">Your profile remains private until the review is completed.</div>
+          <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5 text-[9px] text-[var(--wh-text-secondary)]">Your profile remains private until the review is completed.</div>
           <PrimaryButton label="Back to Service Worker workspace" onClick={onBack} secondary />
         </Card>
       ) : !activation.evidence_saved ? (
@@ -212,10 +215,10 @@ function EvidenceOnlyVerification({
 
 function SimpleShell({ children, onBack }: { children: React.ReactNode; onBack: () => void }) {
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-8 text-white">
-      <header className="border-b border-white/[.06] px-4 py-4">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-[var(--wh-text)]">
+      <header className="border-b border-[var(--wh-border-subtle)] px-4 py-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07]" aria-label="Back">←</button>
+          <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--wh-border-subtle)]" aria-label="Back">←</button>
           <div>
             <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE · SERVICES</p>
             <h1 className="mt-1 text-lg font-bold">Service Worker review</h1>
@@ -229,10 +232,10 @@ function SimpleShell({ children, onBack }: { children: React.ReactNode; onBack: 
 
 function Card({ title, text, children }: { title: string; text: string; children?: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+    <section className="space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <div>
         <h2 className="text-lg font-bold">{title}</h2>
-        <p className="mt-1 text-[10px] leading-relaxed text-[#747B8B]">{text}</p>
+        <p className="mt-1 text-[10px] leading-relaxed text-[var(--wh-text-muted)]">{text}</p>
       </div>
       {children}
     </section>
@@ -240,11 +243,11 @@ function Card({ title, text, children }: { title: string; text: string; children
 }
 
 function PrimaryButton({ label, onClick, disabled = false, secondary = false }: { label: string; onClick: () => void; disabled?: boolean; secondary?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className={`h-12 w-full rounded-xl text-xs font-semibold disabled:opacity-40 ${secondary ? 'border border-white/[.08]' : 'bg-violet-500'}`}>{label}</button>;
+  return <button type="button" onClick={onClick} disabled={disabled} className={`h-12 w-full rounded-xl text-xs font-semibold disabled:opacity-40 ${secondary ? 'border border-[var(--wh-border-subtle)]' : 'bg-violet-500'}`}>{label}</button>;
 }
 
 function UploadButton({ label, done, onClick }: { label: string; done: boolean; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`flex h-12 w-full items-center justify-between rounded-xl border px-4 text-xs ${done ? 'border-emerald-500/20 text-emerald-300' : 'border-white/[.08] text-[#A2A7B3]'}`}><span>{label}</span><span>{done ? '✓' : '+'}</span></button>;
+  return <button type="button" onClick={onClick} className={`flex h-12 w-full items-center justify-between rounded-xl border px-4 text-xs ${done ? 'border-emerald-500/20 text-emerald-300' : 'border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}><span>{label}</span><span>{done ? '✓' : '+'}</span></button>;
 }
 
 function UploadStatus({ state }: { state: NonNullable<UploadState> }) {

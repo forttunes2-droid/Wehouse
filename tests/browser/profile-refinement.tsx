@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {Toaster} from 'sonner';
 import WorkerPublicProfile from '@/components/WorkerPublicProfile';
 import WorkerShowcaseManager from '@/components/WorkerShowcaseManager';
+import CreatorWorkerOversight from '@/components/CreatorWorkerOversight';
 import AccountHelpCenter from '@/components/AccountHelpCenter';
 import {state} from './profileRefinementClientFixture';
 import '@/index.css';
@@ -15,11 +16,13 @@ function Fixture(){
  if(mode==='error'){state.failPosts=true;state.failTrust=true;state.failReviews=true;}
  if(mode==='media-error')state.failMedia=true;
  if(mode==='stale')state.delayWorker='worker-a';
- const publicMode=!['owner','owner-link','help','help-error','help-wrong-user','private'].includes(mode);
+ if(mode==='pending-media')state.delaySigning=true;
+ const publicMode=!['owner','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
  if(mode==='help-error')state.failHelp=true;if(mode==='help-wrong-user')state.wrongAccount=true;
  return <><div className="mx-auto min-h-screen max-w-3xl bg-[#090B10] p-5 text-white"><h1 className="mb-5 text-xl font-semibold">{mode.startsWith('owner')?'Your showcase':'WeHouse'}</h1>
- {open&&(publicMode||mode==='private')&&<WorkerPublicProfile worker={person(worker)} onBack={()=>setOpen(false)} onBook={()=>w.__booked=true} showBookingAction={mode!=='private'} communicationActions={mode==='private'?<button type="button">Call</button>:undefined}/>}
+ {open&&(publicMode||mode==='private')&&<WorkerPublicProfile worker={person(worker)} onBack={()=>setOpen(false)} onBook={()=>w.__booked=true} showBookingAction={mode!=='private'} previewMode={mode==='preview'} communicationActions={mode==='private'?<button type="button">Call</button>:undefined}/>}
  {mode.startsWith('owner')&&<WorkerShowcaseManager profile={person(worker)} initialPostId={mode==='owner-link'?'worker-a-p26':undefined}/>}
+ {mode==='creator-list'&&<CreatorWorkerOversight userId="creator-example"/>}
  {mode.startsWith('help')&&<AccountHelpCenter profile={{user_id:'viewer',role:'user'} as any} workspace="personal" onBack={()=>w.__helpBack=true}/>}
  {!open&&<p>Returned to discovery</p>}</div><Toaster theme="dark"/></>;
 }

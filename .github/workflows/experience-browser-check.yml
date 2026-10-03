@@ -7,6 +7,42 @@ concurrency:
   group: experience-browser-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
+  media-compression:
+    name: Browser media compression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Install video encoder
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Encode and play short and longer uploads within their budgets
+        run: |
+          node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-media-vite.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/tests/browser/experience.html >/dev/null && break
+            sleep 1
+          done
+          python tests/browser/public_video_compression.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-media-compression
+          path: test-results/experience/*-compressed.*
+          retention-days: 7
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -49,6 +85,10 @@ jobs:
       - run: npm ci
       - run: pip install playwright==1.57.0
       - run: python -m playwright install --with-deps chromium
+      - name: Install video encoder for public media QA
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Capture Account phone screens and verify workspace tab motion
+        run: python tests/browser/account_motion_preview.py
       - name: Run isolated browser interactions
         run: |
           node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
@@ -63,6 +103,9 @@ jobs:
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0
+      - name: Capture Property Partner Pro phone and tablet screens
+        if: ${{ !cancelled() }}
+        run: python tests/browser/partner_pro_preview.py
       - name: Verify real bundle startup failures remain safe and recoverable
         if: ${{ !cancelled() }}
         env:

@@ -56,6 +56,7 @@ class Scenario:
         elif name == 'mark_support_messages_read': data = None
         elif 'summary' in name: data = {'unread': 0, 'needs_action': 0, 'total': 0}
         elif name == 'get_my_legal_status': data = {}
+        elif name == 'get_sponsored_discovery': data = []
         try:
             await route.fulfill(status=status, content_type='application/json', body=json.dumps(data), headers={'access-control-allow-origin': '*'})
         except Exception:

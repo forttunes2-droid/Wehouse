@@ -18,6 +18,9 @@ export async function saveCreatorSetting(def: Def, raw: string): Promise<{ row: 
   if (def.category === 'worker_pro') {
     const { error } = await supabase.rpc('creator_set_worker_pro_setting', { p_key: def.key, p_value: value });
     if (error) throw error;
+  } else if (def.category === 'partner_pro') {
+    const { error } = await supabase.rpc('creator_set_partner_pro_setting', { p_key: def.key, p_value: value });
+    if (error) throw error;
   } else {
     const { data: existing, error: readError } = await supabase.from('platform_settings').select('key').eq('key', def.key).maybeSingle();
     if (readError) throw readError;

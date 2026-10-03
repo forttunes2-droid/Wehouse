@@ -22,6 +22,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   const [storePlan, setStorePlan] = useState<NativeStorePlan | null>(null);
   const [storeError, setStoreError] = useState('');
   const native = isNative();
+  const underReview = Boolean(pro && 'under_review' in pro && pro.under_review === true);
   const nativeSalesEnabled = Boolean(import.meta.env.VITE_NATIVE_BILLING_ENABLED === 'true'
     && (isIOS() ? pro?.native_sales?.ios_enabled : pro?.native_sales?.android_enabled));
   const nativeProductId = pro?.plans?.find(plan => plan.billing_period === billingPeriod)?.[isIOS() ? 'apple_product_id' : 'google_product_id'] || '';
@@ -37,8 +38,10 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     return () => { live = false; };
   }, [native, nativeSalesEnabled, nativeProductId, pro?.active]);
 
+  useEffect(() => { setTermsAccepted(false); }, [profile.user_id, pro?.terms_version, pro?.terms_content]);
+
   async function subscribe(selectedBillingPeriod: WorkerProBillingPeriod) {
-    if (!pro || (!native && !pro.sales_enabled)) return;
+    if (!pro || underReview || (!native && !pro.sales_enabled)) return;
     if (!termsAccepted) {
       toast.error('Please read and accept the current paid plan subscription terms');
       return;
@@ -130,39 +133,37 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
     : planOptions.find((plan) => plan.web_available) || requestedPlan;
   const selectedBillingPeriod = selectedPlan?.billing_period || billingPeriod;
   const anyWebPlanAvailable = planOptions.some((plan) => plan.web_available);
-  const checkoutAvailable = native
+  const checkoutAvailable = !underReview && (native
     ? Boolean(nativeSalesEnabled && storePlan && selectedPlan && pro.terms_content)
-    : Boolean(pro.sales_enabled && selectedPlan?.web_available);
+    : Boolean(pro.sales_enabled && selectedPlan?.web_available));
   const activeUntil = pro.current_period_end ? new Date(pro.current_period_end).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-3xl border border-amber-300/15 bg-[radial-gradient(circle_at_top_right,rgba(245,190,48,.16),transparent_38%),#11131A] p-5">
-        <div className="flex items-start justify-between gap-4">
+      <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-5 sm:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-200">Optional paid tools</p>
-            <h2 className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">{pro.product_name || 'WeHouse Works'}{pro.active && <GoldTickBadge />}</h2>
-            <p className="mt-2 max-w-xl text-xs leading-5 text-[#9196A5]">Business tools for Service Workers. The gold badge appears only on an active Worker membership. Identity and professional checks stay separate.</p>
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-violet-700 dark:text-violet-200">WeHouse Pro · Service Worker</p>
+            <h2 className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">{pro.product_name || 'Work tools'}{pro.active && <GoldTickBadge />}</h2>
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-lg font-bold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : '—'}</p>
-            <p className="text-[8px] text-[#737887]">{native ? `shown by ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'} on web`}</p>
-          </div>
+          <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${pro.active ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-700 dark:text-emerald-200' : checkoutAvailable ? 'border-violet-400/25 bg-violet-400/10 text-violet-700 dark:text-violet-100' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Sales closed'}</span>
         </div>
+        <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">Business tools for Service Workers: track completed jobs, make quotes and issue invoices. Membership does not change professional review or customer ranking.</p>
+        {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[var(--wh-text-secondary)]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
       </section>
 
-      <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+      <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">{pro.active ? 'Paid tools are active' : 'Included tools'}</p>
-            <p className="mt-1 text-[9px] text-[#707686]">{pro.active ? `${pro.cancel_at_period_end ? 'Access ends' : 'Current period ends'}${activeUntil ? ` ${activeUntil}` : ''}` : 'Choose this only if the listed business tools are useful to your work.'}</p>
+            <p className="text-base font-semibold">{pro.active ? 'Paid tools are active' : 'Included tools'}</p>
+            <p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">{pro.active ? `${pro.cancel_at_period_end ? 'Access ends' : 'Current period ends'}${activeUntil ? ` ${activeUntil}` : ''}` : 'See what the optional plan adds to your Worker account.'}</p>
           </div>
         </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {pro.features.map((feature) => <div key={feature} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/[.05] bg-black/10 px-3 text-[10px] text-[#C9CCD5]"><span className="text-amber-300">✓</span>{feature}</div>)}
+        <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+          {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule, calendar export and in-app work reminders', 'Job costs, released earnings and net-after-costs CSV', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><span>{feature}</span></div>)}
         </div>
-        {!pro.active && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
-          <div className="mt-4 rounded-xl border border-white/[.07] bg-black/10 p-3">
+        {!pro.active && !underReview && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
+          <div className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
             <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Billing period">
               {planOptions.map((plan) => (
                 <button
@@ -171,42 +172,43 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
                   aria-pressed={selectedBillingPeriod === plan.billing_period}
                   disabled={native ? !(isIOS() ? plan.apple_product_id : plan.google_product_id) : !plan.web_available}
                   onClick={() => setBillingPeriod(plan.billing_period)}
-                  className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedBillingPeriod === plan.billing_period ? 'border-amber-300/35 bg-amber-300/10' : 'border-white/[.06] bg-white/[.02]'}`}
+                  className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedBillingPeriod === plan.billing_period ? 'border-amber-300/35 bg-amber-300/10' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]'}`}
                 >
-                  <span className="block text-[10px] font-semibold">{plan.label}</span>
-                  <span className="mt-1 block text-[9px] text-[#8B90A0]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `₦${Number(plan.price_ngn).toLocaleString()}`}</span>
+                  <span className="block text-sm font-semibold">{plan.label}</span>
+                  <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `₦${Number(plan.price_ngn).toLocaleString()}`}</span>
                   {!native && plan.billing_period === 'yearly' && plan.saving_ngn > 0 && (
-                    <span className="mt-1 block text-[8px] font-semibold text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
+                    <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
                   )}
                 </button>
               ))}
             </div>
             <details>
-              <summary className="cursor-pointer text-[10px] font-semibold text-[#D6D8DF]">Read paid plan subscription terms ({pro.terms_version || 'not published'})</summary>
-              <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap text-[9px] leading-5 text-[#858B9B]">{pro.terms_content || 'Subscription terms are not available. Sales must remain off.'}</p>
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--wh-text)]">Read paid plan subscription terms ({pro.terms_version || 'not published'})</summary>
+              <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{pro.terms_content || 'Subscription terms are not available. Sales must remain off.'}</p>
             </details>
-            <label className="mt-3 flex cursor-pointer items-start gap-3 text-[9px] leading-5 text-[#B8BBC5]">
+            <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
               <input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-amber-300" />
               <span>I accept the current subscription terms. This {selectedBillingPeriod} plan renews automatically until I cancel, and cancellation preserves access through the paid period.</span>
             </label>
           </div>
         )}
-        {pro.active ? (
-          <button onClick={() => void manage()} disabled={busy} className="mt-4 h-11 w-full rounded-xl border border-white/[.08] bg-white/[.035] text-[10px] font-semibold disabled:opacity-40">{busy ? 'Opening…' : 'Manage or cancel subscription'}</button>
+        {pro.active || (underReview && pro.provider) ? (
+          <button onClick={() => void manage()} disabled={busy} className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-sm font-semibold disabled:opacity-40">{busy ? 'Opening…' : 'Manage or cancel subscription'}</button>
         ) : checkoutAvailable ? (
-          <button onClick={() => void subscribe(selectedBillingPeriod)} disabled={busy || !termsAccepted || !pro.terms_content} className="mt-4 h-12 w-full rounded-xl bg-amber-300 text-[11px] font-bold text-[#241A03] disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Choose ${selectedBillingPeriod} with ${storeName}`}</button>
+          <button onClick={() => void subscribe(selectedBillingPeriod)} disabled={busy || !termsAccepted || !pro.terms_content} className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-sm font-bold text-white disabled:opacity-40">{busy ? 'Opening secure checkout…' : `Choose ${selectedBillingPeriod} with ${storeName}`}</button>
         ) : native ? (
-          <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">{storeError || `Paid sales on ${storeName} are not open yet.`} Your free Worker profile and review status are unchanged.</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--wh-text-secondary)]">{storeError || `Paid sales on ${storeName} are not open yet.`} Your free Worker profile and review status are unchanged.</p>
         ) : (
-          <p className="mt-4 rounded-xl border border-violet-500/12 bg-violet-500/[.04] p-3 text-[9px] leading-5 text-violet-100/70">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--wh-text-secondary)]">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
-      {native && <button onClick={() => void restore()} disabled={busy || import.meta.env.VITE_NATIVE_BILLING_ENABLED !== 'true'} className="w-full rounded-xl border border-white/[.08] px-4 py-3 text-[10px] font-semibold disabled:opacity-40">Restore store subscription</button>}
+      {underReview && <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your Worker Pro payment is under Finance review after a provider refund or dispute notice. Paid tools and new checkout are paused. Your free Worker profile, bookings and existing work documents remain available.</p>}
+      {native && <button onClick={() => void restore()} disabled={busy || import.meta.env.VITE_NATIVE_BILLING_ENABLED !== 'true'} className="w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-[10px] font-semibold disabled:opacity-40">Restore store subscription</button>}
       {tools}
     </div>
   );
 }
 
 function State({ text, retry }: { text: string; retry?: () => Promise<void> }) {
-  return <div className="grid min-h-40 place-items-center rounded-2xl border border-white/[.06] bg-[#10131B] p-5 text-center"><div><p className="text-xs text-[#858B9B]">{text}</p>{retry && <button onClick={() => void retry()} className="mt-3 rounded-xl border border-white/[.08] px-4 py-2 text-[9px] font-semibold">Try again</button>}</div></div>;
+  return <div className="grid min-h-40 place-items-center rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 text-center"><div><p className="text-xs text-[var(--wh-text-secondary)]">{text}</p>{retry && <button onClick={() => void retry()} className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] px-4 py-2 text-[9px] font-semibold">Try again</button>}</div></div>;
 }

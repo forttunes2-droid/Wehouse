@@ -154,7 +154,7 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
     <section className="space-y-5">
       <div>
         {!embedded && <h2 className="text-base font-bold">Legal documents</h2>}
-        <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#858B9A]">
+        <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-secondary)]">
           These are the Privacy Policy and Terms users can read. Prepare a private draft, have it reviewed, then publish a new version. Existing accepted versions are never silently rewritten.
         </p>
       </div>
@@ -169,17 +169,17 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
               ? "Published"
               : "Not prepared";
           return (
-            <article key={kind} className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">
+            <article key={kind} className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
               <div className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">{kind === "privacy" ? "Privacy Policy" : "Terms of Service"}</p>
-                    <p className="mt-1 text-[9px] leading-4 text-[#777E8E]">
+                    <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                       {editor.publishedVersion ? `Published v${editor.publishedVersion}` : "No public version"}
                       {editor.draft ? ` · Private draft v${editor.draft.version}` : ""}
                     </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[8px] font-semibold ${editor.draft ? "bg-amber-500/10 text-amber-300" : editor.publishedVersion ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#858B9A]"}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-[8px] font-semibold ${editor.draft ? "bg-amber-500/10 text-amber-300" : editor.publishedVersion ? "bg-emerald-500/10 text-emerald-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}>
                     {status}
                   </span>
                 </div>
@@ -189,26 +189,26 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
                     <button type="button" onClick={() => setEditing(kind)} className="h-11 rounded-xl bg-violet-500 text-[10px] font-semibold text-white">
                       {editor.draft ? "Open private draft" : "Prepare document"}
                     </button>
-                    <button type="button" onClick={() => loadLawyerDraft(kind)} className="h-11 rounded-xl border border-white/[.08] bg-white/[.025] text-[10px] font-semibold text-[#C9CBD4]">
+                    <button type="button" onClick={() => loadLawyerDraft(kind)} className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[10px] font-semibold text-[var(--wh-text-secondary)]">
                       Use WeHouse review draft
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-5 space-y-3 border-t border-white/[.06] pt-4">
+                  <div className="mt-5 space-y-3 border-t border-[var(--wh-border-subtle)] pt-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold">Private editor</p>
-                        <p className="mt-1 text-[9px] text-[#6F7687]">Saving does not make this public.</p>
+                        <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Saving does not make this public.</p>
                       </div>
                       <button type="button" onClick={() => setEditing(null)} className="min-h-9 px-2 text-[10px] font-semibold text-violet-300">Close editor</button>
                     </div>
-                    <label className="block text-[9px] text-[#777E8E]">
+                    <label className="block text-[9px] text-[var(--wh-text-muted)]">
                       Title
-                      <input value={editor.title} onChange={(event) => update(kind, { title: event.target.value, draft: null })} className="mt-1.5 h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs text-white outline-none" />
+                      <input value={editor.title} onChange={(event) => update(kind, { title: event.target.value, draft: null })} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs text-[var(--wh-text)] outline-none" />
                     </label>
-                    <label className="block text-[9px] text-[#777E8E]">
+                    <label className="block text-[9px] text-[var(--wh-text-muted)]">
                       Document text
-                      <textarea rows={11} value={editor.body} onChange={(event) => update(kind, { body: event.target.value, draft: null })} className="mt-1.5 w-full resize-y rounded-xl border border-white/[.08] bg-[#171A23] p-3 text-xs leading-5 text-white outline-none" />
+                      <textarea rows={11} value={editor.body} onChange={(event) => update(kind, { body: event.target.value, draft: null })} className="mt-1.5 w-full resize-y rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs leading-5 text-[var(--wh-text)] outline-none" />
                     </label>
                     <button type="button" onClick={() => void saveDraft(kind)} disabled={busy === kind} className="h-11 w-full rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40">
                       {busy === kind ? "Saving…" : "Save private draft"}
@@ -218,12 +218,12 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
                       <section className="space-y-2 rounded-xl border border-emerald-500/10 bg-emerald-500/[.025] p-3">
                         <div>
                           <p className="text-[10px] font-semibold text-emerald-200">Ready for reviewed publication</p>
-                          <p className="mt-1 text-[9px] leading-4 text-[#7B8291]">Publish only after legal review. The reference records who or what review you relied on.</p>
+                          <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">Publish only after legal review. The reference records who or what review you relied on.</p>
                         </div>
-                        <input value={reviewReference} onChange={(event) => setReviewReference(event.target.value)} placeholder="Legal review reference" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
+                        <input value={reviewReference} onChange={(event) => setReviewReference(event.target.value)} placeholder="Legal review reference" className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none" />
                         <div className="grid grid-cols-2 gap-2">
-                          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Creator password" className="h-11 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
-                          <input inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Authenticator" className="h-11 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none" />
+                          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Creator password" className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none" />
+                          <input inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Authenticator" className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none" />
                         </div>
                         <button type="button" onClick={() => void publish(kind)} disabled={publishing === kind} className="h-11 w-full rounded-xl border border-emerald-500/20 bg-emerald-500/[.08] text-[10px] font-semibold text-emerald-300 disabled:opacity-40">
                           {publishing === kind ? "Confirming…" : "Publish reviewed version"}
@@ -238,17 +238,17 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
         })}
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B]">
+      <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         <button type="button" onClick={() => setShowChecklist((value) => !value)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 text-left sm:px-5">
           <span>
             <strong className="block text-sm">Before public launch</strong>
-            <span className="mt-1 block text-[9px] leading-4 text-[#707687]">Internal records for WeHouse and legal review. Users do not see these as Terms.</span>
+            <span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-muted)]">Internal records for WeHouse and legal review. Users do not see these as Terms.</span>
           </span>
-          <span className="text-[#747B8B]">{showChecklist ? "−" : "+"}</span>
+          <span className="text-[var(--wh-text-muted)]">{showChecklist ? "−" : "+"}</span>
         </button>
         {showChecklist ? (
-          <div className="divide-y divide-white/[.05] border-t border-white/[.05] px-4 sm:px-5">
-            {legalLaunchChecklist.map((item) => <p key={item} className="py-3 text-[10px] leading-5 text-[#A2A7B5]">{item}</p>)}
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-t border-[var(--wh-border-subtle)] px-4 sm:px-5">
+            {legalLaunchChecklist.map((item) => <p key={item} className="py-3 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{item}</p>)}
           </div>
         ) : null}
       </section>

@@ -165,13 +165,13 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
 
   if (!editing) return (
     <AccountShell profile={profile} title="Personal profile" description="Your identity, contact details and private location settings." onBack={onBack}>
-      <section className="overflow-hidden rounded-3xl border border-white/[.06] bg-[#11141C]">
+      <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         <div className="flex items-center gap-4 p-5">
           <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-2xl font-bold text-violet-300">{avatar ? <img src={avatar} alt="Profile" className="h-full w-full object-cover" /> : (username || 'U')[0].toUpperCase()}</div>
-          <div className="min-w-0 flex-1"><h2 className="truncate text-lg font-bold">{fullName || username || 'WeHouse member'}</h2><p className="mt-1 truncate text-[10px] text-[#737A8B]">@{username || 'username'}</p>{bio && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[#A1A6B3]">{bio}</p>}</div>
+          <div className="min-w-0 flex-1"><h2 className="truncate text-lg font-bold">{fullName || username || 'WeHouse member'}</h2><p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">@{username || 'username'}</p>{bio && <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--wh-text-secondary)]">{bio}</p>}</div>
         </div>
-        <div className="grid grid-cols-2 border-y border-white/[.06] sm:grid-cols-3"><ProfileFact label="Phone · private" value={phone || 'Not added'} /><ProfileFact label="Account" value={profile.role === 'worker' ? 'WeHouse professional' : profile.role === 'user' ? 'WeHouse member' : profile.role.replaceAll('_', ' ')} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
-        <div className="grid grid-cols-2 border-b border-white/[.06] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Street address" value={preciseLocation?.address?.trim() || 'Not added'} />{isUser && <ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} />}</div>
+        <div className="grid grid-cols-2 border-y border-[var(--wh-border-subtle)] sm:grid-cols-3"><ProfileFact label="Phone · private" value={phone || 'Not added'} /><ProfileFact label="Account" value={profile.role === 'worker' ? 'WeHouse professional' : profile.role === 'user' ? 'WeHouse member' : profile.role.replaceAll('_', ' ')} /><ProfileFact label="Gender" value={gender || 'Not added'} /></div>
+        <div className="grid grid-cols-2 border-b border-[var(--wh-border-subtle)] sm:grid-cols-3"><ProfileFact label="Region" value={[lga,state].filter(Boolean).join(', ') || 'Not added'} /><ProfileFact label="Street address" value={preciseLocation?.address?.trim() || 'Not added'} />{isUser && <ProfileFact label="Institution" value={isStudent ? (school || 'Not added') : 'Not a student'} />}</div>
         <div className="p-4"><button type="button" onClick={()=>setEditing(true)} className="h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold">Edit profile</button></div>
       </section>
     </AccountShell>
@@ -182,35 +182,35 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
 
       <form onSubmit={save} className="relative space-y-4" aria-busy={saving}>
         <fieldset disabled={saving} className="contents">
-        <button type="button" onClick={()=>setEditing(false)} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/[.08] px-4 text-[10px] font-semibold text-[#B9BECA]"><span aria-hidden="true">←</span> Profile summary</button>
-        <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
+        <button type="button" onClick={()=>setEditing(false)} className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--wh-border-subtle)] px-4 text-[10px] font-semibold text-[var(--wh-text-secondary)]"><span aria-hidden="true">←</span> Profile summary</button>
+        <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5">
           <ProfilePhotoEditor avatar={avatar} name={fullName||username} onUploaded={savePhoto} onRemove={async()=>{await deletePhoto();}}/>
         </section>
 
-        <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
+        <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" value={fullName} onChange={setFullName} />
-            <div><Field label="Username" value={username} onChange={setUsername} /><p className={`mt-1 text-[9px] ${usernameState === 'available' ? 'text-emerald-300' : usernameState === 'taken' || usernameState === 'invalid' ? 'text-red-300' : 'text-[#62697A]'}`}>{usernameState === 'checking' ? 'Checking…' : usernameState === 'available' ? 'Username available' : usernameState === 'taken' ? 'Username already taken' : usernameState === 'invalid' ? 'Use 3–20 letters, numbers or underscores' : ''}</p></div>
+            <div><Field label="Username" value={username} onChange={setUsername} /><p className={`mt-1 text-[9px] ${usernameState === 'available' ? 'text-emerald-300' : usernameState === 'taken' || usernameState === 'invalid' ? 'text-red-300' : 'text-[var(--wh-text-muted)]'}`}>{usernameState === 'checking' ? 'Checking…' : usernameState === 'available' ? 'Username available' : usernameState === 'taken' ? 'Username already taken' : usernameState === 'invalid' ? 'Use 3–20 letters, numbers or underscores' : ''}</p></div>
             <Field label="Phone" value={phone} onChange={setPhone} />
           </div>
-          {!isUser && <div className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.04] p-3 text-[10px] text-[#8C92A1]">Role and operational details stay inside your role workspace.</div>}
+          {!isUser && <div className="mt-4 rounded-xl border border-violet-500/15 bg-violet-500/[.04] p-3 text-[10px] text-[var(--wh-text-secondary)]">Role and operational details stay inside your role workspace.</div>}
         </section>
 
         {isUser && <>
-          <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
+          <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5">
             <h2 className="text-sm font-semibold">About you</h2>
             <div className="mt-4 space-y-4">
-              <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-white/[.08] bg-[#181A23] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
-              <div><p className="mb-2 text-[10px] text-[#777E8E]">Gender</p><div className="flex gap-2">{[['male', 'Male'], ['female', 'Female']].map(([id, label]) => <button type="button" key={id} onClick={() => setGender(id)} className={`rounded-xl px-4 py-2 text-[10px] font-semibold ${gender === id ? 'bg-violet-500' : 'border border-white/[.08] text-[#A0A5B3]'}`}>{label}</button>)}</div></div>
-              <label className="flex items-center justify-between gap-4 rounded-xl border border-white/[.06] bg-black/10 p-3"><div><p className="text-xs font-medium">Student</p><p className="mt-1 text-[9px] text-[#62697A]">Choose your registered University, Polytechnic or College.</p></div><button type="button" onClick={() => setIsStudent((value) => !value)} className={`relative h-6 w-11 rounded-full ${isStudent ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${isStudent ? 'translate-x-5' : ''}`} /></button></label>
-              {isStudent && <div><SearchableSelect label="Institution" value={school} onChange={setSchool} options={institutionOptions} placeholder={!state ? 'Choose State first' : institutionsLoading ? 'Loading institutions…' : 'Choose institution'} searchPlaceholder="Search University, Polytechnic or College" disabled={!state || institutionsLoading} emptyText="No registered institution found in this State yet" />{institutionsError && <p className="mt-1.5 text-[9px] text-red-300">Could not load registered institutions.</p>}{!institutionsError && state && !institutionsLoading && <p className="mt-1.5 text-[9px] text-[#62697A]">Schools in {lga ? `${lga} appear first, followed by the rest of ${state}.` : state}. Search also recognizes common abbreviations.</p>}</div>}
+              <label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">Bio</span><textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} className="w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none focus:border-violet-500/40" /></label>
+              <div><p className="mb-2 text-[10px] text-[var(--wh-text-muted)]">Gender</p><div className="flex gap-2">{[['male', 'Male'], ['female', 'Female']].map(([id, label]) => <button type="button" key={id} onClick={() => setGender(id)} className={`rounded-xl px-4 py-2 text-[10px] font-semibold ${gender === id ? 'bg-violet-500' : 'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>{label}</button>)}</div></div>
+              <label className="flex items-center justify-between gap-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3"><div><p className="text-xs font-medium">Student</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Choose your registered University, Polytechnic or College.</p></div><button type="button" onClick={() => setIsStudent((value) => !value)} className={`relative h-6 w-11 rounded-full ${isStudent ? 'bg-violet-500' : 'bg-[#2A2D38]'}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${isStudent ? 'translate-x-5' : ''}`} /></button></label>
+              {isStudent && <div><SearchableSelect label="Institution" value={school} onChange={setSchool} options={institutionOptions} placeholder={!state ? 'Choose State first' : institutionsLoading ? 'Loading institutions…' : 'Choose institution'} searchPlaceholder="Search University, Polytechnic or College" disabled={!state || institutionsLoading} emptyText="No registered institution found in this State yet" />{institutionsError && <p className="mt-1.5 text-[9px] text-red-300">Could not load registered institutions.</p>}{!institutionsError && state && !institutionsLoading && <p className="mt-1.5 text-[9px] text-[var(--wh-text-muted)]">Schools in {lga ? `${lga} appear first, followed by the rest of ${state}.` : state}. Search also recognizes common abbreviations.</p>}</div>}
             </div>
           </section>
 
           </>}
-          <section className="rounded-3xl border border-white/[.06] bg-[#11141C] p-5">
+          <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[#6F7585]">Choose your State and Local Government, then add your street address.</p>
+            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Choose your State and Local Government, then add your street address.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street address cleared because the region changed. Type the correct address for the new region.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
               <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street address cleared because the LGA changed. Type the correct address for the new LGA.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
@@ -220,11 +220,11 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
 
         {hasChanges && <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white transition disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>}
         </fieldset>
-        {saving && <div className="absolute inset-0 z-20 grid place-items-end bg-[#090A0F]/55 p-4 backdrop-blur-[2px]" role="status"><p className="sticky bottom-4 w-full rounded-2xl border border-violet-500/20 bg-[#151721] p-4 text-center text-xs font-semibold">Saving changes…</p></div>}
+        {saving && <div className="absolute inset-0 z-20 grid place-items-end bg-[var(--wh-bg)]/55 p-4 backdrop-blur-[2px]" role="status"><p className="sticky bottom-4 w-full rounded-2xl border border-violet-500/20 bg-[var(--wh-elevated)] p-4 text-center text-xs font-semibold">Saving changes…</p></div>}
       </form>
     </AccountShell>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block"><span className="mb-1 block text-[10px] text-[#777E8E]">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-white/[.08] bg-[#181A23] px-3 text-xs outline-none focus:border-violet-500/40" /></label>; }
-function ProfileFact({label,value}:{label:string;value:string}){return <div className="min-w-0 border-r border-white/[.05] p-4 last:border-r-0"><p className="text-[8px] uppercase tracking-wide text-[#62697A]">{label}</p><p className="mt-1 truncate text-[10px] font-semibold capitalize text-[#A8ADBA]">{value}</p></div>}
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40" /></label>; }
+function ProfileFact({label,value}:{label:string;value:string}){return <div className="min-w-0 border-r border-[var(--wh-border-subtle)] p-4 last:border-r-0"><p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p><p className="mt-1 truncate text-[10px] font-semibold capitalize text-[var(--wh-text-secondary)]">{value}</p></div>}

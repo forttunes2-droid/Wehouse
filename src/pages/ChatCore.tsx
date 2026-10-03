@@ -143,7 +143,7 @@ function SearchIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="shrink-0 text-[#747A8B]"
+      className="shrink-0 text-[var(--wh-text-muted)]"
     >
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />
@@ -610,6 +610,11 @@ export default function Chat({
         { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
         scheduler.request,
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "partner_support_messages" },
+        scheduler.request,
+      )
       .subscribe();
     const resume = () => scheduler.request();
     window.addEventListener("focus", resume);
@@ -1074,8 +1079,8 @@ export default function Chat({
         a.id.localeCompare(b.id),
     );
     return createPortal(
-      <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[#090A0F] text-white">
-        <header className="relative shrink-0 border-b border-white/[.06] bg-[#10131B]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+      <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
+        <header className="relative shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
           <div className="mx-auto flex max-w-3xl items-center gap-1">
             <BackButton
               onClick={() => {
@@ -1083,7 +1088,7 @@ export default function Chat({
                 onConversationClose?.();
                 void loadInbox(true);
               }}
-              className="!ml-0 !w-10 rounded-full hover:bg-white/[.05]"
+              className="!ml-0 !w-10 rounded-full hover:bg-[var(--wh-interactive)]"
               ariaLabel="Back to Inbox"
             />
             <button
@@ -1099,7 +1104,7 @@ export default function Chat({
                 </span>
                 {presenceText ? (
                   <span
-                    className={`mt-0.5 block truncate text-xs ${presence?.online ? "text-emerald-300" : "text-[#6D7282]"}`}
+                    className={`mt-0.5 block truncate text-xs ${presence?.online ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
                   >
                     {presenceText}
                   </span>
@@ -1114,20 +1119,20 @@ export default function Chat({
             </HeaderAction>
             <button
               onClick={() => setMenuOpen((value) => !value)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xl text-[#8E93A3] hover:bg-white/[.05]"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
               aria-label="Conversation options"
             >
               ⋯
             </button>
           </div>
           {menuOpen && (
-            <div className="absolute right-3 top-[3.65rem] z-20 w-56 overflow-hidden rounded-2xl border border-white/[.08] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
+            <div className="absolute right-3 top-[3.65rem] z-20 w-56 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
               <button
                 onClick={() => {
                   setMenuOpen(false);
                   void openActiveProfile();
                 }}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm hover:bg-white/[.04]"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm hover:bg-[var(--wh-interactive)]"
               >
                 <span>◉</span>
                 <span>Contact info</span>
@@ -1169,7 +1174,7 @@ export default function Chat({
                   <p className="text-xs font-semibold text-violet-100">
                     Some messages are still locked
                   </p>
-                  <p className="mt-1 text-xs leading-4 text-[#8C92A2]">
+                  <p className="mt-1 text-xs leading-4 text-[var(--wh-text-secondary)]">
                     Re-enter your Inbox PIN to unlock this conversation on this device.
                   </p>
                 </div>
@@ -1228,7 +1233,7 @@ export default function Chat({
             <div ref={bottomRef} />
           </div>
         </main>
-        <footer className="shrink-0 border-t border-white/[.06] bg-[#10131B]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+        <footer className="shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
           <div className="mx-auto max-w-3xl">
             {person?.isBlocked ? (
               <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
@@ -1248,10 +1253,10 @@ export default function Chat({
                 className="flex items-end gap-2"
                 aria-label="Opening secure conversation"
               >
-                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-white/[.07] bg-[#181B24] px-4 text-sm text-[#666C7B]">
+                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text-muted)]">
                   Opening conversation…
                 </div>
-                <span className="grid h-11 w-11 place-items-center rounded-full bg-white/[.05]">
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--wh-interactive)]">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
                 </span>
               </div>
@@ -1281,7 +1286,7 @@ export default function Chat({
                   }}
                 />
                 {replyingTo && (
-                  <div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
+                  <div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-[var(--wh-interactive)] px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-violet-300">
                         Replying to{" "}
@@ -1289,7 +1294,7 @@ export default function Chat({
                           ? "yourself"
                           : person?.name || "message"}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-[#A1A6B4]">
+                      <p className="mt-0.5 truncate text-xs text-[var(--wh-text-secondary)]">
                         {propertyMessagePreview(replyingTo.content || "") ||
                           ((replyingTo.attachments || []).length
                             ? "Attachment"
@@ -1299,7 +1304,7 @@ export default function Chat({
                     <button
                       type="button"
                       onClick={() => setReplyingTo(null)}
-                      className="grid h-8 w-8 place-items-center text-[#818797]"
+                      className="grid h-8 w-8 place-items-center text-[var(--wh-text-secondary)]"
                       aria-label="Cancel reply"
                     >
                       ×
@@ -1310,7 +1315,7 @@ export default function Chat({
                   <ChatAttachmentPicker onFiles={choosePhotos} />
                   <button
                     onClick={() => void toggleVoice()}
-                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500" : "border border-white/[.07] bg-white/[.035]"} text-white`}
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500" : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"} text-white`}
                     aria-label={
                       voice.recording
                         ? "Finish voice recording"
@@ -1319,7 +1324,7 @@ export default function Chat({
                   >
                     <MicIcon />
                   </button>
-                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-white/[.08] bg-[#181B24] px-3 py-1.5 focus-within:border-violet-500/40">
+                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/40">
                     <textarea
                       value={input}
                       onChange={(event) => setInput(event.target.value)}
@@ -1331,13 +1336,13 @@ export default function Chat({
                       }}
                       rows={1}
                       placeholder="Message"
-                      className="max-h-28 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[#626879]"
+                      className="max-h-28 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[var(--wh-text-muted)]"
                     />
                   </div>
                   <button
                     onClick={() => void submit()}
                     disabled={sending || (!input.trim() && !files.length && !propertyDraft)}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-white/[.05] disabled:text-[#636878]"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                     aria-label="Send"
                   >
                     {sending ? "…" : "➤"}
@@ -1435,7 +1440,7 @@ export default function Chat({
             onClick={() => setBlockPrompt(false)}
           >
             <section
-              className="w-full max-w-md rounded-[26px] border border-white/[.08] bg-[#141821] p-4"
+              className="w-full max-w-md rounded-[26px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
@@ -1443,7 +1448,7 @@ export default function Chat({
                   <h2 className="text-base font-bold">
                     Block {person?.name || "this person"}?
                   </h2>
-                  <p className="mt-1 text-xs leading-5 text-[#7B8292]">
+                  <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">
                     They will leave your discovery results. A linked shared
                     booking will be cancelled, or sent to WeHouse first if
                     payment must be reviewed.
@@ -1451,7 +1456,7 @@ export default function Chat({
                 </div>
                 <button
                   onClick={() => setBlockPrompt(false)}
-                  className="grid h-9 w-9 place-items-center text-xl text-[#818797]"
+                  className="grid h-9 w-9 place-items-center text-xl text-[var(--wh-text-secondary)]"
                 >
                   ×
                 </button>
@@ -1463,7 +1468,7 @@ export default function Chat({
                 }
                 rows={3}
                 placeholder="Reason (optional)"
-                className="mt-4 w-full resize-none rounded-2xl border border-white/[.08] bg-[#0E1118] p-3 text-xs outline-none focus:border-violet-500/40"
+                className="mt-4 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-xs outline-none focus:border-violet-500/40"
               />
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
@@ -1472,7 +1477,7 @@ export default function Chat({
                     void toggleBlock();
                   }}
                   disabled={blockBusy}
-                  className="h-11 rounded-xl border border-white/[.08] text-xs font-semibold disabled:opacity-40"
+                  className="h-11 rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40"
                 >
                   Skip reason
                 </button>
@@ -1493,12 +1498,12 @@ export default function Chat({
 
   if (conversationId && !active) {
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] px-6 text-center text-white">
+      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] px-6 text-center text-[var(--wh-text)]">
         <div>
           {openingConversation ? (
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
           ) : (
-            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-white/[.05] text-[#8B91A1]">!</div>
+            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]">!</div>
           )}
           <p className="mt-4 text-sm font-semibold">
             {openingConversation ? "Opening conversation…" : "Conversation unavailable"}
@@ -1507,7 +1512,7 @@ export default function Chat({
             <button type="button" onClick={() => {
               onConversationClose?.();
               onNavigate("conversation");
-            }} className="mt-4 rounded-full border border-white/[.08] px-4 py-2 text-[10px] font-semibold text-violet-300">
+            }} className="mt-4 rounded-full border border-[var(--wh-border-subtle)] px-4 py-2 text-[10px] font-semibold text-violet-300">
               Go to Inbox
             </button>
           ) : null}
@@ -1517,14 +1522,14 @@ export default function Chat({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/[.055] bg-[var(--wh-bg)]/95 px-4 py-2.5 backdrop-blur-xl sm:py-4">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)]">
+      <header className="sticky top-0 z-30 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-2.5 backdrop-blur-xl sm:py-4">
         <div className="mx-auto flex max-w-5xl items-start gap-3">
           {selected.size ? (
             <button
               type="button"
               onClick={() => setSelected(new Set())}
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/[.07] text-lg"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] text-lg"
               aria-label="Cancel selection"
             >
               ×
@@ -1534,7 +1539,7 @@ export default function Chat({
               type="button"
               aria-expanded={pinSettingsOpen}
               onClick={() => setPinSettingsOpen((value) => !value)}
-              className="mt-0.5 min-h-9 rounded-full border border-white/[.07] px-3 text-[9px] font-semibold text-violet-200"
+              className="mt-0.5 min-h-9 rounded-full border border-[var(--wh-border-subtle)] px-3 text-[9px] font-semibold text-violet-200"
             >
               Inbox PIN
             </button>
@@ -1563,7 +1568,7 @@ export default function Chat({
             <SecureMessagesPanel />
           </div>
         ) : null}
-        <section className="border-b border-white/[.06] pb-4">
+        <section className="border-b border-[var(--wh-border-subtle)] pb-4">
           <div className="flex items-center justify-between gap-3 py-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -1574,7 +1579,7 @@ export default function Chat({
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-[9px] text-[#6F7586]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 Updates and actions that affect you
               </p>
             </div>
@@ -1599,48 +1604,48 @@ export default function Chat({
         <section className="pt-4">
             <div className="mb-3">
               <h2 className="text-xs font-semibold">Messages</h2>
-              <p className="mt-1 text-[9px] text-[#6F7586]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 Roommates, stays, services and WeHouse help
               </p>
             </div>
-            <label className="flex h-11 items-center gap-3 rounded-2xl border border-white/[.07] bg-[var(--wh-surface)] px-4 focus-within:border-violet-500/35">
+            <label className="flex h-11 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 focus-within:border-violet-500/35">
               <SearchIcon />
               <input
                 value={inboxQuery}
                 onChange={(event) => setInboxQuery(event.target.value)}
                 placeholder="Search conversations"
-                className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[#626879]"
+                className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[var(--wh-text-muted)]"
               />
             </label>
-            <div className="mt-3 flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+            <div className="mt-3 flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
               <div className="min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
                   All messages
                 </p>
-                <p className="mt-1 truncate text-[10px] text-[#8A909F]">
+                <p className="mt-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
                   Most recent first
                 </p>
               </div>
             </div>
             {loading ? (
-              <div className="mt-3 rounded-3xl border border-white/[.06] bg-[var(--wh-surface)]">
+              <div className="mt-3 rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
                 <Loading />
               </div>
             ) : visibleInboxItems.length === 0 ? (
-              <div className="mt-3 border-y border-dashed border-white/[.08] px-5 py-10 text-center">
+              <div className="mt-3 border-y border-dashed border-[var(--wh-border-subtle)] px-5 py-10 text-center">
                 <p className="text-sm font-semibold">
                   {inboxQuery.trim()
                     ? "No matching conversations"
                     : "No messages yet"}
                 </p>
-                <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[#606676]">
+                <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
                   {inboxQuery.trim()
                     ? "Try a person, service, property or reservation name."
                     : "Messages appear here after a roommate match, service booking, paid hotel stay or WeHouse help request."}
                 </p>
               </div>
             ) : (
-              <div className="mt-3 overflow-hidden border-y border-white/[.06]">
+              <div className="mt-3 overflow-hidden border-y border-[var(--wh-border-subtle)]">
                 {visibleInboxItems.map((item, index) => (
                   <div key={item.id}>
                     {index > 0 && <Divider />}
@@ -1738,14 +1743,14 @@ function RoommateInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+          className={`mt-1 truncate text-[11px] ${count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {conv.last_message ||
             (recentCall
               ? `${recentCall.status === "missed" ? "Missed" : "Recent"} ${recentCall.call_type} call`
               : "Start the conversation")}
         </p>
-        <p className="mt-0.5 text-[9px] text-[#5F6474]">
+        <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
           {formatListTime(
             recentCall?.created_at || conv.last_message_at || conv.created_at,
           )}
@@ -1792,11 +1797,11 @@ function WorkerInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {row.last_message || row.service_type || "Worker booking"}
         </p>
-        <div className="mt-0.5 flex items-center gap-2 text-[9px] text-[#5F6474]">
+        <div className="mt-0.5 flex items-center gap-2 text-[9px] text-[var(--wh-text-muted)]">
           <span>{row.service_type || "Service"}</span>
           {status && (
             <>
@@ -1823,7 +1828,7 @@ function HotelInboxRow({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--wh-interactive)]"
     >
       {row.hotel_image ? (
         <img
@@ -1848,11 +1853,11 @@ function HotelInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+          className={`mt-1 truncate text-[11px] ${row.unread_count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {row.last_message || "Paid stay conversation"}
         </p>
-        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
+        <p className="mt-0.5 truncate text-[9px] text-[var(--wh-text-muted)]">
           {[
             row.room_name,
             formatListTime(row.last_message_time || row.updated_at),
@@ -1883,7 +1888,7 @@ function SupportInboxRow({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[.025]"
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-[var(--wh-interactive)]"
     >
       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-300">
         W
@@ -1898,11 +1903,11 @@ function SupportInboxRow({
           </span>
         </div>
         <p
-          className={`mt-1 truncate text-[11px] ${thread.unread_count ? "font-medium text-[#E3E5EB]" : "text-[#777C8D]"}`}
+          className={`mt-1 truncate text-[11px] ${thread.unread_count ? "font-medium text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {thread.last_message || p.title}
         </p>
-        <p className="mt-0.5 truncate text-[9px] text-[#5F6474]">
+        <p className="mt-0.5 truncate text-[9px] text-[var(--wh-text-muted)]">
           {[
             p.operator,
             String(thread.context_snapshot?.case_number || "")
@@ -1971,7 +1976,7 @@ function SelectableRow({
         if (selectionMode) onSelect();
         else onOpen();
       }}
-      className={`flex w-full touch-pan-y select-none items-center gap-3 px-4 py-3.5 text-left transition ${selected ? "bg-violet-500/10 ring-1 ring-inset ring-violet-400/20" : "hover:bg-white/[.025]"}`}
+      className={`flex w-full touch-pan-y select-none items-center gap-3 px-4 py-3.5 text-left transition ${selected ? "bg-violet-500/10 ring-1 ring-inset ring-violet-400/20" : "hover:bg-[var(--wh-interactive)]"}`}
     >
       {selectionMode && (
         <span
@@ -1992,7 +1997,7 @@ function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
     ended && answered ? Math.max(0, Math.round((ended - answered) / 1000)) : 0;
   return (
     <div className="my-2 flex justify-center">
-      <div className="flex max-w-[88%] items-center gap-2 rounded-full border border-white/[.06] bg-[#141720] px-3 py-2 text-[9px]">
+      <div className="flex max-w-[88%] items-center gap-2 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-2 text-[9px]">
         <span
           className={
             call.status === "missed" || call.status === "failed"
@@ -2002,14 +2007,14 @@ function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
         >
           {call.call_type === "video" ? "▣" : "☎"}
         </span>
-        <span className="font-medium text-[#B8BCC7]">
+        <span className="font-medium text-[var(--wh-text-secondary)]">
           {outgoing ? "Outgoing" : "Incoming"} {call.call_type} call
         </span>
         <span
           className={
             call.status === "missed" || call.status === "failed"
               ? "text-red-300"
-              : "text-[#747A8A]"
+              : "text-[var(--wh-text-muted)]"
           }
         >
           {call.status}
@@ -2025,11 +2030,11 @@ function CallTimelineEvent({ call, me }: { call: PrivateCall; me: string }) {
 function DateDivider({ value }: { value: string }) {
   return (
     <div className="my-4 flex items-center gap-3">
-      <span className="h-px flex-1 bg-white/[.055]" />
-      <span className="rounded-full bg-white/[.045] px-3 py-1 text-[8px] font-semibold text-[#858A99]">
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
+      <span className="rounded-full bg-[var(--wh-interactive)] px-3 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">
         {dayLabel(value)}
       </span>
-      <span className="h-px flex-1 bg-white/[.055]" />
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
     </div>
   );
 }
@@ -2104,7 +2109,7 @@ function HeaderAction({
     <button
       type="button"
       onClick={onClick}
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[#A4A9B7] hover:bg-white/[.05]"
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
       aria-label={label}
     >
       {children}
@@ -2160,18 +2165,18 @@ function DeleteSheet({
       onClick={onCancel}
     >
       <section
-        className="w-full rounded-3xl border border-white/[.08] bg-[#151922] p-5 sm:max-w-sm"
+        className="w-full rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-5 sm:max-w-sm"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300">
           <TrashIcon />
         </div>
         <h2 className="text-base font-bold">{title}</h2>
-        <p className="mt-2 text-[10px] leading-5 text-[#767C8C]">{text}</p>
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-muted)]">{text}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button
             onClick={onCancel}
-            className="h-11 rounded-xl border border-white/[.08] text-[11px] font-semibold text-[#A4A9B7]"
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text-secondary)]"
           >
             Keep
           </button>
@@ -2229,7 +2234,7 @@ function Unread({ value }: { value: number }) {
   );
 }
 function Divider() {
-  return <div className="ml-[4.5rem] h-px bg-white/[.05]" />;
+  return <div className="ml-[4.5rem] h-px bg-[var(--wh-interactive)]" />;
 }
 function Loading() {
   return (
@@ -2245,9 +2250,9 @@ function MessageSkeleton() {
 }
 function Empty({ title, text }: { title: string; text: string }) {
   return (
-    <div className="mx-auto mt-12 max-w-sm rounded-2xl border border-dashed border-white/[.08] px-5 py-10 text-center">
+    <div className="mx-auto mt-12 max-w-sm rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-10 text-center">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-2 text-[10px] leading-relaxed text-[#666A7A]">{text}</p>
+      <p className="mt-2 text-[10px] leading-relaxed text-[var(--wh-text-muted)]">{text}</p>
     </div>
   );
 }

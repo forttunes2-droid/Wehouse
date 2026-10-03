@@ -40,7 +40,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   },
   closed: {
     label: "Closed",
-    cls: "border-white/10 bg-white/[.04] text-[#8B909E]",
+    cls: "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]",
   },
 };
 
@@ -259,12 +259,12 @@ export default function HousingOperationsWorkspace({
 
   return (
     <div className="space-y-5">
-      <header className="border-b border-white/[.06] pb-4">
+      <header className="border-b border-[var(--wh-border-subtle)] pb-4">
         <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
           PROPERTY OPERATIONS
         </p>
         <h3 className="mt-2 text-lg font-bold">Bookings and handovers</h3>
-        <p className="mt-1 max-w-xl text-[10px] leading-5 text-[#707687]">
+        <p className="mt-1 max-w-xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
           Verify the booking code shown by a customer, then continue the same
           reservation through arrival, handover, stay and completion.
         </p>
@@ -277,7 +277,7 @@ export default function HousingOperationsWorkspace({
         <h4 className="mt-1 text-sm font-semibold">
           Enter the code shown by the customer
         </h4>
-        <p className="mt-1 text-[9px] leading-5 text-[#747A8B]">
+        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           The code opens one matching booking in your coverage. Compare the
           displayed customer, property, status and payment before handing over
           access. It does not confirm ownership or publish a property.
@@ -297,7 +297,7 @@ export default function HousingOperationsWorkspace({
             autoComplete="off"
             placeholder="Enter booking code"
             maxLength={14}
-            className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#11151E] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"
+            className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"
           />
           <button
             disabled={checkingCode}
@@ -384,7 +384,7 @@ export default function HousingOperationsWorkspace({
               )}
             {verifiedBooking.kind === "hotel" && (
               <>
-                <p className="mt-3 text-[9px] text-[#8A909F]">
+                <p className="mt-3 text-[9px] text-[var(--wh-text-secondary)]">
                   Stay:{" "}
                   {verifiedBooking.check_in
                     ? displayDate(verifiedBooking.check_in)
@@ -418,38 +418,38 @@ export default function HousingOperationsWorkspace({
         )}
       </section>
 
-      <section className="space-y-3 border-t border-white/[.06] pt-4">
+      <section className="space-y-3 border-t border-[var(--wh-border-subtle)] pt-4">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h4 className="text-sm font-semibold">
               Current arrivals and tenancies
             </h4>
-            <p className="mt-1 text-[9px] text-[#707687]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               Search by customer, property, area or a real stored status.
             </p>
           </div>
-          <span className="shrink-0 text-[9px] text-[#656B7D]">
+          <span className="shrink-0 text-[9px] text-[var(--wh-text-muted)]">
             {rows.length} record{rows.length === 1 ? "" : "s"}
           </span>
         </div>
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#606576]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--wh-text-muted)]">
             ⌕
           </span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search customer or property"
-            className="h-11 w-full rounded-2xl border border-white/[.07] bg-[#141820] pl-9 pr-3 text-xs outline-none focus:border-violet-500/35"
+            className="h-11 w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] pl-9 pr-3 text-xs outline-none focus:border-violet-500/35"
           />
         </div>
       </section>
-      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-3">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#656B7D]">
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
             Filter
           </p>
-          <p className="mt-1 text-[10px] text-[#8A909F]">
+          <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">
             Reservation lifecycle
           </p>
         </div>
@@ -473,7 +473,7 @@ export default function HousingOperationsWorkspace({
       ) : filtered.length === 0 ? (
         <Empty />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {filtered.map((row) => (
             <button
               key={`${row._stayKind}:${row.current_reservation_id || row.listing_id}`}
@@ -481,7 +481,7 @@ export default function HousingOperationsWorkspace({
                 setVerifiedMoveInCode(null);
                 setSelected(row);
               }}
-              className="w-full px-1 py-4 text-left transition hover:bg-white/[.025]"
+              className="w-full px-1 py-4 text-left transition hover:bg-[var(--wh-interactive)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -495,16 +495,16 @@ export default function HousingOperationsWorkspace({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 truncate text-[9px] text-[#686D7E]">
+                  <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                     {locationLabel(row.address, row.lga, row.state)}
                   </p>
                 </div>
                 <Badge status={row.listing_status} />
               </div>
               {row.current_reservation_id && (
-                <div className="mt-3 flex items-center justify-between border-t border-white/[.05] pt-3">
+                <div className="mt-3 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3">
                   <div>
-                    <p className="text-[9px] text-[#626778]">
+                    <p className="text-[9px] text-[var(--wh-text-muted)]">
                       {row.customer_name || "Customer"}
                     </p>
                     <p className="mt-1 text-[10px] font-medium text-violet-200">
@@ -519,7 +519,7 @@ export default function HousingOperationsWorkspace({
                     </p>
                   </div>
                   {(row.check_out || row.tenancy_end_date) && (
-                    <p className="text-[8px] text-[#777C8C]">
+                    <p className="text-[8px] text-[var(--wh-text-muted)]">
                       {row._stayKind === "short_let" ? "Checkout" : "Ends"}{" "}
                       {new Date(
                         row.check_out || row.tenancy_end_date,
@@ -615,7 +615,7 @@ function ShortStayCase({
       >
         ← Back to arrivals
       </button>
-      <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+      <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -624,7 +624,7 @@ function ShortStayCase({
                 SHORT LET
               </span>
             </div>
-            <p className="mt-1 text-[10px] text-[#6D7283]">
+            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
               {locationLabel(row.address, row.lga, row.state)}
             </p>
           </div>
@@ -679,7 +679,7 @@ function ShortStayCase({
           <h4 className="text-sm font-semibold text-emerald-300">
             Confirm guest entry
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#788090]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             Code{" "}
             <span className="font-bold text-emerald-200">{bookingCode}</span> is
             verified. Record entry only after the guest receives access today.
@@ -700,7 +700,7 @@ function ShortStayCase({
               ? arrivalOpen ? "Stay payment required" : "Outside the booked arrival dates"
               : "Booking code required"}
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             {bookingCode
               ? "Check-in requires verified stay payment and arrival within the booked dates. Future dates cannot be used to check in early."
               : "Verify the code shown by the guest from Booking lookup before handing over access."}
@@ -713,7 +713,7 @@ function ShortStayCase({
           <h4 className="text-sm font-semibold text-violet-300">
             Confirm checkout
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#788090]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             Use this when the guest leaves. The stay closes and the Property
             Partner receives a checkout update.
           </p>
@@ -937,11 +937,11 @@ function HousingCase({
       >
         ← Back to bookings
       </button>
-      <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+      <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-bold">{row.listing_title}</h3>
-            <p className="mt-1 text-[10px] text-[#6D7283]">
+            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
               {locationLabel(row.address, row.lga, row.state)}
             </p>
           </div>
@@ -985,7 +985,7 @@ function HousingCase({
             {row.customer_name || "Customer"}
           </h4>
           {row.customer_username && (
-            <p className="mt-1 text-[9px] text-[#6C7182]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               @{row.customer_username}
             </p>
           )}
@@ -1042,7 +1042,7 @@ function HousingCase({
             </p>
           )}
           {row.tenancy_start_date && (
-            <div className="mt-3 rounded-xl bg-white/[.025] p-3">
+            <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
               <SmallRow
                 label="Started"
                 value={displayDate(row.tenancy_start_date)}
@@ -1073,7 +1073,7 @@ function HousingCase({
           <h4 className="text-sm font-semibold text-amber-300">
             Waiting for verified Year 1 rent
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             The inspection passed, but Operations cannot activate occupancy
             until the full first-year rent is verified server-side.
           </p>
@@ -1085,7 +1085,7 @@ function HousingCase({
           <h4 className="text-sm font-semibold text-amber-300">
             Waiting for customer move-in time
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             Year 1 rent is verified, but the tenancy has not started. The
             customer must choose an arrival time before Operations can verify
             handover.
@@ -1099,15 +1099,15 @@ function HousingCase({
             Same reservation conversation
           </p>
           <h4 className="mt-1 text-sm font-semibold">Field Operations handover</h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#858B9A]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
             Property Operations owns this case. Assign the officer who will support the physical handover; the customer, property, payment and messages stay in this same conversation.
           </p>
           {assignmentLoading ? (
-            <p className="mt-3 text-[9px] text-[#73798A]">Loading available Field Operations…</p>
+            <p className="mt-3 text-[9px] text-[var(--wh-text-muted)]">Loading available Field Operations…</p>
           ) : handoverAssigned ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[.05] p-3">
               <div>
-                <p className="text-[9px] text-[#757D8D]">Assigned for this handover</p>
+                <p className="text-[9px] text-[var(--wh-text-muted)]">Assigned for this handover</p>
                 <p className="mt-1 text-xs font-semibold text-emerald-300">{assignment?.assigned_field_officer_name || assignment?.assigned_field_officer_id}</p>
               </div>
               <span className="text-[8px] font-semibold text-emerald-300">IN SAME CHAT</span>
@@ -1117,7 +1117,7 @@ function HousingCase({
               <WeHouseChoice
                 value={selectedOfficer}
                 onChange={(event) => setSelectedOfficer(event.target.value)}
-                className="h-11 rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs outline-none focus:border-violet-500/40"
+                className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
                 aria-label="Field Operations officer"
               >
                 <option value="">Choose Field Operations</option>
@@ -1143,10 +1143,10 @@ function HousingCase({
           <h4 className="mt-1 text-sm font-semibold">
             Match the code for this move-in
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#85808A]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             Ask the customer for the code when they arrive at the selected time. WeHouse checks that it belongs to this customer, apartment and verified rent before handover can continue.
           </p>
-          <p className="mt-3 text-[9px] text-[#777D8E]">
+          <p className="mt-3 text-[9px] text-[var(--wh-text-muted)]">
             Requested arrival · {new Date(row.requested_move_in_at).toLocaleString()}
           </p>
           <div className="mt-3 flex gap-2">
@@ -1160,7 +1160,7 @@ function HousingCase({
               autoComplete="off"
               placeholder="Enter customer code"
               maxLength={14}
-              className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#11151E] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 text-xs font-semibold uppercase tracking-wider outline-none focus:border-violet-500/40"
             />
             <button
               type="button"
@@ -1184,7 +1184,7 @@ function HousingCase({
           <h4 className="text-sm font-semibold text-emerald-300">
             Complete handover and start tenancy
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#788090]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             Code <span className="font-bold text-emerald-200">{verifiedCode}</span>{" "}
             has been matched. Confirm only after the customer receives the keys or access.
           </p>
@@ -1204,7 +1204,7 @@ function HousingCase({
           <h4 className="text-sm font-semibold text-violet-300">
             Complete tenancy
           </h4>
-          <p className="mt-1 text-[10px] leading-5 text-[#788090]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             When the customer has moved out, close the tenancy and choose what
             happens to the property next.
           </p>
@@ -1249,7 +1249,7 @@ function HousingCase({
           <p className="text-xs font-semibold text-orange-300">
             Property is in maintenance
           </p>
-          <p className="mt-1 text-[10px] leading-5 text-[#7C8190]">
+          <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
             Do not mark this property Reserved or Occupied manually. Return it
             to Available only after the operational checks are complete.
           </p>
@@ -1272,9 +1272,9 @@ function Badge({ status }: { status: string }) {
 }
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/[.025] p-3">
-      <p className="text-[8px] uppercase text-[#5E6373]">{label}</p>
-      <p className="mt-1 truncate text-[10px] font-semibold capitalize text-[#C4C7D0]">
+    <div className="rounded-xl bg-[var(--wh-interactive)] p-3">
+      <p className="text-[8px] uppercase text-[var(--wh-text-muted)]">{label}</p>
+      <p className="mt-1 truncate text-[10px] font-semibold capitalize text-[var(--wh-text-secondary)]">
         {value}
       </p>
     </div>
@@ -1297,8 +1297,8 @@ function paymentStateLabel(value: unknown) {
 function SmallRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="mt-1 flex justify-between gap-3 text-[9px]">
-      <span className="text-[#717687]">{label}</span>
-      <span className="font-semibold text-[#C5C8D2]">{value}</span>
+      <span className="text-[var(--wh-text-muted)]">{label}</span>
+      <span className="font-semibold text-[var(--wh-text-secondary)]">{value}</span>
     </div>
   );
 }
@@ -1311,11 +1311,11 @@ function Loading() {
 }
 function Empty() {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] p-10 text-center">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-10 text-center">
       <p className="text-xs font-semibold">
         No arrival or tenancy records match
       </p>
-      <p className="mt-1 text-[9px] text-[#626778]">
+      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
         Try another search or status. New records appear after a real
         reservation reaches Property Operations.
       </p>

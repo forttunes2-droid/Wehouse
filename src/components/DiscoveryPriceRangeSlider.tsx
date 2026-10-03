@@ -38,8 +38,8 @@ export default function DiscoveryPriceRangeSlider({
     <section>
       <div className="mb-2 flex items-end justify-between gap-3">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-[#74798A]">{label}</p>
-          {helper ? <p className="mt-1 text-[9px] leading-relaxed text-[#606777]">{helper}</p> : null}
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p>
+          {helper ? <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">{helper}</p> : null}
         </div>
         {active ? (
           <button type="button" onClick={() => { onMinChange(''); onMaxChange(''); }} className="shrink-0 text-[9px] font-semibold text-violet-300">

@@ -24,11 +24,11 @@ export default function AccountShell({ profile, title, description, onBack, onWo
   return (
     <div className="role-workspace min-h-[100dvh] bg-[var(--wh-bg)] pb-[calc(5.25rem+env(safe-area-inset-bottom))] text-[var(--wh-text)] sm:pb-10">
       <header className="sticky top-0 z-30 border-b border-[var(--wh-border)] bg-[var(--wh-bg)]">
-        <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 py-4 sm:px-5 lg:px-8`}>
+        <div className={`mx-auto ${narrow ? "max-w-2xl" : "max-w-5xl"} px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5 lg:px-8`}>
           <div className="flex items-start gap-3">
             {onBack && <BackButton onClick={onBack} />}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-bold uppercase tracking-[.22em] text-violet-400">WEHOUSE · {roleLabel}</p>
+              <p className="truncate text-xs font-bold uppercase tracking-[.22em] wh-accent-text">WEHOUSE · {roleLabel}</p>
               <h1 className="mt-1 truncate text-lg font-semibold">{title}</h1>
               {description ? <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--wh-text-secondary)]">{description}</p> : null}
             </div>
@@ -36,7 +36,7 @@ export default function AccountShell({ profile, title, description, onBack, onWo
               <button
                 type="button"
                 onClick={onWorkspaceSwitch}
-                className="min-h-10 shrink-0 px-1 text-xs font-semibold text-violet-300"
+                className="min-h-11 shrink-0 px-1 text-xs font-semibold wh-accent-text"
               >
                 Workspaces
               </button>
@@ -82,12 +82,12 @@ export function AccountRow({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       disabled={onClick ? disabled : undefined}
-      className="flex min-h-[3.75rem] w-full items-center gap-3 border-b border-[var(--wh-border)] px-4 py-3 text-left last:border-b-0 transition hover:bg-white/[.045] disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
+      className="wh-interactive flex min-h-[4.25rem] w-full items-center gap-3 border-b border-[var(--wh-border)] px-4 py-3 text-left last:border-b-0 transition-colors duration-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-violet-400 disabled:cursor-not-allowed disabled:opacity-45 sm:px-5"
     >
-      {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-violet-300">{icon}</span> : null}
+      {icon ? <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--wh-accent-surface)] wh-accent-text">{icon}</span> : null}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-[var(--wh-text)]">{title}</span>
-        {detail ? <span className="mt-0.5 block text-xs leading-relaxed text-[var(--wh-text-secondary)]">{detail}</span> : null}
+        {detail ? <span className="mt-0.5 block text-[13px] leading-5 text-[var(--wh-text-secondary)]">{detail}</span> : null}
       </span>
       {trailing ?? (onClick ? <span aria-hidden="true" className="text-[var(--wh-text-muted)]">›</span> : null)}
     </Wrapper>

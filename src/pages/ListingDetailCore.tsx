@@ -91,7 +91,7 @@ const LISTING_STATES: Record<ListingState, { label: string; cls: string }> = {
   },
   closed: {
     label: "Closed",
-    cls: "border-white/10 bg-white/[.04] text-[#8A8E9D]",
+    cls: "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]",
   },
   rejected: {
     label: "Rejected",
@@ -485,19 +485,19 @@ export default function ListingDetail({
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#090A0F]">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
         <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
 if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center justify-center gap-4 p-5 text-center text-white">
     <h1 className="text-xl font-semibold">Property could not be loaded</h1>
-    <p role="alert" className="max-w-sm text-sm leading-6 text-[#AAA3B3]">{loadError}</p>
+    <p role="alert" className="max-w-sm text-sm leading-6 text-[var(--wh-text-secondary)]">{loadError}</p>
     <button type="button" onClick={() => void load()} className="min-h-11 rounded-xl bg-violet-600 px-5 font-semibold">Try again</button>
     <button type="button" onClick={onNavigate} className="min-h-11 px-5 text-violet-300">Go back</button>
   </main>;
   if (!listing)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#090A0F] px-4 text-center text-white">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-4 text-center text-[var(--wh-text)]">
         <div>
           <p className="text-sm font-semibold">Apartment unavailable</p>
           <button onClick={onNavigate} className="mt-4 text-xs text-violet-400">
@@ -542,7 +542,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
   const displayTitle = listingDisplayTitle(listing);
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-[#090A0F] pb-12 text-white">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[var(--wh-bg)] pb-12 text-[var(--wh-text)]">
 
       <div className="mx-auto max-w-6xl">
         <PropertyMediaCarousel
@@ -582,7 +582,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
       void sharePropertyExternally({ kind: "listing", id: String(listing.id) }, displayTitle)
         .then(result => { if (result === "copied") toast.success("Property link copied"); })
         .catch(() => toast.error("This property could not be shared"));
-    }} className="min-h-11 rounded-xl border border-white/10 px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
+    }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 space-y-5">
               <section>
@@ -591,13 +591,13 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     <h1 className="break-words text-2xl font-bold">
                       {displayTitle}
                     </h1>
-                    <p className="mt-1 text-xs text-[#777B8B]">
+                    <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                       {visibleAddress || "Location unavailable"}
                     </p>
                   </div>
                   <p className="shrink-0 text-xl font-bold text-violet-400">
                     ₦{Number(listing.price || 0).toLocaleString()}
-                    <span className="ml-1 text-sm font-normal text-[#686C7D]">
+                    <span className="ml-1 text-sm font-normal text-[var(--wh-text-muted)]">
                       {listing.sub_type === "short_let" ? "/night" : "/year"}
                     </span>
                   </p>
@@ -618,28 +618,28 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 <Fact label="Bathrooms" value={listing.bathrooms || "—"} />
               </section>
               {listing.description && (
-                <section className="rounded-2xl border border-white/[.06] bg-[#11141C] p-4 sm:p-5">
+                <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
                   <h2 className="text-sm font-semibold">
                     About this apartment
                   </h2>
-                  <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#9599A8]">
+                  <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[var(--wh-text-secondary)]">
                     {listing.description}
                   </p>
                 </section>
               )}
-              <section className="border-y border-white/[.07] py-4">
+              <section className="border-y border-[var(--wh-border-subtle)] py-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-sm font-semibold">
                       Apartment location
                     </h2>
-                    <p className="mt-1 text-sm leading-5 text-[#707586]">
+                    <p className="mt-1 text-sm leading-5 text-[var(--wh-text-muted)]">
                       {visibleAddress || "Location unavailable"}
                       {distance !== null
                         ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
                         : ""}
                     </p>
-                    <p className="mt-1 text-sm text-[#5F6575]">
+                    <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
                       The published street address is visible before booking. Internal entrance-location data stays private.
                     </p>
                   </div>
@@ -648,7 +648,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       href={directionsUrl(visibleAddress)}
                       target="_blank"
                       rel="noreferrer"
-                      className="shrink-0 rounded-xl border border-white/[.09] px-4 py-2.5 text-sm font-semibold text-violet-300"
+                      className="shrink-0 rounded-xl border border-[var(--wh-border-subtle)] px-4 py-2.5 text-sm font-semibold text-violet-300"
                     >
                       Directions
                     </a>
@@ -656,11 +656,11 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 </div>
               </section>
               {!hasOwnActiveReservation && !sharedGroup && (
-                <section className="border-y border-white/[.07] py-4">
+                <section className="border-y border-[var(--wh-border-subtle)] py-4">
                   <h2 className="text-sm font-semibold">
                     Questions about this apartment?
                   </h2>
-                  <p className="mt-1 text-sm leading-relaxed text-[#7C8191]">
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--wh-text-secondary)]">
                     Message WeHouse here. Your conversation stays connected to
                     this apartment.
                   </p>
@@ -676,9 +676,9 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
 
             <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
               {accountLoading ? (
-                <section role="status" aria-label="Checking your booking status" className="rounded-2xl border border-white/10 bg-[#11141C] p-5 text-sm text-[#AAA3B3]">Checking your booking status…</section>
+                <section role="status" aria-label="Checking your booking status" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 text-sm text-[var(--wh-text-secondary)]">Checking your booking status…</section>
               ) : accountError ? (
-                <section role="alert" className="rounded-2xl border border-amber-500/20 bg-[#11141C] p-5 text-sm leading-6 text-amber-100"><p>{accountError}</p><button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Refresh booking status</button></section>
+                <section role="alert" className="rounded-2xl border border-amber-500/20 bg-[var(--wh-surface)] p-5 text-sm leading-6 text-amber-100"><p>{accountError}</p><button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Refresh booking status</button></section>
               ) : sharedGroup && profile ? (
                 <SharedHomeCard
                   group={sharedGroup}
@@ -712,7 +712,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 />
               ) : canStartReservation ? (
                 shortStay ? (
-                  <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5">
+                  <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
                     <div className="flex items-end justify-between gap-4">
                       <div>
                         <p className="text-sm font-bold uppercase tracking-[.15em] text-violet-300">
@@ -726,12 +726,12 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         <span className="block text-sm font-bold">
                           ₦{Number(listing.price || 0).toLocaleString()}
                         </span>
-                        <span className="text-sm text-[#747889]">
+                        <span className="text-sm text-[var(--wh-text-muted)]">
                           per night
                         </span>
                       </p>
                     </div>
-                    <p className="mt-2 text-sm text-[#74798A]">
+                    <p className="mt-2 text-sm text-[var(--wh-text-muted)]">
                       {shortMinNights}–{shortMaxNights} nights · dates outside
                       this booking window are unavailable.
                     </p>
@@ -755,21 +755,21 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         onChange={setShortCheckOut}
                       />
                     </div>
-                    <div className="mt-4 flex h-14 items-center justify-between rounded-2xl border border-white/[.07] bg-black/10 px-2">
+                    <div className="mt-4 flex h-14 items-center justify-between rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 px-2">
                       <button
                         type="button"
                         onClick={() =>
                           setShortGuests((value) => Math.max(1, value - 1))
                         }
                         disabled={shortGuests <= 1 || busy}
-                        className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.08] text-xl disabled:opacity-25"
+                        className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--wh-border-subtle)] text-xl disabled:opacity-25"
                         aria-label="Remove one guest"
                       >
                         −
                       </button>
                       <div className="text-center">
                         <p className="text-sm font-bold">{shortGuests}</p>
-                        <p className="text-sm text-[#777D8D]">
+                        <p className="text-sm text-[var(--wh-text-muted)]">
                           {shortGuests === 1 ? "guest" : "guests"} · max{" "}
                           {maxGuests}
                         </p>
@@ -782,23 +782,23 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                           )
                         }
                         disabled={shortGuests >= maxGuests || busy}
-                        className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.08] text-xl disabled:opacity-25"
+                        className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--wh-border-subtle)] text-xl disabled:opacity-25"
                         aria-label="Add one guest"
                       >
                         +
                       </button>
                     </div>
-                    {selection.valid && <p className="mt-4 text-sm text-[#AAA3B3]">{selection.nights} night{selection.nights === 1 ? "" : "s"} · {shortGuests} guest{shortGuests === 1 ? "" : "s"}</p>}
+                    {selection.valid && <p className="mt-4 text-sm text-[var(--wh-text-secondary)]">{selection.nights} night{selection.nights === 1 ? "" : "s"} · {shortGuests} guest{shortGuests === 1 ? "" : "s"}</p>}
                     {shortCheckIn && shortCheckOut && !selection.valid && <p role="alert" className="mt-3 text-sm leading-6 text-amber-200">{selection.error}</p>}
                     <button type="button" disabled={busy || !selection.valid}
                       onClick={() => void reserveShortLet()}
                       className="mt-4 min-h-12 w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold disabled:opacity-40">
                       {busy ? "Opening secure Reserve date…" : `Reserve date · ₦${shortReservationFee.toLocaleString()}`}
                     </button>
-                    <p className="mt-3 text-sm leading-6 text-[#AAA3B3]">Reserve date pays only the reservation fee. Your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable security deposit" : ""} are reviewed and paid separately after your dates are reserved.</p>
+                    <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">Reserve date pays only the reservation fee. Your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable security deposit" : ""} are reviewed and paid separately after your dates are reserved.</p>
                   </section>
                 ) : (
-                  <section className="border-y border-white/[.08] py-5">
+                  <section className="border-y border-[var(--wh-border-subtle)] py-5">
                     <div className="flex items-end justify-between gap-4">
                       <div>
                         <p className="text-sm font-bold uppercase tracking-[.15em] text-violet-300">
@@ -812,12 +812,12 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         <span className="block text-sm font-bold">
                           ₦{reservationFee.toLocaleString()}
                         </span>
-                        <span className="text-sm text-[#747889]">
+                        <span className="text-sm text-[var(--wh-text-muted)]">
                           reservation fee
                         </span>
                       </p>
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed text-[#777B8B]">
+                    <p className="mt-3 text-sm leading-relaxed text-[var(--wh-text-muted)]">
                       Proceed with reservation to begin the inspection and
                       tenancy journey.
                     </p>
@@ -839,7 +839,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               ) : (
                 <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5">
                   <h2 className="text-sm font-semibold">{state.label}</h2>
-                  <p className="mt-2 text-sm text-[#8A8E9D]">
+                  <p className="mt-2 text-sm text-[var(--wh-text-secondary)]">
                     This apartment is not open for a new reservation right now.
                   </p>
                 </section>
@@ -855,7 +855,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           onClick={() => !busy && setShowPlan(false)}
         >
           <section
-            className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 text-white sm:rounded-3xl"
+            className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 text-[var(--wh-text)] sm:rounded-3xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -866,14 +866,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 <h2 className="mt-1 text-lg font-bold">
                   Choose how you want to pay rent
                 </h2>
-                <p className="mt-1 text-sm text-[#74798A]">
+                <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
                   Review the amounts and schedule before you confirm.
                 </p>
               </div>
               <button
                 disabled={busy}
                 onClick={() => setShowPlan(false)}
-                className="text-[#777B8B]"
+                className="text-[var(--wh-text-muted)]"
               >
                 ×
               </button>
@@ -909,7 +909,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           onClick={() => setReservationOptionsOpen(false)}
         >
           <section
-            className="w-full max-w-lg rounded-t-[30px] border border-white/[.08] bg-[#11141C] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 text-white sm:rounded-[30px]"
+            className="w-full max-w-lg rounded-t-[30px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 text-[var(--wh-text)] sm:rounded-[30px]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -923,7 +923,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               </div>
               <button
                 onClick={() => setReservationOptionsOpen(false)}
-                className="grid h-10 w-10 place-items-center text-[#777B8B]"
+                className="grid h-10 w-10 place-items-center text-[var(--wh-text-muted)]"
                 aria-label="Close"
               >
                 ×
@@ -935,13 +935,13 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 setReservationOptionsOpen(false);
                 void openShare();
               }}
-              className="mt-5 flex min-h-16 w-full items-center justify-between border-y border-white/[.07] py-3 text-left disabled:opacity-40"
+              className="mt-5 flex min-h-16 w-full items-center justify-between border-y border-[var(--wh-border-subtle)] py-3 text-left disabled:opacity-40"
             >
               <span>
                 <span className="block text-sm font-semibold">
                   Choose a connected roommate
                 </span>
-                <span className="mt-1 block text-sm text-[#74798A]">
+                <span className="mt-1 block text-sm text-[var(--wh-text-muted)]">
                   Both people accept and pay their own reservation share
                 </span>
               </span>
@@ -956,7 +956,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           onClick={() => setShareOpen(false)}
         >
           <section
-            className="max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/[.08] bg-[#11141C] p-5 sm:rounded-3xl"
+            className="max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 sm:rounded-3xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex justify-between gap-3">
@@ -965,14 +965,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                   Shared apartment
                 </p>
                 <h2 className="mt-1 text-lg font-bold">Your connections</h2>
-                <p className="mt-1 text-sm text-[#74798A]">
+                <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
                   Only people with an accepted roommate conversation appear
                   here.
                 </p>
               </div>
               <button onClick={() => setShareOpen(false)}>×</button>
             </div>
-            <div className="mt-4 divide-y divide-white/[.06]">
+            <div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">
               {roommateRecipients.length ? (
                 roommateRecipients.map((recipient) => (
                   <button
@@ -987,18 +987,18 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block break-words text-base font-semibold">{recipient.name}</span>
-                      {recipient.username && <span className="mt-1 block break-words text-sm text-[#AAA3B3]">@{recipient.username}</span>}
-                      <span className="mt-1 block text-sm text-[#AAA3B3]">Invite to split this apartment equally</span>
+                      {recipient.username && <span className="mt-1 block break-words text-sm text-[var(--wh-text-secondary)]">@{recipient.username}</span>}
+                      <span className="mt-1 block text-sm text-[var(--wh-text-secondary)]">Invite to split this apartment equally</span>
                     </span>
                     <span className="text-violet-300" aria-hidden="true">›</span>
                   </button>
                 ))
               ) : !missingRoommateIdentities ? (
-                <p className="py-8 text-center text-sm leading-6 text-[#AAA3B3]">
+                <p className="py-8 text-center text-sm leading-6 text-[var(--wh-text-secondary)]">
                   No connected roommates are available for this invitation.
                 </p>
               ) : null}
-              {missingRoommateIdentities > 0 && <div role="status" className="py-4 text-sm leading-6 text-[#AAA3B3]">
+              {missingRoommateIdentities > 0 && <div role="status" className="py-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
                 <p>Some connection names could not be loaded. Refresh before choosing them.</p>
                 <button type="button" disabled={busy} onClick={() => void openShare()} className="mt-2 min-h-11 text-violet-300">Refresh connections</button>
               </div>}
@@ -1046,18 +1046,18 @@ function SharedHomeCard({
       members.length > 0 &&
       members.every((member: any) => member.payment_status === "paid");
   return (
-    <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5">
+    <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
       <p className="text-sm font-semibold uppercase tracking-wide text-violet-300">
         Shared apartment · equal split
       </p>
       <h2 className="mt-2 text-lg font-bold">
         You and {peer?.name || "your roommate"}
       </h2>
-      <p className="mt-2 text-sm leading-5 text-[#777C8D]">
+      <p className="mt-2 text-sm leading-5 text-[var(--wh-text-muted)]">
         Both people accept and pay their own verified share. One person cannot
         complete the other person’s payment.
       </p>
-      <div className="mt-4 divide-y divide-white/[.06] rounded-2xl bg-white/[.025] px-3">
+      <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] rounded-2xl bg-[var(--wh-interactive)] px-3">
         {members.map((member: any) => (
           <div
             key={member.user_id}
@@ -1067,7 +1067,7 @@ function SharedHomeCard({
               <p className="text-xs font-semibold">
                 {member.user_id === profile.user_id ? "You" : member.name}
               </p>
-              <p className="mt-1 text-sm capitalize text-[#686E7F]">
+              <p className="mt-1 text-sm capitalize text-[var(--wh-text-muted)]">
                 {member.invitation_status} ·{" "}
                 {String(member.payment_status).replace(/_/g, " ")}
               </p>
@@ -1083,7 +1083,7 @@ function SharedHomeCard({
           <button
             disabled={busy}
             onClick={() => void onAccept(false)}
-            className="h-11 rounded-xl border border-white/[.08] text-xs"
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] text-xs"
           >
             Decline
           </button>
@@ -1161,12 +1161,12 @@ function ReservationPanel({
     );
   if (status === "payment_pending")
     return (
-      <section className="rounded-3xl border border-amber-500/15 bg-[#11141C] p-5">
+      <section className="rounded-3xl border border-amber-500/15 bg-[var(--wh-surface)] p-5">
         <p className="text-sm font-semibold uppercase tracking-wide text-amber-300">
           Reservation not completed
         </p>
         <h2 className="mt-2 text-lg font-bold">Finish your reservation</h2>
-        <p className="mt-2 text-sm leading-relaxed text-[#777B8B]">
+        <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-muted)]">
           Complete the ₦{fee.toLocaleString()} reservation payment to submit
           this booking.
         </p>
@@ -1193,7 +1193,7 @@ function ReservationPanel({
     );
   if (status === "occupied")
     return (
-      <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5">
+      <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
         <p className="text-sm font-semibold uppercase tracking-wide text-violet-300">
           Occupied
         </p>
@@ -1228,7 +1228,7 @@ function ReservationPanel({
         )}
         <button
           onClick={onSupport}
-          className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
+          className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
         >
           Message WeHouse
         </button>
@@ -1240,16 +1240,16 @@ function ReservationPanel({
     );
     if (!rentPaid)
       return (
-        <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5">
+        <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
             Inspection passed
           </p>
           <h2 className="mt-2 text-lg font-bold">Settle contract rent</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#777B8B]">
+          <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-muted)]">
             Move-in cannot be activated until WeHouse verifies the required
             contract-rent payment.
           </p>
-          <div className="mt-3 rounded-xl bg-white/[.035] p-3">
+          <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
             <Row
               label="Total contract"
               value={`₦${Number(reservation.contract_rent_total || 0).toLocaleString()}`}
@@ -1293,7 +1293,7 @@ function ReservationPanel({
         <h2 className="mt-2 text-xl font-bold">
           {moveInRequested ? "Move-in time sent" : "Choose your move-in time"}
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-[#8A918F]">
+        <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-secondary)]">
           {moveInRequested
             ? "Meet Property Operations at the selected time. Show the booking code only when you arrive; your tenancy starts after access is handed over and verified."
             : "Rent payment alone does not start the tenancy. Open Bookings to choose when you can meet Property Operations for handover."}
@@ -1321,7 +1321,7 @@ function ReservationPanel({
         </button>
         <button
           onClick={onSupport}
-          className="mt-2 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
+          className="mt-2 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
         >
           Message WeHouse
         </button>
@@ -1329,7 +1329,7 @@ function ReservationPanel({
     );
   }
   return (
-    <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5">
+    <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
       <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
         Reservation paid
       </p>
@@ -1340,7 +1340,7 @@ function ReservationPanel({
           {new Date(reservation.hold_expires_at).toLocaleString()}
         </p>
       )}
-      <div className="mt-3 rounded-xl bg-white/[.035] p-3">
+      <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
         <Row
           label="Reservation fee"
           value={`₦${Number(reservation.amount || fee).toLocaleString()}`}
@@ -1396,7 +1396,7 @@ function ShortStayReservationPanel({
     String(reservation.rent_payment_status || ""),
   );
   const stay = (
-    <div className="mt-4 rounded-xl bg-white/[.03] p-3">
+    <div className="mt-4 rounded-xl bg-[var(--wh-interactive)] p-3">
       <Row label="Check-in" value={formatStayDate(reservation.stay_check_in)} />
       <Row
         label="Check-out"
@@ -1415,18 +1415,18 @@ function ShortStayReservationPanel({
   );
   if (status === "occupied")
     return (
-      <section className="rounded-3xl border border-violet-500/15 bg-[#11141C] p-5">
+      <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
         <p className="text-sm font-semibold uppercase tracking-wide text-violet-300">
           Checked in
         </p>
         <h2 className="mt-2 text-lg font-bold">Your Short Let is active</h2>
-        <p className="mt-2 text-sm leading-5 text-[#7D8291]">
+        <p className="mt-2 text-sm leading-5 text-[var(--wh-text-secondary)]">
           WeHouse recorded your entry. Checkout is due on the date below.
         </p>
         {stay}
         <button
           onClick={onSupport}
-          className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
+          className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
         >
           Message WeHouse
         </button>
@@ -1434,18 +1434,18 @@ function ShortStayReservationPanel({
     );
   if (status === "completed")
     return (
-      <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5">
+      <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
         <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
           Checked out
         </p>
         <h2 className="mt-2 text-lg font-bold">Stay completed</h2>
         {stay}
-        <p className="mt-3 text-sm text-[#7D8291]">
+        <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">
           Any refundable-deposit review remains attached to this booking.
         </p>
         <button
           onClick={onSupport}
-          className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
+          className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
         >
           Message WeHouse
         </button>
@@ -1453,12 +1453,12 @@ function ShortStayReservationPanel({
     );
   if (!paid)
     return (
-      <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5">
+      <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
         <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
           Reservation prepared
         </p>
         <h2 className="mt-2 text-lg font-bold">Pay for your Short Let</h2>
-        <p className="mt-2 text-sm leading-5 text-[#7D8291]">
+        <p className="mt-2 text-sm leading-5 text-[var(--wh-text-secondary)]">
           Review the stay price and any refundable deposit in your booking before
           payment. An unpaid reservation is not a confirmed stay.
         </p>
@@ -1483,12 +1483,12 @@ function ShortStayReservationPanel({
       </section>
     );
   return (
-    <section className="rounded-3xl border border-emerald-500/15 bg-[#11141C] p-5">
+    <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
       <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
         Paid · ready for arrival
       </p>
       <h2 className="mt-2 text-lg font-bold">Check in with WeHouse</h2>
-      <p className="mt-2 text-sm leading-5 text-[#7D8291]">
+      <p className="mt-2 text-sm leading-5 text-[var(--wh-text-secondary)]">
         Show the booking code on arrival. Operations records entry only during
         the reserved dates and the property owner is notified.
       </p>
@@ -1498,7 +1498,7 @@ function ShortStayReservationPanel({
       {stay}
       <button
         onClick={onSupport}
-        className="mt-4 h-11 w-full rounded-xl border border-white/[.08] text-xs font-semibold"
+        className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
       >
         Message WeHouse
       </button>
@@ -1515,8 +1515,8 @@ function formatStayDate(value: unknown) {
 
 function Fact({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/[.06] bg-[#11141C] p-3 text-center">
-      <p className="truncate text-sm uppercase text-[#5E6272]">{label}</p>
+    <div className="min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-center">
+      <p className="truncate text-sm uppercase text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-1 truncate text-xs font-semibold capitalize">{value}</p>
     </div>
   );
@@ -1524,7 +1524,7 @@ function Fact({ label, value }: { label: string; value: string | number }) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-      <span className="text-[#707586]">{label}</span>
+      <span className="text-[var(--wh-text-muted)]">{label}</span>
       <span className="text-right font-semibold text-[#D5D8E0]">{value}</span>
     </div>
   );

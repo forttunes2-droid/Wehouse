@@ -437,7 +437,7 @@ export default function WorkerDiscovery({
                   Recent work from Workers
                 </h2>
               </div>
-              <span className="text-[9px] text-[#666D7E]">24-hour updates</span>
+              <span className="text-[9px] text-[var(--wh-text-muted)]">24-hour updates</span>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {statusWorkers.map(({ worker, status }) => (
@@ -449,13 +449,13 @@ export default function WorkerDiscovery({
                   <div className="rounded-[26px] bg-gradient-to-br from-violet-300 via-violet-500 to-violet-500 p-[2px]">
                     <StatusMedia
                       status={status}
-                      className="h-32 w-full rounded-3xl bg-[#090C12] object-cover"
+                      className="h-32 w-full rounded-3xl bg-[var(--wh-bg)] object-cover"
                     />
                   </div>
-                  <p className="mt-1 truncate text-[9px] font-semibold text-[#C6CAD4]">
+                  <p className="mt-1 truncate text-[9px] font-semibold text-[var(--wh-text-secondary)]">
                     {workerDisplayName(worker)}
                   </p>
-                  <p className="truncate text-[8px] text-[#686F80]">
+                  <p className="truncate text-[8px] text-[var(--wh-text-muted)]">
                     {status.caption || "Work Status"}
                   </p>
                 </button>
@@ -482,7 +482,7 @@ export default function WorkerDiscovery({
               <h2 id="featured-workers-title" className="mt-1 text-sm font-bold">
                 Featured Workers
               </h2>
-              <p className="mt-1 text-[9px] leading-4 text-[#777D8D]">
+              <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">
                 Paid placement among matching, available and Reviewed Workers. It does not mean more trusted.
               </p>
             </div>
@@ -512,7 +512,7 @@ export default function WorkerDiscovery({
                   ? `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`
                   : "WeHouse Services"}
             </p>
-            <p className="mt-1 text-[9px] text-[#666D7E]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               {!marketplaceEnabled && !settingsLoading
                 ? "The public Worker marketplace is currently closed."
                 : state
@@ -545,7 +545,7 @@ export default function WorkerDiscovery({
             text="Try a broader service or location."
           />
         ) : (
-          <div className="divide-y divide-white/[.065] border-y border-white/[.065]">
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
             {shown.map((worker) => (
               <WorkerCard
                 key={worker.user_id}
@@ -617,7 +617,7 @@ export default function WorkerDiscovery({
             />
           </div>
           {(savedState || savedCity) && (
-            <p className="rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2.5 text-[9px] text-[#737A89]">
+            <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5 text-[9px] text-[var(--wh-text-muted)]">
               Your saved area is the default:{" "}
               {[savedCity, savedState].filter(Boolean).join(", ")}.
             </p>
@@ -626,7 +626,7 @@ export default function WorkerDiscovery({
       )}
       {story && (
         <div
-          className="fixed inset-0 z-[95] bg-black/95"
+          className="wh-media-immersive fixed inset-0 z-[95] bg-black/95"
           onClick={() => setStory(null)}
         >
           <div
@@ -655,7 +655,7 @@ export default function WorkerDiscovery({
               </div>
               <button
                 onClick={() => setStory(null)}
-                className="grid h-10 w-10 place-items-center rounded-full bg-white/10"
+                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)]"
               >
                 ×
               </button>
@@ -666,7 +666,7 @@ export default function WorkerDiscovery({
               className="max-h-[68dvh] w-full rounded-3xl bg-black object-contain"
             />
             {story.status.caption && (
-              <p className="mt-3 rounded-2xl bg-white/[.06] p-4 text-[11px] leading-relaxed text-[#D0D3DA]">
+              <p className="mt-3 rounded-2xl bg-[var(--wh-interactive)] p-4 text-[11px] leading-relaxed text-[var(--wh-text-secondary)]">
                 {story.status.caption}
               </p>
             )}
@@ -753,10 +753,10 @@ function WorkerCard({
             <WorkerTrustBadge />
             {worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}
           </div>
-          <p className="mt-1 truncate text-[10px] text-[#8A8F9E]">
+          <p className="mt-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
             {occupation}
           </p>
-          <p className="mt-1 truncate text-[9px] text-[#606575]">
+          <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
             {[worker.city || worker.local_government, worker.state]
               .filter(Boolean)
               .join(", ") || "Location not shown"}
@@ -777,17 +777,17 @@ function WorkerCard({
           <span className="text-[9px] font-semibold text-violet-300">
             ● Work Status live
           </span>
-          <span className="text-[9px] text-[#72798A]">Watch →</span>
+          <span className="text-[9px] text-[var(--wh-text-muted)]">Watch →</span>
         </button>
       )}
       {skills.length > 0 && (
-        <p className="mt-3 line-clamp-2 text-[9px] leading-4 text-[#7B8190]">
+        <p className="mt-3 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
           {skills.slice(0, 4).join(" · ")}
           {skills.length > 4 ? ` · +${skills.length - 4}` : ""}
         </p>
       )}
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold text-[#DDE0E7]">
+        <p className="text-[10px] font-semibold text-[var(--wh-text)]">
           {worker.worker_price
             ? `From ₦${Number(worker.worker_price).toLocaleString()}`
             : "Discuss price"}

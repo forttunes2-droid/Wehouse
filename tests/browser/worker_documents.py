@@ -3,7 +3,7 @@ import asyncio, json, os, subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
 OUT=Path('test-results/experience'); BUNDLE=Path('test-results/worker-documents-offline')
-RECORD={'id':'doc-a','worker_id':'worker-a','customer_id':'customer-a','document_number':'WHQ-TEST','booking_id':'job-a','booking_code':'TEST-JOB','document_type':'quote','title':'Cabinet repair','items':[{'description':'Hinges and fitting','quantity':2,'unit_price':5000,'line_total':10000}], 'subtotal':10000,'total':10000,'currency':'NGN','document_status':'draft','payment_status':'not_applicable','payment_label':'Not applicable','note':'Sample job record, not a real customer'}
+RECORD={'id':'doc-a','worker_id':'worker-a','customer_id':'customer-a','document_number':'WHQ-TEST','booking_id':'job-a','booking_code':'TEST-JOB','document_type':'quote','title':'Cabinet repair','items':[{'description':'Hinges and fitting','quantity':2,'unit_price':5000,'line_total':10000}], 'subtotal':10000,'total':10000,'currency':'NGN','document_status':'draft','payment_status':'not_applicable','payment_label':'Not applicable','note':'Sample job record, not a real customer','created_at':'2026-09-25T00:00:00Z'}
 INSIGHTS={'completed_jobs':3,'released_earnings_ngn':10000,'active_jobs':1,'review_count':0,'repeat_customers':0,'worker_cancelled_jobs':0,'featured':{'signed_in_unique_impressions':0,'unique_profile_opens':0,'booking_requests':0},'definitions':{},'generated_at':'2026-09-25T00:00:00Z'}
 async def main():
  subprocess.run(['node','tests/browser/build-worker-documents.mjs'],check=True);OUT.mkdir(parents=True,exist_ok=True);results=[]
@@ -22,6 +22,40 @@ async def main():
      await page.evaluate('s=>window.__documents=s',{'mode':mode,'records':[RECORD,other],'insights':INSIGHTS,'calls':[],'pending':[],'failDocs':mode=='doc-error','malformed':mode=='malformed','failJobs':mode=='jobs-error'})
      await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
      active=mode in ['active','jobs-error','lapse']
+     if active and width==390 and mode=='active':
+      await page.get_by_role('button',name='Business tools',exact=True).click()
+      business=page.get_by_role('region',name='Worker Pro business tools')
+      await expect(business.locator('strong').filter(has_text='Carpentry · #TEST-JOB')).to_be_visible()
+      await business.get_by_role('button',name='Reminder job',exact=True).click()
+      await page.get_by_role('dialog',name='Reminder job').get_by_role('button',name='Carpentry · #TEST-JOB',exact=True).click()
+      await business.get_by_label('When',exact=True).fill('2026-10-04T09:00')
+      await business.get_by_label('What to remember',exact=True).fill('Bring cabinet hinges')
+      await business.get_by_role('button',name='Save reminder',exact=True).click()
+      await expect(business.get_by_label('When',exact=True)).to_have_value('')
+      await expect(business.get_by_role('button',name='Save reminder',exact=True)).to_be_disabled()
+      assert any(c['name']=='save_my_worker_pro_reminder' and c['args']['p_booking_id']=='job-a' and c['args']['p_note']=='Bring cabinet hinges' for c in await page.evaluate('window.__documents.calls'))
+      await business.get_by_role('button',name='Job costs',exact=True).click()
+      await business.get_by_label('Total job costs (₦)',exact=True).fill('2500')
+      await business.get_by_label('Cost details',exact=True).fill('Hinges and transport')
+      await business.get_by_role('button',name='Save job cost',exact=True).click()
+      await expect(business.get_by_text('Released earnings ₦22,000 · Net after recorded costs ₦19,500',exact=True)).to_be_visible()
+      async with page.expect_download() as cost_download:
+       await business.get_by_role('button',name='Export costs CSV',exact=True).click()
+      assert '19500' in Path(await (await cost_download.value).path()).read_text()
+      await business.get_by_role('button',name='Schedule',exact=True).click()
+      async with page.expect_download() as calendar_download:
+       await business.get_by_role('button',name='Export calendar',exact=True).click()
+      assert 'DTSTART;VALUE=DATE:20261005' in Path(await (await calendar_download.value).path()).read_text()
+      await business.get_by_role('button',name='Packages',exact=True).click()
+      await business.get_by_role('textbox',name='Title').fill('Cabinet repair')
+      await business.get_by_role('textbox',name='What is included').fill('Replace hinges and align doors')
+      await business.get_by_role('spinbutton',name='Starting price (₦)').fill('12000')
+      await business.get_by_role('button',name='Save package').click()
+      assert any(c['name']=='save_my_worker_pro_package' and c['args']['p_price_ngn']==12000 for c in await page.evaluate('window.__documents.calls'))
+      await business.get_by_role('button',name='Receipts',exact=True).click()
+      async with page.expect_download() as receipt_download:
+       await business.get_by_role('button',name='Download PDF').click()
+      assert Path(await (await receipt_download.value).path()).read_bytes().startswith(b'%PDF-')
      if active:await page.get_by_role('button',name='Quotes & invoices',exact=True).click()
      archive=page.get_by_role('region',name='Your work documents')
      await expect(archive).to_be_visible()
@@ -39,9 +73,10 @@ async def main():
       for action in ['New document','Send to customer','Mark offline payment']:
        await expect(archive.get_by_role('button',name=action,exact=True)).to_have_count(0)
       async with page.expect_download() as download:
-       await archive.get_by_role('button',name='Export',exact=True).click()
-      file=await download.value;assert file.suggested_filename=='WHQ-TEST.txt'
-      text=Path(await file.path()).read_text();assert 'Hinges and fitting' in text and '10000' in text.replace(',','')
+       await archive.get_by_role('button',name='Download PDF',exact=True).click()
+      file=await download.value;assert file.suggested_filename=='WHQ-TEST.pdf'
+      contents=Path(await file.path()).read_bytes()
+      assert contents.startswith(b'%PDF-') and b'Hinges and fitting' in contents and b'10,000' in contents
       assert not any(c['name'].startswith(('save_','send_','mark_')) for c in await page.evaluate('window.__documents.calls'))
      if active:
       await archive.get_by_role('button',name='New document',exact=True).click()

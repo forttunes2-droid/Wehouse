@@ -15,7 +15,7 @@ export function compressImageFile(
   file: File,
   requestedMaxDim: number = 2560,
   requestedQuality: number = 0.86,
-  maxBytes: number = 2.5 * 1024 * 1024,
+  maxBytes: number = 2_000_000,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -38,8 +38,8 @@ export function compressImageFile(
         let currentQuality = Math.min(0.94, Math.max(0.72, preferredQuality));
         let result: Blob | null = null;
 
-        // At most four dimension passes. Most normal phone images finish on pass 1.
-        for (let pass = 0; pass < 4; pass += 1) {
+        // Enforce the output budget even for noisy, high-resolution photos.
+        for (let pass = 0; pass < 8; pass += 1) {
           const canvas = document.createElement('canvas');
           canvas.width = width;
           canvas.height = height;
@@ -51,18 +51,18 @@ export function compressImageFile(
 
           let q = currentQuality;
           result = await canvasBlob(canvas, q);
-          while (result.size > maxBytes && q > 0.72) {
-            q = Math.max(0.72, q - 0.04);
+          while (result.size > maxBytes && q > 0.62) {
+            q = Math.max(0.62, q - 0.04);
             result = await canvasBlob(canvas, q);
           }
 
-          if (result.size <= maxBytes || Math.max(width, height) <= 1920) break;
-          width = Math.max(1, Math.round(width * 0.86));
-          height = Math.max(1, Math.round(height * 0.86));
-          currentQuality = Math.max(0.78, q);
+          if (result.size <= maxBytes) break;
+          width = Math.max(1, Math.round(width * 0.78));
+          height = Math.max(1, Math.round(height * 0.78));
+          currentQuality = q;
         }
 
-        if (!result) throw new Error('Compression failed');
+        if (!result || result.size > maxBytes) throw new Error('This photo could not fit the upload limit. Choose a smaller photo.');
         resolve(result);
       } catch (error) {
         reject(error);
@@ -82,21 +82,28 @@ export async function prepareChatImageFile(file: File): Promise<{
   contentType: string;
   extension: string;
 }> {
-  const originalGraphics = new Set(["image/gif", "image/png", "image/webp"]);
-  if (originalGraphics.has(file.type) && file.size <= 8 * 1024 * 1024) {
+  const targetBytes = 2_000_000;
+  const preservableTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  // Keep animation intact. Other chat photos are JPEG-compressed before upload
+  // once they exceed the small-message-media budget.
+  if (file.type === "image/gif" && file.size > targetBytes)
+    throw new Error("This animated image is over 2 MB. Choose a shorter animation or a still photo.");
+  if (file.type === "image/gif" || (preservableTypes.has(file.type) && file.size <= targetBytes)) {
     return {
       body: file,
       contentType: file.type,
       extension:
         file.type === "image/gif"
           ? "gif"
+          : file.type === "image/jpeg"
+            ? "jpg"
           : file.type === "image/png"
             ? "png"
             : "webp",
     };
   }
   return {
-    body: await compressImageFile(file, 1920, 0.85),
+    body: await compressImageFile(file, 1920, 0.85, targetBytes),
     contentType: "image/jpeg",
     extension: "jpg",
   };

@@ -93,7 +93,7 @@ export default function MessageActionSheet({
         data-opened-for={mode}
       >
           <>
-            <div className="flex items-center justify-between gap-0.5 rounded-[22px] border border-white/[.1] bg-[#171A22] p-1.5 shadow-2xl">
+            <div className="flex items-center justify-between gap-0.5 rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
               {QUICK_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
@@ -101,7 +101,7 @@ export default function MessageActionSheet({
                   onClick={() => choose(emoji)}
                   aria-label={currentReaction === emoji ? "Remove " + emoji + " reaction" : "React " + emoji}
                   aria-pressed={currentReaction === emoji}
-                  className={"grid h-10 w-10 place-items-center rounded-full text-lg transition active:scale-90 " + (currentReaction === emoji ? "bg-violet-500/25 ring-1 ring-violet-400/50" : "hover:bg-white/[.07]")}
+                  className={"grid h-10 w-10 place-items-center rounded-full text-lg transition active:scale-90 " + (currentReaction === emoji ? "bg-violet-500/25 ring-1 ring-violet-400/50" : "hover:bg-[var(--wh-interactive)]")}
                 >
                   {emoji}
                 </button>
@@ -110,14 +110,14 @@ export default function MessageActionSheet({
                 type="button"
                 onClick={() => setMoreOpen((value) => !value)}
                 aria-label="Use an emoji from your keyboard"
-                className={"grid h-10 w-10 place-items-center rounded-full transition " + (moreOpen ? "bg-violet-500/20 text-violet-200" : "text-[#AEB4C0] hover:bg-white/[.07]")}
+                className={"grid h-10 w-10 place-items-center rounded-full transition " + (moreOpen ? "bg-violet-500/20 text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]")}
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
             {moreOpen ? (
-              <div className="mt-2 rounded-[22px] border border-white/[.09] bg-[#171A22] p-2.5 shadow-2xl">
-                <p className="px-1 pb-2 text-[9px] leading-4 text-[#858B9B]">
+              <div className="mt-2 rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2.5 shadow-2xl">
+                <p className="px-1 pb-2 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
                   Open your phone keyboard, choose any emoji, then tap React.
                 </p>
                 <div className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export default function MessageActionSheet({
                     autoComplete="off"
                     aria-label="Emoji from keyboard"
                     placeholder="Choose an emoji"
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#0E1118] px-3 text-[11px] outline-none placeholder:text-[#626879] focus:border-violet-500/35"
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 text-[11px] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-500/35"
                   />
                   <button
                     type="button"
@@ -155,14 +155,14 @@ export default function MessageActionSheet({
             ) : null}
           </>
         {(onReply || onCopy || onRemove) && (
-          <div className="mt-2 overflow-hidden rounded-[22px] border border-white/[.1] bg-[#171A22] shadow-2xl">
+          <div className="mt-2 overflow-hidden rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] shadow-2xl">
             {onReply ? (
               <button
                 type="button"
                 onClick={onReply}
-                className="flex min-h-11 w-full items-center gap-3 border-b border-white/[.07] px-4 text-left text-xs font-semibold"
+                className="flex min-h-11 w-full items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 text-left text-xs font-semibold"
               >
-                <Reply className="h-4 w-4 text-[#AEB4C0]" />
+                <Reply className="h-4 w-4 text-[var(--wh-text-secondary)]" />
                 Reply
               </button>
             ) : null}
@@ -170,9 +170,9 @@ export default function MessageActionSheet({
               <button
                 type="button"
                 onClick={onCopy}
-                className="flex min-h-11 w-full items-center gap-3 border-b border-white/[.07] px-4 text-left text-xs font-semibold"
+                className="flex min-h-11 w-full items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 text-left text-xs font-semibold"
               >
-                <Copy className="h-4 w-4 text-[#AEB4C0]" />
+                <Copy className="h-4 w-4 text-[var(--wh-text-secondary)]" />
                 Copy message
               </button>
             ) : null}

@@ -218,6 +218,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   const type = String(row.type || "").toLowerCase();
   if (type === "property_move_in_requested") return "Prepare handover";
   if (type === "property_rent_confirmed") return "View reservation";
+  if (type.startsWith("sponsored_campaign_")) return "View Sponsored placement";
   if (type === "property_inspection_coordination_required")
     return "Open inspection request";
   if (route === "invitation") return "Review invitation";

@@ -95,7 +95,7 @@ export default function ProfilePhotoEditor({
           type="button"
           onClick={() => (avatar ? setViewing(true) : input.current?.click())}
           disabled={disabled || busy}
-          className="group relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white/[.1] bg-gradient-to-br from-violet-500 to-violet-700 text-2xl font-bold disabled:opacity-50"
+          className="group relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-[var(--wh-border-subtle)] bg-gradient-to-br from-violet-500 to-violet-700 text-2xl font-bold disabled:opacity-50"
           aria-label={avatar ? "Preview profile photo" : "Add profile photo"}
         >
           {avatar ? (
@@ -115,7 +115,7 @@ export default function ProfilePhotoEditor({
         </button>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Profile photo</p>
-          <p className="mt-1 text-[9px] leading-4 text-[#707687]">
+          <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">
             Tap your photo to preview it. JPG, PNG or WebP · up to 10MB.
           </p>
           <div className="mt-3 flex gap-2">
@@ -123,7 +123,7 @@ export default function ProfilePhotoEditor({
               type="button"
               onClick={() => input.current?.click()}
               disabled={disabled || busy}
-              className="rounded-full border border-white/[.1] px-4 py-2 text-[10px] font-semibold disabled:opacity-40"
+              className="rounded-full border border-[var(--wh-border-subtle)] px-4 py-2 text-[10px] font-semibold disabled:opacity-40"
             >
               {avatar ? "Change photo" : "Add photo"}
             </button>
@@ -151,12 +151,12 @@ export default function ProfilePhotoEditor({
       {file &&
         createPortal(
           <div
-            className="fixed inset-0 z-[100050] flex flex-col bg-[#08090D] text-white"
+            className="fixed inset-0 z-[100050] flex flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]"
             role="dialog"
             aria-modal="true"
             aria-label="Profile photo preview"
           >
-            <header className="flex h-14 items-center justify-between border-b border-white/[.08] px-4">
+            <header className="flex h-14 items-center justify-between border-b border-[var(--wh-border-subtle)] px-4">
               <button
                 onClick={close}
                 disabled={busy}
@@ -167,7 +167,7 @@ export default function ProfilePhotoEditor({
               </button>
               <div className="text-center">
                 <p className="text-sm font-semibold">Profile photo</p>
-                <p aria-live="polite" className="text-[8px] text-[#72798A]">
+                <p aria-live="polite" className="text-[8px] text-[var(--wh-text-muted)]">
                   {stage === "preparing"
                     ? "Preparing image…"
                     : stage === "uploading"
@@ -186,7 +186,7 @@ export default function ProfilePhotoEditor({
               </button>
             </header>
             <main className="grid min-h-0 flex-1 place-items-center overflow-hidden bg-black p-5">
-              <div className="aspect-square w-full max-w-md overflow-hidden rounded-full border border-white/[.12] bg-[#11141C]">
+              <div className="aspect-square w-full max-w-md overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
                 <img
                   src={preview}
                   alt="Selected profile preview"
@@ -199,12 +199,12 @@ export default function ProfilePhotoEditor({
                 type="button"
                 onClick={() => input.current?.click()}
                 disabled={busy}
-                className="h-11 w-full rounded-xl border border-white/[.1] text-xs font-semibold disabled:opacity-40"
+                className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40"
               >
                 Choose another photo
               </button>
               {busy && (
-                <div className="mx-auto mt-3 h-1 max-w-md overflow-hidden rounded-full bg-white/[.08]">
+                <div className="mx-auto mt-3 h-1 max-w-md overflow-hidden rounded-full bg-[var(--wh-interactive)]">
                   <div className="h-full w-2/3 animate-pulse rounded-full bg-violet-500" />
                 </div>
               )}

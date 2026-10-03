@@ -78,7 +78,7 @@ export function ListingMediaImage({ reference, alt, className, loading = 'lazy',
   const url = useListingMediaUrl(reference);
   return url
     ? <img src={url} alt={alt} className={className} loading={loading} decoding={decoding} {...props}/>
-    : <div className={`${className || ''} animate-pulse bg-white/[.04]`} role="status" aria-label="Loading image"/>;
+    : <div className={`${className || ''} animate-pulse bg-[var(--wh-interactive)]`} role="status" aria-label="Loading image"/>;
 }
 
 export function ListingMediaVideo({ reference, className, preload = 'metadata', playsInline = true, ...props }: { reference: string; className?: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
@@ -88,5 +88,5 @@ export function ListingMediaVideo({ reference, className, preload = 'metadata', 
     ? controls
       ? <VideoPlayer src={url} className={className} autoPlay={Boolean(autoPlay)}/>
       : <video src={url} className={className} preload={preload} playsInline={playsInline} autoPlay={autoPlay} {...videoProps}/>
-    : <div className={`${className || ''} animate-pulse bg-white/[.04]`} role="status" aria-label="Loading video"/>;
+    : <div className={`${className || ''} animate-pulse bg-[var(--wh-interactive)]`} role="status" aria-label="Loading video"/>;
 }

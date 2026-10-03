@@ -11,9 +11,12 @@ const key = status.ANON_KEY || status.anon_key || status.PUBLISHABLE_KEY || stat
 assert.ok(key);
 const medium = process.env.WEHOUSE_CAPACITY_PRESET === 'medium';
 const million = process.env.WEHOUSE_CAPACITY_PRESET === 'million';
-assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['medium','million','full'].includes(process.env.WEHOUSE_CAPACITY_PRESET), 'Unknown capacity preset');
-const catalog = medium
+assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['requested','medium','million','full','launch'].includes(process.env.WEHOUSE_CAPACITY_PRESET), 'Unknown capacity preset');
+const catalog = process.env.WEHOUSE_CAPACITY_PRESET === 'launch'
+  ? {homes:500000,hotels:500000,synthetic_profiles:500000,real_auth_users:0}
+  : medium
   ? {homes:50000,hotels:100000,synthetic_profiles:50000,real_auth_users:0}
+  : process.env.WEHOUSE_CAPACITY_PRESET === 'requested' ? {homes:500000,hotels:50000,synthetic_profiles:50000,real_auth_users:0}
   : million ? {homes:1000000,hotels:1000000,synthetic_profiles:1000000,real_auth_users:0}
   : {homes:3000000,hotels:4000000,synthetic_profiles:20000000,real_auth_users:0};
 const counts = execFileSync('docker', ['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-Atc',
@@ -63,9 +66,14 @@ async function stage(scenario,concurrency,count) {
 const report={source:'disposable local Supabase HTTP API',catalog,
   caveat:'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
   measured_at:new Date().toISOString(),stages:[]};
-for(const {concurrency,count} of [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}]){
+mkdirSync('test-results',{recursive:true});
+const stages = process.env.WEHOUSE_CAPACITY_PRESET === 'requested'
+  ? [{concurrency:1,count:30},{concurrency:100,count:300}]
+  : [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}];
+for(const {concurrency,count} of stages){
   for(const scenario of scenarios){
     const result=await stage(scenario,concurrency,count);report.stages.push(result);
+    writeFileSync('test-results/catalog-scale.json',JSON.stringify(report,null,2)+'\n');
     console.log(`${result.scenario} c=${concurrency} ok=${count-result.errors}/${count} p95=${result.p95_ms}ms p99=${result.p99_ms}ms rps=${result.requests_per_second}`);
   }
 }

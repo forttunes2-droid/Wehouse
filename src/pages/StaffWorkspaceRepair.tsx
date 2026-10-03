@@ -423,10 +423,10 @@ function OperationsInbox({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-2">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-2">
         <div>
           <h2 className="text-xs font-semibold">Messages</h2>
-          <p className="mt-0.5 text-[9px] text-[#707687]">
+          <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
             Assigned property conversations.
           </p>
         </div>
@@ -487,10 +487,10 @@ function SupportInbox({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-2">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-2">
         <div>
           <h2 className="text-xs font-semibold">Messages</h2>
-          <p className="mt-0.5 text-[9px] text-[#707687]">
+          <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
             Assigned conversations in this Operation.
           </p>
         </div>
@@ -526,8 +526,8 @@ function ActivityOnlyInbox({
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between border-b border-white/[.06] pb-3">
-        <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[#707687]">Updates for this authorized work area.</p></div>
+      <div className="flex items-center justify-between border-b border-[var(--wh-border-subtle)] pb-3">
+        <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Updates for this authorized work area.</p></div>
         {unread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{unread} new</span> : null}
       </div>
         <Notifications
@@ -555,17 +555,17 @@ function StaffHome({
 }) {
   return (
     <div className="space-y-6">
-      <section className="border-b border-white/[.07] pb-6">
+      <section className="border-b border-[var(--wh-border-subtle)] pb-6">
         <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
           YOUR WORK AREA
         </p>
         <h2 className="mt-3 text-2xl font-bold">{copy.title}</h2>
-        <p className="mt-2 max-w-xl text-xs leading-6 text-[#858B9B]">
+        <p className="mt-2 max-w-xl text-xs leading-6 text-[var(--wh-text-secondary)]">
           {copy.description}
         </p>
-        <p className="mt-2 text-[10px] text-[#666D7E]">Coverage · {branch}</p>
+        <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">Coverage · {branch}</p>
       </section>
-      <div className="border-y border-white/[.06]">
+      <div className="border-y border-[var(--wh-border-subtle)]">
         <button
           onClick={openWork}
           className="flex min-h-16 w-full items-center justify-between py-3 text-left"
@@ -574,7 +574,7 @@ function StaffHome({
             <strong className="block text-sm">
               {module === "support" ? "Open conversations" : copy.workLabel}
             </strong>
-            <span className="mt-1 block text-[10px] text-[#6E7484]">
+            <span className="mt-1 block text-[10px] text-[var(--wh-text-muted)]">
               Continue your assigned work
             </span>
           </span>
@@ -594,12 +594,12 @@ function LocalTabs<T extends string>({
   set: (view: T) => void;
 }) {
   return (
-    <div className="flex gap-5 overflow-x-auto border-b border-white/[.07]">
+    <div className="flex gap-5 overflow-x-auto border-b border-[var(--wh-border-subtle)]">
       {items.map(([id, label]) => (
         <button
           key={id}
           onClick={() => set(id)}
-          className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active === id ? "text-white" : "text-[#6E7484]"}`}
+          className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active === id ? "text-white" : "text-[var(--wh-text-muted)]"}`}
         >
           {label}
           {active === id && (

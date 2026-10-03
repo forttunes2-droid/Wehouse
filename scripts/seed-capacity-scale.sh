@@ -5,8 +5,13 @@ set -euo pipefail
 status=$(npx --yes supabase@2.114.0 status -o json)
 node -e 'const s=JSON.parse(process.argv[1]); const u=new URL(s.API_URL||s.api_url); if(!["localhost","127.0.0.1"].includes(u.hostname)||u.protocol!=="http:")process.exit(1)' "$status"
 free_gb=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
-if (( free_gb < 100 )); then echo "Need at least 100 GB free on disposable runner; found ${free_gb} GB" >&2; exit 1; fi
+required_gb=100
+if [[ "${WEHOUSE_CAPACITY_PRESET:-full}" == requested ]]; then required_gb=8; fi
+if [[ "${WEHOUSE_CAPACITY_PRESET:-full}" == launch ]]; then required_gb=16; fi
+if (( free_gb < required_gb )); then echo "Need at least ${required_gb} GB free on disposable runner; found ${free_gb} GB" >&2; exit 1; fi
 case "${WEHOUSE_CAPACITY_PRESET:-full}" in
+  requested) homes=500000; hotels=50000; profiles=50000 ;;
+  launch) homes=500000; hotels=500000; profiles=500000 ;;
   million) homes=1000000; hotels=1000000; profiles=1000000 ;;
   full) homes=3000000; hotels=4000000; profiles=20000000 ;;
   *) echo "Unknown catalog preset" >&2; exit 1 ;;
@@ -15,7 +20,7 @@ esac
 seed() {
   local kind=$1 total=$2 start=1 end
   while (( start <= total )); do
-    end=$((start+999999)); if (( end > total )); then end=$total; fi
+    end=$((start+99999)); if (( end > total )); then end=$total; fi
     echo "Seeding synthetic ${kind} ${start}-${end}"
     docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -v start="$start" -v end="$end" < "supabase/tests/capacity_scale_${kind}.sql"
     start=$((end+1))

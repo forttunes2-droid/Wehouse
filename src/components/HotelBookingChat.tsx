@@ -293,8 +293,8 @@ export default function HotelBookingChat({
   const hotelView = context?.viewer_party === 'hotel';
 
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={chatTitle} className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[#090B10] text-white">
-      <header className="shrink-0 border-b border-white/[.07] bg-[#0E1118]/95 px-3 py-2.5 backdrop-blur-xl">
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={chatTitle} className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
+      <header className="shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
@@ -302,7 +302,7 @@ export default function HotelBookingChat({
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-semibold">{chatTitle}</h1>
-            <p className="mt-0.5 truncate text-xs text-[#73798A]">
+            <p className="mt-0.5 truncate text-xs text-[var(--wh-text-muted)]">
               {chatSubtitle}
             </p>
           </div>
@@ -324,7 +324,7 @@ export default function HotelBookingChat({
               <p className="text-sm font-semibold">
                 Start the hotel conversation
               </p>
-              <p className="mt-2 text-sm text-[#6E7484]">
+              <p className="mt-2 text-sm text-[var(--wh-text-muted)]">
                 Ask about arrival, the room or your stay.
               </p>
             </div>
@@ -362,7 +362,7 @@ export default function HotelBookingChat({
                 >
                   <div className="max-w-[84%]">
                     <div
-                      className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[#171B24]"}`}
+                      className={`block w-full rounded-2xl px-3 py-2.5 text-left ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md bg-[var(--wh-elevated)]"}`}
                     >
                       {(!mine || presentation.teammate) && (
                         <p className={`mb-1 text-xs font-semibold ${mine ? "text-violet-100" : "text-violet-300"}`}>
@@ -374,7 +374,7 @@ export default function HotelBookingChat({
                           const quoted = messageById.get(message.reply_to_id);
                           return quoted ? (
                             <div
-                              className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-white/[.035]"}`}
+                              className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-[var(--wh-interactive)]"}`}
                             >
                               <p className="truncate text-xs font-semibold text-violet-200">
                                 {hotelMessagePresentation(quoted, profile.user_id, context).author}
@@ -397,7 +397,7 @@ export default function HotelBookingChat({
                       {message.media_error && <AttachmentState error />}
                       <MessageMedia items={(message.attachments || []).map((url, index) => ({ url, type: message.attachment_types?.[index] || "" }))} />
                       <span
-                        className={`mt-1.5 block text-right text-xs ${mine ? "text-violet-100/75" : "text-[#697080]"}`}
+                        className={`mt-1.5 block text-right text-xs ${mine ? "text-violet-100/75" : "text-[var(--wh-text-muted)]"}`}
                       >
                         {new Date(message.created_at).toLocaleTimeString([], {
                           hour: "2-digit",
@@ -414,7 +414,7 @@ export default function HotelBookingChat({
                           <button
                             key={emoji}
                             onClick={() => void react(message, emoji)}
-                            className="rounded-full border border-white/[.08] bg-[#12151D] px-2 py-1 text-xs"
+                            className="rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-2 py-1 text-xs"
                           >
                             {emoji} {count}
                           </button>
@@ -430,10 +430,10 @@ export default function HotelBookingChat({
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-white/[.07] bg-[#0E1118] px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5">
+      <footer className="shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5">
         <div className="mx-auto max-w-3xl">
           {!canReply ? (
-            <p className="py-2 text-center text-sm text-[#73798A]">
+            <p className="py-2 text-center text-sm text-[var(--wh-text-muted)]">
               {!context ? "Checking conversation access…" : "This booking conversation is read-only. Your messages remain available here."}
             </p>
           ) : <>
@@ -452,7 +452,7 @@ export default function HotelBookingChat({
             }}
           />
           {replyingTo && (
-            <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-white/[.035] px-3 py-2">
+            <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-[var(--wh-interactive)] px-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-violet-300">
                   Replying to{" "}
@@ -460,7 +460,7 @@ export default function HotelBookingChat({
                     ? "yourself"
                     : replyingTo.sender_name}
                 </p>
-                <p className="mt-0.5 truncate text-sm text-[#A1A6B4]">
+                <p className="mt-0.5 truncate text-sm text-[var(--wh-text-secondary)]">
                   {replyingTo.content ||
                     (replyingTo.attachments?.length ? "Attachment" : "Message")}
                 </p>
@@ -468,7 +468,7 @@ export default function HotelBookingChat({
               <button
                 type="button"
                 onClick={() => setReplyingTo(null)}
-                className="grid h-8 w-8 place-items-center text-[#818797]"
+                className="grid h-8 w-8 place-items-center text-[var(--wh-text-secondary)]"
                 aria-label="Cancel reply"
               >
                 ×
@@ -489,7 +489,7 @@ export default function HotelBookingChat({
                 }}
                 rows={1}
                 placeholder="Message"
-                className="max-h-28 min-h-11 flex-1 resize-none rounded-3xl border border-white/[.08] bg-[#171B24] px-4 py-3 text-xs outline-none focus:border-violet-500/40"
+                className="max-h-28 min-h-11 flex-1 resize-none rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 py-3 text-xs outline-none focus:border-violet-500/40"
               />
               {!input.trim() && !files.length ? (
                 <button
@@ -505,7 +505,7 @@ export default function HotelBookingChat({
                       )
                   }
                   aria-label="Record voice note"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#171B24] text-sm"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--wh-elevated)] text-sm"
                 >
                   ●
                 </button>

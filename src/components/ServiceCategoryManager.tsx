@@ -156,7 +156,7 @@ export default function ServiceCategoryManager({
           <Step n="1" />
           <div>
             <p className="text-xs font-semibold">Create service groups</p>
-            <p className="mt-1 text-[9px] leading-relaxed text-[#6E7487]">
+            <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
               Examples: Electrical, Plumbing, Cleaning. Users see these first
               when looking for a worker.
             </p>
@@ -170,7 +170,7 @@ export default function ServiceCategoryManager({
               if (e.key === "Enter") void addCategory();
             }}
             placeholder="Add a service group"
-            className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-violet-500/40"
+            className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
           />
           <button
             onClick={() => void addCategory()}
@@ -185,9 +185,9 @@ export default function ServiceCategoryManager({
         <Empty text="Add your first service group to start building the worker marketplace." />
       ) : (
         <div className="grid gap-3 lg:grid-cols-[minmax(190px,.75fr)_minmax(0,1.25fr)]">
-          <section className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#0D1017]">
-            <div className="border-b border-white/[.05] px-3 py-3">
-              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#626779]">
+          <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
+            <div className="border-b border-[var(--wh-border-subtle)] px-3 py-3">
+              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
                 Service groups
               </p>
             </div>
@@ -196,7 +196,7 @@ export default function ServiceCategoryManager({
                 <button
                   key={cat.id}
                   onClick={() => setSelectedId(cat.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${selectedId === cat.id ? "bg-violet-500/10" : "hover:bg-white/[.03]"}`}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${selectedId === cat.id ? "bg-violet-500/10" : "hover:bg-[var(--wh-interactive)]"}`}
                 >
                   <span
                     className={`h-2.5 w-2.5 shrink-0 rounded-full ${cat.is_active ? "bg-emerald-400" : "bg-[#444A5A]"}`}
@@ -207,7 +207,7 @@ export default function ServiceCategoryManager({
                     >
                       {cat.name}
                     </p>
-                    <p className="mt-0.5 text-[8px] text-[#606577]">
+                    <p className="mt-0.5 text-[8px] text-[var(--wh-text-muted)]">
                       {
                         subcategories.filter((s) => s.category_id === cat.id)
                           .length
@@ -215,21 +215,21 @@ export default function ServiceCategoryManager({
                       services
                     </p>
                   </div>
-                  <span className="text-[#555B6B]">›</span>
+                  <span className="text-[var(--wh-text-muted)]">›</span>
                 </button>
               ))}
             </div>
           </section>
-          <section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             {selected && (
               <>
-                <div className="flex flex-col gap-3 border-b border-white/[.05] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-3 border-b border-[var(--wh-border-subtle)] pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2">
                       <Step n="2" />
                       <p className="text-sm font-semibold">{selected.name}</p>
                     </div>
-                    <p className="mt-2 text-[9px] leading-relaxed text-[#666B7D]">
+                    <p className="mt-2 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
                       Add the specific jobs workers can offer inside this group.
                     </p>
                   </div>
@@ -248,7 +248,7 @@ export default function ServiceCategoryManager({
                     </button>
                     <button
                       onClick={() => void toggleCategory(selected)}
-                      className={`rounded-xl px-3 py-2 text-[9px] font-semibold ${selected.is_active ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#8B8F9E]"}`}
+                      className={`rounded-xl px-3 py-2 text-[9px] font-semibold ${selected.is_active ? "bg-emerald-500/10 text-emerald-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
                     >
                       {selected.is_active ? "Visible" : "Hidden"}
                     </button>
@@ -287,7 +287,7 @@ export default function ServiceCategoryManager({
                       if (e.key === "Enter") void addService();
                     }}
                     placeholder={`Add a service inside ${selected.name}`}
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none focus:border-violet-500/40"
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"
                   />
                   <button
                     onClick={() => void addService()}
@@ -299,20 +299,20 @@ export default function ServiceCategoryManager({
                 </div>
                 <div className="mt-4 space-y-2">
                   {services.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/[.08] p-6 text-center text-[10px] text-[#656A7B]">
+                    <div className="rounded-xl border border-dashed border-[var(--wh-border-subtle)] p-6 text-center text-[10px] text-[var(--wh-text-muted)]">
                       No specific services in this group yet.
                     </div>
                   ) : (
                     services.map((service) => (
                       <div key={service.id}>
                         <div
-                          className={`flex items-center gap-3 rounded-xl border border-white/[.05] bg-[#151821] p-3 ${!service.is_active ? "opacity-60" : ""}`}
+                          className={`flex items-center gap-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 ${!service.is_active ? "opacity-60" : ""}`}
                         >
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-medium">
                               {service.name}
                             </p>
-                            <p className="mt-1 text-[8px] text-[#5E6375]">
+                            <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">
                               Shown to workers and customers
                             </p>
                           </div>
@@ -330,7 +330,7 @@ export default function ServiceCategoryManager({
                           </button>
                           <button
                             onClick={() => void toggleService(service)}
-                            className={`rounded-lg px-2.5 py-1.5 text-[8px] font-semibold ${service.is_active ? "bg-emerald-500/10 text-emerald-300" : "bg-white/[.05] text-[#8A8E9E]"}`}
+                            className={`rounded-lg px-2.5 py-1.5 text-[8px] font-semibold ${service.is_active ? "bg-emerald-500/10 text-emerald-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
                           >
                             {service.is_active ? "On" : "Off"}
                           </button>
@@ -383,7 +383,7 @@ export default function ServiceCategoryManager({
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => setDeleteTarget(null)}
-              className="rounded-xl border border-white/[.07] px-3 py-2 text-[9px]"
+              className="rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-[9px]"
             >
               Keep it
             </button>
@@ -419,9 +419,9 @@ function RenameEditor({
         autoFocus
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 min-w-0 flex-1 rounded-lg border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none"
+        className="h-10 min-w-0 flex-1 rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
       />
-      <button onClick={onCancel} className="px-3 text-[9px] text-[#8C91A1]">
+      <button onClick={onCancel} className="px-3 text-[9px] text-[var(--wh-text-secondary)]">
         Cancel
       </button>
       <button
@@ -450,7 +450,7 @@ function Loading() {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] p-8 text-center text-[10px] text-[#666B7C]">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-8 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

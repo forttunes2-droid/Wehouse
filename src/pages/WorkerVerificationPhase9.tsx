@@ -5,6 +5,7 @@ import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklis
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
+import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 
 type Props = {
   profile: Profile;
@@ -142,17 +143,19 @@ export default function WorkerVerificationPhase9({
       phase: "uploading",
     });
     try {
+      const prepared = await prepareEvidenceVideo(file);
+      const compressed = new File([prepared.body], `skill-video.${prepared.extension}`, { type: prepared.contentType });
       const path = await upload(
-        file,
+        compressed,
         "worker-verification-videos",
         "skill-video",
       );
       setVideoPath(path);
       if (preview) URL.revokeObjectURL(preview);
-      setPreview(URL.createObjectURL(file));
+      setPreview(URL.createObjectURL(prepared.body));
       setUploadState({
         name: file.name,
-        size: file.size,
+        size: prepared.body.size,
         kind: "video",
         phase: "complete",
       });
@@ -234,11 +237,11 @@ export default function WorkerVerificationPhase9({
   return (
     <Shell>
 
-      <header className="border-b border-white/[.06] px-4 py-4">
+      <header className="border-b border-[var(--wh-border-subtle)] px-4 py-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button
             onClick={onBack}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-white/[.07]"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--wh-border-subtle)]"
           >
             ←
           </button>
@@ -266,7 +269,7 @@ export default function WorkerVerificationPhase9({
           <h2 className="mt-1 text-sm font-semibold">
             Worker onboarding and review are free
           </h2>
-          <p className="mt-2 text-[10px] leading-5 text-[#8490A3]">
+          <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
             WeHouse never charges you to register, submit work evidence,
             become Reviewed, appear in discovery or receive eligible jobs.
             The paid Worker plan is optional work software and does not
@@ -451,7 +454,7 @@ function formatDate(value: string) {
 }
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-8 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-[var(--wh-text)]">
       {children}
     </div>
   );
@@ -473,13 +476,13 @@ function Card({
   children?: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-white/[.07] bg-[#11151D] p-4">
+    <section className="space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <div>
         <p className="text-[8px] font-bold tracking-[.16em] text-violet-300">
           {eyebrow}
         </p>
         <h2 className="mt-1 text-lg font-bold">{title}</h2>
-        <p className="mt-1 text-[10px] leading-relaxed text-[#747B8B]">
+        <p className="mt-1 text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
           {text}
         </p>
       </div>
@@ -502,7 +505,7 @@ function Button({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`h-12 w-full rounded-xl text-xs font-semibold disabled:opacity-40 ${secondary ? "border border-white/[.08]" : "bg-violet-500"}`}
+      className={`h-12 w-full rounded-xl text-xs font-semibold disabled:opacity-40 ${secondary ? "border border-[var(--wh-border-subtle)]" : "bg-violet-500"}`}
     >
       {label}
     </button>
@@ -529,7 +532,7 @@ function Upload({
   return (
     <button
       onClick={onClick}
-      className={`flex h-12 w-full items-center justify-between rounded-xl border px-4 text-xs ${done ? "border-emerald-500/20 text-emerald-300" : "border-white/[.08] text-[#A2A7B3]"}`}
+      className={`flex h-12 w-full items-center justify-between rounded-xl border px-4 text-xs ${done ? "border-emerald-500/20 text-emerald-300" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}
     >
       <span>{label}</span>
       <span>{done ? "✓" : "+"}</span>
@@ -564,7 +567,7 @@ function UploadActivity({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold">{state.name}</p>
-          <p className="mt-1 text-[9px] text-[#788091]">
+          <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
             {failed
               ? state.message || "Upload failed"
               : uploading
@@ -576,14 +579,14 @@ function UploadActivity({
           <button
             onClick={onDismiss}
             aria-label="Dismiss upload status"
-            className="grid h-8 w-8 place-items-center rounded-full text-[#777E8E]"
+            className="grid h-8 w-8 place-items-center rounded-full text-[var(--wh-text-muted)]"
           >
             ×
           </button>
         )}
       </div>
       {uploading && (
-        <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[.06]">
+        <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--wh-interactive)]">
           <div className="h-full w-2/5 animate-pulse rounded-full bg-violet-400" />
         </div>
       )}
@@ -610,19 +613,19 @@ function Progress({
     ["WeHouse review", review],
   ] as const;
   return (
-    <section className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[.06] bg-[#0F131A] p-3">
+    <section className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3">
       {items.map(([label, done], index) => (
         <div
           key={label}
-          className={`rounded-xl border px-2 py-3 text-center ${done ? "border-emerald-500/15 bg-emerald-500/[.05]" : "border-white/[.05]"}`}
+          className={`rounded-xl border px-2 py-3 text-center ${done ? "border-emerald-500/15 bg-emerald-500/[.05]" : "border-[var(--wh-border-subtle)]"}`}
         >
           <span
-            className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[9px] font-bold ${done ? "bg-emerald-500 text-[#04120A]" : "bg-white/[.05] text-[#656C7B]"}`}
+            className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[9px] font-bold ${done ? "bg-emerald-500 text-[#04120A]" : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]"}`}
           >
             {done ? "✓" : index + 1}
           </span>
           <p
-            className={`mt-2 text-[8px] ${done ? "text-emerald-300" : "text-[#676E7E]"}`}
+            className={`mt-2 text-[8px] ${done ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
           >
             {label}
           </p>

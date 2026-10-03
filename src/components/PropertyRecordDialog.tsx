@@ -11,7 +11,7 @@ export default function PropertyRecordDialog({ onClose, children }: {
   return createPortal(
     <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true"
       aria-label="Property workflow"
-      className="fixed inset-0 z-[100020] bg-[#080A0F] text-white">
+      className="fixed inset-0 z-[100020] bg-[var(--wh-bg)] text-[var(--wh-text)]">
       {children}
     </div>, document.body,
   );

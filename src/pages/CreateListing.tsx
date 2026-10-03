@@ -7,6 +7,7 @@ import LocationSelector from '@/legacy/LocationSelector';
 import { toast } from 'sonner';
 import type { Profile } from '@/types';
 import MediaViewer from '@/components/MediaViewer';
+import { preparePublicVideo } from '@/lib/mediaVideo';
 
 interface CreateListingProps { profile: Profile; onBack: () => void; onSuccess?: () => void }
 type PartnerOption = { user_id: string; username: string | null; full_name: string | null };
@@ -15,7 +16,7 @@ type LocalMedia = { file: File; preview: string };
 const IMAGE_TYPES = new Set(['image/jpeg','image/png','image/webp']);
 const VIDEO_TYPES = new Set(['video/mp4','video/quicktime','video/webm']);
 const MAX_IMAGES = 12;
-const MAX_VIDEOS = 3;
+const MAX_VIDEOS = 7;
 
 async function mapWithConcurrency<T>(items: T[], limit: number, task: (item: T, index: number) => Promise<void>) {
   let nextIndex = 0;
@@ -46,6 +47,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [previewMedia, setPreviewMedia] = useState<{ preview: string; kind: 'image' | 'video' } | null>(null);
   const [images, setImages] = useState<LocalMedia[]>([]);
   const [videos, setVideos] = useState<LocalMedia[]>([]);
+  const [preparingVideos, setPreparingVideos] = useState(false);
   const [partners, setPartners] = useState<PartnerOption[]>([]);
   const [assignedPartnerId, setAssignedPartnerId] = useState('');
   const [form, setForm] = useState({ title:'',description:'',price:'',currency:'NGN',address:'',property_type:'apartment' as 'apartment'|'hotel',sub_type:'long_stay' as 'short_let'|'long_stay',bedrooms:'1',bathrooms:'1',max_guests:'',contact_phone:profile.phone||'',security_deposit_amount:'',amenities:[] as string[] });
@@ -72,21 +74,29 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
     });
   }
 
-  function addVideos(event: React.ChangeEvent<HTMLInputElement>) {
+  async function addVideos(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
+    if (preparingVideos) return;
+    setPreparingVideos(true);
     const accepted: LocalMedia[] = [];
-    for (const file of files) {
-      if (!VIDEO_TYPES.has(file.type)) { toast.error(`${file.name}: use MP4, MOV or WebM`); continue; }
-      if (file.size > 50 * 1024 * 1024) { toast.error(`${file.name}: video must be under 50MB`); continue; }
-      accepted.push({ file, preview: URL.createObjectURL(file) });
-    }
-    setVideos(current => {
-      const remaining = Math.max(0, MAX_VIDEOS - current.length);
-      if (accepted.length > remaining) toast.error(`Maximum ${MAX_VIDEOS} videos`);
-      accepted.slice(remaining).forEach(item => URL.revokeObjectURL(item.preview));
-      return [...current, ...accepted.slice(0, remaining)];
-    });
+    try {
+      for (const file of files.slice(0, Math.max(0, MAX_VIDEOS - videos.length))) {
+        if (!VIDEO_TYPES.has(file.type)) { toast.error(`${file.name}: use MP4, MOV or WebM`); continue; }
+        if (file.size > 50_000_000) { toast.error(`${file.name}: video must be under 50MB`); continue; }
+        try {
+          const prepared = await preparePublicVideo(file);
+          const ready = new File([prepared.body], `${file.name.replace(/\.[^.]+$/, '')}.${prepared.extension}`, { type: prepared.contentType });
+          accepted.push({ file: ready, preview: URL.createObjectURL(ready) });
+        } catch (error) { toast.error(`${file.name}: ${error instanceof Error ? error.message : 'Video could not be prepared'}`); }
+      }
+      if (files.length > MAX_VIDEOS - videos.length) toast.error(`Maximum ${MAX_VIDEOS} videos`);
+      setVideos(current => {
+        const remaining = Math.max(0, MAX_VIDEOS - current.length);
+        accepted.slice(remaining).forEach(item => URL.revokeObjectURL(item.preview));
+        return [...current, ...accepted.slice(0, remaining)];
+      });
+    } finally { setPreparingVideos(false); }
   }
 
   function removeImage(index: number) { setImages(current => { const item=current[index]; if(item)URL.revokeObjectURL(item.preview); return current.filter((_,i)=>i!==index); }); }
@@ -109,6 +119,7 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (preparingVideos) return toast.error('Wait for videos to finish preparing');
     if (!form.title.trim() || Number(form.price) <= 0 || !location.state || !location.city) return toast.error('Title, valid price, State and LGA are required');
     if (form.property_type === 'apartment' && form.sub_type === 'short_let' && (!Number.isInteger(Number(form.max_guests)) || Number(form.max_guests) < 1)) return toast.error('Choose the maximum number of guests for this Short Let');
     if (!images.length) return toast.error('Add at least one clear property image');
@@ -164,17 +175,17 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   }
 
   const amenityOptions=['WiFi','Parking','Security','24/7 Power','Water','Air Conditioning','Furnished','Kitchen'];
-  return <div className="min-h-[100dvh] bg-[#0A0A0F] pb-24 text-white"><header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[.05] bg-[#0A0A0F]/95 px-4 py-4 backdrop-blur"><button onClick={onBack} disabled={saving} className="h-10 w-10 rounded-xl bg-white/[.05] disabled:opacity-40">←</button><div><p className="text-[9px] font-semibold uppercase tracking-[.15em] text-violet-300">WEHOUSE PROPERTY</p><h1 className="text-lg font-bold">Create listing</h1><p className="text-[10px] text-[#73788A]">Media stays on this device until you submit.</p></div></header>
+  return <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)]"><header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur"><button onClick={onBack} disabled={saving} className="h-10 w-10 rounded-xl bg-[var(--wh-interactive)] disabled:opacity-40">←</button><div><p className="text-[9px] font-semibold uppercase tracking-[.15em] text-violet-300">WEHOUSE PROPERTY</p><h1 className="text-lg font-bold">Create listing</h1><p className="text-[10px] text-[var(--wh-text-muted)]">Media stays on this device until you submit.</p></div></header>
   <form onSubmit={submit} className="mx-auto max-w-3xl space-y-5 px-4 py-6">
-   <Section title="Property owner"><label className="mb-2 block text-xs text-[#9A9CAF]">Assign Property Partner (optional)</label><WeHouseChoice aria-label="Property Partner" value={assignedPartnerId} onChange={e=>setAssignedPartnerId(e.target.value)} className="field"><option value="">WeHouse / internal property</option>{partners.map(p=><option key={p.user_id} value={p.user_id}>{p.full_name||p.username||p.user_id}</option>)}</WeHouseChoice></Section>
-   <Section title="Property details"><Field label="Title" value={form.title} set={v=>setForm({...form,title:v})}/><label className="block text-xs text-[#9A9CAF]">Description</label><Textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} className="field min-h-28"/><div className="grid grid-cols-2 gap-3"><WeHouseChoice aria-label="Property type" value={form.property_type} onChange={e=>setForm({...form,property_type:e.target.value as any})} className="field"><option value="apartment">Apartment</option><option value="hotel">Hotel</option></WeHouseChoice>{form.property_type==='apartment'&&<WeHouseChoice aria-label="Stay type" value={form.sub_type} onChange={e=>setForm({...form,sub_type:e.target.value as any})} className="field"><option value="long_stay">Long Let</option><option value="short_let">Short Let</option></WeHouseChoice>}<Field label="Bedrooms" value={form.bedrooms} set={v=>setForm({...form,bedrooms:v})} type="number"/><Field label="Bathrooms" value={form.bathrooms} set={v=>setForm({...form,bathrooms:v})} type="number"/></div></Section>
+   <Section title="Property owner"><label className="mb-2 block text-xs text-[var(--wh-text-secondary)]">Assign Property Partner (optional)</label><WeHouseChoice aria-label="Property Partner" value={assignedPartnerId} onChange={e=>setAssignedPartnerId(e.target.value)} className="field"><option value="">WeHouse / internal property</option>{partners.map(p=><option key={p.user_id} value={p.user_id}>{p.full_name||p.username||p.user_id}</option>)}</WeHouseChoice></Section>
+   <Section title="Property details"><Field label="Title" value={form.title} set={v=>setForm({...form,title:v})}/><label className="block text-xs text-[var(--wh-text-secondary)]">Description</label><Textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} className="field min-h-28"/><div className="grid grid-cols-2 gap-3"><WeHouseChoice aria-label="Property type" value={form.property_type} onChange={e=>setForm({...form,property_type:e.target.value as any})} className="field"><option value="apartment">Apartment</option><option value="hotel">Hotel</option></WeHouseChoice>{form.property_type==='apartment'&&<WeHouseChoice aria-label="Stay type" value={form.sub_type} onChange={e=>setForm({...form,sub_type:e.target.value as any})} className="field"><option value="long_stay">Long Let</option><option value="short_let">Short Let</option></WeHouseChoice>}<Field label="Bedrooms" value={form.bedrooms} set={v=>setForm({...form,bedrooms:v})} type="number"/><Field label="Bathrooms" value={form.bathrooms} set={v=>setForm({...form,bathrooms:v})} type="number"/></div></Section>
    <Section title="Price and location"><Field label="Price (NGN)" value={form.price} set={v=>setForm({...form,price:v})} type="number"/><LocationSelector value={location} onChange={setLocation}/><Field label="Address / area" value={form.address} set={v=>setForm({...form,address:v})}/><Field label="Contact phone" value={form.contact_phone} set={v=>setForm({...form,contact_phone:v})}/>{form.property_type==='apartment'&&form.sub_type==='short_let'&&<><Field label="Maximum guests" value={form.max_guests} set={v=>setForm({...form,max_guests:v})} type="number"/><Field label="Refundable security deposit" value={form.security_deposit_amount} set={v=>setForm({...form,security_deposit_amount:v})} type="number"/></>}</Section>
-   <Section title="Amenities"><div className="flex flex-wrap gap-2">{amenityOptions.map(a=><button type="button" key={a} onClick={()=>setForm({...form,amenities:form.amenities.includes(a)?form.amenities.filter(x=>x!==a):[...form.amenities,a]})} className={`rounded-xl border px-3 py-2 text-xs ${form.amenities.includes(a)?'border-violet-400 bg-violet-500/15 text-violet-200':'border-white/10 text-[#8A8B9C]'}`}>{a}</button>)}</div></Section>
-   <Section title="Media"><div className="grid grid-cols-2 gap-2"><button type="button" onClick={()=>imageInput.current?.click()} className="h-11 rounded-xl border border-white/[.08] bg-white/[.035] text-xs font-semibold">Add images · {images.length}/{MAX_IMAGES}</button><button type="button" onClick={()=>videoInput.current?.click()} className="h-11 rounded-xl border border-white/[.08] bg-white/[.035] text-xs font-semibold">Add videos · {videos.length}/{MAX_VIDEOS}</button></div><input ref={imageInput} hidden multiple type="file" accept="image/jpeg,image/png,image/webp" onChange={addImages}/><input ref={videoInput} hidden multiple type="file" accept="video/mp4,video/quicktime,video/webm" onChange={addVideos}/><div className="grid grid-cols-3 gap-2">{images.map((item,index)=><div key={item.preview} className="relative aspect-square overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'image'})} className="h-full w-full" aria-label={`Preview property photo ${index+1}`}><img src={item.preview} className="h-full w-full object-cover" alt={`Property preview ${index+1}`}/></button><button type="button" onClick={()=>removeImage(index)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property photo ${index+1}`}>×</button></div>)}</div>{videos.length>0&&<div className="grid gap-2 sm:grid-cols-2">{videos.map((item,index)=><div key={item.preview} className="relative aspect-video overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'video'})} className="relative h-full w-full" aria-label={`Preview property video ${index+1}`}><video src={item.preview} muted playsInline className="h-full w-full object-cover"/><span className="absolute inset-0 grid place-items-center text-2xl">▶</span></button><button type="button" onClick={()=>removeVideo(index)} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property video ${index+1}`}>×</button></div>)}</div>}<p className="text-[9px] leading-4 text-[#6D7282]">Up to {MAX_IMAGES} high-resolution photos and {MAX_VIDEOS} videos. Large photos are resized and compressed on submit so listings remain sharp without storing oversized camera files.</p></Section>
-   {uploadProgress != null ? <div className="space-y-2" role="status" aria-live="polite"><div className="h-1.5 overflow-hidden rounded-full bg-white/[.07]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{width:`${uploadProgress}%`}}/></div><p className="text-center text-[9px] text-[#858A99]">Uploading media · {uploadProgress}%</p></div> : null}
-   <button disabled={saving} className="h-12 w-full rounded-2xl bg-violet-500 font-bold text-white disabled:opacity-50">{saving?(uploadProgress != null && uploadProgress < 100 ? `Uploading · ${uploadProgress}%` : 'Saving listing…'):profile.role==='creator'?'Create listing':'Submit for approval'}</button>
+   <Section title="Amenities"><div className="flex flex-wrap gap-2">{amenityOptions.map(a=><button type="button" key={a} onClick={()=>setForm({...form,amenities:form.amenities.includes(a)?form.amenities.filter(x=>x!==a):[...form.amenities,a]})} className={`rounded-xl border px-3 py-2 text-xs ${form.amenities.includes(a)?'border-violet-400 bg-violet-500/15 text-violet-200':'border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>{a}</button>)}</div></Section>
+   <Section title="Media"><div className="grid grid-cols-2 gap-2"><button type="button" onClick={()=>imageInput.current?.click()} className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-xs font-semibold">Add images · {images.length}/{MAX_IMAGES}</button><button type="button" onClick={()=>videoInput.current?.click()} disabled={preparingVideos} className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-xs font-semibold">Add videos · {videos.length}/{MAX_VIDEOS}</button></div><input ref={imageInput} hidden multiple type="file" accept="image/jpeg,image/png,image/webp" onChange={addImages}/><input ref={videoInput} hidden multiple type="file" accept="video/mp4,video/quicktime,video/webm" onChange={event=>{void addVideos(event);}}/><div className="grid grid-cols-3 gap-2">{images.map((item,index)=><div key={item.preview} className="relative aspect-square overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'image'})} className="h-full w-full" aria-label={`Preview property photo ${index+1}`}><img src={item.preview} className="h-full w-full object-cover" alt={`Property preview ${index+1}`}/></button><button type="button" onClick={()=>removeImage(index)} className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property photo ${index+1}`}>×</button></div>)}</div>{videos.length>0&&<div className="grid gap-2 sm:grid-cols-2">{videos.map((item,index)=><div key={item.preview} className="relative aspect-video overflow-hidden rounded-xl bg-black"><button type="button" onClick={()=>setPreviewMedia({preview:item.preview,kind:'video'})} className="relative h-full w-full" aria-label={`Preview property video ${index+1}`}><video src={item.preview} muted playsInline className="h-full w-full object-cover"/><span className="absolute inset-0 grid place-items-center text-2xl">▶</span></button><button type="button" onClick={()=>removeVideo(index)} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-white" aria-label={`Remove property video ${index+1}`}>×</button></div>)}</div>}<p className="text-[11px] leading-5 text-[var(--wh-text-secondary)]">Up to {MAX_IMAGES} photos and {MAX_VIDEOS} short videos. Videos are compressed automatically before upload, with a 13 MB maximum. You can preview a video or remove it.</p></Section>
+   {uploadProgress != null ? <div className="space-y-2" role="status" aria-live="polite"><div className="h-1.5 overflow-hidden rounded-full bg-[var(--wh-interactive)]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{width:`${uploadProgress}%`}}/></div><p className="text-center text-[9px] text-[var(--wh-text-secondary)]">Uploading media · {uploadProgress}%</p></div> : null}
+   <button disabled={saving || preparingVideos} className="h-12 w-full rounded-2xl bg-violet-500 font-bold text-white disabled:opacity-50">{preparingVideos ? 'Preparing videos…' : saving?(uploadProgress != null && uploadProgress < 100 ? `Uploading · ${uploadProgress}%` : 'Saving listing…'):profile.role==='creator'?'Create listing':'Submit for approval'}</button>
   </form>{previewMedia&&<MediaViewer src={previewMedia.preview} kind={previewMedia.kind} title="Listing media preview" onClose={()=>setPreviewMedia(null)}/>}<style>{`.field{width:100%;height:44px;border-radius:12px;background:#15151F;border:1px solid rgba(255,255,255,.08);color:white;padding:0 12px;outline:none}.field:focus{border-color:#8B5CF6}`}</style></div>;
 }
 
-function Section({title,children}:{title:string;children:React.ReactNode}){return <section className="space-y-3 rounded-2xl border border-white/[.06] bg-[#111119] p-4"><h2 className="text-sm font-bold">{title}</h2>{children}</section>}
-function Field({label,value,set,type='text'}:{label:string;value:string;set:(v:string)=>void;type?:string}){return <label className="block"><span className="mb-2 block text-xs text-[#9A9CAF]">{label}</span><Input type={type} value={value} onChange={e=>set(e.target.value)} className="field"/></label>}
+function Section({title,children}:{title:string;children:React.ReactNode}){return <section className="space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4"><h2 className="text-sm font-bold">{title}</h2>{children}</section>}
+function Field({label,value,set,type='text'}:{label:string;value:string;set:(v:string)=>void;type?:string}){return <label className="block"><span className="mb-2 block text-xs text-[var(--wh-text-secondary)]">{label}</span><Input type={type} value={value} onChange={e=>set(e.target.value)} className="field"/></label>}

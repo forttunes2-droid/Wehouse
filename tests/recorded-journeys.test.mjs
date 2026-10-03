@@ -163,3 +163,16 @@ test('Worker discovery stays publicly gated while Creator and Admin can verify e
   assert.match(source,/if not coalesce\(v_marketplace_enabled,false\)[\s\S]*not coalesce\(v_internal_preview,false\) then/);
   assert.doesNotMatch(source,/worker_marketplace_launch_enabled[^\n]*true/i);
 });
+
+test('Roommate workspace does not render booking/shared-payment cards', () => {
+  const source = readFileSync(new URL('../src/pages/Roommate.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /SharedHomeLifecyclePanel/);
+  assert.doesNotMatch(source, /onOpenListing/);
+});
+
+test('Legacy roommate preferences do not surface stale discovery results before practical preferences are confirmed', () => {
+  const source = readFileSync(new URL('../src/pages/Roommate.tsx', import.meta.url), 'utf8');
+  assert.match(source, /practical_preferences_version === 2/);
+  assert.match(source, /nextForm\.preferred_state \|\|= profile\.state/);
+  assert.match(source, /nextForm\.preferred_lga \|\|= profile\.local_government/);
+});

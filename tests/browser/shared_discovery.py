@@ -19,6 +19,7 @@ SCRIPT="""s=>{
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
   if(name==='getReservationForListing')return{reservation:null,error:null};
   if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
+  if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
   if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
@@ -80,7 +81,9 @@ async def main():
     # Explicit load failures never produce an empty tile or endless skeleton.
     await page.locator('img').evaluate_all('(nodes)=>nodes.forEach(node=>node.dispatchEvent(new Event("error")))')
     await page.locator('video').evaluate_all('(nodes)=>nodes.forEach(node=>node.dispatchEvent(new Event("error")))')
-    await expect(page.get_by_text('Photo unavailable',exact=True)).to_have_count(2)
+    # An unsigned URL is still loading; a decoded failure is unavailable.
+    await expect(page.get_by_text('Photo unavailable',exact=True)).to_have_count(1)
+    await expect(page.locator('[data-media-thumbnail]').first).to_have_attribute('data-media-state','loading')
     await expect(page.get_by_text('Preview unavailable · open video',exact=True)).to_be_visible()
     await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}.png'))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')

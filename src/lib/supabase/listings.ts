@@ -1,6 +1,7 @@
 import { supabase, uploadStorageObjectWithProgress } from './client';
 import type { Listing } from '@/types';
 import { compressImageFile } from './utils';
+import { preparePublicVideo } from '@/lib/mediaVideo';
 import { ROLE_RANK } from '@/types';
 
 // Public discovery and detail reads use server-side redaction. Raw listing rows
@@ -145,11 +146,11 @@ export async function uploadListingImage(file: File, listingId: string, onProgre
 export async function uploadListingVideo(file: File, listingId: string, onProgress: (percent: number) => void = () => {}) {
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
-  if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
-  const extension = file.name.split('.').pop() || 'mp4';
-  const path = `listings/${listingId}/${crypto.randomUUID()}.${extension}`;
+  if (file.size > 50_000_000) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   try {
-    await uploadStorageObjectWithProgress('listing-videos', path, file, file.type, onProgress);
+    const prepared = await preparePublicVideo(file);
+    const path = `listings/${listingId}/${crypto.randomUUID()}.${prepared.extension}`;
+    await uploadStorageObjectWithProgress('listing-videos', path, prepared.body, prepared.contentType, onProgress);
     return { url: supabase.storage.from('listing-videos').getPublicUrl(path).data.publicUrl, error: null };
   } catch (error: any) {
     return { url: null, error: { message: error?.message || 'Video upload failed' } };
@@ -206,11 +207,11 @@ export async function uploadListingCandidateImage(file: File, scope: CandidateSc
 export async function uploadListingCandidateVideo(file: File, scope: Extract<CandidateScope, { kind: 'field' }>, onProgress: (percent: number) => void = () => {}) {
   const allowed = ['video/mp4', 'video/quicktime', 'video/webm'];
   if (!allowed.includes(file.type)) return { url: null, error: { message: 'Only MP4, MOV and WebM videos are allowed' } as any };
-  if (file.size > 50 * 1024 * 1024) return { url: null, error: { message: 'Video must be under 50MB' } as any };
-  const extension = file.name.split('.').pop()?.toLowerCase() || 'mp4';
-  const path = candidatePath(scope, extension);
+  if (file.size > 50_000_000) return { url: null, error: { message: 'Video must be under 50MB' } as any };
   try {
-    await uploadStorageObjectWithProgress('listing-candidates', path, file, file.type, onProgress);
+    const prepared = await preparePublicVideo(file);
+    const path = candidatePath(scope, prepared.extension);
+    await uploadStorageObjectWithProgress('listing-candidates', path, prepared.body, prepared.contentType, onProgress);
     return { url: path, error: null };
   } catch (error: any) {
     return { url: null, error: { message: error?.message || 'Video upload failed' } };

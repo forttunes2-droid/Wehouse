@@ -116,24 +116,24 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   return <div className="min-w-0 space-y-4">
     <ConfirmDialog {...dialogProps}/>
     {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga?scope.lga+', '+scope.state:scope.state+' State'}.</div>}
-    <div className="flex gap-6 border-b border-white/[.06]">
-      <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Compose</button>
-      <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-white':'border-transparent text-[#777B8D]'}`}>Sent{!historyLoading&&!historyError?` · ${history.length}`:''}</button>
+    <div className="flex gap-6 border-b border-[var(--wh-border-subtle)]">
+      <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-white':'border-transparent text-[var(--wh-text-muted)]'}`}>Compose</button>
+      <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-white':'border-transparent text-[var(--wh-text-muted)]'}`}>Sent{!historyLoading&&!historyError?` · ${history.length}`:''}</button>
     </div>
 
     {view==='compose'&&canSend&&<section className="overflow-hidden">
-      <div className="border-b border-white/[.05] px-1 pb-4 pt-2">
+      <div className="border-b border-[var(--wh-border-subtle)] px-1 pb-4 pt-2">
         <p className="text-sm font-semibold">New official announcement</p>
       </div>
       <div className="space-y-4 py-4">
-        <label className="block border-b border-white/[.08] py-2"><span className="mb-1 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Title</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="What is this update about?" className="h-11 w-full bg-transparent text-base font-semibold outline-none"/></label>
-        <label className="block border-b border-white/[.08] py-2"><span className="mb-1 block text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Message</span><textarea value={message} onChange={e=>setMessage(e.target.value)} rows={7} placeholder="Write the announcement…" className="w-full resize-none bg-transparent py-2 text-sm leading-6 outline-none"/></label>
+        <label className="block border-b border-[var(--wh-border-subtle)] py-2"><span className="mb-1 block text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">Title</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={120} placeholder="What is this update about?" className="h-11 w-full bg-transparent text-base font-semibold outline-none"/></label>
+        <label className="block border-b border-[var(--wh-border-subtle)] py-2"><span className="mb-1 block text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">Message</span><textarea value={message} onChange={e=>setMessage(e.target.value)} rows={7} placeholder="Write the announcement…" className="w-full resize-none bg-transparent py-2 text-sm leading-6 outline-none"/></label>
 
         <div>
-          <p className="mb-2 text-[9px] font-semibold uppercase tracking-[.1em] text-[#676B7B]">Recipients</p>
+          <p className="mb-2 text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">Recipients</p>
           <div className="grid grid-cols-2 gap-2 sm:w-fit">
-            <button onClick={()=>setMode('roles')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='roles'?'bg-violet-500 text-white':'border border-white/[.06] text-[#8A8D9D]'}`}>By account type</button>
-            <button onClick={()=>setMode('people')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='people'?'bg-violet-500 text-white':'border border-white/[.06] text-[#8A8D9D]'}`}>Specific people</button>
+            <button onClick={()=>setMode('roles')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='roles'?'bg-violet-500 text-white':'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>By account type</button>
+            <button onClick={()=>setMode('people')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='people'?'bg-violet-500 text-white':'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>Specific people</button>
           </div>
         </div>
 
@@ -144,28 +144,28 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
           <RoleChoice label="Property Partners" selected={roles.property_partner} onChange={value=>setRoles(current=>({...current,property_partner:value}))}/>
           <div className="sm:col-span-2 lg:col-span-4 rounded-xl border border-violet-500/10 bg-violet-500/[.04] px-3 py-2 text-[10px] text-violet-300">{counting?'Counting recipients…':`${recipientCount} recipient${recipientCount===1?'':'s'} selected`}</div>
         </div>:<div className="space-y-2">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email, role or location" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#171A23] px-3 text-xs outline-none"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email, role or location" className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"/>
           {peopleError&&<p className="text-xs text-red-300">{peopleError}</p>}
-          <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-white/[.05] p-1">
-            {shownPeople.map((person:any)=>{const checked=selectedPeople.includes(person.user_id);return <button key={person.user_id} onClick={()=>setSelectedPeople(current=>checked?current.filter(id=>id!==person.user_id):[...current,person.user_id])} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-white/[.03]"><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${checked?'border-violet-500 bg-violet-500':'border-white/[.14]'}`}>{checked?'✓':''}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{person.full_name||person.username||person.email}</p><p className="mt-0.5 truncate text-[9px] capitalize text-[#666A7A]">{String(person.role).replace(/_/g,' ')} · {person.local_government||person.city||person.assigned_lga||'Location not set'}</p></div></button>})}
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-[var(--wh-border-subtle)] p-1">
+            {shownPeople.map((person:any)=>{const checked=selectedPeople.includes(person.user_id);return <button key={person.user_id} onClick={()=>setSelectedPeople(current=>checked?current.filter(id=>id!==person.user_id):[...current,person.user_id])} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-[var(--wh-interactive)]"><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${checked?'border-violet-500 bg-violet-500':'border-white/[.14]'}`}>{checked?'✓':''}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{person.full_name||person.username||person.email}</p><p className="mt-0.5 truncate text-[9px] capitalize text-[var(--wh-text-muted)]">{String(person.role).replace(/_/g,' ')} · {person.local_government||person.city||person.assigned_lga||'Location not set'}</p></div></button>})}
           </div>
-          <p className="text-[10px] text-[#686C7D]">{selectedPeople.length} selected</p>
+          <p className="text-[10px] text-[var(--wh-text-muted)]">{selectedPeople.length} selected</p>
         </div>}
 
         <button onClick={()=>void send()} disabled={sending||!title.trim()||!message.trim()} className="min-h-12 w-full rounded-2xl bg-violet-500 px-4 text-sm font-semibold shadow-lg shadow-violet-500/10 disabled:opacity-40">{sending?'Sending…':'Send official announcement'}</button>
       </div>
     </section>}
 
-    {view==='compose'&&!canSend&&<div className="rounded-2xl border border-white/[.06] p-8 text-center text-sm text-[#6D7182]">This role cannot publish announcements.</div>}
+    {view==='compose'&&!canSend&&<div className="rounded-2xl border border-[var(--wh-border-subtle)] p-8 text-center text-sm text-[var(--wh-text-muted)]">This role cannot publish announcements.</div>}
 
     {view==='history'&&<div className="space-y-3">
       {historyError&&<div className="rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-xs text-red-300">{historyError}<button type="button" onClick={()=>void loadHistory()} className="block min-h-11 font-semibold text-violet-300">Try again</button></div>}
-      {historyLoading&&<p role="status" className="py-6 text-xs text-[#9298A6]">Loading sent updates…</p>}
-      {!historyLoading&&!historyError&&!history.length&&<div className="rounded-2xl border border-dashed border-white/[.08] p-10 text-center text-sm text-[#6D7182]">No announcements sent yet.</div>}
+      {historyLoading&&<p role="status" className="py-6 text-xs text-[var(--wh-text-secondary)]">Loading sent updates…</p>}
+      {!historyLoading&&!historyError&&!history.length&&<div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-10 text-center text-sm text-[var(--wh-text-muted)]">No announcements sent yet.</div>}
       {history.map(row=><AnnouncementCard key={row.id} row={row} canDelete={canSend} onDelete={()=>void remove(Number(row.id))}/>) }
     </div>}
   </div>;
 }
 
-function RoleChoice({label,selected,onChange}:{label:string;selected:boolean;onChange:(value:boolean)=>void}){return <button onClick={()=>onChange(!selected)} className={`flex min-h-12 items-center gap-3 rounded-2xl border px-3 text-left text-xs ${selected?'border-violet-500/25 bg-violet-500/[.08] text-violet-100':'border-white/[.06] bg-white/[.02] text-[#B5B8C3]'}`}><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${selected?'border-violet-500 bg-violet-500':'border-white/[.14]'}`}>{selected?'✓':''}</span>{label}</button>}
-function AnnouncementCard({row,canDelete,onDelete}:{row:any;canDelete:boolean;onDelete:()=>void}){const[expanded,setExpanded]=useState(false);const body=String(row.content||'');const long=body.length>260;const audience=[row.target_lga,row.target_state].filter(Boolean).join(', ')||'Platform-wide';return <article className="rounded-2xl border border-white/[.06] bg-[#11131B] p-4 sm:p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 font-bold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold">{row.title||'WeHouse update'}</p><p className="mt-1 text-[9px] text-[#626678]">{new Date(row.created_at).toLocaleString()}</p></div>{canDelete&&<button onClick={onDelete} className="text-[10px] text-red-300">Delete</button>}</div><p className="mt-3 whitespace-pre-wrap text-[11px] leading-6 text-[#D0D2DB]">{expanded||!long?body:body.slice(0,260)+'…'}</p>{long&&<button onClick={()=>setExpanded(value=>!value)} className="mt-2 text-[10px] font-semibold text-violet-300">{expanded?'Show less':'Read more'}</button>}<div className="mt-3 flex flex-wrap gap-2 border-t border-white/[.05] pt-3 text-[9px] text-[#6C7080]"><span>{audience}</span><span>·</span><span>{Number(row.recipient_count||0)} recipients</span><span>·</span><span>{Number(row.read_count||0)} read</span></div></div></div></article>}
+function RoleChoice({label,selected,onChange}:{label:string;selected:boolean;onChange:(value:boolean)=>void}){return <button onClick={()=>onChange(!selected)} className={`flex min-h-12 items-center gap-3 rounded-2xl border px-3 text-left text-xs ${selected?'border-violet-500/25 bg-violet-500/[.08] text-violet-100':'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${selected?'border-violet-500 bg-violet-500':'border-white/[.14]'}`}>{selected?'✓':''}</span>{label}</button>}
+function AnnouncementCard({row,canDelete,onDelete}:{row:any;canDelete:boolean;onDelete:()=>void}){const[expanded,setExpanded]=useState(false);const body=String(row.content||'');const long=body.length>260;const audience=[row.target_lga,row.target_state].filter(Boolean).join(', ')||'Platform-wide';return <article className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 font-bold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold">{row.title||'WeHouse update'}</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{new Date(row.created_at).toLocaleString()}</p></div>{canDelete&&<button onClick={onDelete} className="text-[10px] text-red-300">Delete</button>}</div><p className="mt-3 whitespace-pre-wrap text-[11px] leading-6 text-[#D0D2DB]">{expanded||!long?body:body.slice(0,260)+'…'}</p>{long&&<button onClick={()=>setExpanded(value=>!value)} className="mt-2 text-[10px] font-semibold text-violet-300">{expanded?'Show less':'Read more'}</button>}<div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--wh-border-subtle)] pt-3 text-[9px] text-[var(--wh-text-muted)]"><span>{audience}</span><span>·</span><span>{Number(row.recipient_count||0)} recipients</span><span>·</span><span>{Number(row.read_count||0)} read</span></div></div></div></article>}

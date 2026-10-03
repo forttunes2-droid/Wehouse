@@ -2,7 +2,7 @@
 const w = window as any;
 export const state = w.__profileFixture = {
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
-  wrongAccount: false, delayWorker: '', pending: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
+  wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
 };
 const ok = (data: any) => ({ data, error: null });
 const bad = () => ({ data: null, error: { message: 'Fixture unavailable' } });
@@ -32,13 +32,24 @@ function help() {
 }
 export const supabase:any={
  from:query,
- rpc:async(name:string,args:any={})=>{
+  rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
+  if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true}]);
+  if(name==='creator_get_worker_publication')return ok({enabled:false,launch_approved:false,worker:null});
   if(name==='get_my_workspace_help_targets')return state.failHelp?bad():ok(help());
   if(name==='get_worker_marketplace_trust')return state.failTrust?bad():ok({reviewed:true,trusted:false,completed_jobs:7,rating:4.8,review_count:1});
+  if(name==='get_worker_pro_service_packages')return ok([]);
+  if(name==='get_worker_pro_featured_posts')return ok([]);
   if(name==='get_public_worker_reviews')return state.failReviews?bad():ok([{id:'review-1',rating:5,comment:'Careful work and a tidy finish.',created_at:'2026-09-21T12:00:00Z',reviewer_name:'Ada Example',service_name:'Carpentry'}]);
   if(name==='get_worker_showcase_reactions')return ok([]);
-  if(name==='get_worker_showcase_post_comments')return state.failComments?bad():ok(state.comments.filter(row=>row.post_id===args.p_post_id));
+  if(name==='get_worker_showcase_post_comments_page'){
+    if(state.failComments)return bad();
+    const all=state.comments.filter(row=>row.post_id===args.p_post_id).reverse();
+    const offset=args.p_before_id?all.findIndex(row=>row.id===args.p_before_id)+1:0;
+    const rows=all.slice(offset,offset+(args.p_limit||30));
+    const last=rows.at(-1);
+    return ok({items:rows,total:all.length,has_more:offset+rows.length<all.length,next_cursor:last?{at:last.created_at,id:last.id}:null});
+  }
   if(name==='add_my_worker_showcase_comment'){state.comments.push({id:`comment-${state.comments.length}`,post_id:args.p_post_id,body:args.p_body,user_id:'viewer',created_at:'2026-09-24T12:00:00Z',display_name:'Ada Example',avatar_url:null});return ok(null);}
   if(name==='set_my_worker_showcase_reaction')return ok(args.p_emoji?{'♥':1}:{});
   if(name==='set_my_worker_work_post_hidden'){state.hidden=state.hidden.filter(id=>id!==args.p_post_id);if(args.p_hidden)state.hidden.push(args.p_post_id);return ok(null);}
@@ -46,7 +57,8 @@ export const supabase:any={
   if(name==='create_my_worker_showcase_post')return ok({id:'created-test-post'});
   throw new Error(`Unexpected fixture RPC ${name}`);
  },
- storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});return state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});return state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
+ storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});const result=()=>state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});const result=()=>state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
 };
+export const getWorkers=async()=>{state.calls.push({name:'get_public_workers'});return {workers:[{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',worker_bio:'Furniture fitting and repairs.',worker_skills:['Carpentry'],worker_price:15000,city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,role:'worker'}],error:null};};
 export const compressImageFile=async(file:File)=>file;
 export const uploadStorageObjectWithProgress=async(...args:any[])=>{state.calls.push({name:'upload-media',path:args[1]});args.at(-1)?.(100);};

@@ -3,8 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
-const policy = {};
-vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/chatMediaPolicy.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, {exports:policy,Blob,File,Uint8Array,WeakSet});
+import policy, { videoMedia } from './helpers/chat-media-policy.mjs';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=','base64');
 const file=(bytes,name,type)=>new File([bytes],name,{type});
 const webm=Buffer.concat([Buffer.from([0x1a,0x45,0xdf,0xa3]),Buffer.from('webm')]);
@@ -38,6 +37,13 @@ test('supported video and voice containers pass signature checks; wrong containe
  const ftyp=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom00000000')]);
  for(const [data,name,type] of [[webm,'room.webm','video/webm'],[ftyp,'room.mp4','video/mp4'],[ftyp,'room.mov','video/quicktime']]) await policy.validateChatUpload(file(data,name,type));
  await assert.rejects(policy.validateMessageMedia(new Blob([png]),{type:'audio/webm',name:'voice.webm'}),/not a supported/);
+});
+test('video upload budget grows with duration and stays below the storage cap',()=>{
+ assert.equal(videoMedia.videoTargetBytes(15),2_000_000);
+ assert.equal(videoMedia.videoTargetBytes(30),4_000_000);
+ assert.equal(videoMedia.videoTargetBytes(74),9_866_667);
+ assert.equal(videoMedia.videoTargetBytes(90),12_000_000);
+ assert.equal(videoMedia.videoTargetBytes(180),13_000_000);
 });
 test('all existing upload boundaries enforce policy and only the recorder grants local voice provenance',()=>{
  for(const path of ['src/lib/supabase/chat.ts','src/lib/supabase/worker-bookings.ts','src/lib/supabase/hotel-chat.ts','src/lib/supabase/support.ts']) assert.match(fs.readFileSync(path,'utf8'),/await validateChatUpload\(file/);

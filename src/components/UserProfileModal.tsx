@@ -165,17 +165,17 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
     return <PropertyPipelineWorkspace profile={adminProfile} initialRecordId={operationTarget} onExitRecord={closeOperation} />;
   }
 
-  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100040] flex items-end justify-center bg-[#090B10] text-white sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) back(); }}>
-    <aside role="dialog" aria-modal="true" aria-label="Account profile" className="flex max-h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-white/[.08] bg-[#0D1017] shadow-2xl sm:rounded-3xl">
-        <header className="flex shrink-0 items-center gap-3 border-b border-white/[.08] px-5 py-4">
+  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100040] flex items-end justify-center bg-[var(--wh-bg)] text-[var(--wh-text)] sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) back(); }}>
+    <aside role="dialog" aria-modal="true" aria-label="Account profile" className="flex max-h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] shadow-2xl sm:rounded-3xl">
+        <header className="flex shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-5 py-4">
           <BackButton onClick={back} ariaLabel={section === "overview" ? "Close profile" : "Back to account profile"} />
-          <div className="min-w-0"><h2 className="text-base font-semibold">{titles[section]}</h2>{section !== "overview" && <p className="mt-1 break-words text-sm text-[#A1A7B4]">{user.full_name || user.username || "WeHouse account"}</p>}</div>
+          <div className="min-w-0"><h2 className="text-base font-semibold">{titles[section]}</h2>{section !== "overview" && <p className="mt-1 break-words text-sm text-[var(--wh-text-secondary)]">{user.full_name || user.username || "WeHouse account"}</p>}</div>
         </header>
         <div className="max-h-[calc(94dvh-4.5rem)] overflow-y-auto px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {loading ? <div role="status"><Empty text="Loading account record…" /></div> : !record ? <div role="alert" className="py-8 text-center"><p className="text-sm leading-6 text-[#D8DAE2]">{loadError || "Profile details are unavailable."}</p><button type="button" onClick={() => setReloadKey(value => value + 1)} className="mt-4 min-h-11 rounded-xl border border-violet-500/20 px-4 text-sm font-semibold text-violet-300">Try again</button></div> : section === "overview" ? <div className="space-y-6 py-5">
             <section className="flex items-center gap-4">
               <button type="button" disabled={!user.avatar_url} onClick={() => setAvatarOpen(true)} className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-violet-500/15 text-xl font-bold text-violet-200" aria-label="Preview profile photo">{user.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}</button>
-              <div className="min-w-0 flex-1"><h3 className="break-words text-xl font-semibold">{user.full_name || user.username || "WeHouse account"}</h3>{user.username && <p className="mt-1 break-words text-sm text-[#A1A7B4]">@{user.username}</p>}<div className="mt-2"><Badge tone={status === "Active" ? "good" : "danger"}>{status}</Badge></div></div>
+              <div className="min-w-0 flex-1"><h3 className="break-words text-xl font-semibold">{user.full_name || user.username || "WeHouse account"}</h3>{user.username && <p className="mt-1 break-words text-sm text-[var(--wh-text-secondary)]">@{user.username}</p>}<div className="mt-2"><Badge tone={status === "Active" ? "good" : "danger"}>{status}</Badge></div></div>
             </section>
             <Section title="Account details"><Row label="Email" value={user.email || "Not set"} /><Row label="Phone" value={user.phone || "Not set"} /><Row label="Location" value={[user.local_government || user.city, user.state].filter(Boolean).join(", ") || "Not set"} /><Row label="Joined" value={dateLabel(user.created_at)} /></Section>
             <Section title="Linked records">
@@ -288,30 +288,30 @@ function WeHouseTeam({ rows }: { rows: TeamRecord[] }) {
 }
 
 function ListShell({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
-  return <div className="py-5"><div className="mb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-sm leading-5 text-[#A1A7B4]">{note}</p></div><div className="divide-y divide-white/[.06] border-y border-white/[.06]">{children}</div></div>;
+  return <div className="py-5"><div className="mb-4"><h3 className="text-sm font-bold">{title}</h3><p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">{note}</p></div><div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{children}</div></div>;
 }
 function RecordRow({ title, meta, tail }: { title: string; meta: string; tail: string }) {
-  return <div className="flex min-h-16 items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="break-words text-sm font-semibold">{title}</p><p className="mt-1 break-words text-sm text-[#A1A7B4]">{meta}</p></div><span className="shrink-0 text-sm font-semibold text-violet-300">{tail}</span></div>;
+  return <div className="flex min-h-16 items-center gap-3 py-3"><div className="min-w-0 flex-1"><p className="break-words text-sm font-semibold">{title}</p><p className="mt-1 break-words text-sm text-[var(--wh-text-secondary)]">{meta}</p></div><span className="shrink-0 text-sm font-semibold text-violet-300">{tail}</span></div>;
 }
 function Metric({ label, value, onClick }: { label: string; value: string | number; onClick?: () => void }) {
-  const content = <div className="rounded-2xl border border-white/[.06] bg-white/[.025] p-3"><p className="text-lg font-bold">{value}</p><p className="mt-1 text-sm text-[#A1A7B4]">{label}{onClick ? " ›" : ""}</p></div>;
+  const content = <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3"><p className="text-lg font-bold">{value}</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">{label}{onClick ? " ›" : ""}</p></div>;
   return onClick ? <button type="button" onClick={onClick} className="text-left">{content}</button> : content;
 }
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section><h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[.12em] text-[#8E95A5]">{title}</h3><div className="divide-y divide-white/[.055] border-y border-white/[.055]">{children}</div></section>;
+  return <section><h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--wh-text-secondary)]">{title}</h3><div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{children}</div></section>;
 }
 function Row({ label, value }: { label: string; value: string }) {
-  return <div className="flex min-h-11 items-center justify-between gap-4 py-2.5 text-sm"><span className="text-[#A1A7B4]">{label}</span><span className="max-w-[68%] break-words text-right font-semibold text-[#D8DAE2]">{value}</span></div>;
+  return <div className="flex min-h-11 items-center justify-between gap-4 py-2.5 text-sm"><span className="text-[var(--wh-text-secondary)]">{label}</span><span className="max-w-[68%] break-words text-right font-semibold text-[#D8DAE2]">{value}</span></div>;
 }
 function TextBlock({ children }: { children: React.ReactNode }) {
-  return <p className="py-3 text-sm leading-5 text-[#A2A7B4]">{children}</p>;
+  return <p className="py-3 text-sm leading-5 text-[var(--wh-text-secondary)]">{children}</p>;
 }
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "good" | "danger" }) {
-  const style = tone === "good" ? "bg-emerald-500/10 text-emerald-300" : tone === "danger" ? "bg-rose-500/10 text-rose-300" : "bg-white/[.05] text-[#A5AAB7]";
+  const style = tone === "good" ? "bg-emerald-500/10 text-emerald-300" : tone === "danger" ? "bg-rose-500/10 text-rose-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]";
   return <span className={`rounded-full px-2 py-1 text-sm font-semibold ${style}`}>{children}</span>;
 }
 function Empty({ text }: { text: string }) {
-  return <div className="my-4 border-y border-dashed border-white/[.08] px-3 py-8 text-center text-sm text-[#676E7F]">{text}</div>;
+  return <div className="my-4 border-y border-dashed border-[var(--wh-border-subtle)] px-3 py-8 text-center text-sm text-[var(--wh-text-muted)]">{text}</div>;
 }
 function statusText(value: string) { return String(value || "").replace(/_/g, " "); }
 function dateLabel(value: string) {

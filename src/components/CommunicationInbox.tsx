@@ -129,16 +129,16 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
           <div><h2 className="text-sm font-semibold">Messages</h2></div>
           {chatUnread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{chatUnread > 99 ? "99+" : chatUnread} new</span> : null}
         </div>
-        <label className="flex h-11 items-center gap-3 border-b border-white/[.08] px-1 focus-within:border-violet-500/45">
+        <label className="flex h-11 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-1 focus-within:border-violet-500/45">
           <SearchIcon />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search messages" className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-[#626879]" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search messages" className="min-w-0 flex-1 bg-transparent text-[11px] outline-none placeholder:text-[var(--wh-text-muted)]" />
         </label>
-        {!hostingOnly ? <div className="flex gap-4 border-b border-white/[.06]">{([['all', 'All'], ['hotel', 'Hotel guests'], ['host', 'Home guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[#8B91A0]'}`}>{label}</button>)}</div> : null}
+        {!hostingOnly ? <div className="flex gap-4 border-b border-[var(--wh-border-subtle)]">{([['all', 'All'], ['hotel', 'Hotel guests'], ['host', 'Home guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[var(--wh-text-secondary)]'}`}>{label}</button>)}</div> : null}
         {loadError && <div role="alert" className="py-3 text-xs text-amber-200">Some conversations could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => void loadMessages()}>Try again</button></div>}
-        {loading ? <p role="status" className="py-6 text-sm text-[#A1A1AA]">Loading your conversations…</p> : !items.length && !loadError ? (
-          <div className="border-b border-dashed border-white/[.07] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[#666C7C]">{hostingOnly ? "Guest conversations appear here when you are assigned to a Host-managed booking." : "Guest stay and WeHouse conversations will appear here."}</p></div>
+        {loading ? <p role="status" className="py-6 text-sm text-[var(--wh-text-secondary)]">Loading your conversations…</p> : !items.length && !loadError ? (
+          <div className="border-b border-dashed border-[var(--wh-border-subtle)] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[var(--wh-text-muted)]">{hostingOnly ? "Guest conversations appear here when you are assigned to a Host-managed booking." : "Guest stay and WeHouse conversations will appear here."}</p></div>
         ) : (
-          <div className="divide-y divide-white/[.055] border-b border-white/[.06]">
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-b border-[var(--wh-border-subtle)]">
             {items.map((item) => item.kind === "hotel"
   ? <HotelRow key={item.id} thread={item.thread} onOpen={() => setActiveHotel(item.thread)} />
   : item.kind === "host"
@@ -152,26 +152,26 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
 }
 
 function HotelRow({ thread, onOpen }: { thread: HotelConversation; onOpen: () => void }) {
-  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-white/[.025]">
-    <div aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.08] bg-[#171A22] font-semibold text-violet-200">{(thread.guest_name || 'G')[0].toUpperCase()}</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.guest_name || "Guest"}</p><span className="text-[7px] font-semibold text-amber-200">GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[#777C8D]"}`}>{thread.last_message || "Stay conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[#5F6474]">{stayContext(thread)}</p></div>
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]">
+    <div aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] font-semibold text-violet-200">{(thread.guest_name || 'G')[0].toUpperCase()}</div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.guest_name || "Guest"}</p><span className="text-[7px] font-semibold text-amber-200">GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[var(--wh-text-muted)]"}`}>{thread.last_message || "Stay conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{stayContext(thread)}</p></div>
     {thread.unread_count > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
   </button>;
 }
 
 function HostRow({ thread, onOpen }: { thread: PropertyHostConversation; onOpen: () => void }) {
-  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-white/[.025]">
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]">
     <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-200">{thread.other_person_avatar?<img src={thread.other_person_avatar} alt="" className="h-full w-full object-cover"/>:(thread.other_person_name||"G")[0].toUpperCase()}</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.other_person_name || "Guest"}</p><span className="text-[7px] font-semibold text-violet-300">HOME GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count?"text-white":"text-[#777C8D]"}`}>{thread.last_message || "Booking conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[#5F6474]">{thread.listing_title} · {thread.stay_type==="short_let"?"Short Let":"Long Let"}</p></div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.other_person_name || "Guest"}</p><span className="text-[7px] font-semibold text-violet-300">HOME GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count?"text-white":"text-[var(--wh-text-muted)]"}`}>{thread.last_message || "Booking conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{thread.listing_title} · {thread.stay_type==="short_let"?"Short Let":"Long Let"}</p></div>
     {thread.unread_count>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
   </button>;
 }
 
 function SupportRow({ thread, onOpen }: { thread: SupportThread; onOpen: () => void }) {
   const presentation = conversationPresentation(thread, "customer");
-  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-white/[.025]">
+  return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]">
     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-300">W</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{presentation.title}</p><span className="text-[7px] font-semibold text-violet-300">WEHOUSE</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[#777C8D]"}`}>{thread.last_message || presentation.operator}</p><p className="mt-0.5 truncate text-[8px] text-[#5F6474]">{presentation.meta || "Property and account support"}</p></div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{presentation.title}</p><span className="text-[7px] font-semibold text-violet-300">WEHOUSE</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[var(--wh-text-muted)]"}`}>{thread.last_message || presentation.operator}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{presentation.meta || "Property and account support"}</p></div>
     {thread.unread_count > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
   </button>;
 }
@@ -184,5 +184,5 @@ function formatDate(value?: string | null) {
   if (!value) return ""; const date = new Date(`${value}T12:00:00`); if (Number.isNaN(date.getTime())) return value; return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 function SearchIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[#747A8B]"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[var(--wh-text-muted)]"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
 }

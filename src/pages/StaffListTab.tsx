@@ -166,14 +166,14 @@ export default function StaffListTab({profile}:{profile:Profile}){
       description={creator?'Admins and Operations members. Authority, coverage and capacity are managed here.':'Team members inside '+coverageLabel(ownAuthority?.scope_type,ownAuthority?.state,ownAuthority?.lga)+'.'}
     />
 
-    {!creator&&ownAuthority&&<section className="rounded-2xl border border-white/[.06] bg-[#10131B] p-4">
+    {!creator&&ownAuthority&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[#686E80]">Your authority</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">Your authority</p>
           <p className="mt-1 text-sm font-semibold">{coverageLabel(ownAuthority.scope_type,ownAuthority.state,ownAuthority.lga)}</p>
-          <p className="mt-1 text-[9px] text-[#6D7384]">{ownAuthority.can_manage_staff?'Team management enabled by Creator':'Team management not enabled'}</p>
+          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{ownAuthority.can_manage_staff?'Team management enabled by Creator':'Team management not enabled'}</p>
         </div>
-        <span className="rounded-full border border-white/[.07] px-2.5 py-1 text-[9px] text-violet-300">{ownAuthority.scope_type==='state'?'Whole State':'One LGA'}</span>
+        <span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[9px] text-violet-300">{ownAuthority.scope_type==='state'?'Whole State':'One LGA'}</span>
       </div>
       {ownAuthority.can_manage_staff&&<CapacityStrip authority={ownAuthority}/>}
     </section>}
@@ -184,9 +184,9 @@ export default function StaffListTab({profile}:{profile:Profile}){
       <Metric label="Needs review" value={needsSetup}/>
     </div>
 
-    <section className="rounded-2xl border border-white/[.06] bg-[#0D1017] p-3">
+    <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3">
       <div className="flex gap-2">
-        <input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search team" className="h-11 min-w-0 flex-1 rounded-xl border border-white/[.08] bg-[#151821] px-3 text-xs outline-none"/>
+        <input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search team" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"/>
         {canAdd&&<button onClick={()=>setAddOpen(true)} className="h-11 shrink-0 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold">Add member</button>}
       </div>
       <div className="mt-2 flex gap-2 overflow-x-auto">
@@ -196,19 +196,19 @@ export default function StaffListTab({profile}:{profile:Profile}){
       </div>
     </section>
 
-    {shown.length===0?<Empty text={canAdd?'No team members match this view. Add an existing Personal account when you are ready.':'No team members match this view.'}/>:<div className="overflow-hidden rounded-2xl border border-white/[.06] bg-[#10131B] divide-y divide-white/[.05]">
+    {shown.length===0?<Empty text={canAdd?'No team members match this view. Add an existing Personal account when you are ready.':'No team members match this view.'}/>:<div className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] divide-y divide-[var(--wh-border-subtle)]">
       {shown.map(person=>{
         const op=memberOperation(person);
-        return <button key={person.user_id} onClick={()=>setSelected(person)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[.02]">
+        return <button key={person.user_id} onClick={()=>setSelected(person)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--wh-interactive)]">
           <Avatar person={person}/>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{person.full_name||person.username||'Team member'}</p>
-            <p className="mt-1 truncate text-[9px] text-[#666D7E]">{person.email}</p>
+            <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">{person.email}</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-[9px] text-violet-300">{person.role==='admin'?'Admin':'Operations'}</p>
-            <p className="mt-1 max-w-40 truncate text-[8px] text-[#666D7E]">{person.role==='admin'?(person.can_manage_staff?'Can manage team':'Creator-managed'):op==='conflict'?'Multiple Operations — review':operationLabel(op)}</p>
-            <p className="mt-1 text-[8px] text-[#555C6D]">{coverageLabel(person.scope_type,person.assigned_state,person.assigned_lga)}</p>
+            <p className="mt-1 max-w-40 truncate text-[8px] text-[var(--wh-text-muted)]">{person.role==='admin'?(person.can_manage_staff?'Can manage team':'Creator-managed'):op==='conflict'?'Multiple Operations — review':operationLabel(op)}</p>
+            <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{coverageLabel(person.scope_type,person.assigned_state,person.assigned_lga)}</p>
           </div>
         </button>;
       })}
@@ -233,10 +233,10 @@ export default function StaffListTab({profile}:{profile:Profile}){
 }
 
 function CapacityStrip({authority}:{authority:AdminAuthority}){
-  return <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-white/[.05] pt-3 sm:grid-cols-3">
+  return <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[var(--wh-border-subtle)] pt-3 sm:grid-cols-3">
     {OPERATIONS.map(operation=>{
       const capacity=authority.limits?.[operation.id]||{active:0,max:0};
-      return <div key={operation.id} className="min-w-0"><p className="truncate text-[8px] text-[#666D7E]">{operation.label.replace(' Operations','')}</p><p className="mt-0.5 text-[10px] font-semibold">{capacity.active} / {capacity.max}</p></div>;
+      return <div key={operation.id} className="min-w-0"><p className="truncate text-[8px] text-[var(--wh-text-muted)]">{operation.label.replace(' Operations','')}</p><p className="mt-0.5 text-[10px] font-semibold">{capacity.active} / {capacity.max}</p></div>;
     })}
   </div>;
 }
@@ -324,18 +324,18 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
   return <Sheet onClose={onClose}>
     <div className="flex items-center gap-3">
       <Avatar person={person}/>
-      <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{person.full_name||person.username||'Team member'}</p><p className="truncate text-[9px] text-[#666D7E]">{person.email}</p></div>
-      <button onClick={onClose} className="h-10 w-10 rounded-full border border-white/[.08]">×</button>
+      <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{person.full_name||person.username||'Team member'}</p><p className="truncate text-[9px] text-[var(--wh-text-muted)]">{person.email}</p></div>
+      <button onClick={onClose} className="h-10 w-10 rounded-full border border-[var(--wh-border-subtle)]">×</button>
     </div>
 
-    <section className="mt-5 rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
-      <p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[#666D7E]">Access</p>
-      <div className="mt-2 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{person.role==='admin'?'Admin':'Operations member'}</p><p className="mt-1 text-[9px] text-[#666D7E]">{coverageLabel(person.scope_type,person.assigned_state,person.assigned_lga)}</p></div><span className="text-[9px] text-violet-300">{person.scope_type==='state'?'Whole State':'One LGA'}</span></div>
+    <section className="mt-5 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+      <p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">Access</p>
+      <div className="mt-2 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold">{person.role==='admin'?'Admin':'Operations member'}</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{coverageLabel(person.scope_type,person.assigned_state,person.assigned_lga)}</p></div><span className="text-[9px] text-violet-300">{person.scope_type==='state'?'Whole State':'One LGA'}</span></div>
     </section>
 
-    {person.role==='staff'&&<section className="mt-4 rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
+    {person.role==='staff'&&<section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <p className="text-xs font-semibold">Operation</p>
-      <p className="mt-1 text-[9px] text-[#666D7E]">One person gets one WeHouse Operation. Changing it replaces the previous Operation.</p>
+      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">One person gets one WeHouse Operation. Changing it replaces the previous Operation.</p>
       <div className="mt-3"><WeHouseSelect value={operation} disabled={saving||(!creator&&!adminAuthority?.can_manage_staff)} onChange={setOperation} options={[
         ...(currentOperation==='conflict'?[{value:'conflict',label:'Multiple Operations — choose one'}]:[]),
         ...OPERATIONS.map(item=>({value:item.id,label:item.label,description:item.note})),
@@ -345,18 +345,18 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
 
     {creator&&person.role==='staff'&&<CoverageEditor scopeType={scopeType} setScopeType={setScopeType} state={state} setState={value=>{setState(value);setLga('')}} lga={lga} setLga={setLga} stateData={stateData} saving={saving} onSave={()=>elevate(saveCoverage)}/>}
 
-    {creator&&person.role==='admin'&&<section className="mt-4 rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
+    {creator&&person.role==='admin'&&<section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <p className="text-xs font-semibold">Authority</p>
-      <p className="mt-1 text-[9px] leading-4 text-[#666D7E]">Creator controls this Admin's coverage, whether they can add Operations members, and the maximum team size for each Operation.</p>
+      <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">Creator controls this Admin's coverage, whether they can add Operations members, and the maximum team size for each Operation.</p>
       <div className="mt-4">
         <CoverageFields scopeType={scopeType} setScopeType={setScopeType} state={state} setState={value=>{setState(value);setLga('')}} lga={lga} setLga={setLga} stateData={stateData}/>
       </div>
-      <label className="mt-4 flex min-h-12 items-center justify-between gap-3 border-y border-white/[.06] py-3"><span><strong className="block text-[11px]">Allow team management</strong><span className="mt-1 block text-[9px] text-[#666D7E]">Can add Operations members inside this coverage only.</span></span><input type="checkbox" checked={canManage} onChange={event=>setCanManage(event.target.checked)} className="h-5 w-5 accent-violet-500"/></label>
+      <label className="mt-4 flex min-h-12 items-center justify-between gap-3 border-y border-[var(--wh-border-subtle)] py-3"><span><strong className="block text-[11px]">Allow team management</strong><span className="mt-1 block text-[9px] text-[var(--wh-text-muted)]">Can add Operations members inside this coverage only.</span></span><input type="checkbox" checked={canManage} onChange={event=>setCanManage(event.target.checked)} className="h-5 w-5 accent-violet-500"/></label>
       <div className="mt-4 space-y-3">
-        <div><p className="text-[10px] font-semibold">Operation limits</p><p className="mt-1 text-[8px] text-[#666D7E]">Current / maximum. The server refuses another assignment at the limit.</p></div>
+        <div><p className="text-[10px] font-semibold">Operation limits</p><p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">Current / maximum. The server refuses another assignment at the limit.</p></div>
         {OPERATIONS.map(item=>{
           const active=authority?.limits?.[item.id]?.active||0;
-          return <label key={item.id} className="flex items-center justify-between gap-3"><span className="min-w-0"><strong className="block truncate text-[10px]">{item.label}</strong><span className="text-[8px] text-[#62697A]">{active} active</span></span><input type="number" min={0} max={1000} value={limits[item.id]} onChange={event=>setLimits(current=>({...current,[item.id]:Math.max(0,Number(event.target.value||0))}))} className="h-10 w-20 rounded-xl border border-white/[.08] bg-[#151821] px-2 text-center text-xs outline-none"/></label>;
+          return <label key={item.id} className="flex items-center justify-between gap-3"><span className="min-w-0"><strong className="block truncate text-[10px]">{item.label}</strong><span className="text-[8px] text-[var(--wh-text-muted)]">{active} active</span></span><input type="number" min={0} max={1000} value={limits[item.id]} onChange={event=>setLimits(current=>({...current,[item.id]:Math.max(0,Number(event.target.value||0))}))} className="h-10 w-20 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-center text-xs outline-none"/></label>;
         })}
       </div>
       <button disabled={saving||!state||(scopeType==='branch'&&!lga)} onClick={()=>elevate(saveAuthority)} className="mt-4 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving?'Saving…':'Save Admin authority'}</button>
@@ -369,8 +369,8 @@ function ManageMember({person,creator,adminAuthority,elevate,onClose,onChanged}:
 }
 
 function CoverageEditor({scopeType,setScopeType,state,setState,lga,setLga,stateData,saving,onSave}:{scopeType:ScopeType;setScopeType:(v:ScopeType)=>void;state:string;setState:(v:string)=>void;lga:string;setLga:(v:string)=>void;stateData:{state:string;cities:string[]} | undefined;saving:boolean;onSave:()=>void}){
-  return <section className="mt-4 rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
-    <p className="text-xs font-semibold">Coverage</p><p className="mt-1 text-[9px] text-[#666D7E]">Use State for shared Operations across the state, or One LGA when physical/local responsibility should be narrower.</p>
+  return <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+    <p className="text-xs font-semibold">Coverage</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Use State for shared Operations across the state, or One LGA when physical/local responsibility should be narrower.</p>
     <div className="mt-3"><CoverageFields scopeType={scopeType} setScopeType={setScopeType} state={state} setState={setState} lga={lga} setLga={setLga} stateData={stateData}/></div>
     <button disabled={saving||!state||(scopeType==='branch'&&!lga)} onClick={onSave} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">{saving?'Saving…':'Save coverage'}</button>
   </section>;
@@ -445,13 +445,13 @@ function AddMember({creator,adminAuthority,elevate,onClose,onAdded}:{creator:boo
   }
 
   return <Sheet onClose={onClose}>
-    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Add WeHouse Team member</p><p className="mt-1 text-[9px] text-[#666D7E]">Grant work access to an existing Personal account. Their Personal workspace stays intact.</p></div><button onClick={onClose} className="h-10 w-10 rounded-full border border-white/[.08]">×</button></div>
+    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">Add WeHouse Team member</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Grant work access to an existing Personal account. Their Personal workspace stays intact.</p></div><button onClick={onClose} className="h-10 w-10 rounded-full border border-[var(--wh-border-subtle)]">×</button></div>
     {!selected?<div className="mt-5 space-y-3">
-      <input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search name, username or email" className="h-11 w-full rounded-xl border border-white/[.08] bg-[#151821] px-3 text-xs outline-none"/>
-      {loading?<Loading compact/>:people.length===0?<Empty text="No eligible Personal accounts match this search."/>:<div className="max-h-[60dvh] divide-y divide-white/[.05] overflow-y-auto border-y border-white/[.06]">{people.map(person=><button key={person.user_id} onClick={()=>choose(person)} className="flex min-h-16 w-full items-center gap-3 py-3 text-left"><Avatar person={person}/><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{person.full_name||person.username||'Personal account'}</p><p className="truncate text-[9px] text-[#666D7E]">{person.email}</p><p className="mt-1 text-[8px] text-[#555C6D]">{[person.local_government||person.city,person.state].filter(Boolean).join(', ')||'Location not set'}</p></div><span className="text-[#666D7E]">›</span></button>)}</div>}
+      <input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search name, username or email" className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"/>
+      {loading?<Loading compact/>:people.length===0?<Empty text="No eligible Personal accounts match this search."/>:<div className="max-h-[60dvh] divide-y divide-[var(--wh-border-subtle)] overflow-y-auto border-y border-[var(--wh-border-subtle)]">{people.map(person=><button key={person.user_id} onClick={()=>choose(person)} className="flex min-h-16 w-full items-center gap-3 py-3 text-left"><Avatar person={person}/><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{person.full_name||person.username||'Personal account'}</p><p className="truncate text-[9px] text-[var(--wh-text-muted)]">{person.email}</p><p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{[person.local_government||person.city,person.state].filter(Boolean).join(', ')||'Location not set'}</p></div><span className="text-[var(--wh-text-muted)]">›</span></button>)}</div>}
     </div>:<div className="mt-5 space-y-4">
       <button onClick={()=>setSelected(null)} className="text-[10px] font-semibold text-violet-300">← Choose another person</button>
-      <div className="flex items-center gap-3 rounded-2xl border border-white/[.06] p-3"><Avatar person={selected}/><div className="min-w-0"><p className="truncate text-xs font-semibold">{selected.full_name||selected.username}</p><p className="truncate text-[9px] text-[#666D7E]">{selected.email}</p></div></div>
+      <div className="flex items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] p-3"><Avatar person={selected}/><div className="min-w-0"><p className="truncate text-xs font-semibold">{selected.full_name||selected.username}</p><p className="truncate text-[9px] text-[var(--wh-text-muted)]">{selected.email}</p></div></div>
       {creator&&<WeHouseSelect value={teamRole} onChange={value=>setTeamRole(value as 'admin'|'staff')} options={[{value:'staff',label:'Operations member',description:'One internal Operation with explicit coverage'},{value:'admin',label:'Admin',description:'Administrative workspace. Team management starts off until Creator enables it.'}]} title="Team access" ariaLabel="Choose team access" className="h-11 w-full"/>}
       {(teamRole==='staff'||!creator)&&<WeHouseSelect value={operation} onChange={value=>setOperation(value as OperationId)} options={OPERATIONS.map(item=>({value:item.id,label:item.label,description:item.note}))} title="Operation" ariaLabel="Choose Operation" className="h-11 w-full"/>}
       <CoverageFields scopeType={scopeType} setScopeType={setScopeType} state={state} setState={value=>{setState(value);setLga('')}} lga={lga} setLga={setLga} stateData={stateData} lockedState={adminStateLocked} lockedScope={adminScopeLocked}/>
@@ -468,23 +468,23 @@ function ActivityMini({person}:{person:TeamMember}){
     setRows(Array.isArray(data)?data as ChangeRow[]:[]);
   })()},[person.user_id,person.email]);
   if(!rows.length)return null;
-  return <section className="mt-4 rounded-2xl border border-white/[.06] bg-[#11151D] p-4">
+  return <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
     <p className="text-xs font-semibold">Recent activity</p>
-    <div className="mt-2 divide-y divide-white/[.05]">{rows.slice(0,5).map(row=><div key={row.event_id} className="py-2.5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-medium">{row.action_label} <span className="text-[#9A9EAB]">{row.subject_label}</span></p><span className="shrink-0 text-[8px] text-[#555C6D]">{new Date(row.occurred_at).toLocaleDateString()}</span></div><p className="mt-1 text-[8px] text-[#62697A]">{row.area_label} · {row.actor_name}</p></div>)}</div>
+    <div className="mt-2 divide-y divide-[var(--wh-border-subtle)]">{rows.slice(0,5).map(row=><div key={row.event_id} className="py-2.5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-medium">{row.action_label} <span className="text-[var(--wh-text-secondary)]">{row.subject_label}</span></p><span className="shrink-0 text-[8px] text-[var(--wh-text-muted)]">{new Date(row.occurred_at).toLocaleDateString()}</span></div><p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{row.area_label} · {row.actor_name}</p></div>)}</div>
   </section>;
 }
 
 function Sheet({children,onClose}:{children:React.ReactNode;onClose:()=>void}){
-  return <div className="fixed inset-0 z-[100020] bg-black/75" onClick={onClose}><aside onClick={event=>event.stopPropagation()} className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-3xl border-t border-white/[.08] bg-[#0D1017] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[460px] sm:rounded-none sm:border-l">{children}</aside></div>;
+  return <div className="fixed inset-0 z-[100020] bg-black/75" onClick={onClose}><aside onClick={event=>event.stopPropagation()} className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-y-auto rounded-t-3xl border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[460px] sm:rounded-none sm:border-l">{children}</aside></div>;
 }
 function Picker({label,value,options,onChange,disabled=false}:{label:string;value:string;options:[string,string][];onChange:(value:string)=>void;disabled?:boolean}){
   const[open,setOpen]=useState(false);
-  return <><button disabled={disabled} onClick={()=>setOpen(true)} className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/[.08] bg-[#151821] px-3 text-[10px] disabled:opacity-35"><span className="max-w-28 truncate">{label}</span><span className="text-[#747B8B]">⌄</span></button>{open&&<div className="fixed inset-0 z-[100030] flex items-end bg-black/70 backdrop-blur-sm" onClick={()=>setOpen(false)}><section className="max-h-[76dvh] w-full overflow-hidden rounded-t-[30px] bg-[#11151D] pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={event=>event.stopPropagation()}><div className="mx-auto my-3 h-1 w-10 rounded-full bg-white/15"/><div className="flex items-center justify-between px-5 pb-3"><h3 className="text-base font-bold">Filter team</h3><button onClick={()=>setOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-white/[.05]">×</button></div><div className="max-h-[60dvh] overflow-y-auto px-3">{options.map(([id,text])=><button key={id||'all'} onClick={()=>{onChange(id);setOpen(false)}} className="flex min-h-12 w-full items-center justify-between border-b border-white/[.05] px-3 text-left text-xs"><span>{text}</span>{value===id&&<span className="text-violet-300">✓</span>}</button>)}</div></section></div>}</>;
+  return <><button disabled={disabled} onClick={()=>setOpen(true)} className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-[10px] disabled:opacity-35"><span className="max-w-28 truncate">{label}</span><span className="text-[var(--wh-text-muted)]">⌄</span></button>{open&&<div className="fixed inset-0 z-[100030] flex items-end bg-black/70 backdrop-blur-sm" onClick={()=>setOpen(false)}><section className="max-h-[76dvh] w-full overflow-hidden rounded-t-[30px] bg-[var(--wh-surface)] pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={event=>event.stopPropagation()}><div className="mx-auto my-3 h-1 w-10 rounded-full bg-white/15"/><div className="flex items-center justify-between px-5 pb-3"><h3 className="text-base font-bold">Filter team</h3><button onClick={()=>setOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-[var(--wh-interactive)]">×</button></div><div className="max-h-[60dvh] overflow-y-auto px-3">{options.map(([id,text])=><button key={id||'all'} onClick={()=>{onChange(id);setOpen(false)}} className="flex min-h-12 w-full items-center justify-between border-b border-[var(--wh-border-subtle)] px-3 text-left text-xs"><span>{text}</span>{value===id&&<span className="text-violet-300">✓</span>}</button>)}</div></section></div>}</>;
 }
 function Avatar({person}:{person:{full_name?:string|null;username?:string|null;email?:string|null;avatar_url?:string|null}}){
   const value=person.full_name||person.username||person.email||'W';
   return <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-violet-500/15 text-xs font-bold">{person.avatar_url?<img src={person.avatar_url} alt="" className="h-full w-full object-cover"/>:value[0].toUpperCase()}</div>;
 }
-function Metric({label,value}:{label:string;value:number}){return <div className="rounded-xl border border-white/[.05] bg-[#10131B] p-3"><p className="text-lg font-bold">{value}</p><p className="text-[8px] text-[#62697A]">{label}</p></div>}
-function Empty({text}:{text:string}){return <div className="rounded-2xl border border-dashed border-white/[.08] p-8 text-center text-xs text-[#66697B]">{text}</div>}
+function Metric({label,value}:{label:string;value:number}){return <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3"><p className="text-lg font-bold">{value}</p><p className="text-[8px] text-[var(--wh-text-muted)]">{label}</p></div>}
+function Empty({text}:{text:string}){return <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-8 text-center text-xs text-[var(--wh-text-muted)]">{text}</div>}
 function Loading({compact=false}:{compact?:boolean}){return <div className={'grid '+(compact?'min-h-24':'min-h-52')+' place-items-center'}><div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}

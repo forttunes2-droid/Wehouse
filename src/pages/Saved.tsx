@@ -104,34 +104,34 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
     finally { busyHotelRef.current = null; setBusyHotel(null); }
   }
 
-  return <div className="min-h-screen bg-[#090B10] pb-12 text-white">
-    <header className="sticky top-0 z-30 border-b border-white/[.06] bg-[#090B10]/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+  return <div className="min-h-screen bg-[var(--wh-bg)] pb-12 text-[var(--wh-text)]">
+    <header className="sticky top-0 z-30 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl sm:px-6">
       <div className="mx-auto flex max-w-3xl items-center gap-3">
         <BackButton onClick={onBack} />
-        <div><h1 className="text-xl font-semibold">Saved</h1><p className="mt-1 text-sm text-[#AAA3B3]">Places you want to come back to.</p></div>
+        <div><h1 className="text-xl font-semibold">Saved</h1><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Places you want to come back to.</p></div>
       </div>
     </header>
     <main className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
-      {loading ? <p role="status" className="py-10 text-sm text-[#AAA3B3]">Loading saved places…</p>
+      {loading ? <p role="status" className="py-10 text-sm text-[var(--wh-text-secondary)]">Loading saved places…</p>
         : snapshot.error ? <div role="alert" className="space-y-3 py-8">
           <p className="text-sm leading-6">{snapshot.error}</p>
           <button type="button" onClick={() => setRetry(value => value + 1)} className="min-h-11 rounded-xl border border-violet-400/30 px-4 text-sm text-violet-300">Try again</button>
         </div> : <>
-          {places.length > 0 && <div className="mb-3 border-b border-white/[.06] pb-4">
+          {places.length > 0 && <div className="mb-3 border-b border-[var(--wh-border-subtle)] pb-4">
             <p className="mb-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Saved type</p>
             <div role="group" aria-label="Filter saved places by type" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               {([['all', 'All places'], ...availableTypes.map(type => [type, type === 'hotel' ? 'Hotels' : SAVED_TYPE_LABELS[type]])] as Array<[typeof filter, string]>).map(([type, label]) =>
                 <button key={type} type="button" aria-pressed={filter === type} onClick={() => setFilter(type)} className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-semibold ${filter === type ? 'border-violet-400 bg-violet-500 text-white' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text-secondary)]'}`}>{label}</button>)}
             </div>
           </div>}
-          {visible.length ? <ul className="divide-y divide-white/[.06]">
+          {visible.length ? <ul className="divide-y divide-[var(--wh-border-subtle)]">
             {visible.map(place => <SavedPlaceRow key={place.key} place={place}
               busy={place.type === 'hotel' && busyHotel !== null}
               onOpen={() => onNavigate(place.type === 'hotel' ? 'hotel_detail' : 'detail', place.id)}
               onRemove={() => place.type === 'hotel' ? void removeHotel(Number(place.id)) : onToggleSave(place.id)} />)}
           </ul> : <div className="py-12 text-center">
             <h2 className="text-base font-semibold">{places.length ? 'No saved places of this type' : 'No saved places yet'}</h2>
-            <p className="mt-2 text-sm leading-6 text-[#AAA3B3]">{places.length ? 'Choose All places to see the rest.' : 'Tap the heart on a home or hotel to keep it here.'}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{places.length ? 'Choose All places to see the rest.' : 'Tap the heart on a home or hotel to keep it here.'}</p>
             <button type="button" onClick={() => places.length ? setFilter('all') : onNavigate('search')}
               className="mt-4 min-h-11 rounded-xl border border-violet-400/30 px-4 text-sm text-violet-300">{places.length ? 'Show all places' : 'Explore places'}</button>
           </div>}
@@ -152,14 +152,14 @@ function SavedPlaceRow({ place, busy, onOpen, onRemove }: {
   return <li className="flex items-center gap-2 py-4 sm:gap-4">
     <button type="button" onClick={onOpen} disabled={place.unavailable}
       aria-label={`View ${place.title}`} className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-60 sm:gap-4">
-      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">
+      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">
         {place.image ? <img src={place.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
-          : <span className="grid h-full place-items-center px-2 text-center text-xs text-[#AAA3B3]">No photo</span>}
+          : <span className="grid h-full place-items-center px-2 text-center text-xs text-[var(--wh-text-secondary)]">No photo</span>}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-violet-300">{SAVED_TYPE_LABELS[place.type]}</p>
         <h2 className="mt-1 break-words text-base font-semibold leading-6">{place.title}</h2>
-        {place.location && <p className="mt-1 break-words text-sm leading-5 text-[#AAA3B3]">{place.location}</p>}
+        {place.location && <p className="mt-1 break-words text-sm leading-5 text-[var(--wh-text-secondary)]">{place.location}</p>}
         <p className="mt-1 text-sm leading-5">{place.detail}</p>
       </div>
     </button>

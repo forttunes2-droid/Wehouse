@@ -4,6 +4,8 @@ import { getMySharedHousingGroups, type SharedHousingGroup } from "@/lib/supabas
 import { sharedHousingLane } from "@/lib/sharedHousingPresentation";
 import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
+import StayArrivalInstructions from "@/components/StayArrivalInstructions";
+import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
 import ShortLetPaymentReview from "@/components/ShortLetPaymentReview";
 import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
@@ -24,6 +26,7 @@ import {
 } from "@/lib/supabase/housing-payments";
 import {
   getHotelBookingsForUser,
+  issueMyHotelStayCode,
   initializeHotelBookingPayment,
   updateBookingStatus,
 } from "@/lib/supabase/hotels";
@@ -36,6 +39,7 @@ import {
   getMyBookingConversations,
 } from "@/lib/supabase/worker-bookings";
 import BackButton from "@/components/BackButton";
+import WeHouseChoice from "@/components/WeHouseChoice";
 import { directionsUrl } from "@/hooks/useDiscoveryLocation";
 import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import {
@@ -119,6 +123,19 @@ const STATUS_OPTIONS = [
 ] as const;
 const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
 const date = displayDate;
+function bookingMonth(value: string) {
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit" }).formatToParts(parsed);
+  return `${parts.find(part => part.type === "year")?.value}-${parts.find(part => part.type === "month")?.value}`;
+}
+function bookingSearchText(item: BookingItem) {
+  const row = item.row;
+  return [row.booking_code, row.reservation_code, row.service_type, row.other_person_name,
+    row.listing_title, row.listing?.title, row.hotels?.name, row.hotel?.name, row.hotel_name,
+    row.hotel_rooms?.room_type, row.room_name, row.stay_type, row.product_type]
+    .filter(Boolean).join(" ").toLocaleLowerCase();
+}
 const isUnpaidHousingDraft = (row: any) =>
   ["cancelled", "expired"].includes(String(row.status || "")) &&
   !row.paid_at &&
@@ -155,6 +172,8 @@ export default function MyReservations({
   const [inspections, setInspections] = useState<any[]>([]);
   const [view, setView] = useState<View>("all");
   const [statusView, setStatusView] = useState<StatusView>("all");
+  const [search, setSearch] = useState("");
+  const [month, setMonth] = useState("all");
   const [sourceErrors, setSourceErrors] = useState<BookingSourceErrors>({});
   const [loading, setLoading] = useState(true);
   const [activeHousing, setActiveHousing] = useState<any | null>(null);
@@ -386,13 +405,20 @@ export default function MyReservations({
     [housing, hotels, services, sharedGroups, profile.user_id, view],
   );
 
+  const months = useMemo(() => Array.from(new Set(rows.map(item => bookingMonth(item.date)).filter(Boolean))).sort().reverse(), [rows]);
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return rows.filter(item => (month === "all" || bookingMonth(item.date) === month)
+      && (!query || bookingSearchText(item).includes(query)));
+  }, [rows, month, search]);
+
   const sections = useMemo(() => {
     const groups: Record<BookingGroup, BookingItem[]> = {
       action: [],
       active: [],
       history: [],
     };
-    for (const item of rows as BookingItem[]) {
+    for (const item of visibleRows as BookingItem[]) {
       const group = bookingGroup(item);
       if (statusView === "all" || statusView === group) groups[group].push(item);
     }
@@ -401,7 +427,8 @@ export default function MyReservations({
       { id: "active" as const, label: "Active & upcoming", items: groups.active },
       { id: "history" as const, label: "History", items: groups.history },
     ].filter((section) => section.items.length > 0);
-  }, [rows, statusView]);
+  }, [visibleRows, statusView]);
+  const visibleCount = sections.reduce((count, section) => count + section.items.length, 0);
 
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -418,7 +445,7 @@ export default function MyReservations({
     const { error } = await updateBookingStatus(id, "cancelled");
     setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success("Hotel reservation cancelled");
+    toast.success(row.payment_status === "paid" ? "Stay cancelled. Refund queued for the original payment method." : "Hotel reservation cancelled");
     await load();
   }
 
@@ -820,30 +847,37 @@ export default function MyReservations({
     );
 
   return (
-    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-[var(--wh-text)]">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl sm:px-5 lg:px-8">
-        <div className="mx-auto max-w-5xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 backdrop-blur-xl sm:px-5 lg:px-8">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 py-3">
           <h1 className="text-lg font-bold tracking-tight">Bookings</h1>
-
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <div className="space-y-3 border-b border-white/[.08] pb-4">
-          <div>
-            <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking type</p>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Filter bookings by type">
-              {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold leading-4 transition-colors sm:px-4 ${view === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
-            </div>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold text-[#B8C0CF]">Booking status</p>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Filter bookings by status">
-              {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 rounded-xl border px-2 py-2 text-xs font-semibold leading-4 transition-colors sm:px-4 ${statusView === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-white/[.12] bg-[var(--wh-elevated)] text-[#B8C0CF] hover:border-violet-400/40"}`}>{option.label}</button>)}
-            </div>
-          </div>
+        <p className="mb-1 text-xs font-semibold text-[var(--wh-text-muted)]">Booking type</p>
+        <div className="grid grid-cols-4 gap-1 rounded-2xl bg-[var(--wh-elevated)] p-1" role="group" aria-label="Filter bookings by type">
+          {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 min-w-0 rounded-xl px-1 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${view === option.value ? "bg-violet-500 text-white shadow-sm" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>{option.value === "all" ? "All" : option.label}</button>)}
         </div>
+        <p className="mb-1 mt-4 text-xs font-semibold text-[var(--wh-text-muted)]">Status</p>
+        <div className="grid grid-cols-4 border-b border-[var(--wh-border-subtle)]" role="group" aria-label="Filter bookings by status">
+          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${statusView === option.value ? "border-violet-400 text-[var(--wh-text)]" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
+          <input type="search" aria-label="Search bookings" placeholder="Search place, service or booking code"
+            value={search} onChange={event => setSearch(event.target.value)}
+            className="h-12 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400" />
+          <WeHouseChoice value={month} onChange={event => setMonth(event.target.value)} aria-label="Booking month"
+            className="h-12 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)]">
+            <option value="all">Any month</option>
+            {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
+          </WeHouseChoice>
+        </div>
+        {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
+          {visibleCount} {visibleCount === 1 ? "booking" : "bookings"}
+          {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-violet-300">Clear search and month</button>}
+        </p>}
 
         {Object.keys(sourceErrors).length > 0 ? (
           <div className="mt-3">
@@ -857,7 +891,7 @@ export default function MyReservations({
         {loading ? (
           <Loading />
         ) : sections.length === 0 ? (
-          <Empty view={view} statusView={statusView} />
+          <Empty view={view} statusView={statusView} filtered={Boolean(search || month !== "all")} />
         ) : (
           <div className="mt-3 space-y-4">
             {sections.map((section) => (
@@ -872,11 +906,11 @@ export default function MyReservations({
                   >
                     {section.label}
                   </h2>
-                  <span className="text-xs text-[#555C6D]">
+                  <span className="text-xs text-[var(--wh-text-muted)]">
                     {section.items.length}
                   </span>
                 </div>
-                <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+                <div className="space-y-2">
                   {section.items.map((item) =>
                     item.kind === "housing" ? (
                       <HousingCard
@@ -915,7 +949,7 @@ export default function MyReservations({
       <ConfirmDialog
         isOpen={Boolean(pending)}
         title="Cancel this reservation?"
-        description="This releases the reservation and cannot be undone."
+        description={pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the reservation and cannot be undone."}
         confirmLabel="Cancel reservation"
         variant="danger"
         onCancel={() => setPending(null)}
@@ -988,7 +1022,7 @@ function BookingSourceNotice({
         <p className="text-[10px] font-semibold text-amber-200">
           {labels.join(", ")} {labels.length === 1 ? "needs" : "need"} a refresh
         </p>
-        <p className="mt-1 text-xs text-[#8E8375]">
+        <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
           Any booking already loaded stays visible.
         </p>
       </div>
@@ -1073,7 +1107,7 @@ function ServiceBookingDetail({
       onBack={onBack}
       action={<ReceiptAccess subjectType="service" subjectId={String(row.booking_id)} />}
     >
-      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[var(--wh-surface)]">
+      <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1100,22 +1134,24 @@ function ServiceBookingDetail({
           </div>
 
           {detail.address ? (
-            <div className="border-b border-white/[.05] py-2">
-              <p className="text-[11px] uppercase text-[#5D6272]">Service location</p>
-              <p className="mt-0.5 break-words text-[10px] leading-4 text-[#C5C8D1]">
+            <div className="border-b border-[var(--wh-border-subtle)] py-2">
+              <p className="text-[11px] uppercase text-[var(--wh-text-muted)]">Service location</p>
+              <p className="mt-0.5 break-words text-[10px] leading-4 text-[var(--wh-text-secondary)]">
                 {detail.address}
               </p>
             </div>
           ) : null}
 
-          <section className="mt-4 border-y border-white/[.06] py-3">
-            <p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#686F80]">
+          <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
               Next step
             </p>
-            <p className="mt-1 text-[10px] leading-4 text-[#A3A8B5]">
+            <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-secondary)]">
               {loadingDetail ? "Checking the latest booking state…" : next || "This service booking is complete."}
             </p>
           </section>
+
+          {status === 'approved_released' && detail.worker_id && <WorkerCustomerRecordConsent workerId={String(detail.worker_id)} />}
 
           <button
             type="button"
@@ -1224,7 +1260,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   );
 }
 
-function BookingCard({
+export function BookingCard({
   eyebrow,
   title,
   subtitle,
@@ -1247,41 +1283,40 @@ function BookingCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 py-3 text-left transition-[background,transform] duration-150 active:scale-[.995] active:bg-white/[.025]"
+      aria-label={`Open ${eyebrow} booking for ${title}`}
+      className="w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 sm:p-4"
     >
+      <div className="flex items-start gap-3">
       {image ? (
         <img
           src={image}
           alt=""
           loading="lazy"
           decoding="async"
-          className="h-12 w-14 shrink-0 rounded-xl object-cover"
+          className="h-16 w-16 shrink-0 rounded-xl object-cover"
         />
       ) : (
-        <div className="grid h-12 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-sm font-bold text-violet-300">
+        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xl font-bold text-violet-300">
           {fallback}
         </div>
       )}
       <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
         <p className="break-words text-sm font-semibold leading-5">
           {title}
         </p>
-        <p className="mt-0.5 break-words text-[10px] leading-4 text-[var(--wh-text-muted)]">
+        <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">
           {subtitle}
         </p>
         {meta.length ? (
-          <p className="mt-1 text-[10px] leading-4 text-[#8A909F]">
+          <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">
             {meta.join(" · ")}
           </p>
         ) : null}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="shrink-0 text-[11px] font-bold uppercase tracking-[.12em] text-violet-300">
-            {eyebrow}
-          </span>
-          {next ? <span className="text-xs leading-4 text-[var(--wh-text-muted)]">{next}</span> : null}
-        </div>
       </div>
-      <span className="shrink-0 text-base text-[#4F5666]">›</span>
+      <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-base text-[var(--wh-text-secondary)]">›</span>
+      </div>
+      {next && <div className="mt-3 flex items-start gap-2 border-t border-[var(--wh-border-subtle)] pt-3 text-xs leading-5"><span className="shrink-0 font-semibold text-violet-300">Next</span><span className="min-w-0 text-[var(--wh-text-secondary)]">{next}</span></div>}
     </button>
   );
 }
@@ -1377,7 +1412,7 @@ function PropertyBookingDetail({
       onBack={onBack}
       action={<ReceiptAccess subjectType="housing" subjectId={String(row.id)} />}
     >
-      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[var(--wh-surface)]">
+      <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {row.listing_image ? (
           <img
             src={row.listing_image}
@@ -1413,7 +1448,7 @@ function PropertyBookingDetail({
 
           {recordCode ? (
             <p className="mt-4 text-xs text-[var(--wh-text-muted)]">
-              Move-in code{" "}
+              {short ? "Arrival code" : "Move-in code"}{" "}
               <span className="font-bold tracking-wide text-violet-300">
                 {row.booking_code}
               </span>
@@ -1456,6 +1491,8 @@ function PropertyBookingDetail({
             )}
           </div>
 
+          {journey.rentPaid && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
+
           {row.hold_expires_at &&
           !journey.rentPaid &&
           !["occupied", "completed"].includes(row.status) ? (
@@ -1464,9 +1501,9 @@ function PropertyBookingDetail({
             </p>
           ) : null}
 
-          <section className="mt-4 border-y border-white/[.07] py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-white/[.08] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
-            <p className="mt-2 text-[10px] leading-5 text-[#858B9B]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
+          <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
+            <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
           <ShortLetPaymentReview row={row} />
           <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
@@ -1519,7 +1556,7 @@ function PropertyBookingDetail({
               <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
                 Times are in Nigeria time (WAT). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
               </p>
-              <input aria-label="Move-in time in Nigeria (WAT)" type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-[#151923] px-3 text-xs" />
+              <input aria-label="Move-in time in Nigeria (WAT)" type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs" />
               <button type="button" disabled={busy || !moveInAt} onClick={() => onMoveIn(moveInAt)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Saving move-in time…" : "Send move-in time"}
               </button>
@@ -1534,9 +1571,9 @@ function PropertyBookingDetail({
             <div className="mt-4 flex items-center justify-between gap-3 border-y border-emerald-500/15 py-2.5">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[.14em] text-emerald-300">
-                  Handover code
+                  {short ? "Arrival code" : "Handover code"}
                 </p>
-                <p className="mt-0.5 text-[11px] leading-4 text-[#6F7B72]">
+                <p className="mt-0.5 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
                   Show only to {hostManaged ? "your authorised property host" : "Property Operations"} during verified handover.
                 </p>
               </div>
@@ -1560,7 +1597,7 @@ function PropertyBookingDetail({
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
                 Refundable caution fee
               </p>
-              <p className="mt-2 text-[10px] leading-5 text-[#A6AAB5]">
+              <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
                 The Property Partner has 24 hours after effective checkout to
                 submit an itemized evidence-backed claim. After successful
                 notice, you have 48 hours to accept, counter or dispute. Silence
@@ -1570,7 +1607,7 @@ function PropertyBookingDetail({
           ) : null}
 
           {helpRelevant ? (
-            <button type="button" onClick={onDesk} className="mt-4 min-h-11 w-full border-t border-white/[.08] pt-4 text-xs font-semibold text-violet-300">
+            <button type="button" onClick={onDesk} className="mt-4 min-h-11 w-full border-t border-[var(--wh-border-subtle)] pt-4 text-xs font-semibold text-violet-300">
               Get help from WeHouse
             </button>
           ) : null}
@@ -1653,7 +1690,7 @@ function HotelBookingDetail({
       onBack={onBack}
       action={<ReceiptAccess subjectType="hotel" subjectId={String(row.booking_id)} />}
     >
-      <section className="overflow-hidden rounded-2xl border border-white/[.07] bg-[var(--wh-surface)]">
+      <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {roomImage ? (
           <img
             src={roomImage}
@@ -1679,17 +1716,18 @@ function HotelBookingDetail({
                 </p>
               ) : null}
             </div>
-            <span className="shrink-0 rounded-full bg-white/[.06] px-2 py-1 text-[10px] font-semibold text-[#D8D4E3]">
+            <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]">
               {status}
             </span>
           </div>
 
           {showCode ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-violet-500/[.07] px-3 py-2.5">
-              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Check-in code</p><p className="mt-0.5 text-[10px] text-[#989EAE]">Show only to hotel staff.</p></div>
+              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your reservation ID; arrival and departure use a separate code.</p></div>
               <p className="font-mono text-xs font-bold tracking-wider text-violet-200">{row.booking_code}</p>
             </div>
           ) : null}
+          {showCode ? <HotelPresenceCode bookingId={Number(row.booking_id)} status={journeyStatus as "confirmed" | "checked_in"} /> : null}
 
           {hotelAddress ? (
             <a
@@ -1702,7 +1740,7 @@ function HotelBookingDetail({
             </a>
           ) : null}
 
-          <p className="mt-2 text-[10px] text-[#989EAE]">Times use the hotel’s local time.</p>
+          <p className="mt-2 text-[10px] text-[var(--wh-text-secondary)]">Times use the hotel’s local time.</p>
           <div className="mt-2 grid grid-cols-2 gap-x-3">
             <Info
               label="Check-in"
@@ -1725,9 +1763,16 @@ function HotelBookingDetail({
           </div>
 
           <HotelSpecialRequest request={row.special_requests} />
+          {row.cancellation_snapshot && <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5">
+            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
+            <p className="mt-1 text-[var(--wh-text-secondary)]">These booked terms remain fixed if the hotel later changes its rate. Exceptions can be sent to WeHouse for review.</p>
+          </div>}
+          {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {money(row.refund_amount_ngn)} · {row.refund_status==='completed'?'Completed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status!=='completed'?'The stay is cancelled; the money has not yet been confirmed returned.':''}</p>}
+          {row.status==='confirmed' && row.payment_status==='paid' && row.cancellation_snapshot?.refundable && Date.now()<=new Date(row.cancellation_snapshot.deadline).getTime() && <button type="button" disabled={busy} onClick={onCancel} className="mt-3 min-h-11 w-full rounded-xl border border-red-500/30 px-3 text-xs font-semibold">Cancel stay and request full refund</button>}
+          {row.payment_status === 'paid' && <StayArrivalInstructions kind="hotel" bookingId={String(row.booking_id)} />}
 
-          <div className="mt-4 border-t border-white/[.06] pt-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#989EAE]">
+          <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--wh-text-secondary)]">
               Stay journey
             </p>
             <div className="mt-2 grid grid-cols-4 gap-1">
@@ -1742,7 +1787,7 @@ function HotelBookingDetail({
                     className={`mx-auto grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
                       !stopped && index <= current
                         ? "bg-violet-500 text-white"
-                        : "bg-white/[.05] text-[#686E7E]"
+                        : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]"
                     }`}
                   >
                     {!stopped && index < current ? "✓" : index + 1}
@@ -1751,7 +1796,7 @@ function HotelBookingDetail({
                     className={`mt-1 text-[10px] ${
                       !stopped && index <= current
                         ? "text-violet-300"
-                        : "text-[#626879]"
+                        : "text-[var(--wh-text-muted)]"
                     }`}
                   >
                     {label}
@@ -1760,8 +1805,8 @@ function HotelBookingDetail({
               ))}
             </div>
             <p
-              className={`mt-3 rounded-xl bg-white/[.035] px-3 py-2 text-xs leading-5 ${
-                stopped ? "text-amber-200" : "text-[#A5A9B5]"
+              className={`mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2 text-xs leading-5 ${
+                stopped ? "text-amber-200" : "text-[var(--wh-text-secondary)]"
               }`}
             >
               {next}
@@ -1787,7 +1832,7 @@ function HotelBookingDetail({
           ) ? (
             <>
               <button type="button" disabled={busy} onClick={onPay} className="mt-5 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">
-                {busy ? "Opening payment…" : "Pay securely"}
+                {busy ? "Opening payment…" : "Continue secure payment"}
               </button>
               <button type="button" disabled={busy} onClick={onCancel} className="mt-2 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-40">
                 Cancel reservation
@@ -1802,8 +1847,8 @@ function HotelBookingDetail({
           ) : null}
 
           {helpRelevant ? (
-            <div className="mt-4 border-t border-white/[.08] pt-3">
-              <p className="text-xs leading-5 text-[#B8C0CF]">Need to cancel a paid stay or missed check-in? WeHouse reviews the booking’s rate rule and what happened. A missed arrival does not automatically create a refund.</p>
+            <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
+              <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Need to cancel a paid stay or missed check-in? WeHouse reviews the booking’s rate rule and what happened. A missed arrival does not automatically create a refund.</p>
               <button type="button" onClick={onDesk} className="mt-2 min-h-11 rounded-xl border border-violet-400/25 px-4 text-xs font-semibold text-violet-300">
                 Request cancellation or refund review
               </button>
@@ -1813,6 +1858,28 @@ function HotelBookingDetail({
       </section>
     </BookingDetailShell>
   );
+}
+
+function HotelPresenceCode({ bookingId, status }: { bookingId: number; status: "confirmed" | "checked_in" }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const action = status === "confirmed" ? "checked_in" : "checked_out";
+  useEffect(() => { setCode(""); }, [bookingId, status]);
+  async function issue() {
+    if (busy) return;
+    setBusy(true);
+    const { code: next, error } = await issueMyHotelStayCode(bookingId, action);
+    setBusy(false);
+    if (error || !next) return toast.error(error?.message || "Could not prepare your guest code");
+    setCode(next);
+  }
+  return <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+    <p className="text-xs font-semibold text-violet-200">{status === "confirmed" ? "Arriving at the hotel" : "Leaving the hotel"}</p>
+    <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{status === "confirmed" ? "When you are at reception, show this code to hotel staff so they can verify your arrival." : "When you leave, show a departure code to hotel staff. You may leave before the scheduled checkout time."}</p>
+    {code ? <p role="status" className="mt-3 rounded-lg bg-black/20 px-3 py-3 text-center font-mono text-lg font-semibold tracking-[.25em] text-white">{code}</p> : null}
+    {code ? <p className="mt-1 text-center text-[10px] text-[var(--wh-text-secondary)]">Valid for 10 minutes. Do not send it in chat.</p> : null}
+    <button type="button" disabled={busy} onClick={() => void issue()} className="mt-3 min-h-11 w-full rounded-xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-40">{busy ? "Preparing code…" : code ? "Get a new code" : status === "confirmed" ? "Show arrival code" : "Show departure code"}</button>
+  </div>;
 }
 
 function AccommodationProtectionPanel({
@@ -1843,7 +1910,7 @@ function AccommodationProtectionPanel({
       >
         Payment Protection
       </p>
-      <p className="mt-2 text-[10px] leading-5 text-[#A5AAB6]">
+      <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
         {open
           ? "Arrival issue open. The accommodation payment is frozen for WeHouse review."
           : deadline
@@ -1894,27 +1961,27 @@ function ArrivalIssueDialog({
       aria-modal="true"
       aria-labelledby="arrival-issue-title"
     >
-      <div className="w-full max-w-lg rounded-3xl border border-white/[.09] bg-[var(--wh-surface)] p-5 text-white shadow-2xl">
+      <div className="w-full max-w-lg rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 text-[var(--wh-text)] shadow-2xl">
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
           Formal arrival issue
         </p>
         <h2 id="arrival-issue-title" className="mt-2 text-lg font-bold">
           Report a problem with {label}
         </h2>
-        <p className="mt-2 text-[10px] leading-5 text-[#8E94A3]">
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
           This is different from an ordinary WeHouse message. Confirming
           freezes only this accommodation payment and opens a specialist review
           case.
         </p>
         <label className="mt-4 block">
-          <span className="text-xs text-[#9DA2AF]">What is wrong?</span>
+          <span className="text-xs text-[var(--wh-text-secondary)]">What is wrong?</span>
           <textarea
             autoFocus
             value={reason}
             onChange={(event) => onReason(event.target.value)}
             maxLength={1500}
             rows={5}
-            className="mt-2 w-full resize-none rounded-2xl border border-white/[.09] bg-[#0C0F16] p-3 text-xs outline-none focus:border-amber-500/35"
+            className="mt-2 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-xs outline-none focus:border-amber-500/35"
             placeholder="Describe the room/property, access, safety, or listing mismatch."
           />
         </label>
@@ -1923,7 +1990,7 @@ function ArrivalIssueDialog({
             type="button"
             disabled={busy}
             onClick={onClose}
-            className="min-h-11 rounded-xl border border-white/[.09] text-xs font-semibold disabled:opacity-50"
+            className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-50"
           >
             Not now
           </button>
@@ -1963,8 +2030,8 @@ function BookingDetailShell({
     };
   }, []);
   return (
-    <div className="min-h-[100dvh] bg-[var(--wh-bg)] text-white">
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[var(--wh-bg)]/95 backdrop-blur-xl">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] text-[var(--wh-text)]">
+      <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-14 max-w-2xl items-center gap-2 px-3 sm:px-5">
           <BackButton onClick={onBack} />
           <div className="min-w-0 flex-1">
@@ -1993,9 +2060,9 @@ function hotelPaymentLabel(value: any) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-b border-white/[.05] py-2">
+    <div className="min-w-0 border-b border-[var(--wh-border-subtle)] py-2">
       <p className="text-[10px] uppercase text-[var(--wh-text-muted)]">{label}</p>
-      <p className="mt-0.5 break-words text-xs font-medium leading-5 text-[#E2E4EA]">
+      <p className="mt-0.5 break-words text-xs font-medium leading-5 text-[var(--wh-text)]">
         {value}
       </p>
     </div>
@@ -2010,7 +2077,7 @@ function Loading() {
   );
 }
 
-function Empty({ view, statusView }: { view: View; statusView: StatusView }) {
+function Empty({ view, statusView, filtered = false }: { view: View; statusView: StatusView; filtered?: boolean }) {
   const label =
     view === "housing"
       ? "apartment bookings"
@@ -2020,16 +2087,16 @@ function Empty({ view, statusView }: { view: View; statusView: StatusView }) {
           ? "WeHouse Services bookings"
           : "bookings";
   return (
-    <div className="border-y border-white/[.07] px-5 py-14 text-center">
+    <div className="border-y border-[var(--wh-border-subtle)] px-5 py-14 text-center">
       <p className="text-sm font-semibold">
-        {statusView === "all"
+        {statusView === "all" && !filtered
           ? `No ${label} yet`
           : "No bookings match these filters"}
       </p>
       <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
-        {statusView === "all"
+        {statusView === "all" && !filtered
           ? "New records appear here automatically with their current next step."
-          : "Choose another status or booking type to see more records."}
+          : "Try another month, search, status or booking type."}
       </p>
     </div>
   );

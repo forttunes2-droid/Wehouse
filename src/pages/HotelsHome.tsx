@@ -390,7 +390,7 @@ export default function HotelsHome({ onNavigate }: Props) {
             <p className="text-[11px] font-semibold">
               {loading ? "Loading hotels…" : `${filtered.length} ${filtered.length === 1 ? "hotel" : "hotels"}${hasMore ? ' · more available' : ''}`}
             </p>
-            <p className="mt-1 text-[9px] text-[#666D7E]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               {city ? `${city}, ${state}` : state || "All locations"}
             </p>
           </div>
@@ -494,7 +494,7 @@ export default function HotelsHome({ onNavigate }: Props) {
             onMaxChange={setMaxPrice}
           />
           <div>
-            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">Amenities</p>
+            <p className="mb-2 text-[10px] font-medium text-[var(--wh-text-muted)]">Amenities</p>
             <div className="flex flex-wrap gap-2">
               {HOTEL_AMENITIES.map((item) => (
                 <button
@@ -504,7 +504,7 @@ export default function HotelsHome({ onNavigate }: Props) {
                   className={`min-h-9 rounded-full border px-3.5 py-2 text-[9px] font-semibold leading-tight ${
                     amenities.includes(item)
                       ? "border-violet-500/30 bg-violet-500/14 text-violet-100"
-                      : "border-white/[.07] bg-white/[.025] text-[#858B9A]"
+                      : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"
                   }`}
                 >
                   {item}

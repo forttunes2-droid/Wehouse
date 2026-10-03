@@ -112,19 +112,19 @@ export default function Setup({ profile, onSetupComplete }: Props) {
   }
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-[#09090D] px-4 py-8 text-white sm:px-5">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[var(--wh-bg)] px-4 py-8 text-[var(--wh-text)] sm:px-5">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-6 text-center">
           <p className="text-[9px] font-semibold tracking-[.2em] text-violet-300">WELCOME TO WEHOUSE</p>
           <h1 className="mt-2 text-xl font-bold">{content.title}</h1>
-          <p className="mt-1 text-xs text-[#6D7182]">{content.subtitle}</p>
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{content.subtitle}</p>
         </div>
 
         {error && <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <FieldLabel label="Username">
-            <Input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} className="h-11 rounded-xl border-[#2A2A3A] bg-[#1A1A24] text-sm text-white" placeholder="e.g. johnsmith" autoFocus />
+            <Input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} className="h-11 rounded-xl border-[#2A2A3A] bg-[var(--wh-elevated)] text-sm text-[var(--wh-text)]" placeholder="e.g. johnsmith" autoFocus />
           </FieldLabel>
 
           <SearchableSelect label="State *" value={state} onChange={(next) => { setState(next); setCity(''); }} options={stateOptions} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
@@ -132,12 +132,12 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
           <div>
             <BookingDateField label="Date of birth" value={dateOfBirth} max={adultCutoff()} onChange={setDateOfBirth} context="Profile" />
-            <span className="mt-1.5 block text-xs leading-5 text-[#A1A7B4]">WeHouse is for people aged 18 or older. Your date of birth is private and is used only to confirm eligibility.</span>
+            <span className="mt-1.5 block text-xs leading-5 text-[var(--wh-text-secondary)]">WeHouse is for people aged 18 or older. Your date of birth is private and is used only to confirm eligibility.</span>
           </div>
 
-          <div className="rounded-2xl border border-white/[.06] bg-[#11131B] p-4 text-[10px] leading-relaxed text-[#7D8291]">{content.info}</div>
+          <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">{content.info}</div>
 
-          {legalLoading ? <p role="status" className="text-sm text-[#AAA3B3]">Checking signup requirements…</p>
+          {legalLoading ? <p role="status" className="text-sm text-[var(--wh-text-secondary)]">Checking signup requirements…</p>
             : legalError ? <div role="alert" className="text-sm text-red-200"><p>Signup requirements could not be checked.</p><button type="button" onClick={() => setLegalReload((value) => value + 1)} className="min-h-11 text-violet-300 underline underline-offset-4">Try again</button></div>
             : <LegalReview key={legalDocumentKey(documents)} documents={documents} choices={choices} onChange={setChoices} />}
 
@@ -151,5 +151,5 @@ export default function Setup({ profile, onSetupComplete }: Props) {
   );
 }
 
-function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-medium text-[#8A8B9C]">{label} *</span>{children}</label>; }
+function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-medium text-[var(--wh-text-secondary)]">{label} *</span>{children}</label>; }
 function adultCutoff() { const date = new Date(); date.setFullYear(date.getFullYear() - 18); return date.toISOString().slice(0, 10); }

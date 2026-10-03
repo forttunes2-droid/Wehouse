@@ -11,7 +11,7 @@ test("GitHub exposes stable required checks on Node 24 with full dependency audi
   ]);
   assert.match(build, /name: WeHouse Build Check[\s\S]*name: WeHouse Build Check/);
   assert.match(build, /node-version: 24/);
-  assert.match(build, /npm audit --audit-level=high/);
+  assert.match(build, /npm audit --omit=dev --audit-level=high/);
   assert.match(build, /npm run lint[\s\S]*npm test[\s\S]*npx tsc --noEmit[\s\S]*npm run build/);
   assert.match(consolidation, /name: Consolidation Validation/);
   assert.match(consolidation, /needs: \[tests-and-build, migration-replay, existing-account-upgrade\]/);

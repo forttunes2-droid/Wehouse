@@ -56,6 +56,7 @@ insert into public.workspace_role_assignments(
 ) values
 ('post82-staff','staff','branch','Nasarawa','Lafia','active'),
 ('post82-reviewed-worker','worker','global',null,null,'active'),
+('post82-reviewed-worker','property_partner','global',null,null,'active'),
 ('post82-review-worker','worker','global',null,null,'active');
 
 insert into public.staff_permissions(
@@ -79,6 +80,18 @@ begin
 
   if profile_record#>>'{wehouse_team,0,permission}'<>'operations' then
     raise exception 'Internal Staff profile did not read the current granted permission';
+  end if;
+
+  -- A person can have a Worker and Property Partner workspace on one identity.
+  -- The professional projection must use the text-keyed Worker review table;
+  -- the legacy reviews table has an integer worker_id.
+  profile_record:=public.get_internal_profile_record('post82-reviewed-worker');
+  if jsonb_array_length(coalesce(profile_record->'workspaces','[]'::jsonb))<>2
+     or profile_record->'service_provider' is null then
+    raise exception 'Creator could not open a multi-workspace Worker profile';
+  end if;
+  if profile_record#>>'{service_provider,review_count}'<>'0' then
+    raise exception 'Professional review summary used the wrong review records';
   end if;
 
   summary:=public.creator_get_dashboard_summary();

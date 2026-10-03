@@ -12,7 +12,7 @@ export default function LegalDocumentBody({ body, onReachedEnd }: { body: string
     return () => observer.disconnect();
   }, [body, onReachedEnd]);
 
-  return <article className="min-w-0 space-y-3 break-words text-base leading-7 text-[#C5BFCE] [overflow-wrap:anywhere]">
+  return <article className="min-w-0 space-y-3 break-words text-base leading-7 text-[var(--wh-text-secondary)] [overflow-wrap:anywhere]">
     {body.split('\n').map((line, index) => {
       const text = line.trim();
       if (!text) return null;
@@ -21,6 +21,6 @@ export default function LegalDocumentBody({ body, onReachedEnd }: { body: string
       }
       return <p key={index} className="whitespace-pre-wrap">{line}</p>;
     })}
-    {onReachedEnd && <p ref={end} tabIndex={0} className="pt-4 text-sm text-[#AAA3B3]">End of document</p>}
+    {onReachedEnd && <p ref={end} tabIndex={0} className="pt-4 text-sm text-[var(--wh-text-secondary)]">End of document</p>}
   </article>;
 }

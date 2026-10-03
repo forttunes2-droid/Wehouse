@@ -508,7 +508,7 @@ export default function Search({
               ))}
             </div>
             {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
-              className="mx-auto mt-4 block min-h-11 rounded-xl border border-white/[.09] px-5 text-xs font-semibold text-violet-300 disabled:opacity-50">
+              className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-violet-300 disabled:opacity-50">
               {loadingMore ? "Loading more…" : "Show more apartments"}
             </button>}
           </>
@@ -522,7 +522,7 @@ export default function Search({
           onClear={clearFilters}
           resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
         >
-          <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-white/[.07] bg-[#151922] p-1.5">
+          <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5">
             {(
               [
                 ["all", "All"],
@@ -537,7 +537,7 @@ export default function Search({
                 className={`rounded-xl px-2 py-2.5 text-[10px] font-semibold ${
                   stayType === value
                     ? "bg-violet-500 text-white"
-                    : "text-[#7E8494]"
+                    : "text-[var(--wh-text-secondary)]"
                 }`}
               >
                 {label}
@@ -579,7 +579,7 @@ export default function Search({
           ) : null}
 
           <section>
-            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">Bedrooms</p>
+            <p className="mb-2 text-[10px] font-medium text-[var(--wh-text-muted)]">Bedrooms</p>
             <div className="grid grid-cols-5 gap-2">
               {(
                 [
@@ -598,7 +598,7 @@ export default function Search({
                   className={`h-11 rounded-xl text-[10px] font-semibold ${
                     String(bedrooms) === value
                       ? "bg-violet-500 text-white"
-                      : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"
+                      : "border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"
                   }`}
                 >
                   {label}
@@ -608,7 +608,7 @@ export default function Search({
           </section>
 
           <section>
-            <p className="mb-2 text-[10px] font-medium text-[#7B8190]">Bathrooms</p>
+            <p className="mb-2 text-[10px] font-medium text-[var(--wh-text-muted)]">Bathrooms</p>
             <div className="grid grid-cols-4 gap-2">
               {(
                 [
@@ -626,7 +626,7 @@ export default function Search({
                   className={`h-11 rounded-xl text-[10px] font-semibold ${
                     String(bathrooms) === value
                       ? "bg-violet-500 text-white"
-                      : "border border-white/[.08] bg-[#151922] text-[#8A90A0]"
+                      : "border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"
                   }`}
                 >
                   {label}

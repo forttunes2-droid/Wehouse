@@ -44,6 +44,55 @@
     --wh-text-secondary: #B8C0CF;
     --wh-text-muted: #9AA4B6;
     --wh-border: rgba(255,255,255,0.12);
+    --wh-border-subtle: rgba(255,255,255,0.08);
+    --wh-interactive: rgba(255,255,255,0.045);
+    --wh-skeleton: rgba(255,255,255,0.07);
+    --wh-accent-text: #B9A8FF;
+    --wh-accent-surface: rgba(124,92,255,0.10);
+    --wh-overlay: rgba(0,0,0,0.55);
+  }
+
+  :root[data-wh-theme="light"] {
+    --background: 220 27% 98%;
+    --foreground: 222 25% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 25% 13%;
+    --primary: 258 71% 43%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 95%;
+    --secondary-foreground: 222 25% 13%;
+    --muted: 220 20% 95%;
+    --muted-foreground: 222 12% 37%;
+    --accent: 258 71% 43%;
+    --accent-foreground: 0 0% 100%;
+    --border: 220 18% 84%;
+    --input: 220 18% 84%;
+    --ring: 258 71% 43%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 25% 13%;
+    --sidebar-primary: 258 71% 43%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 95%;
+    --sidebar-accent-foreground: 222 25% 13%;
+    --sidebar-border: 220 18% 84%;
+    --sidebar-ring: 258 71% 43%;
+    --wh-bg: #F7F8FB;
+    --wh-surface: #FFFFFF;
+    --wh-elevated: #EFF1F7;
+    --wh-violet: #6035CE;
+    --wh-violet-glow: rgba(96,53,206,0.10);
+    --wh-text: #202433;
+    --wh-text-secondary: #4D5769;
+    --wh-text-muted: #596376;
+    --wh-border: rgba(38,48,71,0.15);
+    --wh-border-subtle: rgba(38,48,71,0.12);
+    --wh-interactive: rgba(38,48,71,0.045);
+    --wh-skeleton: rgba(38,48,71,0.09);
+    --wh-accent-text: #6035CE;
+    --wh-accent-surface: rgba(96,53,206,0.08);
+    --wh-overlay: rgba(21,24,34,0.45);
   }
 }
 
@@ -74,51 +123,42 @@
 
 /* Never transform a route ancestor: it changes the containing block of fixed
    conversations, sheets and bottom navigation, even for a zero translation. */
-.page-transition { animation: whPageFade 180ms ease-out; }
-.wh-panel-enter { animation: whPageEnter 190ms cubic-bezier(.2,.7,.2,1); }
+.page-transition { animation: whPageFade 100ms ease-out; }
+.wh-panel-enter { animation: whPageEnter 120ms ease-out; }
+.wh-comments-sheet { animation: whCommentsEnter 190ms cubic-bezier(.22,1,.36,1) both; }
+@keyframes whCommentsEnter { from { transform: translateY(20px); opacity: .7; } to { transform: translateY(0); opacity: 1; } }
 @keyframes whPageFade { from { opacity: 0; } to { opacity: 1; } }
 
 @keyframes whPageEnter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: .82; }
+  to { opacity: 1; }
 }
 
-/* Workspace arrival is one transition, not a route fade multiplied by another
-   header/content fade. Navigation is immediately available; content follows by
-   only 30ms. Only heading text moves, never a fixed-position ancestor. */
+/* Workspace arrival keeps navigation available and the content stationary.
+   Never transform an ancestor of a fixed-position sheet or bottom bar. */
 .page-transition.wh-workspace-enter { animation: none; }
 .wh-workspace-enter [data-workspace-frame="v2"] > header {
-  animation: whWorkspaceHeaderIn 180ms ease-out;
+  animation: whWorkspaceHeaderIn 100ms ease-out;
 }
 .wh-workspace-enter [data-workspace-frame="v2"] > header h1 {
-  animation: whWorkspaceTitleIn 200ms cubic-bezier(.2,.75,.2,1);
+  animation: whWorkspaceTitleIn 100ms ease-out;
 }
 .wh-workspace-enter [data-workspace-frame="v2"] > main,
 .wh-workspace-enter > div > main {
-  animation: whWorkspaceContentIn 220ms 30ms cubic-bezier(.2,.75,.2,1) backwards;
+  animation: whWorkspaceContentIn 120ms ease-out;
 }
-@keyframes whWorkspaceHeaderIn { from { opacity: .65; } to { opacity: 1; } }
-@keyframes whWorkspaceTitleIn {
-  from { transform: translateY(4px); }
-  to { transform: none; }
-}
-@keyframes whWorkspaceContentIn { from { opacity: .65; } to { opacity: 1; } }
+@keyframes whWorkspaceHeaderIn { from { opacity: .85; } to { opacity: 1; } }
+@keyframes whWorkspaceTitleIn { from { opacity: .85; } to { opacity: 1; } }
+@keyframes whWorkspaceContentIn { from { opacity: .85; } to { opacity: 1; } }
 
-/* Workspace tab changes keep chrome fixed and move only the new content.
-   The small settle motion gives hierarchy without making the whole app slide. */
+/* Keep tab changes stationary. Scaling the entire workspace makes cards,
+   text and scroll position appear to jump on every tap. */
 .wh-workspace-stage {
-  animation: whWorkspaceStageIn 180ms cubic-bezier(.22,.8,.25,1);
-  transform-origin: 50% 0;
+  animation: whWorkspaceStageIn 100ms ease-out;
 }
 @keyframes whWorkspaceStageIn {
-  from { opacity: .58; transform: translateY(6px) scale(.997); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: .88; }
+  to { opacity: 1; }
 }
 
 /* Mobile overflow behaves like a bottom sheet instead of appearing abruptly. */
@@ -156,6 +196,7 @@
 @keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
+  .wh-comments-sheet { animation: none; }
   .page-transition, .wh-panel-enter, .wh-workspace-stage,
   .wh-more-backdrop, .wh-more-sheet, .wh-bottom-tab-indicator,
   .wh-workspace-enter [data-workspace-frame="v2"] > header,
@@ -227,6 +268,42 @@
   border-radius: 16px;
 }
 
+/* Theme surfaces are shared by Personal, Worker, Partner and Account. */
+.wh-accent-text { color: var(--wh-accent-text); }
+.wh-accent-surface { background: var(--wh-accent-surface); }
+.wh-interactive:hover { background: var(--wh-interactive); }
+.wh-interactive:active { background: var(--wh-accent-surface); }
+.wh-skeleton { background: var(--wh-skeleton); animation: whSkeletonBreathe 1.5s ease-in-out infinite alternate; }
+@keyframes whSkeletonBreathe { to { opacity: .56; } }
+
+/* Existing accent utilities keep contrast when a workspace changes to light.
+   Solid primary buttons retain white labels; tinted labels become dark violet. */
+:root[data-wh-theme="light"] .text-violet-200,
+:root[data-wh-theme="light"] .text-violet-300,
+:root[data-wh-theme="light"] .text-violet-400 { color: var(--wh-accent-text); }
+:root[data-wh-theme="light"] .bg-violet-500,
+:root[data-wh-theme="light"] .bg-violet-600 { background-color: var(--wh-violet); }
+:root[data-wh-theme="light"] .bg-violet-500.text-white,
+:root[data-wh-theme="light"] .bg-violet-600.text-white,
+:root[data-wh-theme="light"] .bg-violet-500 .text-white,
+:root[data-wh-theme="light"] .bg-violet-600 .text-white { color: #fff; }
+:root[data-wh-theme="light"] .text-emerald-300 { color: #087443; }
+:root[data-wh-theme="light"] .text-amber-200,
+:root[data-wh-theme="light"] .text-amber-300 { color: #875300; }
+:root[data-wh-theme="light"] .text-red-300 { color: #af2d43; }
+.wh-media-immersive {
+  --wh-bg: #090B10;
+  --wh-surface: #11141C;
+  --wh-elevated: #171B24;
+  --wh-text: #F4F5F8;
+  --wh-text-secondary: #B8C0CF;
+  --wh-text-muted: #9AA4B6;
+  --wh-border: rgba(255,255,255,0.12);
+  --wh-border-subtle: rgba(255,255,255,0.08);
+  --wh-interactive: rgba(255,255,255,0.045);
+  color-scheme: dark;
+}
+
 /* Glow effects — violet accent */
 .glow-violet {
   box-shadow: 0 0 20px rgba(124, 92, 255, 0.15);
@@ -257,9 +334,13 @@
 }
 
 .shimmer {
-  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%);
+  background: linear-gradient(90deg, var(--wh-interactive) 25%, var(--wh-skeleton) 50%, var(--wh-interactive) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wh-skeleton, .shimmer, .orb, .card-hover, .btn-press { animation: none !important; transition: none !important; transform: none !important; }
 }
 
 /* Input focus ring — violet */
@@ -351,26 +432,26 @@ label:has(> div > select[aria-label="Service category"]),
 label:has(> div > select[aria-label="Specific service"]),
 label:has(> div > select[aria-label="State"]),
 label:has(> div > select[aria-label="Local Government"]) {
-  border: 1px solid rgba(255,255,255,.065);
+  border: 1px solid var(--wh-border-subtle);
   border-radius: 18px;
   padding: 10px 12px 12px;
-  background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 8px 22px rgba(0,0,0,.12);
+  background: var(--wh-surface);
+  box-shadow: 0 8px 22px rgba(0,0,0,.08);
   transition: border-color .18s ease, background .18s ease, transform .18s ease;
 }
 label:has(> div > select[aria-label="Service category"]:focus),
 label:has(> div > select[aria-label="Specific service"]:focus),
 label:has(> div > select[aria-label="State"]:focus),
 label:has(> div > select[aria-label="Local Government"]:focus) {
-  border-color: rgba(59,130,246,.34);
-  background: linear-gradient(145deg, rgba(59,130,246,.07), rgba(255,255,255,.014));
+  border-color: var(--wh-violet);
+  background: var(--wh-accent-surface);
 }
 label:has(> div > select[aria-label="Service category"]) > span,
 label:has(> div > select[aria-label="Specific service"]) > span,
 label:has(> div > select[aria-label="State"]) > span,
 label:has(> div > select[aria-label="Local Government"]) > span {
   margin-left: 2px;
-  color: #74798a !important;
+  color: var(--wh-text-muted) !important;
   letter-spacing: .12em !important;
 }
 label:has(> div > select[aria-label="Service category"]) select,
@@ -380,7 +461,8 @@ label:has(> div > select[aria-label="Local Government"]) select {
   min-height: 44px !important;
   border: 0 !important;
   border-radius: 13px !important;
-  background: rgba(8,10,16,.58) !important;
+  background: var(--wh-elevated) !important;
+  color: var(--wh-text) !important;
   box-shadow: none !important;
 }
 @media (hover:hover) {
@@ -388,7 +470,7 @@ label:has(> div > select[aria-label="Local Government"]) select {
   label:has(> div > select[aria-label="Specific service"]):hover,
   label:has(> div > select[aria-label="State"]):hover,
   label:has(> div > select[aria-label="Local Government"]):hover {
-    border-color: rgba(255,255,255,.11);
+    border-color: var(--wh-border);
     transform: translateY(-1px);
   }
 }
@@ -436,7 +518,7 @@ label:has(> div > select[aria-label="Local Government"]) select {
   font-size: 10px !important;
 }
 .leaflet-tooltip::before { display: none; }
-input[type="date"], input[type="datetime-local"] { color-scheme: dark; }
+input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .shimmer, .orb { animation: none !important; }

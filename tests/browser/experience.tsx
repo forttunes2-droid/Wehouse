@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
 import App from '../../src/App';
 import CommunicationsWorkspace from '../../src/components/CommunicationsWorkspace';
-import MyReservations from '../../src/pages/MyReservations';
+import MyReservations, { BookingCard } from '../../src/pages/MyReservations';
+import Chat from '../../src/pages/Chat';
 import WeHouseChoice from '../../src/components/WeHouseChoice';
 import { fixtureProfile } from './authFixture';
 import '../../src/index.css';
@@ -12,6 +13,8 @@ import '../../src/worker-discovery-responsive.css';
 import '../../src/chat-mobile.css';
 const messages = new URLSearchParams(window.location.search).get('fixture') === 'messages';
 const bookings = new URLSearchParams(window.location.search).get('fixture') === 'bookings';
+const bookingCards = new URLSearchParams(window.location.search).get('fixture') === 'booking-cards';
+const inboxActivity = new URLSearchParams(window.location.search).get('fixture') === 'inbox-activity';
 const choices = new URLSearchParams(window.location.search).get('fixture') === 'choices';
 function ChoiceFixture() {
   const [city, setCity] = useState('Lafia');
@@ -29,7 +32,15 @@ function ChoiceFixture() {
     <p role="status" className="mt-4">{city} · {days} days</p>
   </main>;
 }
+function BookingCardsFixture() {
+  const open = (kind: string) => { (window as any).__bookingCardOpen = kind; };
+  return <main className="min-h-screen bg-[#090B10] p-4 text-white"><h1 className="mb-4 text-lg font-bold">Bookings</h1><div className="mx-auto max-w-2xl space-y-2">
+    <BookingCard eyebrow="Short Let" title="Palm Court Apartment" subtitle="Lafia, Nasarawa" image="/hero-interior.jpg" fallback="⌂" meta={["2 Oct → 4 Oct", "1 guest"]} next="Finish your stay payment" onOpen={() => open('home')} />
+    <BookingCard eyebrow="Hotel" title="Garden Lodge" subtitle="Deluxe room" image={null} fallback="H" meta={["5 Oct – 7 Oct"]} next="Check-in 5 Oct from 2:00 PM" onOpen={() => open('hotel')} />
+    <BookingCard eyebrow="WeHouse Service" title="Electrical repair" subtitle="Professional confirmed" image={null} fallback="⌁" meta={["₦18,000"]} next="Agree the work, date and price" onOpen={() => open('service')} />
+  </div></main>;
+}
 createRoot(document.getElementById('root')!).render(<StrictMode>
-  {messages ? <main className="min-h-screen bg-[#0A0A0F] p-4 text-white"><h1 className="mb-8">Inbox</h1><CommunicationsWorkspace profile={fixtureProfile} scope="all" forcedView="inbox" hideViewTabs queue="all" onOpenContext={() => {}} /></main> : bookings ? <MyReservations profile={fixtureProfile} /> : choices ? <ChoiceFixture /> : <App />}
+  {messages ? <main className="min-h-screen bg-[#0A0A0F] p-4 text-white"><h1 className="mb-8">Inbox</h1><CommunicationsWorkspace profile={fixtureProfile} scope="all" forcedView="inbox" hideViewTabs queue="all" onOpenContext={() => {}} /></main> : bookings ? <MyReservations profile={fixtureProfile} /> : bookingCards ? <BookingCardsFixture /> : inboxActivity ? <Chat profile={fixtureProfile} onNavigate={() => {}} /> : choices ? <ChoiceFixture /> : <App />}
   <Toaster />
 </StrictMode>);

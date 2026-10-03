@@ -26,8 +26,8 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-[#090B10] pb-24 text-white">
-      <div className="sticky top-0 z-30 bg-[#090B10]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)]">
+      <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
         <ActivityHeader onBack={() => onNavigate('conversation')} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
       </div>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">

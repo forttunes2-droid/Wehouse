@@ -38,9 +38,14 @@ export function buildReceiptPdf(r: PaymentReceipt) {
       write(value || "—", 10);
       y += 3;
     };
+    doc.setFillColor("#6841C1"); doc.rect(0, 0, PAGE_WIDTH, 1.5, "F");
     doc.addImage(receiptMark, "PNG", MARGIN, 8, 13, 13);
     doc.setFontSize(16); doc.setTextColor("#5E39A8"); doc.text("WeHouse", MARGIN + 17, 15);
     doc.setFontSize(8); doc.setTextColor("#77717D"); doc.text("PAYMENT RECEIPT", MARGIN + 17, 21);
+    doc.setFillColor(r.status.includes("refund") ? "#FFF3E2" : "#E8F7EF");
+    doc.roundedRect(64, 9, 18, 8, 3, 3, "F");
+    doc.setFontSize(7); doc.setTextColor(r.status.includes("refund") ? "#825000" : "#126341");
+    doc.text(r.status.includes("refund") ? "REFUND" : "PAID", 73, 14.2, { align: "center" });
     rule();
     write("Amount paid", 9, "#77717D");
     y += 6;
@@ -62,6 +67,9 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     if (r.nights) field("Stay", `${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`);
     if (r.stay_amount != null) field("Stay price", money(r.stay_amount));
     if (Number(r.deposit_amount) > 0) field("Refundable caution", money(Number(r.deposit_amount)));
+    if (r.cancellation_snapshot) field("Booked cancellation terms", r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline
+      ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})`
+      : "Non-refundable for ordinary cancellation");
     field("Payment provider", "Paystack");
     field("Payment reference", r.reference);
     y += 1;
@@ -72,7 +80,7 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     return y + 5;
   };
   const height = Math.max(80, Math.ceil(draw(makeDocument(500))));
-  const doc = makeDocument(height);
+    const doc = makeDocument(height);
   draw(doc);
   return doc;
 }

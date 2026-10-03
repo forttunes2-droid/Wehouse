@@ -149,7 +149,7 @@ async def main():
      await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
      assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
-     allowed={'search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary'}
+     allowed={'search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary','get_sponsored_discovery'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
      await page.get_by_role('button',name='Save hotel',exact=True).click()
      assert await page.evaluate('window.__guestSignIn') is True
@@ -177,6 +177,7 @@ async def main():
      await expect(page.get_by_text('Partner guest update',exact=True)).to_be_visible()
      await expect(page.get_by_text('Personal saved search must stay Personal',exact=True)).to_have_count(0)
      await page.get_by_role('button',name=re.compile('Partner guest update')).click()
+     await page.wait_for_function('window.__activityDestination?.page === "hotel_booking"')
      assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
      assert not scenario.errors,scenario.errors
      results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','Encrypted thread gate and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
@@ -202,11 +203,26 @@ async def main():
      await cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y-shift}]})
     await cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
+    before_open=await page.evaluate('scrollY')
+    await field.tap()
+    await expect(page.get_by_role('dialog',name='Choose Check-in')).to_be_visible()
+    assert abs(await page.evaluate('scrollY')-before_open)<2, 'Opening calendar changed the page scroll position'
+    await page.get_by_role('button',name='Close calendar').tap()
+    await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
+    field=page.get_by_role('button',name='Check-in',exact=True)
+    await field.scroll_into_view_if_needed()
+    bounds=await field.bounding_box();assert bounds
+    x=bounds['x']+bounds['width']/2;y=bounds['y']+bounds['height']/2
+    await cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
+    for shift in [15,35,60,90]:
+     await cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y-shift}]})
+    await cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+    await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
     await field.tap()
     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_be_visible()
     await page.get_by_role('button',name='Close calendar').tap()
     assert not scenario.errors,scenario.errors
-    results.append({'case':'Touch scroll over hotel date stays closed; tap opens','passed':True})
+    results.append({'case':'Touch scroll over hotel and Short Let dates stays closed; taps open without page jump','passed':True})
    finally:
     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
    scenario=Scenario(); context,page=await scenario.open(browser,'hotel-chat',390)

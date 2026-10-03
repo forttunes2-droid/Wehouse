@@ -11,7 +11,7 @@ function visit(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true}))
 const provided=new Set(['supabase','signInWithIdentifier','signInWithGoogle','signUpWithEmail','getProfileByAuthId','deactivateUserSession']);
 const root=`
 const state=()=>window.__authTest;
-export const supabase={auth:{getUser:async()=>({data:{user:null}}),getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({error:null})},rpc:async(name)=>{if(name==='search_discoverable_homes')return{data:{items:[],has_more:false},error:null};if(name==='get_all_settings_v2')return{data:[],error:null};throw new Error('Unexpected public Auth fixture RPC '+name)}};
+export const supabase={auth:{getUser:async()=>({data:{user:null}}),getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({error:null})},rpc:async(name)=>{if(name==='search_discoverable_homes')return{data:{items:[],has_more:false},error:null};if(name==='get_all_settings_v2')return{data:[],error:null};if(name==='get_sponsored_discovery')return{data:[],error:null};throw new Error('Unexpected public Auth fixture RPC '+name)}};
 function pending(name,args){const s=state();s.calls.push({name,args});return new Promise(resolve=>s.resolve=resolve);}
 export const signInWithIdentifier=(...args)=>pending('password',args);
 export const signInWithGoogle=(...args)=>pending('google',args);

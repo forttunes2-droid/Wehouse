@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import BackButton from '@/components/BackButton';
 import { WorkspaceHeadingContext } from '@/lib/workspaceHeading';
 
@@ -41,6 +41,9 @@ export default function WorkspaceFrameV2({
 }: Props) {
   void onLogout;
   const [more, setMore] = useState(false);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const tabScroll = useRef(new Map<string, number>());
+  const previousTab = useRef(active);
   const mobileSlotCount = items.length + (onAccount ? 1 : 0);
   const hasOverflow = mobileSlotCount > 5;
   const direct = hasOverflow ? items.slice(0, 4) : items;
@@ -48,30 +51,49 @@ export default function WorkspaceFrameV2({
   const accountInMore = hasOverflow && Boolean(onAccount);
   const accountDirect = !hasOverflow && Boolean(onAccount);
 
+  const scrollSurface = useCallback(() => {
+    const container = frameRef.current?.closest<HTMLElement>(".scrollable-content");
+    // The App shell can expand with its contents on phones. In that case the
+    // document is the real scroller even though the wrapper has overflow-y-auto.
+    return container && container.scrollHeight > container.clientHeight + 1
+      ? container : document.scrollingElement as HTMLElement | null;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (previousTab.current === active) return;
+    previousTab.current = active;
+    scrollSurface()?.scrollTo({ top: tabScroll.current.get(active) ?? 0, behavior: "auto" });
+  }, [active, scrollSurface]);
+
   function go(id: string) {
+    if (id === active) {
+      scrollSurface()?.scrollTo({ top: 0, behavior: "auto" });
+      setMore(false);
+      return;
+    }
+    tabScroll.current.set(active, scrollSurface()?.scrollTop ?? 0);
     setActive(id);
     setMore(false);
-    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function goAccount() {
     setMore(false);
     onAccount?.();
-    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   return (
     <div
+      ref={frameRef}
       data-workspace-frame="v2"
-      className={`role-workspace min-h-[100dvh] bg-[#0A0A0F] text-white ${immersive ? "pb-0" : "pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:pb-0"}`}
+      className={`role-workspace min-h-[100dvh] bg-[var(--wh-bg)] text-[var(--wh-text)] ${immersive ? "pb-0" : "pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:pb-0"}`}
     >
       {!immersive && (
-        <header className="sticky top-0 z-30 border-b border-white/[.065] bg-[#0A0A0F]/96 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-[var(--wh-border)] bg-[var(--wh-bg)] backdrop-blur-xl">
           <div className={`mx-auto max-w-7xl px-4 sm:px-5 lg:px-8 ${compact ? "pt-2.5 sm:pt-4" : "pt-4"}`}>
             <div className="flex items-start justify-between gap-3 pb-3">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="truncate text-[10px] font-bold uppercase tracking-[.2em] text-violet-400">{label}</p>
+                  <p className="truncate text-[11px] font-bold uppercase tracking-[.2em] wh-accent-text">{label}</p>
                   {labelBadge}
                 </div>
                 <div className="mt-1 flex min-w-0 items-center gap-1">
@@ -79,14 +101,14 @@ export default function WorkspaceFrameV2({
                   <h1 className="min-w-0 break-words text-lg font-semibold">{title}</h1>
                 </div>
                 {description ? (
-                  <p className={`mt-1 max-w-2xl text-xs leading-5 text-[#AAA3B3] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
+                  <p className={`mt-1 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {onAccount ? (
-                  <button onClick={goAccount} className="hidden min-h-10 shrink-0 items-center gap-2 px-1 text-[11px] font-semibold text-[#9AA0AF] transition hover:text-white sm:flex">
+                  <button onClick={goAccount} aria-label="Account" className={`${hasOverflow ? "flex" : "hidden"} min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 px-1 text-xs font-semibold text-[var(--wh-text-secondary)] transition hover:text-[var(--wh-text)] sm:flex`}>
                     <NavIcon id="account" />
-                    <span>Account</span>
+                    <span className="hidden sm:inline">Account</span>
                   </button>
                 ) : null}
               </div>
@@ -97,7 +119,7 @@ export default function WorkspaceFrameV2({
                 <button
                   key={item.id}
                   onClick={() => go(item.id)}
-                  className={`relative flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 text-[11px] font-semibold transition ${active === item.id ? "border-violet-400 text-white" : "border-transparent text-[#747A8B] hover:text-white"}`}
+                  className={`relative flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 text-xs font-semibold transition ${active === item.id ? "border-[var(--wh-violet)] text-[var(--wh-text)]" : "border-transparent text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]"}`}
                 >
                   <span>{item.label}</span>
                   {Boolean(item.badge) && <CountBadge count={item.badge || 0} />}
@@ -116,16 +138,16 @@ export default function WorkspaceFrameV2({
 
       {!immersive && more && hasOverflow && (
         <>
-          <button aria-label="Close more navigation" onClick={() => setMore(false)} className="wh-more-backdrop fixed inset-0 z-[68] bg-black/55 sm:hidden" />
-          <div className="wh-more-sheet fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[69] max-h-[55dvh] overflow-y-auto rounded-[22px] border border-white/[.08] bg-[#11131B] p-2 shadow-2xl sm:hidden">
+          <button aria-label="Close more navigation" onClick={() => setMore(false)} className="wh-more-backdrop fixed inset-0 z-[68] bg-[var(--wh-overlay)] sm:hidden" />
+          <div className="wh-more-sheet fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[69] max-h-[55dvh] overflow-y-auto rounded-[22px] border border-[var(--wh-border)] bg-[var(--wh-surface)] p-2 shadow-2xl sm:hidden">
             {extra.map((item) => (
-              <button key={item.id} onClick={() => go(item.id)} className="flex min-h-12 w-full items-center justify-between border-b border-white/[.05] px-4 text-left text-[13px] font-semibold text-[#D7DAE2] last:border-b-0">
-                <span>{item.label}</span><span className="text-[#626878]">›</span>
+              <button key={item.id} onClick={() => go(item.id)} className="wh-interactive flex min-h-12 w-full items-center justify-between border-b border-[var(--wh-border)] px-4 text-left text-[13px] font-semibold text-[var(--wh-text)] last:border-b-0">
+                <span>{item.label}</span><span className="text-[var(--wh-text-muted)]">›</span>
               </button>
             ))}
             {accountInMore ? (
-              <button onClick={goAccount} className="flex min-h-12 w-full items-center justify-between border-t border-white/[.05] px-4 text-left text-[13px] font-semibold text-[#D7DAE2]">
-                <span className="flex items-center gap-3"><NavIcon id="account" /><span>Account</span></span><span className="text-[#626878]">›</span>
+              <button onClick={goAccount} className="wh-interactive flex min-h-12 w-full items-center justify-between border-t border-[var(--wh-border)] px-4 text-left text-[13px] font-semibold text-[var(--wh-text)]">
+                <span className="flex items-center gap-3"><NavIcon id="account" /><span>Account</span></span><span className="text-[var(--wh-text-muted)]">›</span>
               </button>
             ) : null}
           </div>
@@ -133,7 +155,7 @@ export default function WorkspaceFrameV2({
       )}
 
       {!immersive && (
-        <nav className="fixed inset-x-0 bottom-0 z-[67] border-t border-white/[.08] bg-[#090B12]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-[67] border-t border-[var(--wh-border)] bg-[var(--wh-bg)] pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
           <div className="mx-auto flex min-h-[4.75rem] max-w-lg items-stretch px-2">
             {direct.map((item) => (
               <BottomTab key={item.id} id={item.id} label={item.label} badge={item.badge} active={active === item.id} onClick={() => go(item.id)} />
@@ -149,7 +171,7 @@ export default function WorkspaceFrameV2({
 
 function BottomTab({ id, label, badge = 0, active, onClick }: { id: string; label: string; badge?: number; active: boolean; onClick: () => void }) {
   return (
-    <button data-active={active ? "true" : "false"} onClick={onClick} className={`wh-bottom-tab relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-[10px] font-semibold transition-colors ${active ? "text-violet-300" : "text-[#686F80]"}`}>
+    <button data-active={active ? "true" : "false"} onClick={onClick} className={`wh-bottom-tab relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 px-1.5 py-2 text-[11px] font-semibold transition-colors ${active ? "wh-accent-text" : "text-[var(--wh-text-secondary)]"}`}>
       <span className="wh-bottom-tab-icon grid h-7 w-7 place-items-center">
         <NavIcon id={id} />
         {badge > 0 ? <span className="absolute right-[calc(50%-1.2rem)] top-1"><CountBadge count={badge} /></span> : null}

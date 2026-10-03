@@ -179,7 +179,7 @@ export default function StaffWorkerReviewModern() {
         >
           ← Back to Worker reviews
         </button>
-        <section className="rounded-3xl border border-white/[.06] bg-[#10141D] p-4 sm:p-5">
+        <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
@@ -188,7 +188,7 @@ export default function StaffWorkerReviewModern() {
               <h2 className="mt-2 text-lg font-bold">
                 {selected.full_name || selected.username || "Worker"}
               </h2>
-              <p className="mt-1 text-[10px] text-[#747A8B]">
+              <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
                 {workerOccupation(selected)} ·{" "}
                 {[selected.local_government || selected.city, selected.state]
                   .filter(Boolean)
@@ -197,7 +197,7 @@ export default function StaffWorkerReviewModern() {
             </div>
             <Status value={selected.worker_status} />
           </div>
-          {detailLoading ? <p role="status" className="mt-4 text-sm text-[#9298A6]">Loading review details…</p> : detailError ? <div role="alert" className="mt-4 text-sm text-amber-100"><p>{detailError}</p><button type="button" onClick={() => void open(selected)} className="min-h-11 text-violet-300">Try again</button></div> : null}
+          {detailLoading ? <p role="status" className="mt-4 text-sm text-[var(--wh-text-secondary)]">Loading review details…</p> : detailError ? <div role="alert" className="mt-4 text-sm text-amber-100"><p>{detailError}</p><button type="button" onClick={() => void open(selected)} className="min-h-11 text-violet-300">Try again</button></div> : null}
           <div className={`mt-4 grid gap-3 ${identity?.identity_required ? 'lg:grid-cols-2' : ''}`}>
             {identity?.identity_required === true && <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <div className="flex items-start justify-between gap-3">
@@ -205,7 +205,7 @@ export default function StaffWorkerReviewModern() {
                   <p className="text-xs font-semibold">
                     Private identity check
                   </p>
-                  <p className="mt-1 text-[9px] leading-relaxed text-[#73798A]">
+                  <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
                     Review the private identity evidence separately from the service provider’s skills and work.
                   </p>
                 </div>
@@ -236,9 +236,9 @@ export default function StaffWorkerReviewModern() {
                 />
               </div>
             </section>}
-            <section className="rounded-2xl border border-white/[.06] bg-black/10 p-4">
+            <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 p-4">
               <p className="text-xs font-semibold">Professional evidence</p>
-              <p className="mt-1 text-[9px] leading-relaxed text-[#73798A]">
+              <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
                 Review the Worker’s stated service, experience and real work
                 demonstration. There is no generic written quiz.
               </p>
@@ -273,11 +273,11 @@ export default function StaffWorkerReviewModern() {
               </div>
             </section>
           </div>
-          <section className="mt-4 rounded-2xl border border-white/[.06] bg-[#0D1118] p-4">
+          <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-semibold">Final WeHouse review</p>
-                <p className="mt-1 text-[9px] text-[#73798A]">
+                <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                   Approve the professional profile and work evidence. Public availability follows WeHouse’s marketplace controls.
                 </p>
               </div>
@@ -291,13 +291,13 @@ export default function StaffWorkerReviewModern() {
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Review notes (optional)"
-              className="mt-3 w-full rounded-xl border border-white/[.08] bg-black/20 p-3 text-xs outline-none focus:border-violet-500/40"
+              className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-black/20 p-3 text-xs outline-none focus:border-violet-500/40"
             />
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Reason required only when rejecting"
-              className="mt-3 h-11 w-full rounded-xl border border-white/[.08] bg-black/20 px-3 text-xs outline-none focus:border-violet-500/40"
+              className="mt-3 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-black/20 px-3 text-xs outline-none focus:border-violet-500/40"
             />
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button
@@ -324,18 +324,18 @@ export default function StaffWorkerReviewModern() {
               {history.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-xl border border-white/[.06] bg-[#10141D] p-3"
+                  className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3"
                 >
                   <div className="flex justify-between gap-3">
                     <p className="text-[10px] font-semibold capitalize">
                       {String(item.action || "review").replace(/_/g, " ")}
                     </p>
-                    <p className="text-[8px] text-[#555C6D]">
+                    <p className="text-[8px] text-[var(--wh-text-muted)]">
                       {new Date(item.created_at).toLocaleString()}
                     </p>
                   </div>
                   {(item.rejection_reason || item.notes) && (
-                    <p className="mt-2 text-[10px] text-[#858A99]">
+                    <p className="mt-2 text-[10px] text-[var(--wh-text-secondary)]">
                       {item.rejection_reason || item.notes}
                     </p>
                   )}
@@ -350,10 +350,10 @@ export default function StaffWorkerReviewModern() {
   return (
     <div className="space-y-4">
       <AccountIdentityReviewQueue accountRole="worker" />
-      <div className="border-t border-white/[.06]" />
+      <div className="border-t border-[var(--wh-border-subtle)]" />
       <div>
         <h2 className="text-lg font-bold">Worker reviews</h2>
-        <p className="mt-1 text-[10px] text-[#707687]">
+        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
           Review professional profiles and real work evidence. Onboarding and review are free.
         </p>
       </div>
@@ -361,7 +361,7 @@ export default function StaffWorkerReviewModern() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search Worker reviews"
-        className="h-11 w-full rounded-xl border border-white/[.08] bg-[#11151E] px-4 text-xs outline-none focus:border-violet-500/35"
+        className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 text-xs outline-none focus:border-violet-500/35"
       />
       {loading ? (
         <Empty text="Loading Worker reviews…" />
@@ -373,13 +373,13 @@ export default function StaffWorkerReviewModern() {
             <button
               key={worker.user_id}
               onClick={() => void open(worker)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-white/[.06] bg-[#10141D] p-4 text-left"
+              className="flex w-full items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-left"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
                   {worker.full_name || worker.username || "Worker"}
                 </p>
-                <p className="mt-1 truncate text-[10px] text-[#666D7E]">
+                <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
                   {workerOccupation(worker)} ·{" "}
                   {[worker.local_government || worker.city, worker.state]
                     .filter(Boolean)
@@ -427,7 +427,7 @@ function Evidence({
     };
   }, [path, bucket]);
   return (
-    <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
       <p className="text-[9px] font-semibold">{label}</p>
       {url ? (
         kind === "video" ? (
@@ -451,7 +451,7 @@ function Evidence({
           </button>
         )
       ) : (
-        <p className="mt-2 text-[10px] text-[#606778]">Not supplied</p>
+        <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">Not supplied</p>
       )}
       {viewerOpen && url ? <MediaViewer src={url} kind={kind} title={label} onClose={() => setViewerOpen(false)}/> : null}
     </div>
@@ -459,17 +459,17 @@ function Evidence({
 }
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/[.05] bg-black/10 p-3">
-      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
-      <p className="mt-1 text-[10px] font-semibold text-[#A6ACB9]">{value}</p>
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
+      <p className="text-[8px] uppercase text-[var(--wh-text-muted)]">{label}</p>
+      <p className="mt-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]">{value}</p>
     </div>
   );
 }
 function Info({ label, value }: { label: string; value: unknown }) {
   return (
-    <div className="rounded-xl border border-white/[.06] bg-black/10 p-3">
-      <p className="text-[8px] uppercase text-[#62697A]">{label}</p>
-      <p className="mt-1 text-[10px] text-[#A4A9B8]">{String(value)}</p>
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
+      <p className="text-[8px] uppercase text-[var(--wh-text-muted)]">{label}</p>
+      <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">{String(value)}</p>
     </div>
   );
 }
@@ -498,7 +498,7 @@ function Status({ value }: { value?: string | null }) {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[.08] px-5 py-12 text-center text-[10px] text-[#666C7D]">
+    <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-12 text-center text-[10px] text-[var(--wh-text-muted)]">
       {text}
     </div>
   );

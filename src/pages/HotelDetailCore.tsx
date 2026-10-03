@@ -164,13 +164,13 @@ export default function HotelDetail({
   }
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F]">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
         <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
   if (!hotel)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[#0A0A0F] px-5 text-white">
+      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
         <div className="text-center">
           <p className="text-sm font-semibold">Hotel not found</p>
           <button
@@ -189,9 +189,9 @@ export default function HotelDetail({
       : allAmenities.slice(0, 4);
   const hotelAddress = locationLabel(hotel.address, hotel.area, hotel.city, hotel.state);
   return (
-    <div className="min-h-[100dvh] bg-[#0A0A0F] pb-28 text-white">
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-28 text-[var(--wh-text)]">
 
-      <header className="sticky top-0 z-40 border-b border-white/[.06] bg-[#0A0A0F]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
+      <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <BackButton onClick={onBack} />
           <div className="min-w-0">
@@ -203,8 +203,8 @@ export default function HotelDetail({
         </div>
       </header>
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-5 sm:px-6">
-        <section className="-mx-4 overflow-hidden border-y border-white/[.07] bg-[#10141C] sm:mx-0 sm:rounded-3xl sm:border">
-          <div className="relative aspect-[4/3] bg-[#171B24] sm:aspect-[16/9]">
+        <section className="-mx-4 overflow-hidden border-y border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] sm:mx-0 sm:rounded-3xl sm:border">
+          <div className="relative aspect-[4/3] bg-[var(--wh-elevated)] sm:aspect-[16/9]">
             {images.length ? (
               <img
                 src={images[currentImage]}
@@ -214,7 +214,7 @@ export default function HotelDetail({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="grid h-full place-items-center text-[10px] text-[#62697A]">
+              <div className="grid h-full place-items-center text-[10px] text-[var(--wh-text-muted)]">
                 No hotel image yet
               </div>
             )}
@@ -241,7 +241,7 @@ export default function HotelDetail({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-xl font-bold">{hotel.name}</h1>
-                <p className="mt-1 text-[10px] text-[#747B8B]">
+                <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
                   {hotelAddress}
                   {distance !== null
                     ? ` · about ${distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(distance < 10 ? 1 : 0)} km`} away`
@@ -255,12 +255,12 @@ export default function HotelDetail({
               )}
             </div>
             {hotel.description && (
-              <p className="mt-4 text-[11px] leading-5 text-[#9399A8]">
+              <p className="mt-4 text-[11px] leading-5 text-[var(--wh-text-secondary)]">
                 {hotel.description}
               </p>
             )}
             {hotelAddress ? (
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/[.06] bg-black/10 p-3 text-[10px] text-[#7D8494]">
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3 text-[10px] text-[var(--wh-text-secondary)]">
                 <div>
                   <span>{hotelAddress}</span>
 
@@ -279,7 +279,7 @@ export default function HotelDetail({
         </section>
 
         {allAmenities.length > 0 && (
-          <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Amenities</h2>
               {allAmenities.length > 4 && (
@@ -297,7 +297,7 @@ export default function HotelDetail({
               {displayedAmenities.map((item) => (
                 <span
                   key={item}
-                  className="rounded-xl border border-white/[.06] bg-white/[.025] px-2.5 py-1.5 text-[9px] text-[#A0A6B4]"
+                  className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-2.5 py-1.5 text-[9px] text-[var(--wh-text-secondary)]"
                 >
                   {item}
                 </span>
@@ -306,20 +306,20 @@ export default function HotelDetail({
           </section>
         )}
 
-        <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/[.06] bg-white/[.06]">
-          <div className="bg-[#10141C] p-4"><p className="text-[8px] uppercase tracking-wide text-[#686F80]">Check-in</p><p className="mt-1 text-xs font-semibold">From {formatHotelTime(hotel.check_in_time, "14:00")}</p></div>
-          <div className="bg-[#10141C] p-4"><p className="text-[8px] uppercase tracking-wide text-[#686F80]">Check-out</p><p className="mt-1 text-xs font-semibold">By {formatHotelTime(hotel.check_out_time, "12:00")}</p></div>
+        <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]">
+          <div className="bg-[var(--wh-surface)] p-4"><p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">Check-in</p><p className="mt-1 text-xs font-semibold">From {formatHotelTime(hotel.check_in_time, "14:00")}</p></div>
+          <div className="bg-[var(--wh-surface)] p-4"><p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">Check-out</p><p className="mt-1 text-xs font-semibold">By {formatHotelTime(hotel.check_out_time, "12:00")}</p></div>
         </section>
 
         <section>
           <div className="mb-3">
             <h2 className="text-base font-bold">Rooms and rates</h2>
-            <p className="mt-1 text-[9px] text-[#666D7E]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               Select a room type to see its full gallery and booking details.
             </p>
           </div>
           {hotel.hotel_rooms?.length ? (
-            <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
+            <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
               {hotel.hotel_rooms.map((room) => {
                 const roomPhotos = Array.isArray(room.images)
                   ? room.images
@@ -333,9 +333,9 @@ export default function HotelDetail({
                       setSelectedRate(room.rate_plans?.find((plan) => plan.active) || null);
                       setRoomImage(0);
                     }}
-                    className={`flex w-full items-center gap-3 py-3 text-left ${active ? "text-white" : "text-[#C3C7D1]"}`}
+                    className={`flex w-full items-center gap-3 py-3 text-left ${active ? "text-white" : "text-[var(--wh-text-secondary)]"}`}
                   >
-                    <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#171B24]">
+                    <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">
                       {roomPhotos[0] ? (
                         <img
                           src={roomPhotos[0]}
@@ -345,7 +345,7 @@ export default function HotelDetail({
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="grid h-full place-items-center text-[8px] text-[#62697A]">
+                        <div className="grid h-full place-items-center text-[8px] text-[var(--wh-text-muted)]">
                           No photo
                         </div>
                       )}
@@ -354,20 +354,20 @@ export default function HotelDetail({
                       <h3 className="truncate text-sm font-semibold">
                         {room.room_type}
                       </h3>
-                      <p className="mt-1 text-[9px] text-[#858B9A]">
+                      <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
                         Up to {room.max_guests} guest
                         {room.max_guests === 1 ? "" : "s"}
                         {room.bed_type ? ` · ${room.bed_type}` : ""}
                       </p>
                       <p className="mt-1 text-[11px] font-bold text-violet-200">
                         From ₦{roomStartingPrice(room).toLocaleString()}{" "}
-                        <span className="text-[8px] font-normal text-[#62697A]">
+                        <span className="text-[8px] font-normal text-[var(--wh-text-muted)]">
                           / night
                         </span>
                       </p>
                     </div>
                     <span
-                      className={`text-lg ${active ? "text-violet-300" : "text-[#62697A]"}`}
+                      className={`text-lg ${active ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
                     >
                       {active ? "✓" : "›"}
                     </span>
@@ -376,7 +376,7 @@ export default function HotelDetail({
               })}
             </div>
           ) : (
-            <div className="border-y border-dashed border-white/[.08] py-10 text-center text-[10px] text-[#666D7E]">
+            <div className="border-y border-dashed border-[var(--wh-border-subtle)] py-10 text-center text-[10px] text-[var(--wh-text-muted)]">
               No rooms are currently available.
             </div>
           )}
@@ -391,7 +391,7 @@ export default function HotelDetail({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-[9px] text-[#62697A]">
+                  <div className="grid h-full place-items-center text-[9px] text-[var(--wh-text-muted)]">
                     Room photo unavailable
                   </div>
                 )}
@@ -423,18 +423,18 @@ export default function HotelDetail({
                     <h3 className="text-sm font-bold">
                       {selectedRoom.room_type}
                     </h3>
-                    <p className="mt-1 text-[9px] text-[#858B9A]">
+                    <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
                       Maximum {selectedRoom.max_guests} guest
                       {selectedRoom.max_guests === 1 ? "" : "s"}
                     </p>
                   </div>
                   {selectedRate && <p className="text-sm font-bold text-violet-200">
                     ₦{Number(selectedRate.price_per_night).toLocaleString()}
-                    <span className="block text-right text-[8px] font-normal text-[#62697A]">per night</span>
+                    <span className="block text-right text-[8px] font-normal text-[var(--wh-text-muted)]">per night</span>
                   </p>}
                 </div>
                 {selectedRoom.description && (
-                  <p className="mt-3 text-[10px] leading-5 text-[#969CAA]">
+                  <p className="mt-3 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
                     {selectedRoom.description}
                   </p>
                 )}
@@ -443,7 +443,7 @@ export default function HotelDetail({
                     {selectedRoom.amenities.map((item) => (
                       <span
                         key={item}
-                        className="border-b border-white/[.09] px-1 py-1 text-[8px] text-[#A0A6B4]"
+                        className="border-b border-[var(--wh-border-subtle)] px-1 py-1 text-[8px] text-[var(--wh-text-secondary)]"
                       >
                         {item}
                       </span>
@@ -451,24 +451,24 @@ export default function HotelDetail({
                   </div>
                 )}
                 <div className="mt-5 space-y-2">
-                  <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#6F7585]">Choose your package</p>
+                  <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Choose your package</p>
                   {(selectedRoom.rate_plans || []).filter((plan) => plan.active).map((plan) => (
                     <button
                       key={plan.rate_plan_id}
                       type="button"
                       onClick={() => setSelectedRate(plan)}
-                      className={`w-full rounded-2xl border p-3 text-left ${selectedRate?.rate_plan_id === plan.rate_plan_id ? "border-violet-400/45 bg-violet-500/[.09]" : "border-white/[.07] bg-white/[.02]"}`}
+                      className={`w-full rounded-2xl border p-3 text-left ${selectedRate?.rate_plan_id === plan.rate_plan_id ? "border-violet-400/45 bg-violet-500/[.09]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}
                     >
                       <span className="flex items-start justify-between gap-3">
                         <span>
                           <span className="block text-xs font-semibold">{plan.name}</span>
-                          <span className="mt-1 block text-[9px] text-[#747B8C]">
+                          <span className="mt-1 block text-[9px] text-[var(--wh-text-muted)]">
                             {mealLabel(plan.meal_plan)} · {paymentLabel(plan.payment_timing)} · {plan.refundable ? `Free cancellation${plan.cancellation_hours ? ` up to ${plan.cancellation_hours}h before arrival` : ""}` : "Non-refundable"}
                           </span>
                         </span>
                         <span className="shrink-0 text-xs font-bold text-violet-200">₦{Number(plan.price_per_night).toLocaleString()}</span>
                       </span>
-                      {plan.description && <span className="mt-2 block text-[9px] leading-4 text-[#8A91A0]">{plan.description}</span>}
+                      {plan.description && <span className="mt-2 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">{plan.description}</span>}
                       {plan.included_features?.length ? <span className="mt-2 block text-[8px] text-emerald-300">Includes {plan.included_features.join(" · ")}</span> : null}
                     </button>
                   ))}
@@ -480,17 +480,17 @@ export default function HotelDetail({
         </section>
 
         {hotel.venues?.length ? (
-          <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <h2 className="text-sm font-semibold">At the hotel</h2>
-            <p className="mt-1 text-[9px] text-[#666D7E]">Named restaurants and facilities, with hours and package access.</p>
-            <div className="mt-3 divide-y divide-white/[.06]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Named restaurants and facilities, with hours and package access.</p>
+            <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
               {hotel.venues.map((venue) => (
                 <div key={venue.venue_id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-3">
                     <div><p className="text-xs font-semibold">{venue.name}</p><p className="mt-1 text-[8px] uppercase tracking-wide text-violet-300">{venue.kind}</p></div>
-                    {venue.opening_hours && <p className="text-right text-[9px] text-[#858B9A]">{venue.opening_hours}</p>}
+                    {venue.opening_hours && <p className="text-right text-[9px] text-[var(--wh-text-secondary)]">{venue.opening_hours}</p>}
                   </div>
-                  {venue.description && <p className="mt-2 text-[9px] leading-4 text-[#858B9A]">{venue.description}</p>}
+                  {venue.description && <p className="mt-2 text-[9px] leading-4 text-[var(--wh-text-secondary)]">{venue.description}</p>}
                   {venue.package_notes && <p className="mt-2 text-[8px] text-emerald-300">Package access: {venue.package_notes}</p>}
                 </div>
               ))}
@@ -499,9 +499,9 @@ export default function HotelDetail({
         ) : null}
 
         {selectedRoom && (
-          <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
+          <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <h2 className="text-sm font-semibold">Stay dates</h2>
-            <p className="mt-1 text-[9px] text-[#6F7585]">
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               Dates outside this booking window are unavailable.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -535,11 +535,11 @@ export default function HotelDetail({
           </section>
         )}
 
-        <section className="rounded-2xl border border-white/[.06] bg-[#10141C] p-4">
+        <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">Guest reviews</h2>
-              <p className="mt-1 text-[9px] text-[#666D7E]">
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                 {reviews.length} verified review
                 {reviews.length === 1 ? "" : "s"}
               </p>
@@ -547,20 +547,20 @@ export default function HotelDetail({
             {reviewEligible && (
               <button
                 onClick={() => setShowReviewForm((value) => !value)}
-                className="rounded-xl border border-white/[.08] px-3 py-2 text-[9px] font-semibold text-violet-300"
+                className="rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-[9px] font-semibold text-violet-300"
               >
                 {showReviewForm ? "Cancel" : "Write review"}
               </button>
             )}
           </div>
           {showReviewForm && reviewEligible && (
-            <div className="mt-4 space-y-3 rounded-2xl border border-white/[.06] bg-black/10 p-3">
+            <div className="mt-4 space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((value) => (
                   <button
                     key={value}
                     onClick={() => setReviewRating(value)}
-                    className={`text-lg ${value <= reviewRating ? "text-amber-300" : "text-[#444A58]"}`}
+                    className={`text-lg ${value <= reviewRating ? "text-amber-300" : "text-[var(--wh-text-muted)]"}`}
                   >
                     ★
                   </button>
@@ -571,7 +571,7 @@ export default function HotelDetail({
                 onChange={(event) => setReviewComment(event.target.value)}
                 rows={3}
                 placeholder="Share your completed stay"
-                className="w-full resize-none rounded-xl border border-white/[.08] bg-[#171B24] p-3 text-xs outline-none focus:border-violet-500/40"
+                className="w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none focus:border-violet-500/40"
               />
               <button
                 onClick={() => void submitReview()}
@@ -587,7 +587,7 @@ export default function HotelDetail({
               reviews.slice(0, 6).map((review) => (
                 <div
                   key={review.review_id}
-                  className="rounded-xl border border-white/[.05] bg-black/10 p-3"
+                  className="rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[10px] font-semibold">
@@ -598,21 +598,21 @@ export default function HotelDetail({
                     </p>
                   </div>
                   {review.comment && (
-                    <p className="mt-2 text-[10px] leading-relaxed text-[#858B9A]">
+                    <p className="mt-2 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
                       {review.comment}
                     </p>
                   )}
                 </div>
               ))
             ) : (
-              <p className="py-5 text-center text-[10px] text-[#666D7E]">
+              <p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">
                 No verified reviews yet.
               </p>
             )}
           </div>
         </section>
       </main>
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[.08] bg-[#090B12]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/96 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <div className="mx-auto max-w-5xl">
           <button
             onClick={proceed}
@@ -636,8 +636,8 @@ function formatHotelTime(value: unknown, fallback: string) {
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/[.05] bg-black/10 p-3">
-      <p className="text-[8px] uppercase tracking-wide text-[#62697A]">
+    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
+      <p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">
         {label}
       </p>
       <p className="mt-1 text-[11px] font-semibold">{value}</p>

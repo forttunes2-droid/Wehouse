@@ -229,11 +229,11 @@ function AdminInbox({
   if (activityOpen) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3 border-b border-white/[.06] pb-3">
+        <div className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
           <button
             type="button"
             onClick={() => setActivityOpen(false)}
-            className="grid h-10 w-10 place-items-center rounded-full text-[#A1A6B5] active:bg-white/[.05]"
+            className="grid h-10 w-10 place-items-center rounded-full text-[var(--wh-text-secondary)] active:bg-[var(--wh-interactive)]"
             aria-label="Back to Inbox messages"
           >
             ←
@@ -258,10 +258,10 @@ function AdminInbox({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[.06] pb-2">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-2">
         <div>
           <h2 className="text-xs font-semibold">Messages</h2>
-          <p className="mt-0.5 text-[9px] text-[#707687]">
+          <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
             Assigned conversations in your coverage.
           </p>
         </div>
@@ -335,12 +335,12 @@ function Overview({
 
   return (
     <div className="space-y-5">
-      <section className="border-b border-white/[.07] pb-5">
+      <section className="border-b border-[var(--wh-border-subtle)] pb-5">
         <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-violet-300">Coverage</p>
         <h2 className="mt-2 text-2xl font-bold lg:text-3xl">
           {profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}
         </h2>
-        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#9295A7]">
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--wh-text-secondary)]">
           Admin authority follows the Creator-set State or LGA coverage;
           Precise location improves maps and distance but never expands Admin coverage.
         </p>
@@ -349,36 +349,36 @@ function Overview({
       <section>
         <div className="mb-2 flex items-end justify-between gap-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6D7384]">Needs attention</p>
-            <p className="mt-1 text-[10px] text-[#7B8191]">Only unresolved work that needs an Admin action appears here.</p>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Needs attention</p>
+            <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">Only unresolved work that needs an Admin action appears here.</p>
           </div>
         </div>
         {attention.length ? (
-          <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
             {attention.map((item) => (
               <button key={item.key} type="button" onClick={item.action} className="flex min-h-16 w-full items-center gap-4 py-3 text-left">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-[11px] font-bold text-violet-300">!</span>
                 <span className="min-w-0 flex-1">
                   <strong className="block text-xs font-semibold">{item.label}</strong>
-                  <span className="mt-1 block text-[9px] leading-4 text-[#707687]">{item.detail}</span>
+                  <span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-muted)]">{item.detail}</span>
                 </span>
-                <span className="text-[#666D7E]">›</span>
+                <span className="text-[var(--wh-text-muted)]">›</span>
               </button>
             ))}
           </div>
         ) : (
-          <div className="border-y border-white/[.06] py-5">
+          <div className="border-y border-[var(--wh-border-subtle)] py-5">
             <p className="text-xs font-semibold">Nothing urgent in this coverage</p>
-            <p className="mt-1 text-[9px] text-[#707687]">New review, security and conversation work will appear here when action is required.</p>
+            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">New review, security and conversation work will appear here when action is required.</p>
           </div>
         )}
       </section>
 
       <section>
         <div className="mb-2">
-          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#6D7384]">Coverage summary</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Coverage summary</p>
         </div>
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
         {cards.map(([label, value, target, note]) => (
           <button
             key={label}
@@ -386,19 +386,19 @@ function Overview({
             className="flex min-h-16 w-full items-center gap-4 py-3 text-left"
           >
             <p className="w-12 shrink-0 text-xl font-bold">{value}</p>
-            <span className="min-w-0 flex-1"><strong className="block text-xs">{label}</strong><span className="mt-1 block text-[9px] text-[#626678]">{note}</span></span>
-            <span className="text-[#666D7E]">›</span>
+            <span className="min-w-0 flex-1"><strong className="block text-xs">{label}</strong><span className="mt-1 block text-[9px] text-[var(--wh-text-muted)]">{note}</span></span>
+            <span className="text-[var(--wh-text-muted)]">›</span>
           </button>
         ))}
         </div>
       </section>
-      <section className="border-y border-white/[.06]">
+      <section className="border-y border-[var(--wh-border-subtle)]">
         <button
           onClick={openCommunications}
           className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"
         >
-          <span><strong className="block text-sm">Inbox</strong><span className="mt-1 block text-[10px] text-[#727587]">Contextual conversations and official Activity for this coverage.</span></span>
-          <span className="text-[#666D7E]">›</span>
+          <span><strong className="block text-sm">Inbox</strong><span className="mt-1 block text-[10px] text-[var(--wh-text-muted)]">Contextual conversations and official Activity for this coverage.</span></span>
+          <span className="text-[var(--wh-text-muted)]">›</span>
         </button>
       </section>
     </div>
@@ -434,10 +434,10 @@ function Operations({
     };
     return (
       <div className="space-y-4">
-        <p className="max-w-2xl text-[10px] leading-5 text-[#73798A]">
+        <p className="max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
           Choose the work area. Each record belongs to one area so the same task is not repeated in several places.
         </p>
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {OPS.map(([id, label, note]) => (
             <button
               key={id}
@@ -446,11 +446,11 @@ function Operations({
             >
               <span className="min-w-0 flex-1">
                 <strong className="block text-sm font-semibold">{label}</strong>
-                <span className="mt-1 block text-[9px] leading-4 text-[#6D7384]">{note}</span>
+                <span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-muted)]">{note}</span>
               </span>
               <span className="shrink-0 text-right">
                 {counts[id] ? <span className="block text-[9px] font-semibold text-violet-300">{counts[id]}</span> : null}
-                <span className="mt-1 block text-[#697082]">›</span>
+                <span className="mt-1 block text-[var(--wh-text-muted)]">›</span>
               </span>
             </button>
           ))}
@@ -538,7 +538,7 @@ function People({ onView }: { onView: (p: Profile) => void }) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search this coverage"
-        className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#141720] px-3 text-xs"
+        className="h-11 w-full rounded-xl border border-white/[0.08] bg-[var(--wh-elevated)] px-3 text-xs"
       />
       {loading ? (
         <Loading />
@@ -548,7 +548,7 @@ function People({ onView }: { onView: (p: Profile) => void }) {
           text="Nothing in this coverage matches the filter."
         />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {filtered.map((p) => (
             <button
               key={p.user_id}
@@ -561,13 +561,13 @@ function People({ onView }: { onView: (p: Profile) => void }) {
                   <p className="truncate text-sm font-semibold">
                     {p.full_name || p.username || "WeHouse account"}
                   </p>
-                  <p className="truncate text-[10px] text-[#6D7082]">
+                  <p className="truncate text-[10px] text-[var(--wh-text-muted)]">
                     {p.email}
                   </p>
-                  <p className="mt-1 text-[9px] capitalize text-[#535667]">
+                  <p className="mt-1 text-[9px] capitalize text-[var(--wh-text-muted)]">
                     {p.role?.replace(/_/g, " ")}
                   </p>
-                </div><span className="text-[#62697A]">›</span>
+                </div><span className="text-[var(--wh-text-muted)]">›</span>
               </div>
             </button>
           ))}
@@ -664,7 +664,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
           </div>
           {selected.worker_status === "profile_under_review" && (
             <div className="mt-4 space-y-2">
-              <p className="text-[9px] leading-relaxed text-[#6D7284]">
+              <p className="text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
                 Approval is enforced by the server and remains blocked until the
                 identity screening evidence is ready for WeHouse review.
               </p>
@@ -672,7 +672,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Rejection reason if rejecting"
-                className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#171A23] px-3 text-xs"
+                className="h-10 w-full rounded-xl border border-white/[0.08] bg-[var(--wh-elevated)] px-3 text-xs"
               />
               <div className="flex gap-2">
                 <Button onClick={() => review(selected.user_id, "approve")}>
@@ -706,7 +706,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
       ) : shown.length === 0 ? (
         <Empty title="No workers" text="No workers match this view." />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {shown.map((w) => (
             <button
               key={w.user_id}
@@ -716,12 +716,12 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
               <Avatar text={w.full_name || w.username || "Worker"} />
               <span className="min-w-0 flex-1">
                 <strong className="block truncate text-sm font-semibold">{w.full_name || w.username || "Worker"}</strong>
-                <span className="mt-1 block truncate text-[9px] text-[#707386]">
+                <span className="mt-1 block truncate text-[9px] text-[var(--wh-text-muted)]">
                   {workerOccupation(w)} · {[w.local_government || w.city, w.state].filter(Boolean).join(", ")}
                 </span>
               </span>
               <span className="shrink-0 text-right">
-                <span className="block text-[9px] capitalize text-[#8A90A0]">{String(w.suspended ? "suspended" : w.worker_status || "pending").replace(/_/g, " ")}</span>
+                <span className="block text-[9px] capitalize text-[var(--wh-text-secondary)]">{String(w.suspended ? "suspended" : w.worker_status || "pending").replace(/_/g, " ")}</span>
                 <span className="mt-1 block text-violet-300">›</span>
               </span>
             </button>
@@ -740,8 +740,8 @@ function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
   }, [initialRecordId]);
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 border-y border-white/[.07] py-3">
-        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[#686F80]">Record type</p><p className="mt-1 text-[9px] text-[#8A90A0]">One booking type at a time</p></div>
+      <div className="flex items-center justify-between gap-4 border-y border-[var(--wh-border-subtle)] py-3">
+        <div><p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Record type</p><p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">One booking type at a time</p></div>
         <WeHouseSelect value={domain} options={[{ value: "services", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={setDomain} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {domain === "services" ? (
@@ -780,16 +780,16 @@ function ServiceBookings() {
           text="There are no Worker service bookings in this coverage."
         />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {rows.map((r) => (
             <div key={r.id} className="flex min-h-[4.5rem] items-center gap-3 py-3">
               <span className="min-w-0 flex-1">
                 <strong className="block truncate text-sm font-semibold">{r.service_name || r.service || "Service booking"}</strong>
-                <span className="mt-1 block truncate text-[9px] text-[#707386]">{r.booking_code || r.id} · {dateText(r.created_at)}</span>
+                <span className="mt-1 block truncate text-[9px] text-[var(--wh-text-muted)]">{r.booking_code || r.id} · {dateText(r.created_at)}</span>
               </span>
               <span className="shrink-0 text-right">
                 {r.agreed_amount ? <strong className="block text-xs">{money(r.agreed_amount)}</strong> : null}
-                <span className="mt-1 block text-[9px] capitalize text-[#8A90A0]">{String(r.status || "pending").replace(/_/g, " ")}</span>
+                <span className="mt-1 block text-[9px] capitalize text-[var(--wh-text-secondary)]">{String(r.status || "pending").replace(/_/g, " ")}</span>
               </span>
             </div>
           ))}
@@ -828,7 +828,7 @@ function HotelBookings() {
           text="There are no hotel reservations in this coverage."
         />
       ) : (
-        <div className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {rows.map((row) => (
             <article key={row.booking_id} className="py-4">
               <div className="flex items-start justify-between gap-3">
@@ -836,11 +836,11 @@ function HotelBookings() {
                   <p className="truncate text-sm font-semibold">
                     {row.guest_name || "Guest"}
                   </p>
-                  <p className="mt-1 truncate text-[10px] text-[#858B9A]">
+                  <p className="mt-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
                     {(row.hotels as any)?.name || "Hotel"} ·{" "}
                     {(row.hotel_rooms as any)?.room_type || "Room"}
                   </p>
-                  <p className="mt-1 text-[9px] text-[#666D7E]">
+                  <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
                     {row.check_in
                       ? new Date(row.check_in).toLocaleDateString()
                       : "—"}{" "}
@@ -871,7 +871,7 @@ function CoverageMissing() {
       <p className="text-sm font-semibold text-amber-300">
         Coverage assignment required
       </p>
-      <p className="mx-auto mt-2 max-w-md text-[10px] text-[#777B8D]">
+      <p className="mx-auto mt-2 max-w-md text-[10px] text-[var(--wh-text-muted)]">
         Creator must assign this Admin to a State or one LGA before operations become available.
       </p>
     </div>
@@ -895,7 +895,7 @@ function Section({
 }
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#10131B] p-4">
+    <div className="rounded-2xl border border-white/[0.06] bg-[var(--wh-surface)] p-4">
       {children}
     </div>
   );
@@ -915,7 +915,7 @@ function Top({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold">{title}</p>
-        <p className="mt-1 line-clamp-2 text-[10px] text-[#707386]">{sub}</p>
+        <p className="mt-1 line-clamp-2 text-[10px] text-[var(--wh-text-muted)]">{sub}</p>
       </div>
       <div className="shrink-0 text-right">
         {right && <p className="mb-1 text-sm font-bold">{right}</p>}
@@ -958,7 +958,7 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 rounded-xl px-3 py-2 text-[10px] font-semibold ${active ? "bg-violet-500 text-white" : "border border-white/[0.06] bg-[#10131B] text-[#777A8C]"}`}
+      className={`shrink-0 rounded-xl px-3 py-2 text-[10px] font-semibold ${active ? "bg-violet-500 text-white" : "border border-white/[0.06] bg-[var(--wh-surface)] text-[var(--wh-text-muted)]"}`}
     >
       {children}
     </button>
@@ -978,7 +978,7 @@ function Button({
   return (
     <button
       onClick={onClick}
-      className={`min-h-10 flex-1 rounded-xl px-3 text-[10px] font-semibold ${danger ? "border border-red-500/20 bg-red-500/10 text-red-300" : secondary ? "border border-white/[0.08] bg-white/[0.04] text-[#A7A9B6]" : "bg-violet-500 text-white"}`}
+      className={`min-h-10 flex-1 rounded-xl px-3 text-[10px] font-semibold ${danger ? "border border-red-500/20 bg-red-500/10 text-red-300" : secondary ? "border border-white/[0.08] bg-white/[0.04] text-[var(--wh-text-secondary)]" : "bg-violet-500 text-white"}`}
     >
       {children}
     </button>
@@ -994,8 +994,8 @@ function Avatar({ text }: { text: string }) {
 function Video({ title, url }: { title: string; url: string }) {
   return (
     <div>
-      <p className="mb-2 text-[9px] text-[#6E7183]">{title}</p>
-      <VideoPlayer src={url} className="max-h-60 w-full rounded-xl bg-[#161922] object-contain" />
+      <p className="mb-2 text-[9px] text-[var(--wh-text-muted)]">{title}</p>
+      <VideoPlayer src={url} className="max-h-60 w-full rounded-xl bg-[var(--wh-elevated)] object-contain" />
     </div>
   );
 }
@@ -1010,7 +1010,7 @@ function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.015] px-6 py-12 text-center">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mx-auto mt-2 max-w-md text-[10px] text-[#66697B]">{text}</p>
+      <p className="mx-auto mt-2 max-w-md text-[10px] text-[var(--wh-text-muted)]">{text}</p>
     </div>
   );
 }

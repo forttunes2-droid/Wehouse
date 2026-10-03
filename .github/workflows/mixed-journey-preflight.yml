@@ -5,6 +5,12 @@ on:
       - .github/workflows/mixed-journey-preflight.yml
       - scripts/load-mixed-journeys-local.mjs
       - supabase/tests/mixed_journey_fixture.sql
+      - supabase/migrations/**
+      - src/lib/supabase/**
+      - src/pages/MyReservations.tsx
+      - src/pages/CreateListing.tsx
+      - src/components/WorkerShowcaseManager.tsx
+      - src/lib/mediaVideo.ts
   workflow_dispatch:
 permissions:
   contents: read

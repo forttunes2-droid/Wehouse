@@ -1,4 +1,4 @@
-import { validateChatUpload } from "@/lib/chatMediaPolicy";
+import { prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
@@ -105,6 +105,7 @@ export async function uploadBookingChatAttachment(file:File,conversationId:strin
     let contentType=file.type||'application/octet-stream';
     let extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'bin';
     if(file.type.startsWith('image/')){const prepared=await prepareChatImageFile(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
+    else if(file.type.startsWith('video/')){const prepared=await prepareChatVideo(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
     const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'file';
     const encrypted=await encryptPrivateAttachment('worker',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
     const path=`e2ee/worker/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;
