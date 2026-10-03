@@ -48,6 +48,19 @@ function isEstablishedMatch(row: RoommateMatchResult) {
   return Boolean(row.conversation_id || row.mutual_accepted);
 }
 
+function uniqueMatches(rows: RoommateMatchResult[]) {
+  const byPerson = new Map<string, RoommateMatchResult>();
+  for (const row of rows) {
+    const key = row.matched_user_id;
+    const previous = byPerson.get(key);
+    if (!previous || (isEstablishedMatch(row) && !isEstablishedMatch(previous)) ||
+        (row.status === "accepted" && previous.status !== "accepted")) {
+      byPerson.set(key, row);
+    }
+  }
+  return [...byPerson.values()];
+}
+
 // The server evaluates either person's school restriction without disclosing
 // their school. A redacted school is not evidence that someone is ineligible.
 function visibleMatches(rows: RoommateMatchResult[]) {
@@ -122,7 +135,7 @@ export default function RoommateWorkspace({
         ? fetched
         : {matches:fetched.matches.filter(isEstablishedMatch),hasMore:false,error:null};
       if (generation !== requestGeneration.current) return [];
-      const rows = result.matches;
+      const rows = uniqueMatches(result.matches);
       setPrefs(p); setReceived(incoming.interests); setMatches(rows); setHasMore(result.hasMore);
       roommateCache.set(profile.user_id,{prefs:p,matches:rows,received:incoming.interests,hasMore:result.hasMore});
       if (!editingRef.current) {
@@ -191,7 +204,7 @@ export default function RoommateWorkspace({
     matches?: RoommateMatchResult[];
     hasMore?: boolean;
   }) {
-    const rows = visibleMatches(result.matches || []);
+    const rows = uniqueMatches(visibleMatches(result.matches || []));
     setMatches(rows);
     setHasMore(Boolean(result.hasMore));
   }
@@ -256,9 +269,9 @@ export default function RoommateWorkspace({
     setLoadingMore(false);
     if (result.error) return toast.error(result.error.message);
     setMatches((current) => {
-      const seen = new Set(current.map((row) => row.id));
-      const next = visibleMatches(result.matches).filter(
-        (row) => !seen.has(row.id),
+      const seenPeople = new Set(current.map((row) => row.matched_user_id));
+      const next = uniqueMatches(visibleMatches(result.matches)).filter(
+        (row) => !seenPeople.has(row.matched_user_id),
       );
       return [...current, ...next];
     });
@@ -480,6 +493,7 @@ export default function RoommateWorkspace({
             </section>
             <Matches
               rows={matches}
+              receivedUserIds={new Set(received.map((row) => row.sender_user_id))}
               focusedId={focusedContextId}
               discoveryActive={matchingActive}
               hasMore={hasMore}
@@ -538,6 +552,7 @@ function ProfileImage({
 
 function Matches({
   rows,
+  receivedUserIds,
   focusedId,
   discoveryActive,
   hasMore,
@@ -549,6 +564,7 @@ function Matches({
   onInterest,
 }: {
   rows: RoommateMatchResult[];
+  receivedUserIds: Set<string>;
   focusedId: string | null;
   discoveryActive: boolean;
   hasMore: boolean;
@@ -563,7 +579,7 @@ function Matches({
   const openProfile = rows.find((row) => row.id === openProfileId) || null;
   const established = rows.filter(isEstablishedMatch);
   const discoverable = discoveryActive
-    ? rows.filter((row) => !isEstablishedMatch(row))
+    ? rows.filter((row) => !isEstablishedMatch(row) && !receivedUserIds.has(row.matched_user_id))
     : [];
 
   return (
