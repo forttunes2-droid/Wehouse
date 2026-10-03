@@ -453,24 +453,23 @@ export default function AccountCenter({
 
   if (panel === "appearance") {
     const options: Array<{ id: Appearance; title: string }> = [
-      { id: "system", title: "Automatic" },
       { id: "light", title: "Light" },
+      { id: "system", title: "System" },
       { id: "dark", title: "Dark" },
     ];
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
       description="Choose how WeHouse looks on this device." onBack={() => setPanel(null)}>
       <section className="mx-auto max-w-2xl">
-        <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1" role="group" aria-label="Choose appearance">
+        <div className="flex rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1" role="group" aria-label="Choose appearance">
           {options.map(option => (
             <button key={option.id} type="button" aria-pressed={appearance === option.id}
               onClick={() => setAppearance(option.id)}
-              className={`flex min-h-12 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-semibold transition-colors ${appearance === option.id ? "bg-[var(--wh-accent-surface)] text-[var(--wh-text)]" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
-              <span>{option.title}</span>
-              <span aria-hidden="true" className={`grid h-5 w-5 place-items-center rounded-full border text-[10px] ${appearance === option.id ? "border-violet-500 bg-violet-500 text-white" : "border-[var(--wh-border)]"}`}>{appearance === option.id ? "✓" : ""}</span>
+              className={`min-h-11 min-w-0 flex-1 rounded-xl px-3 text-xs font-semibold transition-colors ${appearance === option.id ? "bg-violet-500 text-white" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
+              {option.title}
             </button>
           ))}
         </div>
-        <p className="mt-3 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Automatic follows your device. Light and Dark stay consistent across Personal and every workspace.</p>
+        <p className="mt-3 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Light and Dark use the same WeHouse layout, spacing and controls. System follows your phone.</p>
       </section>
     </AccountShell>;
   }
