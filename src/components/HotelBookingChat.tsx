@@ -91,6 +91,7 @@ export default function HotelBookingChat({
   const draftRef = useRef({ input, files }); draftRef.current = { input, files };
   const localUrls = useRef(new Set<string>());
   const [loadError, setLoadError] = useState('');
+  const [mediaLoadingIds, setMediaLoadingIds] = useState<Set<string>>(new Set());
   const load = useCallback(async (id: string, quiet = false) => {
     const session = generation.current, request = ++requestNumber.current, startedAt = Date.now();
     const current = () => session === generation.current && request === requestNumber.current && activeId.current === id;
@@ -99,13 +100,18 @@ export default function HotelBookingChat({
     try {
       const result = await withTimeout(getHotelMessages(id, bookingId, (rows, verifiedContext) => {
         if (!current()) return;
-        setContext(verifiedContext); setMessages(old => reconcileChatMessages(old, rows, startedAt)); setLoading(false);
+        setContext(verifiedContext);
+        setMediaLoadingIds(new Set(rows.filter(row => row.media_loading).map(row => row.id)));
+        setMessages(old => reconcileChatMessages(old, rows, startedAt));
+        setLoading(false);
         if (document.visibilityState === "visible") void markHotelMessagesRead(id).catch(() => undefined);
       }), 18000, 'Hotel messages took too long to refresh.');
       if (!current()) return;
       if (result.error) throw result.error;
       setContext(result.context);
+      setMediaLoadingIds(new Set(result.messages.filter(row => row.media_loading).map(row => row.id)));
       setMessages(old => reconcileChatMessages(old, result.messages, startedAt));
+      setMediaLoadingIds(new Set());
     } catch (cause) {
       if (!current()) return;
       if (/permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((cause as {message?: string})?.message || cause))) { setMessages([]); setContext(null); }
@@ -116,7 +122,7 @@ export default function HotelBookingChat({
   useEffect(() => {
     const session = ++generation.current;
     activeId.current = initialConversationId || '';
-    setConversationId(initialConversationId || ''); setMessages([]); setContext(null); setInput(''); setFiles([]); setReplyingTo(null); setLoading(true); setLoadError('');
+    setConversationId(initialConversationId || ''); setMessages([]); setContext(null); setMediaLoadingIds(new Set()); setInput(''); setFiles([]); setReplyingTo(null); setLoading(true); setLoadError('');
     sendingRef.current = false; setSending(false);
     void (async () => {
       try {
@@ -391,7 +397,7 @@ export default function HotelBookingChat({
                           {message.content}
                         </p>
                       )}
-                      {message.media_loading && <AttachmentState />}
+                      {(message.media_loading || mediaLoadingIds.has(message.id)) && <AttachmentState />}
                       {message.media_error && <AttachmentState error />}
                       <MessageMedia items={(message.attachments || []).map((url, index) => ({ url, type: message.attachment_types?.[index] || "" }))} />
                       <span
