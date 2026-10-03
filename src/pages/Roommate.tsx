@@ -551,6 +551,7 @@ function ProfileImage({
 function Matches({
   rows,
   receivedUserIds,
+  acceptedIncomingIds,
   focusedId,
   discoveryActive,
   hasMore,
@@ -563,6 +564,7 @@ function Matches({
 }: {
   rows: RoommateMatchResult[];
   receivedUserIds: Set<string>;
+  acceptedIncomingIds: Set<string>;
   focusedId: string | null;
   discoveryActive: boolean;
   hasMore: boolean;
