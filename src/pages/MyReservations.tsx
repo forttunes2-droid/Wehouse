@@ -856,25 +856,30 @@ export default function MyReservations({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
-          <input type="search" aria-label="Search bookings" placeholder="Search place, service or booking code"
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Booking filters">
+          <div className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--wh-interactive)] p-1" role="group" aria-label="Filter bookings by status">
+            {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
+              className={`min-h-9 shrink-0 rounded-full px-3 text-[11px] font-semibold ${statusView === option.value ? "bg-violet-500 text-white" : "text-[var(--wh-text-secondary)]"}`}>
+              {option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}
+            </button>)}
+          </div>
+          <WeHouseChoice value={view} onChange={event => setView(event.target.value as View)} aria-label="Booking type"
+            className="h-11 shrink-0 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 text-xs text-[var(--wh-text)]">
+            <option value="all">All types</option>
+            <option value="housing">Apartments</option>
+            <option value="hotels">Hotels</option>
+            <option value="services">Services</option>
+          </WeHouseChoice>
+        </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
+          <input type="search" aria-label="Search bookings" placeholder="Search bookings"
             value={search} onChange={event => setSearch(event.target.value)}
-            className="h-12 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400" />
+            className="h-11 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400" />
           <WeHouseChoice value={month} onChange={event => setMonth(event.target.value)} aria-label="Booking month"
-            className="h-12 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)]">
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)]">
             <option value="all">Any month</option>
             {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
           </WeHouseChoice>
-        </div>
-        <div className="mt-3 space-y-2" aria-label="Booking filters">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter bookings by type">
-            <span className="shrink-0 pr-1 text-[11px] font-semibold text-[var(--wh-text-muted)]">Type</span>
-            {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-9 shrink-0 rounded-full border px-3 text-[11px] font-semibold transition-colors ${view === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>{option.value === "all" ? "All" : option.label}</button>)}
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter bookings by status">
-            <span className="shrink-0 pr-1 text-[11px] font-semibold text-[var(--wh-text-muted)]">Status</span>
-            {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-9 shrink-0 rounded-full border px-3 text-[11px] font-semibold transition-colors ${statusView === option.value ? "border-violet-400 bg-violet-500 text-white" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
-          </div>
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
           {visibleCount} {visibleCount === 1 ? "booking" : "bookings"}
