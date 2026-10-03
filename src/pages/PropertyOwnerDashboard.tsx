@@ -199,7 +199,7 @@ function PropertiesWorkspace({
   const [publishedTarget, setPublishedTarget] = useState<string>();
   const recordTarget = publishedTarget || initialRecordId;
   const [filter, setFilter] = useState<SubmissionFilter>(delegatedOnly ? "public" : "all");
-  const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
+  const [assetKind, setAssetKind] = useState<PartnerAssetKind>("all");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -232,7 +232,7 @@ function PropertiesWorkspace({
               <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[var(--wh-text-muted)]">
                 Property workspace
               </p>
-              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">One list, filtered by type and lifecycle</p>
+              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Your homes and hotels in one place</p>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
               <WeHouseSelect value={assetKind} options={[{ value: "apartment", label: "Apartments" }, { value: "hotel", label: "Hotels" }]} onChange={setAssetKind} eyebrow="Properties" title="Property type" ariaLabel="Filter by property type" className="w-full !min-w-0" />
