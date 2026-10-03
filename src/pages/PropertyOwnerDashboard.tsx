@@ -308,26 +308,28 @@ function PropertiesTab({
     setHasMore(false);
     setCursor(null);
     void (async () => {
-      const result =
-        assetKind === "apartment"
-          ? await supabase.rpc("get_my_property_assets_page", {
-              p_workspace: delegatedOnly ? "hosting" : "property_partner",
-              p_limit: PROPERTY_PAGE_SIZE + 1,
-            })
-          : await supabase.rpc("get_my_owned_hotels_page", {
-              p_limit: PROPERTY_PAGE_SIZE + 1,
-            });
+      const fetchApartment = assetKind === "all" || assetKind === "apartment";
+      const fetchHotel = !delegatedOnly && (assetKind === "all" || assetKind === "hotel");
+      const [apartmentResult, hotelResult] = await Promise.all([
+        fetchApartment ? supabase.rpc("get_my_property_assets_page", {
+          p_workspace: delegatedOnly ? "hosting" : "property_partner",
+          p_limit: PROPERTY_PAGE_SIZE + 1,
+        }) : Promise.resolve({ data: [], error: null }),
+        fetchHotel ? supabase.rpc("get_my_owned_hotels_page", {
+          p_limit: PROPERTY_PAGE_SIZE + 1,
+        }) : Promise.resolve({ data: [], error: null }),
+      ]);
       if (!active || generation !== requestGeneration.current) return;
-      if (result.error) {
-        toast.error(
-          `Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`,
-        );
+      if (apartmentResult.error || hotelResult.error) {
+        toast.error("Unable to load your properties. Try again.");
         setAssets([]);
         setSelected(null);
         setLoading(false);
         return;
       }
-      const rows = (result.data || []) as any[];
+      const apartmentRows = ((apartmentResult.data || []) as any[]).map(row => ({ ...row, _assetKind: "property" }));
+      const hotelRows = ((hotelResult.data || []) as any[]).filter(row => row.status === "active" && row.access_role === "owner").map(row => ({ ...row, _assetKind: "hotel", id: `hotel:${row.hotel_id}`, title: row.name }));
+      const rows = assetKind === "hotel" ? hotelRows : assetKind === "apartment" ? apartmentRows : [...apartmentRows, ...hotelRows].sort((a,b) => new Date(b.created_at || b.page_updated_at || 0).getTime() - new Date(a.created_at || a.page_updated_at || 0).getTime());
       const page = rows.slice(0, PROPERTY_PAGE_SIZE);
       setHasMore(rows.length > PROPERTY_PAGE_SIZE);
       const last = page.at(-1);
@@ -335,19 +337,7 @@ function PropertiesTab({
         sort_at: assetKind === "apartment" ? last.created_at : last.page_updated_at,
         id: String(assetKind === "apartment" ? last.id : last.hotel_id),
       } : null);
-      const nextAssets = page.filter((row: any) => assetKind !== "hotel" || (row.status === "active" && row.access_role === "owner")).map((row: any) =>
-          assetKind === "apartment"
-            ? {
-                ...row,
-                _assetKind: "property",
-              }
-            : {
-                ...row,
-                _assetKind: "hotel",
-                id: `hotel:${row.hotel_id}`,
-                title: row.name,
-              },
-        );
+      const nextAssets = page;
       setAssets(nextAssets);
       async function readAccessibleAsset(targetId: string) {
         if (assetKind === "apartment") {
