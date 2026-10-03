@@ -171,6 +171,7 @@ export default function MyReservations({
   const [services, setServices] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
   const [view, setView] = useState<View>("all");
+  const [stayFilter, setStayFilter] = useState<"all" | "short_let" | "long_let" | "hotels">("all");
   const [statusView, setStatusView] = useState<StatusView>("all");
   const [search, setSearch] = useState("");
   const [month, setMonth] = useState("all");
@@ -389,20 +390,19 @@ export default function MyReservations({
           date: row.updated_at || "",
         })),
       ]
-        .filter((item) =>
-          view === "all"
-            ? true
-            : view === "housing"
-              ? item.kind === "housing" || item.kind === "shared"
-              : view === "hotels"
-                ? item.kind === "hotel"
-                : item.kind === "service",
-        )
+        .filter((item) => {
+          if (view === "services") return item.kind === "service";
+          if (view === "all") return true;
+          if (stayFilter === "short_let") return item.kind === "housing" && String(item.row.stay_type) === "short_let";
+          if (stayFilter === "long_let") return item.kind === "housing" && String(item.row.stay_type) !== "short_let";
+          if (stayFilter === "hotels") return item.kind === "hotel";
+          return item.kind === "housing" || item.kind === "hotel" || item.kind === "shared";
+        })
         .sort(
           (a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
-    [housing, hotels, services, sharedGroups, profile.user_id, view],
+    [housing, hotels, services, sharedGroups, profile.user_id, stayFilter, view],
   );
 
   const months = useMemo(() => Array.from(new Set(rows.map(item => bookingMonth(item.date)).filter(Boolean))).sort().reverse(), [rows]);
@@ -856,20 +856,42 @@ export default function MyReservations({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Booking filters">
-          <div className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--wh-interactive)] p-1" role="group" aria-label="Filter bookings by status">
+        <div className="space-y-2" aria-label="Booking filters">
+          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[
+              { value: "all", label: "All" },
+              { value: "housing", label: "Stays" },
+              { value: "services", label: "Services" },
+            ].map(option => (
+              <button key={option.value} type="button" aria-pressed={view === option.value}
+                onClick={() => { setView(option.value as View); if (option.value !== "housing") setStayFilter("all"); }}
+                className={`min-h-9 shrink-0 rounded-full px-3 text-[10px] font-semibold ${view === option.value ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {view === "housing" ? (
+            <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--wh-border-subtle)] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {[
+                { value: "all", label: "All stays" },
+                { value: "short_let", label: "Short Let" },
+                { value: "long_let", label: "Long Let" },
+                { value: "hotels", label: "Hotels" },
+              ].map(option => (
+                <button key={option.value} type="button" aria-pressed={stayFilter === option.value}
+                  onClick={() => setStayFilter(option.value as typeof stayFilter)}
+                  className={`min-h-8 shrink-0 px-2.5 text-[9px] font-semibold ${stayFilter === option.value ? "border-b-2 border-violet-400 text-[var(--wh-text)]" : "text-[var(--wh-text-secondary)]"}`}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
-              className={`min-h-9 shrink-0 rounded-full px-3 text-[11px] font-semibold ${statusView === option.value ? "bg-violet-500 text-white" : "text-[var(--wh-text-secondary)]"}`}>
-              {option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}
+              className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-violet-300" : "text-[var(--wh-text-secondary)]"}`}>
+              {option.value === "all" ? "All status" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}
             </button>)}
           </div>
-          <WeHouseChoice value={view} onChange={event => setView(event.target.value as View)} aria-label="Booking type"
-            className="h-11 shrink-0 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 text-xs text-[var(--wh-text)]">
-            <option value="all">All types</option>
-            <option value="housing">Apartments</option>
-            <option value="hotels">Hotels</option>
-            <option value="services">Services</option>
-          </WeHouseChoice>
         </div>
         <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
           <input type="search" aria-label="Search bookings" placeholder="Search bookings"
