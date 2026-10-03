@@ -1363,7 +1363,6 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             onGoToChat={goToChat}
             onNavigate={openUserDestination}
             onEditProfile={goToProfileEdit}
-            onOpenListing={goToDetail}
             initialContextId={roommateContextId}
           />
         ) : (
