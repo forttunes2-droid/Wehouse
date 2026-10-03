@@ -81,7 +81,7 @@ test('full-screen navigation dialogs use opaque page backgrounds; sharing uses a
   const shared=read('src/components/SharedPropertyWorkspaceView.tsx');
   assert.match(shared,/<ListingDetail/); assert.match(shared,/<HotelDetail/); assert.match(shared,/Open in Personal to save, message or book/);
   const share=read('src/components/PropertyShareDialog.tsx');
-  assert.match(share,/max-h-\[92dvh\]/); assert.match(share,/rounded-t-3xl/); assert.match(share,/overflow-y-auto/);
+  assert.match(share,/max-h-\[92dvh\]/); assert.match(share,/rounded-t-3xl/); assert.match(share,/overflow-y-auto/); assert.match(share,/bg-black\/95/);
   assert.match(read('src/components/OperationalThreadSurface.tsx'),/fixed inset-0.*bg-\[var\(--wh-bg\)\]/);
 });
 

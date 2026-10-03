@@ -138,8 +138,12 @@ test('Inbox rows stay message-first instead of showing lifecycle status on every
   assert.doesNotMatch(source,/function statusLabel\(/);
   assert.match(source,/Search messages/);
 });
-test('Booking list keeps status in filters and details instead of a loud row label', () => {
+test('Booking list keeps status in compact filters and details instead of a loud row label', () => {
   const source=readFileSync(new URL('../src/pages/MyReservations.tsx', import.meta.url),'utf8');
+  assert.doesNotMatch(source,/grid grid-cols-4 gap-1 rounded-2xl/);
+  assert.match(source,/overflow-x-auto/);
+  assert.match(source,/Filter bookings by type/);
+  assert.match(source,/Filter bookings by status/);
   assert.match(source,/All booking stages/);
   assert.doesNotMatch(source,/status=\{visibleStatus\}/);
   assert.doesNotMatch(source,/status=\{status\?\.label/);

@@ -44,7 +44,7 @@ export default function PropertyShareDialog({ userId, property, title, stayType,
     catch { toast.error('This property could not be shared'); }
     finally { setSharing(false); }
   }
-  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/75 sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
+  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/95 sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
     <section role="dialog" aria-modal="true" aria-label="Share property" className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-[var(--wh-text)] sm:max-h-[90dvh] sm:rounded-2xl">
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><div><h2 className="text-lg font-semibold">Share this place</h2><p className="text-xs text-[var(--wh-text-secondary)]">Send a property link to someone you know</p></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
