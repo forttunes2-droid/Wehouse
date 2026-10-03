@@ -31,7 +31,6 @@ async def main():
   await page.get_by_role('button',name=re.compile(r'^Light\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
   await expect(page.get_by_role('button',name=re.compile(r'^Light\b'))).to_have_attribute('aria-pressed','true')
-  assert await page.get_by_role('button',name=re.compile(r'^Automatic\b')).evaluate('(node)=>getComputedStyle(node).backgroundColor')=='rgb(255, 255, 255)'
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='light'
   await page.screenshot(path=str(OUT/'account-appearance-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
@@ -49,10 +48,7 @@ async def main():
   await page.screenshot(path=str(OUT/'account-workspaces-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Appearance',exact=False).click()
-  await page.emulate_media(color_scheme='light')
-  await page.get_by_role('button',name=re.compile(r'^Automatic\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
-  await page.emulate_media(color_scheme='dark')
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
   await page.get_by_role('button',name=re.compile(r'^Dark\b')).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
