@@ -114,10 +114,13 @@ export default function RoommateWorkspace({
       const [preferenceResult, incoming] = await withTimeout(Promise.all([checkSearchExpiry(),getReceivedRoommateInterests()]),15000,"Roommate information took too long.");
       if (preferenceResult.error || incoming.error) throw preferenceResult.error || incoming.error;
       const p = preferenceResult.prefs;
-      const result = p?.practical_preferences_version === 2
+      const fetched = p
         ? await withTimeout(getSavedMatchResults(MATCH_PAGE_SIZE,0),15000,"Matches took too long.")
         : {matches:[],hasMore:false,error:null};
-      if (result.error) throw result.error;
+      if (fetched.error) throw fetched.error;
+      const result = p?.practical_preferences_version === 2
+        ? fetched
+        : {matches:fetched.matches.filter(isEstablishedMatch),hasMore:false,error:null};
       if (generation !== requestGeneration.current) return [];
       const rows = result.matches;
       setPrefs(p); setReceived(incoming.interests); setMatches(rows); setHasMore(result.hasMore);
