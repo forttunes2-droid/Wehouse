@@ -72,7 +72,7 @@ export default function WeHouseChoice({ value, onChange, children, disabled, cla
       <span className="min-w-0 truncate">{selected?.label || 'Choose'}</span><span aria-hidden="true" className="shrink-0 text-violet-300">⌄</span>
     </button>
     {open && createPortal(<div ref={root} role="presentation" onClick={() => setOpen(false)}
-      className="fixed inset-0 z-[100300] flex items-end bg-black/75 sm:items-center sm:justify-center sm:p-5">
+      className="fixed inset-0 z-[100300] flex items-end bg-[var(--wh-bg)] sm:items-center sm:justify-center sm:p-5">
       <section role="dialog" aria-modal="true" aria-labelledby={headingId} onClick={event => event.stopPropagation()}
         className="flex max-h-[82dvh] w-full flex-col rounded-t-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[var(--wh-text)] shadow-2xl sm:max-w-md sm:rounded-3xl">
         <div className="flex items-center justify-between gap-3">
