@@ -50,11 +50,11 @@ import {
 } from "@/lib/supabase/announcements";
 import {
   activityIsCurrent,
+  currentActivityRows,
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import {
   getCanonicalActivity,
-  getCanonicalActivitySummary,
   markCanonicalActivityRead,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
