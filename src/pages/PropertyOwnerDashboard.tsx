@@ -77,7 +77,7 @@ export default function PropertyOwnerDashboard({
     try {
       if (sessionStorage.getItem('wh_partner_return_tab') === 'pro') {
         sessionStorage.removeItem('wh_partner_return_tab');
-        setTab('pro');
+        setTab('tools');
       }
     } catch { /* The workspace stays navigable if storage is unavailable. */ }
   }, [delegatedOnly]);
