@@ -42,12 +42,11 @@ export default function PublicProfileSurface({
   useEffect(() => {
     const element = root.current;
     if (!element) return;
-    const release = isolateDialog(element);
-    // StrictMode replays this effect after the dialog has already taken focus.
-    // Capture the real opener once, not the dialog from the second effect run.
+    // Capture the real opener before dialog isolation moves focus into the surface.
     if (!returnFocus.current && document.activeElement instanceof HTMLElement) {
       returnFocus.current = document.activeElement;
     }
+    const release = isolateDialog(element);
     window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: true } }));
     const history = bindProfileScreenHistory(window, id, () => close.current());
     controller.current = history;
