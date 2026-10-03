@@ -127,7 +127,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   }
 
   if (activeHotel) {
-    return <HotelBookingChat bookingId={activeHotel.booking_id} conversationId={activeHotel.conversation_id} profile={profile} title={activeHotel.guest_name || "Guest"} subtitle={stayContext(activeHotel)} readOnly={!['confirmed','checked_in'].includes(activeHotel.booking_status)} onClose={() => setActiveHotel(null)} onUpdated={loadMessages} />;
+    return <HotelBookingChat bookingId={activeHotel.booking_id} conversationId={activeHotel.conversation_id} profile={profile} title={activeHotel.guest_name || "Guest"} subtitle={stayContext(activeHotel)} readOnly={!['confirmed','checked_in'].includes(activeHotel.booking_status)} onClose={() => { setActiveHotel(null); void loadMessages(); }} onUpdated={loadMessages} />;
   }
 
   if (showActivity && !hostingOnly) {
@@ -158,9 +158,9 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
         ) : (
           <div className="divide-y divide-[var(--wh-border-subtle)] border-b border-[var(--wh-border-subtle)]">
             {items.map((item) => item.kind === "hotel"
-  ? <HotelRow key={item.id} thread={item.thread} onOpen={() => setActiveHotel(item.thread)} />
+  ? <HotelRow key={item.id} thread={item.thread} onOpen={() => { setHotelChats((current) => current.map((thread) => String(thread.conversation_id) === String(item.thread.conversation_id) ? { ...thread, unread_count: 0 } : thread)); setActiveHotel(item.thread); }} />
   : item.kind === "host"
-    ? <HostRow key={item.id} thread={item.thread} onOpen={() => setActiveHost(item.thread)} />
+    ? <HostRow key={item.id} thread={item.thread} onOpen={() => { setHostChats((current) => current.map((thread) => String(thread.conversation_id) === String(item.thread.conversation_id) ? { ...thread, unread_count: 0 } : thread)); setActiveHost(item.thread); }} />
     : <SupportRow key={item.id} thread={item.thread} onOpen={() => openSupport(item.thread)} />)}
           </div>
         )}
