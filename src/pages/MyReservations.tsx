@@ -806,7 +806,7 @@ export default function MyReservations({
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
         <div className="space-y-2" aria-label="Booking filters">
-          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="grid grid-cols-5 gap-1">
             {[
               { value: "all", label: "All" },
               { value: "short_let", label: "Short Let" },
@@ -833,7 +833,7 @@ export default function MyReservations({
                       setStayFilter(option.value as typeof stayFilter);
                     }
                   }}
-                  className={`min-h-9 shrink-0 rounded-full px-3 text-[10px] font-semibold ${selected ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>
+                  className={`min-w-0 min-h-9 rounded-full px-1 text-[9px] font-semibold sm:px-3 sm:text-[10px] ${selected ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>
                   {option.label}
                 </button>
               );
