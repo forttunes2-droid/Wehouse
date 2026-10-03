@@ -117,19 +117,6 @@ const HOTEL_STATUS: Record<string, string> = {
   expired: "Expired",
   payment_conflict: "Payment review",
 };
-const HOUSING_STATUS_SHORT: Record<string, string> = {
-  payment_pending: "Payment due", reserved: "Reserved", inspection_pending: "Reviewing",
-  ready_for_move_in: "Ready", occupied: "Active", completed: "Completed",
-  cancelled: "Cancelled", expired: "Expired", refunded: "Refunded", payment_conflict: "Payment review",
-};
-const SERVICE_STATUS_SHORT: Record<string, string> = {
-  booking_requested: "Requested", negotiating: "Negotiating", waiting_payment: "Payment due",
-  confirmed: "Confirmed", in_progress: "In progress", completed_pending_approval: "Review",
-  approved_released: "Completed", disputed: "Review", cancelled: "Cancelled", refunded: "Refunded",
-};
-function compactHousingStatus(row: any) {
-  return HOUSING_STATUS_SHORT[String(row.status || "")] || (hasProtectedAccommodationPayment(row) ? "Paid" : "Open");
-}
 
 export default function MyReservations({
   profile,
@@ -1050,7 +1037,6 @@ function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   return (
     <BookingCard
       eyebrow="WeHouse Service"
-      status={SERVICE_STATUS_SHORT[String(row.booking_status || "")] || "Open"}
       title={row.service_type || "Service request"}
       subtitle={row.other_person_name || "WeHouse professional"}
       image={null}
@@ -1230,7 +1216,6 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   return (
     <BookingCard
       eyebrow={short ? "Short Let" : "Long Let"}
-      status={compactHousingStatus(row)}
       title={row.listing_title || "Apartment reservation"}
       subtitle={row.listing_location || "WeHouse apartment"}
       image={row.listing_image || null}
@@ -1259,7 +1244,6 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   return (
     <BookingCard
       eyebrow="Hotel"
-      status={HOTEL_STATUS[String(row.status || "")] ? String(HOTEL_STATUS[String(row.status || "")]).replace("Stay ","").replace("Awaiting payment","Payment due").replace("Payment review","Review") : "Open"}
       title={hotel.name || row.hotel_name || "Hotel reservation"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
       image={image}
@@ -1379,7 +1363,7 @@ function PropertyBookingDetail({
   onMoveIn: (requestedAt: string) => void;
 }) {
   const short = row.stay_type === "short_let";
-  const status = compactHousingStatus(row);
+  const status = propertyBookingStatusLabel(row);
   const title =
     row.status === "occupied"
       ? short
