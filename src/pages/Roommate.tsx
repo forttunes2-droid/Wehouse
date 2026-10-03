@@ -45,7 +45,23 @@ type RoommateSnapshot = {
 const roommateCache = new Map<string, RoommateSnapshot>();
 
 function isEstablishedMatch(row: RoommateMatchResult) {
-  return Boolean(row.conversation_id || row.mutual_accepted);
+  // Once either side has accepted an interest, keep that person out of
+  // Discover. Mutual acceptance/conversation makes it a live connection;
+  // a one-sided accepted interest is the pending connection state.
+  return Boolean(row.conversation_id || row.mutual_accepted || row.status === "accepted");
+}
+
+function uniqueMatches(rows: RoommateMatchResult[]) {
+  const byPerson = new Map<string, RoommateMatchResult>();
+  for (const row of rows) {
+    const key = row.matched_user_id;
+    const previous = byPerson.get(key);
+    if (!previous || (isEstablishedMatch(row) && !isEstablishedMatch(previous)) ||
+        (row.status === "accepted" && previous.status !== "accepted")) {
+      byPerson.set(key, row);
+    }
+  }
+  return [...byPerson.values()];
 }
 
 // The server evaluates either person's school restriction without disclosing
@@ -65,6 +81,7 @@ export default function RoommateWorkspace({
   const editingRef = useRef(false);
   const [loadError, setLoadError] = useState("");
   const cached = roommateCache.get(profile.user_id);
+  const [acceptedIncomingUserIds, setAcceptedIncomingUserIds] = useState<Set<string>>(() => new Set());
   const [prefs, setPrefs] = useState<RoommatePreferences | null>(() => cached?.prefs || null),
     [matches, setMatches] = useState<RoommateMatchResult[]>(() => cached?.matches || []),
     [received, setReceived] = useState<ReceivedRoommateInterest[]>(() => cached?.received || []),
@@ -122,7 +139,7 @@ export default function RoommateWorkspace({
         ? fetched
         : {matches:fetched.matches.filter(isEstablishedMatch),hasMore:false,error:null};
       if (generation !== requestGeneration.current) return [];
-      const rows = result.matches;
+      const rows = uniqueMatches(result.matches);
       setPrefs(p); setReceived(incoming.interests); setMatches(rows); setHasMore(result.hasMore);
       roommateCache.set(profile.user_id,{prefs:p,matches:rows,received:incoming.interests,hasMore:result.hasMore});
       if (!editingRef.current) {
@@ -191,7 +208,7 @@ export default function RoommateWorkspace({
     matches?: RoommateMatchResult[];
     hasMore?: boolean;
   }) {
-    const rows = visibleMatches(result.matches || []);
+    const rows = uniqueMatches(visibleMatches(result.matches || []));
     setMatches(rows);
     setHasMore(Boolean(result.hasMore));
   }
@@ -256,9 +273,9 @@ export default function RoommateWorkspace({
     setLoadingMore(false);
     if (result.error) return toast.error(result.error.message);
     setMatches((current) => {
-      const seen = new Set(current.map((row) => row.id));
-      const next = visibleMatches(result.matches).filter(
-        (row) => !seen.has(row.id),
+      const seenPeople = new Set(current.map((row) => row.matched_user_id));
+      const next = uniqueMatches(visibleMatches(result.matches)).filter(
+        (row) => !seenPeople.has(row.matched_user_id),
       );
       return [...current, ...next];
     });
@@ -323,9 +340,8 @@ export default function RoommateWorkspace({
     );
     setInterestBusy(null);
     if (error) return toast.error(error.message);
-    setReceived((current) =>
-      current.filter((row) => row.interest_id !== item.interest_id),
-    );
+    setReceived((current) => current.filter((row) => row.interest_id !== item.interest_id));
+    if (response === "accepted") setAcceptedIncomingUserIds((current) => new Set(current).add(item.sender_user_id));
     if (response === "declined")
       return toast.success("Passed privately. No conversation was created.");
     toast.success("Interest accepted. Your connection is ready.", {
@@ -480,6 +496,8 @@ export default function RoommateWorkspace({
             </section>
             <Matches
               rows={matches}
+              receivedUserIds={new Set(received.map((row) => row.sender_user_id))}
+              acceptedIncomingIds={acceptedIncomingUserIds}
               focusedId={focusedContextId}
               discoveryActive={matchingActive}
               hasMore={hasMore}
@@ -538,6 +556,8 @@ function ProfileImage({
 
 function Matches({
   rows,
+  receivedUserIds,
+  acceptedIncomingIds,
   focusedId,
   discoveryActive,
   hasMore,
@@ -549,6 +569,8 @@ function Matches({
   onInterest,
 }: {
   rows: RoommateMatchResult[];
+  receivedUserIds: Set<string>;
+  acceptedIncomingIds: Set<string>;
   focusedId: string | null;
   discoveryActive: boolean;
   hasMore: boolean;
@@ -561,9 +583,9 @@ function Matches({
 }) {
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const openProfile = rows.find((row) => row.id === openProfileId) || null;
-  const established = rows.filter(isEstablishedMatch);
+  const established = rows.filter((row) => isEstablishedMatch(row) || acceptedIncomingIds.has(row.matched_user_id));
   const discoverable = discoveryActive
-    ? rows.filter((row) => !isEstablishedMatch(row))
+    ? rows.filter((row) => !isEstablishedMatch(row) && !acceptedIncomingIds.has(row.matched_user_id) && row.status !== "accepted" && !receivedUserIds.has(row.matched_user_id))
     : [];
 
   return (
@@ -726,6 +748,6 @@ function ReceivedInterests({
           </article>
         ))}
       </div>
-    </section>{openProfile ? <RoommatePublicProfile context="discovery" person={{name:openProfile.full_name||`@${openProfile.username||"user"}`,username:openProfile.username,avatar:openProfile.avatar_url,location:[openProfile.city,openProfile.state].filter(Boolean).join(", ")||"Nigeria",bio:openProfile.bio,school:sameSchool(schoolFilter,openProfile.school)?openProfile.school:null}} score={openProfile.match_score ?? undefined} matchLabel="Answered-preference similarity" onClose={()=>setOpenProfileId(null)} primaryAction={<div className="grid grid-cols-2 gap-2"><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"declined")} className="h-12 rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40">Pass</button><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"accepted")} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">Accept</button></div>}/> : null}</>
+    </section>{openProfile ? <RoommatePublicProfile context="discovery" person={{name:openProfile.full_name||`@${openProfile.username||"user"}`,username:openProfile.username,avatar:openProfile.avatar_url,location:[openProfile.city,openProfile.state].filter(Boolean).join(", ")||"Nigeria",bio:openProfile.bio,school:sameSchool(schoolFilter,openProfile.school)?openProfile.school:null}} score={openProfile.match_score ?? undefined} matchLabel="How your plans compare" highlights={openProfile.match_highlights || []} discuss={openProfile.discuss_before_deciding || []} comparedAnswers={openProfile.compared_answers} onClose={()=>setOpenProfileId(null)} primaryAction={<div className="grid grid-cols-2 gap-2"><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"declined")} className="h-12 rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40">Pass</button><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"accepted")} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">Accept</button></div>}/> : null}</>
   );
 }

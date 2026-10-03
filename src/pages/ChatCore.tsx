@@ -721,18 +721,16 @@ export default function Chat({
       }> = [];
     let accepted = false;
     try {
-      for (const file of queuedFiles) {
-        const uploaded = await uploadRoommateChatAttachment(
-          file,
-          active.id,
-          otherId(active),
-        );
+      const uploadedFiles = await Promise.all(
+        queuedFiles.map((file) => uploadRoommateChatAttachment(file, active.id, otherId(active))),
+      );
+      for (let index = 0; index < uploadedFiles.length; index++) {
+        const uploaded = uploadedFiles[index];
+        const file = queuedFiles[index];
         if (uploaded.error || !uploaded.path || !uploaded.attachment)
-          throw new Error(
-            uploaded.error?.message || `Could not upload ${file.name}`,
-          );
+          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
         paths.push(uploaded.path);
-        if (uploaded.attachment) attachments.push(uploaded.attachment);
+        attachments.push(uploaded.attachment);
       }
       const result = await sendMessage(
         active.id,

@@ -211,7 +211,7 @@ export default function HotelTeamDashboard({
       {hotelError ? <p role="alert" className="py-4 text-sm text-amber-200">Assigned hotels are unavailable. Refresh this page to try again.</p> : null}
       {showActivity ? (
         <section>
-          <ActivityHeader onBack={closeActivity} subtitle="Stay and hotel-operation updates." />
+          <ActivityHeader onBack={closeActivity} />
           <Notifications
             profile={profile}
             scope="hotel"

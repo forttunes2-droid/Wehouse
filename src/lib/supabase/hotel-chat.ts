@@ -33,6 +33,20 @@ export async function openHotelBookingConversation(bookingId: number) {
   return { conversationId: data as string | null, error };
 }
 
+const HOTEL_MEDIA_URL_TTL = 50 * 60_000;
+const hotelSignedMediaCache = new Map<string, { url: string; expiresAt: number }>();
+async function getHotelChatMediaUrl(path: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const key = session?.user?.id + ":" + path;
+  const cached = hotelSignedMediaCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  const { data, error } = await supabase.storage.from("hotel-chat-files").createSignedUrl(path, 3600);
+  if (error || !data?.signedUrl) return null;
+  hotelSignedMediaCache.set(key, { url: data.signedUrl, expiresAt: Date.now() + HOTEL_MEDIA_URL_TTL });
+  if (hotelSignedMediaCache.size > 200) hotelSignedMediaCache.delete(hotelSignedMediaCache.keys().next().value as string);
+  return data.signedUrl;
+}
+
 export async function getMyHotelConversations(workspace: "personal" | "property_partner" | "hotel" = "personal") {
   const { data, error } = await supabase.rpc("get_my_workspace_inbox", { p_workspace: workspace, p_kind: "hotel" });
   return {
@@ -48,12 +62,12 @@ export async function getHotelMessages(conversationId: string, bookingId: number
   const { data, error } = await supabase.rpc("get_my_hotel_conversation_bundle", { p_conversation_id: conversationId, p_booking_id: bookingId });
   if (error) return { context: null, messages: [] as HotelMessage[], error };
   const {context, messages: rows} = parseHotelConversationBundle(data, conversationId, bookingId);
-  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })), context);
+  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: message.attachment_types || [], media_loading: Boolean(message.attachments?.length) })), context);
   const messages = await Promise.all(rows.map(async message => {
     const files = await Promise.all((message.attachments || []).map(async (path, index) => {
       try {
-        const { data: signed, error } = await supabase.storage.from("hotel-chat-files").createSignedUrl(path, 300);
-        return error || !signed?.signedUrl ? null : { url: signed.signedUrl, type: message.attachment_types?.[index] || '' };
+        const url = await getHotelChatMediaUrl(path);
+        return url ? { url, type: message.attachment_types?.[index] || '' } : null;
       } catch { return null; }
     }));
     const available = files.filter((file): file is {url: string; type: string} => Boolean(file));

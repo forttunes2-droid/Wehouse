@@ -12,7 +12,7 @@ import { useDialogInteraction } from '@/hooks/useDialogInteraction';
 import { toast } from 'sonner';
 
 type Props = { userId: string; property: SharedProperty; title: string; stayType?: 'short_let' | 'long_stay'; onClose: () => void; onConversation: (id: string) => void };
-export default function PropertyShareDialog({ userId, property, title, stayType, onClose, onConversation }: Props) {
+export default function PropertyShareDialog({ userId, property, title, onClose, onConversation }: Props) {
   const [recipients, setRecipients] = useState<RoommateRecipient[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -44,7 +44,7 @@ export default function PropertyShareDialog({ userId, property, title, stayType,
     catch { toast.error('This property could not be shared'); }
     finally { setSharing(false); }
   }
-  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/75 sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
+  return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/95 sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
     <section role="dialog" aria-modal="true" aria-label="Share property" className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-[var(--wh-text)] sm:max-h-[90dvh] sm:rounded-2xl">
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to property" /><div><h2 className="text-lg font-semibold">Share this place</h2><p className="text-xs text-[var(--wh-text-secondary)]">Send a property link to someone you know</p></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
@@ -59,7 +59,7 @@ export default function PropertyShareDialog({ userId, property, title, stayType,
       </section>
       <section className="mt-6 border-t border-[var(--wh-border-subtle)] pt-5" aria-label="Send within WeHouse">
       <h3 className="flex items-center gap-2 text-sm font-semibold"><Users size={17} aria-hidden="true" className="text-violet-300" />Send in WeHouse</h3>
-      <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a roommate connection. You can add a message before sending.</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a WeHouse connection. You can add a message before sending.</p>
       <label className="mt-3 block"><span className="sr-only">Search your connections</span><span className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[var(--wh-text-secondary)]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search connections" className="min-w-0 flex-1 bg-transparent py-3 text-base text-white outline-none" /></span></label>
       {loading ? <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading your connections…</p> : <>
         {error && <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-violet-300">Refresh connections</button></div>}
@@ -76,8 +76,6 @@ export default function PropertyShareDialog({ userId, property, title, stayType,
       </>}
       </section>
       </div>
-      {stayType === 'short_let' && <p className="shrink-0 border-t border-[var(--wh-border-subtle)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[var(--wh-text-secondary)]">To split a Short Let stay, reserve the dates first. Then open your booking and choose “Share stay costs.”</p>}
-      {stayType === 'long_stay' && <p className="shrink-0 border-t border-[var(--wh-border-subtle)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs leading-5 text-[var(--wh-text-secondary)]">To split a Long Let reservation, choose “Reserve with a roommate” on this listing. Sending a property link does not request payment.</p>}
     </section>
   </div>, document.body);
 }

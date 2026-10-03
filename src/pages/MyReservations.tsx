@@ -6,7 +6,6 @@ import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import StayArrivalInstructions from "@/components/StayArrivalInstructions";
 import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
-import ShortLetPaymentReview from "@/components/ShortLetPaymentReview";
 import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
 import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
@@ -77,50 +76,12 @@ type BookingSourceErrors = Partial<
   Record<"housing" | "hotels" | "services", string>
 >;
 
-const VIEW_OPTIONS = [
-  {
-    value: "all",
-    label: "All bookings",
-    description: "Apartments, hotels and WeHouse Services",
-  },
-  {
-    value: "housing",
-    label: "Apartments",
-    description: "Short Let and Long Let",
-  },
-  {
-    value: "hotels",
-    label: "Hotels",
-    description: "Hotel room and package bookings",
-  },
-  {
-    value: "services",
-    label: "Services",
-    description: "Jobs booked with professionals",
-  },
-] as const;
 const STATUS_OPTIONS = [
-  {
-    value: "all",
-    label: "All booking stages",
-    description: "Needs action, active and history",
-  },
-  {
-    value: "action",
-    label: "Needs action",
-    description: "A decision or payment is waiting for you",
-  },
-  {
-    value: "active",
-    label: "Active & upcoming",
-    description: "Confirmed, upcoming or in progress",
-  },
-  {
-    value: "history",
-    label: "History",
-    description: "Completed, cancelled, expired or refunded",
-  },
-] as const;
+  { value: "all", label: "All" },
+  { value: "action", label: "To do" },
+  { value: "active", label: "Upcoming" },
+  { value: "history", label: "History" },
+] as const;;
 const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
 const date = displayDate;
 function bookingMonth(value: string) {
@@ -171,6 +132,7 @@ export default function MyReservations({
   const [services, setServices] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
   const [view, setView] = useState<View>("all");
+  const [stayFilter, setStayFilter] = useState<"all" | "short_let" | "long_let" | "hotels">("all");
   const [statusView, setStatusView] = useState<StatusView>("all");
   const [search, setSearch] = useState("");
   const [month, setMonth] = useState("all");
@@ -389,20 +351,19 @@ export default function MyReservations({
           date: row.updated_at || "",
         })),
       ]
-        .filter((item) =>
-          view === "all"
-            ? true
-            : view === "housing"
-              ? item.kind === "housing" || item.kind === "shared"
-              : view === "hotels"
-                ? item.kind === "hotel"
-                : item.kind === "service",
-        )
+        .filter((item) => {
+          if (view === "services") return item.kind === "service";
+          if (view === "all") return true;
+          if (stayFilter === "short_let") return item.kind === "housing" && String(item.row.stay_type) === "short_let";
+          if (stayFilter === "long_let") return item.kind === "housing" && String(item.row.stay_type) !== "short_let";
+          if (stayFilter === "hotels") return item.kind === "hotel";
+          return item.kind === "housing" || item.kind === "hotel" || item.kind === "shared";
+        })
         .sort(
           (a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime(),
         ),
-    [housing, hotels, services, sharedGroups, profile.user_id, view],
+    [housing, hotels, services, sharedGroups, profile.user_id, stayFilter, view],
   );
 
   const months = useMemo(() => Array.from(new Set(rows.map(item => bookingMonth(item.date)).filter(Boolean))).sort().reverse(), [rows]);
@@ -412,23 +373,11 @@ export default function MyReservations({
       && (!query || bookingSearchText(item).includes(query)));
   }, [rows, month, search]);
 
-  const sections = useMemo(() => {
-    const groups: Record<BookingGroup, BookingItem[]> = {
-      action: [],
-      active: [],
-      history: [],
-    };
-    for (const item of visibleRows as BookingItem[]) {
-      const group = bookingGroup(item);
-      if (statusView === "all" || statusView === group) groups[group].push(item);
-    }
-    return [
-      { id: "action" as const, label: "Needs your action", items: groups.action },
-      { id: "active" as const, label: "Active & upcoming", items: groups.active },
-      { id: "history" as const, label: "History", items: groups.history },
-    ].filter((section) => section.items.length > 0);
-  }, [visibleRows, statusView]);
-  const visibleCount = sections.reduce((count, section) => count + section.items.length, 0);
+  const filteredRows = useMemo(
+    () => (visibleRows as BookingItem[]).filter((item) => statusView === "all" || bookingGroup(item) === statusView),
+    [visibleRows, statusView],
+  );
+  const visibleCount = filteredRows.length;
 
   async function cancelHousing(row: any) {
     setBusyId(row.id);
@@ -856,26 +805,59 @@ export default function MyReservations({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-        <p className="mb-1 text-xs font-semibold text-[var(--wh-text-muted)]">Booking type</p>
-        <div className="grid grid-cols-4 gap-1 rounded-2xl bg-[var(--wh-elevated)] p-1" role="group" aria-label="Filter bookings by type">
-          {VIEW_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={view === option.value} onClick={() => setView(option.value)} className={`min-h-11 min-w-0 rounded-xl px-1 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${view === option.value ? "bg-violet-500 text-white shadow-sm" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>{option.value === "all" ? "All" : option.label}</button>)}
+        <div className="space-y-2" aria-label="Booking filters">
+          <div className="grid grid-cols-5 gap-1">
+            {[
+              { value: "all", label: "All" },
+              { value: "short_let", label: "Short Let" },
+              { value: "long_let", label: "Long Let" },
+              { value: "hotels", label: "Hotel" },
+              { value: "services", label: "Services" },
+            ].map(option => {
+              const selected = option.value === "all"
+                ? view === "all" && stayFilter === "all"
+                : option.value === "services"
+                  ? view === "services"
+                  : view === "housing" && stayFilter === option.value;
+              return (
+                <button key={option.value} type="button" aria-pressed={selected}
+                  onClick={() => {
+                    if (option.value === "services") {
+                      setView("services");
+                      setStayFilter("all");
+                    } else if (option.value === "all") {
+                      setView("all");
+                      setStayFilter("all");
+                    } else {
+                      setView("housing");
+                      setStayFilter(option.value as typeof stayFilter);
+                    }
+                  }}
+                  className={`min-w-0 min-h-9 rounded-full px-1 text-[9px] font-semibold sm:px-3 sm:text-[10px] ${selected ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
+              className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-violet-300" : "text-[var(--wh-text-secondary)]"}`}>
+              {option.value === "all" ? "All status" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}
+            </button>)}
+          </div>
         </div>
-        <p className="mb-1 mt-4 text-xs font-semibold text-[var(--wh-text-muted)]">Status</p>
-        <div className="grid grid-cols-4 border-b border-[var(--wh-border-subtle)]" role="group" aria-label="Filter bookings by status">
-          {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)} className={`min-h-11 min-w-0 border-b-2 px-1 py-2 text-[11px] font-semibold leading-4 transition-colors sm:text-sm ${statusView === option.value ? "border-violet-400 text-[var(--wh-text)]" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{option.value === "all" ? "All" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}</button>)}
-        </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
-          <input type="search" aria-label="Search bookings" placeholder="Search place, service or booking code"
+        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
+          <input type="search" aria-label="Search bookings" placeholder="Search bookings"
             value={search} onChange={event => setSearch(event.target.value)}
-            className="h-12 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400" />
+            className="h-11 min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400" />
           <WeHouseChoice value={month} onChange={event => setMonth(event.target.value)} aria-label="Booking month"
-            className="h-12 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text)]">
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)]">
             <option value="all">Any month</option>
             {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
           </WeHouseChoice>
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
-          {visibleCount} {visibleCount === 1 ? "booking" : "bookings"}
+          {visibleCount} {visibleCount === 1 ? "item" : "items"}
           {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-violet-300">Clear search and month</button>}
         </p>}
 
@@ -890,58 +872,25 @@ export default function MyReservations({
 
         {loading ? (
           <Loading />
-        ) : sections.length === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <Empty view={view} statusView={statusView} filtered={Boolean(search || month !== "all")} />
         ) : (
-          <div className="mt-3 space-y-4">
-            {sections.map((section) => (
-              <section key={section.id}>
-                <div className={statusView === "all" ? "flex items-center justify-between pb-2" : "sr-only"}>
-                  <h2
-                    className={`text-xs font-bold uppercase tracking-[.14em] ${
-                      section.id === "action"
-                        ? "text-amber-300"
-                        : "text-[var(--wh-text-muted)]"
-                    }`}
-                  >
-                    {section.label}
-                  </h2>
-                  <span className="text-xs text-[var(--wh-text-muted)]">
-                    {section.items.length}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {section.items.map((item) =>
-                    item.kind === "housing" ? (
-                      <HousingCard
-                        key={item.row.id}
-                        row={item.row}
-                        onOpen={() => setActiveHousing(item.row)}
-                      />
-                    ) : item.kind === "shared" ? (
-                      <BookingCard key={`shared-${item.row.id}`} eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
-                        title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
-                        image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in?[`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`]:[]}
-                        next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} />
-                    ) : item.kind === "hotel" ? (
-                      <HotelCard
-                        key={item.row.booking_id}
-                        row={item.row}
-                        onOpen={() => setActiveHotel(item.row)}
-                      />
-                    ) : (
-                      <ServiceCard
-                        key={
-                          item.row.booking_id || item.row.conversation_id
-                        }
-                        row={item.row}
-                        onOpen={() => setActiveService(item.row)}
-                      />
-                    ),
-                  )}
-                </div>
-              </section>
-            ))}
+          <div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+            {filteredRows.map((item) =>
+              item.kind === "housing" ? (
+                <HousingCard key={item.row.id} row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
+              ) : item.kind === "shared" ? (
+                <BookingCard key={`shared-${item.row.id}`} eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
+                  title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
+                  image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in?[`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`]:[]}
+                  status={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited' ? "To do" : "Shared"}
+                  next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} compact />
+              ) : item.kind === "hotel" ? (
+                <HotelCard key={item.row.booking_id} row={item.row} onOpen={() => setActiveHotel(item.row)} compact />
+              ) : (
+                <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={() => setActiveService(item.row)} compact />
+              )
+            )}
           </div>
         )}
       </main>
@@ -1037,11 +986,13 @@ function BookingSourceNotice({
   );
 }
 
-function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function ServiceCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const amount = Number(row.negotiated_amount || 0);
+  const status = serviceStatusLabel(String(row.booking_status || ""));
   return (
     <BookingCard
       eyebrow="WeHouse Service"
+      status={status}
       title={row.service_type || "Service request"}
       subtitle={row.other_person_name || "WeHouse professional"}
       image={null}
@@ -1049,6 +1000,7 @@ function ServiceCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       meta={amount > 0 ? [money(amount)] : []}
       next={serviceNextAction(row.booking_status)}
       onOpen={onOpen}
+      compact={compact}
     />
   );
 }
@@ -1182,7 +1134,7 @@ function serviceStatusLabel(status: string) {
   return labels[status] || "Active";
 }
 
-function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const short = row.stay_type === "short_let";
   const rentPaid = hasProtectedAccommodationPayment(row);
   const journey = getPropertyBookingJourney(row);
@@ -1226,13 +1178,15 @@ function HousingCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       image={row.listing_image || null}
       fallback="⌂"
       meta={dates}
+      status={propertyBookingStatusLabel(row)}
       next={nextSummary || (["completed", "cancelled", "expired", "refunded"].includes(row.status) ? propertyBookingStatusLabel(row) : journey.title)}
       onOpen={onOpen}
+      compact={compact}
     />
   );
 }
 
-function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
+function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
   const hotel = row.hotels || row.hotel || {};
   const room = row.hotel_rooms || {};
   const checkIn = date(row.check_in_date || row.check_in);
@@ -1249,6 +1203,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
   return (
     <BookingCard
       eyebrow="Hotel"
+      status={HOTEL_STATUS[String(row.status || "")] || "Active"}
       title={hotel.name || row.hotel_name || "Hotel reservation"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
       image={image}
@@ -1256,12 +1211,14 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
       meta={[`${checkIn} – ${checkOut}`]}
       next={next}
       onOpen={onOpen}
+      compact={compact}
     />
   );
 }
 
 export function BookingCard({
   eyebrow,
+  status,
   title,
   subtitle,
   image,
@@ -1269,8 +1226,10 @@ export function BookingCard({
   meta,
   next,
   onOpen,
+  compact = false,
 }: {
   eyebrow: string;
+  status?: string;
   title: string;
   subtitle: string;
   image: string | null;
@@ -1278,45 +1237,51 @@ export function BookingCard({
   meta: string[];
   next: string;
   onOpen: () => void;
+  compact?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={`Open ${eyebrow} booking for ${title}`}
-      className="w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 sm:p-4"
+      className={`w-full text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 ${compact ? "bg-[var(--wh-surface)] px-3 py-3" : "rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 sm:p-4"}`}
     >
       <div className="flex items-start gap-3">
-      {image ? (
-        <img
-          src={image}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="h-16 w-16 shrink-0 rounded-xl object-cover"
-        />
-      ) : (
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xl font-bold text-violet-300">
-          {fallback}
+        {image ? (
+          <img
+            src={image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className={`${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 object-cover`}
+          />
+        ) : (
+          <div className={`grid ${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center bg-violet-500/[.08] text-lg font-bold text-violet-300`}>
+            {fallback}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
+            {status ? (
+              <span className="max-w-[7rem] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]" title={status}>
+                {status}
+              </span>
+            ) : null}
+          </div>
+          <p className={`mt-1 break-words font-semibold leading-5 ${compact ? "text-[13px]" : "text-sm"}`}>{title}</p>
+          <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">{subtitle}</p>
+          {meta.length ? (
+            <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">{meta.join(" · ")}</p>
+          ) : null}
+          {next ? (
+            <p className="mt-2 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
+              <span className="font-semibold text-violet-300">Next</span> · {next}
+            </p>
+          ) : null}
         </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
-        <p className="break-words text-sm font-semibold leading-5">
-          {title}
-        </p>
-        <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">
-          {subtitle}
-        </p>
-        {meta.length ? (
-          <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">
-            {meta.join(" · ")}
-          </p>
-        ) : null}
+        <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-base text-[var(--wh-text-secondary)]">›</span>
       </div>
-      <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-base text-[var(--wh-text-secondary)]">›</span>
-      </div>
-      {next && <div className="mt-3 flex items-start gap-2 border-t border-[var(--wh-border-subtle)] pt-3 text-xs leading-5"><span className="shrink-0 font-semibold text-violet-300">Next</span><span className="min-w-0 text-[var(--wh-text-secondary)]">{next}</span></div>}
     </button>
   );
 }
@@ -1505,7 +1470,6 @@ function PropertyBookingDetail({
             <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
-          <ShortLetPaymentReview row={row} />
           <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
           {row.shared_payment_group_id && <button type="button" onClick={()=>onOpenShared(String(row.shared_payment_group_id))} className="mt-4 min-h-12 w-full rounded-xl bg-violet-600 px-4 text-sm font-semibold">View shared payment</button>}
           <PropertyBookingJourney row={row} inspection={inspection} />

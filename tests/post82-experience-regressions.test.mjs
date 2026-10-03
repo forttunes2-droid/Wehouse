@@ -113,7 +113,9 @@ test("visible Activity surfaces use the canonical event model", async () => {
     assert.match(source, /getCanonicalActivity|getCanonicalActivitySummary/);
     assert.doesNotMatch(source, /\.from\(["']notifications["']\)/);
   }
-  assert.match(app, /getCanonicalActivitySummary\("personal"\)/);
+  assert.match(app, /getCanonicalActivity\("personal", 100\)/);
+  assert.match(app, /currentActivityRows\(activityResult\.rows\)/);
+  assert.doesNotMatch(app, /getCanonicalActivitySummary\("personal"\)/);
   assert.match(app, /activity_event_audiences/);
   const personalCount = app.slice(app.indexOf("async function loadCounts"), app.indexOf("const toggle =", app.indexOf("async function loadCounts")));
   assert.doesNotMatch(personalCount, /\.from\(["']notifications["']\)/);
@@ -147,4 +149,56 @@ test("frontend chart theming has no raw HTML injection sink", async () => {
   assert.doesNotMatch(chart, /dangerouslySetInnerHTML/);
   assert.match(chart, /safeChartCssValue/);
   assert.match(chart, /return <style>\{css\}<\/style>/);
+});
+
+
+test("mobile experience keeps operational hierarchy compact and partner tools consolidated", async () => {
+  const [partner, tools, housing, inbox, share, reservations, pro, security, video, roommate, roommateProfile, account, creatorModal, migration] = await Promise.all([
+    read("src/pages/PropertyOwnerDashboard.tsx"),
+    read("src/components/PartnerToolsWorkspace.tsx"),
+    read("src/components/HousingOperationsWorkspace.tsx"),
+    read("src/components/CommunicationInbox.tsx"),
+    read("src/components/PropertyShareDialog.tsx"),
+    read("src/pages/MyReservations.tsx"),
+    read("src/components/PropertyPartnerProWorkspace.tsx"),
+    read("src/pages/SecuritySettings.tsx"),
+    read("src/components/VideoPlayer.tsx"),
+    read("src/pages/Roommate.tsx"),
+    read("src/components/RoommatePublicProfile.tsx"),
+    read("src/pages/AccountCenter.tsx"),
+    read("src/components/CreatorAuthModal.tsx"),
+    read("supabase/migrations/20261003123000_roommate_request_match_details.sql"),
+  ]);
+  assert.match(partner, /key: "tools"/);
+  assert.doesNotMatch(partner, /key: "pro"/);
+  assert.doesNotMatch(partner, /key: "sponsored"/);
+  assert.match(tools, /Partner Pro/);
+  assert.match(tools, /Sponsored placement/);
+  assert.doesNotMatch(housing, /Bookings and handovers/);
+  assert.match(housing, /Verify booking/);
+  assert.match(inbox, /Promise\.all\(requests\.map/);
+  assert.match(inbox, /aria-label="Loading conversations"/);
+  assert.match(inbox, /wh-skeleton/);
+  assert.doesNotMatch(share, /To split a Short Let stay/);
+  assert.doesNotMatch(share, /To split a Long Let reservation/);
+  assert.match(reservations, /Short Let/);
+  assert.match(reservations, /Long Let/);
+  assert.match(reservations, /\{ value: "hotels", label: "Hotel" \}/);
+  assert.match(reservations, /status=\{propertyBookingStatusLabel\(row\)\}/);
+  assert.match(reservations, /status=\{HOTEL_STATUS\[String\(row\.status \|\| ""\)\] \|\| "Active"\}/);
+  assert.match(reservations, /overflow-x-auto/);
+  assert.match(pro, /Partner tools could not load/);
+  assert.match(security, /Additional protection/);
+  assert.match(video, /Video unavailable here/);
+  assert.match(roommate, /receivedUserIds/);
+  assert.match(roommate, /acceptedIncomingIds/);
+  assert.match(roommate, /uniqueMatches/);
+  assert.match(roommate, /row\.status === "accepted"/);
+  assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
+  assert.match(account, /Switch WeHouse between light and dark mode/);
+  assert.doesNotMatch(account, /Automatic/);
+  assert.doesNotMatch(account, /h-28/);
+  assert.match(creatorModal, /var\(--wh-surface\)/);
+  assert.match(migration, /get_my_received_roommate_interests/);
+  assert.match(migration, /match_highlights text\[\]/);
 });

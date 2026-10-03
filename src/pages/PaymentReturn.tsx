@@ -42,17 +42,6 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
   return 'search';
 }
 
-function successMessage(purpose?: string) {
-  if (purpose === 'sponsored_campaign') return 'Sponsored payment confirmed. Your eligible campaign is now active and can appear in matching discovery results.';
-  if (purpose === 'partner_pro_access') return 'Property Partner Pro payment confirmed. Your portfolio tools are available through the paid period.';
-  if (purpose === 'apartment_reservation') return 'Reservation payment confirmed. This property is now held for you and the housing workflow is unlocked.';
-  if (purpose === 'apartment_rent') return 'Accommodation payment confirmed. Open your booking for arrival details.';
-  if (purpose === 'worker_booking') return 'Service payment confirmed. Your job is now in the protected paid stage and remains attached to the service booking.';
-  if (purpose === 'hotel_booking') return 'Hotel stay payment confirmed. Your selected room, package and stay dates are now attached to the hotel booking.';
-  if (purpose === 'worker_verification') return 'A legacy Worker payment record was confirmed. Worker registration, evidence submission and WeHouse review are now free, and this payment does not grant Reviewed, Trusted or Paid Worker tools.';
-  return 'Payment confirmed. WeHouse has recorded the verified Paystack transaction.';
-}
-
 function successActionLabel(purpose?: string) {
   if (purpose === 'sponsored_campaign') return 'View my campaigns';
   if (purpose === 'partner_pro_access') return 'Open Property Partner Pro';
@@ -104,12 +93,17 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
           receipt = { ...receipt, description: 'Property Partner Pro access', merchant_name: 'WeHouse' };
         }
       } catch { /* Keep the verified payment visible while receipt retrieval can retry. */ }
-      if (!cancelled) setState({ kind: 'success', purpose: result.purpose, message: successMessage(result.purpose), receipt });
+      if (result.purpose === 'partner_pro_access') {
+        try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
+      }
+      if (!cancelled) {
+        onNavigate(destinationForPurpose(result.purpose, profile.role), receipt?.booking_id || undefined);
+      }
     })().catch(() => {
       if (!cancelled) setState({ kind: 'error', message: 'We could not check your payment. Please try again; do not pay a second time.' });
     });
     return () => { cancelled = true; };
-  }, [reference, receiptAttempt]);
+  }, [reference, receiptAttempt, onNavigate, profile.role]);
 
   const destination = state.kind === 'success' ? destinationForPurpose(state.purpose, profile.role) : destinationForPurpose(undefined, profile.role);
 

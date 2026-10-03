@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
-import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
 import PartnerSubmittedRequests, {
@@ -23,9 +22,9 @@ import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
-import PropertyPartnerProWorkspace from "@/components/PropertyPartnerProWorkspace";
+import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
 
-type PartnerTab = "properties" | "finance" | "communication" | "sponsored" | "pro";
+type PartnerTab = "properties" | "finance" | "communication" | "tools";
 const PROPERTY_PAGE_SIZE = 40;
 type Props = {
   inboxOpenRequest?: number;
@@ -56,14 +55,9 @@ const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }>
     description: "Your wallet, earnings and withdrawals",
   },
   {
-    key: "pro",
-    label: "Pro",
-    description: "Portfolio calendar, income reports and property tasks",
-  },
-  {
-    key: "sponsored",
-    label: "Sponsored",
-    description: "Manage paid placement for your properties and hotels",
+    key: "tools",
+    label: "Tools",
+    description: "Optional partner tools for portfolio and promotion",
   },
 ];
 const HOSTING_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
@@ -83,7 +77,7 @@ export default function PropertyOwnerDashboard({
     try {
       if (sessionStorage.getItem('wh_partner_return_tab') === 'pro') {
         sessionStorage.removeItem('wh_partner_return_tab');
-        setTab('pro');
+        setTab('tools');
       }
     } catch { /* The workspace stays navigable if storage is unavailable. */ }
   }, [delegatedOnly]);
@@ -180,8 +174,7 @@ export default function PropertyOwnerDashboard({
           </>
         )}
         {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
-        {!delegatedOnly && tab === "pro" && <PropertyPartnerProWorkspace profile={profile} />}
-        {!delegatedOnly && tab === "sponsored" && <div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div>}
+        {!delegatedOnly && tab === "tools" && <PartnerToolsWorkspace profile={profile} />}
       </WorkspaceFrameV2>
     </>
   );
@@ -315,26 +308,28 @@ function PropertiesTab({
     setHasMore(false);
     setCursor(null);
     void (async () => {
-      const result =
-        assetKind === "apartment"
-          ? await supabase.rpc("get_my_property_assets_page", {
-              p_workspace: delegatedOnly ? "hosting" : "property_partner",
-              p_limit: PROPERTY_PAGE_SIZE + 1,
-            })
-          : await supabase.rpc("get_my_owned_hotels_page", {
-              p_limit: PROPERTY_PAGE_SIZE + 1,
-            });
+      const fetchApartment = assetKind === "all" || assetKind === "apartment";
+      const fetchHotel = !delegatedOnly && (assetKind === "all" || assetKind === "hotel");
+      const [apartmentResult, hotelResult] = await Promise.all([
+        fetchApartment ? supabase.rpc("get_my_property_assets_page", {
+          p_workspace: delegatedOnly ? "hosting" : "property_partner",
+          p_limit: PROPERTY_PAGE_SIZE + 1,
+        }) : Promise.resolve({ data: [], error: null }),
+        fetchHotel ? supabase.rpc("get_my_owned_hotels_page", {
+          p_limit: PROPERTY_PAGE_SIZE + 1,
+        }) : Promise.resolve({ data: [], error: null }),
+      ]);
       if (!active || generation !== requestGeneration.current) return;
-      if (result.error) {
-        toast.error(
-          `Unable to load your ${assetKind === "hotel" ? "hotels" : "apartments"}`,
-        );
+      if (apartmentResult.error || hotelResult.error) {
+        toast.error("Unable to load your properties. Try again.");
         setAssets([]);
         setSelected(null);
         setLoading(false);
         return;
       }
-      const rows = (result.data || []) as any[];
+      const apartmentRows = ((apartmentResult.data || []) as any[]).map(row => ({ ...row, _assetKind: "property" }));
+      const hotelRows = ((hotelResult.data || []) as any[]).filter(row => row.status === "active" && row.access_role === "owner").map(row => ({ ...row, _assetKind: "hotel", id: `hotel:${row.hotel_id}`, title: row.name }));
+      const rows = assetKind === "hotel" ? hotelRows : assetKind === "apartment" ? apartmentRows : [...apartmentRows, ...hotelRows].sort((a,b) => new Date(b.created_at || b.page_updated_at || 0).getTime() - new Date(a.created_at || a.page_updated_at || 0).getTime());
       const page = rows.slice(0, PROPERTY_PAGE_SIZE);
       setHasMore(rows.length > PROPERTY_PAGE_SIZE);
       const last = page.at(-1);
@@ -342,19 +337,7 @@ function PropertiesTab({
         sort_at: assetKind === "apartment" ? last.created_at : last.page_updated_at,
         id: String(assetKind === "apartment" ? last.id : last.hotel_id),
       } : null);
-      const nextAssets = page.filter((row: any) => assetKind !== "hotel" || (row.status === "active" && row.access_role === "owner")).map((row: any) =>
-          assetKind === "apartment"
-            ? {
-                ...row,
-                _assetKind: "property",
-              }
-            : {
-                ...row,
-                _assetKind: "hotel",
-                id: `hotel:${row.hotel_id}`,
-                title: row.name,
-              },
-        );
+      const nextAssets = page;
       setAssets(nextAssets);
       async function readAccessibleAsset(targetId: string) {
         if (assetKind === "apartment") {

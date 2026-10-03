@@ -146,7 +146,7 @@ export function WorkerInboxPanel({
 
   if (showActivity) return (
     <div>
-      <ActivityHeader onBack={() => setShowActivity(false)} subtitle="Job, payment, security and official updates." />
+      <ActivityHeader onBack={() => setShowActivity(false)} />
       <Notifications profile={profile} scope="worker" embedded onNavigate={openActivitySource} onUnreadChange={reportActivityUnread} />
     </div>
   );

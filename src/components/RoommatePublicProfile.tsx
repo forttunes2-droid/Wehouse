@@ -36,7 +36,7 @@ export default function RoommatePublicProfile({
   const hasScore = Number.isFinite(score) && (comparedAnswers === undefined || comparedAnswers > 0);
   const conversationMode = context === "conversation";
   return <>
-    <PublicProfileSurface
+    {!fullProfile && <PublicProfileSurface
       suspended={fullProfile}
       conversation={conversationMode}
       name={person.name}
@@ -53,23 +53,23 @@ export default function RoommatePublicProfile({
       bottomAction={primaryAction}
     >
       {!conversationMode && <>
-        {(hasScore || highlights.length > 0 || discuss.length > 0) && <section className="border-t border-white/[.07] py-5">
+        {(hasScore || highlights.length > 0 || discuss.length > 0) && <section className="border-t border-[var(--wh-border-subtle)] py-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold">Preference match</h2>
-            {hasScore && <p className="text-right text-sm text-[#C4BCD8]"><strong className="font-semibold text-violet-300">{score}%</strong> similarity{comparedAnswers ? <span className="mt-1 block text-xs text-[#A7ADBA]">{comparedAnswers} answers compared</span> : null}</p>}
+            {hasScore && <p className="text-right text-sm text-[var(--wh-text-secondary)]"><strong className="font-semibold text-violet-300">{score}%</strong> similarity{comparedAnswers ? <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">{comparedAnswers} answers compared</span> : null}</p>}
           </div>
-          {highlights.length > 0 && <ul className="mt-4 space-y-2 text-sm leading-6 text-[#BCC2CF]">{highlights.map(item => <li key={item} className="flex gap-2"><span aria-hidden="true" className="text-violet-300">✓</span><span>{item}</span></li>)}</ul>}
-          {discuss.length > 0 && <div className="mt-4 border-l-2 border-violet-400/60 pl-3 text-sm leading-6 text-[#C8C3D3]"><h3 className="font-medium text-[#E0DDE8]">Discuss before deciding</h3>{discuss.map(item => <p key={item}>{item}</p>)}</div>}
-          <details className="mt-3 text-sm text-[#A7ADBA]"><summary className="w-fit cursor-pointer py-3">How matching works</summary><p className="pb-2 leading-6">Similarity compares answered preferences, not the chance that living together will succeed. Unanswered choices do not count as agreement.</p></details>
+          {highlights.length > 0 && <ul className="mt-4 space-y-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{highlights.map(item => <li key={item} className="flex gap-2"><span aria-hidden="true" className="text-violet-300">✓</span><span>{item}</span></li>)}</ul>}
+          {discuss.length > 0 && <div className="mt-4 border-l-2 border-violet-400/60 pl-3 text-sm leading-6 text-[var(--wh-text-secondary)]"><h3 className="font-medium text-[var(--wh-text)]">Discuss before deciding</h3>{discuss.map(item => <p key={item}>{item}</p>)}</div>}
+          <details className="mt-3 text-sm text-[var(--wh-text-muted)]"><summary className="w-fit cursor-pointer py-3">How matching works</summary><p className="pb-2 leading-6">Similarity compares answered preferences, not the chance that living together will succeed. Unanswered choices do not count as agreement.</p></details>
         </section>}
-        {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {person.preferredArea && <Detail label="Preferred area" value={person.preferredArea} />}
           {person.school && <Detail label="School" value={person.school} />}
           {person.occupation && <Detail label="Occupation" value={person.occupation} />}
         </section>}
       </>}
       {footer}
-    </PublicProfileSurface>
+    </PublicProfileSurface>}
     {/* Keep the originating info screen mounted: Back restores that exact step,
         with the same permission-filtered person data, rather than starting over. */}
     {fullProfile ? <RoommatePublicProfile person={person} score={score} matchLabel={matchLabel} highlights={highlights} discuss={discuss} comparedAnswers={comparedAnswers}
@@ -78,7 +78,7 @@ export default function RoommatePublicProfile({
 }
 function Detail({ label, value }: { label: string; value: string }) {
   return <div className="flex items-start justify-between gap-6 py-4">
-    <span className="text-xs text-[#858C9C]">{label}</span>
-    <strong className="max-w-[68%] text-right text-sm font-medium text-[#D7DAE3]">{value}</strong>
+    <span className="text-xs text-[var(--wh-text-muted)]">{label}</span>
+    <strong className="max-w-[68%] text-right text-sm font-medium text-[var(--wh-text)]">{value}</strong>
   </div>;
 }
