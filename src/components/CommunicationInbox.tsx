@@ -52,7 +52,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
       if (result.error) setLoadError(true);
     };
 
-    const requests = hostingOnly
+    const requests: Array<["hotel" | "host" | "support", Promise<any>]> = hostingOnly
       ? [
           ["host", getMyPropertyHostConversations()] as const,
         ]
