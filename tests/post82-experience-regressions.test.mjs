@@ -177,7 +177,8 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.doesNotMatch(housing, /Bookings and handovers/);
   assert.match(housing, /Verify booking/);
   assert.match(inbox, /Promise\.all\(requests\.map/);
-  assert.match(inbox, /aria-label="Loading conversations"/);\n  assert.match(inbox, /wh-skeleton/);/
+  assert.match(inbox, /aria-label="Loading conversations"/);
+  assert.match(inbox, /wh-skeleton/);/
   assert.doesNotMatch(share, /To split a Short Let stay/);
   assert.doesNotMatch(share, /To split a Long Let reservation/);
   assert.match(reservations, /Short Let/);
@@ -194,7 +195,8 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(roommate, /uniqueMatches/);
   assert.match(roommate, /row\.status === "accepted"/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
-  assert.match(account, /Switch WeHouse between light and dark mode/);\n  assert.doesNotMatch(account, /Automatic/);
+  assert.match(account, /Switch WeHouse between light and dark mode/);
+  assert.doesNotMatch(account, /Automatic/);
   assert.doesNotMatch(account, /h-28/);
   assert.match(creatorModal, /var\(--wh-surface\)/);
   assert.match(migration, /get_my_received_roommate_interests/);
