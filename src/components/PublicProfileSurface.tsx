@@ -138,7 +138,7 @@ function ProfilePhoto({ src, name, subtitle, onClose }: {
     controller.current = history;
     return () => { history.dispose(); controller.current = null; };
   }, [id]);
-  return <MediaViewer src={src} kind="image" title={name} subtitle={subtitle || undefined} avatarUrl={src}
+  return <MediaViewer variant="photo" src={src} kind="image" title={name} subtitle={subtitle || undefined} avatarUrl={src}
     onClose={() => controller.current?.dismiss()} />;
 }
 
