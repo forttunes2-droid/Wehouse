@@ -872,7 +872,7 @@ export default function MyReservations({
 
         {loading ? (
           <Loading />
-        ) : sections.length === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <Empty view={view} statusView={statusView} filtered={Boolean(search || month !== "all")} />
         ) : (
           <div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
@@ -1237,6 +1237,7 @@ export function BookingCard({
   meta: string[];
   next: string;
   onOpen: () => void;
+  compact?: boolean;
 }) {
   return (
     <button
