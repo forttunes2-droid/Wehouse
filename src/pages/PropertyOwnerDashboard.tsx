@@ -943,7 +943,6 @@ function friendly(value: any) {
             profile={profile}
             filter="all"
             assetKind="all"
-            onOpenPublished={() => undefined}
           />
         </section>
       ) : null}
