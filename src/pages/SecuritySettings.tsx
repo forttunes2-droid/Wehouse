@@ -148,15 +148,28 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
 
     {!isCreator&&mfaFactorId&&(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5"><h2 className="text-sm font-semibold">Authenticator enrolled</h2><p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Your Supabase account has an authenticator factor. WeHouse does not currently use it to protect Personal, Worker or Property Partner actions. It is not requested on every sign-in.</p><button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-3 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button></section>}
 
-    {isCreator&&(focus==='all'||focus==='password')&&<section className="border-y border-violet-500/15 py-5">
-      <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Creator protection</p><h2 className="mt-1 text-sm font-semibold">Creator security password</h2><p className="mt-1 max-w-xl text-[11px] leading-5 text-[var(--wh-text-secondary)]">Separate from the password used to sign in to WeHouse. Sensitive Creator actions use this password and your authenticator when enrolled.</p></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${creatorStatus?.enrolled?'bg-emerald-500/10 text-emerald-300':'bg-amber-500/10 text-amber-200'}`}>{creatorStatus?.enrolled?'Set':'Setup required'}</span></div>
-      {!creatorSetupOpen?<button type="button" onClick={()=>setCreatorSetupOpen(true)} className="mt-4 min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold">{creatorStatus?.enrolled?'Change Creator security password':'Create Creator security password'}</button>:<div className="mt-4 max-w-lg space-y-3 border-t border-[var(--wh-border-subtle)] pt-4">
-        <Field label="Current WeHouse account password" value={creatorAccountPassword} onChange={setCreatorAccountPassword}/>
-        <Field label="New Creator security password" value={creatorSecret} onChange={setCreatorSecret}/>
-        <Field label="Confirm Creator security password" value={creatorSecretConfirm} onChange={setCreatorSecretConfirm}/>
-        {mfaFactorId?<label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">Authenticator code</span><input inputMode="numeric" maxLength={6} value={creatorOtp} onChange={e=>setCreatorOtp(e.target.value.replace(/\D/g,'').slice(0,6))} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none"/></label>:null}
-        <div className="flex gap-2"><button type="button" disabled={creatorBusy} onClick={()=>void saveCreatorSecurity()} className="min-h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{creatorBusy?'Saving…':'Save Creator security'}</button><button type="button" disabled={creatorBusy} onClick={()=>setCreatorSetupOpen(false)} className="min-h-11 px-3 text-xs text-[var(--wh-text-secondary)]">Cancel</button></div>
-      </div>}
+    {isCreator&&(focus==='all'||focus==='password')&&<section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">✓</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">CREATOR ONLY</p><h2 className="mt-1 text-sm font-semibold">Additional protection</h2></div>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold ${creatorStatus?.enrolled?'bg-emerald-500/10 text-emerald-300':'bg-amber-500/10 text-amber-200'}`}>{creatorStatus?.enrolled?'Set':'Setup required'}</span>
+          </div>
+          <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">A separate security password protects sensitive Creator actions. It is different from your normal WeHouse sign-in password.</p>
+          {!creatorSetupOpen ? (
+            <button type="button" onClick={()=>setCreatorSetupOpen(true)} className="mt-3 min-h-10 rounded-xl bg-violet-500 px-4 text-xs font-semibold">{creatorStatus?.enrolled?'Change protection password':'Set protection password'}</button>
+          ) : (
+            <div className="mt-4 space-y-3 border-t border-violet-500/10 pt-4">
+              <Field label="Current WeHouse account password" value={creatorAccountPassword} onChange={setCreatorAccountPassword}/>
+              <Field label="New protection password" value={creatorSecret} onChange={setCreatorSecret}/>
+              <Field label="Confirm protection password" value={creatorSecretConfirm} onChange={setCreatorSecretConfirm}/>
+              {mfaFactorId?<label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">Authenticator code</span><input inputMode="numeric" maxLength={6} value={creatorOtp} onChange={e=>setCreatorOtp(e.target.value.replace(/\D/g,'').slice(0,6))} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none"/></label>:null}
+              <div className="flex gap-2"><button type="button" disabled={creatorBusy} onClick={()=>void saveCreatorSecurity()} className="min-h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{creatorBusy?'Saving…':'Save protection password'}</button><button type="button" disabled={creatorBusy} onClick={()=>setCreatorSetupOpen(false)} className="min-h-11 px-3 text-xs text-[var(--wh-text-secondary)]">Cancel</button></div>
+            </div>
+          )}
+        </div>
+      </div>
     </section>}
 
     {(focus==='all'||focus==='sessions')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold">Active sessions</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Only devices currently signed in to your account appear here.</p></div><button onClick={()=>void logoutAll()} className="rounded-xl border border-red-500/15 bg-red-500/[.05] px-3 py-2 text-[10px] font-semibold text-red-300">Sign out everywhere</button></div><div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">{loading?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">Loading active sessions…</p>:sessions.length===0?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">No active sessions found.</p>:sessions.map(session=>{const current=session.is_current||session.id===currentSessionId;return <DeviceRow key={session.id} session={session} current={current} busy={sessionBusy===session.id} onSignOut={signOutDevice}/>})}</div></section>}
