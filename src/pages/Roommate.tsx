@@ -23,7 +23,6 @@ import { supabase } from "@/lib/supabase";
 import RoommatePreferencesPanel from "@/components/RoommatePreferencesPanel";
 import type { RoommatePreferenceForm } from "@/components/RoommatePreferencesPanel";
 import DiscoveryShell from "@/components/DiscoveryShell";
-import SharedHomeLifecyclePanel from "@/components/SharedHomeLifecyclePanel";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import type { Profile, RoommatePreferences } from "@/types";
 
@@ -32,7 +31,6 @@ type Props = {
   onGoToChat?: (id: string, peerId?: string) => void;
   onNavigate: (page: string, id?: string) => void;
   onEditProfile?: () => void;
-  onOpenListing?: (id: string) => void;
   initialContextId?: string | null;
 };
 type Form = RoommatePreferenceForm;
@@ -61,7 +59,6 @@ export default function RoommateWorkspace({
   onGoToChat,
   onNavigate,
   onEditProfile,
-  onOpenListing,
   initialContextId,
 }: Props) {
   const requestGeneration = useRef(0);
@@ -117,13 +114,22 @@ export default function RoommateWorkspace({
       const [preferenceResult, incoming] = await withTimeout(Promise.all([checkSearchExpiry(),getReceivedRoommateInterests()]),15000,"Roommate information took too long.");
       if (preferenceResult.error || incoming.error) throw preferenceResult.error || incoming.error;
       const p = preferenceResult.prefs;
-      const result = p ? await withTimeout(getSavedMatchResults(MATCH_PAGE_SIZE,0),15000,"Matches took too long.") : {matches:[],hasMore:false,error:null};
+      const result = p?.practical_preferences_version === 2
+        ? await withTimeout(getSavedMatchResults(MATCH_PAGE_SIZE,0),15000,"Matches took too long.")
+        : {matches:[],hasMore:false,error:null};
       if (result.error) throw result.error;
       if (generation !== requestGeneration.current) return [];
       const rows = result.matches;
       setPrefs(p); setReceived(incoming.interests); setMatches(rows); setHasMore(result.hasMore);
       roommateCache.set(profile.user_id,{prefs:p,matches:rows,received:incoming.interests,hasMore:result.hasMore});
-      if (!editingRef.current) setForm(roommatePreferenceForm(p,profile.school || ""));
+      if (!editingRef.current) {
+        const nextForm = roommatePreferenceForm(p, profile.school || "");
+        if (p?.practical_preferences_version !== 2) {
+          nextForm.preferred_state ||= profile.state || "";
+          nextForm.preferred_lga ||= profile.local_government || "";
+        }
+        setForm(nextForm);
+      }
       return rows;
     } catch {
       if (generation === requestGeneration.current) setLoadError("Roommate information could not be refreshed. Your saved preferences and conversations have not been removed.");
@@ -369,7 +375,7 @@ export default function RoommateWorkspace({
         </header>
 
         {loadError && <section role="alert" className="border-y border-amber-500/20 py-4 text-sm leading-6"><p>{loadError}</p><button type="button" onClick={()=>void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></section>}
-        {prefs && prefs.practical_preferences_version !== 2 && <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-4 text-sm leading-6"><p>Your older preferences need State, LGA and move-in details before new matches can appear. Existing connections and chats stay available.</p></section>}
+        {prefs && prefs.practical_preferences_version !== 2 && <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-4 text-sm leading-6"><p>Your saved roommate preferences are from an older version. We prefilled your account State and LGA so you can update the moving plan without starting from zero. Choose the remaining housing details before new matches can appear.</p></section>}
         {!profileReady && (
           <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
             <p className="text-sm font-semibold">Add the basics first</p>
@@ -495,11 +501,6 @@ export default function RoommateWorkspace({
             ) : null}
           </>
         )}
-        <SharedHomeLifecyclePanel
-          profileId={profile.user_id}
-          onOpenConversation={onGoToChat}
-          onOpenListing={onOpenListing}
-        />
       </main>
     </DiscoveryShell>
   );
