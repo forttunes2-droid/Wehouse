@@ -45,7 +45,10 @@ type RoommateSnapshot = {
 const roommateCache = new Map<string, RoommateSnapshot>();
 
 function isEstablishedMatch(row: RoommateMatchResult) {
-  return Boolean(row.conversation_id || row.mutual_accepted);
+  // Once either side has accepted an interest, keep that person out of
+  // Discover. Mutual acceptance/conversation makes it a live connection;
+  // a one-sided accepted interest is the pending connection state.
+  return Boolean(row.conversation_id || row.mutual_accepted || row.status === "accepted");
 }
 
 function uniqueMatches(rows: RoommateMatchResult[]) {
