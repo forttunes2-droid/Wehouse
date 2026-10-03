@@ -33,6 +33,20 @@ export async function openHotelBookingConversation(bookingId: number) {
   return { conversationId: data as string | null, error };
 }
 
+const HOTEL_MEDIA_URL_TTL = 50 * 60_000;
+const hotelSignedMediaCache = new Map<string, { url: string; expiresAt: number }>();
+async function getHotelChatMediaUrl(path: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const key = session?.user?.id + ":" + path;
+  const cached = hotelSignedMediaCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  const { data, error } = await supabase.storage.from("hotel-chat-files").createSignedUrl(path, 3600);
+  if (error || !data?.signedUrl) return null;
+  hotelSignedMediaCache.set(key, { url: data.signedUrl, expiresAt: Date.now() + HOTEL_MEDIA_URL_TTL });
+  if (hotelSignedMediaCache.size > 200) hotelSignedMediaCache.delete(hotelSignedMediaCache.keys().next().value as string);
+  return data.signedUrl;
+}
+
 export async function getMyHotelConversations(workspace: "personal" | "property_partner" | "hotel" = "personal") {
   const { data, error } = await supabase.rpc("get_my_workspace_inbox", { p_workspace: workspace, p_kind: "hotel" });
   return {
