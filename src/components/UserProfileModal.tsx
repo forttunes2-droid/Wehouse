@@ -189,7 +189,7 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
           </div> : section === "workspaces" ? <Workspaces rows={workspaces} /> : section === "professional" && provider ? <Provider provider={provider} onOpen={() => { if (onNavigate) { onClose(); onNavigate("worker_operations", user.user_id); } }} /> : section === "apartments" ? <ApartmentList rows={apartments} onOpen={row => openOperations("apartment", row.id)} /> : section === "hotels" ? <HotelList rows={hotels} onOpen={row => openOperations("hotel", String(row.hotel_id))} /> : section === "hotel_team" ? <HotelTeam rows={hotelTeam} onOpenHotel={id => openOperations("hotel", String(id))} /> : <WeHouseTeam rows={wehouseTeam} />}
         </div>
     </aside>
-    {avatarOpen && user.avatar_url && <MediaViewer items={[{ url: user.avatar_url, kind: "image" as const }]} initialIndex={0} title={user.full_name || user.username || "Profile photo"} onClose={() => setAvatarOpen(false)} />}
+    {avatarOpen && user.avatar_url && <MediaViewer variant="photo" items={[{ url: user.avatar_url, kind: "image" as const }]} initialIndex={0} title={user.full_name || user.username || "Profile photo"} onClose={() => setAvatarOpen(false)} />}
   </div>, document.body);
 }
 
