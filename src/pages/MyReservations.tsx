@@ -6,7 +6,6 @@ import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import StayArrivalInstructions from "@/components/StayArrivalInstructions";
 import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
-import ShortLetPaymentReview from "@/components/ShortLetPaymentReview";
 import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
 import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
