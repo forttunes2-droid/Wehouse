@@ -612,7 +612,7 @@ export default function AccountCenter({
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
-        <AccountRow title="Appearance" detail={`${appearance === 'system' ? 'Device setting' : appearance === 'light' ? 'Light' : 'Dark'} · Applies across WeHouse`}
+        <AccountRow title="Appearance" detail={`${appearance === 'light' ? 'Light' : 'Dark'} · Applies across WeHouse`}
           onClick={() => setPanel("appearance")} icon={<AppearanceIcon />} />
         <AccountRow
           title="Notifications"
