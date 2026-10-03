@@ -59,7 +59,7 @@ export default function PropertyShareDialog({ userId, property, title, stayType,
       </section>
       <section className="mt-6 border-t border-[var(--wh-border-subtle)] pt-5" aria-label="Send within WeHouse">
       <h3 className="flex items-center gap-2 text-sm font-semibold"><Users size={17} aria-hidden="true" className="text-violet-300" />Send in WeHouse</h3>
-      <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a roommate connection. You can add a message before sending.</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a WeHouse connection. You can add a message before sending.</p>
       <label className="mt-3 block"><span className="sr-only">Search your connections</span><span className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[var(--wh-text-secondary)]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search connections" className="min-w-0 flex-1 bg-transparent py-3 text-base text-white outline-none" /></span></label>
       {loading ? <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading your connections…</p> : <>
         {error && <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-violet-300">Refresh connections</button></div>}
