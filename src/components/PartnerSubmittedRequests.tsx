@@ -251,7 +251,7 @@ export default function PartnerSubmittedRequests({
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">
-                Submitted {assetKind === "hotel" ? "hotels" : "apartments"}
+                Submitted {assetKind === "hotel" ? "hotels" : assetKind === "apartment" ? "apartments" : "properties"}
               </h2>
             </div>
             <button
