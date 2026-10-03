@@ -413,6 +413,9 @@ export async function encryptPrivateAttachment(
   };
 }
 
+const encryptedAttachmentCache = new Map<string, { buffer: ArrayBuffer; expiresAt: number }>();
+const ENCRYPTED_ATTACHMENT_CACHE_TTL = 5 * 60_000;
+
 export async function decryptPrivateAttachment(
   kind: PrivateConversationKind,
   conversationId: string,
@@ -420,12 +423,27 @@ export async function decryptPrivateAttachment(
   attachment: EncryptedAttachment,
 ) {
   const key = await conversationKey(kind, conversationId, peerUserId);
-  const { data, error } = await supabase.storage.from("chat-files").createSignedUrl(attachment.path, 300);
-  if (error || !data?.signedUrl) throw error || new Error("Encrypted attachment is unavailable");
-  const response = await fetch(data.signedUrl);
-  if (!response.ok) throw new Error("Encrypted attachment could not be downloaded");
+  const cached = encryptedAttachmentCache.get(attachment.path);
+  let encryptedBytes: ArrayBuffer;
+  if (cached && cached.expiresAt > Date.now()) {
+    encryptedBytes = cached.buffer.slice(0);
+  } else {
+    const { data, error } = await supabase.storage.from("chat-files").createSignedUrl(attachment.path, 300);
+    if (error || !data?.signedUrl) throw error || new Error("Encrypted attachment is unavailable");
+    const response = await fetch(data.signedUrl);
+    if (!response.ok) throw new Error("Encrypted attachment could not be downloaded");
+    encryptedBytes = await response.arrayBuffer();
+    encryptedAttachmentCache.set(attachment.path, {
+      buffer: encryptedBytes.slice(0),
+      expiresAt: Date.now() + ENCRYPTED_ATTACHMENT_CACHE_TTL,
+    });
+    if (encryptedAttachmentCache.size > 40) {
+      const oldest = encryptedAttachmentCache.keys().next().value;
+      if (oldest) encryptedAttachmentCache.delete(oldest);
+    }
+  }
   const [clear, metadataClear] = await Promise.all([
-    crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(attachment.file_iv) }, key, await response.arrayBuffer()),
+    crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(attachment.file_iv) }, key, encryptedBytes),
     crypto.subtle.decrypt(
       { name: "AES-GCM", iv: base64ToBytes(attachment.metadata_iv) },
       key,
