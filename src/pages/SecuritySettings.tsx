@@ -156,7 +156,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
             <div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">CREATOR ONLY</p><h2 className="mt-1 text-sm font-semibold">Additional protection</h2></div>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold ${creatorStatus?.enrolled?'bg-emerald-500/10 text-emerald-300':'bg-amber-500/10 text-amber-200'}`}>{creatorStatus?.enrolled?'Set':'Setup required'}</span>
           </div>
-          <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">A separate security password protects sensitive Creator actions. It is different from your normal WeHouse sign-in password.</p>
+          <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">A separate security password protects sensitive Creator actions. Separate from the password used to sign in to WeHouse.</p>
           {!creatorSetupOpen ? (
             <button type="button" onClick={()=>setCreatorSetupOpen(true)} className="mt-3 min-h-10 rounded-xl bg-violet-500 px-4 text-xs font-semibold">{creatorStatus?.enrolled?'Change protection password':'Set protection password'}</button>
           ) : (
