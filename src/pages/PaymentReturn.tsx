@@ -113,12 +113,21 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
 
   const destination = state.kind === 'success' ? destinationForPurpose(state.purpose, profile.role) : destinationForPurpose(undefined, profile.role);
 
+  useEffect(() => {
+    if (state.kind !== 'success') return;
+    if (state.purpose === 'partner_pro_access') {
+      try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
+    }
+    onNavigate(destination, state.receipt?.booking_id || undefined);
+  }, [state, destination, onNavigate]);
+
   function retry() {
     setState({ kind: 'checking', message: 'Checking your payment…' });
     setReceiptAttempt(value => value + 1);
   }
 
   const successPurpose = state.kind === 'success' ? state.purpose : undefined;
+  if (state.kind === 'success') return null;
 
   return <div className="min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-8 text-[var(--wh-text)]"><div className="mx-auto max-w-md">
     <div className="mb-8 flex items-center gap-3"><img src="/brand-mark-dark.svg" alt="WeHouse" className="h-11 w-11" /><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">WEHOUSE PAYMENTS</p><h1 className="mt-1 text-lg font-bold">Payment confirmation</h1></div></div>
