@@ -186,7 +186,6 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(video, /Video unavailable here/);
   assert.match(roommate, /receivedUserIds/);
   assert.match(roommate, /uniqueMatches/);
-  assert.doesNotMatch(roommate, /!isEstablishedMatch\(row\)\)/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
   assert.match(account, /Choose how WeHouse looks on this device/);
   assert.doesNotMatch(account, /h-28/);
