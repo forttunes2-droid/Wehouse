@@ -199,7 +199,7 @@ function PropertiesWorkspace({
   const [publishedTarget, setPublishedTarget] = useState<string>();
   const recordTarget = publishedTarget || initialRecordId;
   const [filter, setFilter] = useState<SubmissionFilter>(delegatedOnly ? "public" : "all");
-  const [assetKind, setAssetKind] = useState<PartnerAssetKind>("all");
+  const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -232,7 +232,7 @@ function PropertiesWorkspace({
               <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[var(--wh-text-muted)]">
                 Property workspace
               </p>
-              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Your homes and hotels in one place</p>
+              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">One list, filtered by type and lifecycle</p>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
               <WeHouseSelect value={assetKind} options={[{ value: "apartment", label: "Apartments" }, { value: "hotel", label: "Hotels" }]} onChange={setAssetKind} eyebrow="Properties" title="Property type" ariaLabel="Filter by property type" className="w-full !min-w-0" />
@@ -240,7 +240,7 @@ function PropertiesWorkspace({
             </div>
           </div>
         </div>
-      )}      {delegatedOnly || filter === "public" || filter === "all" || publishedTarget ? (
+      )}      {delegatedOnly || filter === "public" || publishedTarget ? (
         <PropertiesTab
           profile={profile}
           delegatedOnly={delegatedOnly}
@@ -250,7 +250,6 @@ function PropertiesWorkspace({
           onTargetClose={() => { setPublishedTarget(undefined); onTargetClose?.(); }}
           onDetailChange={setViewingDetail}
           onOpenInbox={onOpenInbox}
-          showRequests={filter === "all" && !delegatedOnly}
         />
       ) : (
         <PartnerSubmittedRequests
