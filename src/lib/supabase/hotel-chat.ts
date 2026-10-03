@@ -49,30 +49,16 @@ export async function getHotelMessages(conversationId: string, bookingId: number
   if (error) return { context: null, messages: [] as HotelMessage[], error };
   const {context, messages: rows} = parseHotelConversationBundle(data, conversationId, bookingId);
   onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })), context);
-  const allPaths = rows.flatMap(message => message.attachments || []);
-  const uniquePaths = [...new Set(allPaths)];
-  let signedByPath = new Map<string, string>();
-  if (uniquePaths.length) {
-    try {
-      const storage=(supabase.storage.from("hotel-chat-files") as any);
-      const { data: signedRows } = await storage.createSignedUrls(uniquePaths, 3600);
-      signedByPath = new Map(
-        (signedRows || [])
-          .filter((item: any) => Boolean(item?.path && item?.signedUrl))
-          .map((item: any) => [String(item.path), String(item.signedUrl)]),
-      );
-    } catch {
-      signedByPath = new Map();
-    }
-  }
-  const messages = rows.map(message => {
-    const files = (message.attachments || []).map((path, index) => {
-      const url = signedByPath.get(path);
-      return url ? { url, type: message.attachment_types?.[index] || '' } : null;
-    });
+  const messages = await Promise.all(rows.map(async message => {
+    const files = await Promise.all((message.attachments || []).map(async (path, index) => {
+      try {
+        const url = await getHotelChatMediaUrl(path);
+        return url ? { url, type: message.attachment_types?.[index] || '' } : null;
+      } catch { return null; }
+    }));
     const available = files.filter((file): file is {url: string; type: string} => Boolean(file));
     return { ...message, attachments: available.map(file => file.url), attachment_types: available.map(file => file.type), media_loading: false, media_error: available.length !== files.length };
-  });
+  }));
   return { context, messages, error: null };
 }
 
