@@ -67,7 +67,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       }}
       role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" onClick={dismiss}
-        className="absolute right-3 z-30 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-2xl leading-none text-white shadow-lg transition active:scale-95"
+        className={`absolute z-30 grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/45 text-xl leading-none text-white shadow-lg transition active:scale-95 ${variant === "photo" ? "left-3" : "right-3"}`}
         style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
         aria-label="Close media preview">
         <span aria-hidden="true">×</span>
