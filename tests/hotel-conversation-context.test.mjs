@@ -52,6 +52,6 @@ test('malformed message data does not render as a valid empty history',()=>{
 });
 test('chat uses the same bundle before media signing, not a second full booking-list request',()=>{
  const transport=fs.readFileSync('src/lib/supabase/hotel-chat.ts','utf8');const screen=fs.readFileSync('src/components/HotelBookingChat.tsx','utf8');
- assert.match(transport,/get_my_hotel_conversation_bundle/);assert.ok(transport.indexOf('onTextReady?.')<transport.indexOf('createSignedUrl'));
+ assert.match(transport,/get_my_hotel_conversation_bundle/);const loadStart=transport.indexOf('export async function getHotelMessages');const loadBody=transport.slice(loadStart);assert.ok(loadBody.indexOf('onTextReady?.')<loadBody.indexOf('getHotelChatMediaUrl'));
  assert.doesNotMatch(screen,/profile.role === "user" \? "guest" : "hotel"/);assert.match(screen,/context\?\.request_visible/);assert.match(screen,/sender_role: context.viewer_party/);
 });
