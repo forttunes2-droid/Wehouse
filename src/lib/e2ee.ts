@@ -438,7 +438,7 @@ async function writePersistentEncryptedAttachment(kind: PrivateConversationKind,
   if (typeof window === "undefined" || !("caches" in window) || bytes.byteLength > 25 * 1024 * 1024) return;
   try {
     const cache = await window.caches.open(ENCRYPTED_ATTACHMENT_CACHE_NAME);
-    await cache.put(encryptedAttachmentCacheKey(kind, conversationId, path), new Response(bytes, { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private" } }));
+    await cache.put(encryptedAttachmentCacheKey(kind, conversationId, path), new Response(new Blob([bytes], { type: "application/octet-stream" }), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private" } }));
   } catch {
     // Persistent media cache is an optimisation; memory cache and Storage remain authoritative.
   }
