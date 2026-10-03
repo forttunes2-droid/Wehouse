@@ -1301,7 +1301,7 @@ export function BookingCard({
           <div className="flex items-start justify-between gap-2">
             <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
             {status ? (
-              <span className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]">
+              <span className="max-w-[7rem] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]" title={status}>
                 {status}
               </span>
             ) : null}
