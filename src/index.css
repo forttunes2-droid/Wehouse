@@ -114,6 +114,9 @@
   #root {
     transition: background-color 160ms ease, color 160ms ease;
   }
+  @media (prefers-reduced-motion: reduce) {
+    body, #root { transition: none; }
+  }
 }
 
 /* Hide scrollbar for horizontal scroll */
