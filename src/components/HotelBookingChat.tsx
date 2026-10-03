@@ -203,16 +203,14 @@ export default function HotelBookingChat({
     }]);
     let accepted = false;
     try {
-      for (const file of queuedFiles) {
-        const uploaded = await uploadHotelChatAttachment(
-          conversationId,
-          profile.user_id,
-          file,
-        );
+      const uploadedFiles = await Promise.all(
+        queuedFiles.map((file) => uploadHotelChatAttachment(conversationId, profile.user_id, file)),
+      );
+      for (let index = 0; index < uploadedFiles.length; index++) {
+        const uploaded = uploadedFiles[index];
+        const file = queuedFiles[index];
         if (uploaded.error || !uploaded.path)
-          throw new Error(
-            uploaded.error?.message || `Could not upload ${file.name}`,
-          );
+          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
         paths.push(uploaded.path);
         types.push(uploaded.type);
       }
