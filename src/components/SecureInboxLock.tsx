@@ -13,7 +13,7 @@ export default function SecureInboxLock({
   return (
     <div className="grid min-h-[68dvh] place-items-center px-5 py-12 text-center text-white">
       <div className="max-w-sm">
-        {onBack && <button type="button" onClick={onBack} className="mb-6 min-h-11 rounded-full border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text-secondary)]">← Back to Inbox</button>}
+        {onBack && status && <button type="button" onClick={onBack} className="mb-6 min-h-11 rounded-full border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text-secondary)]">← Back to Inbox</button>}
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-300">
           {status ? (
             <svg
