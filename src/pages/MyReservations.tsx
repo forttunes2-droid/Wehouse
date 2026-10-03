@@ -892,11 +892,6 @@ export default function MyReservations({
               )
             )}
           </div>
-
-                </div>
-              </section>
-            ))}
-          </div>
         )}
       </main>
 
