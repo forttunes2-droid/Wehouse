@@ -42,24 +42,38 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
 
   const loadMessages = useCallback(async () => {
     const request = ++generation.current;
-    try {
-      if (hostingOnly) {
-        const hostResult = await withTimeout(getMyPropertyHostConversations(), 15000, "Inbox took too long");
-        if (request !== generation.current) return;
-        setHotelChats([]); setSupportThreads([]);
-        if (!hostResult.error) setHostChats(hostResult.conversations || []);
-        setLoadError(Boolean(hostResult.error));
-      } else {
-        const [hotelResult, hostResult, supportResult] = await withTimeout(Promise.all([getMyHotelConversations("property_partner"), getMyPropertyHostConversations(), getMySupportConversations("property_partner")]), 15000, "Inbox took too long");
-        if (request !== generation.current) return;
-        if (!hotelResult.error) setHotelChats(hotelResult.conversations);
-        if (!hostResult.error) setHostChats(hostResult.conversations || []);
-        if (!supportResult.error) setSupportThreads(supportResult.conversations || []);
-        setLoadError(Boolean(hotelResult.error || hostResult.error || supportResult.error));
+    setLoadError(false);
+    if (!hotelChats.length && !hostChats.length && !supportThreads.length) setLoading(true);
+
+    const updateResult = (kind: "hotel" | "host" | "support", result: any) => {
+      if (request !== generation.current) return;
+      if (kind === "hotel" && !result.error) setHotelChats(result.conversations || []);
+      if (kind === "host" && !result.error) setHostChats(result.conversations || []);
+      if (kind === "support" && !result.error) setSupportThreads(result.conversations || []);
+      if (result.error) setLoadError(true);
+    };
+
+    const requests = hostingOnly
+      ? [
+          ["host", getMyPropertyHostConversations()] as const,
+        ]
+      : [
+          ["hotel", getMyHotelConversations("property_partner")] as const,
+          ["host", getMyPropertyHostConversations()] as const,
+          ["support", getMySupportConversations("property_partner")] as const,
+        ];
+
+    await Promise.all(requests.map(async ([kind, requestPromise]) => {
+      try {
+        const result = await withTimeout(requestPromise, 8000, "Inbox source took too long");
+        updateResult(kind, result);
+      } catch {
+        if (request === generation.current) setLoadError(true);
       }
-    } catch { if (request === generation.current) setLoadError(true); }
-    finally { if (request === generation.current) setLoading(false); }
-  }, [hostingOnly]);
+    }));
+
+    if (request === generation.current) setLoading(false);
+  }, [hostingOnly, hotelChats.length, hostChats.length, supportThreads.length]);
 
   useEffect(() => {
     void loadMessages();
