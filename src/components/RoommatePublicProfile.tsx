@@ -29,7 +29,7 @@ type Props = {
 };
 
 export default function RoommatePublicProfile({
-  person, onClose, onViewProfile, context = "discovery", score, matchLabel,
+  person, onClose, onViewProfile, context = "discovery", score,
   highlights = [], discuss = [], comparedAnswers, presence, actions, footer, primaryAction,
 }: Props) {
   const [fullProfile, setFullProfile] = useState(false);
