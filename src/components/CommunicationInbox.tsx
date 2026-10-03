@@ -43,7 +43,6 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   const loadMessages = useCallback(async () => {
     const request = ++generation.current;
     setLoadError(false);
-    if (!hotelChats.length && !hostChats.length && !supportThreads.length) setLoading(true);
 
     const updateResult = (kind: "hotel" | "host" | "support", result: any) => {
       if (request !== generation.current) return;
@@ -73,7 +72,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     }));
 
     if (request === generation.current) setLoading(false);
-  }, [hostingOnly, hotelChats.length, hostChats.length, supportThreads.length]);
+  }, [hostingOnly]);
 
   useEffect(() => {
     void loadMessages();
