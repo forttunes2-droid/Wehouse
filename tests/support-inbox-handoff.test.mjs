@@ -29,8 +29,9 @@ test('all customer workspaces retain Inbox handoff and hotel uses the authorised
 });
 test('roommate public profile preserves the approved surface while keeping full-profile content separate', () => {
  const content = read('src/components/RoommatePublicProfile.tsx');
- assert.match(content, /!fullProfile && <PublicProfileSurface/);
- assert.match(content, /fullProfile \? <RoommatePublicProfile/);
+ assert.match(content, /<PublicProfileSurface/);
+ assert.match(content, /suspended=\{fullProfile\}/);
+ assert.match(content, /setFullProfile\(true\)/);
  assert.match(content, /var\(--wh-text-secondary\)/);
  assert.match(content, /var\(--wh-border-subtle\)/);
 });
