@@ -133,17 +133,8 @@ export default function PublicProfileSurface({
 function ProfilePhoto({ src, name, subtitle, onClose }: {
   src: string; name: string; subtitle?: string | null; onClose: () => void;
 }) {
-  const id = useId();
-  const close = useRef(onClose);
-  const controller = useRef<ReturnType<typeof bindProfileScreenHistory> | null>(null);
-  useEffect(() => { close.current = onClose; }, [onClose]);
-  useEffect(() => {
-    const history = bindProfileScreenHistory(window, id, () => close.current());
-    controller.current = history;
-    return () => { history.dispose(); controller.current = null; };
-  }, [id]);
-  return <MediaViewer src={src} kind="image" title={name} subtitle={subtitle || undefined} avatarUrl={src}
-    onClose={() => controller.current?.dismiss()} />;
+  return <MediaViewer variant="photo" src={src} kind="image" title={name}
+    subtitle={subtitle || undefined} onClose={onClose} />;
 }
 
 export function PublicProfileAction({ label, onClick, children }: {
