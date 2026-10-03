@@ -259,29 +259,14 @@ export default function HousingOperationsWorkspace({
 
   return (
     <div className="space-y-5">
-      <header className="border-b border-[var(--wh-border-subtle)] pb-4">
-        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
-          PROPERTY OPERATIONS
-        </p>
-        <h3 className="mt-2 text-lg font-bold">Bookings and handovers</h3>
-        <p className="mt-1 max-w-xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
-          Verify the booking code shown by a customer, then continue the same
-          reservation through arrival, handover, stay and completion.
-        </p>
-      </header>
-
-      <section className="border-y border-violet-500/10 py-4">
-        <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">
-          Exact booking verification
-        </p>
-        <h4 className="mt-1 text-sm font-semibold">
-          Enter the code shown by the customer
-        </h4>
-        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
-          The code opens one matching booking in your coverage. Compare the
-          displayed customer, property, status and payment before handing over
-          access. It does not confirm ownership or publish a property.
-        </p>
+      <section className="border-b border-[var(--wh-border-subtle)] py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-violet-300">Verify booking</p>
+            <h4 className="mt-1 text-sm font-semibold">Enter the customer code</h4>
+          </div>
+          <span className="pt-1 text-[9px] text-[var(--wh-text-muted)]">One exact match in your coverage</span>
+        </div>
         <div className="mt-3 flex gap-2">
           <input
             value={bookingCode}
@@ -418,7 +403,7 @@ export default function HousingOperationsWorkspace({
         )}
       </section>
 
-      <section className="space-y-3 border-t border-[var(--wh-border-subtle)] pt-4">
+      <section className="space-y-3 pt-4">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h4 className="text-sm font-semibold">
