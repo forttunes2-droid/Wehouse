@@ -78,27 +78,11 @@ type BookingSourceErrors = Partial<
 >;
 
 const STATUS_OPTIONS = [
-  {
-    value: "all",
-    label: "All booking stages",
-    description: "Needs action, active and history",
-  },
-  {
-    value: "action",
-    label: "Needs action",
-    description: "A decision or payment is waiting for you",
-  },
-  {
-    value: "active",
-    label: "Active & upcoming",
-    description: "Confirmed, upcoming or in progress",
-  },
-  {
-    value: "history",
-    label: "History",
-    description: "Completed, cancelled, expired or refunded",
-  },
-] as const;
+  { value: "all", label: "All" },
+  { value: "action", label: "To do" },
+  { value: "active", label: "Upcoming" },
+  { value: "history", label: "History" },
+] as const;;
 const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
 const date = displayDate;
 function bookingMonth(value: string) {
@@ -838,32 +822,36 @@ export default function MyReservations({
           <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { value: "all", label: "All" },
-              { value: "housing", label: "Stays" },
+              { value: "short_let", label: "Short Let" },
+              { value: "long_let", label: "Long Let" },
+              { value: "hotels", label: "Hotel" },
               { value: "services", label: "Services" },
-            ].map(option => (
-              <button key={option.value} type="button" aria-pressed={view === option.value}
-                onClick={() => { setView(option.value as View); if (option.value !== "housing") setStayFilter("all"); }}
-                className={`min-h-9 shrink-0 rounded-full px-3 text-[10px] font-semibold ${view === option.value ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {view === "housing" ? (
-            <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--wh-border-subtle)] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {[
-                { value: "all", label: "All stays" },
-                { value: "short_let", label: "Short Let" },
-                { value: "long_let", label: "Long Let" },
-                { value: "hotels", label: "Hotels" },
-              ].map(option => (
-                <button key={option.value} type="button" aria-pressed={stayFilter === option.value}
-                  onClick={() => setStayFilter(option.value as typeof stayFilter)}
-                  className={`min-h-8 shrink-0 px-2.5 text-[9px] font-semibold ${stayFilter === option.value ? "border-b-2 border-violet-400 text-[var(--wh-text)]" : "text-[var(--wh-text-secondary)]"}`}>
+            ].map(option => {
+              const selected = option.value === "all"
+                ? view === "all" && stayFilter === "all"
+                : option.value === "services"
+                  ? view === "services"
+                  : view === "housing" && stayFilter === option.value;
+              return (
+                <button key={option.value} type="button" aria-pressed={selected}
+                  onClick={() => {
+                    if (option.value === "services") {
+                      setView("services");
+                      setStayFilter("all");
+                    } else if (option.value === "all") {
+                      setView("all");
+                      setStayFilter("all");
+                    } else {
+                      setView("housing");
+                      setStayFilter(option.value as typeof stayFilter);
+                    }
+                  }}
+                  className={`min-h-9 shrink-0 rounded-full px-3 text-[10px] font-semibold ${selected ? "bg-violet-500 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>
                   {option.label}
                 </button>
-              ))}
-            </div>
-          ) : null}
+              );
+            })}
+          </div>
           <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
               className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-violet-300" : "text-[var(--wh-text-secondary)]"}`}>
@@ -882,7 +870,7 @@ export default function MyReservations({
           </WeHouseChoice>
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
-          {visibleCount} {visibleCount === 1 ? "booking" : "bookings"}
+          {visibleCount} {visibleCount === 1 ? "item" : "items"}
           {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-violet-300">Clear search and month</button>}
         </p>}
 
@@ -1269,6 +1257,7 @@ function HotelCard({ row, onOpen }: { row: any; onOpen: () => void }) {
 
 export function BookingCard({
   eyebrow,
+  status,
   title,
   subtitle,
   image,
@@ -1278,6 +1267,7 @@ export function BookingCard({
   onOpen,
 }: {
   eyebrow: string;
+  status?: string;
   title: string;
   subtitle: string;
   image: string | null;
@@ -1294,36 +1284,41 @@ export function BookingCard({
       className="w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-left transition-[background,transform] duration-150 hover:bg-[var(--wh-elevated)] active:scale-[.995] focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 sm:p-4"
     >
       <div className="flex items-start gap-3">
-      {image ? (
-        <img
-          src={image}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="h-16 w-16 shrink-0 rounded-xl object-cover"
-        />
-      ) : (
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-xl font-bold text-violet-300">
-          {fallback}
+        {image ? (
+          <img
+            src={image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-14 w-14 shrink-0 rounded-xl object-cover"
+          />
+        ) : (
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-lg font-bold text-violet-300">
+            {fallback}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
+            {status ? (
+              <span className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]">
+                {status}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 break-words text-sm font-semibold leading-5">{title}</p>
+          <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">{subtitle}</p>
+          {meta.length ? (
+            <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">{meta.join(" · ")}</p>
+          ) : null}
+          {next ? (
+            <p className="mt-2 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
+              <span className="font-semibold text-violet-300">Next</span> · {next}
+            </p>
+          ) : null}
         </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
-        <p className="break-words text-sm font-semibold leading-5">
-          {title}
-        </p>
-        <p className="mt-0.5 break-words text-xs leading-4 text-[var(--wh-text-muted)]">
-          {subtitle}
-        </p>
-        {meta.length ? (
-          <p className="mt-2 text-xs leading-4 text-[var(--wh-text-secondary)]">
-            {meta.join(" · ")}
-          </p>
-        ) : null}
+        <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-base text-[var(--wh-text-secondary)]">›</span>
       </div>
-      <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--wh-interactive)] text-base text-[var(--wh-text-secondary)]">›</span>
-      </div>
-      {next && <div className="mt-3 flex items-start gap-2 border-t border-[var(--wh-border-subtle)] pt-3 text-xs leading-5"><span className="shrink-0 font-semibold text-violet-300">Next</span><span className="min-w-0 text-[var(--wh-text-secondary)]">{next}</span></div>}
     </button>
   );
 }
