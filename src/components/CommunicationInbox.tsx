@@ -92,10 +92,12 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     return () => { generation.current++; window.removeEventListener("wehouse:unread-changed", refresh); void supabase.removeChannel(channel); };
   }, [loadMessages, profile.user_id]);
 
-  const items = useMemo<InboxItem[]>(() => [
-    ...hotelChats.map((thread) => ({ kind: "hotel" as const, id: `hotel:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread })),
-    ...hostChats.map((thread) => ({ kind: "host" as const, id: `host:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread })),
-    ...supportThreads.map((thread) => ({ kind: "support" as const, id: `support:${thread.conversation_id}`, time: thread.last_message_time || thread.created_at, thread })),
+  const safeUnreadCount = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
+
+const items = useMemo<InboxItem[]>(() => [
+    ...hotelChats.map((thread) => ({ kind: "hotel" as const, id: `hotel:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread: { ...thread, unread_count: safeUnreadCount(thread.unread_count) } })),
+    ...hostChats.map((thread) => ({ kind: "host" as const, id: `host:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread: { ...thread, unread_count: safeUnreadCount(thread.unread_count) } })),
+    ...supportThreads.map((thread) => ({ kind: "support" as const, id: `support:${thread.conversation_id}`, time: thread.last_message_time || thread.created_at, thread: { ...thread, unread_count: safeUnreadCount(thread.unread_count) } })),
   ].filter((item) => {
     if (filter !== "all" && item.kind !== filter) return false;
     const value = query.trim().toLowerCase();
