@@ -14,7 +14,7 @@ test("Bookings use one compact presentation language", async () => {
   assert.match(bookings, /divide-y divide-\[var\(--wh-border-subtle\)\]/);
   assert.match(bookings, /overflow-x-auto/);
   assert.match(bookings, /Booking filters/);
-  assert.match(bookings, /text-\\[13px\\]/);
+  assert.match(bookings, /text-\[13px\]/);
   assert.match(bookings, /font-mono text-xs font-bold/);
   const bookingCardBlock = bookings.slice(bookings.indexOf("function BookingCard"), bookings.indexOf("function formatStayTime"));
   const serviceBlock = bookings.slice(bookings.indexOf("function ServiceBookingDetail"), bookings.indexOf("function HousingCard"));
