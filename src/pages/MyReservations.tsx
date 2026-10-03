@@ -1507,7 +1507,6 @@ function PropertyBookingDetail({
             <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
-          <ShortLetPaymentReview row={row} />
           <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
           {row.shared_payment_group_id && <button type="button" onClick={()=>onOpenShared(String(row.shared_payment_group_id))} className="mt-4 min-h-12 w-full rounded-xl bg-violet-600 px-4 text-sm font-semibold">View shared payment</button>}
           <PropertyBookingJourney row={row} inspection={inspection} />
