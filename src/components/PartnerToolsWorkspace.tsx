@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BarChart3, Megaphone } from "lucide-react";
 import type { Profile } from "@/types";
 import PropertyPartnerProWorkspace from "@/components/PropertyPartnerProWorkspace";
 import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
@@ -32,8 +33,8 @@ export default function PartnerToolsWorkspace({ profile }: { profile: Profile })
 }
 
 function ToolRow({ title, detail, action, onClick }: { title: string; detail: string; action: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="flex min-h-20 w-full items-center gap-4 px-1 py-4 text-left active:bg-[var(--wh-interactive)]">
-    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">{title === "Partner Pro" ? "P" : "↗"}</span>
+  return <button type="button" onClick={onClick} className="flex min-h-20 w-full items-center gap-3 border-b border-transparent px-1 py-4 text-left transition-colors hover:bg-[var(--wh-interactive)] active:bg-[var(--wh-interactive)]">
+    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">{title === "Partner Pro" ? <BarChart3 size={18} aria-hidden="true" /> : <Megaphone size={18} aria-hidden="true" />}</span>
     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{title}</span><span className="mt-1 block text-[11px] leading-5 text-[var(--wh-text-secondary)]">{detail}</span></span>
     <span className="shrink-0 text-[10px] font-semibold text-violet-300">{action}</span>
   </button>;
