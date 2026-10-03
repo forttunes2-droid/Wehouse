@@ -67,7 +67,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       }}
       role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" onClick={dismiss}
-        className="absolute right-3 z-30 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-2xl leading-none text-white shadow-lg backdrop-blur-md transition active:scale-95"
+        className="absolute right-3 z-30 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-black/45 text-2xl leading-none text-white shadow-lg transition active:scale-95"
         style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
         aria-label="Close media viewer">
         <span aria-hidden="true">×</span>
@@ -106,7 +106,7 @@ export default function MediaViewer(props: MediaViewerProps) {
         {items.length > 1 ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}
       </main>
       {variant === "gallery" && kind === "video" && duration > 0 ? (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 font-mono text-[11px] text-white/75 backdrop-blur-md"
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 font-mono text-[11px] text-white/75"
           style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
           {formatDuration(currentTime)} / {formatDuration(duration)}
         </div>
