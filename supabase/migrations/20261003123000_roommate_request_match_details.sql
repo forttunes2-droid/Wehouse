@@ -27,7 +27,6 @@ as $$
 declare
   v_actor public.profiles;
   v_actor_prefs public.roommate_preferences;
-  v_compat jsonb;
 begin
   select * into v_actor from public.profiles
   where auth_id=(select auth.uid())::text limit 1;
@@ -61,8 +60,14 @@ begin
       else null
     end,
     sender.bio,
-    coalesce((public._roommate_practical_pair(v_actor.user_id,incoming.searcher_id)->'highlights')::text[],'{}'::text[]),
-    coalesce((public._roommate_practical_pair(v_actor.user_id,incoming.searcher_id)->'discuss')::text[],'{}'::text[]),
+    coalesce((
+      select array_agg(value)
+      from jsonb_array_elements_text(coalesce(public._roommate_practical_pair(v_actor.user_id,incoming.searcher_id)->'highlights','[]'::jsonb))
+    ), '{}'::text[]),
+    coalesce((
+      select array_agg(value)
+      from jsonb_array_elements_text(coalesce(public._roommate_practical_pair(v_actor.user_id,incoming.searcher_id)->'discuss','[]'::jsonb))
+    ), '{}'::text[]),
     coalesce((public._roommate_practical_pair(v_actor.user_id,incoming.searcher_id)->>'compared_answers')::integer,0)
   from public.roommate_search_results incoming
   join public.profiles sender on sender.user_id=incoming.searcher_id
