@@ -153,7 +153,7 @@ test("frontend chart theming has no raw HTML injection sink", async () => {
 
 
 test("mobile experience keeps operational hierarchy compact and partner tools consolidated", async () => {
-  const [partner, tools, housing, inbox, share, reservations, pro, security, video] = await Promise.all([
+  const [partner, tools, housing, inbox, share, reservations, pro, security, video, roommate, roommateProfile, account, creatorModal, migration] = await Promise.all([
     read("src/pages/PropertyOwnerDashboard.tsx"),
     read("src/components/PartnerToolsWorkspace.tsx"),
     read("src/components/HousingOperationsWorkspace.tsx"),
@@ -163,6 +163,11 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
     read("src/components/PropertyPartnerProWorkspace.tsx"),
     read("src/pages/SecuritySettings.tsx"),
     read("src/components/VideoPlayer.tsx"),
+    read("src/pages/Roommate.tsx"),
+    read("src/components/RoommatePublicProfile.tsx"),
+    read("src/pages/AccountCenter.tsx"),
+    read("src/components/CreatorAuthModal.tsx"),
+    read("supabase/migrations/20261003123000_roommate_request_match_details.sql"),
   ]);
   assert.match(partner, /key: "tools"/);
   assert.doesNotMatch(partner, /key: "pro"/);
@@ -179,4 +184,13 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(pro, /Partner tools could not load/);
   assert.match(security, /Additional protection/);
   assert.match(video, /Video unavailable here/);
+  assert.match(roommate, /receivedUserIds/);
+  assert.match(roommate, /uniqueMatches/);
+  assert.doesNotMatch(roommate, /!isEstablishedMatch\(row\)\)/);
+  assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
+  assert.match(account, /Choose how WeHouse looks on this device/);
+  assert.doesNotMatch(account, /h-28/);
+  assert.match(creatorModal, /var\(--wh-surface\)/);
+  assert.match(migration, /get_my_received_roommate_interests/);
+  assert.match(migration, /match_highlights text\[\]/);
 });
