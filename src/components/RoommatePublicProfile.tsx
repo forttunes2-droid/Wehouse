@@ -62,7 +62,7 @@ export default function RoommatePublicProfile({
           {discuss.length > 0 && <div className="mt-4 border-l-2 border-violet-400/60 pl-3 text-sm leading-6 text-[var(--wh-text-secondary)]"><h3 className="font-medium text-[var(--wh-text)]">Discuss before deciding</h3>{discuss.map(item => <p key={item}>{item}</p>)}</div>}
           <details className="mt-3 text-sm text-[var(--wh-text-muted)]"><summary className="w-fit cursor-pointer py-3">How matching works</summary><p className="pb-2 leading-6">Similarity compares answered preferences, not the chance that living together will succeed. Unanswered choices do not count as agreement.</p></details>
         </section>}
-        {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-white/[.06] border-y border-white/[.06]">
+        {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {person.preferredArea && <Detail label="Preferred area" value={person.preferredArea} />}
           {person.school && <Detail label="School" value={person.school} />}
           {person.occupation && <Detail label="Occupation" value={person.occupation} />}
