@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { getMyHotelBookingTarget } from "@/lib/supabase/hotels";
 import { supabase } from "@/lib/supabase";
 import PropertyPartnerFinancePanel from "@/components/PropertyPartnerFinancePanel";
-import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
 import PayoutAccountManager from "@/components/PayoutAccountManager";
 import CommunicationInbox from "@/components/CommunicationInbox";
 import PartnerSubmittedRequests, {
@@ -23,9 +22,9 @@ import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
-import PropertyPartnerProWorkspace from "@/components/PropertyPartnerProWorkspace";
+import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
 
-type PartnerTab = "properties" | "finance" | "communication" | "sponsored" | "pro";
+type PartnerTab = "properties" | "finance" | "communication" | "tools";
 const PROPERTY_PAGE_SIZE = 40;
 type Props = {
   inboxOpenRequest?: number;
@@ -56,14 +55,9 @@ const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }>
     description: "Your wallet, earnings and withdrawals",
   },
   {
-    key: "pro",
-    label: "Pro",
-    description: "Portfolio calendar, income reports and property tasks",
-  },
-  {
-    key: "sponsored",
-    label: "Sponsored",
-    description: "Manage paid placement for your properties and hotels",
+    key: "tools",
+    label: "Tools",
+    description: "Optional partner tools for portfolio and promotion",
   },
 ];
 const HOSTING_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
@@ -180,8 +174,7 @@ export default function PropertyOwnerDashboard({
           </>
         )}
         {!delegatedOnly && tab === "finance" && <FinanceTab profile={profile} />}
-        {!delegatedOnly && tab === "pro" && <PropertyPartnerProWorkspace profile={profile} />}
-        {!delegatedOnly && tab === "sponsored" && <div className="mx-auto max-w-5xl px-4 pb-6"><SponsoredCampaignPanel types={['property','hotel']} /></div>}
+        {!delegatedOnly && tab === "tools" && <PartnerToolsWorkspace profile={profile} />}
       </WorkspaceFrameV2>
     </>
   );
