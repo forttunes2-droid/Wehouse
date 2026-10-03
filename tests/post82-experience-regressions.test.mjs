@@ -177,7 +177,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.doesNotMatch(housing, /Bookings and handovers/);
   assert.match(housing, /Verify booking/);
   assert.match(inbox, /Promise\.all\(requests\.map/);
-  assert.match(inbox, /Loading your conversations/);
+  assert.match(inbox, /aria-label="Loading conversations"/);\n  assert.match(inbox, /wh-skeleton/);
   assert.doesNotMatch(share, /To split a Short Let stay/);
   assert.doesNotMatch(share, /To split a Long Let reservation/);
   assert.match(reservations, /overflow-x-auto/);
