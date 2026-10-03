@@ -142,6 +142,7 @@ export default function ProfilePhotoEditor({
       </div>
       {viewing && avatar ? (
         <MediaViewer
+          variant="photo"
           src={avatar}
           kind="image"
           title={`${name || "Profile"} photo`}
