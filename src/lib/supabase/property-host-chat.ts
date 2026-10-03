@@ -60,8 +60,8 @@ export async function getPropertyHostMessages(conversationId:string) {
     try{
       const {data:signedRows}=await supabase.storage.from("property-host-chat-files").createSignedUrls(uniquePaths,3600);
       signedByPath=new Map((signedRows||[])
-        .filter((item):item is {path:string;signedUrl:string}=>Boolean(item?.path&&item?.signedUrl))
-        .map(item=>[item.path,item.signedUrl]));
+        .filter((item:any)=>Boolean(item?.path&&item?.signedUrl))
+        .map((item:any)=>[String(item.path),String(item.signedUrl)]));
     }catch{
       signedByPath=new Map();
     }
