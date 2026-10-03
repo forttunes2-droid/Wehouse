@@ -37,10 +37,10 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
   const reserveDatePaid=row.reservation_fee_status==='paid'||['paid','completed'].includes(String(row.manual_payment_status||''));
   const balanceDeadline=row.short_stay_balance_due_at?new Date(row.short_stay_balance_due_at).getTime():0;
   if(!bill||capacity<2||!reserveDatePaid||!['reserved','ready_for_move_in'].includes(String(row.status||''))||!balanceDeadline||balanceDeadline<=Date.now()||row.rent_payment_status==='payment_pending'||row.rent_payment_status==='paid'||row.rent_payment_reference||row.shared_payment_group_id)return null;
-  return <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Split Short Let costs">
+  return <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Split Short Let stay">
     <button type="button" disabled={busy} onClick={()=>setOpen(v=>!v)} aria-expanded={open} className="flex min-h-12 w-full items-center gap-3 text-left disabled:opacity-50">
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300"><Users size={18} aria-hidden="true" /></span>
-      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Share stay costs</span><span className="mt-0.5 block text-xs leading-4 text-[var(--wh-text-secondary)]">Invite booked guests to pay their own share</span></span>
+      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Split the stay</span><span className="mt-0.5 block text-xs leading-4 text-[var(--wh-text-secondary)]">Choose who is paying with you</span></span>
       <ChevronDown size={18} aria-hidden="true" className={`shrink-0 text-violet-300 ${open?'rotate-180':''}`} />
     </button>
     {open&&<div className="mt-4 space-y-4 border-t border-[var(--wh-border-subtle)] pt-4">
@@ -52,8 +52,8 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
         <span className="min-w-0"><span className="block break-words text-base font-medium">{person.name}</span>{person.username&&<span className="block break-words text-sm text-[var(--wh-text-secondary)]">@{person.username}</span>}</span>
       </label>)}</div>}
       {!loading&&!people.length&&!error&&<p className="text-sm leading-6 text-[var(--wh-text-secondary)]">No accepted connections are available. Connect with someone in Roommates first.</p>}
-      {shares&&<div className="space-y-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3"><h4 className="text-xs font-semibold uppercase tracking-wide text-violet-300">Equal shares before you invite</h4>{shares.map((share,index)=><div key={index} className="text-xs leading-5"><div className="flex items-start justify-between gap-3"><strong className="min-w-0 break-words">{index===0?'You':chosen[index-1].name}</strong><strong className="shrink-0">{money(share.total)}</strong></div><p className="text-[var(--wh-text-secondary)]">Stay {money(share.rent)} · Deposit {share.deposit?money(share.deposit):'not required'}</p></div>)}<p className="border-t border-[var(--wh-border-subtle)] pt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Shares can differ by ₦0.01 to match the booking total. The final bill comes from this reservation.</p></div>}
-      <button type="button" disabled={busy||!shares||loading} onClick={()=>void create()} className="min-h-12 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">{busy?'Preparing invitation…':'Invite guests to split costs'}</button>
+      {shares&&<div className="space-y-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3"><h4 className="text-xs font-semibold uppercase tracking-wide text-violet-300">Each person pays</h4>{shares.map((share,index)=><div key={index} className="text-xs leading-5"><div className="flex items-start justify-between gap-3"><strong className="min-w-0 break-words">{index===0?'You':chosen[index-1].name}</strong><strong className="shrink-0">{money(share.total)}</strong></div><p className="text-[var(--wh-text-secondary)]">Stay {money(share.rent)} · Deposit {share.deposit?money(share.deposit):'not required'}</p></div>)}<p className="border-t border-[var(--wh-border-subtle)] pt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Shares can differ by ₦0.01 to match the booking total. The final bill comes from this reservation.</p></div>}
+      <button type="button" disabled={busy||!shares||loading} onClick={()=>void create()} className="min-h-12 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">{busy?'Preparing invitation…':'Invite to split'}</button>
     </div>}
   </section>;
 }
