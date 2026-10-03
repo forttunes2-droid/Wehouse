@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setNotificationSoundEnabled } from "@/lib/notificationSound";
-import { setAppearance, useAppearance, type Appearance } from "@/lib/appearance";
+import { setAppearance, useAppearance } from "@/lib/appearance";
 import AccountShell, {
   AccountRow,
   AccountSection,
