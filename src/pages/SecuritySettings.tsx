@@ -162,8 +162,8 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
           ) : (
             <div className="mt-4 space-y-3 border-t border-violet-500/10 pt-4">
               <Field label="Current WeHouse account password" value={creatorAccountPassword} onChange={setCreatorAccountPassword}/>
-              <Field label="New protection password" value={creatorSecret} onChange={setCreatorSecret}/>
-              <Field label="Confirm protection password" value={creatorSecretConfirm} onChange={setCreatorSecretConfirm}/>
+              <Field label="New Creator security password" value={creatorSecret} onChange={setCreatorSecret}/>
+              <Field label="Confirm Creator security password" value={creatorSecretConfirm} onChange={setCreatorSecretConfirm}/>
               {mfaFactorId?<label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">Authenticator code</span><input inputMode="numeric" maxLength={6} value={creatorOtp} onChange={e=>setCreatorOtp(e.target.value.replace(/\D/g,'').slice(0,6))} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none"/></label>:null}
               <div className="flex gap-2"><button type="button" disabled={creatorBusy} onClick={()=>void saveCreatorSecurity()} className="min-h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">{creatorBusy?'Saving…':'Save protection password'}</button><button type="button" disabled={creatorBusy} onClick={()=>setCreatorSetupOpen(false)} className="min-h-11 px-3 text-xs text-[var(--wh-text-secondary)]">Cancel</button></div>
             </div>
