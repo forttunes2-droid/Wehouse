@@ -78,7 +78,7 @@ test('Property management is post-publication, property-scoped and booking respo
   assert.match(liveActivation, /Choose property management after this home is published/);
   assert.match(liveActivation, /wehouse_management_status set default 'not_required'/);
   assert.match(liveActivation, /management_updated_at is null/);
-  assert.match(workspace, /filter === "public" \|\| publishedTarget/);
+  assert.match(workspace, /filter === "public" \|\| filter === "all" \|\| publishedTarget/);
   assert.match(workspace, /<PropertyManagementPanel/);
   assert.doesNotMatch(submissions, /PropertyManagementPanel|set_my_property_management_mode/);
   assert.match(panel, /Host manages/);
