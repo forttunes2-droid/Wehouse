@@ -135,7 +135,7 @@ const items = useMemo<InboxItem[]>(() => [
   if (showActivity && !hostingOnly) {
     return (
       <div className="min-h-[65dvh]">
-        <ActivityHeader onBack={closeActivity} subtitle="Property, booking, payment and account updates." />
+        <ActivityHeader onBack={closeActivity} />
         <Notifications profile={profile} scope="partner" embedded onNavigate={openActivityDestination} />
       </div>
     );
