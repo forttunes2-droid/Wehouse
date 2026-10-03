@@ -112,17 +112,18 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     const route = page.toLowerCase().replace(/-/g, "_");
     if (["conversation", "conversations", "message", "messages", "chat"].includes(route)) {
       const hotel = hotelChats.find((thread) => String(thread.conversation_id) === String(id || ""));
-      if (hotel) { setActiveHotel(hotel); return; }
+      if (hotel) { setHotelChats((current) => current.map((thread) => String(thread.conversation_id) === String(hotel.conversation_id) ? { ...thread, unread_count: 0 } : thread)); setActiveHotel(hotel); return; }
     }
     onNavigate(page, id, destination);
   }
 
   function openSupport(thread: SupportThread) {
+    setSupportThreads((current) => current.map((item) => String(item.conversation_id) === String(thread.conversation_id) ? { ...item, unread_count: 0 } : item));
     window.dispatchEvent(new CustomEvent("openSupportChat", { detail: { conversationId: thread.conversation_id, contextType: thread.context_type, contextId: thread.context_id } }));
   }
 
   if (activeHost) {
-    return <PropertyHostBookingChat conversation={activeHost} profile={profile} onClose={() => setActiveHost(null)} onUpdated={loadMessages} />;
+    return <PropertyHostBookingChat conversation={activeHost} profile={profile} onClose={() => { setActiveHost(null); void loadMessages(); }} onUpdated={loadMessages} />;
   }
 
   if (activeHotel) {
