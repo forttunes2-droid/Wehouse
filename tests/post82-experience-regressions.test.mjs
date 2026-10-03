@@ -180,6 +180,11 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(inbox, /aria-label="Loading conversations"/);\n  assert.match(inbox, /wh-skeleton/);
   assert.doesNotMatch(share, /To split a Short Let stay/);
   assert.doesNotMatch(share, /To split a Long Let reservation/);
+  assert.match(reservations, /Short Let/);
+  assert.match(reservations, /Long Let/);
+  assert.match(reservations, /\{ value: "hotels", label: "Hotel" \}/);
+  assert.match(reservations, /status=\{propertyBookingStatusLabel\(row\)\}/);
+  assert.match(reservations, /status=\{HOTEL_STATUS\[String\(row\.status \|\| ""\)\] \|\| "Active"\}/);
   assert.match(reservations, /overflow-x-auto/);
   assert.match(pro, /Partner tools could not load/);
   assert.match(security, /Additional protection/);
@@ -187,6 +192,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(roommate, /receivedUserIds/);
   assert.match(roommate, /acceptedIncomingIds/);
   assert.match(roommate, /uniqueMatches/);
+  assert.match(roommate, /row\.status === "accepted"/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
   assert.match(account, /Switch WeHouse between light and dark mode/);\n  assert.doesNotMatch(account, /Automatic/);
   assert.doesNotMatch(account, /h-28/);
