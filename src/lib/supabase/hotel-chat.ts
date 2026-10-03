@@ -62,7 +62,7 @@ export async function getHotelMessages(conversationId: string, bookingId: number
   const { data, error } = await supabase.rpc("get_my_hotel_conversation_bundle", { p_conversation_id: conversationId, p_booking_id: bookingId });
   if (error) return { context: null, messages: [] as HotelMessage[], error };
   const {context, messages: rows} = parseHotelConversationBundle(data, conversationId, bookingId);
-  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: [], media_loading: Boolean(message.attachments?.length) })), context);
+  onTextReady?.(rows.map(message => ({ ...message, attachments: [], attachment_types: message.attachment_types || [], media_loading: Boolean(message.attachments?.length) })), context);
   const messages = await Promise.all(rows.map(async message => {
     const files = await Promise.all((message.attachments || []).map(async (path, index) => {
       try {
