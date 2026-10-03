@@ -24,7 +24,6 @@ type Props = {
   suspended?: boolean;
 };
 
-
 export default function PublicProfileSurface({
   name, username, avatar, subtitle, location, presence, about, badges, actions,
   children, bottomAction, onClose, ariaLabel, maxWidth = "xl", conversation = false, suspended = false,
@@ -43,8 +42,6 @@ export default function PublicProfileSurface({
     const element = root.current;
     if (!element) return;
     const release = isolateDialog(element);
-    // StrictMode replays this effect after the dialog has already taken focus.
-    // Capture the real opener once, not the dialog from the second effect run.
     if (!returnFocus.current && document.activeElement instanceof HTMLElement) {
       returnFocus.current = document.activeElement;
     }
@@ -88,7 +85,6 @@ export default function PublicProfileSurface({
       className={`fixed inset-0 z-[100100] isolate overflow-y-auto bg-[var(--wh-bg)] text-[var(--wh-text)] outline-none ${bottomAction ? "pb-24" : "pb-8"}`}
       role="dialog" aria-modal={suspended ? undefined : true} aria-hidden={suspended || undefined}
       aria-label={ariaLabel || `${name} profile`}>
-      {/* Navigation and identity share one masthead. The name is not repeated in a detached bar. */}
       <header className={`mx-auto ${width} px-5 pb-5 pt-[max(.75rem,env(safe-area-inset-top))]`}>
         <div className="mb-4 flex min-h-11 items-center gap-2.5">
           <BackButton onClick={dismiss} ariaLabel={conversation ? "Back to conversation" : "Back"} />
@@ -129,17 +125,8 @@ export default function PublicProfileSurface({
 function ProfilePhoto({ src, name, subtitle, onClose }: {
   src: string; name: string; subtitle?: string | null; onClose: () => void;
 }) {
-  const id = useId();
-  const close = useRef(onClose);
-  const controller = useRef<ReturnType<typeof bindProfileScreenHistory> | null>(null);
-  useEffect(() => { close.current = onClose; }, [onClose]);
-  useEffect(() => {
-    const history = bindProfileScreenHistory(window, id, () => close.current());
-    controller.current = history;
-    return () => { history.dispose(); controller.current = null; };
-  }, [id]);
-  return <MediaViewer variant="photo" src={src} kind="image" title={name} subtitle={subtitle || undefined} avatarUrl={src}
-    onClose={() => controller.current?.dismiss()} />;
+  return <MediaViewer variant="photo" src={src} kind="image" title={name} subtitle={subtitle || undefined}
+    onClose={onClose} />;
 }
 
 export function PublicProfileAction({ label, onClick, children }: {
