@@ -73,10 +73,15 @@ export default function PublicProfileSurface({
       element?.removeEventListener("keydown", keydown);
       release();
       window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')) } }));
-      queueMicrotask(() => {
+      const restoreFocus = () => {
         const opener = returnFocus.current;
         if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-      });
+      };
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => requestAnimationFrame(restoreFocus));
+      } else {
+        setTimeout(restoreFocus, 0);
+      }
     };
   }, [id]);
 
