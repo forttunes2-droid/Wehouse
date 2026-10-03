@@ -113,7 +113,9 @@ test("visible Activity surfaces use the canonical event model", async () => {
     assert.match(source, /getCanonicalActivity|getCanonicalActivitySummary/);
     assert.doesNotMatch(source, /\.from\(["']notifications["']\)/);
   }
-  assert.match(app, /getCanonicalActivity\("personal", 100\)/);\n  assert.match(app, /currentActivityRows\(activityResult\.rows\)/);\n  assert.doesNotMatch(app, /getCanonicalActivitySummary\("personal"\)/);
+  assert.match(app, /getCanonicalActivity\("personal", 100\)/);
+  assert.match(app, /currentActivityRows\(activityResult\.rows\)/);
+  assert.doesNotMatch(app, /getCanonicalActivitySummary\("personal"\)/);
   assert.match(app, /activity_event_audiences/);
   const personalCount = app.slice(app.indexOf("async function loadCounts"), app.indexOf("const toggle =", app.indexOf("async function loadCounts")));
   assert.doesNotMatch(personalCount, /\.from\(["']notifications["']\)/);
