@@ -54,11 +54,23 @@ export async function getPropertyHostMessages(conversationId:string) {
   const {data,error}=await supabase.rpc("get_property_host_messages",{p_conversation_id:conversationId});
   if(error)return {messages:[] as PropertyHostMessage[],error};
   const rows=(data||[]) as any[];
-  const messages=await Promise.all(rows.map(async row=>{
-    const files=await Promise.all((row.attachments||[]).map(async(path:string,index:number)=>{
-      const {data:signed,error:signedError}=await supabase.storage.from("property-host-chat-files").createSignedUrl(path,300);
-      return signedError||!signed?.signedUrl?null:{url:signed.signedUrl,type:row.attachment_types?.[index]||""};
-    }));
+  const uniquePaths=[...new Set(rows.flatMap(row=>row.attachments||[]))];
+  let signedByPath=new Map<string,string>();
+  if(uniquePaths.length){
+    try{
+      const {data:signedRows}=await supabase.storage.from("property-host-chat-files").createSignedUrls(uniquePaths,3600);
+      signedByPath=new Map((signedRows||[])
+        .filter((item):item is {path:string;signedUrl:string}=>Boolean(item?.path&&item?.signedUrl))
+        .map(item=>[item.path,item.signedUrl]));
+    }catch{
+      signedByPath=new Map();
+    }
+  }
+  const messages=rows.map(row=>{
+    const files=(row.attachments||[]).map((path:string,index:number)=>{
+      const url=signedByPath.get(path);
+      return url?{url,type:row.attachment_types?.[index]||""}:null;
+    });
     const available=files.filter((file):file is {url:string;type:string}=>Boolean(file));
     return {
       id:String(row.message_id),
