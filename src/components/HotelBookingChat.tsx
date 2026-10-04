@@ -333,6 +333,7 @@ export default function HotelBookingChat({
               if (!context) return null;
               const presentation = hotelMessagePresentation(message, profile.user_id, context);
               const mine = presentation.outgoing;
+              const attachmentPending = Boolean(message.media_loading || (!message.attachments?.length && message.attachment_types?.length));
               const counts = Object.values(message.reactions || {}).reduce<
                 Record<string, number>
               >(
@@ -393,7 +394,7 @@ export default function HotelBookingChat({
                           {message.content}
                         </p>
                       )}
-                      {message.media_loading && <AttachmentState />}
+                      {attachmentPending && <AttachmentState />}
                       {message.media_error && <AttachmentState error />}
                       <MessageMedia items={(message.attachments || []).map((url, index) => ({ url, type: message.attachment_types?.[index] || "" }))} />
                       <span
