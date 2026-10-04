@@ -313,7 +313,7 @@ export default function HotelBookingChat({
         <div className="mx-auto max-w-3xl space-y-2">
           {specialRequest?.trim() && <HotelSpecialRequest request={specialRequest} hotelView={hotelView} inConversation />}
           {loadError && <div role="alert" className="mb-3 text-sm text-amber-200"><p>{loadError}</p>{conversationId && <button type="button" className="min-h-11 underline" onClick={() => void load(conversationId, true)}>Try again</button>}</div>}
-          {loading ? (
+          {loading && messages.length === 0 ? (
             <div
               className="min-h-48"
               role="status"
