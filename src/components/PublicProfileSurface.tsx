@@ -73,9 +73,9 @@ export default function PublicProfileSurface({
       element?.removeEventListener("keydown", keydown);
       release();
       window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')) } }));
-      queueMicrotask(() => {
+      requestAnimationFrame(() => {
         const opener = returnFocus.current;
-        if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
+        if (opener?.isConnected) opener.focus({ preventScroll: true });
       });
     };
   }, [id]);
