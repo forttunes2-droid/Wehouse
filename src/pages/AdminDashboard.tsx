@@ -22,6 +22,7 @@ import WeHouseSelect from "@/components/WeHouseSelect";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import AdminSecurityCases from "@/components/AdminSecurityCases";
+import BackButton from "@/components/BackButton";
 
 type AdminTab = "overview" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security";
@@ -230,14 +231,7 @@ function AdminInbox({
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
-          <button
-            type="button"
-            onClick={() => setActivityOpen(false)}
-            className="grid h-10 w-10 place-items-center rounded-full text-[var(--wh-text-secondary)] active:bg-[var(--wh-interactive)]"
-            aria-label="Back to Inbox messages"
-          >
-            ←
-          </button>
+          <BackButton onClick={() => setActivityOpen(false)} ariaLabel="Back to Inbox messages" />
           <div className="min-w-0">
             <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
               Inbox
