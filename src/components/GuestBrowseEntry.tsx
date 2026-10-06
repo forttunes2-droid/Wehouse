@@ -23,7 +23,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(null);
   const [target, setTarget] = useState<SharedProperty | null>(() => sharedProperty || null);
   useEffect(() => {
-    if (sharedProperty) { setSection('explore'); setTarget(sharedProperty); }
+    if (sharedProperty) { setSection('explore'); setTarget(sharedProperty); setPublicProduct(null); }
   }, [sharedProperty?.kind, sharedProperty?.id]);
   const [invitationToken, setInvitationToken] = useState<string | null>(() => {
     try { return readInvitationIntent(window.location.href, sessionStorage); } catch { return null; }
@@ -49,8 +49,8 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   }
   function navigate(route: string, id?: string) {
     if (route === 'search' || route === 'hotels') { setPage(route); return; }
-    if (id && route === 'detail') { setTarget({ kind: 'listing', id }); return; }
-    if (id && route === 'hotel_detail') { setTarget({ kind: 'hotel', id }); return; }
+    if (id && route === 'detail') { setPublicProduct(null); setTarget({ kind: 'listing', id }); return; }
+    if (id && route === 'hotel_detail') { setPublicProduct(null); setTarget({ kind: 'hotel', id }); return; }
     if (route === 'roommate') { setPublicProduct('roommate'); setTarget(null); return; }
     if (route === 'worker_discovery' || route === 'worker_categories' || route === 'services') { setPublicProduct('services'); setTarget(null); return; }
     requireSignIn();
@@ -66,6 +66,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
       if (next === 'profile' || busy) return;
       setSection(next === 'search' ? 'explore' : next === 'my_reservations' ? 'bookings' : 'inbox');
       setTarget(null);
+      setPublicProduct(null);
       onBrowse?.();
     }} />
   </>;
@@ -98,6 +99,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
           const next = page === 'search' ? 'explore' : page === 'my_reservations' ? 'bookings' : 'inbox';
           setSection(next);
           setTarget(null);
+          setPublicProduct(null);
         }}
         signedOut
         busy={busy}
