@@ -311,7 +311,7 @@ export default function HotelBookingChat({
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
-          {specialRequest?.trim() && <HotelSpecialRequest request={specialRequest} hotelView={hotelView} inConversation />}
+          {(specialRequest ?? context?.special_requests)?.trim() && <HotelSpecialRequest request={specialRequest ?? context?.special_requests} hotelView={hotelView ?? context?.viewer_party === "hotel"} inConversation />}
           {loadError && <div role="alert" className="mb-3 text-sm text-amber-200"><p>{loadError}</p>{conversationId && <button type="button" className="min-h-11 underline" onClick={() => void load(conversationId, true)}>Try again</button>}</div>}
           {loading && messages.length === 0 ? (
             <div
