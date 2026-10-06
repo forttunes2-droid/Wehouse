@@ -27,3 +27,41 @@ Proposed release gates to agree before a run: observed request rate within 5% of
 - Test has no Auth users, so an authenticated mixed load result cannot honestly be reported yet. Payment sandbox webhooks and representative actors must be installed and verified before that run.
 
 Reference: [Supabase Realtime limits](https://supabase.com/docs/guides/realtime/limits) and [database change delivery guidance](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes).
+
+
+## Roommate million-user capacity gate
+
+The roommate workload is tested independently because its scaling characteristics differ from booking.
+
+Target:
+- 6,000,000 synthetic profiles in the isolated capacity database.
+- 1,000,000 users attempting roommate discovery once in the same burst.
+- 24-result page reads, pagination, interest/accept races, block/privacy checks, and reconnects.
+- A separate refresh-search workload that exercises the real `refresh_my_roommate_search()` RPC.
+
+### Current architectural blocker
+
+The current `refresh_my_roommate_search()` implementation is not a million-user-safe design. It deletes the actor's prior temporary results, scans candidate profiles/preferences, invokes `_roommate_pair_open()` and `_roommate_practical_pair()` for candidates, evaluates duplicate/conversation exclusions, then sorts and writes up to 120 rows. Even though the final result is capped at 120, the candidate work occurs before the cap.
+
+This means a million-user burst must not be described as safe merely because the UI returns 24 cards. The system needs an indexed hard-filter candidate stage and a bounded/queued refresh model before a million-user synchronous refresh can be considered production-safe.
+
+### Required roommate rules before million-user production readiness
+
+1. Hard filters first: State + LGA, active/search-visible status, reciprocal gender compatibility, budget overlap, move-in overlap, smoking boundaries, school constraint when enabled, and room-arrangement compatibility must reduce the candidate set before expensive scoring.
+2. No full candidate scan per refresh: the request path must not evaluate the complete active roommate population for each user.
+3. Bounded candidate work: expensive compatibility scoring must run only against a bounded candidate window selected by indexed predicates.
+4. Refresh throttling: repeated refreshes by the same actor must be coalesced/throttled; pagination must read an existing result set rather than recomputing the search.
+5. Background processing for large bursts: million-user refreshes should be queued and processed by workers. Supabase Queues provides a Postgres-native durable queue with guaranteed delivery and is appropriate for this background workload. citeturn0search0turn0search1
+6. No client access to privileged queue internals: queue consumers and service operations remain server-side; do not expose service credentials to the mobile/web client.
+7. Fairness and abuse limits: one account cannot continuously force expensive recomputation. Rate limits should be applied to refresh/search operations separately from ordinary 24-row reads.
+8. Privacy remains a hard filter: blocked, suspended, banned, deleted, hidden, or inactive profiles must never enter the candidate result, regardless of score.
+9. Stable pagination: use deterministic keyset ordering for large result sets; do not use unbounded offset scans as the population grows.
+10. Match correctness under races: concurrent interest/accept operations must produce at most one mutual match/conversation and must not expose a blocked or withdrawn relationship.
+
+### Release gates
+
+For the million-user roommate burst, record offered versus completed discovery requests, p50/p95/p99 latency, database CPU/IO, locks, connections and queue age, candidate rows examined per actor, expensive compatibility evaluations per actor, result rows written per actor, refresh coalescing/rate-limit counts, cross-account/privacy failures, duplicate match/interest/conversation attempts, and recovery after a database or queue interruption.
+
+A successful result requires both performance and structural correctness. A fast test with incorrect matching, privacy leakage, duplicate matches, or uncontrolled candidate scans is a failure.
+
+The repository now contains `scripts/load-roommate-capacity.mjs`. It is allowlisted to the dedicated WeHouse Test project and deliberately refuses to impersonate a million authenticated actors with a publishable key. Authenticated million-user testing must use disposable test identities/session tokens provisioned by the isolated capacity environment.
