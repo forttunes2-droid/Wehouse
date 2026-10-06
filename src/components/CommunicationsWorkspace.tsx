@@ -23,6 +23,7 @@ import {
   type SupportCaseEvent,
 } from "@/lib/supabase/support";
 import type { Profile } from "@/types";
+import BackButton from "@/components/BackButton";
 
 type View = "inbox" | "broadcast";
 type CaseAction =
@@ -425,14 +426,7 @@ export default function CommunicationsWorkspace({
       {(dismiss) => (
       <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden bg-[var(--wh-surface)]">
         <header className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3 py-3 sm:px-4">
-          <button
-            type="button"
-            aria-label="Back to conversations"
-            onClick={() => dismiss()}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
-          >
-            ←
-          </button>
+          <BackButton onClick={() => dismiss()} ariaLabel="Back to conversations" className="!h-10 !w-10" />
           <Avatar name={selected.requester_name || selected.requester_email} compact />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{requesterLabel}</p>
