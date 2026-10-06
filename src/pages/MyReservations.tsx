@@ -1286,6 +1286,33 @@ export function BookingCard({
   );
 }
 
+function ShortLetPaymentSummary({ row, bill }: { row: any; bill: ReturnType<typeof shortLetPayment> }) {
+  if (row.stay_type !== "short_let") return null;
+  const reservePaid = row.reservation_fee_status === "paid" || ["paid", "completed"].includes(String(row.manual_payment_status || ""));
+  const reservationFee = Number(row.reservation_fee_snapshot || row.amount || 0);
+  if (!reservePaid) {
+    return (
+      <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Short Let payment">
+        <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Payment</p>
+        <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>Reserve date</span><strong>{reservationFee > 0 ? money(reservationFee) : "Payment required"}</strong></div>
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The stay charge and caution fee appear after the reservation date is successfully held.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Short Let payment">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Payment</p><h3 className="mt-1 text-sm font-semibold">Stay payment</h3></div>{reservationFee > 0 ? <span className="text-[10px] text-[var(--wh-text-secondary)]">Reserve date paid · {money(reservationFee)}</span> : null}</div>
+      {bill ? <dl className="mt-3 divide-y divide-[var(--wh-border-subtle)] text-xs">
+        <div className="flex justify-between gap-4 py-2.5"><dt>Stay charge</dt><dd className="font-semibold">{money(bill.rent)}</dd></div>
+        <div className="flex justify-between gap-4 py-2.5"><dt>Caution fee</dt><dd className="font-semibold">{bill.deposit > 0 ? money(bill.deposit) : "Not required"}</dd></div>
+        <div className="flex justify-between gap-4 py-2.5 text-sm"><dt>Stay amount due</dt><dd className="font-bold">{money(bill.total)}</dd></div>
+      </dl> : <p role="alert" className="mt-3 text-xs leading-5 text-amber-200">The confirmed stay amount could not be loaded. Refresh this booking before paying.</p>}
+      {row.short_stay_balance_due_at && !hasProtectedAccommodationPayment(row) ? <p className="mt-3 text-xs leading-5 text-amber-200">Complete the stay payment by {displayDateTime(row.short_stay_balance_due_at)} to keep the reserved dates.</p> : null}
+      {bill?.deposit ? <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The caution fee is separate from the stay charge and remains refundable under the booking’s evidence-backed caution-fee rules.</p> : null}
+    </section>
+  );
+}
+
 function formatStayTime(value: unknown, fallback: string) {
   const match = String(value || fallback).match(/^(\d{2}):(\d{2})/);
   const [hour, minute] = match ? [Number(match[1]), match[2]] : [0, "00"];
@@ -1455,6 +1482,8 @@ function PropertyBookingDetail({
               </>
             )}
           </div>
+
+          <ShortLetPaymentSummary row={row} bill={shortBill} />
 
           {journey.rentPaid && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
 
