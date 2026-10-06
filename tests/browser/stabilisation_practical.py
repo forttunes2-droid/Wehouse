@@ -92,21 +92,21 @@ async def main():
       assert not any(x['name'] in ['payment-init','create_my_shared_housing_payment'] for x in await page.evaluate('window.__practicalTransport.calls'))
       await expect(page.get_by_role('button',name='Open reservation',exact=True)).to_be_visible();await page.get_by_role('button',name='Open reservation',exact=True).click();assert await page.evaluate('window.__openedBooking')=='reservation-existing'
      else:
-      await expect(page.get_by_role('dialog',name='Shared payment')).to_be_visible()
-      assert await page.get_by_role('button',name='Pay my share').count()==0
+      await expect(page.get_by_role('dialog',name='Shared stay')).to_be_visible()
+      assert await page.get_by_role('button',name=re.compile('Complete my payment').count()==0
       await page.get_by_role('button',name='Accept my share',exact=True).click();await expect(page.get_by_role('button',name='Accept my share',exact=True)).to_have_count(0)
-      assert await page.get_by_role('button',name='Pay my share').count()==0
+      assert await page.get_by_role('button',name=re.compile('Complete my payment').count()==0
       await page.evaluate('window.__practicalTransport.allAccepted=true');await page.get_by_role('button',name='Refresh',exact=True).click()
-      await expect(page.get_by_role('button',name='Pay my share · ₦500',exact=True)).to_be_visible()
-      await page.get_by_role('button',name='Pay my share · ₦500',exact=True).click();await page.wait_for_timeout(100)
+      await expect(page.get_by_role('button',name='Complete my payment · ₦500',exact=True)).to_be_visible()
+      await page.get_by_role('button',name='Complete my payment · ₦500',exact=True).click();await page.wait_for_timeout(100)
       calls=await page.evaluate('window.__practicalTransport.calls');assert len([x for x in calls if x['name']=='payment-init'])==1
       await page.evaluate('window.__practicalTransport.denied=true');await page.get_by_role('button',name='Refresh',exact=True).click()
       await expect(page.get_by_role('alert')).to_be_visible();assert await page.get_by_text('Courtyard Short Let',exact=True).count()==0
-      await page.evaluate('window.__practicalTransport.denied=false');await page.get_by_role('button',name='Refresh shared payment',exact=True).click();await expect(page.get_by_text('Courtyard Short Let',exact=True)).to_be_visible()
+      await page.evaluate('window.__practicalTransport.denied=false');await page.get_by_role('button',name='Refresh shared reservation',exact=True).click();await expect(page.get_by_text('Courtyard Short Let',exact=True)).to_be_visible()
      assert not errors;assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
      await page.screenshot(path=str(OUT/f'stabilisation-{mode}-{width}.png'),full_page=True)
      if mode in ['split','shared-guest']:
-      await page.get_by_role('button',name='Back from shared payment',exact=True).click();await expect(page.get_by_role('dialog',name='Shared payment')).to_have_count(0)
+      await page.get_by_role('button',name='Back from shared stay',exact=True).click();await expect(page.get_by_role('dialog',name='Shared stay')).to_have_count(0)
       assert await page.evaluate('window.__closed')
      row['passed']=True
     except Exception as error:
