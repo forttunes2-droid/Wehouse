@@ -4,11 +4,12 @@
 
 Report registered accounts, daily active accounts, concurrent foreground sessions, open Realtime connections, and completed business actions per second separately. One million simultaneous foreground sessions taking one action every 30 seconds means roughly 33,333 actions per second before page resources, session checks, notifications, and chat fan-out. Ten and one hundred million under the same assumption mean roughly 333,333 and 3,333,333 actions per second. A 30-second ramp measures a burst, not steady capacity.
 
-## Current evidence (28 September 2026)
+## Current evidence and what it proves
 
-- Hosted WeHouse Test (`qoobnkedfyosnizrlttt`): 1,000 synthetic apartments and 1,000 synthetic hotels/rooms; 0 Auth users. A prior 450-request anonymous catalog run at 1, 2, then 5 requests/s had no errors or dropped work; 5 requests/s p95 was 246 ms.
-- Disposable local database: 50,000 homes, 100,000 hotels, 50,000 profiles. A prior 1,560-request mixed catalog read at 2/5/10 requests/s had no errors; a separate 400-client read run found hotel price p95 about 3.96 seconds.
-- Neither exercise used signed-in sessions, real booking writes, encrypted message delivery, payment sandbox webhooks, Realtime connections, notification delivery, media/CDN, or a million users. The “million” preset means catalog rows and has not been run.
+- Hosted WeHouse Test (`qoobnkedfyosnizrlttt`): 1,000 synthetic apartments and 1,000 synthetic hotels/rooms; 0 Auth users. A prior anonymous catalog run had no errors at the tested rates; this is a small functional smoke result, not a scale proof.
+- Disposable local capacity smoke: the current launch fixture contains 500,000 homes, 500,000 hotels/rooms and 500,000 synthetic profile rows. The booking harness provisions 3,601 real synthetic Auth users and exercises real authenticated hotel quote/booking RPCs plus a 20-attempt contention check. This is useful for query/index/transaction correctness and runner behavior, but it is NOT evidence that WeHouse supports millions of concurrent users.
+- The repository's old `million`/`full` presets are fixture-size presets, not claims about concurrent-user capacity. They must not be described as a million-user test.
+- The final requested target remains separate: 6,000,000 synthetic profiles, 7,000,000 listings, 700,000 simultaneous booking attempts and 1,000,000 authenticated roommate-discovery attempts. That target has NOT been validated yet.
 
 ## Required mixed journey in an isolated capacity environment
 
@@ -41,9 +42,9 @@ Target:
 
 ### Current architectural blocker
 
-The current `refresh_my_roommate_search()` implementation is not a million-user-safe design. It deletes the actor's prior temporary results, scans candidate profiles/preferences, invokes compatibility functions for candidates, evaluates duplicate/conversation exclusions, then sorts and writes up to 120 rows. The final limit does not prevent the candidate work before the cap.
+The current `refresh_my_roommate_search()` has now been structurally bounded: indexed hard filters run before compatibility scoring, scoring is capped to 1,000 candidates, and only the top 120 persisted results are written. This fixes the unbounded candidate-work problem and is covered by the roommate contract tests.
 
-Before a million-user synchronous refresh can be considered production-safe, WeHouse needs indexed hard-filter candidate selection, bounded expensive scoring, refresh throttling/coalescing, and queued background processing for large bursts.
+It is still NOT a million-user synchronous-refresh proof. Before that scale can be considered production-safe, WeHouse needs refresh throttling/coalescing and durable background processing for large refresh bursts, plus a distributed authenticated load environment. The final test must exercise real session tokens and the real refresh RPC; a publishable key cannot impersonate one million users.
 
 ### Required roommate rules
 
@@ -62,4 +63,11 @@ Before a million-user synchronous refresh can be considered production-safe, WeH
 
 Record offered/completed requests, p50/p95/p99 latency, DB CPU/IO, locks, connections, queue age, candidate rows examined, compatibility evaluations, result writes, throttling/coalescing, privacy failures, duplicate match/interest/conversation attempts, and recovery after interruption. Performance alone is not sufficient; matching correctness and privacy must also pass.
 
-The repository contains `scripts/load-roommate-capacity.mjs`, allowlisted to the dedicated WeHouse Test project. It deliberately refuses to impersonate a million authenticated actors with a publishable key. Authenticated million-user testing requires disposable test identities/session tokens in the isolated capacity environment.
+The repository contains `scripts/load-roommate-capacity.mjs`. Its page mode can measure the persisted-match read path against the dedicated Test project, but it deliberately refuses to claim authenticated million-user capacity or run refresh mode without disposable actor sessions. The large run must be a distributed/sharded capacity exercise with disposable identities/session tokens and explicit infrastructure limits.
+
+
+## Capacity test policy
+
+The capacity workflow named `Disposable capacity smoke — not production-scale proof` is intentionally a merge-safe smoke gate. It must remain bounded enough to run on a disposable CI runner and must never be renamed or described as a million-user test merely because fixture counts increase.
+
+The requested large-scale validation is a separate release gate. It must use an isolated capacity environment, multiple load-generator workers, authenticated disposable actors, staged ramps, database/connection/Realtime/payment telemetry, and cleanup. If those prerequisites are unavailable, the correct result is **not validated**, not a green synthetic substitute.
