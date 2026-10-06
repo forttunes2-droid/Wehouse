@@ -1103,6 +1103,8 @@ function ServiceBookingDetail({
             </p>
           </section>
 
+          <ServiceBookingJourney status={status} moneyLabel={payment} />
+
           {status === 'approved_released' && detail.worker_id && <WorkerCustomerRecordConsent workerId={String(detail.worker_id)} />}
 
           <button
@@ -1116,6 +1118,33 @@ function ServiceBookingDetail({
       </section>
     </BookingDetailShell>
   );
+}
+
+function ServiceBookingJourney({ status, moneyLabel }: { status: string; moneyLabel: string }) {
+  const stages = [
+    ["booking_requested", "Request"],
+    ["negotiating", "Agree"],
+    ["waiting_payment", "Payment"],
+    ["confirmed", "Protected"],
+    ["in_progress", "Work"],
+    ["completed_pending_approval", "Review"],
+    ["approved_released", "Complete"],
+  ] as const;
+  const stopped = ["cancelled", "refunded", "disputed"].includes(status);
+  const current = Math.max(0, stages.findIndex(([id]) => id === status));
+  return <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Service booking journey">
+    <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Service journey</p>
+    <div className="mt-3 grid grid-cols-4 gap-1 sm:grid-cols-7">
+      {stages.map(([id, label], index) => <div key={id} className="text-center">
+        <div className={"mx-auto grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold " + (!stopped && index <= current ? "bg-violet-500 text-white" : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]")}>{!stopped && index < current ? "✓" : index + 1}</div>
+        <p className={"mt-1 text-[9px] leading-3 " + (!stopped && index <= current ? "text-violet-300" : "text-[var(--wh-text-muted)]")}>{label}</p>
+      </div>)}
+    </div>
+    <div className={"mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2.5 text-xs leading-5 " + (stopped ? "text-amber-200" : "text-[var(--wh-text-secondary)]")}>
+      <p>{serviceNextAction(status)}</p>
+      <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Payment: {moneyLabel}</p>
+    </div>
+  </section>;
 }
 
 function serviceStatusLabel(status: string) {
