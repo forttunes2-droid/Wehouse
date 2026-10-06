@@ -6,6 +6,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import WorkerVerificationPhase9 from '@/pages/WorkerVerificationPhase9';
 import { useRpcRead } from '@/hooks/useRpcRead';
 import { prepareEvidenceVideo } from '@/lib/mediaVideo';
+import BackButton from '@/components/BackButton';
 
 type Props = {
   profile: Profile;
@@ -218,7 +219,7 @@ function SimpleShell({ children, onBack }: { children: React.ReactNode; onBack: 
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-[var(--wh-text)]">
       <header className="border-b border-[var(--wh-border-subtle)] px-4 py-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--wh-border-subtle)]" aria-label="Back">←</button>
+          <BackButton onClick={onBack} ariaLabel="Back" />
           <div>
             <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">WEHOUSE · SERVICES</p>
             <h1 className="mt-1 text-lg font-bold">Service Worker review</h1>
