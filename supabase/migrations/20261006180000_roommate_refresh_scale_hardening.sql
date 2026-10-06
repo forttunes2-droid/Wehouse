@@ -87,14 +87,14 @@ begin
    limit 1000
  ),
  scored as materialized (
-   select hc.user_id,
-          coalesce((public._roommate_practical_pair(actor.user_id,hc.user_id)->>'score')::integer,0) score
+   select hc.user_id as matched_user_id,
+          coalesce((public._roommate_practical_pair(actor.user_id,hc.user_id)->>'score')::integer,0) as score
    from hard_candidates hc
  )
  insert into public.roommate_search_results(searcher_id,matched_user_id,match_score,status)
- select actor.user_id,user_id,score,'new'
+ select actor.user_id,scored.matched_user_id,scored.score,'new'
  from scored
- order by score desc,user_id
+ order by scored.score desc,scored.matched_user_id
  limit 120
  on conflict(searcher_id,matched_user_id) do nothing;
 
