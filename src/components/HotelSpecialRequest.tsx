@@ -1,11 +1,11 @@
 import { ChevronDown, MessageSquareText } from 'lucide-react';
-import { useState } from 'react';
+import { useRef } from 'react';
 import './message-attachments.css';
 
 type Props = { request?: string | null; hotelView?: boolean; inConversation?: boolean };
 
 export default function HotelSpecialRequest({ request, hotelView = false, inConversation = false }: Props) {
-  const [open, setOpen] = useState(false);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   if (!request?.trim()) return null;
 
   const body = (
@@ -17,11 +17,13 @@ export default function HotelSpecialRequest({ request, hotelView = false, inConv
 
   if (inConversation) {
     return (
-      <details open={open} className="wh-attachment-surface wh-request-note">
+      <details ref={detailsRef} className="wh-attachment-surface wh-request-note">
         <summary
           onClick={(event) => {
             event.preventDefault();
-            setOpen((current) => !current);
+            event.stopPropagation();
+            const details = detailsRef.current;
+            if (details) details.open = !details.open;
           }}
         >
           <MessageSquareText size={19} aria-hidden="true" />
