@@ -3,6 +3,7 @@ import { BarChart3, Megaphone } from "lucide-react";
 import type { Profile } from "@/types";
 import PropertyPartnerProWorkspace from "@/components/PropertyPartnerProWorkspace";
 import SponsoredCampaignPanel from "@/components/SponsoredCampaignPanel";
+import BackButton from "@/components/BackButton";
 
 type Tool = "pro" | "sponsored";
 
@@ -41,5 +42,5 @@ function ToolRow({ title, detail, action, onClick }: { title: string; detail: st
 }
 
 function ToolBack({ onBack, title }: { onBack: () => void; title: string }) {
-  return <button type="button" onClick={onBack} className="flex min-h-10 items-center gap-2 text-xs font-semibold text-[var(--wh-text-secondary)]"><span aria-hidden="true">←</span>{title}</button>;
+  return <div className="flex items-center gap-3"><BackButton onClick={onBack} ariaLabel={`Back from ${title}`} /><span className="text-sm font-semibold">{title}</span></div>;
 }
