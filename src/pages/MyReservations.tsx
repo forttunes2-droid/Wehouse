@@ -968,7 +968,7 @@ function BookingSourceNotice({
       role="status"
     >
       <div>
-        <p className="text-[10px] font-semibold text-amber-200">
+        <p className="text-[10px] font-semibold text-amber-300">
           {labels.join(", ")} {labels.length === 1 ? "needs" : "need"} a refresh
         </p>
         <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
@@ -978,7 +978,7 @@ function BookingSourceNotice({
       <button
         type="button"
         onClick={retry}
-        className="min-h-9 shrink-0 px-3 text-xs font-semibold text-amber-200"
+        className="min-h-9 shrink-0 px-3 text-xs font-semibold text-amber-300"
       >
         Try again
       </button>
@@ -1335,8 +1335,8 @@ function ShortLetPaymentSummary({ row, bill }: { row: any; bill: ReturnType<type
         <div className="flex justify-between gap-4 py-2.5"><dt>Stay charge</dt><dd className="font-semibold">{money(bill.rent)}</dd></div>
         <div className="flex justify-between gap-4 py-2.5"><dt>Caution fee</dt><dd className="font-semibold">{bill.deposit > 0 ? money(bill.deposit) : "Not required"}</dd></div>
         <div className="flex justify-between gap-4 py-2.5 text-sm"><dt>Stay amount due</dt><dd className="font-bold">{money(bill.total)}</dd></div>
-      </dl> : <p role="alert" className="mt-3 text-xs leading-5 text-amber-200">The confirmed stay amount could not be loaded. Refresh this booking before paying.</p>}
-      {row.short_stay_balance_due_at && !hasProtectedAccommodationPayment(row) ? <p className="mt-3 text-xs leading-5 text-amber-200">Complete the stay payment by {displayDateTime(row.short_stay_balance_due_at)} to keep the reserved dates.</p> : null}
+      </dl> : <p role="alert" className="mt-3 text-xs leading-5 text-amber-300">The confirmed stay amount could not be loaded. Refresh this booking before paying.</p>}
+      {row.short_stay_balance_due_at && !hasProtectedAccommodationPayment(row) ? <p className="mt-3 text-xs leading-5 text-amber-300">Complete the stay payment by {displayDateTime(row.short_stay_balance_due_at)} to keep the reserved dates.</p> : null}
       {bill?.deposit ? <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The caution fee is separate from the stay charge and remains refundable under the booking’s evidence-backed caution-fee rules.</p> : null}
     </section>
   );
@@ -1828,7 +1828,7 @@ function HotelBookingDetail({
             </div>
             <p
               className={`mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2 text-xs leading-5 ${
-                stopped ? "text-amber-200" : "text-[var(--wh-text-secondary)]"
+                stopped ? "text-amber-300" : "text-[var(--wh-text-secondary)]"
               }`}
             >
               {next}
@@ -1949,7 +1949,7 @@ function AccommodationProtectionPanel({
         <button
           type="button"
           onClick={onReport}
-          className="mt-3 min-h-11 w-full rounded-xl border border-amber-500/25 bg-amber-500/[.07] text-xs font-semibold text-amber-200"
+          className="mt-3 min-h-11 w-full rounded-xl border border-amber-500/25 bg-amber-500/[.07] text-xs font-semibold text-amber-300"
         >
           Report arrival issue
         </button>
