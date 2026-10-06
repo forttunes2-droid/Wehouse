@@ -27,3 +27,39 @@ Proposed release gates to agree before a run: observed request rate within 5% of
 - Test has no Auth users, so an authenticated mixed load result cannot honestly be reported yet. Payment sandbox webhooks and representative actors must be installed and verified before that run.
 
 Reference: [Supabase Realtime limits](https://supabase.com/docs/guides/realtime/limits) and [database change delivery guidance](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes).
+
+
+## Roommate million-user capacity gate
+
+The roommate workload is tested independently because its scaling characteristics differ from booking.
+
+Target:
+- 6,000,000 synthetic profiles in the isolated capacity database.
+- 1,000,000 users attempting roommate discovery once in the same burst.
+- 24-result page reads, pagination, interest/accept races, block/privacy checks, and reconnects.
+- A separate refresh-search workload that exercises the real `refresh_my_roommate_search()` RPC.
+
+### Current architectural blocker
+
+The current `refresh_my_roommate_search()` implementation is not a million-user-safe design. It deletes the actor's prior temporary results, scans candidate profiles/preferences, invokes compatibility functions for candidates, evaluates duplicate/conversation exclusions, then sorts and writes up to 120 rows. The final limit does not prevent the candidate work before the cap.
+
+Before a million-user synchronous refresh can be considered production-safe, WeHouse needs indexed hard-filter candidate selection, bounded expensive scoring, refresh throttling/coalescing, and queued background processing for large bursts.
+
+### Required roommate rules
+
+1. Hard filters first: State + LGA, active/search-visible status, reciprocal gender compatibility, budget overlap, move-in overlap, smoking boundaries, school constraint when enabled, and room arrangement.
+2. No full candidate scan per refresh.
+3. Expensive compatibility scoring only against a bounded candidate window.
+4. Repeated refreshes are throttled/coalesced; pagination reads persisted results instead of recomputing.
+5. Large refresh bursts are processed through a server-side durable queue.
+6. Queue internals and service credentials are never exposed to clients.
+7. Refresh/search rate limits are separate from ordinary 24-result reads.
+8. Blocked, suspended, banned, deleted, hidden, or inactive profiles remain hard exclusions.
+9. Large result pagination uses deterministic keyset ordering rather than unbounded offsets.
+10. Concurrent interest/accept operations must produce at most one mutual match/conversation and never leak a blocked or withdrawn relationship.
+
+### Release gates
+
+Record offered/completed requests, p50/p95/p99 latency, DB CPU/IO, locks, connections, queue age, candidate rows examined, compatibility evaluations, result writes, throttling/coalescing, privacy failures, duplicate match/interest/conversation attempts, and recovery after interruption. Performance alone is not sufficient; matching correctness and privacy must also pass.
+
+The repository contains `scripts/load-roommate-capacity.mjs`, allowlisted to the dedicated WeHouse Test project. It deliberately refuses to impersonate a million authenticated actors with a publishable key. Authenticated million-user testing requires disposable test identities/session tokens in the isolated capacity environment.
