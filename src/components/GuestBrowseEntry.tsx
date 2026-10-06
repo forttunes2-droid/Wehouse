@@ -20,6 +20,7 @@ type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; shar
 export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, onDismissSharedProperty, onSignIn, onBrowse, onOpenLegal, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
+  const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(null);
   const [target, setTarget] = useState<SharedProperty | null>(() => sharedProperty || null);
   useEffect(() => {
     if (sharedProperty) { setSection('explore'); setTarget(sharedProperty); }
@@ -50,7 +51,8 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     if (route === 'search' || route === 'hotels') { setPage(route); return; }
     if (id && route === 'detail') { setTarget({ kind: 'listing', id }); return; }
     if (id && route === 'hotel_detail') { setTarget({ kind: 'hotel', id }); return; }
-    // Roommate identities and account work stay protected.
+    if (route === 'roommate') { setPublicProduct('roommate'); setTarget(null); return; }
+    if (route === 'worker_discovery' || route === 'worker_categories' || route === 'services') { setPublicProduct('services'); setTarget(null); return; }
     requireSignIn();
   }
   const access = useMemo(() => ({ busy, requireSignIn: () => requireSignIn(), notice: <>
@@ -86,6 +88,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
         {target ? target.kind === 'listing'
           ? <ListingDetail key={target.id} listingId={target.id} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />
+          : publicProduct ? <GuestProductPreview product={publicProduct} busy={busy} onBack={() => setPublicProduct(null)} onSignIn={() => requireSignIn(null)} />
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
       </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
       <PersonalBottomNav
