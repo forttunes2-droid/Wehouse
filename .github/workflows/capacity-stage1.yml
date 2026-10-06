@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 24
       - name: Start disposable local Supabase
-        run: npx --yes supabase@2.114.0 start --exclude inbucket
+        run: npx --yes supabase@2.114.0 start
       - name: Replay the exact repository migrations
         run: npx --yes supabase@2.114.0 db reset --local
       - name: Seed clearly synthetic discovery data
