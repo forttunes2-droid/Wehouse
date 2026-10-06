@@ -9,13 +9,13 @@ export default function ShortLetPaymentReview({ row }: { row: any }) {
   </section>;
   const bill = shortLetPayment(row);
   const reservationFee = Number(row.reservation_fee_snapshot || row.amount || 0);
-  return <section aria-label="Short Let payment review" className="mt-5 border-y border-[var(--wh-border-subtle)] py-4">
-    <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Dates reserved</p><h3 className="mt-1 text-base font-semibold">Review your stay</h3></div>{reservationFee > 0 ? <span className="text-xs text-[var(--wh-text-secondary)]">Reserve date paid · {money(reservationFee)}</span> : null}</div>
+  return <section aria-label="Short Let stay payment" className="mt-5 border-y border-[var(--wh-border-subtle)] py-4">
+    <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">PAYMENT</p><h3 className="mt-1 text-base font-semibold">Stay payment</h3></div>{reservationFee > 0 ? <span className="text-xs text-[var(--wh-text-secondary)]">Reserve date paid · {money(reservationFee)}</span> : null}</div>
     {bill ? <><dl className="mt-4 divide-y divide-[var(--wh-border-subtle)] text-sm"><div className="flex justify-between gap-4 py-3"><dt>Stay charge</dt><dd className="font-semibold">{money(bill.rent)}</dd></div>
-    <div className="flex justify-between gap-4 py-3"><dt>Refundable security deposit</dt><dd className="font-semibold">{bill.deposit > 0 ? money(bill.deposit) : 'Not required'}</dd></div>
+    <div className="flex justify-between gap-4 py-3"><dt>Refundable caution fee</dt><dd className="font-semibold">{bill.deposit > 0 ? money(bill.deposit) : 'Not required'}</dd></div>
     <div className="flex justify-between gap-4 py-3 text-base"><dt>Pay now</dt><dd className="font-semibold">{money(bill.total)}</dd></div></dl>
     {row.short_stay_balance_due_at ? <p className="mt-3 text-sm text-amber-200">Complete the stay payment by {new Date(row.short_stay_balance_due_at).toLocaleString()} to keep the reserved dates.</p> : null}
-    {bill.deposit > 0 && <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">The deposit is separate from the stay charge and remains refundable subject to the booking’s evidence-backed deposit rules.</p>}</>
+    {bill.deposit > 0 && <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">The caution fee is separate from the stay charge and remains refundable subject to the booking’s evidence-backed caution-fee rules.</p>}</>
     : <p role="alert" className="mt-3 text-sm leading-6 text-amber-200">The confirmed stay price could not be loaded. Refresh this booking before paying.</p>}
   </section>;
 }
