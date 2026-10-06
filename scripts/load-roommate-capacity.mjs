@@ -10,9 +10,16 @@ const USERS = Number(process.env.ROOMMATE_USERS || 1_000_000);
 const CONCURRENCY = Number(process.env.ROOMMATE_CONCURRENCY || 10_000);
 const REQUEST_TIMEOUT_MS = Number(process.env.ROOMMATE_TIMEOUT_MS || 10_000);
 const RUN_REFRESH = process.env.ROOMMATE_RUN_REFRESH === "1";
+const CAPACITY_ENV = process.env.WEHOUSE_CAPACITY_ENV || "test";
 
 assert.ok(Number.isSafeInteger(USERS) && USERS > 0 && USERS <= 1_000_000);
 assert.ok(Number.isSafeInteger(CONCURRENCY) && CONCURRENCY > 0 && CONCURRENCY <= 50_000);
+if (USERS > 100_000 || CONCURRENCY > 10_000) {
+  assert.equal(CAPACITY_ENV, "isolated", "Large roommate bursts require an explicitly isolated capacity environment; the WeHouse Test project is not a million-user load target");
+}
+if (RUN_REFRESH) {
+  assert.equal(CAPACITY_ENV, "isolated", "Refresh mode requires an isolated capacity environment");
+}
 
 async function rpc(name, body, token = key) {
   const started = performance.now();
@@ -88,12 +95,17 @@ async function runBurst(name, fn, total, concurrency) {
  * It proves read-path capacity without silently turning the test into a
  * synthetic in-memory algorithm benchmark.
  *
- * A real authenticated million-user run requires disposable Auth identities
- * and session tokens. Those are provisioned by the capacity environment, not
- * manufactured in this client with a service key.
+ * A real authenticated large-scale run requires disposable Auth identities
+ * and session tokens. Those are provisioned by the isolated capacity
+ * environment, not manufactured in this client with a service key.
+ *
+ * This harness intentionally refuses large bursts against the WeHouse Test
+ * project. A page-read burst without authenticated actors is not evidence of
+ * million-user capacity and must never be reported as one.
  */
 const result = {
   project: origin.hostname,
+  capacity_environment: CAPACITY_ENV,
   users_target: USERS,
   concurrent_requests_target: CONCURRENCY,
   refresh_enabled: RUN_REFRESH,
