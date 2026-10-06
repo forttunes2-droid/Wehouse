@@ -1,5 +1,6 @@
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import type { PrivateConversationReadiness } from "@/lib/e2ee";
+import BackButton from "@/components/BackButton";
 
 export default function SecureInboxLock({
   status,
@@ -11,9 +12,9 @@ export default function SecureInboxLock({
   onBack?: () => void;
 }) {
   return (
-    <div className="grid min-h-[68dvh] place-items-center px-5 py-12 text-center text-white">
+    <div className="grid min-h-[68dvh] place-items-center px-5 py-12 text-center text-[var(--wh-text)]">
       <div className="max-w-sm">
-        {onBack && status !== null && <button type="button" onClick={onBack} className="mb-6 min-h-11 rounded-full border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text-secondary)]">← Back to Inbox</button>}
+        {onBack && status !== null && <BackButton onClick={onBack} ariaLabel="Back to Inbox" className="mx-auto mb-6" />}
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-300">
           {status ? (
             <svg
