@@ -87,7 +87,7 @@ async def main():
       await expect(page.get_by_text('₦500',exact=True).first).to_be_visible()
       assert not any(x['name']=='create_my_shared_short_let' for x in await page.evaluate('window.__practicalTransport.calls'))
       await page.screenshot(path=str(OUT/f'short-let-shares-before-invitation-{width}.png'),full_page=True)
-      await page.get_by_role('button',name='Invite people',exact=True).click();await expect(page.get_by_role('dialog',name='Shared payment')).to_be_visible()
+      await page.get_by_role('button',name='Invite people',exact=True).click();await expect(page.get_by_role('dialog',name='Shared stay')).to_be_visible()
       result=await page.evaluate('window.__createdGroup');assert result['reservation_id']=='reservation-existing'
       assert not any(x['name'] in ['payment-init','create_my_shared_housing_payment'] for x in await page.evaluate('window.__practicalTransport.calls'))
       await expect(page.get_by_role('button',name='Open reservation',exact=True)).to_be_visible();await page.get_by_role('button',name='Open reservation',exact=True).click();assert await page.evaluate('window.__openedBooking')=='reservation-existing'
