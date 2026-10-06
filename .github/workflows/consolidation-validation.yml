@@ -49,7 +49,8 @@ jobs:
             exit 1
           fi
       - name: Start local Supabase and apply migrations
-        run: npx --yes supabase@2.114.0 start
+        # Consolidation replay does not use Inbucket; avoid a shared runner port collision.
+        run: npx --yes supabase@2.114.0 start --exclude inbucket
       - name: Replay migrations from an empty database
         run: npx --yes supabase@2.114.0 db reset --local
       - name: Verify canonical schema exists
