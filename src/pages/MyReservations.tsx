@@ -1140,7 +1140,7 @@ function ServiceBookingJourney({ status, moneyLabel }: { status: string; moneyLa
         <p className={"mt-1 text-[9px] leading-3 " + (!stopped && index <= current ? "text-violet-300" : "text-[var(--wh-text-muted)]")}>{label}</p>
       </div>)}
     </div>
-    <div className={"mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2.5 text-xs leading-5 " + (stopped ? "text-amber-200" : "text-[var(--wh-text-secondary)]")}>
+    <div className={"mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2.5 text-xs leading-5 " + (stopped ? "text-amber-300" : "text-[var(--wh-text-secondary)]")}>
       <p>{serviceNextAction(status)}</p>
       <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Payment: {moneyLabel}</p>
     </div>
@@ -1321,7 +1321,7 @@ function ShortLetPaymentSummary({ row, bill }: { row: any; bill: ReturnType<type
   const reservationFee = Number(row.reservation_fee_snapshot || row.amount || 0);
   if (!reservePaid) {
     return (
-      <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Short Let payment">
+      <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]" aria-label="Short Let payment">
         <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Payment</p>
         <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>Reserve date</span><strong>{reservationFee > 0 ? money(reservationFee) : "Payment required"}</strong></div>
         <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The stay charge and caution fee appear after the reservation date is successfully held.</p>
@@ -1524,7 +1524,7 @@ function PropertyBookingDetail({
             </p>
           ) : null}
 
-          <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3">
+          <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]">
             <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
@@ -2053,7 +2053,7 @@ function BookingDetailShell({
   }, []);
   return (
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] text-[var(--wh-text)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 shadow-[var(--wh-shadow-sm)] backdrop-blur-xl">
         <div className="mx-auto flex min-h-14 max-w-2xl items-center gap-2 px-3 sm:px-5">
           <BackButton onClick={onBack} />
           <div className="min-w-0 flex-1">
@@ -2063,7 +2063,7 @@ function BookingDetailShell({
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       </header>
-      <main className="wh-panel-enter mx-auto max-w-2xl px-3 py-4 sm:px-5">{children}</main>
+      <main className="wh-panel-enter mx-auto max-w-2xl space-y-3 px-3 py-4 sm:px-5">{children}</main>
     </div>
   );
 }
