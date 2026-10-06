@@ -11,7 +11,6 @@ export default function HotelSpecialRequest({ request, hotelView = false, inConv
     return (
       <details
         open={open}
-        onToggle={(event) => setOpen(event.currentTarget.open)}
         className="wh-attachment-surface wh-request-note"
       >
         <summary onClick={(event) => {
