@@ -1132,7 +1132,7 @@ function ServiceBookingJourney({ status, moneyLabel }: { status: string; moneyLa
   ] as const;
   const stopped = ["cancelled", "refunded", "disputed"].includes(status);
   const current = Math.max(0, stages.findIndex(([id]) => id === status));
-  return <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Service booking journey">
+  return <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]" aria-label="Service booking journey">
     <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Service journey</p>
     <div className="mt-3 grid grid-cols-4 gap-1 sm:grid-cols-7">
       {stages.map(([id, label], index) => <div key={id} className="text-center">
