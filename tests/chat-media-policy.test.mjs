@@ -7,12 +7,12 @@ import policy, { videoMedia } from './helpers/chat-media-policy.mjs';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=','base64');
 const file=(bytes,name,type)=>new File([bytes],name,{type});
 const webm=Buffer.concat([Buffer.from([0x1a,0x45,0xdf,0xa3]),Buffer.from('webm')]);
-test('picker is photos/videos only; documents, arbitrary MIME, external audio and empty files fail closed',()=>{
- for(const type of ['application/pdf','text/plain','application/zip','application/msword','application/octet-stream','image/svg+xml','image/x-anything','audio/webm','audio/mp3']) assert.equal(policy.isSelectableChatMedia({type,size:5}),false,type);
- for(const type of [...policy.CHAT_PHOTO_TYPES,...policy.CHAT_VIDEO_TYPES]) assert.equal(policy.isSelectableChatMedia({type,size:5}),true,type);
+test('picker accepts supported photos, videos and documents while rejecting unsafe types',()=>{
+ for(const type of ['application/octet-stream','image/svg+xml','image/x-anything','audio/webm','audio/mp3']) assert.equal(policy.isSelectableChatMedia({type,size:5}),false,type);
+ for(const type of [...policy.CHAT_PHOTO_TYPES,...policy.CHAT_VIDEO_TYPES,...policy.CHAT_DOCUMENT_TYPES]) assert.equal(policy.isSelectableChatMedia({type,size:5}),true,type);
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:0}),false);
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:policy.CHAT_MEDIA_MAX_BYTES+1}),false);
- assert.doesNotMatch(policy.CHAT_MEDIA_ACCEPT,/audio|application|text|svg|\*/);
+ assert.match(policy.CHAT_MEDIA_ACCEPT,/image\/png/);
 });
 test('real photo signature is allowed before upload and after decryption',async()=>{
  await policy.validateChatUpload(file(png,'room.png','image/png'));
@@ -51,11 +51,11 @@ test('all existing upload boundaries enforce policy and only the recorder grants
  assert.match(fs.readFileSync('src/lib/e2ee.ts','utf8'),/await validateMessageMedia\(blob, metadata\)/);
  const picker=fs.readFileSync('src/components/ChatAttachmentPicker.tsx','utf8'); assert.doesNotMatch(picker,/allowDocuments|allowAudio|application\/pdf/);assert.match(picker,/Add photo or video/);
 });
-test('chat rendering does not offer arbitrary documents for download',()=>{
- const renderer=fs.readFileSync('src/components/MessageMedia.tsx','utf8'); assert.doesNotMatch(renderer,/download|attachmentFileLabel|<a\s/);assert.match(renderer,/Documents are not supported in chat/);
- const support=fs.readFileSync('src/components/SupportChat.tsx','utf8');assert.doesNotMatch(support,/accept="[^"]*(?:application\/pdf|\.doc)/);
+test('chat rendering provides a private document card and the shared picker exposes document choice',()=>{
+ const renderer=fs.readFileSync('src/components/MessageMedia.tsx','utf8'); assert.match(renderer,/attachmentFileLabel/);assert.match(renderer,/download/);assert.match(renderer,/wh-attachment-file/);
+ const picker=fs.readFileSync('src/components/ChatAttachmentPicker.tsx','utf8'); assert.match(picker,/Photos & videos/);assert.match(picker,/Document/);assert.match(picker,/Camera/);
 });
-test('all five real upload entrypoints reject documents and disguised media before touching storage', async()=>{
+test('all real upload entrypoints still reject disguised media before touching storage', async()=>{
  const touched=[];
  const deps={'@/lib/chatMediaPolicy':policy,'./client':{supabase:{storage:{from(bucket){touched.push(bucket);throw new Error('Storage must not be reached');}}}},'./utils':{},'@/lib/e2ee':{},'@/lib/workerBookingContract':{},'@/lib/propertyBookingLifecycle':{},'@/lib/hotelConversationContext':{}};
  const api={};
@@ -63,7 +63,7 @@ test('all five real upload entrypoints reject documents and disguised media befo
   const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(`src/lib/supabase/${path}.ts`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>{assert.ok(name in deps,name);return deps[name];},Blob,File,URL,console});api[path]=exports;
  }
  const entries=[f=>api.chat.uploadRoommateChatAttachment(f,'thread','peer'), f=>api['worker-bookings'].uploadBookingChatAttachment(f,'thread','peer'),f=>api['hotel-chat'].uploadHotelChatAttachment('thread','self',f),f=>api.support.uploadSupportAttachment('thread',f),f=>api.support.uploadSupportDraftAttachment('draft','self',f)];
- for(const entry of entries) for(const f of [file('%PDF-1.7','lease.pdf','application/pdf'),file('%PDF-1.7','lease.png','image/png'),file('untrusted','room.svg','image/svg+xml'),file(webm,'voice.webm','audio/webm')]) {
+ for(const entry of entries) for(const f of [file('%PDF-1.7','lease.png','image/png'),file('untrusted','room.svg','image/svg+xml'),file(webm,'voice.webm','audio/webm')]) {
   const result=await entry(f);assert.ok(result.error,result);assert.equal(result.path,null);
  }
  assert.equal(touched.length,0);
