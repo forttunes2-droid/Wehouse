@@ -200,10 +200,6 @@ export default function CreatorDashboard({
     tab === "operations" && currentOperation
       ? currentOperation.label
       : NAV.find((item) => item.id === tab)?.label || "Creator";
-  const workspaceDescription =
-    tab === "operations" && currentOperation
-      ? currentOperation.note
-      : NOTES[tab];
   return (
     <>
 
