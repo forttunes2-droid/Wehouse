@@ -51,15 +51,15 @@ do $$ declare id integer; begin
   exception when others then if sqlerrm<>'This booking requires WeHouse cancellation review' then raise; end if; end;
  end loop;
 end $$;
-do $$ declare q jsonb; booked jsonb; expected timestamptz; begin
+select public.cancel_my_hotel_booking(-7966);
+do $ declare q jsonb; booked jsonb; expected timestamptz; begin
  q:=public.quote_hotel_room_rate(-7966,-7966,-7966,current_date+12,current_date+14);
  expected:=((current_date+11+time '14:00') at time zone 'Africa/Lagos');
  if (q->>'cancellation_deadline')::timestamptz is distinct from expected then raise exception 'Hotel-local quote deadline wrong'; end if;
  select to_jsonb(x) into booked from public.create_my_hotel_booking_with_rate(-7966,-7966,-7966,current_date+12,current_date+14,1,'Refund Guest','08000000000',null) x;
  if (booked->'cancellation_snapshot'->>'deadline')::timestamptz is distinct from expected then raise exception 'Booking did not snapshot local deadline'; end if;
  perform public.cancel_my_hotel_booking((booked->>'booking_id')::integer);
-end $$;
-select public.cancel_my_hotel_booking(-7966);
+end $;
 select public.cancel_my_hotel_booking(-7966);
 do $$ declare v jsonb; begin
  select x into v from jsonb_array_elements(public.get_my_hotel_bookings()) x where (x->>'booking_id')::integer=-7966;
