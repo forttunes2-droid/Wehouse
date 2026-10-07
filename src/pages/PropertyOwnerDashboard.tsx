@@ -22,6 +22,7 @@ import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
+import BackButton from "@/components/BackButton";
 import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
 
 type PartnerTab = "properties" | "finance" | "communication" | "tools";
@@ -606,12 +607,7 @@ export function PropertyDetails({
   }
   return (
     <div className="space-y-5">
-      <button
-        onClick={closeRecord}
-        className="text-xs text-[var(--wh-text-secondary)] hover:text-white"
-      >
-        ← Back to properties
-      </button>
+      <BackButton onClick={closeRecord} ariaLabel="Back to properties" />
       <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {property.images?.length || property.videos?.length ? (
           <PropertyMediaCarousel
