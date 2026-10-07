@@ -196,7 +196,8 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(roommate, /uniqueMatches/);
   assert.match(roommate, /row\.status === "accepted"/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
-  assert.match(account, /Choose how WeHouse looks on this device/);\n  assert.match(account, /role="radiogroup"/);
+  assert.match(account, /Choose how WeHouse looks on this device/);
+  assert.match(account, /role="radiogroup"/);
   assert.doesNotMatch(account, /Automatic/);
   assert.doesNotMatch(account, /h-28/);
   assert.match(creatorModal, /var\(--wh-surface\)/);
