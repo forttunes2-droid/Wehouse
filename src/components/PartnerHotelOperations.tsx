@@ -386,10 +386,10 @@ export default function PartnerHotelOperations({
       </header>
 
       <div className="space-y-3">
-        <nav aria-label="Hotel sections" className="grid grid-cols-3 gap-2 border-b border-[var(--wh-border-subtle)]">
-          {sections.filter(item => ["overview", "reservations", "availability"].includes(item.id)).map(item => <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined} onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }} className={`min-h-12 border-b-2 px-1 text-sm font-semibold ${visibleSection === item.id ? "border-violet-400 text-violet-300" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{item.label}</button>)}
+        <nav aria-label="Hotel sections" className="flex gap-1 overflow-x-auto border-y border-[var(--wh-border-subtle)] px-1 py-1">
+          {sections.filter(item => ["overview", "reservations", "availability"].includes(item.id)).map(item => <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined} onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }} className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold ${visibleSection === item.id ? "bg-violet-500/[.12] text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>{item.label}</button>)}
         </nav>
-        <WeHouseSelect value={["rooms", "details", "team"].includes(visibleSection) ? visibleSection : ""} options={[{ value: "", label: "Hotel setup" }, ...sections.filter(item => ["rooms", "details", "team"].includes(item.id)).map(item => ({ value: item.id, label: item.label }))]} onChange={value => { if (value) { setSection(value); setFocusedBooking(undefined); } }} eyebrow="Hotel setup" title="Manage your hotel" ariaLabel="Hotel setup" />
+        {/* Setup sections live in the same navigation as daily operations. */}\n        <WeHouseSelect value={["rooms", "details", "team"].includes(visibleSection) ? visibleSection : "" options={[{ value: "", label: "Hotel setup" }, ...sections.filter(item => ["rooms", "details", "team"].includes(item.id)).map(item => ({ value: item.id, label: item.label }))]} onChange={value => { if (value) { setSection(value); setFocusedBooking(undefined); } }} eyebrow="Hotel setup" title="Manage your hotel" ariaLabel="Hotel setup" />
       </div>
       {visibleSection === "details" && (hotel.images?.length ? (
         <section className="-mx-4 sm:mx-0">
@@ -418,14 +418,14 @@ export default function PartnerHotelOperations({
               <div><h3 className="text-sm font-semibold">Today at the hotel</h3><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Arrivals, departures and rooms needing attention.</p></div>
               <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ${metrics.attention ? "bg-amber-500/10 text-amber-200" : "bg-emerald-500/10 text-emerald-300"}`}>{metrics.attention ? `${metrics.attention} needs action` : "Up to date"}</span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {([
                 ["Rooms available", available, "available"],
                 ["Arriving", metrics.arrivals, "arrivals_today"],
                 ["Staying", metrics.staying, "staying"],
                 ["Leaving", metrics.departures, "departures_today"],
                 ["Needs action", metrics.attention, "attention"],
-              ] as const).map(([label, value, filter]) => <button type="button" key={label} onClick={() => openDailyWork(filter)} aria-label={`${label}: ${value}`} className="bg-[var(--wh-bg)] p-4 text-left last:col-span-2 sm:last:col-span-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">{label} <span aria-hidden="true">›</span></p></button>)}
+              ] as const).map(([label, value, filter]) => <button type="button" key={label} onClick={() => openDailyWork(filter)} aria-label={`${label}: ${value}`} className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-left shadow-[0_8px_25px_rgba(0,0,0,.1)] transition hover:border-violet-400/20 last:col-span-2 sm:last:col-span-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">{label} <span aria-hidden="true">›</span></p></button>)}
             </div>
             <TodayRooms rows={dailyRooms} />
           </section> : null}
