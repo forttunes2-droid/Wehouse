@@ -385,11 +385,11 @@ export default function PartnerHotelOperations({
         ) : null}
       </header>
 
-      <nav aria-label="Hotel sections" className="flex gap-1 overflow-x-auto border-y border-[var(--wh-border-subtle)] px-1 py-1">
+      <nav aria-label="Hotel sections" className="flex flex-wrap gap-1 border-y border-[var(--wh-border-subtle)] px-1 py-1">
         {sections.map(item => (
           <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined}
             onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }}
-            className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold ${visibleSection === item.id ? "bg-violet-500/[.12] text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
+            className={`min-h-11 rounded-xl px-3 text-xs font-semibold ${visibleSection === item.id ? "bg-violet-500/[.12] text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
             {item.label}
           </button>
         ))}
