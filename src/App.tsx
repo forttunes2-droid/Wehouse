@@ -486,6 +486,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     pageScrollRef = useRef<HTMLDivElement>(null),
     pageScrollPositionsRef = useRef(new Map<string, number>()),
     navigationEntryRef = useRef<string>(navigationEntryId());
+  const [navigationEntryKey, setNavigationEntryKey] = useState(() => navigationEntryRef.current);
   const roleRoot = useCallback(
     (): NavPage => roleRootFor(userRole),
     [userRole],
@@ -514,6 +515,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       setNestedScreen(false);
       pageScrollPositionsRef.current.clear();
       navigationEntryRef.current = navigationEntryId();
+      setNavigationEntryKey(navigationEntryRef.current);
       setActiveWorkspace(workspace);
       window.dispatchEvent(new Event("wehouse:navigation"));
       try {
@@ -552,6 +554,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       setConversationOpen(false);
       setNestedScreen(false);
       pageScrollPositionsRef.current.clear();
+      navigationEntryRef.current = navigationEntryId();
+      setNavigationEntryKey(navigationEntryRef.current);
       setActiveWorkspace(workspace);
       setNavPage(destination);
       navHistoryRef.current = [destination];
@@ -597,6 +601,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     try {
       localStorage.setItem(navigationKey, safe);
       navigationEntryRef.current = navigationEntryId();
+      setNavigationEntryKey(navigationEntryRef.current);
       window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey]);
@@ -634,9 +639,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         // Preserve it so Back from a public legal page returns to sign-in.
         if (!window.history.state?.page) {
           navigationEntryRef.current = navigationEntryId();
+          setNavigationEntryKey(navigationEntryRef.current);
           window.history.replaceState({ page: current || "search", workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "");
         }
         navigationEntryRef.current = navigationEntryId();
+        setNavigationEntryKey(navigationEntryRef.current);
         window.history.pushState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
@@ -661,6 +668,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
       navigationEntryRef.current = s.entry_id || navigationEntryId();
+      setNavigationEntryKey(navigationEntryRef.current);
       if (safe !== s.page || s.workspace !== activeWorkspace || !s.entry_id)
         window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
       setNavPage(safe);
@@ -674,12 +682,22 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     return () => window.removeEventListener("popstate", h);
   }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace]);
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
+    let frame = 0;
+    let retry = 0;
+    const restore = () => {
       const surface = pageScrollSurface(pageScrollRef.current);
-      if (surface) surface.scrollTop = pageScrollPositionsRef.current.get(navPage) || 0;
-    });
+      if (surface) {
+        const target = pageScrollPositionsRef.current.get(navigationEntryKey) || 0;
+        surface.scrollTop = target;
+        if (retry < 3 && Math.abs(surface.scrollTop - target) > 1) {
+          retry += 1;
+          frame = requestAnimationFrame(restore);
+        }
+      }
+    };
+    frame = requestAnimationFrame(restore);
     return () => cancelAnimationFrame(frame);
-  }, [navPage]);
+  }, [navPage, navigationEntryKey]);
   useEffect(() => {
     const h = (e: ErrorEvent) => {
       setError(e.error);
