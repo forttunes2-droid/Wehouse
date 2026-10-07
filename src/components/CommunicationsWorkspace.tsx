@@ -603,20 +603,7 @@ export default function CommunicationsWorkspace({
             <button
               type="button"
               aria-label="Attach a photo or video"
-              onClick={() => fileRef.current?.click()}
-              disabled={conversationLocked}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
-            >
-              ＋
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept={CHAT_MEDIA_ACCEPT}
-              onChange={(e) => addFiles(e.target.files)}
-              className="hidden"
-            />
+            <ChatAttachmentPicker onFiles={addFiles} disabled={conversationLocked} />
             <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
                 ref={inputRef}
