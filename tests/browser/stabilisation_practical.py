@@ -95,7 +95,7 @@ async def main():
       await expect(page.get_by_role('dialog',name='Shared stay')).to_be_visible()
       assert await page.get_by_role('button',name=re.compile('Complete my payment')).count()==0
       await page.get_by_role('button',name='Accept my share',exact=True).click();await expect(page.get_by_role('button',name='Accept my share',exact=True)).to_have_count(0)
-      assert await page.get_by_role('button',name=re.compile('Complete my payment').count()==0
+      assert await page.get_by_role('button',name=re.compile('Complete my payment')).count()==0
       await page.evaluate('window.__practicalTransport.allAccepted=true');await page.get_by_role('button',name='Refresh',exact=True).click()
       await expect(page.get_by_role('button',name='Complete my payment · ₦500',exact=True)).to_be_visible()
       await page.get_by_role('button',name='Complete my payment · ₦500',exact=True).click();await page.wait_for_timeout(100)
