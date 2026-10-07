@@ -30,7 +30,14 @@ export function useMediaSwipe({ identity, axis = "horizontal", enabled = true, o
     if (!start.claimed && Math.abs(along) > 12 && Math.abs(along) > Math.abs(across) * 1.4) {
       start.claimed = true; event.currentTarget.setPointerCapture(event.pointerId);
     }
-    if (start.claimed) event.preventDefault();
+    if (start.claimed) {
+      event.preventDefault();
+      const distance = axis === "horizontal" ? dx : dy;
+      event.currentTarget.style.setProperty("--wh-swipe-transform", axis === "horizontal"
+        ? `translate3d(${distance}px,0,0)`
+        : `translate3d(0,${distance}px,0)`);
+      event.currentTarget.style.setProperty("--wh-swipe-transition", "none");
+    }
   }
   function finish(event: PointerEvent<HTMLElement>, cancelled: boolean) {
     const current = state.current, start = current.gesture;
@@ -40,8 +47,12 @@ export function useMediaSwipe({ identity, axis = "horizontal", enabled = true, o
     current.gesture = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (cancelled || start.moved) current.suppressUntil = Date.now() + 500;
-    if (cancelled || !enabled || start.identity !== identity || !start.claimed || current.pointers.size) return;
     const dx = event.clientX - start.x, dy = event.clientY - start.y;
+    if (start.claimed) {
+      event.currentTarget.style.setProperty("--wh-swipe-transform", "translate3d(0,0,0)");
+      event.currentTarget.style.setProperty("--wh-swipe-transition", "transform 180ms cubic-bezier(.22,.8,.25,1)");
+    }
+    if (cancelled || !enabled || start.identity !== identity || !start.claimed || current.pointers.size) return;
     const direction = mediaSwipe(axis === "horizontal" ? dx : dy, axis === "horizontal" ? dy : dx, false, false);
     if (direction) (direction > 0 ? onNext : onPrevious)?.();
   }
@@ -49,5 +60,16 @@ export function useMediaSwipe({ identity, axis = "horizontal", enabled = true, o
     // Keyboard activation has detail=0; only suppress synthetic pointer clicks.
     if (event.detail > 0 && Date.now() < state.current.suppressUntil) { event.preventDefault(); event.stopPropagation(); }
   }
-  return { onPointerDown, onPointerMove, onPointerUp: (event: PointerEvent<HTMLElement>) => finish(event, false), onPointerCancel: (event: PointerEvent<HTMLElement>) => finish(event, true), onClickCapture };
+  return {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: (event: PointerEvent<HTMLElement>) => finish(event, false),
+    onPointerCancel: (event: PointerEvent<HTMLElement>) => finish(event, true),
+    onClickCapture,
+    style: {
+      transform: "var(--wh-swipe-transform, translate3d(0,0,0))",
+      transition: "var(--wh-swipe-transition, transform 180ms cubic-bezier(.22,.8,.25,1))",
+      willChange: "transform",
+    },
+  };
 }
