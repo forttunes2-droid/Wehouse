@@ -1,4 +1,4 @@
-import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import { isChatAttachmentType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { hotelMessagePresentation, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { displayDate } from "@/lib/displayDate";
@@ -159,7 +159,7 @@ export default function HotelBookingChat({
   function chooseFiles(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
-      if (!isChatVisualType(file.type)) {
+      if (!isChatAttachmentType(file.type)) {
         toast.error(CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
