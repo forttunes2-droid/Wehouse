@@ -29,7 +29,6 @@ import type {
   HotelVenue,
   Profile,
 } from "@/types";
-import WeHouseSelect from "@/components/WeHouseSelect";
 import BackButton from "@/components/BackButton";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import BookingDateField from "@/components/BookingDateField";
