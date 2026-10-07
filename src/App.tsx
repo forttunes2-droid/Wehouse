@@ -564,7 +564,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         localStorage.setItem(`wh_workspace_${baseProfile.user_id}`, workspace);
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
         window.history.replaceState(
-          { page: destination, workspace },
+          { page: destination, workspace, entry_id: navigationEntryRef.current },
           "",
           `#${destination}`,
         );
@@ -618,6 +618,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     try {
       localStorage.setItem(navigationKey, safe);
       navigationEntryRef.current = navigationEntryId();
+      setNavigationEntryKey(navigationEntryRef.current);
       window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey, activeWorkspace]);
@@ -1229,6 +1230,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           try {
             localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");
             navigationEntryRef.current = navigationEntryId();
+            setNavigationEntryKey(navigationEntryRef.current);
             window.history.replaceState(
               { page: "worker_verification", entry_id: navigationEntryRef.current },
               "",
