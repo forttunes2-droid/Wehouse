@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, Share2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Share2 } from "lucide-react";
 import { isTopDialog } from "@/lib/dialogIsolation";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -87,8 +87,8 @@ export default function MediaViewer(props: MediaViewerProps) {
         <div className="flex shrink-0 items-center gap-1">
           <button type="button" onClick={() => { window.open(src, "_blank", "noopener,noreferrer"); }}
             className="grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
-            aria-label="Open media">
-            <Download size={20} />
+            aria-label="Open media in a new tab">
+            <ExternalLink size={20} />
           </button>
           {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
             <button type="button" onClick={() => void navigator.share({ title, text: subtitle, url: src }).catch(() => undefined)}
