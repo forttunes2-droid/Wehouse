@@ -12,7 +12,7 @@ type Props = {
   onDuration?: (seconds: number) => void;
   onTime?: (seconds: number) => void;
   onPlaybackError?: () => void;
-  controlsPositionClassName?: string;
+  controlsPositionClassName?: string;\n  viewerMode?: boolean;
 };
 
 export default function VideoPlayer({
@@ -37,13 +37,13 @@ export default function VideoPlayer({
   // Mobile browsers normally allow autoplay only when muted. Showcase should
   // begin reliably, then the viewer can explicitly unmute it.
   const [silent, setSilent] = useState(muted || autoPlay);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(false);\n  const [viewerControls, setViewerControls] = useState(false);
 
   useEffect(() => {
     setCurrent(0);
     setDuration(durationHint || durationFromSource(src));
     setFailed(false);
-    setSilent(muted || autoPlay);
+    setSilent(muted || autoPlay);\n    setViewerControls(false);
   }, [autoPlay, durationHint, muted, src]);
 
   useEffect(() => {
@@ -186,7 +186,7 @@ export default function VideoPlayer({
           ) : null}
         </button>
       )}
-      {!failed ? (
+      {!failed && (!viewerMode || viewerControls) ? (
         <div className={`absolute inset-x-0 ${controlsPositionClassName} z-20 flex items-center gap-2 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-8`}>
           <button type="button" onClick={() => void toggle()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm transition active:scale-95" aria-label={playing ? "Pause video" : "Play video"}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
           <span className="w-9 shrink-0 font-mono text-xs text-white/75">{formatDuration(current)}</span>
