@@ -485,8 +485,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     seenMessagesRef = useRef(new Map<string, string>()),
     pageScrollRef = useRef<HTMLDivElement>(null),
     pageScrollPositionsRef = useRef(new Map<string, number>()),
-    navigationEntryRef = useRef<string>(navigationEntryId());
-  const [navigationEntryKey, setNavigationEntryKey] = useState(() => navigationEntryRef.current);
+    [initialNavigationEntryId] = useState(() => navigationEntryId()),
+    navigationEntryRef = useRef<string>(initialNavigationEntryId);
+  const [navigationEntryKey, setNavigationEntryKey] = useState(initialNavigationEntryId);
   const roleRoot = useCallback(
     (): NavPage => roleRootFor(userRole),
     [userRole],
