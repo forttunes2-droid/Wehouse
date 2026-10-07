@@ -91,8 +91,7 @@ export default function SupportChat({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const firstSendAttemptRef = useRef<{
+    const firstSendAttemptRef = useRef<{
     draftId: string;
     content: string;
     context: SupportOpenContext;
@@ -155,7 +154,6 @@ export default function SupportChat({
       return true;
     });
     setFiles((current) => [...current, ...allowed].slice(0, 6));
-    if (fileRef.current) fileRef.current.value = "";
   }
 
   const loadMessages = useCallback(async (id: string, quiet = false, request = requestRef.current) => {
