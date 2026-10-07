@@ -28,6 +28,12 @@ values('accommodation_arrival_issue_window',99003,'{"default_hours":2,"minimum_h
  'active',now()-interval '1 minute','reviewed','Rollback-only cancellation fixture','hotel-refund-contract');
 update public.hotels set approved_at=now(),published_at=now(),timezone='Africa/Lagos',check_in_time='14:00' where hotel_id=-7966;
 set local session_replication_role=origin;
+-- This fixture constructs the paid Payment Protection row directly rather than through the charge gateway.
+-- Start with no unrelated finance command attached to it; cancellation must create the sole refund obligation.
+delete from public.financial_action_outbox where payment_protection_id='79666666-1000-4000-8000-000000000001';
+if (select count(*) from public.financial_action_outbox where payment_protection_id='79666666-1000-4000-8000-000000000001')<>0 then
+  raise exception 'Hotel cancellation fixture contains a pre-existing finance action';
+end if;
 select set_config('request.jwt.claim.sub','79666666-0000-4000-8000-000000000003',true);
 set local role authenticated;
 do $$ begin
