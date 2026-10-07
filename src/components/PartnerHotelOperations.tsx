@@ -385,12 +385,15 @@ export default function PartnerHotelOperations({
         ) : null}
       </header>
 
-      <div className="space-y-3">
-        <nav aria-label="Hotel sections" className="flex gap-1 overflow-x-auto border-y border-[var(--wh-border-subtle)] px-1 py-1">
-          {sections.filter(item => ["overview", "reservations", "availability"].includes(item.id)).map(item => <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined} onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }} className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold ${visibleSection === item.id ? "bg-violet-500/[.12] text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>{item.label}</button>)}
-        </nav>
-        {/* Setup sections live in the same navigation as daily operations. */}\n        <WeHouseSelect value={["rooms", "details", "team"].includes(visibleSection) ? visibleSection : "" options={[{ value: "", label: "Hotel setup" }, ...sections.filter(item => ["rooms", "details", "team"].includes(item.id)).map(item => ({ value: item.id, label: item.label }))]} onChange={value => { if (value) { setSection(value); setFocusedBooking(undefined); } }} eyebrow="Hotel setup" title="Manage your hotel" ariaLabel="Hotel setup" />
-      </div>
+      <nav aria-label="Hotel sections" className="flex gap-1 overflow-x-auto border-y border-[var(--wh-border-subtle)] px-1 py-1">
+        {sections.map(item => (
+          <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined}
+            onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }}
+            className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-semibold ${visibleSection === item.id ? "bg-violet-500/[.12] text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
+            {item.label}
+          </button>
+        ))}
+      </nav>
       {visibleSection === "details" && (hotel.images?.length ? (
         <section className="-mx-4 sm:mx-0">
           <PropertyMediaCarousel images={hotel.images} title={hotel.name} />
