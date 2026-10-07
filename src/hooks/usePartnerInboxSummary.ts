@@ -22,8 +22,8 @@ export function usePartnerInboxSummary(userId: string) {
       getAnnouncementsForUser(userId, "partner"),
     ]);
     if (!isCurrent()) return;
-    const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).filter((row) => Number(row.unread_count || 0) > 0).length;
-    const hotelUnread = hotels.error ? 0 : hotels.conversations.filter((row) => Number(row.unread_count || 0) > 0).length;
+    const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).reduce((sum, row) => sum + Number(row.unread_count || 0), 0);
+    const hotelUnread = hotels.error ? 0 : hotels.conversations.reduce((sum, row) => sum + Number(row.unread_count || 0), 0);
     setChatUnread(wehouseUnread + hotelUnread);
     const eventUnread = events.error ? 0 : events.summary.unread;
     const announcementUnread = (announcements.messages || []).filter((delivery: any) => {
