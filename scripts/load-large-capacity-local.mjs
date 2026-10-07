@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Agent, request as httpRequest } from "node:http";
