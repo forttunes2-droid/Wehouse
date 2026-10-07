@@ -237,5 +237,6 @@ test("media viewer keeps one coherent full-screen shell with safe navigation act
   assert.match(photo, /onPrevious/);
   assert.match(video, /playsInline/);
   assert.match(video, /View video full screen/);
-  assert.match(propertyMedia, /Back from media viewer/);\n  assert.match(propertyMedia, /snap-x snap-mandatory/);
+  assert.match(propertyMedia, /Back from media viewer/);
+  assert.match(propertyMedia, /snap-x snap-mandatory/);
 });
