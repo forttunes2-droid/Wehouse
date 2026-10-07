@@ -5,7 +5,7 @@ import BackButton from "@/components/BackButton";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import MessageMedia, { PendingMessageMedia } from "@/components/MessageMedia";
 import MessagePress from "@/components/MessagePress";
-import { CHAT_MEDIA_ONLY_MESSAGE, isChatVisualType } from "@/lib/chatMediaPolicy";
+import { CHAT_MEDIA_ONLY_MESSAGE, isChatAttachmentType } from "@/lib/chatMediaPolicy";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { supabase } from "@/lib/supabase";
 import {
@@ -55,7 +55,7 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
   function chooseFiles(list:FileList|null){
     if(!list)return;
     const incoming=Array.from(list).filter(file=>{
-      if(!isChatVisualType(file.type)){toast.error(CHAT_MEDIA_ONLY_MESSAGE);return false}
+      if(!isChatAttachmentType(file.type)){toast.error(CHAT_MEDIA_ONLY_MESSAGE);return false}
       if(file.size>MAX_FILE_SIZE){toast.error(`${file.name} is larger than 25MB`);return false}
       return true;
     });
@@ -76,7 +76,7 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
         const upload = uploadedFiles[index];
         const file = queued[index];
         if(upload.error||!upload.path||!upload.type)throw new Error(upload.error?.message||`Could not upload ${file.name}`);
-        paths.push(upload.path);types.push(file.type.startsWith("image/")?"image":"video");
+        paths.push(upload.path);types.push(file.type.startsWith("image/")?"image":file.type.startsWith("video/")?"video":"document");
       }
       const result=await sendPropertyHostMessage(conversation.conversation_id,text,paths,types,reply?.id||null);
       if(result.error||!result.messageId)throw new Error(result.error?.message||"Message could not be sent");
