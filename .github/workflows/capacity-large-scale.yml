@@ -1,0 +1,80 @@
+name: WeHouse millions-scale capacity (disposable)
+on:
+  workflow_dispatch:
+    inputs:
+      booking_attempts:
+        description: "Booking burst attempts"
+        required: false
+        default: "700000"
+      roommate_actors:
+        description: "Roommate-search actors"
+        required: false
+        default: "1000000"
+      concurrency:
+        description: "HTTP concurrency"
+        required: false
+        default: "5000"
+permissions:
+  contents: read
+jobs:
+  large-scale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Reclaim disposable runner disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/powershell || true
+          docker system prune -af || true
+          df -h /
+      - run: npm ci
+      - name: Start disposable Supabase
+        run: |
+          npx --yes supabase@2.114.0 start
+          npx --yes supabase@2.114.0 db reset --local
+      - name: Seed 7,000,000 listings and 6,000,000 profiles
+        env:
+          WEHOUSE_CAPACITY_PRESET: large
+        run: bash scripts/seed-capacity-scale.sh
+      - name: Seed 1,000,000 roommate actors and booking inventory
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_large_fixture.sql
+      - name: Verify exact fixture cardinality
+        run: |
+          test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.profiles where user_id like 'load-user-%'),(select count(*) from public.roommate_preferences where user_id like 'load-user-%')")" = "7000000|6000000|1000000"
+      - name: Measure millions-scale catalog reads
+        env:
+          WEHOUSE_CAPACITY_PRESET: large
+        run: node scripts/load-catalog-scale.mjs
+      - name: Enable database query timing
+        run: |
+          docker exec supabase_db_wehouse psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "alter system set pg_stat_statements.track='all';"
+          docker exec supabase_db_wehouse psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "select pg_reload_conf();"
+      - name: Run 700k booking and 1m roommate burst
+        env:
+          WEHOUSE_CAPACITY_PRESET: large
+          WEHOUSE_BOOKING_ATTEMPTS: ${{ inputs.booking_attempts }}
+          WEHOUSE_ROOMMATE_ACTORS: ${{ inputs.roommate_actors }}
+          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency }}
+        run: node scripts/load-large-capacity-local.mjs
+      - name: Capture disposable evidence
+        if: always()
+        run: |
+          mkdir -p test-results
+          docker stats --no-stream > test-results/large-container-stats.txt || true
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select pg_database_size(current_database())" > test-results/large-database-size.txt || true
+          for container in supabase_kong_wehouse supabase_rest_wehouse supabase_db_wehouse supabase_auth_wehouse; do
+            docker logs --tail 1000 "$container" > "test-results/large-$container.log" 2>&1 || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wehouse-millions-scale-results
+          path: test-results/
+          retention-days: 14
+      - name: Destroy disposable Supabase
+        if: always()
+        run: npx --yes supabase@2.114.0 stop --no-backup
