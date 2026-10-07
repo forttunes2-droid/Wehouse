@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useRef, useState } from "react";
+import { ArrowLeft, ExternalLink, Share2 } from "lucide-react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
 import MediaPagingActions from "./MediaPagingActions";
 import VideoPlayer from "./VideoPlayer";
@@ -139,18 +140,35 @@ export default function PropertyMediaCarousel({
           aria-modal="true"
           aria-label={`${title} media viewer`}
         >
-          <header className="flex min-h-14 shrink-0 items-center justify-between px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]">
-            <span className="text-xs text-white/70">
-              {activeIndex + 1} of {items.length} · {items[activeIndex]?.kind}
-            </span>
+          <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-white/10 bg-black/85 px-3 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] backdrop-blur-xl">
             <button
               type="button"
               onClick={closeFullscreen}
-              className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-xl"
-              aria-label="Close media viewer"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white transition active:scale-95"
+              aria-label="Back from media viewer"
             >
-              ×
+              <ArrowLeft size={21} />
             </button>
+            <div className="min-w-0 flex-1 px-1">
+              <p className="truncate text-sm font-semibold text-white">{title}</p>
+              <p className="mt-0.5 text-xs text-white/55">{activeIndex + 1} of {items.length} · {items[activeIndex]?.kind}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button type="button" onClick={() => {
+                const reference = items[activeIndex]?.reference;
+                if (reference) window.open(reference, "_blank", "noopener,noreferrer");
+              }} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition active:scale-95" aria-label="Open media in a new tab">
+                <ExternalLink size={19} />
+              </button>
+              {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
+                <button type="button" onClick={() => {
+                  const reference = items[activeIndex]?.reference;
+                  if (reference) void navigator.share({ title, url: reference }).catch(() => undefined);
+                }} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition active:scale-95" aria-label="Share media">
+                  <Share2 size={18} />
+                </button>
+              ) : null}
+            </div>
           </header>
           <div
             ref={fullscreenRailRef}
