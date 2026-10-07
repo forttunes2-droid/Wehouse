@@ -41,6 +41,7 @@ import { workspaceForActivity } from "@/lib/workspaceActivityAwareness";
 import { workspaceLabel } from "@/lib/workspacePresentation";
 import { clearInvitationIntent, parseInvitationToken, readInvitationIntent } from "@/lib/resourceInvitation";
 import ResourceInvitationAction, { PublicInvitationPreview } from "@/components/ResourceInvitationAction";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -127,47 +128,23 @@ function PageTransitionFallback() {
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <div
-      className="wh-auth-to-app min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-5 text-[var(--wh-text)]"
-      role="status"
-      aria-label="Loading WeHouse"
-    >
-      <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-md flex-col justify-center">
-        <div className="wh-auth-to-app-brand flex items-center gap-3">
-          <img src="/app-icon.svg?v=3" alt="" className="h-10 w-10 rounded-[12px]" />
-          <div>
-            <p className="text-base font-semibold tracking-tight">WeHouse</p>
-            <p className="mt-0.5 text-sm text-[var(--wh-text-secondary)]">Checking your session and workspace…</p>
-          </div>
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] text-[var(--wh-text)]">
+      <WeHouseLoadingState label="Checking your WeHouse workspace…" />
+      {slow ? (
+        <div className="mx-auto -mt-24 max-w-sm px-5 text-center">
+          <p className="text-sm text-[var(--wh-text-secondary)]">This is taking longer than usual.</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--wh-text-muted)]">Your connection or account service may be slow.</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white">Try again</button>
         </div>
-        {!slow ? (
-          <div className="mt-8 h-1 w-full max-w-48 rounded-full bg-[var(--wh-skeleton)]" aria-hidden="true">
-          </div>
-        ) : (
-          <div className="mt-8">
-            <div className="max-w-xs">
-              <p className="text-sm text-[var(--wh-text-secondary)]">This is taking longer than usual.</p>
-              <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Your connection or account service may be slow. You can retry now.</p>
-              <button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-12 rounded-xl bg-violet-600 px-6 text-white text-sm font-semibold hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300">Try again</button>
-            </div>
-          </div>
-        )}
-      </div>
+      ) : null}
     </div>
   );
 }
 
 function RouteTransitionFallback() {
   return (
-    <div
-      className="grid min-h-[45vh] place-items-center bg-[var(--wh-bg)] px-6 text-[var(--wh-text)]"
-      role="status"
-      aria-label="Opening page"
-    >
-      <div className="text-center">
-        <div aria-hidden="true" className="mx-auto h-4 w-28 rounded-full wh-skeleton" />
-        <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">Opening page…</p>
-      </div>
+    <div className="min-h-[45vh] bg-[var(--wh-bg)] text-[var(--wh-text)]">
+      <WeHouseLoadingState compact label="Opening WeHouse…" />
     </div>
   );
 }
