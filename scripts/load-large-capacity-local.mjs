@@ -123,7 +123,10 @@ try {
       p_hotel_id: -1_000_000 - hotel, p_room_id: -10_000_000 - hotel,
       p_rate_plan_id: -3_000_000 - hotel, p_check_in: checkIn, p_check_out: checkOut,
     });
-    if (!quote.ok || quote.data?.available !== true) return { ...quote, ok: quote.ok && quote.data?.available === true, error: quote.ok ? "inventory-unavailable-quote" : quote.error };
+    if (!quote.ok) return quote;
+    if (quote.data?.available !== true) {
+      return { ...quote, ok: true, classification: "inventory-unavailable" };
+    }
     const booked = await rpc(actor, "create_my_hotel_booking_with_rate", {
       p_hotel_id: -1_000_000 - hotel, p_room_id: -10_000_000 - hotel,
       p_rate_plan_id: -3_000_000 - hotel, p_check_in: checkIn, p_check_out: checkOut,
