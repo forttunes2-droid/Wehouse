@@ -126,19 +126,19 @@ function GuestProductPreview({ product, busy, onBack, onSignIn }: { product: 'ro
   const roommate = product === 'roommate';
   const content = roommate
     ? {
-        eyebrow: 'ROOMMATES',
-        title: 'Find people whose housing plans fit yours.',
-        body: 'Choose practical preferences, see compatible people and connect when the interest is mutual.',
-        points: ['State, LGA and area', 'Budget, gender and living preferences', 'Private matching and in-app conversation'],
-        note: 'Opening Roommates does not make your private matching details public.',
-        action: 'Sign in to start matching',
+        eyebrow: 'ROOMMATE CONNECTIONS',
+        title: 'Find a shared home that fits the way you live.',
+        body: 'Tell WeHouse where you want to live, what you can spend and the everyday things that matter at home. We show practical compatibility first, then you decide who to connect with.',
+        points: ['Choose your State, LGA and preferred area', 'Set budget, move-in timing and living preferences', 'Review a person’s profile and connect privately'],
+        note: 'Your matching preferences stay private. A match is a starting point for conversation, not a promise that living together will work.',
+        action: 'Sign in to find a roommate',
       }
     : {
         eyebrow: 'WEHOUSE SERVICES',
-        title: 'Find a professional for the work you need.',
-        body: 'Compare skills and work evidence, agree the job and keep the service booking connected.',
-        points: ['Choose a service', 'Review skills and work examples', 'Agree the job with Payment Protection'],
-        note: 'Workers are independent service professionals, not WeHouse employees.',
+        title: 'Find the right professional for the job.',
+        body: 'Discover independent service professionals, see what they do and review real work evidence before you decide who to contact.',
+        points: ['Choose the service and where you need it', 'Review skills, profile details and work showcase', 'Connect and keep the service job protected through WeHouse'],
+        note: 'Service professionals are independent providers, not WeHouse employees. WeHouse helps organise the connection and supported payment flow.',
         action: 'Sign in to find a professional',
       };
   return <main className="mx-auto max-w-2xl px-4 py-4 pb-28 sm:px-6" aria-labelledby="guest-product-title">
