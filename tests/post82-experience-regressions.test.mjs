@@ -204,6 +204,23 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
 });
 
 
+test("shared reservation state stays participant-specific and payment-gated", async () => {
+  const [details, share, rpc] = await Promise.all([
+    read("src/components/SharedHousingDetails.tsx"),
+    read("src/components/ShortLetSplitCosts.tsx"),
+    read("src/lib/supabase/shared-housing.ts"),
+  ]);
+  assert.match(details, /member\.user_id === userId/);
+  assert.match(details, /allAccepted/);
+  assert.match(details, /payment_status/);
+  assert.match(details, /reservation is no longer accepting new participants/);
+  assert.doesNotMatch(share, /split cost/i);
+  assert.match(share, /same reservation/);
+  assert.match(share, /reservation_fee_status/);
+  assert.match(rpc, /createSharedShortLet/);
+  assert.match(rpc, /respondToSharedHousingInvite/);
+});
+
 test("media viewer keeps one coherent full-screen shell with safe navigation actions", async () => {
   const [viewer, photo, video] = await Promise.all([
     read("src/components/MediaViewer.tsx"),
