@@ -46,7 +46,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [chromeVisible, setChromeVisible] = useState(false);\n  // Keep the media chrome discoverable on intentional taps while remaining immersive.
+  const [chromeVisible, setChromeVisible] = useState(false);
 
   useEffect(() => setIndex(Math.min(Math.max(requestedIndex, 0), maxIndex)), [requestedIndex, maxIndex]);
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       }}
       role="dialog" aria-modal="true" aria-label={title}>
       <div
-        onClick={() => setChromeVisible(value => !value)}\n        className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         <div className="flex items-start gap-3">
           <button type="button" onClick={dismiss}
@@ -85,7 +85,7 @@ export default function MediaViewer(props: MediaViewerProps) {
         </div>
       </div>
 
-      <main {...paging} data-media-stage
+      <main {...paging} data-media-stage\n        onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setChromeVisible(value => !value); }}
         className="wh-media-stage relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
         style={{ ...paging.style, touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
