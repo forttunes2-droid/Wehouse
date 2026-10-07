@@ -72,8 +72,20 @@ export default function RoommatePublicProfile({
     </PublicProfileSurface>}
     {/* Keep the originating info screen mounted: Back restores that exact step,
         with the same permission-filtered person data, rather than starting over. */}
-    {fullProfile ? <RoommatePublicProfile person={person} score={score} matchLabel={matchLabel} highlights={highlights} discuss={discuss} comparedAnswers={comparedAnswers}
-      onClose={() => setFullProfile(false)} /> : null}
+    {fullProfile ? <RoommatePublicProfile
+      person={person}
+      score={score}
+      matchLabel={matchLabel}
+      highlights={highlights}
+      discuss={discuss}
+      comparedAnswers={comparedAnswers}
+      presence={presence}
+      actions={actions}
+      footer={footer}
+      primaryAction={primaryAction}
+      context="discovery"
+      onClose={() => setFullProfile(false)}
+    /> : null}
   </>;
 }
 function Detail({ label, value }: { label: string; value: string }) {
