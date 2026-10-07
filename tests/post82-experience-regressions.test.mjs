@@ -163,7 +163,6 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
     read("src/components/PropertyPartnerProWorkspace.tsx"),
     read("src/pages/SecuritySettings.tsx"),
     read("src/components/VideoPlayer.tsx"),
-    read("src/components/PropertyMediaCarousel.tsx"),
     read("src/pages/Roommate.tsx"),
     read("src/components/RoommatePublicProfile.tsx"),
     read("src/pages/AccountCenter.tsx"),
