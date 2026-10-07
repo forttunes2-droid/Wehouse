@@ -70,7 +70,7 @@ async def main():
      await expect(page.get_by_text('Loading attachment…',exact=True)).to_be_visible()
      assert await page.evaluate('window.__transport.holdMedia')
      await page.locator('summary').filter(has_text='Special request').click()
-     assert await page.locator('.wh-request-body p').text_content() == 'Please arrange a quiet room.\\nI may arrive at 6 pm.'
+     assert await page.locator('.wh-request-body p').text_content() == 'Please arrange a quiet room.\nI may arrive at 6 pm.'
      await page.screenshot(path=str(OUT/f'hotel-special-request-in-conversation-{width}.png'))
      colleague=page.get_by_text('We have noted your quiet-room request.',exact=True)
      assert await colleague.evaluate('(el)=>Boolean(el.closest(".justify-end"))')
