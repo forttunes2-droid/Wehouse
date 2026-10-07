@@ -31,11 +31,11 @@ set local session_replication_role=origin;
 -- This fixture constructs the paid Payment Protection row directly rather than through the charge gateway.
 -- Start with no unrelated finance command attached to it; cancellation must create the sole refund obligation.
 delete from public.financial_action_outbox where payment_protection_id='79666666-1000-4000-8000-000000000001';
-do $ begin
+do $$ begin
  if (select count(*) from public.financial_action_outbox where payment_protection_id='79666666-1000-4000-8000-000000000001')<>0 then
   raise exception 'Hotel cancellation fixture contains a pre-existing finance action';
  end if;
-end $;
+end $$;
 select set_config('request.jwt.claim.sub','79666666-0000-4000-8000-000000000003',true);
 set local role authenticated;
 do $$ begin
