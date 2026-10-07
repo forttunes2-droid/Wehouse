@@ -191,8 +191,8 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(pro, /Partner tools could not load/);
   assert.match(security, /Additional protection/);
   assert.match(video, /Video unavailable here/);
-  assert.match(roommate, /receivedUserIds/);
-  assert.match(roommate, /acceptedIncomingIds/);
+  assert.match(roommate, /getReceivedRoommateInterests/);
+  assert.match(roommate, /acceptedIncomingUserIds/);
   assert.match(roommate, /uniqueMatches/);
   assert.match(roommate, /row\.status === "accepted"/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
