@@ -163,6 +163,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
     read("src/components/PropertyPartnerProWorkspace.tsx"),
     read("src/pages/SecuritySettings.tsx"),
     read("src/components/VideoPlayer.tsx"),
+    read("src/components/PropertyMediaCarousel.tsx"),
     read("src/pages/Roommate.tsx"),
     read("src/components/RoommatePublicProfile.tsx"),
     read("src/pages/AccountCenter.tsx"),
@@ -222,7 +223,7 @@ test("shared reservation state stays participant-specific and payment-gated", as
 });
 
 test("media viewer keeps one coherent full-screen shell with safe navigation actions", async () => {
-  const [viewer, photo, video] = await Promise.all([
+  const [viewer, photo, video, propertyMedia] = await Promise.all([
     read("src/components/MediaViewer.tsx"),
     read("src/components/ZoomablePhoto.tsx"),
     read("src/components/VideoPlayer.tsx"),
@@ -232,5 +233,5 @@ test("media viewer keeps one coherent full-screen shell with safe navigation act
   assert.match(photo, /touchAction: 'none'/);
   assert.match(photo, /onPrevious/);
   assert.match(video, /playsInline/);
-  assert.match(video, /View video full screen/);
+  assert.match(video, /View video full screen/);\n  assert.match(propertyMedia, /Back from media viewer/);\n  assert.match(propertyMedia, /snap-x snap-mandatory/);
 });
