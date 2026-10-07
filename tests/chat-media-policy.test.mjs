@@ -8,7 +8,7 @@ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 const file=(bytes,name,type)=>new File([bytes],name,{type});
 const webm=Buffer.concat([Buffer.from([0x1a,0x45,0xdf,0xa3]),Buffer.from('webm')]);
 test('picker accepts supported photos, videos and documents while rejecting unsafe types',()=>{
- for(const type of ['application/octet-stream','image/svg+xml','image/x-anything','audio/webm','audio/mp3']) assert.equal(policy.isSelectableChatMedia({type,size:5}),false,type);
+ for(const type of ['application/octet-stream','image/svg+xml','image/x-anything','audio/webm','audio/mp3','text/html']) assert.equal(policy.isSelectableChatMedia({type,size:5}),false,type);
  for(const type of [...policy.CHAT_PHOTO_TYPES,...policy.CHAT_VIDEO_TYPES,...policy.CHAT_DOCUMENT_TYPES]) assert.equal(policy.isSelectableChatMedia({type,size:5}),true,type);
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:0}),false);
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:policy.CHAT_MEDIA_MAX_BYTES+1}),false);
