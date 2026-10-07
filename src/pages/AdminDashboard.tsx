@@ -127,7 +127,6 @@ export default function AdminDashboard({
   );
   const currentOperation = operation ? OPS.find(([id]) => id === operation) : null;
   const workspaceTitle = tab === "operations" && currentOperation ? currentOperation[1] : NAV.find((item) => item.id === tab)?.label || "Admin";
-  const workspaceDescription = tab === "operations" && currentOperation ? currentOperation[2] : NOTES[tab];
   return (
     <>
 
@@ -138,7 +137,6 @@ export default function AdminDashboard({
         title={workspaceTitle}
         onBack={tab === "operations" && operation ? closeOperation : undefined}
         backLabel={returnToInbox ? "Back to Inbox" : "Back to work areas"}
-        description={`${workspaceDescription}${coverageReady ? ` · ${profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}` : " · Coverage assignment required"}`}
         items={nav}
         active={tab}
         setActive={(id) => {
