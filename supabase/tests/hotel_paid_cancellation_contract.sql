@@ -14,8 +14,8 @@ values(-7966,-7966,-7966,'refund-guest',current_date+3,current_date+5,2,40000,'c
  jsonb_build_object('version',1,'refundable',true,'deadline',now()+interval '1 day','timezone','Africa/Lagos','refund_amount_ngn',40000,'fee_ngn',0));
 insert into public.hotel_room_units(unit_id,hotel_id,room_id,unit_label,status)
 overriding system value values(-7966,-7966,-7966,'101','ready');
-insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,price_per_night,refundable,cancellation_hours)
-overriding system value values(-7966,-7966,-7966,'Refund contract rate',20000,true,24);
+insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,price_per_night,refundable,cancellation_template,cancellation_hours)
+overriding system value values(-7966,-7966,-7966,'Refund contract rate',20000,true,'standard',24);
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status,cancellation_snapshot)
 values(-7967,-7966,-7966,'refund-guest',current_date+6,current_date+7,1,20000,'confirmed','paid',jsonb_build_object('refundable',false)),
 (-7968,-7966,-7966,'refund-guest',current_date+8,current_date+9,1,20000,'confirmed','paid',jsonb_build_object('refundable',true,'deadline',now()-interval '1 second')),
