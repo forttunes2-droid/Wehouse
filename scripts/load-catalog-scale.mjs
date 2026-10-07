@@ -35,7 +35,7 @@ const scenarios = [
   { name:'spread_hotel',rpc:'get_public_hotel_detail',body:i=>({p_hotel_id:-1000001-i%catalog.hotels}),valid:d=>Number.isInteger(d?.hotel_id) },
   { name:'one_home',rpc:'get_public_listing_detail',body:()=>({p_listing_id:'load-home-scale-1'}),valid:d=>d?.listing_id==='load-home-scale-1' },
   { name:'spread_home',rpc:'get_public_listing_detail',body:i=>({p_listing_id:`load-home-scale-${1+i%catalog.homes}`}),valid:d=>typeof d?.listing_id==='string' },
-];
+].filter(s => catalog.hotels > 0 || !s.name.startsWith('hotel_') && s.name !== 'one_hotel' && s.name !== 'spread_hotel');
 async function sample(scenario,i) {
   const start=performance.now();
   try {
