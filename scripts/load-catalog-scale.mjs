@@ -11,13 +11,15 @@ const key = status.ANON_KEY || status.anon_key || status.PUBLISHABLE_KEY || stat
 assert.ok(key);
 const medium = process.env.WEHOUSE_CAPACITY_PRESET === 'medium';
 const million = process.env.WEHOUSE_CAPACITY_PRESET === 'million';
-assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['requested','medium','million','full','launch'].includes(process.env.WEHOUSE_CAPACITY_PRESET), 'Unknown capacity preset');
+const large = process.env.WEHOUSE_CAPACITY_PRESET === 'large';
+assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['requested','medium','million','large','full','launch'].includes(process.env.WEHOUSE_CAPACITY_PRESET), 'Unknown capacity preset');
 const catalog = process.env.WEHOUSE_CAPACITY_PRESET === 'launch'
   ? {homes:500000,hotels:500000,synthetic_profiles:500000,real_auth_users:0}
   : medium
   ? {homes:50000,hotels:100000,synthetic_profiles:50000,real_auth_users:0}
   : process.env.WEHOUSE_CAPACITY_PRESET === 'requested' ? {homes:500000,hotels:50000,synthetic_profiles:50000,real_auth_users:0}
   : million ? {homes:1000000,hotels:1000000,synthetic_profiles:1000000,real_auth_users:0}
+  : large ? {homes:7000000,hotels:0,synthetic_profiles:6000000,real_auth_users:0}
   : {homes:3000000,hotels:4000000,synthetic_profiles:20000000,real_auth_users:0};
 const counts = execFileSync('docker', ['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-Atc',
   "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -5000000 and -1000001),(select count(*) from public.profiles where user_id like 'load-user-%')"], { encoding:'utf8' }).trim();
@@ -64,12 +66,14 @@ async function stage(scenario,concurrency,count) {
     response_megabytes:Math.round(samples.reduce((n,x)=>n+x.bytes,0)/1048576*100)/100};
 }
 const report={source:'disposable local Supabase HTTP API',catalog,
-  caveat:'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
+  caveat:process.env.WEHOUSE_CAPACITY_PRESET==='large' ? 'Millions-scale disposable catalog read test. It validates stored-record cardinality and concurrent read paths; it is not a claim about millions of simultaneous signed-in users or hosted edge capacity.' : 'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
   measured_at:new Date().toISOString(),stages:[]};
 mkdirSync('test-results',{recursive:true});
 const stages = process.env.WEHOUSE_CAPACITY_PRESET === 'requested'
   ? [{concurrency:1,count:30},{concurrency:100,count:300}]
-  : [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}];
+  : process.env.WEHOUSE_CAPACITY_PRESET === 'large'
+    ? [{concurrency:20,count:200},{concurrency:200,count:2000},{concurrency:1000,count:10000}]
+    : [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}];
 for(const {concurrency,count} of stages){
   for(const scenario of scenarios){
     const result=await stage(scenario,concurrency,count);report.stages.push(result);
