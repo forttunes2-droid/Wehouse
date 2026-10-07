@@ -81,7 +81,7 @@ const STATUS_OPTIONS = [
   { value: "action", label: "To do" },
   { value: "active", label: "Upcoming" },
   { value: "history", label: "History" },
-] as const;;
+] as const;
 const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
 const date = displayDate;
 function bookingMonth(value: string) {
@@ -377,6 +377,16 @@ export default function MyReservations({
     () => (visibleRows as BookingItem[]).filter((item) => statusView === "all" || bookingGroup(item) === statusView),
     [visibleRows, statusView],
   );
+  const groupedRows = useMemo(() => {
+    const groups = new Map<string, BookingItem[]>();
+    for (const item of filteredRows) {
+      const key = bookingMonth(item.date) || "unknown";
+      const group = groups.get(key);
+      if (group) group.push(item);
+      else groups.set(key, [item]);
+    }
+    return [...groups.entries()];
+  }, [filteredRows]);
   const visibleCount = filteredRows.length;
 
   async function cancelHousing(row: any) {
@@ -875,22 +885,37 @@ export default function MyReservations({
         ) : filteredRows.length === 0 ? (
           <Empty view={view} statusView={statusView} filtered={Boolean(search || month !== "all")} />
         ) : (
-          <div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-            {filteredRows.map((item) =>
-              item.kind === "housing" ? (
-                <HousingCard key={item.row.id} row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
-              ) : item.kind === "shared" ? (
-                <BookingCard key={`shared-${item.row.id}`} eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
-                  title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
-                  image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in?[`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`]:[]}
-                  status={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited' ? "To do" : "Shared"}
-                  next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} compact />
-              ) : item.kind === "hotel" ? (
-                <HotelCard key={item.row.booking_id} row={item.row} onOpen={() => setActiveHotel(item.row)} compact />
-              ) : (
-                <ServiceCard key={item.row.booking_id || item.row.conversation_id} row={item.row} onOpen={() => setActiveService(item.row)} compact />
-              )
-            )}
+          <div className="mt-4 space-y-5">
+            {groupedRows.map(([monthKey, group]) => (
+              <section key={monthKey} aria-label={monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${monthKey}-15T12:00:00Z`))}>
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <h2 className="text-xs font-semibold text-[var(--wh-text-secondary)]">
+                    {monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${monthKey}-15T12:00:00Z`))}
+                  </h2>
+                  <span className="text-[10px] text-[var(--wh-text-muted)]">{group.length}</span>
+                </div>
+                <div className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
+                  {group.map((item, index) => (
+                    <div key={item.kind === "housing" ? item.row.id : item.kind === "shared" ? `shared-${item.row.id}` : item.kind === "hotel" ? item.row.booking_id : item.row.booking_id || item.row.conversation_id}
+                      className={index ? "border-t border-[var(--wh-border-subtle)]" : ""}>
+                      {item.kind === "housing" ? (
+                        <HousingCard row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
+                      ) : item.kind === "shared" ? (
+                        <BookingCard eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
+                          title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
+                          image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in ? [`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`] : []}
+                          status={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited' ? "To do" : "Shared"}
+                          next={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited'?'Review your share':'View people and payments'} onOpen={()=>setActiveShared(item.row.id)} compact />
+                      ) : item.kind === "hotel" ? (
+                        <HotelCard row={item.row} onOpen={() => setActiveHotel(item.row)} compact />
+                      ) : (
+                        <ServiceCard row={item.row} onOpen={() => setActiveService(item.row)} compact />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </main>
