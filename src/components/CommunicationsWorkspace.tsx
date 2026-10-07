@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnnouncementsTab } from "@/components/AnnouncementsTab";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
-import { CHAT_MEDIA_ACCEPT, CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatMedia } from "@/lib/chatMediaPolicy";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
+import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatMedia } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
@@ -81,8 +82,7 @@ export default function CommunicationsWorkspace({
     [caseAction, setCaseAction] = useState<CaseAction | null>(null),
     [caseNote, setCaseNote] = useState(""),
     [updatingCase, setUpdatingCase] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null),
-    bottomRef = useRef<HTMLDivElement>(null),
+  const bottomRef = useRef<HTMLDivElement>(null),
     inputRef = useRef<HTMLTextAreaElement>(null),
     openedInitialRef = useRef<string | null>(null),
     listLoadedRef = useRef(false),
@@ -255,7 +255,6 @@ export default function CommunicationsWorkspace({
         toast.error("A maximum of 6 files can be sent at once");
       return next;
     });
-    if (fileRef.current) fileRef.current.value = "";
   }
   async function reply() {
     if (!selected || sending || loadingThread || threadError || (!input.trim() && !files.length)) return;
