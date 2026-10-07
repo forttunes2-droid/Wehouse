@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowLeft, Download, Share2 } from "lucide-react";
 import { isTopDialog } from "@/lib/dialogIsolation";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -66,28 +67,38 @@ export default function MediaViewer(props: MediaViewerProps) {
         if (event.key === "ArrowRight") { event.preventDefault(); next?.(); }
       }}
       role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" onClick={dismiss}
-        className={`absolute z-30 grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/45 text-xl leading-none text-white shadow-lg transition active:scale-95 ${variant === "photo" ? "left-3" : "right-3"}`}
-        style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
-        aria-label="Close media preview">
-        <span aria-hidden="true">×</span>
-      </button>
-
-      {variant === "gallery" ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent px-4 pb-10"
-          style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-          <div className="pr-14">
-            <div className="flex min-w-0 items-center gap-2.5">
-              {avatarUrl ? <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/15" /> : null}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{title}</p>
-                {subtitle ? <p className="mt-0.5 truncate text-xs text-white/60">{subtitle}</p> :
-                  items.length > 1 ? <p className="mt-0.5 text-xs text-white/60">{index + 1} / {items.length}</p> : null}
-              </div>
+      <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent px-3 pb-12"
+        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
+        <button type="button" onClick={dismiss}
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
+          aria-label="Back from media preview">
+          <ArrowLeft size={22} />
+        </button>
+        <div className="min-w-0 flex-1 px-3 pt-1">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {avatarUrl ? <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/15" /> : null}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{title}</p>
+              {subtitle ? <p className="mt-0.5 truncate text-xs text-white/60">{subtitle}</p> :
+                items.length > 1 ? <p className="mt-0.5 text-xs text-white/60">{index + 1} / {items.length}</p> : null}
             </div>
           </div>
         </div>
-      ) : null}
+        <div className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={() => { window.open(src, "_blank", "noopener,noreferrer"); }}
+            className="grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
+            aria-label="Open media">
+            <Download size={20} />
+          </button>
+          {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
+            <button type="button" onClick={() => void navigator.share({ title, text: subtitle, url: src }).catch(() => undefined)}
+              className="grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
+              aria-label="Share media">
+              <Share2 size={19} />
+            </button>
+          ) : null}
+        </div>
+      </div>
 
       <main {...paging} data-media-stage
         className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
