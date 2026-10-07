@@ -228,6 +228,7 @@ test("media viewer keeps one coherent full-screen shell with safe navigation act
     read("src/components/MediaViewer.tsx"),
     read("src/components/ZoomablePhoto.tsx"),
     read("src/components/VideoPlayer.tsx"),
+    read("src/components/PropertyMediaCarousel.tsx"),
   ]);
   assert.match(viewer, /Back from media preview/);
   assert.match(viewer, /navigator\.share/);\n  assert.match(viewer, /ExternalLink/);
