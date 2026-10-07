@@ -1,5 +1,5 @@
 import { Camera, FileText, Image as ImageIcon, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { CHAT_MEDIA_ACCEPT } from "@/lib/chatMediaPolicy";
 
 type Props = { onFiles: (files: FileList | null) => void; disabled?: boolean };
@@ -17,7 +17,7 @@ export default function ChatAttachmentPicker({ onFiles, disabled = false }: Prop
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  function pick(ref: React.RefObject<HTMLInputElement | null>) {
+  function pick(ref: RefObject<HTMLInputElement | null>) {
     setOpen(false);
     window.setTimeout(() => ref.current?.click(), 0);
   }
