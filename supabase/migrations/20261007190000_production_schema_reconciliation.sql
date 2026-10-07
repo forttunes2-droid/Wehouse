@@ -2496,11 +2496,2519 @@ declare
   v_platform_max integer:=90;
   v_cancellation jsonb:='{}'::jsonb;
 begin
+  -- Keep the hot text-key lookup indexable at multi-million catalog scale.
+  select * into v_listing
+  from public.listings l
+  where l.listing_id=p_listing_id
+    and l.deleted_at is null
+  limit 1;
+  -- UUID callers retain canonical-id compatibility without forcing an OR/cast
+  -- across the entire listings table.
+  if v_listing.id is null and p_listing_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+  select coalesce(nullif(btrim(p.full_name),''),nullif(btrim(p.username),''))
+  into v_partner_name
+  from public.profiles p
+  where p.user_id=coalesce(v_listing.partner_id,v_listing.owner_id);
+
+  select * into v_actor
+  from public.profiles p
+  where p.auth_id=(select auth.uid())::text
+    and not coalesce(p.deleted,false)
+    and not coalesce(p.suspended,false)
+    and not coalesce(p.banned,false)
+  limit 1;
+
+  if v_actor.user_id is not null then
+    v_internal:=public.current_actor_can_manage_property(v_listing.id)
+      or public.current_actor_has_workspace('creator',null)
+      or (
+        public.current_actor_has_workspace('admin',v_listing.state)
+        and public.current_actor_in_scope(v_listing.state,v_listing.city)
+      )
+      or (
+        public.current_staff_has_permission('operations')
+        and public.current_actor_in_scope(v_listing.state,v_listing.city)
+      );
+  end if;
+
+  if not v_internal and not (
+    v_listing.status='available'
+    and v_listing.availability_status='available'
+    and v_listing.inspection_request_id is not null
+    and v_listing.approved_at is not null
+  ) then return null; end if;
+
+  if v_listing.sub_type='short_let' then
+    select coalesce(nullif(value,'')::integer,1) into v_platform_min
+    from public.platform_settings
+    where key='short_stay_min_nights' and coalesce(is_active,true) limit 1;
+    select coalesce(nullif(value,'')::integer,90) into v_platform_max
+    from public.platform_settings
+    where key='short_stay_max_nights' and coalesce(is_active,true) limit 1;
+    select p.value into v_cancellation
+    from public.creator_policy_versions p
+    where p.policy_key='short_let_cancellation'
+      and p.scope_type='global' and p.scope_key='*' and p.status='active'
+      and p.effective_from<=now()
+      and (p.effective_until is null or p.effective_until>now())
+    order by p.effective_from desc,p.version desc limit 1;
+    v_platform_min:=greatest(coalesce(v_platform_min,1),1);
+    v_platform_max:=greatest(coalesce(v_platform_max,90),v_platform_min);
+  end if;
+
+  if v_internal then
+    return to_jsonb(v_listing)||jsonb_build_object(
+      'location_exact',true,
+      'partner_display_name',v_partner_name,
+      'minimum_stay_nights',case when v_listing.sub_type='short_let' then
+        greatest(coalesce(v_listing.minimum_stay_nights,v_platform_min),v_platform_min) else null end,
+      'maximum_stay_nights',case when v_listing.sub_type='short_let' then
+        greatest(
+          least(coalesce(v_listing.maximum_stay_nights,v_platform_max),v_platform_max),
+          greatest(coalesce(v_listing.minimum_stay_nights,v_platform_min),v_platform_min)
+        ) else null end,
+      'standard_cancellation',v_cancellation
+    );
+  end if;
+
+  return jsonb_build_object(
+    'id',v_listing.id,
+    'listing_id',v_listing.listing_id,
+    'title',v_listing.title,
+    'description',v_listing.description,
+    'price',v_listing.price,
+    'currency',v_listing.currency,
+    'state',v_listing.state,
+    'city',v_listing.city,
+    'address',v_listing.address,
+    'images',coalesce(v_listing.images,array[]::text[]),
+    'videos',coalesce(v_listing.videos,array[]::text[]),
+    'bedrooms',v_listing.bedrooms,
+    'bathrooms',v_listing.bathrooms,
+    'availability_status',v_listing.availability_status,
+    'status',v_listing.status,
+    'property_type',v_listing.property_type,
+    'sub_type',v_listing.sub_type,
+    'security_deposit_amount',v_listing.security_deposit_amount,
+    'max_guests',v_listing.max_guests,
+    'pets_allowed',v_listing.pets_allowed,
+    'max_occupants',v_listing.max_occupants,
+    'future_installments_allowed',v_listing.future_installments_allowed,
+    'minimum_stay_nights',case when v_listing.sub_type='short_let' then
+      greatest(coalesce(v_listing.minimum_stay_nights,v_platform_min),v_platform_min) else null end,
+    'maximum_stay_nights',case when v_listing.sub_type='short_let' then
+      greatest(
+        least(coalesce(v_listing.maximum_stay_nights,v_platform_max),v_platform_max),
+        greatest(coalesce(v_listing.minimum_stay_nights,v_platform_min),v_platform_min)
+      ) else null end,
+    'non_refundable_rate_enabled',v_listing.non_refundable_rate_enabled,
+    'non_refundable_discount_percent',v_listing.non_refundable_discount_percent,
+    'standard_cancellation',v_cancellation,
+    'rating',v_listing.rating,
+    'review_count',v_listing.review_count,
+    'amenities',coalesce(v_listing.amenities,array[]::text[]),
+    'created_at',v_listing.created_at,
+    'updated_at',v_listing.updated_at,
+    'gps_latitude',null,
+    'gps_longitude',null,
+    'location_accuracy_m',null,
+    'location_exact',false,
+    'partner_display_name',v_partner_name
+  );
+end
+$function$;
+revoke all on function public.get_public_listing_detail(p_listing_id text) from public, anon, authenticated, service_role;
+
+grant execute on function public.get_public_listing_detail(p_listing_id text) to service_role;
+grant execute on function public.get_public_listing_detail(p_listing_id text) to anon;
+grant execute on function public.get_public_listing_detail(p_listing_id text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_short_let_date_availability(p_listing_id text, p_check_in date, p_check_out date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_listing public.listings;
+  v_platform_min integer:=1;
+  v_platform_max integer:=90;
+  v_min_nights integer;
+  v_max_nights integer;
+  v_advance_days integer:=365;
+  v_nights integer;
+  v_available boolean:=false;
+  v_reason text;
+begin
   select * into v_listing
   from public.listings l
   where (l.id::text=p_listing_id or l.listing_id=p_listing_id)
+    and l.sub_type='short_let'
     and l.deleted_at is null
+    and l.inspection_request_id is not null
+    and l.approved_at is not null
   limit 1;
+
+  if v_listing.id is null then
+    return jsonb_build_object('available',false,'reason','not_found');
+  end if;
+  if v_listing.status<>'available' or v_listing.availability_status<>'available'
+     or v_listing.host_booking_paused then
+    return jsonb_build_object('available',false,'reason','not_published');
+  end if;
+
+  select coalesce(nullif(value,'')::integer,1) into v_platform_min
+  from public.platform_settings
+  where key='short_stay_min_nights' and coalesce(is_active,true) limit 1;
+  select coalesce(nullif(value,'')::integer,90) into v_platform_max
+  from public.platform_settings
+  where key='short_stay_max_nights' and coalesce(is_active,true) limit 1;
+  select coalesce(nullif(value,'')::integer,365) into v_advance_days
+  from public.platform_settings
+  where key='short_stay_booking_advance_days' and coalesce(is_active,true) limit 1;
+
+  v_platform_min:=greatest(coalesce(v_platform_min,1),1);
+  v_platform_max:=greatest(coalesce(v_platform_max,90),v_platform_min);
+  v_min_nights:=greatest(coalesce(v_listing.minimum_stay_nights,v_platform_min),v_platform_min);
+  v_max_nights:=least(coalesce(v_listing.maximum_stay_nights,v_platform_max),v_platform_max);
+  v_max_nights:=greatest(v_max_nights,v_min_nights);
+  v_advance_days:=greatest(coalesce(v_advance_days,365),v_max_nights);
+
+  if p_check_in is null or p_check_out is null
+     or p_check_in<timezone('Africa/Lagos',now())::date
+     or p_check_out<=p_check_in then
+    v_reason:='invalid_dates';
+  elsif p_check_in>timezone('Africa/Lagos',now())::date+v_advance_days
+     or p_check_out>timezone('Africa/Lagos',now())::date+v_advance_days then
+    v_reason:='outside_booking_window';
+  else
+    v_nights:=p_check_out-p_check_in;
+    if v_nights<v_min_nights or v_nights>v_max_nights then
+      v_reason:='invalid_length';
+    elsif exists(
+      select 1 from public.property_host_date_blocks b
+      where b.listing_id=v_listing.id and b.reopened_at is null
+        and daterange(b.start_date,b.reopen_date,'[)')
+          && daterange(p_check_in,p_check_out,'[)')
+    ) then
+      v_reason:='dates_unavailable';
+    elsif exists(
+      select 1 from public.reservations r
+      where r.listing_id=v_listing.id::text
+        and r.stay_type='short_let'
+        and r.status=any(array['reserved','ready_for_move_in','occupied']::text[])
+        and daterange(r.stay_check_in,r.stay_check_out,'[)')
+          && daterange(p_check_in,p_check_out,'[)')
+    ) then
+      v_reason:='dates_unavailable';
+    else
+      v_available:=true;
+      v_reason:='available';
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'available',v_available,
+    'reason',v_reason,
+    'nights',case when p_check_in is not null and p_check_out is not null
+      then p_check_out-p_check_in else null end,
+    'min_nights',v_min_nights,
+    'max_nights',v_max_nights
+  );
+end
+$function$;
+revoke all on function public.get_short_let_date_availability(p_listing_id text, p_check_in date, p_check_out date) from public, anon, authenticated, service_role;
+
+grant execute on function public.get_short_let_date_availability(p_listing_id text, p_check_in date, p_check_out date) to service_role;
+grant execute on function public.get_short_let_date_availability(p_listing_id text, p_check_in date, p_check_out date) to anon;
+grant execute on function public.get_short_let_date_availability(p_listing_id text, p_check_in date, p_check_out date) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.guard_accommodation_release_outbox()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_deadline timestamptz; v_open_issue boolean; v_state text;
+  v_approved_no_show boolean:=false;
+begin
+  if new.action_type not in('release_short_let_stay','release_hotel_stay') then return new; end if;
+  if new.status<>'pending' then return new; end if;
+  select exists(
+    select 1 from public.accommodation_no_show_reviews review
+    where review.subject_type=new.subject_type and review.subject_id=new.subject_id
+      and review.status='approved'
+      and new.idempotency_key='approved-no-show-release:'||review.no_show_review_id
+  ) into v_approved_no_show;
+  if new.action_type='release_short_let_stay' then
+    select reservation.arrival_issue_deadline_at,
+      exists(select 1 from public.operational_cases case_row
+        where case_row.subject_type='short_let' and case_row.subject_id=reservation.id
+          and case_row.status not in('resolved','closed'))
+    into v_deadline,v_open_issue from public.reservations reservation
+    where reservation.id=new.subject_id;
+  else
+    select booking.arrival_issue_deadline_at,
+      exists(select 1 from public.operational_cases case_row
+        where case_row.subject_type='hotel' and case_row.subject_id=booking.booking_id::text
+          and case_row.status not in('resolved','closed'))
+    into v_deadline,v_open_issue from public.hotel_bookings booking
+    where booking.booking_id::text=new.subject_id;
+  end if;
+  select protection_state into v_state from public.payment_protection_transactions
+  where id=new.payment_protection_id;
+  if coalesce(v_open_issue,false) or v_state not in('protected','release_eligible') then
+    return null;
+  end if;
+  if not v_approved_no_show and (v_deadline is null or now()<v_deadline) then return null; end if;
+  return new;
+end
+$function$;
+revoke all on function public.guard_accommodation_release_outbox() from public, anon, authenticated, service_role;
+
+grant execute on function public.guard_accommodation_release_outbox() to service_role;
+
+CREATE OR REPLACE FUNCTION public.invite_property_host_manager(p_listing_id uuid, p_username text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_target public.profiles;
+  v_listing public.listings;
+  v_assignment public.property_host_assignments;
+begin
+  select l.* into v_listing
+  from public.listings l
+  where l.id=p_listing_id
+    and l.deleted_at is null
+    and exists(
+      select 1 from public.property_host_assignments a
+      where a.listing_id=l.id
+        and a.user_id=v_actor
+        and a.assignment_role='owner'
+        and a.status='active'
+    )
+  for update;
+
+  if v_listing.id is null then
+    raise exception 'Only the property owner can invite a co-host';
+  end if;
+
+  if v_listing.approved_at is null
+     or v_listing.status not in ('available','unavailable','reserved','occupied','maintenance','closed') then
+    raise exception 'Co-hosts can be added after this home is published';
+  end if;
+
+  if v_listing.management_updated_at is null or v_listing.management_mode<>'host' then
+    raise exception 'Choose Host manages before inviting a co-host';
+  end if;
+
+  select * into v_target
+  from public.profiles
+  where lower(username)=lower(btrim(p_username))
+    and not coalesce(deleted,false)
+    and not coalesce(suspended,false)
+    and not coalesce(banned,false)
+  limit 1;
+
+  if v_target.user_id is null or v_target.user_id=v_actor then
+    raise exception 'Choose another existing WeHouse user';
+  end if;
+
+  if not public.user_has_active_workspace(v_target.user_id,'property_partner') then
+    raise exception 'That user must activate a Property Partner workspace first';
+  end if;
+
+  insert into public.property_host_assignments(
+    listing_id,user_id,assignment_role,status,invited_by,invited_at,accepted_at,revoked_at,updated_at
+  ) values(
+    p_listing_id,v_target.user_id,'manager','invited',v_actor,now(),null,null,now()
+  )
+  on conflict(listing_id,user_id) do update set
+    assignment_role='manager',
+    status='invited',
+    invited_by=v_actor,
+    invited_at=now(),
+    accepted_at=null,
+    revoked_at=null,
+    updated_at=now()
+  returning * into v_assignment;
+
+  return jsonb_build_object(
+    'success',true,
+    'assignment_id',v_assignment.assignment_id,
+    'user_id',v_target.user_id,
+    'username',v_target.username,
+    'status',v_assignment.status
+  );
+end
+$function$;
+revoke all on function public.invite_property_host_manager(p_listing_id uuid, p_username text) from public, anon, authenticated, service_role;
+
+grant execute on function public.invite_property_host_manager(p_listing_id uuid, p_username text) to service_role;
+grant execute on function public.invite_property_host_manager(p_listing_id uuid, p_username text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.partner_save_hotel_rate_plan(p_rate_plan_id integer, p_room_id integer, p_name text, p_description text, p_meal_plan text, p_payment_timing text, p_refundable boolean, p_cancellation_hours integer, p_price_per_night integer, p_included_features text[], p_active boolean DEFAULT true)
+ RETURNS hotel_rate_plans
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_room public.hotel_rooms; v_plan public.hotel_rate_plans;
+  v_before jsonb:='{}'::jsonb; v_actor text:=public.current_profile_user_id();
+  v_policy public.creator_policy_versions; v_template text;
+  v_hours integer;
+begin
+  select * into v_room from public.hotel_rooms where room_id=p_room_id;
+  if v_room.room_id is null then raise exception 'Room type not found'; end if;
+  if not public.hotel_actor_has_capability(v_room.hotel_id,'hotel.rate.manage') then
+    raise exception 'Hotel rate capability required';
+  end if;
+  if nullif(btrim(p_name),'') is null or coalesce(p_price_per_night,0)<=0 then
+    raise exception 'Package name and nightly price are required';
+  end if;
+  if p_meal_plan not in('room_only','breakfast','half_board','full_board','all_inclusive') then
+    raise exception 'Choose a valid meal plan';
+  end if;
+  if p_payment_timing<>'pay_now' then
+    raise exception 'Current hotel packages require WeHouse secure payment';
+  end if;
+  v_template:=case when coalesce(p_refundable,false) then 'standard'
+    else 'non_refundable' end;
+  select * into v_policy from public.creator_policy_versions
+  where policy_key=case when v_template='standard'
+      then 'hotel_standard_cancellation' else 'accommodation_non_refundable_rate' end
+    and scope_type='global' and scope_key='*' and status='active'
+    and effective_from<=now() and (effective_until is null or effective_until>now())
+  order by effective_from desc,version desc limit 1;
+  if v_policy.policy_version_id is null then
+    raise exception 'Creator-approved cancellation terms are unavailable';
+  end if;
+  v_hours:=case when v_template='standard'
+    then (v_policy.value->>'full_refund_hours_before_check_in')::integer else null end;
+  if p_rate_plan_id is not null and not coalesce(p_active,true) and not exists(
+    select 1 from public.hotel_rate_plans plan
+    where plan.room_id=v_room.room_id and plan.active
+      and plan.rate_plan_id<>p_rate_plan_id
+  ) then raise exception 'A room must keep at least one visible package'; end if;
+  if p_rate_plan_id is null then
+    insert into public.hotel_rate_plans(
+      hotel_id,room_id,name,description,meal_plan,payment_timing,refundable,
+      cancellation_hours,cancellation_template,cancellation_policy_version_id,
+      price_per_night,included_features,active
+    ) values(
+      v_room.hotel_id,v_room.room_id,btrim(p_name),
+      nullif(btrim(coalesce(p_description,'')),''),p_meal_plan,'pay_now',
+      v_template='standard',v_hours,v_template,v_policy.policy_version_id,
+      p_price_per_night,coalesce(p_included_features,array[]::text[]),
+      coalesce(p_active,true)
+    ) returning * into v_plan;
+  else
+    select to_jsonb(plan) into v_before from public.hotel_rate_plans plan
+    where plan.rate_plan_id=p_rate_plan_id and plan.room_id=v_room.room_id;
+    update public.hotel_rate_plans set
+      name=btrim(p_name),description=nullif(btrim(coalesce(p_description,'')),''),
+      meal_plan=p_meal_plan,payment_timing='pay_now',refundable=v_template='standard',
+      cancellation_hours=v_hours,cancellation_template=v_template,
+      cancellation_policy_version_id=v_policy.policy_version_id,
+      price_per_night=p_price_per_night,
+      included_features=coalesce(p_included_features,array[]::text[]),
+      active=coalesce(p_active,true),updated_at=now()
+    where rate_plan_id=p_rate_plan_id and room_id=v_room.room_id
+    returning * into v_plan;
+    if v_plan.rate_plan_id is null then raise exception 'Package not found for this room'; end if;
+  end if;
+  insert into public.hotel_commercial_change_audit(
+    hotel_id,actor_user_id,action,target_type,target_id,before_values,after_values
+  ) values(
+    v_room.hotel_id,v_actor,
+    case when p_rate_plan_id is null then 'future_rate_plan_created'
+      else 'future_rate_plan_updated' end,
+    'hotel_rate_plan',v_plan.rate_plan_id::text,coalesce(v_before,'{}'::jsonb),to_jsonb(v_plan)
+  );
+  return v_plan;
+end
+$function$;
+revoke all on function public.partner_save_hotel_rate_plan(p_rate_plan_id integer, p_room_id integer, p_name text, p_description text, p_meal_plan text, p_payment_timing text, p_refundable boolean, p_cancellation_hours integer, p_price_per_night integer, p_included_features text[], p_active boolean) from public, anon, authenticated, service_role;
+
+grant execute on function public.partner_save_hotel_rate_plan(p_rate_plan_id integer, p_room_id integer, p_name text, p_description text, p_meal_plan text, p_payment_timing text, p_refundable boolean, p_cancellation_hours integer, p_price_per_night integer, p_included_features text[], p_active boolean) to service_role;
+grant execute on function public.partner_save_hotel_rate_plan(p_rate_plan_id integer, p_room_id integer, p_name text, p_description text, p_meal_plan text, p_payment_timing text, p_refundable boolean, p_cancellation_hours integer, p_price_per_night integer, p_included_features text[], p_active boolean) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.process_verified_paystack_charge(p_provider_event_key text, p_event_type text, p_provider_reference text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text, p_transaction_id text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_event public.verified_provider_events;
+  v_payment public.booking_payments;
+  v_result jsonb;
+  v_amount numeric(18,2);
+  v_payer text;
+  v_payee text;
+  v_subject_type text;
+  v_subject_id text;
+  v_component text;
+  v_rate numeric:=0;
+  v_policy_id uuid;
+  v_protection public.payment_protection_transactions;
+  v_stay_protection public.payment_protection_transactions;
+  v_caution_protection public.payment_protection_transactions;
+  v_reservation public.reservations;
+  v_listing public.listings;
+  v_hotel_booking public.hotel_bookings;
+  v_group public.shared_housing_groups;
+  v_stay_amount numeric(18,2):=0;
+  v_caution_amount numeric(18,2):=0;
+  v_entries jsonb;
+  v_liability_total numeric(18,2):=0;
+  v_ledger_transaction_id uuid;
+  v_error text;
+begin
+  if (select auth.role())<>'service_role' then
+    raise exception 'service role required';
+  end if;
+  if p_event_type<>'charge.success'
+    or nullif(btrim(p_provider_event_key),'') is null
+    or nullif(btrim(p_provider_reference),'') is null
+    or p_payload_sha256 !~ '^[0-9a-f]{64}$'
+    or p_signature_verified_at is null
+    or p_amount_minor<=0
+    or upper(p_currency)<>'NGN'
+  then raise exception 'Invalid verified Paystack charge'; end if;
+  v_amount:=round((p_amount_minor::numeric/100)::numeric,2);
+
+  insert into public.verified_provider_events(
+    provider,provider_event_key,event_type,provider_reference,payload_sha256,
+    signature_verified_at,processing_status
+  ) values(
+    'paystack',p_provider_event_key,p_event_type,p_provider_reference,
+    lower(p_payload_sha256),p_signature_verified_at,'received'
+  ) on conflict do nothing;
+
+  select * into v_event
+  from public.verified_provider_events
+  where provider='paystack'
+    and event_type=p_event_type
+    and provider_reference=p_provider_reference
+  for update;
+  if v_event.provider_event_id is null then
+    raise exception 'Provider event could not be registered';
+  end if;
+  if v_event.provider_event_key<>p_provider_event_key
+    or v_event.payload_sha256<>lower(p_payload_sha256) then
+    raise exception 'Provider event replay does not match the verified receipt';
+  end if;
+  if v_event.processing_status='processed' then
+    return jsonb_build_object(
+      'success',true,'already_processed',true,
+      'provider_event_id',v_event.provider_event_id
+    );
+  end if;
+
+  select * into v_payment from public.booking_payments
+  where paystack_reference=p_provider_reference for update;
+  if v_payment.id is null then
+    update public.verified_provider_events
+    set processing_status='ignored',processed_at=now(),
+        processing_error='No matching WeHouse payment reference'
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object('success',true,'ignored',true);
+  end if;
+  if round(coalesce(v_payment.amount_total,v_payment.amount,0)::numeric*100)
+      <>p_amount_minor then
+    update public.verified_provider_events
+    set processing_status='failed',processed_at=now(),
+        processing_error='Verified amount does not match the payment request'
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object('success',false,'error','Amount mismatch');
+  end if;
+  if upper(coalesce(v_payment.currency,'NGN'))<>'NGN' then
+    update public.verified_provider_events
+    set processing_status='failed',processed_at=now(),
+        processing_error='Verified currency does not match the payment request'
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object('success',false,'error','Currency mismatch');
+  end if;
+
+  if v_payment.purpose='worker_booking' then
+    select (p.value->>'percent')::numeric,p.policy_version_id
+    into v_rate,v_policy_id from public.creator_policy_versions p
+    where p.policy_key='commission_worker' and p.scope_type='global'
+      and p.scope_key='*' and p.status='active'
+      and p.effective_from<=now()
+      and (p.effective_until is null or p.effective_until>now())
+    order by p.effective_from desc limit 1;
+    if v_rate is null or v_rate<0 or v_rate>50 then
+      raise exception 'Active Creator Worker commission is required';
+    end if;
+    update public.platform_settings
+    set value=v_rate::text,editable=false,is_active=true,updated_at=now()
+    where key='worker_commission_rate';
+  end if;
+
+  begin
+    if v_payment.purpose='worker_booking' then
+      if v_payment.worker_booking_id is null then
+        raise exception 'Worker booking link is missing';
+      end if;
+      v_result:=public.confirm_worker_booking_payment(
+        v_payment.worker_booking_id,p_provider_reference,v_amount,'NGN',p_transaction_id
+      );
+    elsif v_payment.purpose='shared_housing_share' then
+      v_result:=public.confirm_shared_housing_payment(
+        p_provider_reference,p_transaction_id,v_amount
+      );
+    elsif v_payment.purpose in(
+      'apartment_reservation','apartment_rent','rent_plan_contribution',
+      'hotel_booking','worker_verification'
+    ) then
+      v_result:=public.confirm_booking_payment(
+        p_provider_reference,p_transaction_id,v_amount,'webhook',v_payment.purpose
+      );
+    else
+      raise exception 'Unsupported payment purpose: %',coalesce(v_payment.purpose,'missing');
+    end if;
+    if not coalesce((v_result->>'success')::boolean,false) then
+      raise exception '%',coalesce(v_result->>'error','Lifecycle payment confirmation failed');
+    end if;
+
+    v_payer:=coalesce(v_payment.payer_user_id,v_payment.user_id);
+    v_payee:=v_payment.payee_user_id;
+    v_component:=coalesce(v_payment.metadata->>'payment_component','');
+
+    if v_payment.listing_id is not null then
+      select * into v_listing from public.listings
+      where id::text=v_payment.listing_id limit 1;
+      v_payee:=coalesce(v_payee,v_listing.partner_id,v_listing.owner_id);
+    end if;
+
+    if v_payment.purpose='worker_booking' then
+      select * into v_protection
+      from public.payment_protection_transactions
+      where booking_type='worker_booking'
+        and booking_id=v_payment.worker_booking_id
+      for update;
+      if v_protection.id is null then
+        raise exception 'Worker payment did not create Payment Protection';
+      end if;
+      update public.payment_protection_transactions
+      set subject_type='worker_booking',subject_id=v_payment.worker_booking_id::text,
+          amount_commission=round(v_amount*v_rate/100,2),
+          amount_payee=v_amount-round(v_amount*v_rate/100,2),
+          commission_rate=v_rate,updated_at=now()
+      where id=v_protection.id returning * into v_protection;
+      update public.worker_bookings
+      set payment_protection_id=v_protection.id,policy_version_id=v_policy_id,
+          wehouse_fee=v_protection.amount_commission,
+          worker_commission=v_protection.amount_commission,
+          worker_receives=v_protection.amount_payee,updated_at=now()
+      where id=v_payment.worker_booking_id;
+
+    elsif v_payment.purpose='apartment_rent' then
+      select * into v_reservation from public.reservations
+      where id=v_payment.metadata->>'reservation_id' for update;
+      if v_reservation.id is null then raise exception 'Reservation link is missing'; end if;
+      if v_listing.id is null then
+        select * into v_listing from public.listings
+        where id::text=v_reservation.listing_id limit 1;
+        v_payee:=coalesce(v_payee,v_listing.partner_id,v_listing.owner_id);
+      end if;
+      if v_payee is null then raise exception 'Property payee is missing'; end if;
+
+      if v_component='short_stay_rent' or v_reservation.stay_type='short_let' then
+        select (p.value->>'percent')::numeric,p.policy_version_id
+        into v_rate,v_policy_id from public.creator_policy_versions p
+        where p.policy_key='commission_short_let' and p.scope_type='global'
+          and p.scope_key='*' and p.status='active'
+          and p.effective_from<=now()
+          and (p.effective_until is null or p.effective_until>now())
+        order by p.effective_from desc limit 1;
+        if v_rate is null or v_rate<0 or v_rate>50 then
+          raise exception 'Active Creator Short Let commission is required';
+        end if;
+        v_stay_amount:=round(coalesce(v_reservation.stay_rent_total,
+          (v_payment.metadata->>'stay_rent_total')::numeric,0),2);
+        v_caution_amount:=round(coalesce(v_reservation.security_deposit_snapshot,
+          (v_payment.metadata->>'security_deposit_amount')::numeric,0),2);
+        if v_stay_amount<=0 or v_stay_amount+v_caution_amount<>v_amount then
+          raise exception 'Short Let stay and Caution split does not match verified money';
+        end if;
+        insert into public.payment_protection_transactions(
+          booking_id,booking_type,payer_user_id,payee_user_id,amount_total,
+          amount_commission,amount_payee,commission_rate,status,
+          paystack_reference,protection_state,subject_type,subject_id
+        ) values(
+          null,'short_let_stay',v_payer,v_payee,v_stay_amount,
+          round(v_stay_amount*v_rate/100,2),
+          v_stay_amount-round(v_stay_amount*v_rate/100,2),v_rate,
+          'protected',p_provider_reference,'awaiting_funds',
+          'short_let_stay',v_reservation.id
+        ) on conflict(subject_type,subject_id) do update
+          set paystack_reference=excluded.paystack_reference,updated_at=now()
+        returning * into v_stay_protection;
+        if v_caution_amount>0 then
+          insert into public.payment_protection_transactions(
+            booking_id,booking_type,payer_user_id,payee_user_id,amount_total,
+            amount_commission,amount_payee,commission_rate,status,
+            paystack_reference,protection_state,subject_type,subject_id
+          ) values(
+            null,'short_let_caution',v_payer,v_payee,v_caution_amount,
+            0,v_caution_amount,0,'protected',p_provider_reference,
+            'awaiting_funds','short_let_caution',v_reservation.id
+          ) on conflict(subject_type,subject_id) do update
+            set paystack_reference=excluded.paystack_reference,updated_at=now()
+          returning * into v_caution_protection;
+        end if;
+        update public.reservations
+        set stay_payment_protection_id=v_stay_protection.id,
+            caution_payment_protection_id=v_caution_protection.id,
+            commission_policy_version_id=v_policy_id,updated_at=now()
+        where id=v_reservation.id;
+      else
+        select (p.value->>'percent')::numeric,p.policy_version_id
+        into v_rate,v_policy_id from public.creator_policy_versions p
+        where p.policy_key='commission_long_let' and p.scope_type='global'
+          and p.scope_key='*' and p.status='active'
+          and p.effective_from<=now()
+          and (p.effective_until is null or p.effective_until>now())
+        order by p.effective_from desc limit 1;
+        if v_rate is null or v_rate<0 or v_rate>50 then
+          raise exception 'Active Creator Long Let commission is required';
+        end if;
+        insert into public.payment_protection_transactions(
+          booking_id,booking_type,payer_user_id,payee_user_id,amount_total,
+          amount_commission,amount_payee,commission_rate,status,
+          paystack_reference,protection_state,subject_type,subject_id
+        ) values(
+          null,'long_let_year_one',v_payer,v_payee,v_amount,
+          round(v_amount*v_rate/100,2),v_amount-round(v_amount*v_rate/100,2),
+          v_rate,'protected',p_provider_reference,'awaiting_funds',
+          'long_let_year_one',v_reservation.id
+        ) on conflict(subject_type,subject_id) do update
+          set paystack_reference=excluded.paystack_reference,updated_at=now()
+        returning * into v_protection;
+        update public.reservations
+        set year_one_rent_protection_id=v_protection.id,
+            commission_policy_version_id=v_policy_id,updated_at=now()
+        where id=v_reservation.id;
+      end if;
+
+    elsif v_payment.purpose='hotel_booking' then
+      select * into v_hotel_booking from public.hotel_bookings
+      where booking_id=v_payment.hotel_booking_id for update;
+      if v_hotel_booking.booking_id is null then raise exception 'Hotel booking is missing'; end if;
+      select h.owner_id into v_payee from public.hotels h
+      where h.hotel_id=v_hotel_booking.hotel_id;
+      if v_payee is null then raise exception 'Hotel payee is missing'; end if;
+      select (p.value->>'percent')::numeric,p.policy_version_id
+      into v_rate,v_policy_id from public.creator_policy_versions p
+      where p.policy_key='commission_hotel' and p.scope_type='global'
+        and p.scope_key='*' and p.status='active'
+        and p.effective_from<=now()
+        and (p.effective_until is null or p.effective_until>now())
+      order by p.effective_from desc limit 1;
+      if v_rate is null or v_rate<0 or v_rate>50 then
+        raise exception 'Active Creator Hotel commission is required';
+      end if;
+      insert into public.payment_protection_transactions(
+        booking_id,booking_type,payer_user_id,payee_user_id,amount_total,
+        amount_commission,amount_payee,commission_rate,status,
+        paystack_reference,protection_state,subject_type,subject_id
+      ) values(
+        null,'hotel_stay',v_payer,v_payee,v_amount,
+        round(v_amount*v_rate/100,2),v_amount-round(v_amount*v_rate/100,2),
+        v_rate,'protected',p_provider_reference,'awaiting_funds',
+        'hotel_stay',v_hotel_booking.booking_id::text
+      ) on conflict(subject_type,subject_id) do update
+        set paystack_reference=excluded.paystack_reference,updated_at=now()
+      returning * into v_protection;
+      update public.hotel_bookings
+      set payment_protection_id=v_protection.id,policy_version_id=v_policy_id,
+          updated_at=now()
+      where booking_id=v_hotel_booking.booking_id;
+
+    elsif v_payment.purpose='shared_housing_share'
+      and coalesce(v_payment.metadata->>'payment_phase','')<>'reservation_fee' then
+      select g.* into v_group from public.shared_housing_groups g
+      where g.id=(v_payment.metadata->>'shared_group_id')::uuid;
+      if v_group.id is null then raise exception 'Shared payment group is missing'; end if;
+      select * into v_listing from public.listings where id=v_group.listing_id;
+      v_payee:=coalesce(v_listing.partner_id,v_listing.owner_id);
+      if v_payee is null then raise exception 'Shared payment payee is missing'; end if;
+      if v_listing.sub_type='short_let' then
+        select (p.value->>'percent')::numeric,p.policy_version_id
+        into v_rate,v_policy_id from public.creator_policy_versions p
+        where p.policy_key='commission_short_let' and p.scope_type='global'
+          and p.scope_key='*' and p.status='active'
+          and p.effective_from<=now()
+          and (p.effective_until is null or p.effective_until>now())
+        order by p.effective_from desc limit 1;
+        if v_rate is null or v_rate<0 or v_rate>50 then
+          raise exception 'Active Creator Short Let commission is required';
+        end if;
+      else
+        select (p.value->>'percent')::numeric,p.policy_version_id
+        into v_rate,v_policy_id from public.creator_policy_versions p
+        where p.policy_key='commission_long_let' and p.scope_type='global'
+          and p.scope_key='*' and p.status='active'
+          and p.effective_from<=now()
+          and (p.effective_until is null or p.effective_until>now())
+        order by p.effective_from desc limit 1;
+        if v_rate is null or v_rate<0 or v_rate>50 then
+          raise exception 'Active Creator Long Let commission is required';
+        end if;
+      end if;
+      insert into public.payment_protection_transactions(
+        booking_id,booking_type,payer_user_id,payee_user_id,amount_total,
+        amount_commission,amount_payee,commission_rate,status,
+        paystack_reference,protection_state,subject_type,subject_id
+      ) values(
+        null,'shared_housing_share',v_payer,v_payee,v_amount,
+        round(v_amount*v_rate/100,2),v_amount-round(v_amount*v_rate/100,2),
+        v_rate,'protected',p_provider_reference,'awaiting_funds',
+        'shared_housing_share',v_payment.metadata->>'shared_member_id'
+      ) on conflict(subject_type,subject_id) do update
+        set paystack_reference=excluded.paystack_reference,updated_at=now()
+      returning * into v_protection;
+    end if;
+
+    v_entries:=jsonb_build_array(jsonb_build_object(
+      'account_key','asset:paystack_clearing:NGN','account_class','asset',
+      'amount',v_amount,'memo','Paystack verified charge'
+    ));
+    for v_protection in
+      select p.* from public.payment_protection_transactions p
+      where p.paystack_reference=p_provider_reference
+        and p.subject_type in(
+          'worker_booking','long_let_year_one','short_let_stay',
+          'short_let_caution','hotel_stay','shared_housing_share'
+        )
+      order by p.subject_type,p.id
+    loop
+      v_entries:=v_entries||jsonb_build_array(jsonb_build_object(
+        'account_key','liability:payment_protection:'||v_protection.id::text,
+        'account_class','liability','owner_type',v_protection.subject_type,
+        'owner_id',v_protection.subject_id,'amount',-v_protection.amount_total,
+        'memo','Protected customer funds'
+      ));
+      v_liability_total:=v_liability_total+v_protection.amount_total;
+    end loop;
+    if v_liability_total>v_amount then
+      raise exception 'Payment Protection allocation exceeds verified money';
+    end if;
+    if v_liability_total<v_amount then
+      v_entries:=v_entries||jsonb_build_array(jsonb_build_object(
+        'account_key',case
+          when v_payment.purpose='apartment_reservation'
+            or (v_payment.purpose='shared_housing_share'
+              and v_payment.metadata->>'payment_phase'='reservation_fee')
+            then 'liability:unearned_reservation_fee:'||v_payment.id::text
+          when v_payment.purpose='rent_plan_contribution'
+            then 'liability:partner_payable:'||coalesce(v_payee,'unresolved')
+          else 'liability:customer_funds:'||v_payment.id::text end,
+        'account_class','liability','owner_type','booking_payment',
+        'owner_id',v_payment.id::text,'amount',-(v_amount-v_liability_total),
+        'memo','Unreleased customer funds'
+      ));
+    end if;
+
+    v_ledger_transaction_id:=public.post_ledger_transaction(
+      'paystack-charge:'||p_provider_reference,'provider_charge','NGN',
+      'booking_payment',v_payment.id::text,v_event.provider_event_id,
+      jsonb_build_object(
+        'provider','paystack','provider_reference',p_provider_reference,
+        'purpose',v_payment.purpose,'payer_user_id',v_payer
+      ),v_entries
+    );
+
+    for v_protection in
+      select p.* from public.payment_protection_transactions p
+      where p.paystack_reference=p_provider_reference
+        and p.subject_type in(
+          'worker_booking','long_let_year_one','short_let_stay',
+          'short_let_caution','hotel_stay','shared_housing_share'
+        )
+      order by p.subject_type,p.id
+    loop
+      update public.payment_protection_transactions
+      set protected_ledger_transaction_id=v_ledger_transaction_id,updated_at=now()
+      where id=v_protection.id;
+      if v_protection.protection_state='awaiting_funds' then
+        perform public.transition_payment_protection(
+          v_protection.id,'protected','provider_charge_verified',
+          'paystack-protected:'||p_provider_reference||':'||v_protection.id::text,
+          null,'paystack',null,v_ledger_transaction_id,
+          jsonb_build_object('provider_event_id',v_event.provider_event_id)
+        );
+      elsif v_protection.protection_state<>'protected' then
+        raise exception 'Existing Payment Protection is not awaiting funds';
+      end if;
+    end loop;
+
+    update public.verified_provider_events
+    set processing_status='processed',processed_at=now(),processing_error=null
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object(
+      'success',true,'provider_event_id',v_event.provider_event_id,
+      'ledger_transaction_id',v_ledger_transaction_id,
+      'lifecycle_result',v_result
+    );
+  exception when others then
+    get stacked diagnostics v_error=message_text;
+    update public.verified_provider_events
+    set processing_status='failed',processed_at=now(),
+        processing_error=left(v_error,500)
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object('success',false,'error','Verified payment requires retry or Finance review');
+  end;
+end
+$function$;
+revoke all on function public.process_verified_paystack_charge(p_provider_event_key text, p_event_type text, p_provider_reference text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text, p_transaction_id text) from public, anon, authenticated, service_role;
+
+grant execute on function public.process_verified_paystack_charge(p_provider_event_key text, p_event_type text, p_provider_reference text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text, p_transaction_id text) to service_role;
+
+CREATE OR REPLACE FUNCTION public.process_verified_paystack_refund_event(p_provider_event_key text, p_event_type text, p_original_reference text, p_refund_reference text, p_provider_refund_id text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_event public.verified_provider_events;
+  v_action public.financial_action_outbox;
+  v_protection public.payment_protection_transactions;
+  v_amount numeric(12,2);
+  v_match_count integer;
+  v_ledger uuid;
+  v_new_released numeric(12,2);
+  v_new_refunded numeric(12,2);
+  v_to_state text;
+begin
+  if (select auth.role())<>'service_role' then raise exception 'service role required'; end if;
+  if p_event_type not in(
+    'refund.pending','refund.processing','refund.needs-attention',
+    'refund.failed','refund.processed'
+  ) or nullif(btrim(p_provider_event_key),'') is null
+    or nullif(btrim(p_original_reference),'') is null
+    or p_payload_sha256 !~ '^[0-9a-f]{64}$'
+    or p_amount_minor<=0 or upper(p_currency)<>'NGN' then
+    raise exception 'Invalid verified Paystack refund event'; end if;
+  v_amount:=round(p_amount_minor::numeric/100,2);
+  insert into public.verified_provider_events(
+    provider,provider_event_key,event_type,provider_reference,payload_sha256,
+    signature_verified_at,processing_status
+  ) values(
+    'paystack',p_provider_event_key,p_event_type,
+    coalesce(nullif(btrim(p_refund_reference),''),p_provider_event_key),
+    lower(p_payload_sha256),p_signature_verified_at,'received'
+  ) on conflict do nothing;
+  select * into v_event from public.verified_provider_events
+  where provider='paystack' and provider_event_key=p_provider_event_key for update;
+  if v_event.provider_event_id is null then raise exception 'Refund event was not registered'; end if;
+  if v_event.payload_sha256<>lower(p_payload_sha256) then
+    raise exception 'Refund event replay checksum mismatch'; end if;
+  if v_event.processing_status='processed' then
+    return jsonb_build_object('success',true,'already_processed',true); end if;
+
+  select count(*) into v_match_count
+  from public.financial_action_outbox a
+  join public.payment_protection_transactions p on p.id=a.payment_protection_id
+  where a.action_type like 'refund_%'
+    and a.status in('provider_pending','provider_attention')
+    and p.paystack_reference=p_original_reference
+    and a.amount=v_amount
+    and (nullif(btrim(p_provider_refund_id),'') is null
+      or a.provider_action_id is null
+      or a.provider_action_id=p_provider_refund_id);
+  if v_match_count=0 then
+    update public.verified_provider_events set processing_status='ignored',
+      processed_at=now(),processing_error='No matching pending refund action'
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object('success',true,'ignored',true);
+  end if;
+  if v_match_count<>1 then
+    update public.verified_provider_events set processing_status='failed',
+      processed_at=now(),processing_error='Refund event matched multiple actions'
+    where provider_event_id=v_event.provider_event_id;
+    return jsonb_build_object('success',false,'error','Refund matching requires Finance review');
+  end if;
+  select a.* into v_action
+  from public.financial_action_outbox a
+  join public.payment_protection_transactions p on p.id=a.payment_protection_id
+  where a.action_type like 'refund_%'
+    and a.status in('provider_pending','provider_attention')
+    and p.paystack_reference=p_original_reference and a.amount=v_amount
+    and (nullif(btrim(p_provider_refund_id),'') is null
+      or a.provider_action_id is null or a.provider_action_id=p_provider_refund_id)
+  for update of a;
+  update public.financial_action_outbox set
+    provider_action_id=coalesce(provider_action_id,nullif(btrim(p_provider_refund_id),'')),
+    provider_status=replace(p_event_type,'refund.',''),updated_at=now()
+  where financial_action_id=v_action.financial_action_id;
+
+  if p_event_type='refund.needs-attention' then
+    update public.financial_action_outbox set status='provider_attention'
+    where financial_action_id=v_action.financial_action_id;
+  elsif p_event_type='refund.failed' then
+    update public.financial_action_outbox set status='manual_review',
+      last_error='Paystack reported that the refund failed',updated_at=now()
+    where financial_action_id=v_action.financial_action_id;
+  elsif p_event_type='refund.processed' then
+    select * into v_protection from public.payment_protection_transactions
+    where id=v_action.payment_protection_id for update;
+    if v_action.amount>
+        v_protection.amount_total-v_protection.released_amount-v_protection.refunded_amount then
+      raise exception 'Refund exceeds the protected balance'; end if;
+    v_ledger:=public.post_ledger_transaction(
+      'paystack-refund:'||p_provider_event_key,'provider_refund','NGN',
+      v_action.subject_type,v_action.subject_id,v_event.provider_event_id,
+      jsonb_build_object(
+        'financial_action_id',v_action.financial_action_id,
+        'original_reference',p_original_reference,
+        'refund_reference',p_refund_reference
+      ),jsonb_build_array(
+        jsonb_build_object(
+          'account_key','liability:payment_protection:'||v_protection.id::text,
+          'account_class','liability','owner_type',v_protection.subject_type,
+          'owner_id',v_protection.subject_id,'amount',v_action.amount,
+          'memo','Original-payment refund'
+        ),
+        jsonb_build_object(
+          'account_key','asset:paystack_clearing:NGN','account_class','asset',
+          'amount',-v_action.amount,'memo','Paystack processed refund'
+        )
+      )
+    );
+    update public.payment_protection_transactions set
+      refunded_amount=refunded_amount+v_action.amount,
+      refund_ledger_transaction_id=v_ledger,updated_at=now()
+    where id=v_protection.id
+    returning released_amount,refunded_amount into v_new_released,v_new_refunded;
+    v_to_state:=case
+      when v_new_refunded=v_protection.amount_total then 'refunded'
+      else 'partially_released' end;
+    perform public.transition_payment_protection(
+      v_protection.id,v_to_state,'provider_refund_processed',
+      'provider-refund-processed:'||p_provider_event_key,
+      null,'paystack',null,v_ledger,
+      jsonb_build_object('financial_action_id',v_action.financial_action_id)
+    );
+    update public.financial_action_outbox set status='completed',processed_at=now(),
+      last_error=null,updated_at=now()
+    where financial_action_id=v_action.financial_action_id;
+  end if;
+  update public.verified_provider_events set processing_status='processed',
+    processed_at=now(),processing_error=null
+  where provider_event_id=v_event.provider_event_id;
+  return jsonb_build_object('success',true,'financial_action_id',v_action.financial_action_id);
+end
+$function$;
+revoke all on function public.process_verified_paystack_refund_event(p_provider_event_key text, p_event_type text, p_original_reference text, p_refund_reference text, p_provider_refund_id text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text) from public, anon, authenticated, service_role;
+
+grant execute on function public.process_verified_paystack_refund_event(p_provider_event_key text, p_event_type text, p_original_reference text, p_refund_reference text, p_provider_refund_id text, p_payload_sha256 text, p_signature_verified_at timestamp with time zone, p_amount_minor bigint, p_currency text) to service_role;
+
+CREATE OR REPLACE FUNCTION public.property_host_conversation_access(p_conversation_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select exists(
+    select 1
+    from public.property_host_conversations c
+    join public.reservations r on r.id=c.reservation_id
+    left join public.listings l on l.id::text=r.listing_id or l.listing_id=r.listing_id
+    where c.conversation_id=p_conversation_id
+      and (
+        c.guest_user_id=public.current_profile_user_id()
+        or (
+          c.host_user_id=public.current_profile_user_id()
+          and r.management_mode_snapshot='host'
+          and r.responsible_host_user_id=c.host_user_id
+          and exists(
+            select 1
+            from public.property_host_assignments a
+            join public.profiles p on p.user_id=a.user_id
+            where a.listing_id=l.id
+              and a.user_id=c.host_user_id
+              and a.status='active'
+              and not coalesce(p.deleted,false)
+              and not coalesce(p.suspended,false)
+              and not coalesce(p.banned,false)
+          )
+        )
+      )
+  )
+$function$;
+revoke all on function public.property_host_conversation_access(p_conversation_id uuid) from public, anon, authenticated, service_role;
+
+grant execute on function public.property_host_conversation_access(p_conversation_id uuid) to service_role;
+grant execute on function public.property_host_conversation_access(p_conversation_id uuid) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.quote_hotel_room_rate(p_hotel_id integer, p_room_id integer, p_rate_plan_id integer, p_check_in date, p_check_out date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+begin
+  if p_check_in is null or p_check_out is null or p_check_in <= current_date or p_check_out <= p_check_in then
+    raise exception 'Choose valid future check-in and check-out dates';
+  end if;
+  if not exists (
+    select 1 from public.hotels h
+    join public.hotel_rooms r on r.hotel_id=h.hotel_id
+    join public.hotel_rate_plans rp on rp.room_id=r.room_id and rp.hotel_id=h.hotel_id
+    where h.hotel_id=p_hotel_id and r.room_id=p_room_id and rp.rate_plan_id=p_rate_plan_id
+      and rp.active and h.status='active' and h.approved_at is not null and h.published_at is not null
+  ) then raise exception 'Hotel room package is not available'; end if;
+  return private.hotel_booking_quote_v2(p_room_id,p_rate_plan_id,p_check_in,p_check_out,null,true);
+end;
+$function$;
+revoke all on function public.quote_hotel_room_rate(p_hotel_id integer, p_room_id integer, p_rate_plan_id integer, p_check_in date, p_check_out date) from public, anon, authenticated, service_role;
+
+grant execute on function public.quote_hotel_room_rate(p_hotel_id integer, p_room_id integer, p_rate_plan_id integer, p_check_in date, p_check_out date) to service_role;
+grant execute on function public.quote_hotel_room_rate(p_hotel_id integer, p_room_id integer, p_rate_plan_id integer, p_check_in date, p_check_out date) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.record_partner_pro_renewal(p_reference text, p_transaction_id text, p_amount_minor bigint, p_environment text, p_subscription_code text, p_customer_code text, p_plan_code text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_subscription public.partner_pro_subscriptions; v_payment public.booking_payments; v_end timestamptz; v_review timestamptz;
+begin
+ if coalesce(current_setting('request.jwt.claim.role',true),'')<>'service_role' then raise exception 'Service role required'; end if;
+ if p_environment not in ('test','live') or length(coalesce(p_reference,''))<5 or length(coalesce(p_transaction_id,''))<1 then raise exception 'Invalid renewal receipt'; end if;
+ select * into v_subscription from public.partner_pro_subscriptions where subscription_code=p_subscription_code for update;
+ if v_subscription.partner_id is null then return jsonb_build_object('handled',false); end if;
+ if v_subscription.environment<>p_environment or v_subscription.plan_code<>p_plan_code or v_subscription.customer_code is distinct from p_customer_code
+   or round(v_subscription.price_ngn*100)<>p_amount_minor then raise exception 'Subscription renewal mismatch'; end if;
+ select * into v_payment from public.booking_payments where paystack_reference=p_reference or paystack_transaction_id=p_transaction_id for update;
+ if v_payment.id is not null then
+   if v_payment.purpose<>'partner_pro_access' or v_payment.paystack_reference<>p_reference or v_payment.paystack_transaction_id is distinct from p_transaction_id then raise exception 'Renewal replay conflict'; end if;
+   return jsonb_build_object('handled',true,'already_processed',true);
+ end if;
+ insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,type,booking_type,amount,amount_total,net_amount,
+   amount_commission,currency,status,purpose,payment_method,paystack_transaction_id,verified_amount,verified_at,verification_source,paid_at,webhook_processed,metadata)
+ values(p_reference,p_reference,v_subscription.partner_id,v_subscription.partner_id,'partner_pro_access','partner_pro_access',
+   v_subscription.price_ngn,v_subscription.price_ngn,v_subscription.price_ngn,0,'NGN',
+   case when v_subscription.auto_renews then 'paid' else 'review_required' end,'partner_pro_access','paystack',p_transaction_id,
+   v_subscription.price_ngn,now(),'webhook',now(),true,
+   jsonb_build_object('billing_period',v_subscription.billing_period,'auto_renew',true,'plan_code',p_plan_code,
+     'paystack_environment',p_environment,'paystack_subscription_code',p_subscription_code,'paystack_customer_code',p_customer_code)) returning * into v_payment;
+ select current_period_end,review_started_at into v_end,v_review from public.partner_pro_entitlements where partner_id=v_subscription.partner_id for update;
+ if not v_subscription.auto_renews or v_review is not null then
+   update public.booking_payments set status='review_required' where id=v_payment.id;
+   return jsonb_build_object('handled',true,'requires_review',true);
+ end if;
+ v_end:=greatest(coalesce(v_end,now()),now())+case when v_subscription.billing_period='yearly' then interval '1 year' else interval '1 month' end;
+ update public.partner_pro_entitlements set current_period_end=v_end,last_payment_id=v_payment.id,updated_at=now() where partner_id=v_subscription.partner_id;
+ return jsonb_build_object('handled',true,'success',true,'current_period_end',v_end);
+end $function$;
+revoke all on function public.record_partner_pro_renewal(p_reference text, p_transaction_id text, p_amount_minor bigint, p_environment text, p_subscription_code text, p_customer_code text, p_plan_code text) from public, anon, authenticated, service_role;
+
+grant execute on function public.record_partner_pro_renewal(p_reference text, p_transaction_id text, p_amount_minor bigint, p_environment text, p_subscription_code text, p_customer_code text, p_plan_code text) to service_role;
+
+CREATE OR REPLACE FUNCTION public.record_partner_pro_subscription_event(p_subscription_code text, p_customer_code text, p_plan_code text, p_environment text, p_event_type text, p_event_time timestamp with time zone)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_subscription public.partner_pro_subscriptions;
+begin
+ if coalesce(current_setting('request.jwt.claim.role',true),'')<>'service_role' then raise exception 'Service role required'; end if;
+ if p_event_type not in ('subscription.create','subscription.not_renew','subscription.disable') or p_environment not in ('test','live')
+   or p_subscription_code !~ '^SUB_[A-Za-z0-9]+$' or p_event_time is null or p_event_time>now()+interval '1 day' then
+   raise exception 'Invalid subscription event'; end if;
+ select * into v_subscription from public.partner_pro_subscriptions where subscription_code=p_subscription_code for update;
+ if v_subscription.partner_id is null and p_event_type='subscription.create' then
+   select * into v_subscription from public.partner_pro_subscriptions
+   where customer_code=p_customer_code and plan_code=p_plan_code and environment=p_environment and auto_renews for update;
+ end if;
+ if v_subscription.partner_id is null then return false; end if;
+ if v_subscription.environment<>p_environment or (p_plan_code<>'' and v_subscription.plan_code<>p_plan_code)
+   or (p_customer_code<>'' and v_subscription.customer_code is distinct from p_customer_code) then raise exception 'Subscription identity mismatch'; end if;
+ if v_subscription.provider_event_at is not null and p_event_time<=v_subscription.provider_event_at then return true; end if;
+ update public.partner_pro_subscriptions set subscription_code=p_subscription_code,
+   auto_renews=p_event_type='subscription.create',provider_event_at=p_event_time,updated_at=now()
+   where partner_id=v_subscription.partner_id;
+ return true;
+end $function$;
+revoke all on function public.record_partner_pro_subscription_event(p_subscription_code text, p_customer_code text, p_plan_code text, p_environment text, p_event_type text, p_event_time timestamp with time zone) from public, anon, authenticated, service_role;
+
+grant execute on function public.record_partner_pro_subscription_event(p_subscription_code text, p_customer_code text, p_plan_code text, p_environment text, p_event_type text, p_event_time timestamp with time zone) to service_role;
+
+CREATE OR REPLACE FUNCTION public.refresh_my_roommate_search()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+ actor public.profiles;
+ prefs public.roommate_preferences;
+ total integer;
+begin
+ select * into actor
+ from public.profiles
+ where auth_id=(select auth.uid())::text
+ limit 1;
+
+ if actor.user_id is null
+    or not public.current_actor_has_personal_workspace()
+    or coalesce(actor.deleted,false)
+    or coalesce(actor.suspended,false)
+    or coalesce(actor.banned,false)
+ then raise exception 'Active Personal account required'; end if;
+
+ select * into prefs
+ from public.roommate_preferences
+ where user_id=actor.user_id
+ for update;
+
+ if coalesce(prefs.practical_preferences_version,0)<>2
+ then raise exception 'Confirm your moving plans before finding new matches'; end if;
+
+ if not coalesce(prefs.active,false)
+    or prefs.search_status<>'active'
+    or not coalesce(actor.privacy_search_visible,true)
+    or not coalesce(actor.privacy_profile_visible,true)
+ then raise exception 'Roommate matching is paused'; end if;
+
+ delete from public.roommate_search_results
+ where searcher_id=actor.user_id
+   and status in('new','viewed');
+
+ /*
+  * Hard-filter first. The expensive compatibility function is deliberately
+  * isolated behind a bounded candidate window. The final 120 rows therefore
+  * no longer sit on top of an unbounded candidate scan.
+  */
+ with hard_candidates as materialized (
+   select
+     peer.user_id
+   from public.profiles peer
+   join public.roommate_preferences pp
+     on pp.user_id=peer.user_id
+   where peer.user_id<>actor.user_id
+     and peer.account_kind='consumer'
+     and not coalesce(peer.deleted,false)
+     and not coalesce(peer.suspended,false)
+     and not coalesce(peer.banned,false)
+     and coalesce(peer.profile_complete,false)
+     and coalesce(peer.privacy_search_visible,true)
+     and coalesce(peer.privacy_profile_visible,true)
+     and pp.active
+     and pp.search_status='active'
+     and pp.practical_preferences_version=2
+
+     and public._roommate_normalize(pp.preferred_state)
+         = public._roommate_normalize(prefs.preferred_state)
+     and public._roommate_normalize(pp.preferred_lga)
+         = public._roommate_normalize(prefs.preferred_lga)
+
+     and pp.budget_max >= prefs.budget_min
+     and prefs.budget_max >= pp.budget_min
+
+     and (prefs.gender_preference='no_preference' or prefs.gender_preference=lower(peer.gender))
+     and (pp.gender_preference='no_preference' or pp.gender_preference=lower(actor.gender))
+
+     and (
+       not coalesce(prefs.school_match,false)
+       and not coalesce(pp.school_match,false)
+       or (
+         public._roommate_normalize(coalesce(prefs.school_name,actor.school))
+           = public._roommate_normalize(coalesce(pp.school_name,peer.school))
+         and public._roommate_normalize(coalesce(prefs.school_name,actor.school)) is not null
+       )
+     )
+
+     and (
+       prefs.room_arrangement='either'
+       or pp.room_arrangement='either'
+       or prefs.room_arrangement=pp.room_arrangement
+     )
+
+     and (
+       public._roommate_normalize(prefs.preferred_area) is null
+       or public._roommate_normalize(pp.preferred_area) is null
+       or public._roommate_normalize(prefs.preferred_area)
+          = public._roommate_normalize(pp.preferred_area)
+     )
+
+     and (
+       prefs.move_in_mode='flexible'
+       or pp.move_in_mode='flexible'
+       or greatest(
+            case when prefs.move_in_mode='asap'
+                 then (now() at time zone 'Africa/Lagos')::date
+                 else prefs.move_in_from end,
+            case when pp.move_in_mode='asap'
+                 then (now() at time zone 'Africa/Lagos')::date
+                 else pp.move_in_from end,
+            (now() at time zone 'Africa/Lagos')::date
+          )
+          <= least(
+            case when prefs.move_in_mode='asap'
+                 then (now() at time zone 'Africa/Lagos')::date + 30
+                 when prefs.move_in_mode='date' then prefs.move_in_from
+                 else prefs.move_in_to end,
+            case when pp.move_in_mode='asap'
+                 then (now() at time zone 'Africa/Lagos')::date + 30
+                 when pp.move_in_mode='date' then pp.move_in_from
+                 else pp.move_in_to end
+          )
+     )
+
+     and not (
+       prefs.smoking_preference='no' and pp.smoking_habit<>'never'
+       or pp.smoking_preference='no' and prefs.smoking_habit<>'never'
+       or prefs.smoking_preference='outdoors' and pp.smoking_habit='smokes'
+       or pp.smoking_preference='outdoors' and prefs.smoking_habit='smokes'
+     )
+
+     and not exists (
+       select 1
+       from public.roommate_user_blocks b
+       where (b.blocker_user_id=actor.user_id and b.blocked_user_id=peer.user_id)
+          or (b.blocker_user_id=peer.user_id and b.blocked_user_id=actor.user_id)
+     )
+
+     and not exists (
+       select 1
+       from public.roommate_search_results r
+       where r.searcher_id=actor.user_id
+         and r.matched_user_id=peer.user_id
+         and r.status in('accepted','declined')
+     )
+
+     and not exists (
+       select 1
+       from public.conversations c
+       where c.conversation_type='roommate'
+         and c.status in('active','accepted')
+         and (
+           (c.participant_a=actor.user_id and c.participant_b=peer.user_id)
+           or
+           (c.participant_b=actor.user_id and c.participant_a=peer.user_id)
+         )
+     )
+   order by peer.user_id
+   limit 1000
+ ),
+ scored as materialized (
+   select
+     hc.user_id,
+     coalesce(
+       (public._roommate_practical_pair(actor.user_id,hc.user_id)->>'score')::integer,
+       0
+     ) as score
+   from hard_candidates hc
+ )
+ insert into public.roommate_search_results(searcher_id,matched_user_id,match_score,status)
+ select actor.user_id,user_id,score,'new'
+ from scored
+ order by score desc,user_id
+ limit 120
+ on conflict(searcher_id,matched_user_id) do nothing;
+
+ get diagnostics total=row_count;
+
+ update public.roommate_preferences
+ set search_match_count=total,
+     search_expires_at=null,
+     updated_at=now()
+ where user_id=actor.user_id;
+
+ return total;
+end $function$;
+revoke all on function public.refresh_my_roommate_search() from public, anon, authenticated, service_role;
+
+grant execute on function public.refresh_my_roommate_search() to service_role;
+grant execute on function public.refresh_my_roommate_search() to authenticated;
+
+CREATE OR REPLACE FUNCTION public.request_accommodation_no_show_review(p_subject_type text, p_subject_id text, p_property_ready_evidence text[], p_explanation text)
+ RETURNS accommodation_no_show_reviews
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id(); v_profile public.profiles;
+  v_res public.reservations; v_listing public.listings;
+  v_booking public.hotel_bookings; v_hotel public.hotels;
+  v_deadline timestamptz; v_policy public.creator_policy_versions;
+  v_result public.accommodation_no_show_reviews;
+begin
+  if v_actor is null then raise exception 'Authentication required'; end if;
+  if p_subject_type not in('short_let','hotel') then raise exception 'Unsupported stay type'; end if;
+  if cardinality(coalesce(p_property_ready_evidence,array[]::text[])) not between 1 and 8
+     or char_length(btrim(coalesce(p_explanation,''))) not between 10 and 2000 then
+    raise exception 'Property-ready evidence and an explanation are required';
+  end if;
+  select * into v_profile from public.profiles where user_id=v_actor;
+  if p_subject_type='short_let' then
+    select * into v_res from public.reservations
+    where id=p_subject_id and stay_type='short_let' for update;
+    if v_res.id is null or v_res.short_stay_rate_type<>'non_refundable'
+       or v_res.status<>'ready_for_move_in' or v_res.rent_payment_status<>'paid'
+       or v_res.checked_in_at is not null then
+      raise exception 'This Short Let is not eligible for non-refundable no-show review';
+    end if;
+    select * into v_listing from public.listings
+    where id::text=v_res.listing_id or listing_id=v_res.listing_id limit 1;
+    if v_res.requested_move_in_at is null then
+      raise exception 'The agreed arrival time must be recorded first';
+    end if;
+    v_deadline:=v_res.requested_move_in_at
+      +make_interval(hours=>greatest(coalesce(v_res.arrival_issue_window_hours,2),1));
+    if not(
+      (v_res.management_mode_snapshot='host'
+        and v_res.responsible_host_user_id=v_actor
+        and public.current_actor_can_manage_property(v_listing.id))
+      or (v_profile.role in('creator','admin','staff')
+        and (v_profile.role<>'staff' or public.current_staff_has_permission('operations'))
+        and (v_profile.role='creator' or public.current_actor_in_scope(v_listing.state,v_listing.city)))
+    ) then raise exception 'Responsible stay operator access required'; end if;
+    select * into v_policy from public.creator_policy_versions
+    where policy_version_id=v_res.short_stay_rate_terms_policy_version_id
+      and policy_key='accommodation_non_refundable_rate';
+  else
+    select * into v_booking from public.hotel_bookings
+    where booking_id::text=p_subject_id for update;
+    if v_booking.booking_id is null or v_booking.payment_status<>'paid'
+       or v_booking.status<>'confirmed' or v_booking.checked_in_at is not null
+       or coalesce(v_booking.rate_plan_snapshot->>'cancellation_template',
+         case when coalesce((v_booking.rate_plan_snapshot->>'refundable')::boolean,false)
+           then 'standard_legacy' else 'non_refundable' end)<>'non_refundable' then
+      raise exception 'This hotel stay is not eligible for non-refundable no-show review';
+    end if;
+    select * into v_hotel from public.hotels where hotel_id=v_booking.hotel_id;
+    v_deadline:=((v_booking.check_in::text||' '||v_hotel.check_in_time::text)::timestamp
+      at time zone v_hotel.timezone)
+      +make_interval(hours=>greatest(coalesce(v_booking.arrival_issue_window_hours,2),1));
+    if not public.hotel_actor_has_capability(v_booking.hotel_id,'stay.check_in')
+       and not(v_profile.role in('creator','admin','staff')
+         and (v_profile.role<>'staff' or public.current_staff_has_permission('operations'))
+         and (v_profile.role='creator' or public.current_actor_in_scope(v_hotel.state,v_hotel.city))) then
+      raise exception 'Hotel arrival access required';
+    end if;
+    select * into v_policy from public.creator_policy_versions
+    where policy_version_id=v_booking.cancellation_policy_version_id
+      and policy_key='accommodation_non_refundable_rate';
+  end if;
+  if v_policy.policy_version_id is null then raise exception 'Booked no-show terms are unavailable'; end if;
+  if now()<v_deadline then raise exception 'The arrival window is still open'; end if;
+  insert into public.accommodation_no_show_reviews(
+    subject_type,subject_id,requested_by,property_ready_evidence,explanation,
+    arrival_deadline_at,rate_terms_policy_version_id
+  ) values(
+    p_subject_type,p_subject_id,v_actor,p_property_ready_evidence,btrim(p_explanation),
+    v_deadline,v_policy.policy_version_id
+  ) returning * into v_result;
+  return v_result;
+end
+$function$;
+revoke all on function public.request_accommodation_no_show_review(p_subject_type text, p_subject_id text, p_property_ready_evidence text[], p_explanation text) from public, anon, authenticated, service_role;
+
+grant execute on function public.request_accommodation_no_show_review(p_subject_type text, p_subject_id text, p_property_ready_evidence text[], p_explanation text) to service_role;
+grant execute on function public.request_accommodation_no_show_review(p_subject_type text, p_subject_id text, p_property_ready_evidence text[], p_explanation text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.respond_to_property_host_invite(p_assignment_id uuid, p_accept boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_assignment public.property_host_assignments;
+  v_invitation_id uuid;
+begin
+  if v_actor is null then raise exception 'Active Personal account required'; end if;
+
+  select invitation_id into v_invitation_id
+  from public.resource_invitations
+  where resource_type='property'
+    and subject_assignment_id=p_assignment_id
+    and intended_user_id=v_actor
+    and status='pending'
+  order by created_at desc
+  limit 1;
+
+  if v_invitation_id is not null then
+    return public.respond_to_resource_invitation(v_invitation_id,p_accept,null);
+  end if;
+
+  update public.property_host_assignments
+  set status=case when p_accept then 'active' else 'declined' end,
+      accepted_at=case when p_accept then now() else null end,
+      revoked_at=case when p_accept then null else now() end,
+      updated_at=now()
+  where assignment_id=p_assignment_id and user_id=v_actor and status='invited'
+  returning * into v_assignment;
+
+  if v_assignment.assignment_id is null then raise exception 'Active invitation not found'; end if;
+  return jsonb_build_object('success',true,'status',v_assignment.status,'listing_id',v_assignment.listing_id);
+end
+$function$;
+revoke all on function public.respond_to_property_host_invite(p_assignment_id uuid, p_accept boolean) from public, anon, authenticated, service_role;
+
+grant execute on function public.respond_to_property_host_invite(p_assignment_id uuid, p_accept boolean) to service_role;
+grant execute on function public.respond_to_property_host_invite(p_assignment_id uuid, p_accept boolean) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.review_property_change_request(p_change_request_id uuid, p_decision text, p_reason text, p_reinspection_reference text DEFAULT NULL::text)
+ RETURNS property_change_requests
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_request public.property_change_requests;
+  v_listing public.listings;
+  v_images text[];
+begin
+  if p_decision not in ('approve','changes_requested','reject')
+     or char_length(btrim(coalesce(p_reason,'')))<5 then
+    raise exception 'Choose a valid decision and record the reason';
+  end if;
+  select * into v_request from public.property_change_requests
+  where change_request_id=p_change_request_id for update;
+  if v_request.change_request_id is null
+     or v_request.status not in ('submitted','changes_requested','awaiting_reinspection') then
+    raise exception 'Open property change request not found';
+  end if;
+  select * into v_listing from public.listings
+  where id=v_request.listing_id and deleted_at is null for update;
+  if not (
+    public.current_actor_has_workspace('creator',null)
+    or (public.current_actor_has_workspace('admin',v_listing.state)
+      and public.current_actor_in_scope(v_listing.state,v_listing.city))
+    or (public.current_actor_has_workspace('staff',null)
+      and public.current_staff_has_permission('operations')
+      and public.current_actor_in_scope(v_listing.state,v_listing.city))
+  ) then raise exception 'Property Operations authority required'; end if;
+
+  if p_decision='changes_requested' then
+    update public.property_change_requests set status='changes_requested',
+      reviewed_by=v_actor,reviewed_at=now(),decision_reason=btrim(p_reason),updated_at=now()
+    where change_request_id=p_change_request_id returning * into v_request;
+  elsif p_decision='reject' then
+    update public.property_change_requests set status='rejected',
+      reviewed_by=v_actor,reviewed_at=now(),decision_reason=btrim(p_reason),updated_at=now()
+    where change_request_id=p_change_request_id returning * into v_request;
+  elsif v_request.requires_reinspection
+        and char_length(btrim(coalesce(p_reinspection_reference,'')))<3 then
+    update public.property_change_requests set status='awaiting_reinspection',
+      reviewed_by=v_actor,reviewed_at=now(),decision_reason=btrim(p_reason),updated_at=now()
+    where change_request_id=p_change_request_id returning * into v_request;
+  else
+    if v_request.change_type='price' then
+      update public.listings set price=(v_request.proposed_changes->>'price')::numeric,updated_at=now()
+      where id=v_listing.id;
+    elsif v_request.change_type='photos' then
+      select array_agg(value order by ordinality) into v_images
+      from jsonb_array_elements_text(v_request.proposed_changes->'images') with ordinality;
+      update public.listings set images=v_images,updated_at=now() where id=v_listing.id;
+    else
+      if v_request.proposed_changes ? 'images' then
+        select array_agg(value order by ordinality) into v_images
+        from jsonb_array_elements_text(v_request.proposed_changes->'images') with ordinality;
+      end if;
+      update public.listings set
+        description=coalesce(nullif(btrim(v_request.proposed_changes->>'description'),''),description),
+        images=coalesce(v_images,images),updated_at=now()
+      where id=v_listing.id;
+    end if;
+    select * into v_listing from public.listings where id=v_listing.id;
+    update public.property_change_requests set status='published',
+      reviewed_by=v_actor,reviewed_at=now(),decision_reason=btrim(p_reason),
+      reinspection_reference=nullif(btrim(coalesce(p_reinspection_reference,'')),''),
+      after_snapshot=jsonb_build_object(
+        'price',v_listing.price,'description',v_listing.description,
+        'images',to_jsonb(v_listing.images),'bedrooms',v_listing.bedrooms,
+        'bathrooms',v_listing.bathrooms,'amenities',to_jsonb(v_listing.amenities)
+      ),published_at=now(),updated_at=now()
+    where change_request_id=p_change_request_id returning * into v_request;
+  end if;
+
+  insert into public.admin_audit_log(admin_id,action,target_type,target_id,details,created_at)
+  values(v_actor,'review_property_change_request','property_change_request',
+    p_change_request_id::text,jsonb_build_object(
+      'decision',p_decision,'resulting_status',v_request.status,
+      'listing_id',v_request.listing_id,'reason',btrim(p_reason),
+      'reinspection_reference',nullif(btrim(coalesce(p_reinspection_reference,'')),'')
+    )::text,now());
+  return v_request;
+end
+$function$;
+revoke all on function public.review_property_change_request(p_change_request_id uuid, p_decision text, p_reason text, p_reinspection_reference text) from public, anon, authenticated, service_role;
+
+grant execute on function public.review_property_change_request(p_change_request_id uuid, p_decision text, p_reason text, p_reinspection_reference text) to service_role;
+grant execute on function public.review_property_change_request(p_change_request_id uuid, p_decision text, p_reason text, p_reinspection_reference text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.review_wehouse_property_management(p_listing_id uuid, p_approve boolean, p_reason text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id(); v_listing public.listings;
+begin
+  if not (
+    public.current_actor_has_workspace('creator',null)
+    or public.current_actor_has_workspace('admin',null)
+    or (public.current_actor_has_workspace('staff',null) and public.current_staff_has_permission('operations'))
+  ) then
+    raise exception 'Property Operations authority required';
+  end if;
+
+  select * into v_listing
+  from public.listings
+  where id=p_listing_id and deleted_at is null
+  for update;
+
+  if v_listing.id is null
+     or v_listing.management_updated_at is null
+     or v_listing.management_mode<>'wehouse'
+     or v_listing.wehouse_management_status<>'requested' then
+    raise exception 'WeHouse management was not requested for this property';
+  end if;
+
+  if v_listing.approved_at is null
+     or v_listing.status not in ('available','unavailable','reserved','occupied','maintenance','closed') then
+    raise exception 'Property management starts after publication';
+  end if;
+
+  if not public.current_actor_in_scope(v_listing.state,v_listing.city) then
+    raise exception 'Property is outside your authority';
+  end if;
+
+  perform set_config('wehouse.management_rpc','allowed',true);
+  update public.listings
+  set wehouse_management_status=case when p_approve then 'approved' else 'declined' end,
+      management_updated_at=now(),
+      updated_at=now()
+  where id=p_listing_id
+  returning * into v_listing;
+
+  insert into public.admin_audit_log(admin_id,action,target_type,target_id,details,created_at)
+  values(v_actor,'wehouse_property_management_review','listing',p_listing_id::text,
+    jsonb_build_object(
+      'approved',p_approve,
+      'reason',nullif(btrim(coalesce(p_reason,'')),'')
+    )::text,now());
+
+  return jsonb_build_object(
+    'success',true,
+    'management_mode',v_listing.management_mode,
+    'wehouse_management_status',v_listing.wehouse_management_status
+  );
+end
+$function$;
+revoke all on function public.review_wehouse_property_management(p_listing_id uuid, p_approve boolean, p_reason text) from public, anon, authenticated, service_role;
+
+grant execute on function public.review_wehouse_property_management(p_listing_id uuid, p_approve boolean, p_reason text) to service_role;
+grant execute on function public.review_wehouse_property_management(p_listing_id uuid, p_approve boolean, p_reason text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.revoke_property_host_manager(p_assignment_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_assignment public.property_host_assignments;
+  v_listing public.listings;
+  v_transfer_count integer:=0;
+begin
+  if v_actor is null then raise exception 'Authentication required'; end if;
+
+  select * into v_assignment
+  from public.property_host_assignments
+  where assignment_id=p_assignment_id
+  for update;
+
+  if v_assignment.assignment_id is null
+     or v_assignment.assignment_role<>'manager'
+     or v_assignment.status not in ('active','invited') then
+    raise exception 'Active manager assignment not found';
+  end if;
+
+  if not exists(
+    select 1
+    from public.property_host_assignments owner_assignment
+    where owner_assignment.listing_id=v_assignment.listing_id
+      and owner_assignment.user_id=v_actor
+      and owner_assignment.assignment_role='owner'
+      and owner_assignment.status='active'
+  ) or not public.user_has_active_workspace(v_actor,'property_partner') then
+    raise exception 'Only the active property owner can remove a manager';
+  end if;
+
+  select * into v_listing
+  from public.listings
+  where id=v_assignment.listing_id and deleted_at is null
+  for update;
+  if v_listing.id is null then raise exception 'Property not found'; end if;
+
+  update public.reservations r
+  set responsible_host_user_id=v_actor,
+      updated_at=now()
+  where (r.listing_id=v_listing.id::text or r.listing_id=v_listing.listing_id)
+    and r.management_mode_snapshot='host'
+    and r.responsible_host_user_id=v_assignment.user_id
+    and r.status not in ('completed','cancelled','refunded','expired');
+  get diagnostics v_transfer_count = row_count;
+
+  update public.property_host_conversations c
+  set host_user_id=v_actor,
+      updated_at=now()
+  where c.host_user_id=v_assignment.user_id
+    and exists(
+      select 1
+      from public.reservations r
+      where r.id=c.reservation_id
+        and (r.listing_id=v_listing.id::text or r.listing_id=v_listing.listing_id)
+        and r.management_mode_snapshot='host'
+        and r.responsible_host_user_id=v_actor
+        and r.status not in ('completed','cancelled','refunded','expired')
+    );
+
+  if v_listing.management_mode='host'
+     and v_listing.management_host_user_id=v_assignment.user_id then
+    perform set_config('wehouse.management_rpc','allowed',true);
+    update public.listings
+    set management_host_user_id=v_actor,
+        management_updated_at=now(),
+        updated_at=now()
+    where id=v_listing.id;
+  end if;
+
+  update public.property_host_assignments
+  set status='revoked',
+      revoked_at=now(),
+      updated_at=now()
+  where assignment_id=v_assignment.assignment_id
+    and assignment_role='manager';
+
+  if not found then return false; end if;
+
+  insert into public.admin_audit_log(
+    admin_id,action,target_type,target_id,details,created_at
+  ) values(
+    v_actor,'property_host_manager_revoked','listing',v_listing.id::text,
+    jsonb_build_object(
+      'removed_user_id',v_assignment.user_id,
+      'active_reservations_transferred_to_owner',v_transfer_count,
+      'new_responsible_host_user_id',v_actor
+    )::text,now()
+  );
+
+  return true;
+end
+$function$;
+revoke all on function public.revoke_property_host_manager(p_assignment_id uuid) from public, anon, authenticated, service_role;
+
+grant execute on function public.revoke_property_host_manager(p_assignment_id uuid) to service_role;
+grant execute on function public.revoke_property_host_manager(p_assignment_id uuid) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.save_my_worker_pro_customer_note(p_customer_id text, p_note text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.worker_pro_current_actor();
+begin
+  if not exists(select 1 from public.worker_bookings b
+    join public.worker_customer_record_consents c on c.worker_id=b.worker_id and c.customer_id=b.user_id
+    where b.worker_id=v_actor and b.user_id=p_customer_id and b.status='approved_released') then
+    raise exception 'Customer has not consented to a record'; end if;
+  if length(btrim(coalesce(p_note,'')))>1000 then raise exception 'Note is too long'; end if;
+  if nullif(btrim(coalesce(p_note,'')),'') is null then
+    delete from public.worker_pro_customer_notes where worker_id=v_actor and customer_id=p_customer_id;
+  else
+    insert into public.worker_pro_customer_notes(worker_id,customer_id,note)
+      values(v_actor,p_customer_id,btrim(p_note))
+    on conflict(worker_id,customer_id) do update set note=excluded.note,updated_at=now();
+  end if;
+  return true;
+end $function$;
+revoke all on function public.save_my_worker_pro_customer_note(p_customer_id text, p_note text) from public, anon, authenticated, service_role;
+
+grant execute on function public.save_my_worker_pro_customer_note(p_customer_id text, p_note text) to service_role;
+grant execute on function public.save_my_worker_pro_customer_note(p_customer_id text, p_note text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.search_discoverable_hotels(p_query text DEFAULT NULL::text, p_state text DEFAULT NULL::text, p_city text DEFAULT NULL::text, p_amenities text[] DEFAULT NULL::text[], p_min_price numeric DEFAULT NULL::numeric, p_max_price numeric DEFAULT NULL::numeric, p_lat double precision DEFAULT NULL::double precision, p_lng double precision DEFAULT NULL::double precision, p_radius_km numeric DEFAULT NULL::numeric, p_cursor_featured boolean DEFAULT NULL::boolean, p_cursor_created_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_cursor_id integer DEFAULT NULL::integer, p_limit integer DEFAULT 24)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  with picked as materialized (
+    select h.* from public.hotels h
+    where h.status = 'active' and h.approved_at is not null and h.published_at is not null
+      and (nullif(btrim(p_state),'') is null or lower(h.state) = lower(btrim(p_state)))
+      and (nullif(btrim(p_city),'') is null or lower(h.city) = lower(btrim(p_city)))
+      and (nullif(btrim(p_query),'') is null or
+        strpos(lower(h.name),lower(left(btrim(p_query),80))) > 0)
+      and (coalesce(cardinality(p_amenities),0) = 0 or h.amenities @> p_amenities)
+      and (p_radius_km is null or (p_radius_km between 0 and 20
+        and p_lat between -90 and 90 and p_lng between -180 and 180
+        and h.gps_latitude between p_lat - p_radius_km/111.2 and p_lat + p_radius_km/111.2
+        and h.gps_longitude between p_lng - p_radius_km/111.2/greatest(0.01,abs(cos(radians(p_lat))))
+          and p_lng + p_radius_km/111.2/greatest(0.01,abs(cos(radians(p_lat))))
+        and 6371.0*2*asin(least(1.0,sqrt(
+          power(sin(radians(h.gps_latitude::double precision-p_lat)/2),2)
+          +cos(radians(p_lat))*cos(radians(h.gps_latitude::double precision))
+           *power(sin(radians(h.gps_longitude::double precision-p_lng)/2),2)
+        ))) <= p_radius_km))
+      and ((p_min_price is null and p_max_price is null) or exists (
+        select 1 from public.hotel_rooms r where r.hotel_id = h.hotel_id
+          and (p_min_price is null or coalesce((
+            select min(plan.price_per_night) from public.hotel_rate_plans plan
+            where plan.room_id = r.room_id and plan.active
+          ),r.price_per_night) >= p_min_price)
+          and (p_max_price is null or coalesce((
+            select min(plan.price_per_night) from public.hotel_rate_plans plan
+            where plan.room_id = r.room_id and plan.active
+          ),r.price_per_night) <= p_max_price)
+      ))
+      and (p_cursor_featured is null or p_cursor_created_at is null or p_cursor_id is null
+        or (h.featured,h.created_at,h.hotel_id) < (p_cursor_featured,p_cursor_created_at,p_cursor_id))
+    order by h.featured desc,h.created_at desc,h.hotel_id desc
+    limit least(greatest(coalesce(p_limit,24),1),48)+1
+  ), page as materialized (
+    select * from picked order by featured desc,created_at desc,hotel_id desc
+    limit least(greatest(coalesce(p_limit,24),1),48)
+  )
+  select jsonb_build_object(
+    'items',coalesce((select jsonb_agg(jsonb_build_object(
+      'hotel_id',h.hotel_id,'name',h.name,'description',h.description,
+      'state',h.state,'city',h.city,'area',h.area,'address',h.address,
+      'images',coalesce(h.images,array[]::text[]),
+      'amenities',coalesce(h.amenities,array[]::text[]),
+      'status',h.status,'rating',h.rating,'review_count',h.review_count,
+      'featured',h.featured,'created_at',h.created_at,
+      'gps_latitude',null,'gps_longitude',null,'location_exact',false,
+      'check_in_time',h.check_in_time,'check_out_time',h.check_out_time,'timezone',h.timezone,
+      'hotel_rooms',coalesce((select jsonb_agg(jsonb_build_object(
+        'room_id',room.room_id,'room_type',room.room_type,
+        'price_per_night',coalesce((select min(plan.price_per_night)
+          from public.hotel_rate_plans plan where plan.room_id=room.room_id and plan.active),room.price_per_night)
+      ) order by room.price_per_night,room.room_id)
+        from public.hotel_rooms room where room.hotel_id=h.hotel_id),'[]'::jsonb)
+    ) order by h.featured desc,h.created_at desc,h.hotel_id desc) from page h),'[]'::jsonb),
+    'has_more',(select count(*) from picked) > (select count(*) from page),
+    'next_cursor_featured',(select featured from page order by featured,created_at,hotel_id limit 1),
+    'next_cursor_created_at',(select created_at from page order by featured,created_at,hotel_id limit 1),
+    'next_cursor_id',(select hotel_id from page order by featured,created_at,hotel_id limit 1)
+  );
+$function$;
+revoke all on function public.search_discoverable_hotels(p_query text, p_state text, p_city text, p_amenities text[], p_min_price numeric, p_max_price numeric, p_lat double precision, p_lng double precision, p_radius_km numeric, p_cursor_featured boolean, p_cursor_created_at timestamp with time zone, p_cursor_id integer, p_limit integer) from public, anon, authenticated, service_role;
+
+grant execute on function public.search_discoverable_hotels(p_query text, p_state text, p_city text, p_amenities text[], p_min_price numeric, p_max_price numeric, p_lat double precision, p_lng double precision, p_radius_km numeric, p_cursor_featured boolean, p_cursor_created_at timestamp with time zone, p_cursor_id integer, p_limit integer) to service_role;
+grant execute on function public.search_discoverable_hotels(p_query text, p_state text, p_city text, p_amenities text[], p_min_price numeric, p_max_price numeric, p_lat double precision, p_lng double precision, p_radius_km numeric, p_cursor_featured boolean, p_cursor_created_at timestamp with time zone, p_cursor_id integer, p_limit integer) to anon;
+grant execute on function public.search_discoverable_hotels(p_query text, p_state text, p_city text, p_amenities text[], p_min_price numeric, p_max_price numeric, p_lat double precision, p_lng double precision, p_radius_km numeric, p_cursor_featured boolean, p_cursor_created_at timestamp with time zone, p_cursor_id integer, p_limit integer) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_apartment_commission_on_reservation(p_reservation_id text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+  v_res public.reservations;
+  v_policy record;
+begin
+  select * into v_res from public.reservations where id=p_reservation_id for update;
+  if v_res.id is null then raise exception 'Reservation not found'; end if;
+  select * into v_policy from private.resolve_apartment_commission_policy(
+    coalesce(v_res.stay_type,'long_stay'),v_res.management_mode_snapshot,
+    v_res.commission_policy_version_id
+  );
+  if v_policy.policy_version_id is null then
+    select * into v_policy from private.resolve_apartment_commission_policy(
+      coalesce(v_res.stay_type,'long_stay'),v_res.management_mode_snapshot,null
+    );
+  end if;
+  if v_policy.policy_version_id is null or v_policy.percent not between 0 and 50 then
+    raise exception 'Active Creator apartment commission policy is missing';
+  end if;
+  update public.reservations set
+    commission_policy_version_id=v_policy.policy_version_id,
+    commission_rate=v_policy.percent,updated_at=now()
+  where id=p_reservation_id;
+  return true;
+end
+$function$;
+revoke all on function public.set_apartment_commission_on_reservation(p_reservation_id text) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_apartment_commission_on_reservation(p_reservation_id text) to service_role;
+
+CREATE OR REPLACE FUNCTION public.set_my_home_pet_policy(p_listing_id uuid, p_allowed boolean)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id(); v_changed integer;
+begin
+ if v_actor is null or not public.current_actor_has_workspace('property_partner',null) then raise exception 'Property Partner access required'; end if;
+ update public.listings set pets_allowed=coalesce(p_allowed,false),updated_at=now() where id=p_listing_id and deleted_at is null
+   and exists(select 1 from public.property_host_assignments a where a.listing_id=p_listing_id
+     and a.user_id=v_actor and a.assignment_role='owner' and a.status='active');
+ get diagnostics v_changed=row_count;
+ if v_changed<>1 then raise exception 'Owned home required'; end if;
+ return true;
+end $function$;
+revoke all on function public.set_my_home_pet_policy(p_listing_id uuid, p_allowed boolean) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_home_pet_policy(p_listing_id uuid, p_allowed boolean) to service_role;
+grant execute on function public.set_my_home_pet_policy(p_listing_id uuid, p_allowed boolean) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_hotel_room_pet_policy(p_room_id integer, p_allowed boolean)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id(); v_changed integer;
+begin
+ if v_actor is null or not public.current_actor_has_workspace('property_partner',null) then raise exception 'Property Partner access required'; end if;
+ update public.hotel_rooms room set pets_allowed=coalesce(p_allowed,false),updated_at=now()
+   where room.room_id=p_room_id and exists(select 1 from public.hotels hotel
+     where hotel.hotel_id=room.hotel_id and hotel.owner_id=v_actor);
+ get diagnostics v_changed=row_count;
+ if v_changed<>1 then raise exception 'Owned hotel room required'; end if;
+ return true;
+end $function$;
+revoke all on function public.set_my_hotel_room_pet_policy(p_room_id integer, p_allowed boolean) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_hotel_room_pet_policy(p_room_id integer, p_allowed boolean) to service_role;
+grant execute on function public.set_my_hotel_room_pet_policy(p_room_id integer, p_allowed boolean) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_property_management_mode(p_listing_id uuid, p_mode text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id(); v_listing public.listings;
+begin
+  if p_mode not in ('host','wehouse') then
+    raise exception 'Choose Host manages or WeHouse manages';
+  end if;
+
+  if not exists(
+    select 1
+    from public.property_host_assignments a
+    where a.listing_id=p_listing_id
+      and a.user_id=v_actor
+      and a.assignment_role='owner'
+      and a.status='active'
+  ) then
+    raise exception 'Only the property owner can change who manages this home';
+  end if;
+
+  select * into v_listing
+  from public.listings
+  where id=p_listing_id and deleted_at is null
+  for update;
+
+  if v_listing.id is null then
+    raise exception 'Property not found';
+  end if;
+
+  if v_listing.approved_at is null
+     or v_listing.status not in ('available','unavailable','reserved','occupied','maintenance','closed') then
+    raise exception 'Choose property management after this home is published';
+  end if;
+
+  perform set_config('wehouse.management_rpc','allowed',true);
+  update public.listings
+  set management_mode=p_mode,
+      management_host_user_id=case when p_mode='host' then v_actor else null end,
+      wehouse_management_status=case
+        when p_mode='host' then 'not_required'
+        when management_mode='wehouse' and wehouse_management_status='approved' and management_updated_at is not null then 'approved'
+        else 'requested'
+      end,
+      management_updated_at=now(),
+      updated_at=now()
+  where id=p_listing_id
+  returning * into v_listing;
+
+  insert into public.admin_audit_log(admin_id,action,target_type,target_id,details,created_at)
+  values(v_actor,'property_management_mode_changed','listing',p_listing_id::text,
+    jsonb_build_object(
+      'management_mode',v_listing.management_mode,
+      'wehouse_management_status',v_listing.wehouse_management_status,
+      'management_host_user_id',v_listing.management_host_user_id
+    )::text,now());
+
+  return public.get_my_property_management(p_listing_id);
+end
+$function$;
+revoke all on function public.set_my_property_management_mode(p_listing_id uuid, p_mode text) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_property_management_mode(p_listing_id uuid, p_mode text) to service_role;
+grant execute on function public.set_my_property_management_mode(p_listing_id uuid, p_mode text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_property_stay_rules(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_listing public.listings;
+  v_platform_min integer:=1;
+  v_platform_max integer:=90;
+  v_discount numeric(5,2);
+begin
+  if not public.current_actor_can_change_property_commercials(p_listing_id) then
+    raise exception 'Full hosting access is required to change future stay rules';
+  end if;
+  select * into v_listing from public.listings
+  where id=p_listing_id and deleted_at is null for update;
+  if v_listing.id is null then raise exception 'Property not found'; end if;
+  if v_listing.sub_type<>'short_let' then
+    raise exception 'Stay-length and non-refundable rates are only for Short Lets';
+  end if;
+
+  select coalesce(nullif(value,'')::integer,1) into v_platform_min
+  from public.platform_settings
+  where key='short_stay_min_nights' and coalesce(is_active,true) limit 1;
+  select coalesce(nullif(value,'')::integer,90) into v_platform_max
+  from public.platform_settings
+  where key='short_stay_max_nights' and coalesce(is_active,true) limit 1;
+  v_platform_min:=greatest(coalesce(v_platform_min,1),1);
+  v_platform_max:=greatest(coalesce(v_platform_max,90),v_platform_min);
+  if p_min_nights is null or p_max_nights is null
+     or p_min_nights<v_platform_min or p_max_nights>v_platform_max
+     or p_max_nights<p_min_nights then
+    raise exception 'Stay length must be between % and % nights',v_platform_min,v_platform_max;
+  end if;
+  if p_non_refundable_enabled is null then
+    raise exception 'Choose whether to offer a non-refundable rate';
+  end if;
+  if p_non_refundable_enabled then
+    v_discount:=round(coalesce(p_non_refundable_discount_percent,0),2);
+    if v_discount<1 or v_discount>30 then
+      raise exception 'Non-refundable discount must be between 1 and 30 percent';
+    end if;
+  else
+    v_discount:=null;
+  end if;
+
+  update public.listings set
+    minimum_stay_nights=p_min_nights,
+    maximum_stay_nights=p_max_nights,
+    non_refundable_rate_enabled=p_non_refundable_enabled,
+    non_refundable_discount_percent=v_discount,
+    updated_at=now()
+  where id=p_listing_id;
+
+  insert into public.property_commercial_change_log(
+    listing_id,actor_user_id,event_type,before_state,after_state
+  ) values(
+    p_listing_id,v_actor,'stay_rules_changed',
+    jsonb_build_object(
+      'minimum_stay_nights',v_listing.minimum_stay_nights,
+      'maximum_stay_nights',v_listing.maximum_stay_nights,
+      'non_refundable_rate_enabled',v_listing.non_refundable_rate_enabled,
+      'non_refundable_discount_percent',v_listing.non_refundable_discount_percent
+    ),
+    jsonb_build_object(
+      'minimum_stay_nights',p_min_nights,
+      'maximum_stay_nights',p_max_nights,
+      'non_refundable_rate_enabled',p_non_refundable_enabled,
+      'non_refundable_discount_percent',v_discount
+    )
+  );
+
+  return public.get_my_property_host_controls(p_listing_id);
+end
+$function$;
+revoke all on function public.set_my_property_stay_rules(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_property_stay_rules(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric) to service_role;
+grant execute on function public.set_my_property_stay_rules(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_property_stay_rules_v2(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_terms jsonb; v_min numeric; v_max numeric; v_result jsonb;
+begin
+  select value into v_terms from public.creator_policy_versions
+  where policy_key='accommodation_non_refundable_rate'
+    and scope_type='global' and scope_key='*' and status='active'
+    and effective_from<=now() and (effective_until is null or effective_until>now())
+  order by effective_from desc,version desc limit 1;
+  v_min:=(v_terms->>'minimum_discount_percent')::numeric;
+  v_max:=(v_terms->>'maximum_discount_percent')::numeric;
+  if p_non_refundable_enabled and (
+    p_non_refundable_discount_percent is null
+    or p_non_refundable_discount_percent<v_min
+    or p_non_refundable_discount_percent>v_max
+  ) then raise exception 'Non-refundable discount must be between % and % percent',v_min,v_max;
+  end if;
+  v_result:=public.set_my_property_stay_rules(
+    p_listing_id,p_min_nights,p_max_nights,p_non_refundable_enabled,
+    p_non_refundable_discount_percent
+  );
+  return public.get_my_property_host_controls_v2(p_listing_id);
+end
+$function$;
+revoke all on function public.set_my_property_stay_rules_v2(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_property_stay_rules_v2(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric) to service_role;
+grant execute on function public.set_my_property_stay_rules_v2(p_listing_id uuid, p_min_nights integer, p_max_nights integer, p_non_refundable_enabled boolean, p_non_refundable_discount_percent numeric) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_stay_party(p_kind text, p_booking_id text, p_adults integer, p_children integer, p_infants integer, p_pets integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id(); v_changed integer;
+begin
+ if v_actor is null or p_kind not in ('home','hotel') or p_adults<1 or p_children<0 or p_infants<0 or p_pets<0
+   or p_infants>5 or p_pets>5 then raise exception 'Invalid stay party'; end if;
+ if p_kind='hotel' then
+   update public.hotel_bookings set adult_count=p_adults,child_count=p_children,infant_count=p_infants,pet_count=p_pets,party_details_set=true
+    where booking_id::text=p_booking_id and user_id=v_actor and status='pending' and payment_status='unpaid'
+      and guest_count=p_adults+p_children;
+ else
+   update public.reservations set adult_count=p_adults,child_count=p_children,infant_count=p_infants,pet_count=p_pets,party_details_set=true
+    where id=p_booking_id and user_id=v_actor and stay_type='short_let' and status='payment_pending'
+      and guest_count=p_adults+p_children and rent_payment_status not in ('paid','upfront_paid');
+ end if;
+ get diagnostics v_changed=row_count;
+ if v_changed<>1 then raise exception 'Pending owned stay with matching party required'; end if;
+ return true;
+end $function$;
+revoke all on function public.set_my_stay_party(p_kind text, p_booking_id text, p_adults integer, p_children integer, p_infants integer, p_pets integer) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_stay_party(p_kind text, p_booking_id text, p_adults integer, p_children integer, p_infants integer, p_pets integer) to service_role;
+grant execute on function public.set_my_stay_party(p_kind text, p_booking_id text, p_adults integer, p_children integer, p_infants integer, p_pets integer) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_worker_customer_record_consent(p_worker_id text, p_consent boolean)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_actor text:=public.current_profile_user_id();
+begin
+  if v_actor is null or not exists(select 1 from public.worker_bookings
+      where user_id=v_actor and worker_id=p_worker_id and status='approved_released') then
+    raise exception 'A completed job with this Worker is required'; end if;
+  if coalesce(p_consent,false) then
+    insert into public.worker_customer_record_consents(worker_id,customer_id) values(p_worker_id,v_actor)
+    on conflict do nothing;
+  else
+    delete from public.worker_customer_record_consents where worker_id=p_worker_id and customer_id=v_actor;
+    delete from public.worker_pro_customer_notes where worker_id=p_worker_id and customer_id=v_actor;
+  end if;
+  return coalesce(p_consent,false);
+end $function$;
+revoke all on function public.set_my_worker_customer_record_consent(p_worker_id text, p_consent boolean) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_worker_customer_record_consent(p_worker_id text, p_consent boolean) to service_role;
+grant execute on function public.set_my_worker_customer_record_consent(p_worker_id text, p_consent boolean) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_my_worker_services(p_services jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor public.profiles;
+  v_item jsonb;
+  v_name text;
+  v_category text;
+  v_price integer;
+  v_price_type text;
+  v_description text;
+  v_count integer:=0;
+  v_names text[]:='{}'::text[];
+  v_search text[]:='{}'::text[];
+begin
+  select * into v_actor
+  from public.profiles profile
+  where profile.auth_id=(select auth.uid())::text
+    and public.user_has_active_workspace(profile.user_id,'worker')
+    and not coalesce(profile.deleted,false)
+    and not coalesce(profile.suspended,false)
+    and not coalesce(profile.banned,false)
+  limit 1;
+  if v_actor.user_id is null then raise exception 'Active Worker account required'; end if;
+  if p_services is null or jsonb_typeof(p_services)<>'array' then
+    raise exception 'Services must be a list';
+  end if;
+  if jsonb_array_length(p_services)<1 then
+    raise exception 'Add at least one service';
+  end if;
+  if jsonb_array_length(p_services)>10 then
+    raise exception 'A Worker can list up to 10 services';
+  end if;
+
+  for v_item in select value from jsonb_array_elements(p_services) loop
+    v_name:=nullif(btrim(coalesce(v_item->>'name','')),'');
+    v_category:=nullif(btrim(coalesce(v_item->>'category','')),'');
+    v_price:=greatest(0,coalesce(nullif(v_item->>'price','')::integer,0));
+    v_price_type:=lower(coalesce(nullif(btrim(v_item->>'price_type'),''),'starting_from'));
+    v_description:=nullif(btrim(coalesce(v_item->>'description','')),'');
+
+    if v_name is null or v_category is null then
+      raise exception 'Every service needs an approved category and service name';
+    end if;
+    if length(v_name)>120 then raise exception 'Service names must be 120 characters or less'; end if;
+    if v_price_type not in ('starting_from','fixed','hourly','daily','negotiable') then
+      raise exception 'Unsupported service price type';
+    end if;
+    if not exists(
+      select 1
+      from public.service_categories category
+      join public.service_subcategories service on service.category_id=category.id
+      where lower(btrim(category.name))=lower(v_category)
+        and lower(btrim(service.name))=lower(v_name)
+        and coalesce(category.is_active,true)
+        and coalesce(service.is_active,true)
+    ) then
+      raise exception 'Choose an active WeHouse service from the approved catalog';
+    end if;
+    if exists(select 1 from unnest(v_names) existing where lower(existing)=lower(v_name)) then
+      raise exception 'Each service can only be added once';
+    end if;
+
+    v_names:=array_append(v_names,v_name);
+    v_search:=array_append(v_search,v_category);
+    v_search:=array_append(v_search,v_name);
+  end loop;
+
+  delete from public.worker_services where worker_id=v_actor.user_id;
+  for v_item in select value from jsonb_array_elements(p_services) loop
+    v_name:=btrim(v_item->>'name');
+    v_price:=greatest(0,coalesce(nullif(v_item->>'price','')::integer,0));
+    v_price_type:=lower(coalesce(nullif(btrim(v_item->>'price_type'),''),'starting_from'));
+    v_description:=nullif(btrim(coalesce(v_item->>'description','')),'');
+    insert into public.worker_services(worker_id,service_name,price,price_type,description,created_at,updated_at)
+    values(v_actor.user_id,v_name,v_price,v_price_type,v_description,now(),now());
+    v_count:=v_count+1;
+  end loop;
+
+  update public.profiles
+  set worker_skills=(
+        select coalesce(jsonb_agg(value order by ord),'[]'::jsonb)
+        from (
+          select min(ord) ord, value
+          from unnest(v_search) with ordinality item(value,ord)
+          where nullif(btrim(value),'') is not null
+          group by lower(btrim(value)),value
+        ) deduped
+      ),
+      updated_at=now()
+  where user_id=v_actor.user_id;
+
+  return jsonb_build_object('success',true,'count',v_count,'services',to_jsonb(v_names));
+end;
+$function$;
+revoke all on function public.set_my_worker_services(p_services jsonb) from public, anon, authenticated, service_role;
+
+grant execute on function public.set_my_worker_services(p_services jsonb) to service_role;
+grant execute on function public.set_my_worker_services(p_services jsonb) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.snapshot_apartment_commission_policy()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'private'
+AS $function$
+declare
+  v_policy record;
+begin
+  if tg_op='UPDATE' and old.commission_policy_version_id is not null then
+    new.commission_policy_version_id:=old.commission_policy_version_id;
+    new.commission_rate:=old.commission_rate;
+    return new;
+  end if;
+
+  select * into v_policy
+  from private.resolve_apartment_commission_policy(
+    coalesce(new.stay_type,'long_stay'),
+    coalesce(new.management_mode_snapshot,'wehouse'),
+    null
+  );
+  if v_policy.policy_version_id is null or v_policy.percent not between 0 and 50 then
+    raise exception 'Active Creator apartment commission policy is missing or invalid';
+  end if;
+  new.commission_policy_version_id:=v_policy.policy_version_id;
+  new.commission_rate:=v_policy.percent;
+  return new;
+end
+$function$;
+revoke all on function public.snapshot_apartment_commission_policy() from public, anon, authenticated, service_role;
+
+grant execute on function public.snapshot_apartment_commission_policy() to service_role;
+
+CREATE OR REPLACE FUNCTION public.snapshot_hotel_cancellation_policy()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_plan public.hotel_rate_plans; v_policy public.creator_policy_versions;
+begin
+  if tg_op='UPDATE' and old.cancellation_policy_version_id is not null then
+    new.cancellation_policy_version_id:=old.cancellation_policy_version_id;
+    new.rate_plan_snapshot:=old.rate_plan_snapshot;
+    return new;
+  end if;
+  select * into v_plan from public.hotel_rate_plans
+  where rate_plan_id=new.rate_plan_id and room_id=new.room_id;
+  if v_plan.rate_plan_id is null then return new; end if;
+  if v_plan.cancellation_policy_version_id is not null then
+    select * into v_policy from public.creator_policy_versions
+    where policy_version_id=v_plan.cancellation_policy_version_id;
+    if v_policy.policy_version_id is null then
+      raise exception 'Hotel cancellation policy version is unavailable';
+    end if;
+    new.cancellation_policy_version_id:=v_policy.policy_version_id;
+  end if;
+  new.rate_plan_snapshot:=coalesce(new.rate_plan_snapshot,'{}'::jsonb)||jsonb_build_object(
+    'cancellation_template',v_plan.cancellation_template,
+    'cancellation_policy_version_id',v_plan.cancellation_policy_version_id,
+    'cancellation_policy_value',case when v_policy.policy_version_id is null
+      then null else v_policy.value end
+  );
+  return new;
+end
+$function$;
+revoke all on function public.snapshot_hotel_cancellation_policy() from public, anon, authenticated, service_role;
+
+grant execute on function public.snapshot_hotel_cancellation_policy() to service_role;
+
+CREATE OR REPLACE FUNCTION public.snapshot_short_let_rate_terms()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_standard public.creator_policy_versions;
+  v_nonref public.creator_policy_versions;
+begin
+  if new.stay_type is distinct from 'short_let' then return new; end if;
+  if tg_op='UPDATE' and old.short_stay_cancellation_policy_version_id is not null then
+    new.short_stay_cancellation_policy_version_id:=old.short_stay_cancellation_policy_version_id;
+    new.short_stay_rate_terms_policy_version_id:=old.short_stay_rate_terms_policy_version_id;
+    new.short_stay_cancellation_policy_snapshot:=old.short_stay_cancellation_policy_snapshot;
+    return new;
+  end if;
+  select * into v_standard from public.creator_policy_versions
+  where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*'
+    and status='active' and effective_from<=now()
+    and (effective_until is null or effective_until>now())
+  order by effective_from desc,version desc limit 1;
+  select * into v_nonref from public.creator_policy_versions
+  where policy_key='accommodation_non_refundable_rate'
+    and scope_type='global' and scope_key='*' and status='active'
+    and effective_from<=now() and (effective_until is null or effective_until>now())
+  order by effective_from desc,version desc limit 1;
+  if v_standard.policy_version_id is null or v_nonref.policy_version_id is null then
+    raise exception 'Creator-approved Short Let rate terms are unavailable';
+  end if;
+  new.short_stay_cancellation_policy_version_id:=v_standard.policy_version_id;
+  new.short_stay_rate_terms_policy_version_id:=v_nonref.policy_version_id;
+  new.short_stay_cancellation_policy_snapshot:=
+    coalesce(new.short_stay_cancellation_policy_snapshot,'{}'::jsonb)||jsonb_build_object(
+      'standard_policy_version_id',v_standard.policy_version_id,
+      'rate_terms_policy_version_id',v_nonref.policy_version_id,
+      'non_refundable_terms',v_nonref.value
+    );
+  return new;
+end
+$function$;
+revoke all on function public.snapshot_short_let_rate_terms() from public, anon, authenticated, service_role;
+
+grant execute on function public.snapshot_short_let_rate_terms() to service_role;
+
+CREATE OR REPLACE FUNCTION public.submit_my_property_change_request(p_listing_id uuid, p_change_type text, p_proposed_changes jsonb, p_reason text)
+ RETURNS property_change_requests
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare
+  v_actor text:=public.current_profile_user_id();
+  v_listing public.listings;
+  v_existing public.property_change_requests;
+  v_result public.property_change_requests;
+  v_count integer;
+begin
+  if v_actor is null or not exists(
+    select 1 from public.property_host_assignments a
+    where a.listing_id=p_listing_id and a.user_id=v_actor
+      and a.assignment_role='owner' and a.status='active'
+  ) then raise exception 'Only the active property owner can request this change'; end if;
+  if char_length(btrim(coalesce(p_reason,''))) not between 5 and 2000 then
+    raise exception 'Explain why the live property should change';
+  end if;
+  if p_change_type not in ('price','photos','renovation')
+     or jsonb_typeof(p_proposed_changes)<>'object' then
+    raise exception 'Choose a supported change and provide its details';
+  end if;
+
+  select * into v_listing from public.listings
+  where id=p_listing_id and deleted_at is null for update;
+  if v_listing.id is null or v_listing.approved_at is null
+     or v_listing.status not in ('available','reserved','occupied','maintenance','closed') then
+    raise exception 'Only a published property can be revised here';
+  end if;
+
+  if p_change_type='price' then
+    if v_listing.management_mode<>'wehouse' then
+      raise exception 'Host-managed price is changed through Host commercial controls';
+    end if;
+    if coalesce((p_proposed_changes->>'price')::numeric,0)<=0 then
+      raise exception 'The proposed price must be greater than zero';
+    end if;
+  elsif p_change_type='photos' then
+    if jsonb_typeof(p_proposed_changes->'images')<>'array' then
+      raise exception 'Choose the replacement property photos';
+    end if;
+    v_count:=jsonb_array_length(p_proposed_changes->'images');
+    if v_count<1 or v_count>12 or exists(
+      select 1 from jsonb_array_elements_text(p_proposed_changes->'images') image
+      where image !~ '^https://'
+    ) then raise exception 'Provide 1 to 12 uploaded property photos'; end if;
+  else
+    if char_length(btrim(coalesce(p_proposed_changes->>'summary',''))) not between 10 and 2000
+       or char_length(coalesce(p_proposed_changes->>'description',''))>5000 then
+      raise exception 'Describe the completed renovation';
+    end if;
+    if p_proposed_changes ? 'images' then
+      if jsonb_typeof(p_proposed_changes->'images')<>'array' then
+        raise exception 'Renovation photos are invalid';
+      end if;
+      v_count:=jsonb_array_length(p_proposed_changes->'images');
+      if v_count<1 or v_count>12 or exists(
+        select 1 from jsonb_array_elements_text(p_proposed_changes->'images') image
+        where image !~ '^https://'
+      ) then raise exception 'Provide up to 12 uploaded renovation photos'; end if;
+    end if;
+  end if;
+
+  select * into v_existing from public.property_change_requests
+  where listing_id=v_listing.id and requested_by=v_actor
+    and change_type=p_change_type and status='changes_requested'
+  for update;
+  if v_existing.change_request_id is not null then
+    update public.property_change_requests set
+      proposed_changes=p_proposed_changes,reason=btrim(p_reason),status='submitted',
+      reviewed_by=null,reviewed_at=null,decision_reason=null,updated_at=now()
+    where change_request_id=v_existing.change_request_id
+    returning * into v_result;
+    return v_result;
+  end if;
+
+  insert into public.property_change_requests(
+    listing_id,requested_by,change_type,proposed_changes,reason,materiality,
+    requires_reinspection,before_snapshot
+  ) values(
+    v_listing.id,v_actor,p_change_type,p_proposed_changes,btrim(p_reason),
+    case p_change_type when 'price' then 'commercial' when 'photos' then 'media' else 'material' end,
+    p_change_type='renovation',
+    jsonb_build_object(
+      'price',v_listing.price,'description',v_listing.description,
+      'images',to_jsonb(v_listing.images),'bedrooms',v_listing.bedrooms,
+      'bathrooms',v_listing.bathrooms,'amenities',to_jsonb(v_listing.amenities),
+      'management_mode',v_listing.management_mode
+    )
+  ) returning * into v_result;
+  return v_result;
+exception when unique_violation then
+  raise exception 'This property already has an open % change request',p_change_type;
+end
+$function$;
+revoke all on function public.submit_my_property_change_request(p_listing_id uuid, p_change_type text, p_proposed_changes jsonb, p_reason text) from public, anon, authenticated, service_role;
+
+grant execute on function public.submit_my_property_change_request(p_listing_id uuid, p_change_type text, p_proposed_changes jsonb, p_reason text) to service_role;
+grant execute on function public.submit_my_property_change_request(p_listing_id uuid, p_change_type text, p_proposed_changes jsonb, p_reason text) to authenticated;
+
+CREATE OR REPLACE FUNCTION public.validate_stay_party()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+declare v_pets boolean; v_capacity integer;
+begin
+ if tg_op='UPDATE' then
+   if old.party_details_set and not new.party_details_set then raise exception 'Stay party cannot be cleared'; end if;
+   -- A property can change its future pet policy without invalidating an
+   -- already accepted and paid party during payment or check-in updates.
+   if old.party_details_set and new.party_details_set and old.adult_count=new.adult_count
+     and old.child_count=new.child_count and old.infant_count=new.infant_count and old.pet_count=new.pet_count
+     and old.guest_count=new.guest_count then return new; end if;
+ end if;
+ if not new.party_details_set then return new; end if;
+ if new.adult_count<1 or new.child_count<0 or new.infant_count<0 or new.pet_count<0
+   or new.infant_count>5 or new.pet_count>5 or new.guest_count<>new.adult_count+new.child_count then
+   raise exception 'Invalid stay party'; end if;
+ if tg_table_name='hotel_bookings' then
+   select max_guests,pets_allowed into v_capacity,v_pets from public.hotel_rooms where room_id=new.room_id and hotel_id=new.hotel_id;
+ else
+   select max_guests,pets_allowed into v_capacity,v_pets from public.listings where id::text=new.listing_id or listing_id=new.listing_id limit 1;
+ end if;
+ if v_capacity is null or new.guest_count>v_capacity then raise exception 'Party exceeds property capacity'; end if;
+ if new.pet_count>0 and not coalesce(v_pets,false) then raise exception 'Pets are not allowed at this property'; end if;
+ return new;
+end $function$;
+revoke all on function public.validate_stay_party() from public, anon, authenticated, service_role;
+
+grant execute on function public.validate_stay_party() to service_role;
+
+CREATE OR REPLACE FUNCTION public.worker_pro_is_active(p_worker_id text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  select exists(
+    select 1 from public.worker_pro_subscriptions subscription
+    where subscription.worker_id=p_worker_id
+      and subscription.status in ('active','grace_period')
+      and subscription.current_period_end>now()
+  );
+$function$;
+revoke all on function public.worker_pro_is_active(p_worker_id text) from public, anon, authenticated, service_role;
+
+grant execute on function public.worker_pro_is_active(p_worker_id text) to service_role;
+grant execute on function public.worker_pro_is_active(p_worker_id text) to authenticated;
+ then
+    select * into v_listing
+    from public.listings l
+    where l.id=p_listing_id::uuid
+      and l.deleted_at is null
+    limit 1;
+  end if;
   if v_listing.id is null then return null; end if;
 
   select coalesce(nullif(btrim(p.full_name),''),nullif(btrim(p.username),''))
