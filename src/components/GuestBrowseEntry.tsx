@@ -125,25 +125,41 @@ function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox
 function GuestProductPreview({ product, busy, onBack, onSignIn }: { product: 'roommate' | 'services'; busy: boolean; onBack: () => void; onSignIn: () => void }) {
   const roommate = product === 'roommate';
   const content = roommate
-    ? { eyebrow: 'ROOMMATE', title: 'Find someone who fits your housing plan', body: 'WeHouse helps you find compatible people to share a home with. Matching is based on practical housing choices, not a long personality test.', steps: ['Choose your preferred State, LGA and area.', 'Set your budget, gender preference, school option and living preferences.', 'Review compatible profiles, connect mutually and continue the conversation in Inbox.'], note: 'Your personal details and private matching data are not made public just because you open Roommate discovery.' }
-    : { eyebrow: 'WEHOUSE SERVICES', title: 'Find local professionals for the work you need', body: 'Browse service professionals, see their skills and work evidence, discuss the job and keep the booking connected to the agreed work.', steps: ['Choose a service and compare available professionals.', 'Review skills, work examples and the job details before agreeing.', 'Keep the conversation, agreed work and Payment Protection connected to the service booking.'], note: 'Workers are service professionals on WeHouse, not WeHouse employees. Verification and work evidence are separate from customer ratings.' };
+    ? {
+        eyebrow: 'ROOMMATES',
+        title: 'Find people whose housing plans fit yours.',
+        body: 'Choose practical preferences, see compatible people and connect when the interest is mutual.',
+        points: ['State, LGA and area', 'Budget, gender and living preferences', 'Private matching and in-app conversation'],
+        note: 'Opening Roommates does not make your private matching details public.',
+        action: 'Sign in to start matching',
+      }
+    : {
+        eyebrow: 'WEHOUSE SERVICES',
+        title: 'Find a professional for the work you need.',
+        body: 'Compare skills and work evidence, agree the job and keep the service booking connected.',
+        points: ['Choose a service', 'Review skills and work examples', 'Agree the job with Payment Protection'],
+        note: 'Workers are independent service professionals, not WeHouse employees.',
+        action: 'Sign in to find a professional',
+      };
   return <main className="mx-auto max-w-2xl px-4 py-4 pb-28 sm:px-6" aria-labelledby="guest-product-title">
     <div className="flex items-center gap-3">
       <BackButton onClick={onBack} ariaLabel="Back to Explore" />
       <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p><p className="text-sm font-semibold">Explore</p></div>
     </div>
-    <section className="mt-3 rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-[var(--wh-shadow-sm)] sm:p-7">
+    <section className="mt-5" aria-describedby="guest-product-body">
       <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">{content.eyebrow}</p>
-      <h1 id="guest-product-title" className="mt-2 text-2xl font-bold tracking-tight">{content.title}</h1>
-      <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
-      <div className="mt-6">
-        <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">How it works</p>
-        <div className="mt-2 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-          {content.steps.map((step, index) => <div key={step} className="flex gap-3 py-4"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-300">{index + 1}</span><p className="text-sm leading-6 text-[var(--wh-text-secondary)]">{step}</p></div>)}
-        </div>
+      <h1 id="guest-product-title" className="mt-2 max-w-xl text-2xl font-bold tracking-tight sm:text-3xl">{content.title}</h1>
+      <p id="guest-product-body" className="mt-3 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
+      <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
+        {content.points.map((point, index) => (
+          <div key={point} className="flex items-center gap-3 px-4 py-4">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-semibold text-violet-300">{index + 1}</span>
+            <span className="text-sm font-medium">{point}</span>
+          </div>
+        ))}
       </div>
-      <p className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4 text-sm leading-6 text-[var(--wh-text-secondary)]">{content.note}</p>
-      <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : roommate ? 'Sign in to start matching' : 'Sign in to find a professional'}</button>
+      <p className="mt-4 text-xs leading-5 text-[var(--wh-text-muted)]">{content.note}</p>
+      <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : content.action}</button>
     </section>
   </main>;
 }
