@@ -129,7 +129,7 @@ function PageTransitionFallback() {
   }, []);
   return (
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] text-[var(--wh-text)]">
-      <WeHouseLoadingState label="Checking your WeHouse workspace…" />
+      <WeHouseLoadingState label="Checking your session and workspace" />
       {slow ? (
         <div className="mx-auto -mt-24 max-w-sm px-5 text-center">
           <p className="text-sm text-[var(--wh-text-secondary)]">This is taking longer than usual.</p>
