@@ -300,9 +300,9 @@ export default function HotelTeamDashboard({
                 <button
                   key={hotel.hotel_id}
                   onClick={() => { setInitialBookingId(undefined); setSelected(hotel); }}
-                  className="flex w-full items-center gap-4 py-4 text-left"
+                  className="group overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-left shadow-[0_10px_35px_rgba(0,0,0,.12)] transition hover:-translate-y-0.5 hover:border-violet-400/25"
                 >
-                  <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">
+                  <div className="h-28 w-full shrink-0 overflow-hidden bg-[var(--wh-elevated)]">
                     {hotel.images?.[0] ? (
                       <img
                         src={hotel.images[0]}
