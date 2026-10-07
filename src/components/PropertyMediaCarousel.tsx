@@ -135,7 +135,7 @@ export default function PropertyMediaCarousel({
       </section>
       {fullscreen && createPortal(
         <div ref={dialogRef} tabIndex={-1}
-          className="fixed inset-0 z-[100200] flex h-[100svh] flex-col bg-black"
+          className="wh-media-viewer fixed inset-0 z-[100200] flex h-[100svh] flex-col bg-black"
           role="dialog"
           aria-modal="true"
           aria-label={`${title} media viewer`}
@@ -144,7 +144,7 @@ export default function PropertyMediaCarousel({
             <button
               type="button"
               onClick={closeFullscreen}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white transition active:scale-95"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
               aria-label="Back from media viewer"
             >
               <ArrowLeft size={21} />
@@ -167,7 +167,7 @@ export default function PropertyMediaCarousel({
                   ),
                 );
             }}
-            className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain bg-black scrollbar-hide"
+            className="wh-media-stage flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain bg-black scrollbar-hide"
           >
             {items.map((item, index) => (
               <div
