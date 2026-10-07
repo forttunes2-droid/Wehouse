@@ -286,14 +286,6 @@ function Workspace({
     );
   const activeLabel =
     items.find((item) => item.id === tab)?.label || copy.title;
-  const activeDescription =
-    tab === "bookings"
-      ? "Continue exact reservations through arrival, verified handover, active tenancy and completion."
-      : tab === "conversations"
-        ? "Messages are conversations. Activity contains official updates and work that needs action."
-        : tab === "home"
-          ? `See today’s ${copy.title.toLowerCase()} work and priorities.`
-          : copy.description;
   return (
     <>
 
@@ -302,7 +294,6 @@ function Workspace({
         identityAvatar={profile.avatar_url}
         label={`WEHOUSE TEAM · ${copy.title}`}
         title={activeLabel}
-        description={`${activeDescription} · ${coverage}`}
         items={items}
         active={tab}
         setActive={(id) => setTab(id as MainTab)}
@@ -560,10 +551,10 @@ function StaffHome({
           YOUR WORK AREA
         </p>
         <h2 className="mt-3 text-2xl font-bold">{copy.title}</h2>
-        <p className="mt-2 max-w-xl text-xs leading-6 text-[var(--wh-text-secondary)]">
-          {copy.description}
-        </p>
-        <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">Coverage · {branch}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--wh-text-secondary)]">{branch}</span>
+          <span className="rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--wh-text-secondary)]">Assigned work only</span>
+        </div>
       </section>
       <div className="border-y border-[var(--wh-border-subtle)]">
         <button
