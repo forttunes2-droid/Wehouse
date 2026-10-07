@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ExternalLink, Share2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { isTopDialog } from "@/lib/dialogIsolation";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -46,6 +46,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [chromeVisible, setChromeVisible] = useState(false);
 
   useEffect(() => setIndex(Math.min(Math.max(requestedIndex, 0), maxIndex)), [requestedIndex, maxIndex]);
   useEffect(() => {
@@ -67,36 +68,20 @@ export default function MediaViewer(props: MediaViewerProps) {
         if (event.key === "ArrowRight") { event.preventDefault(); next?.(); }
       }}
       role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent px-3 pb-12"
+      <div
+        className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
-        <button type="button" onClick={dismiss}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
-          aria-label={variant === "photo" ? "Close media preview" : "Back from media preview"}>
-          <ArrowLeft size={22} />
-        </button>
-        <div className="min-w-0 flex-1 px-3 pt-1">
-          <div className="flex min-w-0 items-center gap-2.5">
-            {avatarUrl ? <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/15" /> : null}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{title}</p>
-              {subtitle ? <p className="mt-0.5 truncate text-xs text-white/60">{subtitle}</p> :
-                items.length > 1 ? <p className="mt-0.5 text-xs text-white/60">{index + 1} / {items.length}</p> : null}
-            </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button type="button" onClick={() => { window.open(src, "_blank", "noopener,noreferrer"); }}
-            className="grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
-            aria-label="Open media in a new tab">
-            <ExternalLink size={20} />
+        <div className="flex items-start gap-3">
+          <button type="button" onClick={dismiss}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
+            aria-label={variant === "photo" ? "Close media preview" : "Back from media preview"}>
+            <ArrowLeft size={22} />
           </button>
-          {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
-            <button type="button" onClick={() => void navigator.share({ title, text: subtitle, url: src }).catch(() => undefined)}
-              className="grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
-              aria-label="Share media">
-              <Share2 size={19} />
-            </button>
-          ) : null}
+          <div className="min-w-0 flex-1 pt-1">
+            <p className="truncate text-sm font-semibold">{title}</p>
+            {subtitle ? <p className="mt-0.5 truncate text-xs text-white/60">{subtitle}</p> :
+              items.length > 1 ? <p className="mt-0.5 text-xs text-white/60">{index + 1} / {items.length}</p> : null}
+          </div>
         </div>
       </div>
 
@@ -107,16 +92,16 @@ export default function MediaViewer(props: MediaViewerProps) {
         {failed ? (
           <div className="px-6 text-center"><p className="text-sm font-semibold">This media could not be loaded</p><p className="mt-2 text-sm text-white/55">Close the viewer and try again.</p></div>
         ) : kind === "video" ? (
-          <VideoPlayer key={`${index}:${src}`} src={src} autoPlay onTime={setCurrentTime}
+          <VideoPlayer key={`${index}:${src}`} src={src} autoPlay viewerMode onTime={setCurrentTime}
             onDuration={value => { setDuration(value); setReady(true); }}
             onPlaybackError={() => setFailed(true)} containerClassName="h-full w-full bg-black" className="h-full w-full object-contain" />
         ) : (
           <ZoomablePhoto key={`${index}:${src}`} src={src} title={title} onReady={() => setReady(true)} onError={() => setFailed(true)}
             onPrevious={previous} onNext={next} />
         )}
-        {items.length > 1 ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}
+        {items.length > 1 && chromeVisible ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}
       </main>
-      {variant === "gallery" && kind === "video" && duration > 0 ? (
+      {variant === "gallery" && kind === "video" && duration > 0 && chromeVisible ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 font-mono text-[11px] text-white/75"
           style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
           {formatDuration(currentTime)} / {formatDuration(duration)}
