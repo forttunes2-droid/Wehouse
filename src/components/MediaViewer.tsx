@@ -85,7 +85,8 @@ export default function MediaViewer(props: MediaViewerProps) {
         </div>
       </div>
 
-      <main {...paging} data-media-stage\n        onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setChromeVisible(value => !value); }}
+      <main {...paging} data-media-stage
+        onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setChromeVisible(value => !value); }}
         className="wh-media-stage relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
         style={{ ...paging.style, touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
