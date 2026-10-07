@@ -534,3 +534,14 @@ input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .shimmer, .orb { animation: none !important; }
 }
+
+
+/* Immersive media should feel like a continuation of the surface, not a hard modal cut. */
+.wh-media-viewer { animation: whMediaViewerIn 180ms cubic-bezier(.2,.8,.2,1); }
+.wh-media-stage > * { animation: whMediaContentIn 240ms cubic-bezier(.2,.8,.2,1); }
+.wh-media-viewer button { -webkit-tap-highlight-color: transparent; }
+@keyframes whMediaViewerIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes whMediaContentIn { from { opacity: .75; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .wh-media-viewer, .wh-media-stage > * { animation: none !important; }
+}
