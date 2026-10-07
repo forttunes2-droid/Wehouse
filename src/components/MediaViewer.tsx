@@ -71,7 +71,7 @@ export default function MediaViewer(props: MediaViewerProps) {
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         <button type="button" onClick={dismiss}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
-          aria-label="Back from media preview">
+          aria-label={variant === "photo" ? "Close media preview" : "Back from media preview"}>
           <ArrowLeft size={22} />
         </button>
         <div className="min-w-0 flex-1 px-3 pt-1">
