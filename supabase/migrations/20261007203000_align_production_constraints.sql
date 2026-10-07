@@ -1,0 +1,12 @@
+alter table public.financial_action_outbox drop constraint if exists financial_action_outbox_action_type_check;
+alter table public.financial_action_outbox add constraint financial_action_outbox_action_type_check check (action_type=any(array['refund_caution_undisputed','refund_caution_balance','release_caution_award','refund_unclaimed_caution','refund_shared_checkout','release_worker_payment','release_long_let_payment','release_short_let_stay','release_hotel_stay']::text[]));
+alter table public.worker_bookings drop constraint if exists worker_bookings_location_pair_check;
+alter table public.worker_bookings add constraint worker_bookings_location_pair_check check ((((service_latitude is null) and (service_longitude is null)) or ((service_latitude>=-90) and (service_latitude<=90) and (service_longitude>=-180) and (service_longitude<=180))));
+alter table public.worker_pro_job_costs drop constraint if exists worker_pro_job_costs_note_check;
+alter table public.worker_pro_job_costs add constraint worker_pro_job_costs_note_check check (note is null or length(note)<=300);
+alter table public.property_commercial_change_log drop constraint if exists property_commercial_change_log_event_type_check;
+alter table public.property_commercial_change_log add constraint property_commercial_change_log_event_type_check check (event_type=any(array['price_changed','booking_paused','booking_opened','dates_closed','dates_opened','stay_rules_changed']::text[]));
+alter table public.hotel_bookings drop constraint if exists hotel_bookings_status_check;
+alter table public.hotel_bookings add constraint hotel_bookings_status_check check (status=any(array['pending','confirmed','checked_in','checked_out','cancelled','completed','refunded','expired','payment_conflict','no_show']::text[]));
+alter table public.reservations drop constraint if exists reservations_status_check;
+alter table public.reservations add constraint reservations_status_check check (status=any(array['payment_pending','reserved','inspection_pending','ready_for_move_in','occupied','completed','cancelled','expired','refunded','payment_conflict','no_show']::text[]));
