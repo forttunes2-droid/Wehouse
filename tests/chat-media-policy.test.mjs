@@ -14,7 +14,7 @@ test('picker accepts supported photos, videos and documents while rejecting unsa
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:policy.CHAT_MEDIA_MAX_BYTES+1}),false);
  assert.match(policy.CHAT_MEDIA_ACCEPT,/image\/png/);
 });
-test('real photo signature is allowed before upload and after decryption',async()=>{
+test('PDF documents are allowed and validated before upload',async()=>{\n const pdf=Buffer.from('%PDF-1.7\\n1 0 obj\\n<<>>\\nendobj\\n%%EOF');\n await policy.validateChatUpload(file(pdf,'lease.pdf','application/pdf'));\n await policy.validateMessageMedia(new Blob([pdf]),{type:'application/pdf',name:'lease.pdf'});\n await assert.rejects(policy.validateChatUpload(file('not-a-pdf','lease.pdf','application/pdf')),/not a supported/);\n});\ntest('real photo signature is allowed before upload and after decryption',async()=>{
  await policy.validateChatUpload(file(png,'room.png','image/png'));
  await policy.validateMessageMedia(new Blob([png]),{type:'image/png',name:'room.png'});
 });
