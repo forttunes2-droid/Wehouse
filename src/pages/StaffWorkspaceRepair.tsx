@@ -209,7 +209,7 @@ function Workspace({
     onNavigate?.(page, id);
   }
   let content: React.ReactNode;
-  else if (tab === "bookings" && module === "operations")
+  if (tab === "bookings" && module === "operations")
     content = <HousingOperationsWorkspace initialRecordId={bookingTargetId} />;
   else if (tab === "conversations" && module === "operations")
     content = (
