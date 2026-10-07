@@ -452,7 +452,7 @@ function PropertiesTab({
             Live {assetKind === "hotel" ? "hotels" : "apartments"}
           </h2>
         </div>
-        <span className="text-[10px] font-medium text-[var(--wh-text-muted)]">{hasMore ? "Showing current page" : `${assets.length} ${assetKind === "hotel" ? "hotel" : "property"}${assets.length === 1 ? "" : "ies"}`}</span>
+        <span className="text-[10px] font-medium text-[var(--wh-text-muted)]">{hasMore ? "Showing current page" : `${assets.length} ${assetKind === "hotel" ? (assets.length === 1 ? "hotel" : "hotels") : (assets.length === 1 ? "property" : "properties")}`}</span>
       </div>
       {loading ? (
         <Loading />
