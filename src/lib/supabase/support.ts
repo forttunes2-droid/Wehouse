@@ -1,3 +1,4 @@
+import { isChatAttachmentType } from "@/lib/chatMediaPolicy";
 import { prepareChatImageFile, prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from "./client";
 import { propertyBookingStatusLabel, type PropertyJourneyAudience } from "@/lib/propertyBookingLifecycle";
@@ -258,10 +259,8 @@ export type SupportMessageDraftStatus = {
   expires_at: string;
   consumed_at: string | null;
 };
-export const SUPPORT_EVIDENCE_MIME_TYPES = new Set([
-  "image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime",
-]);
-export function isSupportedSupportEvidence(file: File) { return SUPPORT_EVIDENCE_MIME_TYPES.has(file.type || ""); }
+export const SUPPORT_EVIDENCE_MIME_TYPES = new Set<string>();
+export function isSupportedSupportEvidence(file: File) { return isChatAttachmentType(file.type); }
 export async function createSupportMessageDraft() {
   const { data, error } = await supabase.rpc("create_my_support_message_draft");
   return { draftId: data as string | null, error };
