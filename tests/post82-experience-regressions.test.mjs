@@ -231,9 +231,11 @@ test("media viewer keeps one coherent full-screen shell with safe navigation act
     read("src/components/PropertyMediaCarousel.tsx"),
   ]);
   assert.match(viewer, /Back from media preview/);
-  assert.match(viewer, /navigator\.share/);\n  assert.match(viewer, /ExternalLink/);
+  assert.match(viewer, /navigator\.share/);
+  assert.match(viewer, /ExternalLink/);
   assert.match(photo, /touchAction: 'none'/);
   assert.match(photo, /onPrevious/);
   assert.match(video, /playsInline/);
-  assert.match(video, /View video full screen/);\n  assert.match(propertyMedia, /Back from media viewer/);\n  assert.match(propertyMedia, /snap-x snap-mandatory/);
+  assert.match(video, /View video full screen/);
+  assert.match(propertyMedia, /Back from media viewer/);\n  assert.match(propertyMedia, /snap-x snap-mandatory/);
 });
