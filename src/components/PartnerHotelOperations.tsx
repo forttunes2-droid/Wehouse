@@ -34,7 +34,7 @@ import BackButton from "@/components/BackButton";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import BookingDateField from "@/components/BookingDateField";
 
-type HotelAccessRole = "owner" | "manager" | "front_desk" | "staff";
+type HotelAccessRole = "owner" | "manager" | "front_desk";
 type HotelCapability =
   | "stay.read"
   | "stay.message"
