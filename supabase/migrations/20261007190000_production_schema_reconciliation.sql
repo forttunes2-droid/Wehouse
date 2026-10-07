@@ -2504,7 +2504,17 @@ begin
   limit 1;
   -- UUID callers retain canonical-id compatibility without forcing an OR/cast
   -- across the entire listings table.
-  if v_listing.id is null and p_listing_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+  if v_listing.id is null then
+    begin
+      select * into v_listing
+      from public.listings l
+      where l.id=p_listing_id::uuid
+        and l.deleted_at is null
+      limit 1;
+    exception when invalid_text_representation then
+      null;
+    end;
+  end if;
 
   select coalesce(nullif(btrim(p.full_name),''),nullif(btrim(p.username),''))
   into v_partner_name
