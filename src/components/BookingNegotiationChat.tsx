@@ -1,4 +1,4 @@
-import { isChatVisualType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import { isChatAttachmentType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -338,7 +338,7 @@ export default function BookingNegotiationChat({
   function chooseFiles(list: FileList | null) {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
-      if (!isChatVisualType(file.type)) { toast.error(CHAT_MEDIA_ONLY_MESSAGE); return false; }
+      if (!isChatAttachmentType(file.type)) { toast.error(CHAT_MEDIA_ONLY_MESSAGE); return false; }
       if (file.size > MAX_FILE_SIZE) {
         toast.error(`${file.name} is larger than 25MB`);
         return false;
