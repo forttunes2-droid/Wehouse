@@ -140,7 +140,26 @@ export function CreatorAuthProvider({ children }: { children: ReactNode }) {
       );
       const result = (data || {}) as StepUpResponse;
       if (invokeError) {
-        setError(invokeError.message || 'Creator confirmation could not be completed.');
+        // Supabase FunctionsError often reports only "non-2xx" even when the
+        // Edge Function returned a safe, actionable JSON error. Read that
+        // response when available so Creator sees the actual server decision.
+        let serverMessage = '';
+        const context = (invokeError as unknown as { context?: unknown }).context;
+        if (context && typeof (context as Response).json === 'function') {
+          try {
+            const body = await (context as Response).clone().json() as StepUpResponse;
+            serverMessage = typeof body?.error === 'string' ? body.error : '';
+            if (body?.needs_mfa) {
+              pendingSecretRef.current = creatorSecret;
+              setNeedsMfa(true);
+              setError('');
+              return false;
+            }
+          } catch {
+            // Fall back to the connector error below.
+          }
+        }
+        setError(serverMessage || invokeError.message || 'Creator confirmation could not be completed.');
         return false;
       }
       if (result.needs_mfa) {
