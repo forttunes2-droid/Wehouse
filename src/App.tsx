@@ -72,6 +72,11 @@ type IncomingMessageRow = {
   conversation_id?: string;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
+type NavigationHistoryState = { page?: NavPage; workspace?: WorkspaceChoice; entry_id?: string };
+
+function navigationEntryId() {
+  try { return crypto.randomUUID(); } catch { return `nav-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+}
 
 function pageScrollSurface(container: HTMLElement | null): HTMLElement | null {
   // The wrapper has overflow-y-auto, but on phones it can grow with the page.
@@ -479,7 +484,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [navigationReady, setNavigationReady] = useState(false),
     seenMessagesRef = useRef(new Map<string, string>()),
     pageScrollRef = useRef<HTMLDivElement>(null),
-    pageScrollPositionsRef = useRef(new Map<NavPage, number>());
+    pageScrollPositionsRef = useRef(new Map<string, number>()),
+    navigationEntryRef = useRef<string>(navigationEntryId());
   const roleRoot = useCallback(
     (): NavPage => roleRootFor(userRole),
     [userRole],
@@ -507,6 +513,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       setConversationOpen(false);
       setNestedScreen(false);
       pageScrollPositionsRef.current.clear();
+      navigationEntryRef.current = navigationEntryId();
       setActiveWorkspace(workspace);
       window.dispatchEvent(new Event("wehouse:navigation"));
       try {
@@ -523,7 +530,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       );
       setNavPage(destination);
       navHistoryRef.current = [destination];
-      window.history.replaceState({ page: destination, workspace }, "", `#${destination}`);
+      window.history.replaceState({ page: destination, workspace, entry_id: navigationEntryRef.current }, "", `#${destination}`);
       try {
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
       } catch {}
@@ -589,7 +596,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
-      window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
+      navigationEntryRef.current = navigationEntryId();
+      window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey]);
   useEffect(() => {
@@ -604,14 +612,15 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
-      window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
+      navigationEntryRef.current = navigationEntryId();
+      window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
     } catch {}
   }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey, activeWorkspace]);
   const handleSetNavPage = useCallback(
     (page: NavPage) => {
       window.dispatchEvent(new Event("wehouse:navigation"));
       pageScrollPositionsRef.current.set(
-        navPage,
+        navigationEntryRef.current,
         pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
       const safe = normalizePageForRole(
@@ -624,9 +633,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         // The signed-out landing page has no router state until its first link.
         // Preserve it so Back from a public legal page returns to sign-in.
         if (!window.history.state?.page) {
-          window.history.replaceState({ page: current || "search", workspace: activeWorkspace }, "");
+          navigationEntryRef.current = navigationEntryId();
+          window.history.replaceState({ page: current || "search", workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "");
         }
-        window.history.pushState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
+        navigationEntryRef.current = navigationEntryId();
+        window.history.pushState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
         navHistoryRef.current = [...navHistoryRef.current, safe];
       }
       setNavPage(safe);
@@ -636,7 +647,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
-      const s = e.state as { page?: NavPage; workspace?: WorkspaceChoice } | null;
+      const s = e.state as NavigationHistoryState | null;
       if (!s?.page) return;
       // Browser Back must never silently change persona. Workspace switching is
       // deliberate; old history entries are normalized inside the current workspace.
@@ -646,11 +657,12 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         Boolean(baseProfile?.profile_complete),
       );
       pageScrollPositionsRef.current.set(
-        navPage,
+        navigationEntryRef.current,
         pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
       );
-      if (safe !== s.page || s.workspace !== activeWorkspace)
-        window.history.replaceState({ page: safe, workspace: activeWorkspace }, "", `#${safe}`);
+      navigationEntryRef.current = s.entry_id || navigationEntryId();
+      if (safe !== s.page || s.workspace !== activeWorkspace || !s.entry_id)
+        window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
       setNavPage(safe);
       navHistoryRef.current =
         navHistoryRef.current.length > 1
@@ -1058,11 +1070,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     (id: string) => {
       setDetailId(id);
       handleSetNavPage("detail");
-      // A second listing is a new screen, even when the route name stays
-      // "detail". Do not restore the previous listing's scroll position.
-      pageScrollPositionsRef.current.set("detail", 0);
-      const surface = pageScrollSurface(pageScrollRef.current);
-      if (surface) surface.scrollTop = 0;
+      // Each history entry owns its own scroll state, so opening another
+      // detail screen starts at the top without disturbing the browse entry.
     },
     [handleSetNavPage],
   );
@@ -1201,8 +1210,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         onContinueVerification={() => {
           try {
             localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");
+            navigationEntryRef.current = navigationEntryId();
             window.history.replaceState(
-              { page: "worker_verification" },
+              { page: "worker_verification", entry_id: navigationEntryRef.current },
               "",
               "#worker_verification",
             );
