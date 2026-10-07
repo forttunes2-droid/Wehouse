@@ -50,6 +50,7 @@ import {
 } from "@/lib/supabase/announcements";
 import {
   activityIsCurrent,
+  currentActivityRows,
   resolveActivityDestination,
 } from "@/lib/activityFeed";
 import {
@@ -723,7 +724,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         getCommunicationBookingConversations(uid, "personal"),
         getMySupportConversations(),
         getMyHotelConversations(),
-        getCanonicalActivitySummary("personal"),
+        getCanonicalActivity("personal", 100),
         getAnnouncementsForUser(uid),
       ]);
       if (!isCurrent()) return;
@@ -749,7 +750,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           sum + (Number(row.unread_count || 0) > 0 ? 1 : 0),
         0,
       );
-      const activity = activityResult.error ? 0 : activityResult.summary.unread;
+      const activity = activityResult.error ? 0 : currentActivityRows(activityResult.rows).filter((row) => !row.read).length;
       const announcementUnread = (announcementResult.messages || []).filter(
         (delivery: any) => {
           const announcement = Array.isArray(delivery.announcements)

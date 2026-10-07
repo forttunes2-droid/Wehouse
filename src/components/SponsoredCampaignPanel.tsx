@@ -128,13 +128,13 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
   }
 
   const total = Number(offer?.daily_price_ngn || 0) * duration;
-  return <section aria-labelledby="sponsored-title" className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-[var(--wh-text)]">
-    <div className="border-b border-[var(--wh-border-subtle)] px-5 py-5 sm:px-6">
-      <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Optional promotion</p>
-      <h2 id="sponsored-title" className="mt-1 text-lg font-semibold">Sponsored placement</h2>
-      <p className="mt-2 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)]">Show an eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} in a clearly marked Sponsored area for a chosen period. Payment never changes verification, reviews, or organic order.</p>
+  return <section aria-labelledby="sponsored-title" className="border-y border-[var(--wh-border-subtle)] text-[var(--wh-text)]">
+    <div className="border-b border-[var(--wh-border-subtle)] py-4">
+      <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Optional promotion</p>
+      <h2 id="sponsored-title" className="mt-1 text-base font-semibold">Sponsored placement</h2>
+      <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-secondary)]">Show an eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} in a clearly marked Sponsored area for a chosen period. Payment never changes verification, reviews, or organic order.</p>
     </div>
-    <div className="px-5 py-5 sm:px-6">
+    <div className="py-4">
     {loading ? <p role="status" className="text-xs text-[var(--wh-text-secondary)]">Loading your promotion options…</p> : resources.length === 0
       ? <p className="rounded-2xl bg-[var(--wh-interactive)] p-4 text-xs leading-5 text-[var(--wh-text-secondary)]">There is no published, eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} to promote yet. Your existing campaign history appears below.</p>
       : <div className="space-y-4">
@@ -146,7 +146,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
           </WeHouseChoice>
         </label>
         {offer?.available ? <>
-          <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">{offer.market} · {offer.slot_count} placement slots in this market</p>
+          <p className="text-[10px] leading-5 text-[var(--wh-text-secondary)]">{offer.market} · {offer.slot_count} placement slots available</p>
           <label className="block text-xs font-medium text-[var(--wh-text)]">How long?
             <WeHouseChoice className="mt-2 h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"
               aria-label="Duration" value={duration} onChange={e => setDuration(Number(e.target.value))}>

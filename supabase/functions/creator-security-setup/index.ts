@@ -26,8 +26,8 @@ serve(async(request)=>{
     const accountPassword=String(body?.account_password||'');
     const newSecret=String(body?.new_creator_secret||'');
     const otp=String(body?.otp_code||'').replace(/\D/g,'');
-    if(!accountPassword || newSecret.length<12 || newSecret.length>128)
-      return json({success:false,error:'Complete the account confirmation and use a Creator security password of 12–128 characters.'},400);
+    if(newSecret.length<12 || newSecret.length>128)
+      return json({success:false,error:'Use a Creator security password of 12–128 characters.'},400);
 
     const admin=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
     const {data:{user},error:authError}=await admin.auth.getUser(token);
@@ -43,9 +43,14 @@ serve(async(request)=>{
       return json({success:false,error:'Creator authority required'},403);
 
     const verifier=createClient(url,anonKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
-    const {data:passwordSession,error:passwordError}=await verifier.auth.signInWithPassword({email:user.email,password:accountPassword});
-    if(passwordError||passwordSession.user?.id!==user.id)
-      return json({success:false,error:'Account confirmation failed'},200);
+    // Provider sign-in accounts may not have a WeHouse password. First enrollment
+    // can use the already-authenticated live session; when a password is supplied,
+    // verify it. Existing protection credentials remain MFA-gated below.
+    if(accountPassword){
+      const {data:passwordSession,error:passwordError}=await verifier.auth.signInWithPassword({email:user.email,password:accountPassword});
+      if(passwordError||passwordSession.user?.id!==user.id)
+        return json({success:false,error:'WeHouse account password is incorrect.'},200);
+    }
 
     const {data:existing}=await admin.from('creator_security_credentials')
       .select('creator_user_id').eq('creator_user_id',profile.user_id).maybeSingle();

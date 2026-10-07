@@ -99,7 +99,9 @@ export default function HotelBookingChat({
     try {
       const result = await withTimeout(getHotelMessages(id, bookingId, (rows, verifiedContext) => {
         if (!current()) return;
-        setContext(verifiedContext); setMessages(old => reconcileChatMessages(old, rows, startedAt)); setLoading(false);
+        setContext(verifiedContext);
+        setMessages(old => reconcileChatMessages(old, rows, startedAt));
+        setLoading(false);
         if (document.visibilityState === "visible") void markHotelMessagesRead(id).catch(() => undefined);
       }), 18000, 'Hotel messages took too long to refresh.');
       if (!current()) return;
@@ -203,16 +205,14 @@ export default function HotelBookingChat({
     }]);
     let accepted = false;
     try {
-      for (const file of queuedFiles) {
-        const uploaded = await uploadHotelChatAttachment(
-          conversationId,
-          profile.user_id,
-          file,
-        );
+      const uploadedFiles = await Promise.all(
+        queuedFiles.map((file) => uploadHotelChatAttachment(conversationId, profile.user_id, file)),
+      );
+      for (let index = 0; index < uploadedFiles.length; index++) {
+        const uploaded = uploadedFiles[index];
+        const file = queuedFiles[index];
         if (uploaded.error || !uploaded.path)
-          throw new Error(
-            uploaded.error?.message || `Could not upload ${file.name}`,
-          );
+          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
         paths.push(uploaded.path);
         types.push(uploaded.type);
       }
@@ -296,7 +296,7 @@ export default function HotelBookingChat({
     <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={chatTitle} className="fixed inset-0 z-[100030] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
       <header className="shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
-          <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" />
+          {!loading ? <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" /> : <span aria-hidden="true" className="h-10 w-10 shrink-0" />}
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
             {chatTitle.trim().charAt(0).toUpperCase() || "H"}
           </div>
@@ -311,9 +311,9 @@ export default function HotelBookingChat({
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
-          {specialRequest?.trim() && <HotelSpecialRequest request={specialRequest} hotelView={hotelView} inConversation />}
+          {(specialRequest ?? context?.special_requests)?.trim() && <HotelSpecialRequest request={specialRequest ?? context?.special_requests} hotelView={hotelView ?? context?.viewer_party === "hotel"} inConversation />}
           {loadError && <div role="alert" className="mb-3 text-sm text-amber-200"><p>{loadError}</p>{conversationId && <button type="button" className="min-h-11 underline" onClick={() => void load(conversationId, true)}>Try again</button>}</div>}
-          {loading ? (
+          {loading && messages.length === 0 ? (
             <div
               className="min-h-48"
               role="status"
@@ -333,6 +333,7 @@ export default function HotelBookingChat({
               if (!context) return null;
               const presentation = hotelMessagePresentation(message, profile.user_id, context);
               const mine = presentation.outgoing;
+              const attachmentPending = Boolean(message.media_loading || (!message.attachments?.length && message.attachment_types?.length));
               const counts = Object.values(message.reactions || {}).reduce<
                 Record<string, number>
               >(
@@ -393,7 +394,7 @@ export default function HotelBookingChat({
                           {message.content}
                         </p>
                       )}
-                      {message.media_loading && <AttachmentState />}
+                      {attachmentPending && <AttachmentState />}
                       {message.media_error && <AttachmentState error />}
                       <MessageMedia items={(message.attachments || []).map((url, index) => ({ url, type: message.attachment_types?.[index] || "" }))} />
                       <span

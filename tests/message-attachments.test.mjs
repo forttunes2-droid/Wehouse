@@ -49,5 +49,5 @@ test('compact property drafts cannot navigate, auto-send, or trigger a payment',
 test('request remains a collapsible booking note, never an acceptance or automatic chat message', () => {
  const request=read('src/components/HotelSpecialRequest.tsx');assert.match(request,/<details/);assert.match(request,/A request, not a confirmation/);
  assert.doesNotMatch(request, /sendHotelMessage|openHotelBookingConversation/);
- const chat=read('src/components/HotelBookingChat.tsx');assert.match(chat,/<HotelSpecialRequest request=\{specialRequest\} hotelView=\{hotelView\} inConversation/);
+ const chat=read('src/components/HotelBookingChat.tsx');assert.match(chat,/<HotelSpecialRequest[^>]*inConversation/);assert.match(chat,/context\?\.special_requests/);assert.match(chat,/context\?\.viewer_party === \"hotel\"/);
 });

@@ -821,7 +821,7 @@ function StatusMedia({
   controls?: boolean;
 }) {
   return status.media_type === "video" ? (
-    controls ? <VideoPlayer src={status.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]`} role="img" aria-label="Worker video"><span className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-black/45 text-sm text-white">▶</span></div>
+    controls ? <VideoPlayer src={status.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.16),transparent_42%),var(--wh-elevated)]`} role="img" aria-label="Worker video"><span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border)] bg-[var(--wh-overlay)] text-sm text-[var(--wh-text)]">▶</span></div>
   ) : (
     <img src={status.url} alt="Work Status" className={className} />
   );

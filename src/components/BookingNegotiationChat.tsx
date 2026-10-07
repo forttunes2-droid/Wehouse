@@ -389,16 +389,14 @@ export default function BookingNegotiationChat({
         metadata_iv: string;
       }> = [];
     try {
-      for (const file of queuedFiles) {
-        const uploaded = await uploadBookingChatAttachment(
-          file,
-          conversationId,
-          peerId || "",
-        );
+      const uploadedFiles = await Promise.all(
+        queuedFiles.map((file) => uploadBookingChatAttachment(file, conversationId, peerId || "")),
+      );
+      for (let index = 0; index < uploadedFiles.length; index++) {
+        const uploaded = uploadedFiles[index];
+        const file = queuedFiles[index];
         if (uploaded.error || !uploaded.path || !uploaded.attachment)
-          throw new Error(
-            uploaded.error?.message || `Could not upload ${file.name}`,
-          );
+          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
         paths.push(uploaded.path);
         attachments.push(uploaded.attachment);
       }

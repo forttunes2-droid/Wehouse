@@ -409,7 +409,7 @@ function OperationsInbox({
   if (activityOpen) {
     return (
       <div className="space-y-4">
-        <ActivityHeader onBack={() => setActivityOpen(false)} subtitle="Updates for your assigned work." />
+        <ActivityHeader onBack={() => setActivityOpen(false)} />
         <Notifications
           profile={profile}
           scope="staff"
@@ -473,7 +473,7 @@ function SupportInbox({
   if (activityOpen) {
     return (
       <div className="space-y-4">
-        <ActivityHeader onBack={() => setActivityOpen(false)} subtitle="Updates for your assigned work." />
+        <ActivityHeader onBack={() => setActivityOpen(false)} />
         <Notifications
           profile={profile}
           scope="staff"

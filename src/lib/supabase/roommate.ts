@@ -41,6 +41,9 @@ export type ReceivedRoommateInterest = {
   state: string | null;
   school: string | null;
   bio: string | null;
+  match_highlights?: string[];
+  discuss_before_deciding?: string[];
+  compared_answers?: number;
 };
 type MatchRpcRow = Omit<RoommateMatchResult, "matched_profile"> &
   Omit<RoommateMatchProfile, "user_id" | "score_factors"> & {
@@ -151,9 +154,15 @@ export async function updateMatchStatus(
 
 export async function getReceivedRoommateInterests() {
   const { data, error } = await supabase.rpc(
-    "get_my_received_roommate_interests",
+    "get_my_received_roommate_interests_v2",
   );
-  return { interests: (data || []) as ReceivedRoommateInterest[], error };
+  const interests: ReceivedRoommateInterest[] = (data || []).map((row: any) => ({
+    ...row,
+    match_highlights: Array.isArray(row.match_highlights) ? row.match_highlights : [],
+    discuss_before_deciding: Array.isArray(row.discuss_before_deciding) ? row.discuss_before_deciding : [],
+    compared_answers: Number(row.compared_answers || 0),
+  }));
+  return { interests, error };
 }
 
 export async function respondToRoommateInterest(

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setNotificationSoundEnabled } from "@/lib/notificationSound";
-import { setAppearance, useAppearance, type Appearance } from "@/lib/appearance";
+import { setAppearance, useAppearance } from "@/lib/appearance";
 import AccountShell, {
   AccountRow,
   AccountSection,
@@ -452,35 +452,20 @@ export default function AccountCenter({
   }
 
   if (panel === "appearance") {
-    const options: Array<{ id: Appearance; title: string; detail: string }> = [
-      { id: "system", title: "Automatic", detail: "Follows your device" },
-      { id: "light", title: "Light", detail: "Warm, open and clear" },
-      { id: "dark", title: "Dark", detail: "Calm, deep and focused" },
-    ];
+    const dark = appearance === "dark";
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
-      description="Make every WeHouse space feel like yours." onBack={() => setPanel(null)}>
-      <section aria-labelledby="appearance-heading" className="mx-auto max-w-2xl">
-        <p className="text-[11px] font-bold uppercase tracking-[.18em] wh-accent-text">Your space</p>
-        <h2 id="appearance-heading" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Find your light.</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">A familiar WeHouse experience, tuned to how you like to see it.</p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3" role="group" aria-label="Choose appearance">
-          {options.map(option => <button key={option.id} type="button" aria-pressed={appearance === option.id}
-            onClick={() => setAppearance(option.id)}
-            className={`group min-w-0 rounded-[24px] border p-3 text-left transition-[border-color,box-shadow] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 ${appearance === option.id ? 'border-violet-500 bg-[var(--wh-accent-surface)] shadow-[0_0_0_1px_rgba(96,53,206,.14)]' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] hover:border-violet-400/50'}`}>
-            <span aria-hidden="true" className={`block h-28 overflow-hidden rounded-2xl border p-3 ${option.id === 'dark' ? 'border-[#32313f] bg-[#15141d]' : option.id === 'light' ? 'border-[#e4dfeb] bg-[#f7f4f8]' : 'border-[#bbb5ca] bg-gradient-to-r from-[#f7f4f8] from-50% to-[#15141d] to-50%'}`}>
-              <span className={`block h-2 w-12 rounded-full ${option.id === 'dark' ? 'bg-[#8b6bd7]' : 'bg-[#6845b4]'}`} />
-              <span className={`mt-4 block h-10 rounded-xl border p-2 ${option.id === 'dark' ? 'border-[#403d4c] bg-[#292731]' : 'border-[#e8e3ed] bg-white'}`}>
-                <span className={`block h-1.5 w-3/4 rounded-full ${option.id === 'dark' ? 'bg-[#d2ccd9]' : 'bg-[#38313f]'}`} />
-                <span className={`mt-2 block h-1.5 w-1/2 rounded-full ${option.id === 'dark' ? 'bg-[#827c8f]' : 'bg-[#b7b0bd]'}`} />
-              </span>
-            </span>
-            <span className="mt-3 flex items-start justify-between gap-2 px-1 pb-1">
-              <span><span className="block text-sm font-semibold text-[var(--wh-text)]">{option.title}</span><span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{option.detail}</span></span>
-              <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs ${appearance === option.id ? 'border-violet-500 bg-violet-500 text-white' : 'border-[var(--wh-border)]'}`}>{appearance === option.id ? '✓' : null}</span>
-            </span>
-          </button>)}
-        </div>
-        <p className="mt-5 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Changes apply immediately across your workspaces on this device.</p>
+      description="Switch WeHouse between light and dark mode." onBack={() => setPanel(null)}>
+      <section className="mx-auto max-w-2xl">
+        <button type="button" role="switch" aria-checked={dark} onClick={() => setAppearance(dark ? "light" : "dark")}
+          className="flex min-h-16 w-full items-center gap-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 text-left transition-colors active:bg-[var(--wh-interactive)]">
+          <span className={`relative h-8 w-14 shrink-0 rounded-full p-1 transition-colors ${dark ? "bg-violet-500" : "bg-[var(--wh-interactive)]"}`}>
+            <span className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${dark ? "translate-x-6" : "translate-x-0"}`} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{dark ? "Dark mode" : "Light mode"}</span>
+            <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">One switch. The whole WeHouse interface follows it.</span>
+          </span>
+        </button>
       </section>
     </AccountShell>;
   }
@@ -627,7 +612,7 @@ export default function AccountCenter({
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
-        <AccountRow title="Appearance" detail={`${appearance === 'system' ? 'Device setting' : appearance === 'light' ? 'Light' : 'Dark'} · Applies across WeHouse`}
+        <AccountRow title="Appearance" detail={`${appearance === 'light' ? 'Light' : 'Dark'} · Applies across WeHouse`}
           onClick={() => setPanel("appearance")} icon={<AppearanceIcon />} />
         <AccountRow
           title="Notifications"

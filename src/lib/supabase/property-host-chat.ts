@@ -37,6 +37,20 @@ export type PropertyHostMessage = {
   created_at: string;
 };
 
+const PROPERTY_HOST_MEDIA_URL_TTL = 50 * 60_000;
+const propertyHostSignedMediaCache = new Map<string, { url: string; expiresAt: number }>();
+async function getPropertyHostMediaUrl(path: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const key = session?.user?.id + ":" + path;
+  const cached = propertyHostSignedMediaCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  const { data, error } = await supabase.storage.from("property-host-chat-files").createSignedUrl(path, 3600);
+  if (error || !data?.signedUrl) return null;
+  propertyHostSignedMediaCache.set(key, { url: data.signedUrl, expiresAt: Date.now() + PROPERTY_HOST_MEDIA_URL_TTL });
+  if (propertyHostSignedMediaCache.size > 200) propertyHostSignedMediaCache.delete(propertyHostSignedMediaCache.keys().next().value as string);
+  return data.signedUrl;
+}
+
 export async function getMyPropertyHostConversations() {
   const {data,error}=await supabase.rpc("get_my_property_host_conversations");
   return {
@@ -56,20 +70,16 @@ export async function getPropertyHostMessages(conversationId:string) {
   const rows=(data||[]) as any[];
   const messages=await Promise.all(rows.map(async row=>{
     const files=await Promise.all((row.attachments||[]).map(async(path:string,index:number)=>{
-      const {data:signed,error:signedError}=await supabase.storage.from("property-host-chat-files").createSignedUrl(path,300);
-      return signedError||!signed?.signedUrl?null:{url:signed.signedUrl,type:row.attachment_types?.[index]||""};
+      try{
+        const url=await getPropertyHostMediaUrl(path);
+        return url?{url,type:row.attachment_types?.[index]||""}:null;
+      }catch{return null;}
     }));
     const available=files.filter((file):file is {url:string;type:string}=>Boolean(file));
     return {
-      id:String(row.message_id),
-      sender_id:String(row.sender_id),
-      content:row.content,
-      attachments:available.map(file=>file.url),
-      attachment_types:available.map(file=>file.type),
-      reply_to_id:row.reply_to_id,
-      reactions:row.reactions||{},
-      is_read:Boolean(row.is_read),
-      created_at:String(row.created_at),
+      id:String(row.message_id), sender_id:String(row.sender_id), content:row.content,
+      attachments:available.map(file=>file.url), attachment_types:available.map(file=>file.type),
+      reply_to_id:row.reply_to_id, reactions:row.reactions||{}, is_read:Boolean(row.is_read), created_at:String(row.created_at),
     } satisfies PropertyHostMessage;
   }));
   return {messages,error:null};

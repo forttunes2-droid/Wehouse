@@ -413,6 +413,37 @@ export async function encryptPrivateAttachment(
   };
 }
 
+const encryptedAttachmentCache = new Map<string, { buffer: ArrayBuffer; expiresAt: number }>();
+const ENCRYPTED_ATTACHMENT_MEMORY_TTL = 30 * 60_000;
+const ENCRYPTED_ATTACHMENT_CACHE_NAME = "wehouse-e2ee-media-v1";
+
+function encryptedAttachmentCacheKey(kind: PrivateConversationKind, conversationId: string, path: string) {
+  return new Request(`https://wehouse.invalid/e2ee-media/${encodeURIComponent(kind)}/${encodeURIComponent(conversationId)}/${encodeURIComponent(path)}`);
+}
+
+async function readPersistentEncryptedAttachment(kind: PrivateConversationKind, conversationId: string, path: string) {
+  if (typeof window === "undefined" || !("caches" in window)) return null;
+  try {
+    const cache = await window.caches.open(ENCRYPTED_ATTACHMENT_CACHE_NAME);
+    const response = await cache.match(encryptedAttachmentCacheKey(kind, conversationId, path));
+    if (!response) return null;
+    const bytes = await response.arrayBuffer();
+    return bytes.byteLength > 0 && bytes.byteLength <= 25 * 1024 * 1024 ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writePersistentEncryptedAttachment(kind: PrivateConversationKind, conversationId: string, path: string, bytes: ArrayBuffer) {
+  if (typeof window === "undefined" || !("caches" in window) || bytes.byteLength > 25 * 1024 * 1024) return;
+  try {
+    const cache = await window.caches.open(ENCRYPTED_ATTACHMENT_CACHE_NAME);
+    await cache.put(encryptedAttachmentCacheKey(kind, conversationId, path), new Response(new Blob([bytes], { type: "application/octet-stream" }), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private" } }));
+  } catch {
+    // Persistent media cache is an optimisation; memory cache and Storage remain authoritative.
+  }
+}
+
 export async function decryptPrivateAttachment(
   kind: PrivateConversationKind,
   conversationId: string,
@@ -420,12 +451,33 @@ export async function decryptPrivateAttachment(
   attachment: EncryptedAttachment,
 ) {
   const key = await conversationKey(kind, conversationId, peerUserId);
-  const { data, error } = await supabase.storage.from("chat-files").createSignedUrl(attachment.path, 300);
-  if (error || !data?.signedUrl) throw error || new Error("Encrypted attachment is unavailable");
-  const response = await fetch(data.signedUrl);
-  if (!response.ok) throw new Error("Encrypted attachment could not be downloaded");
+  const cached = encryptedAttachmentCache.get(attachment.path);
+  let encryptedBytes: ArrayBuffer | null = cached && cached.expiresAt > Date.now() ? cached.buffer.slice(0) : null;
+  if (!encryptedBytes) encryptedBytes = await readPersistentEncryptedAttachment(kind, conversationId, attachment.path);
+  if (!encryptedBytes) {
+    const { data, error } = await supabase.storage.from("chat-files").createSignedUrl(attachment.path, 3600);
+    if (error || !data?.signedUrl) throw error || new Error("Encrypted attachment is unavailable");
+    const response = await fetch(data.signedUrl);
+    if (!response.ok) throw new Error("Encrypted attachment could not be downloaded");
+    encryptedBytes = await response.arrayBuffer();
+    if (!encryptedBytes.byteLength || encryptedBytes.byteLength > 25 * 1024 * 1024) throw new Error("Encrypted attachment is too large");
+    encryptedAttachmentCache.set(attachment.path, {
+      buffer: encryptedBytes.slice(0),
+      expiresAt: Date.now() + ENCRYPTED_ATTACHMENT_MEMORY_TTL,
+    });
+    void writePersistentEncryptedAttachment(kind, conversationId, attachment.path, encryptedBytes);
+    if (encryptedAttachmentCache.size > 40) {
+      const oldest = encryptedAttachmentCache.keys().next().value;
+      if (oldest) encryptedAttachmentCache.delete(oldest);
+    }
+  } else {
+    encryptedAttachmentCache.set(attachment.path, {
+      buffer: encryptedBytes.slice(0),
+      expiresAt: Date.now() + ENCRYPTED_ATTACHMENT_MEMORY_TTL,
+    });
+  }
   const [clear, metadataClear] = await Promise.all([
-    crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(attachment.file_iv) }, key, await response.arrayBuffer()),
+    crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(attachment.file_iv) }, key, encryptedBytes),
     crypto.subtle.decrypt(
       { name: "AES-GCM", iv: base64ToBytes(attachment.metadata_iv) },
       key,

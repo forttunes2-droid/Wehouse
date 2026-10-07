@@ -42,12 +42,11 @@ export default function PublicProfileSurface({
   useEffect(() => {
     const element = root.current;
     if (!element) return;
-    const release = isolateDialog(element);
-    // StrictMode replays this effect after the dialog has already taken focus.
-    // Capture the real opener once, not the dialog from the second effect run.
+    // Capture the real opener before dialog isolation moves focus into the profile.
     if (!returnFocus.current && document.activeElement instanceof HTMLElement) {
       returnFocus.current = document.activeElement;
     }
+    const release = isolateDialog(element);
     window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: true } }));
     const history = bindProfileScreenHistory(window, id, () => close.current());
     controller.current = history;
@@ -74,10 +73,15 @@ export default function PublicProfileSurface({
       element?.removeEventListener("keydown", keydown);
       release();
       window.dispatchEvent(new CustomEvent("wehouse:nested-screen", { detail: { open: Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')) } }));
-      queueMicrotask(() => {
+      const restore = () => {
         const opener = returnFocus.current;
-        if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-      });
+        if (opener?.isConnected && !opener.closest("[inert]")) {
+          opener.focus({ preventScroll: true });
+        }
+      };
+      restore();
+      queueMicrotask(restore);
+      requestAnimationFrame(restore);
     };
   }, [id]);
 
@@ -129,17 +133,8 @@ export default function PublicProfileSurface({
 function ProfilePhoto({ src, name, subtitle, onClose }: {
   src: string; name: string; subtitle?: string | null; onClose: () => void;
 }) {
-  const id = useId();
-  const close = useRef(onClose);
-  const controller = useRef<ReturnType<typeof bindProfileScreenHistory> | null>(null);
-  useEffect(() => { close.current = onClose; }, [onClose]);
-  useEffect(() => {
-    const history = bindProfileScreenHistory(window, id, () => close.current());
-    controller.current = history;
-    return () => { history.dispose(); controller.current = null; };
-  }, [id]);
-  return <MediaViewer src={src} kind="image" title={name} subtitle={subtitle || undefined} avatarUrl={src}
-    onClose={() => controller.current?.dismiss()} />;
+  return <MediaViewer variant="photo" src={src} kind="image" title={name}
+    subtitle={subtitle || undefined} onClose={onClose} />;
 }
 
 export function PublicProfileAction({ label, onClick, children }: {

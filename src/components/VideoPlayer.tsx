@@ -143,9 +143,13 @@ export default function VideoPlayer({
       />
       {failed ? (
         <div className="absolute inset-0 grid place-items-center bg-[#0D1016] px-6 text-center">
-          <div>
-            <p className="text-xs font-semibold text-white">Video cannot play on this device</p>
-            <p className="mt-1 text-xs leading-4 text-[#858B9A]">Use MP4 (H.264) or WebM (VP8), then try again.</p>
+          <div className="max-w-xs">
+            <p className="text-xs font-semibold text-white">Video unavailable here</p>
+            <p className="mt-1 text-xs leading-4 text-[#858B9A]">WeHouse could not play this video in the current viewer. Try again or open it in your device player.</p>
+            <div className="mt-3 flex justify-center gap-2">
+              <button type="button" onClick={() => { setFailed(false); videoRef.current?.load(); }} className="min-h-10 rounded-xl bg-violet-500 px-3 text-[10px] font-semibold text-white">Try again</button>
+              <a href={src} target="_blank" rel="noreferrer" className="flex min-h-10 items-center rounded-xl border border-white/10 px-3 text-[10px] font-semibold text-white">Open video</a>
+            </div>
           </div>
         </div>
       ) : (

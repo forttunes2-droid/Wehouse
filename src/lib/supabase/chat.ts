@@ -51,7 +51,16 @@ export async function getMessages(conversationId:string,peerUserId?:string|null,
         attachments.push(signed.signedUrl);attachmentTypes.push(row.legacy_attachment_types?.[index]||'');
       }catch{failed=true}
     }
-    if(peerUserId)for(const item of Array.isArray(row.encrypted_attachments)?row.encrypted_attachments:[]){try{const clear=await decryptPrivateAttachment('roommate',conversationId,peerUserId,item as EncryptedAttachment);attachments.push(clear.url);attachmentTypes.push(clear.type)}catch{failed=true}}
+    if(peerUserId){
+      const encryptedResults = await Promise.all((Array.isArray(row.encrypted_attachments) ? row.encrypted_attachments : []).map(async(item: EncryptedAttachment) => {
+        try { return { clear: await decryptPrivateAttachment('roommate',conversationId,peerUserId,item), error: false }; }
+        catch { return { clear: null, error: true }; }
+      }));
+      for (const result of encryptedResults) {
+        if (result.clear) { attachments.push(result.clear.url); attachmentTypes.push(result.clear.type); }
+        if (result.error) failed = true;
+      }
+    }
     return{...text[index],attachments,attachment_types:attachmentTypes,media_loading:false,media_error:failed} as Message;
   }));
   return{messages,error};

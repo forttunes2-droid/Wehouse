@@ -16,7 +16,7 @@ import PartnerHotelOperations from "./PartnerHotelOperations";
 import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 
 export type SubmissionFilter = "all" | "submitted" | "public" | "rejected";
-export type PartnerAssetKind = "apartment" | "hotel";
+export type PartnerAssetKind = "all" | "apartment" | "hotel";
 
 type RequestRow = {
   id: string;
@@ -74,7 +74,8 @@ const PAGE_SIZE = 40;
 
 function submissionsQuery(ownerId: string, assetKind: PartnerAssetKind, filter: SubmissionFilter) {
   let query = supabase.from("inspection_requests").select(fields)
-    .eq("owner_id", ownerId).eq("property_type", assetKind);
+    .eq("owner_id", ownerId);
+  if (assetKind !== "all") query = query.eq("property_type", assetKind);
   if (filter === "public") query = query.eq("lifecycle_stage", "live");
   if (filter === "rejected") query = query.in("lifecycle_stage", ["changes_requested", "rejected"]);
   if (filter === "submitted") query = query.or("lifecycle_stage.is.null,lifecycle_stage.not.in.(live,changes_requested,rejected)");
@@ -251,7 +252,7 @@ export default function PartnerSubmittedRequests({
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">
-                Submitted {assetKind === "hotel" ? "hotels" : "apartments"}
+                Submitted {assetKind === "hotel" ? "hotels" : assetKind === "apartment" ? "apartments" : "properties"}
               </h2>
             </div>
             <button

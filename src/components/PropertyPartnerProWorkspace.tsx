@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
 import { isNative } from '@/lib/native';
+import { withTimeout } from '@/lib/withTimeout';
 
 type Asset = { kind: 'home' | 'hotel'; id: string; title: string };
 type Stay = { kind: Asset['kind']; asset_id: string; asset_title: string; booking_id: string; check_in: string; check_out: string; status: string };
@@ -40,7 +41,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
   const [busy, setBusy] = useState(false);
   const loadPlan = useCallback(async () => {
     setPlanLoading(true);
-    const result = await supabase.rpc('get_my_partner_pro');
+    const result = await withTimeout(supabase.rpc('get_my_partner_pro'), 8000, 'Partner Pro took too long to load');
     setPlanLoading(false);
     if (result.error || !result.data || typeof result.data.active !== 'boolean') {
       setPlanError(true); setPlan(null); return;
@@ -49,7 +50,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
   }, []);
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await supabase.rpc('get_my_partner_pro_overview');
+    const result = await withTimeout(supabase.rpc('get_my_partner_pro_overview'), 10000, 'Partner Pro portfolio took too long to load');
     if (result.error || !result.data || !Array.isArray(result.data.assets) || !Array.isArray(result.data.stays)) {
       setError(true); setData(null);
     } else { setData(result.data as Overview); setError(false); }
@@ -149,8 +150,21 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
     } catch { toast.error('Statement could not be prepared. Please try again.'); }
   }
 
-  if (planLoading) return <main className="mx-auto max-w-5xl px-4 py-10 text-sm text-[var(--wh-text-secondary)]" role="status">Loading Property Partner Pro…</main>;
-  if (planError || !plan) return <main className="mx-auto max-w-5xl px-4 py-10 text-sm text-[var(--wh-text)]" role="alert">Property Partner Pro could not load. <button type="button" onClick={() => void loadPlan()} className="ml-2 font-semibold text-violet-500">Try again</button></main>;
+  if (planLoading) return <main className="mx-auto max-w-5xl px-4 py-8" role="status">
+    <div className="space-y-3">
+      <div className="h-5 w-32 animate-pulse rounded bg-[var(--wh-interactive)]" />
+      <div className="h-10 w-52 animate-pulse rounded bg-[var(--wh-interactive)]" />
+      <div className="h-24 animate-pulse rounded-2xl bg-[var(--wh-interactive)]" />
+      <p className="text-[10px] text-[var(--wh-text-muted)]">Loading your partner tools…</p>
+    </div>
+  </main>;
+  if (planError || !plan) return <main className="mx-auto max-w-5xl px-4 py-8" role="alert">
+    <section className="rounded-2xl border border-red-400/20 bg-red-400/[.04] p-4">
+      <p className="text-sm font-semibold">Partner tools could not load</p>
+      <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The service did not respond in time. Your normal Properties, Bookings and Inbox are unaffected.</p>
+      <button type="button" onClick={() => void loadPlan()} className="mt-3 min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold text-violet-300">Try again</button>
+    </section>
+  </main>;
   if (!plan.active) return <main className="mx-auto max-w-5xl space-y-5 px-4 pb-10 pt-2 text-[var(--wh-text)] sm:px-6">
     <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
       <div className="border-b border-[var(--wh-border-subtle)] p-5 sm:p-8">

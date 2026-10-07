@@ -140,7 +140,7 @@ test('Inbox rows stay message-first instead of showing lifecycle status on every
 });
 test('Booking list keeps status in filters and details instead of a loud row label', () => {
   const source=readFileSync(new URL('../src/pages/MyReservations.tsx', import.meta.url),'utf8');
-  assert.match(source,/All booking stages/);
+  assert.match(source,/All status/);
   assert.doesNotMatch(source,/status=\{visibleStatus\}/);
   assert.doesNotMatch(source,/status=\{status\?\.label/);
 });

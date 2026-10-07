@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { isNative } from '@/lib/native';
 
-export type Appearance = 'system' | 'light' | 'dark';
+export type Appearance = 'light' | 'dark';
 const key = 'wehouse:appearance';
 const eventName = 'wehouse:appearance-changed';
 
@@ -9,14 +9,12 @@ export function getAppearance(): Appearance {
   if (typeof window === 'undefined') return 'dark';
   try {
     const value = window.localStorage.getItem(key);
-    return value === 'light' || value === 'dark' || value === 'system' ? value : 'dark';
+    return value === 'light' || value === 'dark' ? value : 'dark';
   } catch { return 'dark'; }
 }
 
 export function resolvedAppearance(choice = getAppearance()): 'light' | 'dark' {
-  return choice === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-    : choice;
+  return choice === 'light' ? 'light' : 'dark';
 }
 
 export function applyAppearance() {
@@ -56,8 +54,6 @@ export function useAppearance(): Appearance {
 
 export function startAppearanceSync() {
   applyAppearance();
-  const media = window.matchMedia('(prefers-color-scheme: light)');
-  media.addEventListener('change', applyAppearance);
   window.addEventListener('storage', (event) => {
     if (event.key === key) applyAppearance();
   });

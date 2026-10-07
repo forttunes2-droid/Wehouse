@@ -37,8 +37,8 @@ async def main():
      else:
       await expect(page.get_by_role('heading',name='Creator action authenticator',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='Set up authenticator',exact=True)).to_be_visible()
-      await expect(page.get_by_role('heading',name='Creator security password',exact=True)).to_be_visible()
-      await expect(page.get_by_role('button',name='Create Creator security password',exact=True)).to_be_visible()
+      await expect(page.get_by_role('heading',name='Additional protection',exact=True)).to_be_visible()
+      await expect(page.get_by_role('button',name='Set protection password',exact=True)).to_be_visible()
      assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
      assert not errors,errors
      await page.screenshot(path=str(OUT/f'release-six-{mode}-{width}.png'),full_page=True)

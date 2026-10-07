@@ -576,7 +576,7 @@ export default function Chat({
     return (
       <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-6 text-[var(--wh-text)]">
         <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
-          <ActivityHeader onBack={() => setView("messages")} subtitle="Updates and actions that affect you." className="mx-auto max-w-5xl" />
+          <ActivityHeader onBack={() => setView("messages")} className="mx-auto max-w-5xl" />
         </div>
         <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
           <Notifications
@@ -624,7 +624,18 @@ export default function Chat({
 
           {loadError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-[var(--wh-text-secondary)]"><p>{loadError}</p><button type="button" onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
           {loading ? (
-            <p className="py-12 text-center text-sm text-[var(--wh-text-secondary)]" role="status">Loading messages…</p>
+            <div role="status" aria-label="Loading conversations" aria-busy="true" className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="flex min-h-[4.5rem] items-center gap-3 py-3">
+                  <span className="wh-skeleton h-11 w-11 shrink-0 rounded-full" />
+                  <span className="min-w-0 flex-1 space-y-2">
+                    <span className="wh-skeleton block h-3 w-2/5 rounded" />
+                    <span className="wh-skeleton block h-2.5 w-4/5 rounded" />
+                  </span>
+                  <span className="wh-skeleton h-2.5 w-10 rounded" />
+                </div>
+              ))}
+            </div>
           ) : visible.length === 0 && !loadError ? (
             <div className="border-b border-dashed border-[var(--wh-border-subtle)] py-14 text-center">
               <p className="text-sm font-semibold">

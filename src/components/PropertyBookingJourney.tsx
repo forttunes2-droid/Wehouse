@@ -14,7 +14,7 @@ export default function PropertyBookingJourney({
 }) {
   const journey = getPropertyBookingJourney(row, inspection, audience);
   return (
-    <section className="border-y border-[var(--wh-border-subtle)] py-4">
+    <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]">
       <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
         {audience === "operations"
           ? "Operations handover record"
@@ -53,7 +53,7 @@ export default function PropertyBookingJourney({
             </span>
             <div className="min-w-0 pt-0.5">
               <div className="flex flex-wrap items-center gap-2">
-                <p className={`text-[11px] font-semibold ${step.state === "current" ? "text-white" : step.state === "complete" ? "text-emerald-200" : step.state === "stopped" ? "text-amber-200" : "text-[var(--wh-text-muted)]"}`}>
+                <p className={`text-[11px] font-semibold ${step.state === "current" ? "text-[var(--wh-text)]" : step.state === "complete" ? "text-emerald-300" : step.state === "stopped" ? "text-amber-300" : "text-[var(--wh-text-muted)]"}`}>
                   {step.label}
                 </p>
                 {step.optional && (

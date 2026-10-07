@@ -50,6 +50,8 @@
     --wh-accent-text: #B9A8FF;
     --wh-accent-surface: rgba(124,92,255,0.10);
     --wh-overlay: rgba(0,0,0,0.55);
+    --wh-shadow-sm: 0 4px 14px rgba(0,0,0,0.22);
+    --wh-shadow-md: 0 12px 32px rgba(0,0,0,0.28);
   }
 
   :root[data-wh-theme="light"] {
@@ -93,6 +95,8 @@
     --wh-accent-text: #6035CE;
     --wh-accent-surface: rgba(96,53,206,0.08);
     --wh-overlay: rgba(21,24,34,0.45);
+    --wh-shadow-sm: 0 4px 14px rgba(38,48,71,0.08);
+    --wh-shadow-md: 0 14px 34px rgba(38,48,71,0.12);
   }
 }
 
@@ -109,6 +113,13 @@
   body {
     @apply text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  #root {
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body, #root { transition: none; }
   }
 }
 

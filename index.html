@@ -16,7 +16,7 @@
     <script>
       try {
         var choice = localStorage.getItem('wehouse:appearance');
-        var light = choice === 'light' || (choice === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+        var light = choice === 'light';
         document.documentElement.dataset.whTheme = light ? 'light' : 'dark';
         document.documentElement.style.colorScheme = light ? 'light' : 'dark';
         document.querySelector('meta[name="theme-color"]').content = light ? '#F7F8FB' : '#090B10';
