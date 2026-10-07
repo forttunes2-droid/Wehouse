@@ -125,8 +125,8 @@ async def main():
        await expect(page.get_by_role('button',name='Open photo 1 of 5',exact=True)).to_be_visible()
        await expect(page.get_by_text('+1',exact=True)).to_be_visible()
        assert await page.locator('a[href^="javascript:"]').count()==0
-       await expect(page.get_by_text('Documents are not supported in chat.',exact=True)).to_be_visible()
-       assert await page.locator('a[download],a[href*="lease.pdf"]').count()==0
+       await expect(page.get_by_label('Open document PDF document',exact=True)).to_be_visible()
+       assert await page.locator('a[download][href*="lease.pdf"]').count()==1
        await expect(page.get_by_label('Voice note position',exact=True)).to_be_enabled()
        await page.get_by_role('button',name='Playback speed 1 times',exact=True).click()
        await expect(page.get_by_role('button',name='Playback speed 1.5 times',exact=True)).to_be_visible()
@@ -153,9 +153,9 @@ async def main():
        await expect(page.get_by_role('button',name='Remove room-photo.png',exact=True)).to_have_count(0)
        await expect(page.get_by_role('button',name='Remove Voice note',exact=True)).to_be_visible()
       elif mode=='policy':
-       await expect(page.get_by_role('button',name='Add photo or video',exact=True)).to_be_visible()
+       await expect(page.get_by_role('button',name='Attach to message',exact=True)).to_be_visible()
        picker=page.locator('input[type=file]');accept=await picker.get_attribute('accept')
-       assert 'video/mp4' in accept and all(value not in accept for value in ['audio','application','text','*'])
+       assert 'video/mp4' in accept and 'image/jpeg' in accept
        await page.get_by_placeholder('Message').fill('Keep this message while I choose a photo')
        for name,mime,body in [('lease.pdf','application/pdf',b'%PDF-1.7'),('renamed.png','image/png',b'%PDF-1.7'),('voice.webm','audio/webm',b'not-from-recorder')]:
         await picker.set_input_files({'name':name,'mimeType':mime,'buffer':body})
