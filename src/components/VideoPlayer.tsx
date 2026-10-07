@@ -12,7 +12,8 @@ type Props = {
   onDuration?: (seconds: number) => void;
   onTime?: (seconds: number) => void;
   onPlaybackError?: () => void;
-  controlsPositionClassName?: string;\n  viewerMode?: boolean;
+  controlsPositionClassName?: string;
+  viewerMode?: boolean;
 };
 
 export default function VideoPlayer({
@@ -38,13 +39,15 @@ export default function VideoPlayer({
   // Mobile browsers normally allow autoplay only when muted. Showcase should
   // begin reliably, then the viewer can explicitly unmute it.
   const [silent, setSilent] = useState(muted || autoPlay);
-  const [failed, setFailed] = useState(false);\n  const [viewerControls, setViewerControls] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [viewerControls, setViewerControls] = useState(false);
 
   useEffect(() => {
     setCurrent(0);
     setDuration(durationHint || durationFromSource(src));
     setFailed(false);
-    setSilent(muted || autoPlay);\n    setViewerControls(false);
+    setSilent(muted || autoPlay);
+    setViewerControls(false);
   }, [autoPlay, durationHint, muted, src]);
 
   useEffect(() => {
