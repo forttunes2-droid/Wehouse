@@ -31,7 +31,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   const dismiss = useRecordScreenBack(props.onClose);
   const dialogRoot = useDialogInteraction(dismiss);
   useVisualViewportFrame(dialogRoot);
-  const { title = "Media preview", subtitle, avatarUrl, variant = "gallery" } = props;
+  const { title = "Media preview", subtitle, variant = "gallery" } = props;
   const items: MediaViewerItem[] = props.items !== undefined ? props.items : [{ url: props.src, kind: props.kind }];
   const requestedIndex = props.items !== undefined ? props.initialIndex ?? 0 : 0;
   const maxIndex = Math.max(0, items.length - 1);
@@ -46,7 +46,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [chromeVisible, setChromeVisible] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(false);\n  // Keep the media chrome discoverable on intentional taps while remaining immersive.
 
   useEffect(() => setIndex(Math.min(Math.max(requestedIndex, 0), maxIndex)), [requestedIndex, maxIndex]);
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       }}
       role="dialog" aria-modal="true" aria-label={title}>
       <div
-        className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        onClick={() => setChromeVisible(value => !value)}\n        className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         <div className="flex items-start gap-3">
           <button type="button" onClick={dismiss}
