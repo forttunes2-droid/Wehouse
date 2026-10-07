@@ -44,8 +44,8 @@ test("workspace history and sign-in restore keep internal workspaces intentional
     read("src/App.tsx"),
     read("src/lib/workspaceSession.ts"),
   ]);
-  assert.match(app, /pushState\(\{ page: safe, workspace: activeWorkspace \}/);
-  assert.match(app, /replaceState\(\{ page: destination, workspace \}/);
+  assert.match(app, /pushState\(\{ page: safe, workspace: activeWorkspace, entry_id:/);
+  assert.match(app, /replaceState\(\{ page: destination, workspace, entry_id:/);
   assert.match(app, /Browser Back must never silently change persona/);
   assert.match(session, /\["creator", "admin", "staff"\]|\['creator', 'admin', 'staff'\]/);
 });
