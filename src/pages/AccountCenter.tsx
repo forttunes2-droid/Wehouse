@@ -453,7 +453,6 @@ export default function AccountCenter({
   }
 
   if (panel === "appearance") {
-    const dark = appearance === "dark";
     const choices = [
       { value: "light" as const, label: "Light", detail: "Bright and clean", icon: Sun },
       { value: "dark" as const, label: "Dark", detail: "Low-light friendly", icon: Moon },
