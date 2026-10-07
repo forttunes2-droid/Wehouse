@@ -600,9 +600,6 @@ export default function CommunicationsWorkspace({
             </div>
           )}
           <div className="mx-auto flex max-w-4xl items-end gap-2">
-            <button
-              type="button"
-              aria-label="Attach a photo or video"
             <ChatAttachmentPicker onFiles={addFiles} disabled={conversationLocked} />
             <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
