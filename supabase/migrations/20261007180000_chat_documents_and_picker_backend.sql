@@ -33,7 +33,8 @@ begin
  if tg_op='UPDATE' and new.attachments is not distinct from old.attachments
     and new.attachment_types is not distinct from old.attachment_types then return new; end if;
  v_bucket:=case tg_table_name when 'hotel_booking_messages' then 'hotel-chat-files'
-   when 'partner_support_messages' then 'support-files' else null end;
+   when 'partner_support_messages' then 'support-files'
+   when 'property_host_messages' then 'property-host-chat-files' else null end;
  if v_bucket is null then raise exception 'Invalid chat attachment guard target'; end if;
  v_allow_voice:=v_bucket='hotel-chat-files';
  v_count:=coalesce(cardinality(new.attachments),0);
@@ -67,7 +68,7 @@ begin
    if v_path is null or v_path='' or length(v_path)>1024 or v_path ~ '[[:cntrl:]]' or position(chr(92) in v_path)>0
       or v_path ~ '(^|/)\.\.(/|$)' then raise exception 'Invalid chat attachment path' using errcode='22023'; end if;
    v_parts:=string_to_array(v_path,'/');
-   if v_bucket='hotel-chat-files' then
+   if v_bucket in ('hotel-chat-files','property-host-chat-files') then
      if cardinality(v_parts)<>3 or v_parts[1]<>new.conversation_id::text or v_parts[2]<>new.sender_id then
        raise exception 'Chat attachment belongs to another conversation' using errcode='42501'; end if;
    elsif v_parts[1]='drafts' then
@@ -124,6 +125,13 @@ begin
 end;
 $$;
 revoke all on function private.guard_chat_media_message() from public,anon,authenticated;
+
+drop trigger if exists guard_chat_media_message on public.hotel_booking_messages;
+create trigger guard_chat_media_message before insert or update of attachments,attachment_types on public.hotel_booking_messages for each row execute function private.guard_chat_media_message();
+drop trigger if exists guard_chat_media_message on public.partner_support_messages;
+create trigger guard_chat_media_message before insert or update of attachments,attachment_types on public.partner_support_messages for each row execute function private.guard_chat_media_message();
+drop trigger if exists guard_chat_media_message on public.property_host_messages;
+create trigger guard_chat_media_message before insert or update of attachments,attachment_types on public.property_host_messages for each row execute function private.guard_chat_media_message();
 
 create or replace function public.send_property_host_message(
   p_conversation_id uuid,
