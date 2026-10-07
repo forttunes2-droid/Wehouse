@@ -40,15 +40,18 @@ jobs:
         env:
           WEHOUSE_CAPACITY_PRESET: large
         run: bash scripts/seed-capacity-scale.sh
-      - name: Seed 1,000,000 roommate actors and booking inventory
-        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_large_fixture.sql
-      - name: Verify exact fixture cardinality
+      - name: Verify catalog cardinality before workload fixtures
         run: |
-          test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.profiles where user_id like 'load-user-%'),(select count(*) from public.roommate_preferences where user_id like 'load-user-%')")" = "7000000|6000000|1000000"
+          test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.profiles where user_id like 'load-user-%')")" = "7000000|6000000"
       - name: Measure millions-scale catalog reads
         env:
           WEHOUSE_CAPACITY_PRESET: large
         run: node scripts/load-catalog-scale.mjs
+      - name: Seed 1,000,000 roommate actors and booking inventory
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_large_fixture.sql
+      - name: Verify exact workload fixture cardinality
+        run: |
+          test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.profiles where user_id like 'load-user-%'),(select count(*) from public.roommate_preferences where user_id like 'load-user-%')")" = "7000000|6000000|1000000"
       - name: Enable database query timing
         run: |
           docker exec supabase_db_wehouse psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "alter system set pg_stat_statements.track='all';"
