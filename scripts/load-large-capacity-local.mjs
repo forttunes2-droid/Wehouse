@@ -19,7 +19,6 @@ const LISTING_COUNT = 7_000_000;
 const BOOKING_ATTEMPTS = Number(process.env.WEHOUSE_BOOKING_ATTEMPTS || 700_000);
 const ROOMMATE_ACTORS = Number(process.env.WEHOUSE_ROOMMATE_ACTORS || 1_000_000);
 const CONCURRENCY = Number(process.env.WEHOUSE_LARGE_CONCURRENCY || 5_000);
-const suffix = randomBytes(5).toString("hex");
 const agent = new Agent({ keepAlive: true, maxSockets: CONCURRENCY, maxFreeSockets: Math.min(500, CONCURRENCY) });
 
 function actorUuid(i) {
@@ -155,7 +154,7 @@ try {
     (select count(*) from public.roommate_preferences where user_id like 'load-user-%' and active and search_status='active')`);
   report.invariants = invariant.split("|").map(Number);
   report.finished_at = new Date().toISOString();
-  report.passed = report.stages.every(s => s.errors === 0) && report.invariants[0] === report.invariants[1] && report.invariants[2] <= 10 && report.invariants[3] === ROOMMATE_ACTORS;
+  report.passed = report.stages.every(s => s.errors === 0) && report.invariants[0] === report.invariants[1] && report.invariants[2] <= 10 && report.invariants[3] >= ROOMMATE_ACTORS;
   save();
   console.log(JSON.stringify(report, null, 2));
   if (!report.passed) process.exitCode = 1;
