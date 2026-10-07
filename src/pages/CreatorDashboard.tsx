@@ -211,7 +211,6 @@ export default function CreatorDashboard({
         identityAvatar={profile.avatar_url}
         label="WEHOUSE · CREATOR"
         title={currentPlatform?.label || workspaceTitle}
-        description={currentPlatform?.note || workspaceDescription}
         onBack={tab === "operations" && operation ? () => {
           if (platformSection) setPlatformSection(null);
           else closeOperation();
