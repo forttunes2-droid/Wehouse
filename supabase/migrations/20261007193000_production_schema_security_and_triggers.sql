@@ -31,7 +31,34 @@ drop policy if exists accommodation_no_show_authorized_read on public.accommodat
 create policy accommodation_no_show_authorized_read on public.accommodation_no_show_reviews for select to authenticated using (requested_by=public.current_profile_user_id() or (subject_type='short_let' and exists(select 1 from public.reservations reservation where reservation.id=subject_id and reservation.user_id=public.current_profile_user_id())) or (subject_type='hotel' and exists(select 1 from public.hotel_bookings booking where booking.booking_id::text=subject_id and booking.user_id=public.current_profile_user_id())) or (public.current_profile_role()=any(array['creator','admin','staff']::text[]) and (public.current_profile_role()<>'staff' or public.current_staff_has_permission('operations')) and (public.current_profile_role()='creator' or (subject_type='short_let' and exists(select 1 from public.reservations reservation join public.listings listing on ((listing.id)::text=reservation.listing_id or listing.listing_id=reservation.listing_id) where reservation.id=subject_id and public.current_actor_in_scope(listing.state,listing.city))) or (subject_type='hotel' and exists(select 1 from public.hotel_bookings booking join public.hotels hotel on hotel.hotel_id=booking.hotel_id where booking.booking_id::text=subject_id and public.current_actor_in_scope(hotel.state,hotel.city)))));
 drop policy if exists property_change_requests_read_authorized on public.property_change_requests;
 create policy property_change_requests_read_authorized on public.property_change_requests for select to authenticated using (requested_by=public.current_profile_user_id() or exists(select 1 from public.listings l where l.id=property_change_requests.listing_id and (public.current_actor_has_workspace('creator',null) or (public.current_actor_has_workspace('admin',l.state) and public.current_actor_in_scope(l.state,l.city)) or (public.current_actor_has_workspace('staff',null) and public.current_staff_has_permission('operations') and public.current_actor_in_scope(l.state,l.city))));
-drop trigger if exists hotel_stay_party_guard on public.hotel_bookings;
+create policy accommodation_no_show_authorized_read on public.accommodation_no_show_reviews for select to authenticated using (
+  requested_by=public.current_profile_user_id()
+  or (subject_type='short_let' and exists (
+    select 1 from public.reservations reservation
+    where reservation.id=subject_id and reservation.user_id=public.current_profile_user_id()
+  ))
+  or (subject_type='hotel' and exists (
+    select 1 from public.hotel_bookings booking
+    where booking.booking_id::text=subject_id and booking.user_id=public.current_profile_user_id()
+  ))
+  or (
+    public.current_profile_role()=any(array['creator','admin','staff']::text[])
+    and (public.current_profile_role()<>'staff' or public.current_staff_has_permission('operations'))
+    and (
+      public.current_profile_role()='creator'
+      or (subject_type='short_let' and exists (
+        select 1 from public.reservations reservation
+        join public.listings listing on ((listing.id)::text=reservation.listing_id or listing.listing_id=reservation.listing_id)
+        where reservation.id=subject_id and public.current_actor_in_scope(listing.state,listing.city)
+      ))
+      or (subject_type='hotel' and exists (
+        select 1 from public.hotel_bookings booking
+        join public.hotels hotel on hotel.hotel_id=booking.hotel_id
+        where booking.booking_id::text=subject_id and public.current_actor_in_scope(hotel.state,hotel.city)
+      ))
+    )
+  )
+);
 create trigger hotel_stay_party_guard before insert or update on public.hotel_bookings for each row execute function public.validate_stay_party();
 drop trigger if exists zz_hotel_booking_cancellation_snapshot on public.hotel_bookings;
 create trigger zz_hotel_booking_cancellation_snapshot before insert or update on public.hotel_bookings for each row execute function public.snapshot_hotel_cancellation_policy();
