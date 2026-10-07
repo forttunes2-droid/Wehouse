@@ -27,6 +27,7 @@ export default function VideoPlayer({
   onTime,
   onPlaybackError,
   controlsPositionClassName = "bottom-0",
+  viewerMode = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
