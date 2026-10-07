@@ -32,7 +32,7 @@ export default function MessageMedia({ items }: { items: MessageAttachment[] }) 
     {visual.length > 0 && <div className="wh-media-grid" data-count={Math.min(visual.length, 4)}>{visual.slice(0, 4).map((item, index) => <button
       key={`${item.url}-${index}`} type="button" data-message-swipe-surface="true" className="wh-media-tile" aria-label={`Open ${item.kind === 'image' ? 'photo' : 'video'} ${index + 1} of ${visual.length}`}
       onClick={event => { event.stopPropagation(); setOpened(item.url); }}>
-      {item.kind === 'image' ? <Photo key={item.url} url={item.url} /> : <span className="wh-media-play"><Play size={22} aria-hidden="true" /></span>}
+      {item.kind === 'image' ? <Photo key={item.url} url={item.url} /> : <span className="wh-media-video-preview"><video src={item.url} muted playsInline preload="metadata" aria-hidden="true" /><span className="wh-media-play"><Play size={20} fill="currentColor" aria-hidden="true" /></span></span>}
       {index === 3 && visual.length > 4 && <span className="wh-media-count">+{visual.length - 4}</span>}
     </button>)}</div>}
     {safe.map((item, index) => {
