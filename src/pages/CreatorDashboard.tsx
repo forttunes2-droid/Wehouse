@@ -64,12 +64,6 @@ const NAV = [
   { id: "inbox", label: "Inbox" },
 ];
 
-const NOTES: Record<Tab, string> = {
-  overview: "Live inventory, people and work needing attention.",
-  operations:
-    "People, properties, bookings, finance and platform control in one workspace.",
-  inbox: "Chats and Activity linked to their authoritative records.",
-};
 
 const OPS: Array<{
   id: Operation;
