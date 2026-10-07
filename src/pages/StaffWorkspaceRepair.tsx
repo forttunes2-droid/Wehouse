@@ -209,17 +209,6 @@ function Workspace({
     onNavigate?.(page, id);
   }
   let content: React.ReactNode;
-  if (false)
-    content = (
-      <StaffHome
-        profile={profile}
-        module={module}
-        copy={copy}
-        branch={coverage}
-        openWork={() => setTab(directConversation ? "conversations" : "work")}
-        onNavigate={onNavigate}
-      />
-    );
   else if (tab === "bookings" && module === "operations")
     content = <HousingOperationsWorkspace initialRecordId={bookingTargetId} />;
   else if (tab === "conversations" && module === "operations")
@@ -506,50 +495,6 @@ function ActivityOnlyInbox({
           onUnreadChange={onUnreadChange}
           onNavigate={onNavigate}
         />
-    </div>
-  );
-}
-function StaffHome({
-  module,
-  copy,
-  branch,
-  openWork,
-}: {
-  profile: Profile;
-  module: Module;
-  copy: { title: string; description: string; workLabel: string };
-  branch: string;
-  openWork: () => void;
-  onNavigate?: (page: string) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <section className="border-b border-[var(--wh-border-subtle)] pb-6">
-        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-          YOUR WORK AREA
-        </p>
-        <h2 className="mt-3 text-2xl font-bold">{copy.title}</h2>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--wh-text-secondary)]">{branch}</span>
-          <span className="rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--wh-text-secondary)]">Assigned work only</span>
-        </div>
-      </section>
-      <div className="border-y border-[var(--wh-border-subtle)]">
-        <button
-          onClick={openWork}
-          className="flex min-h-16 w-full items-center justify-between py-3 text-left"
-        >
-          <span>
-            <strong className="block text-sm">
-              {module === "support" ? "Open conversations" : copy.workLabel}
-            </strong>
-            <span className="mt-1 block text-[10px] text-[var(--wh-text-muted)]">
-              Continue your assigned work
-            </span>
-          </span>
-          <span className="text-violet-300">›</span>
-        </button>
-      </div>
     </div>
   );
 }
