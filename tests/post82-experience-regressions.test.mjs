@@ -230,8 +230,10 @@ test("media viewer keeps one coherent full-screen shell with safe navigation act
     read("src/components/PropertyMediaCarousel.tsx"),
   ]);
   assert.match(viewer, /Back from media preview/);
-  assert.match(viewer, /navigator\.share/);
-  assert.match(viewer, /ExternalLink/);
+  assert.doesNotMatch(viewer, /navigator\.share/);
+  assert.doesNotMatch(viewer, /ExternalLink/);
+  assert.match(viewer, /chromeVisible/);
+  assert.match(video, /viewerMode/);
   assert.match(photo, /touchAction: 'none'/);
   assert.match(photo, /onPrevious/);
   assert.match(video, /playsInline/);
