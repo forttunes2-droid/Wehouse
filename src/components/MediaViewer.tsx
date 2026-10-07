@@ -58,7 +58,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   return createPortal(
     <div ref={dialogRoot} tabIndex={-1} data-media-index={index} data-media-count={items.length}
       data-media-variant={variant}
-      className="fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
+      className="wh-media-viewer fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
       onKeyDown={event => {
         if (event.defaultPrevented || !dialogRoot.current || !isTopDialog(dialogRoot.current) ||
             (event.target as HTMLElement).closest("button,input,select,textarea")) return;
@@ -70,7 +70,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent px-3 pb-12"
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         <button type="button" onClick={dismiss}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/35 text-white transition active:scale-95"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
           aria-label="Back from media preview">
           <ArrowLeft size={22} />
         </button>
@@ -101,7 +101,7 @@ export default function MediaViewer(props: MediaViewerProps) {
       </div>
 
       <main {...paging} data-media-stage
-        className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
+        className="wh-media-stage relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
         style={{ touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
         {failed ? (
