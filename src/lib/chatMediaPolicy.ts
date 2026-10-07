@@ -27,7 +27,7 @@ export function isChatVoiceType(type: string): boolean {
 }
 export function isChatDocumentType(type: string): boolean {
   const normalized = normaliseChatMediaType(type);
-  return CHAT_DOCUMENT_TYPES.some(value => value === normalized) || normalized.startsWith('text/');
+  return CHAT_DOCUMENT_TYPES.some(value => value === normalized) || (normalized.startsWith('text/') && normalized !== 'text/html');
 }
 export function isChatAttachmentType(type: string, allowVoice = false): boolean {
   return isChatVisualType(type) || isChatDocumentType(type) || (allowVoice && isChatVoiceType(type));
