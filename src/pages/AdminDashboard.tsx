@@ -39,12 +39,6 @@ const NAV = [
   { id: "operations", label: "Operations" },
   { id: "inbox", label: "Inbox" },
 ];
-const NOTES: Record<AdminTab, string> = {
-  overview: "Your coverage, what needs attention and where to work next.",
-  operations:
-    "One place for people, team, properties, Workers, bookings and security in your coverage.",
-  inbox: "Assigned conversations and Activity inside your coverage.",
-};
 const OPS: [Operation, string, string][] = [
   ["people", "People", "Regular users and Property Partners in your coverage"],
   ["staff", "Team", "Operations members in your coverage"],
