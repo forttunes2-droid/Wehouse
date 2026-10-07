@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Check, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setNotificationSoundEnabled } from "@/lib/notificationSound";
@@ -453,19 +454,43 @@ export default function AccountCenter({
 
   if (panel === "appearance") {
     const dark = appearance === "dark";
+    const choices = [
+      { value: "light" as const, label: "Light", detail: "Bright and clean", icon: Sun },
+      { value: "dark" as const, label: "Dark", detail: "Low-light friendly", icon: Moon },
+    ];
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
-      description="Switch WeHouse between light and dark mode." onBack={() => setPanel(null)}>
+      description="Choose how WeHouse looks on this device." onBack={() => setPanel(null)}>
       <section className="mx-auto max-w-2xl">
-        <button type="button" role="switch" aria-checked={dark} onClick={() => setAppearance(dark ? "light" : "dark")}
-          className="flex min-h-16 w-full items-center gap-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 text-left transition-colors active:bg-[var(--wh-interactive)]">
-          <span className={`relative h-8 w-14 shrink-0 rounded-full p-1 transition-colors ${dark ? "bg-violet-500" : "bg-[var(--wh-interactive)]"}`}>
-            <span className={`block h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${dark ? "translate-x-6" : "translate-x-0"}`} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">{dark ? "Dark mode" : "Light mode"}</span>
-            <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">One switch. The whole WeHouse interface follows it.</span>
-          </span>
-        </button>
+        <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Appearance">
+          {choices.map(({ value, label, detail, icon: Icon }) => {
+            const selected = appearance === value;
+            return (
+              <button key={value} type="button" role="radio" aria-checked={selected}
+                onClick={() => setAppearance(value)}
+                className={`relative overflow-hidden rounded-2xl border p-3 text-left transition-all active:scale-[.99] ${selected ? "border-violet-400/60 ring-1 ring-violet-400/25" : "border-[var(--wh-border-subtle)]"} bg-[var(--wh-surface)]`}>
+                <div className={`h-20 rounded-xl border p-2 ${value === "dark" ? "border-white/10 bg-[#090B10]" : "border-black/10 bg-[#F7F8FB]"}`}>
+                  <div className={`h-2.5 w-1/2 rounded-full ${value === "dark" ? "bg-white/15" : "bg-black/10"}`} />
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-white/10" : "bg-black/5"}`} />
+                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-violet-500/30" : "bg-violet-500/15"}`} />
+                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-white/10" : "bg-black/5"}`} />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className={`grid h-8 w-8 place-items-center rounded-full ${selected ? "bg-violet-500/15 text-violet-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}><Icon size={16} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="mt-0.5 block text-[11px] text-[var(--wh-text-muted)]">{detail}</span>
+                  </span>
+                  {selected ? <Check size={17} className="shrink-0 text-violet-300" aria-hidden="true" /> : null}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-4 px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">
+          Your choice applies across WeHouse on this device.
+        </p>
       </section>
     </AccountShell>;
   }
