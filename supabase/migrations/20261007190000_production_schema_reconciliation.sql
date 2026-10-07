@@ -1816,7 +1816,7 @@ begin
           when bp.purpose='worker_pro_subscription' then 'Worker Pro subscription'
           when bp.purpose='shared_housing_share' then 'Shared home contribution'
           else 'WeHouse payment' end,
-        'package_name',hb.rate_plan_name,
+        'package_name',hb.rate_plan_name,'cancellation_snapshot',hb.cancellation_snapshot,
         'booking_id',coalesce(hb.booking_id::text,wb.id::text,r.id),
         'booking_type',case when hb.booking_id is not null then 'hotel' when wb.id is not null then 'service' when r.id is not null then 'housing' else null end,
         'check_in',coalesce(hb.check_in,r.stay_check_in),'check_out',coalesce(hb.check_out,r.stay_check_out),
