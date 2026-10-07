@@ -1,47 +1,30 @@
-import { ChevronDown, MessageSquareText } from 'lucide-react';
-import { useRef } from 'react';
-import './message-attachments.css';
+import { MessageSquareText } from "lucide-react";
+import "./message-attachments.css";
 
 type Props = { request?: string | null; hotelView?: boolean; inConversation?: boolean };
 
+/** Booking context is shown in chat without being written as a fake message. */
 export default function HotelSpecialRequest({ request, hotelView = false, inConversation = false }: Props) {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   if (!request?.trim()) return null;
-
-  const body = (
-    <div className="wh-request-body">
-      <p>{request}</p>
-      <small>{hotelView ? 'Reply to confirm what the hotel can arrange.' : 'A request, not a confirmation. The hotel can reply here.'}</small>
-    </div>
-  );
-
+  const text = request.trim();
   if (inConversation) {
     return (
-      <details ref={detailsRef} className="wh-attachment-surface wh-request-note">
-        <summary
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const details = detailsRef.current;
-            if (details) details.open = !details.open;
-          }}
-        >
-          <MessageSquareText size={19} aria-hidden="true" />
-          <span><strong>Special request</strong><small>Sent with this booking</small></span>
-          <ChevronDown size={18} aria-hidden="true" className="wh-request-chevron" />
-        </summary>
-        {body}
-      </details>
+      <section aria-label="Special request for this booking" className="wh-attachment-surface wh-request-note wh-request-note-conversation">
+        <div className="wh-request-conversation-head">
+          <span className="wh-request-icon"><MessageSquareText size={17} aria-hidden="true" /></span>
+          <span className="min-w-0"><strong>Special request</strong><small>Booking request · visible to the hotel team</small></span>
+        </div>
+        <div className="wh-request-body">
+          <p>{text}</p>
+          <small>{hotelView ? "Reply here to tell the guest what the hotel can arrange." : "The hotel can reply here about this request."}</small>
+        </div>
+      </section>
     );
   }
-
   return (
     <section aria-label="Special request" className="wh-attachment-surface wh-request-note mt-3">
       <div className="px-3 pt-3 text-sm font-semibold">Special request</div>
-      <div className="wh-request-body !border-0">
-        <p>{request}</p>
-        <small>{hotelView ? 'Reply in Guest messages to confirm what you can arrange.' : 'The hotel must confirm whether it can arrange this.'}</small>
-      </div>
+      <div className="wh-request-body !border-0"><p>{text}</p><small>{hotelView ? "Reply in Guest messages to confirm what you can arrange." : "The hotel must confirm whether it can arrange this."}</small></div>
     </section>
   );
 }
