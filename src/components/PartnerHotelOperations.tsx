@@ -754,7 +754,6 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
 type HotelTeamRow = { id: string; member_user_id: string; hotel_role: "manager" | "front_desk"; status: "invited" | "active"; capabilities: HotelCapability[]; name: string; username?: string | null };
 type HotelTeamRecipient = { user_id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null; city?: string | null; state?: string | null };
 const PRIMARY_STAY_FILTERS = [
-const PRIMARY_STAY_FILTERS = [
   { value: "all", label: "All" }, { value: "arrivals_today", label: "Arriving" },
   { value: "staying", label: "Staying" }, { value: "departures_today", label: "Leaving" },
   { value: "attention", label: "Needs action" },
