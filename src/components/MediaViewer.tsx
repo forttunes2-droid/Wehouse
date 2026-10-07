@@ -102,7 +102,7 @@ export default function MediaViewer(props: MediaViewerProps) {
 
       <main {...paging} data-media-stage
         className="wh-media-stage relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
-        style={{ touchAction: "pan-y pinch-zoom" }}>
+        style={{ ...paging.style, touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
         {failed ? (
           <div className="px-6 text-center"><p className="text-sm font-semibold">This media could not be loaded</p><p className="mt-2 text-sm text-white/55">Close the viewer and try again.</p></div>
