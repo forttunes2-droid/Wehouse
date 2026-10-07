@@ -22,8 +22,7 @@ export const supabase={
     if(name==='get_my_workspace_access')return new Promise(resolve=>{const done=()=>resolve({data:copy(control.access),error:null});if(control.holdAccess)control.accessWaiters.push(done);else done()});
     if(name==='get_my_hotel_conversation_bundle')return new Promise(resolve=>{
       const rows=copy(control.rows[args.p_conversation_id]||[]);
-      const context={conversation_id:args.p_conversation_id,booking_id:args.p_booking_id,hotel_id:7,hotel_name:'Garden Lodge',room_name:'Deluxe',rate_plan_name:'Room only',check_in:'2026-09-24',check_out:'2026-09-26',booking_status:'confirmed',payment_status:'paid',viewer_party:control.guestView?'guest':'hotel',other_party_label:control.guestView?'Garden Lodge':args.p_booking_id===1?'Guest Example':'Other guest',request_visible:true,special_requests:args.p_booking_id===1?'Please arrange a quiet room.
-I may arrive at 6 pm.':null,can_reply:true};
+      const context={conversation_id:args.p_conversation_id,booking_id:args.p_booking_id,hotel_id:7,hotel_name:'Garden Lodge',room_name:'Deluxe',rate_plan_name:'Room only',check_in:'2026-09-24',check_out:'2026-09-26',booking_status:'confirmed',payment_status:'paid',viewer_party:control.guestView?'guest':'hotel',other_party_label:control.guestView?'Garden Lodge':args.p_booking_id===1?'Guest Example':'Other guest',request_visible:true,special_requests:args.p_booking_id===1?'Please arrange a quiet room.\nI may arrive at 6 pm.':null,can_reply:true};
       const done=()=>resolve(control.denyContext?{data:null,error:{message:'Hotel conversation access denied',code:'42501'}}:{data:{context,messages:rows},error:null});if(control.holdMessages)control.messageWaiters.push(done);else done();
     });
     if(name==='send_hotel_booking_message')return new Promise(resolve=>{
