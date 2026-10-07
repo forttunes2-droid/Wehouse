@@ -117,7 +117,7 @@ async def main():
      await expect(reply).to_be_visible()
      assert await reply.evaluate('(el)=>Boolean(el.closest(".justify-start"))')
      await page.locator('summary').filter(has_text='Special request').click()
-     assert await page.locator('.wh-request-body p').text_content() == 'Please arrange a quiet room.\\nI may arrive at 6 pm.'
+     assert await page.locator('.wh-request-body p').text_content() == 'Please arrange a quiet room.\nI may arrive at 6 pm.'
      await page.get_by_placeholder('Message',exact=True).fill('Thank you. Is parking available?')
      await page.get_by_role('button',name='Send message',exact=True).click()
      followup=page.get_by_text('Thank you. Is parking available?',exact=True)
