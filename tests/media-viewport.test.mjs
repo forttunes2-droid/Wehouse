@@ -65,4 +65,6 @@ test('video and post paging share input ownership with photo gestures and seek c
  assert.match(gesture,/data-photo-stage/);assert.match(gesture,/input,textarea,a,select/);
  assert.match(gesture,/current.pointers.size !== 1/);assert.match(gesture,/start.identity !== identity/);
  assert.match(gesture,/onPointerCancel/);assert.match(gesture,/event.detail > 0/);
+ assert.match(gesture,/--wh-swipe-transform/);assert.match(gesture,/willChange: "transform"/);
+ assert.match(gesture,/setPointerCapture/);assert.match(gesture,/preventDefault/);
 });
