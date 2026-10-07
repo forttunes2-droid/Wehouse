@@ -195,10 +195,25 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(roommate, /uniqueMatches/);
   assert.match(roommate, /row\.status === "accepted"/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
-  assert.match(account, /Switch WeHouse between light and dark mode/);
+  assert.match(account, /Choose how WeHouse looks on this device/);\n  assert.match(account, /role="radiogroup"/);
   assert.doesNotMatch(account, /Automatic/);
   assert.doesNotMatch(account, /h-28/);
   assert.match(creatorModal, /var\(--wh-surface\)/);
   assert.match(migration, /get_my_received_roommate_interests/);
   assert.match(migration, /match_highlights text\[\]/);
+});
+
+
+test("media viewer keeps one coherent full-screen shell with safe navigation actions", async () => {
+  const [viewer, photo, video] = await Promise.all([
+    read("src/components/MediaViewer.tsx"),
+    read("src/components/ZoomablePhoto.tsx"),
+    read("src/components/VideoPlayer.tsx"),
+  ]);
+  assert.match(viewer, /Back from media preview/);
+  assert.match(viewer, /navigator\.share/);
+  assert.match(photo, /touchAction: 'none'/);
+  assert.match(photo, /onPrevious/);
+  assert.match(video, /playsInline/);
+  assert.match(video, /View video full screen/);
 });
