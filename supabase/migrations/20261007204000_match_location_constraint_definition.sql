@@ -1,0 +1,2 @@
+alter table public.worker_bookings drop constraint if exists worker_bookings_location_pair_check;
+alter table public.worker_bookings add constraint worker_bookings_location_pair_check check ((((service_latitude is null) and (service_longitude is null)) or ((service_latitude>=('-90'::integer)::numeric) and (service_latitude<=(90)::numeric) and ((service_longitude>=('-180'::integer)::numeric) and (service_longitude<=(180)::numeric))));
