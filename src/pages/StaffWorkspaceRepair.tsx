@@ -25,7 +25,7 @@ type Module =
   | "security"
   | "worker_operations"
   | "field_officer";
-type MainTab = "home" | "work" | "bookings" | "conversations";
+type MainTab = "work" | "bookings" | "conversations";
 type WorkView =
   | "pipeline"
   | "overview"
@@ -230,7 +230,7 @@ function Workspace({
     onNavigate?.(page, id);
   }
   let content: React.ReactNode;
-  if (tab === "home")
+  if (false)
     content = (
       <StaffHome
         profile={profile}
@@ -284,8 +284,7 @@ function Workspace({
         setView={setWorkView}
       />
     );
-  const activeLabel =
-    items.find((item) => item.id === tab)?.label || copy.title;
+  const activeLabel = items.find((item) => item.id === tab)?.label || copy.title;
   return (
     <>
 
