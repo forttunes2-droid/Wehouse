@@ -1,5 +1,8 @@
 name: WeHouse millions-scale capacity (disposable)
 on:
+  push:
+    branches:
+      - fix/next-structural-work-20261007
   workflow_dispatch:
     inputs:
       booking_attempts:
