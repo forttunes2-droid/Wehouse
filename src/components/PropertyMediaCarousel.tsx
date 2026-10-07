@@ -2,7 +2,7 @@ import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, Share2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
 import MediaPagingActions from "./MediaPagingActions";
 import VideoPlayer from "./VideoPlayer";
@@ -153,22 +153,7 @@ export default function PropertyMediaCarousel({
               <p className="truncate text-sm font-semibold text-white">{title}</p>
               <p className="mt-0.5 text-xs text-white/55">{activeIndex + 1} of {items.length} · {items[activeIndex]?.kind}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <button type="button" onClick={() => {
-                const reference = items[activeIndex]?.reference;
-                if (reference) window.open(reference, "_blank", "noopener,noreferrer");
-              }} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition active:scale-95" aria-label="Open media in a new tab">
-                <ExternalLink size={19} />
-              </button>
-              {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
-                <button type="button" onClick={() => {
-                  const reference = items[activeIndex]?.reference;
-                  if (reference) void navigator.share({ title, url: reference }).catch(() => undefined);
-                }} className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition active:scale-95" aria-label="Share media">
-                  <Share2 size={18} />
-                </button>
-              ) : null}
-            </div>
+
           </header>
           <div
             ref={fullscreenRailRef}
