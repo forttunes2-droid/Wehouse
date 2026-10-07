@@ -161,44 +161,23 @@ function Workspace({
     communicationQueue,
   );
   const items = directConversation
-    ? [
-        { id: "home", label: "Home" },
-        {
-          id: "conversations",
-          label: "Inbox",
-          badge: inboxSummary.totalUnread,
-        },
-      ]
+    ? [{ id: "conversations", label: "Inbox", badge: inboxSummary.totalUnread }]
     : module === "operations"
       ? [
-          { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
           { id: "bookings", label: "Bookings" },
-          {
-            id: "conversations",
-            label: "Inbox",
-            badge: inboxSummary.totalUnread,
-          },
+          { id: "conversations", label: "Inbox", badge: inboxSummary.totalUnread },
         ]
       : [
-          { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
-          {
-            id: "conversations",
-            label: "Inbox",
-            badge: inboxSummary.totalUnread,
-          },
+          { id: "conversations", label: "Inbox", badge: inboxSummary.totalUnread },
         ];
-  const [tab, setTab] = useState<MainTab>("home"),
+  const [tab, setTab] = useState<MainTab>(directConversation ? "conversations" : "work"),
     [workTargetId, setWorkTargetId] = useState<string | undefined>(),
     [bookingTargetId, setBookingTargetId] = useState<string | undefined>(),
     [conversationTargetId, setConversationTargetId] = useState<string | undefined>(),
     [workView, setWorkView] = useState<WorkView>(
-      module === "finance"
-        ? "overview"
-        : module === "security"
-          ? "signals"
-          : "pipeline",
+      module === "finance" ? "overview" : module === "security" ? "signals" : "pipeline",
     );
   const scope = {
       state: profile.assigned_state || "",
