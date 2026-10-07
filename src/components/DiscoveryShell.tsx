@@ -70,8 +70,9 @@ export function DiscoveryFilterSheet({ title = 'Filters', onClose, onClear, chil
   const dialogRef = useDialogInteraction(dismiss);
 
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100000] isolate flex bg-[var(--wh-surface)] text-[var(--wh-text)]" role="presentation">
-    <section className="flex h-[100dvh] w-full flex-col overflow-hidden border-t border-[var(--wh-border)] bg-[var(--wh-surface)] shadow-[0_-24px_80px_rgba(0,0,0,.55)]" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100000] isolate h-[100dvh] w-full overflow-hidden bg-black/70 text-[var(--wh-text)] overscroll-none touch-none" role="presentation">
+    <div aria-hidden="true" className="absolute inset-0 bg-black/70" />
+    <section className="relative z-10 flex h-[100dvh] w-full flex-col overflow-hidden border-t border-[var(--wh-border)] bg-[var(--wh-bg)] shadow-[0_-24px_80px_rgba(0,0,0,.65)]" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
       <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-white/15" />
       <div className="shrink-0 border-b border-[var(--wh-border)] bg-[var(--wh-bg)] px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><h2 className="text-xl font-bold">{title}</h2><button type="button" onClick={dismiss} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border)] bg-[var(--wh-elevated)] text-xl text-[var(--wh-text-secondary)]" aria-label="Close filters">×</button></div>
