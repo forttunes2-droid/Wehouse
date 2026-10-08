@@ -55,7 +55,7 @@ test('all existing upload boundaries enforce policy and only the recorder grants
  for(const path of ['src/lib/supabase/chat.ts','src/lib/supabase/worker-bookings.ts','src/lib/supabase/hotel-chat.ts','src/lib/supabase/support.ts']) assert.match(fs.readFileSync(path,'utf8'),/await validateChatUpload\(file/);
  assert.match(fs.readFileSync('src/hooks/useVoiceRecorder.ts','utf8'),/markRecordedVoiceNote\(file\)/);
  assert.match(fs.readFileSync('src/lib/e2ee.ts','utf8'),/await validateMessageMedia\(blob, metadata\)/);
- const picker=fs.readFileSync('src/components/ChatAttachmentPicker.tsx','utf8'); assert.match(picker,/Photos & videos/);assert.match(picker,/Document/);assert.match(picker,/Camera/);
+ const picker=fs.readFileSync('src/components/ChatAttachmentPicker.tsx','utf8'); assert.match(picker,/aria-label="Attach to message"/);assert.match(picker,/Photos & videos/);assert.match(picker,/Document/);assert.match(picker,/Camera/);
 });
 test('chat rendering provides a private document card and the shared picker exposes document choice',()=>{
  const renderer=fs.readFileSync('src/components/MessageMedia.tsx','utf8'); assert.match(renderer,/attachmentFileLabel/);assert.match(renderer,/download/);assert.match(renderer,/wh-attachment-file/);
