@@ -21,3 +21,4 @@ jobs:
         run: npm test
       - name: TypeScript and production build
         run: npm run build
+# CI ref recovery: harmless comment; keeps workflow behavior unchanged.
