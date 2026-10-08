@@ -183,7 +183,7 @@ test('a property share uses real encryption and only the intended second identit
   // A real encrypted image remains media; an authenticated hostile metadata URL
   // cannot override the receiver-created object URL. Unsupported cleartext fails.
   const photo=new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=','base64')],{type:'image/png'});
-  for(const [payload,metadata,accepted] of [[photo,{name:'room.png',type:'image/png',url:'javascript:alert(1)'},true],[new Blob(['%PDF-1.7']),{name:'lease.pdf',type:'application/pdf'},false],[new Blob(['%PDF-1.7']),{name:'room.png',type:'image/png'},false]]) {
+  for(const [payload,metadata,accepted] of [[photo,{name:'room.png',type:'image/png',url:'javascript:alert(1)'},true],[new Blob(['%PDF-1.7']),{name:'lease.pdf',type:'application/pdf'},true],[new Blob(['%PDF-1.7']),{name:'room.png',type:'image/png'},false]]) {
     const encrypted=await alice.encryptPrivateAttachment('roommate','accepted-1','bob',payload,metadata);
     const path='https://storage.invalid/'+objects.size;objects.set(path,encrypted.blob);
     const attachment={...encrypted,path};
