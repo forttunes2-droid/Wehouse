@@ -182,7 +182,7 @@ function Workspace({
   const scope = {
       state: profile.assigned_state || "",
       lga: profile.assigned_lga || "",
-    },
+    };
   function openStaffDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (/propert|listing|inspection/.test(route)) {
