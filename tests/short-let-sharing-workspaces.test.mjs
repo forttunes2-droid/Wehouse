@@ -187,7 +187,7 @@ test('a property share uses real encryption and only the intended second identit
     const encrypted=await alice.encryptPrivateAttachment('roommate','accepted-1','bob',payload,metadata);
     const path='https://storage.invalid/'+objects.size;objects.set(path,encrypted.blob);
     const attachment={...encrypted,path};
-    if(accepted){const received=await bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment);assert.ok(received.url.startsWith('blob:'));assert.equal(received.type,'image/png');assert.equal(received.name,'room.png');URL.revokeObjectURL(received.url);}
+    if(accepted){const received=await bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment);assert.ok(received.url.startsWith('blob:'));assert.equal(received.type,metadata.type);assert.equal(received.name,metadata.name);URL.revokeObjectURL(received.url);}
     else await assert.rejects(()=>bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment),/not supported|not a supported/);
   }
   const outsider=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:client('outsider')}},{sessionStorage:storage()});
