@@ -102,8 +102,7 @@ rollback;
 
 
 -- Removing a Host manager must transfer active booking/chat responsibility back
--- The Host handover test uses a real, already-priced Short Let booking. Seed
--- the versioned policies the booking snapshot triggers require in an empty DB.
+-- to the owner before the assignment is revoked.
 begin;
 set local session_replication_role=replica;
 insert into public.creator_policy_versions(
@@ -137,9 +136,6 @@ where not exists (
     and (effective_until is null or effective_until>now())
 );
 
--- to the owner before the assignment is revoked.
-begin;
-set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city) values
 ('86666666-1000-4000-8000-000000000001','host-owner@example.invalid','host-continuity-owner','property_partner',true,'Nasarawa','Lafia'),
 ('86666666-1000-4000-8000-000000000002','host-manager@example.invalid','host-continuity-manager','user',true,'Nasarawa','Lafia'),
