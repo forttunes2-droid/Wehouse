@@ -46,7 +46,9 @@ export default function MediaViewer(props: MediaViewerProps) {
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  // A photo preview needs an immediately usable close action. Mixed galleries keep\n  // their controls tucked away until the viewer is tapped.\n  const [chromeVisible, setChromeVisible] = useState(variant === "photo");
+  // A photo preview needs an immediately usable close action. Mixed galleries keep
+  // their controls tucked away until the viewer is tapped.
+  const [chromeVisible, setChromeVisible] = useState(variant === "photo");
 
   useEffect(() => setIndex(Math.min(Math.max(requestedIndex, 0), maxIndex)), [requestedIndex, maxIndex]);
   useEffect(() => {
