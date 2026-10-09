@@ -111,6 +111,14 @@ do $$ begin
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000003',true);
   perform set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000003","role":"authenticated"}',true);
   if public.current_profile_user_id()<>'repair-guest' then raise exception 'Review fixture authenticated as the wrong profile'; end if;
+  if not exists(select 1 from public.hotel_bookings b where b.hotel_id=-9991
+    and b.user_id=public.current_profile_user_id() and b.payment_status='paid'
+    and b.status in ('checked_out','completed')) then
+    raise exception 'Direct review eligibility predicate failed: actor=%, bookings=%',
+      public.current_profile_user_id(),
+      (select coalesce(jsonb_agg(jsonb_build_object('hotel_id',b.hotel_id,'user_id',b.user_id,'payment_status',b.payment_status,'status',b.status,'check_out',b.check_out)),'[]'::jsonb)
+       from public.hotel_bookings b where b.hotel_id=-9991);
+  end if;
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0 ? 'total_rooms' then raise exception 'Guest received internal inventory'; end if;
   if public.get_hotel_review_summary(-9991)->>'eligible'<>'true' then raise exception 'Completed guest cannot review'; end if;
   begin
