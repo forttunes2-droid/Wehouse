@@ -11,11 +11,13 @@ insert into public.creator_policy_versions(
   effective_from,public_disclosure,disclosure_text,legal_review_state,
   reason,checksum,published_at
 ) values
-  ('commission_short_let','global','*',1,'{"percent":10,"currency":"NGN"}'::jsonb,'{"type":"commission_policy"}'::jsonb,
-   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-short-commission',now()),
-  ('commission_long_let','global','*',1,'{"percent":10,"currency":"NGN"}'::jsonb,'{"type":"commission_policy"}'::jsonb,
-   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-long-commission',now())
-on conflict (policy_key,scope_type,scope_key,version) do nothing;
+  -- The reservation trigger resolves the managed-service policy keys, not
+  -- the legacy partner-managed keys. Use a high fixture-only version so this
+  -- transaction does not silently reuse a stale policy from database seeds.
+  ('commission_short_let_wehouse_managed','global','*',999999,'{"percent":10}'::jsonb,'{"type":"percent"}'::jsonb,
+   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-short-commission-fixture',now()),
+  ('commission_long_let_wehouse_managed','global','*',999999,'{"percent":10}'::jsonb,'{"type":"percent"}'::jsonb,
+   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-long-commission-fixture',now());
 
 -- Fixed synthetic records keep this contract independent of seed data. FK
 -- triggers are suspended only while the isolated fixtures are inserted; the
