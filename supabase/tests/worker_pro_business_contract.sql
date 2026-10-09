@@ -44,6 +44,7 @@ begin
   if jsonb_array_length(v->'schedule')<>1 or jsonb_array_length(v->'customers')<>1 then
     raise exception 'Business records wrong: %',v; end if;
   perform public.save_my_worker_pro_job_cost('78666666-0000-4000-8000-000000000012',2500,'Materials and transport');
+  if not exists(select 1 from public.worker_pro_job_costs where worker_id='business-one' and booking_id='78666666-0000-4000-8000-000000000012' and amount=2500 and cost_ngn=2500) then raise exception 'Worker cost columns are not synchronized'; end if;
   v:=public.get_my_worker_pro_job_costs();
   if jsonb_array_length(v)<>2 or not exists(select 1 from jsonb_array_elements(v) x where (x->>'cost_ngn')::numeric=2500 and (x->>'released_earnings_ngn')::numeric=11000) then raise exception 'Job cost/released earnings mismatch'; end if;
   begin
