@@ -15,7 +15,7 @@ begin
   if v_overloads <> 1 then
     raise exception 'Expected one canonical Partner Pro confirmation RPC; found % overloads',v_overloads;
   end if;
-end $;
+end $$;
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete)
 values ('76666666-0000-4000-8000-000000000003','pro-buyer@example.invalid','pro-buyer','property_partner',true);
