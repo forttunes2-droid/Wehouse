@@ -166,7 +166,7 @@ do $$ declare c uuid:='88999999-1000-4000-8000-000000000001'; p text:=c::text||'
  perform public.mark_hotel_booking_messages_read(c);
 end $$;
 -- Support accepts photos, videos and approved documents, but not voice notes or invalid objects.
-do $ declare c uuid:=current_setting('wh.media.support')::uuid; p text:=c::text||'/'; f text; t text; r jsonb; begin
+do $$ declare c uuid:=current_setting('wh.media.support')::uuid; p text:=c::text||'/'; f text; t text; r jsonb; begin
  perform public.send_support_message(c,'Photo',array[p||'valid.png'],array['image/png']);
  perform public.send_support_message(c,'Video',array[p||'clip.mp4'],array['video/mp4']);
  perform public.send_support_message(c,'Document',array[p||'document.pdf'],array['application/pdf']);
