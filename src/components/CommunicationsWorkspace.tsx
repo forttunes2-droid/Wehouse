@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { AnnouncementsTab } from "@/components/AnnouncementsTab";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
-import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatMedia } from "@/lib/chatMediaPolicy";
+import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatAttachment, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
@@ -242,10 +242,10 @@ export default function CommunicationsWorkspace({
     // No automatic composer focus: the recording showed the keyboard opening
     // and pushing the entire Inbox before the person chose to write anything.
   }
-  function addFiles(list: FileList | null) {
+  function addFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
     const valid = Array.from(list).filter((file) => {
-      if (isSelectableChatMedia(file)) return true;
+      if (isSelectableChatAttachment(file, source)) return true;
       toast.error(file.size > 25 * 1024 * 1024 ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
       return false;
     });
