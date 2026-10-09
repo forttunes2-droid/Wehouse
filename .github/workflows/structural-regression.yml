@@ -6,6 +6,11 @@ on:
     branches: [main, "fix/next-structural-work-*"]
 permissions:
   contents: read
+
+concurrency:
+  group: wehouse-structural-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-build:
     runs-on: ubuntu-latest

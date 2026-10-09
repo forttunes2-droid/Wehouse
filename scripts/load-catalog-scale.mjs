@@ -66,16 +66,30 @@ async function stage(scenario,concurrency,count) {
     response_megabytes:Math.round(samples.reduce((n,x)=>n+x.bytes,0)/1048576*100)/100};
 }
 const report={source:'disposable local Supabase HTTP API',catalog,
-  caveat:process.env.WEHOUSE_CAPACITY_PRESET==='large' ? 'Millions-scale disposable catalog read test. It validates stored-record cardinality and concurrent read paths; it is not a claim about millions of simultaneous signed-in users or hosted edge capacity.' : 'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
+  caveat:process.env.WEHOUSE_CAPACITY_PRESET==='large' ? 'Staged disposable read ramp: 500, 1k, 2.5k, 5k, 10k, 20k, 35k and 50k concurrent workers against a 7m listing catalog. It measures this runner and local stack; production capacity still requires the same workload on production-equivalent hosted infrastructure.' : 'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
   measured_at:new Date().toISOString(),stages:[]};
 mkdirSync('test-results',{recursive:true});
 const stages = process.env.WEHOUSE_CAPACITY_PRESET === 'requested'
   ? [{concurrency:1,count:30},{concurrency:100,count:300}]
   : process.env.WEHOUSE_CAPACITY_PRESET === 'large'
-    ? [{concurrency:20,count:200},{concurrency:200,count:2000},{concurrency:1000,count:10000}]
+    ? [
+        {concurrency:500,count:1000},
+        {concurrency:1000,count:2000},
+        {concurrency:2500,count:5000},
+        {concurrency:5000,count:10000},
+        {concurrency:10000,count:20000},
+        {concurrency:20000,count:40000},
+        {concurrency:35000,count:70000},
+        {concurrency:50000,count:100000},
+      ]
     : [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}];
 for(const {concurrency,count} of stages){
-  for(const scenario of scenarios){
+  // Keep the broad endpoint suite at lower loads; at the highest steps use a
+  // feed query and a spread-out detail query to measure the full connection ramp.
+  const stageScenarios = process.env.WEHOUSE_CAPACITY_PRESET === 'large' && concurrency >= 10000
+    ? scenarios.filter(s => s.name === 'home_feed' || s.name === 'spread_home')
+    : scenarios;
+  for(const scenario of stageScenarios){
     const result=await stage(scenario,concurrency,count);report.stages.push(result);
     writeFileSync('test-results/catalog-scale.json',JSON.stringify(report,null,2)+'\n');
     console.log(`${result.scenario} c=${concurrency} ok=${count-result.errors}/${count} p95=${result.p95_ms}ms p99=${result.p99_ms}ms rps=${result.requests_per_second}`);

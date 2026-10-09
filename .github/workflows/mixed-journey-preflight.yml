@@ -14,6 +14,11 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+
+concurrency:
+  group: wehouse-mixed-journeys-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   local-mixed-journeys:
     runs-on: ubuntu-latest
