@@ -1,4 +1,4 @@
-import { isChatAttachmentType, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { createPortal } from "react-dom";
 import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
 import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
@@ -639,15 +639,11 @@ export default function Chat({
     setFiles([]);
     setMenuOpen(false);
   }
-  function choosePhotos(list: FileList | null) {
+  function choosePhotos(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
-      if (!isChatAttachmentType(file.type)) {
-        toast.error(CHAT_MEDIA_ONLY_MESSAGE);
-        return false;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name} is larger than 25MB`);
+      if (!isSelectableChatAttachment(file, source)) {
+        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       return true;
