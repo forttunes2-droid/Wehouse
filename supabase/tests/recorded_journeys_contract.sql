@@ -109,6 +109,8 @@ do $$ begin
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000002',true);
   if jsonb_array_length(public.get_my_hotel_operation_snapshot(-9991)->'bookings')<>0 then raise exception 'Room-only staff received guest bookings'; end if;
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000003',true);
+  perform set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000003","role":"authenticated"}',true);
+  if public.current_profile_user_id()<>'repair-guest' then raise exception 'Review fixture authenticated as the wrong profile'; end if;
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0 ? 'total_rooms' then raise exception 'Guest received internal inventory'; end if;
   if public.get_hotel_review_summary(-9991)->>'eligible'<>'true' then raise exception 'Completed guest cannot review'; end if;
   begin
