@@ -51,7 +51,7 @@ async function read(path) {
   return { name: path.name, ms: performance.now() - started, ok: false, status: 'retry-exhausted', retries, retry_status };
 }
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
-  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; max 250 in flight.',
+  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; max 500 in flight.',
   stages: [] };
 let serial = 0;
 for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [100, 30], [200, 30]]) {
@@ -63,7 +63,7 @@ for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [1
   for (let i = 0; i < rps * seconds; i++) {
     const delay = started + i * 1000 / rps - performance.now();
     if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
-    if (running.size >= 250) { dropped++; continue; }
+    if (running.size >= 500) { dropped++; continue; }
     const task = read(paths[serial++ % paths.length]).then(sample => samples.push(sample));
     running.add(task); max_inflight = Math.max(max_inflight, running.size); void task.finally(() => running.delete(task));
   }
