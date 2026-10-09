@@ -1,8 +1,7 @@
 import { Camera, FileText, Image as ImageIcon, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { CHAT_MEDIA_ACCEPT } from "@/lib/chatMediaPolicy";
+import { CHAT_MEDIA_ACCEPT, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 
-export type ChatAttachmentSource = "media" | "document" | "camera";
 type Props = { onFiles: (files: FileList | null, source: ChatAttachmentSource) => void; disabled?: boolean };
 
 export default function ChatAttachmentPicker({ onFiles, disabled = false }: Props) {
