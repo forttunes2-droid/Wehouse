@@ -42,8 +42,8 @@ select -10000000-g,-1000000-g,'Burst room',20000,10
 from generate_series(1,50) g
 on conflict(room_id) do nothing;
 
-insert into public.hotel_rate_plans (rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night,active)
-select -3000000-g,-1000000-g,-10000000-g,'Burst room only','room_only','pay_now',false,20000,true
+insert into public.hotel_rate_plans (rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,cancellation_template,price_per_night,active)
+select -3000000-g,-1000000-g,-10000000-g,'Burst room only','room_only','pay_now',false,'standard',20000,true
 from generate_series(1,50) g
 on conflict(rate_plan_id) do nothing;
 
