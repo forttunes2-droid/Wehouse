@@ -2,7 +2,8 @@ import { Camera, FileText, Image as ImageIcon, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CHAT_MEDIA_ACCEPT } from "@/lib/chatMediaPolicy";
 
-export type ChatAttachmentSource = "media" | "document" | "camera";\ntype Props = { onFiles: (files: FileList | null, source: ChatAttachmentSource) => void; disabled?: boolean };
+export type ChatAttachmentSource = "media" | "document" | "camera";
+type Props = { onFiles: (files: FileList | null, source: ChatAttachmentSource) => void; disabled?: boolean };
 
 export default function ChatAttachmentPicker({ onFiles, disabled = false }: Props) {
   const mediaRef = useRef<HTMLInputElement>(null);
@@ -26,11 +27,11 @@ export default function ChatAttachmentPicker({ onFiles, disabled = false }: Prop
     <>
       <div className="relative shrink-0">
         <input ref={mediaRef} type="file" multiple accept={CHAT_MEDIA_ACCEPT} className="hidden"
-          onChange={event => { onFiles(event.target.files); event.target.value = ""; }} />
+          onChange={event => { onFiles(event.target.files, "media"); event.target.value = ""; }} />
         <input ref={documentRef} type="file" multiple accept="*/*" className="hidden"
-          onChange={event => { onFiles(event.target.files); event.target.value = ""; }} />
+          onChange={event => { onFiles(event.target.files, "document"); event.target.value = ""; }} />
         <input ref={cameraRef} type="file" accept="image/*,video/*" capture="environment" className="hidden"
-          onChange={event => { onFiles(event.target.files); event.target.value = ""; }} />
+          onChange={event => { onFiles(event.target.files, "camera"); event.target.value = ""; }} />
         <button type="button" disabled={disabled} onClick={() => setOpen(true)}
           aria-label="Attach to message"
           className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)] transition hover:border-violet-400/30 hover:text-violet-200 disabled:opacity-40">
