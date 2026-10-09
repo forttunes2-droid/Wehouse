@@ -1137,7 +1137,7 @@ begin
     raise exception 'Choose a valid Short Let rate';
   end if;
   if tg_op='UPDATE'
-     and old.short_stay_rate_type is distinct from new.short_stay_rate_type
+     and lower(btrim(coalesce(old.short_stay_rate_type,'standard'))) is distinct from new.short_stay_rate_type
      and not (old.status='payment_pending' and old.reservation_fee_status='payment_pending') then
     raise exception 'The booked Short Let rate cannot be changed';
   end if;
