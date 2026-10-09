@@ -16,7 +16,7 @@ on:
       concurrency:
         description: "HTTP concurrency"
         required: false
-        default: "5000"
+        default: "20000"
 permissions:
   contents: read
 jobs:
@@ -49,11 +49,11 @@ jobs:
       - name: Size disposable gateway for the requested HTTP concurrency
         run: |
           # Kong defaults to 512 worker connections in this local Supabase stack.
-          # This job's default workload is 5,000 concurrent clients, so explicitly
-          # raise the disposable gateway limit and assert the effective config.
-          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=8192 supabase_kong_wehouse kong reload
+          # The normal push run targets 10k concurrent clients; manual runs default
+          # to 20k. Raise the disposable gateway limit before opening that many sockets.
+          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=32768 supabase_kong_wehouse kong reload
           docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf \
-            | grep -Eq 'worker_connections[[:space:]]+8192;'
+            | grep -Eq 'worker_connections[[:space:]]+32768;'
       - name: Measure millions-scale catalog reads
         env:
           WEHOUSE_CAPACITY_PRESET: large
@@ -72,8 +72,10 @@ jobs:
           WEHOUSE_CAPACITY_PRESET: large
           WEHOUSE_BOOKING_ATTEMPTS: ${{ inputs.booking_attempts }}
           WEHOUSE_ROOMMATE_ACTORS: ${{ inputs.roommate_actors }}
-          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency }}
-        run: node scripts/load-large-capacity-local.mjs
+          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '10000' }}
+        run: |
+          ulimit -n 65536
+          node scripts/load-large-capacity-local.mjs
       - name: Capture disposable evidence
         if: always()
         run: |
