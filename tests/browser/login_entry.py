@@ -127,11 +127,17 @@ async def run(browser):
         for reduced in [False, True]:
             scenario = Scenario()
             context, page = await scenario.page(browser, 'arrival', reduced=reduced)
-            shell = page.locator('.wh-auth-to-app')
-            await expect(shell).to_be_visible()
-            await expect(shell).to_have_css('transform', 'none')
-            await expect(shell).to_have_css('animation-name', 'none')
-            timings = await page.locator('.wh-auth-to-app').evaluate('''root =>
+            loading = page.get_by_role('status', name='Checking your session and workspace', exact=True)
+            await expect(loading).to_be_visible()
+            await expect(page.locator('.wh-auth-to-app')).to_have_count(0)
+            # Readiness, not an animation timer, decides when the real workspace appears.
+            await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
+            await expect(page.get_by_role('heading', name='Overview', exact=True)).to_be_visible()
+            await expect(page.get_by_role('button', name='Open workspaces')).to_have_count(0)
+            await expect(loading).to_have_count(0)
+            await expect(page.locator('.page-transition.wh-workspace-enter')).to_have_css('animation-name', 'none')
+            await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform', 'none')
+            timings = await page.locator('[data-workspace-frame="v2"]').evaluate('''root =>
                 Array.from(root.querySelectorAll('*')).flatMap(element =>
                     element.getAnimations().map(animation => {
                         const timing = animation.effect.getTiming();
@@ -140,13 +146,6 @@ async def run(browser):
             assert all(duration <= 250 for duration in timings), timings
             if reduced:
                 assert not timings, timings
-            # Readiness, not an animation timer, decides when the real workspace appears.
-            await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
-            await expect(page.get_by_role('heading', name='Overview', exact=True)).to_be_visible()
-            await expect(page.get_by_role('button', name='Open workspaces')).to_have_count(0)
-            await expect(shell).to_have_count(0)
-            await expect(page.locator('.page-transition.wh-workspace-enter')).to_have_css('animation-name', 'none')
-            await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform', 'none')
             await page.wait_for_timeout(280)
             await page.screenshot(path=str(OUT / f'workspace-repaired-reduced-{reduced}.png'))
             assert not scenario.errors, scenario.errors
