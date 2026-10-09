@@ -46,7 +46,7 @@ begin
      or hotel_cancel_compact not like '%user_id=actorforupdate%'
      or hotel_cancel_compact not like '%cancellation_snapshotisnull%'
      or hotel_cancel_compact not like '%deadline''isnull%'
-     or hotel_cancel_compact not like '%now()>(b.cancellation_snapshot->>''deadline'')::timestamptz%'
+     or hotel_cancel_compact not like '%now()>(booking.cancellation_snapshot->>''deadline'')::timestamptz%'
      or hotel_cancel_compact not like '%paymentrequiresfinancereconciliationbeforecancellation%'
      or hotel_cancel_compact not like '%refund_hotel_cancellation%'
      or hotel_cancel_compact like '%setpayment_status=''refunded''%' then
