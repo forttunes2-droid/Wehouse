@@ -80,12 +80,17 @@ async function burst(total, worker, label) {
   let cursor = 0;
   const samples = [];
   const errors = new Map();
+  let inFlight = 0, peakInFlight = 0;
   const began = performance.now();
   await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
     while (true) {
       const i = cursor++;
       if (i >= total) return;
-      const result = await worker(i);
+      inFlight++;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      let result;
+      try { result = await worker(i); }
+      finally { inFlight--; }
       samples.push(result);
       if (!result.ok) errors.set(String(result.error), (errors.get(String(result.error)) || 0) + 1);
     }
@@ -93,7 +98,8 @@ async function burst(total, worker, label) {
   const elapsed = (performance.now() - began) / 1000;
   const ok = samples.filter(x => x.ok);
   return {
-    label, attempts: total, successes: ok.length, errors: samples.length - ok.length,
+    label, configured_concurrency: CONCURRENCY, peak_in_flight: peakInFlight,
+    attempts: total, successes: ok.length, errors: samples.length - ok.length,
     error_examples: [...errors.entries()].sort((a,b) => b[1]-a[1]).slice(0, 12),
     p50_ms: percentile(ok.map(x=>x.ms), .5), p95_ms: percentile(ok.map(x=>x.ms), .95),
     p99_ms: percentile(ok.map(x=>x.ms), .99), requests_per_second: Math.round(total / elapsed * 10) / 10,

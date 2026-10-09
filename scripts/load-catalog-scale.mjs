@@ -49,9 +49,14 @@ async function sample(scenario,i) {
 }
 const percentile=(arr,p)=>arr.length?Math.round(arr[Math.ceil(arr.length*p)-1]*10)/10:null;
 async function stage(scenario,concurrency,count) {
-  let next=0;const samples=[];const start=performance.now();
+  let next=0, inFlight=0, peakInFlight=0;const samples=[];const start=performance.now();
   await Promise.all(Array.from({length:concurrency},async()=>{
-    while(next<count){const i=next++;samples[i]=await sample(scenario,i);}
+    while(next<count){
+      const i=next++;
+      inFlight++; peakInFlight=Math.max(peakInFlight,inFlight);
+      try { samples[i]=await sample(scenario,i); }
+      finally { inFlight--; }
+    }
   }));
   const seconds=(performance.now()-start)/1000;
   const successful=samples.filter(x=>x.ok).map(x=>x.ms).sort((a,b)=>a-b);
@@ -59,7 +64,7 @@ async function stage(scenario,concurrency,count) {
   const error_counts=Object.fromEntries([...new Set(failures.map(x=>String(x.status)))].map(status=>[
     status,failures.filter(x=>String(x.status)===status).length,
   ]));
-  return {scenario:scenario.name,concurrency,requests:count,successes:successful.length,errors:failures.length,
+  return {scenario:scenario.name,configured_concurrency:concurrency,peak_in_flight:peakInFlight,requests:count,successes:successful.length,errors:failures.length,
     error_counts,p50_ms:percentile(successful,.5),p95_ms:percentile(successful,.95),p99_ms:percentile(successful,.99),
     elapsed_seconds:Math.round(seconds*100)/100,
     requests_per_second:Math.round(count/seconds*10)/10,
@@ -92,7 +97,7 @@ for(const {concurrency,count} of stages){
   for(const scenario of stageScenarios){
     const result=await stage(scenario,concurrency,count);report.stages.push(result);
     writeFileSync('test-results/catalog-scale.json',JSON.stringify(report,null,2)+'\n');
-    console.log(`${result.scenario} c=${concurrency} ok=${count-result.errors}/${count} p95=${result.p95_ms}ms p99=${result.p99_ms}ms rps=${result.requests_per_second}`);
+    console.log(`${result.scenario} configured=${concurrency} peak_in_flight=${result.peak_in_flight} ok=${count-result.errors}/${count} p95=${result.p95_ms}ms p99=${result.p99_ms}ms rps=${result.requests_per_second}`);
   }
 }
 mkdirSync('test-results',{recursive:true});writeFileSync('test-results/catalog-scale.json',JSON.stringify(report,null,2)+'\n');
