@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, "fix/next-structural-work-*"]
+    branches: [main]
 permissions:
   contents: read
 

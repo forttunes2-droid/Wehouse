@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Read only Test project catalog at at most five requests per second
+      - name: Read-only Test project catalog ramp from 1 to 200 requests per second
         env:
           # A browser-safe publishable key for the dedicated Test project. RLS
           # protects underlying tables; the runner never receives a secret key.
