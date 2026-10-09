@@ -169,7 +169,7 @@ async def main():
        await page.get_by_placeholder('Message').fill('Keep this message while I choose a photo')
        for name,mime,body in [('lease.pdf','application/pdf',b'%PDF-1.7'),('renamed.png','image/png',b'%PDF-1.7'),('voice.webm','audio/webm',b'not-from-recorder')]:
         await picker.set_input_files({'name':name,'mimeType':mime,'buffer':body})
-        await expect(page.get_by_role('alert')).to_be_visible()
+        await expect(page.get_by_role('alert').filter(has_text='An attachment could not be')).to_be_visible()
         await expect(page.locator('.wh-attachment-remove')).to_have_count(0)
         await expect(page.get_by_placeholder('Message')).to_have_value('Keep this message while I choose a photo')
        photo=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=')
