@@ -46,6 +46,14 @@ jobs:
       - name: Verify catalog cardinality before workload fixtures
         run: |
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.profiles where user_id like 'load-user-%')")" = "7000000|6000000"
+      - name: Size disposable gateway for the requested HTTP concurrency
+        run: |
+          # Kong defaults to 512 worker connections in this local Supabase stack.
+          # This job's default workload is 5,000 concurrent clients, so explicitly
+          # raise the disposable gateway limit and assert the effective config.
+          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=8192 supabase_kong_wehouse kong reload
+          docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf \
+            | grep -Eq 'worker_connections[[:space:]]+8192;'
       - name: Measure millions-scale catalog reads
         env:
           WEHOUSE_CAPACITY_PRESET: large
