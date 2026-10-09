@@ -91,7 +91,7 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000001","role":"authenticated","session_id":"current-auth-session"}',true);
 select set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
 set local role authenticated;
-do $$ declare snapshot jsonb; messages integer; notice jsonb; begin
+do $ declare snapshot jsonb; messages integer; notice jsonb; review_summary jsonb; begin
   snapshot:=public.get_my_hotel_operation_snapshot(-9991);
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0->>'total_rooms'<>'2' then raise exception 'Internal room count missing'; end if;
   if jsonb_array_length(snapshot->'rooms')<>1 or jsonb_array_length(snapshot->'bookings')<>1
@@ -120,7 +120,16 @@ do $$ begin
        from public.hotel_bookings b where b.hotel_id=-9991);
   end if;
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0 ? 'total_rooms' then raise exception 'Guest received internal inventory'; end if;
-  if public.get_hotel_review_summary(-9991)->>'eligible'<>'true' then raise exception 'Completed guest cannot review'; end if;
+  review_summary:=public.get_hotel_review_summary(-9991);
+  if review_summary->>'eligible'<>'true' then
+    raise exception 'Completed guest cannot review: summary=%, actor=%, auth_uid=%, claims_sub=%, booking_matches=%, public_detail_is_null=%',
+      review_summary,public.current_profile_user_id(),auth.uid(),
+      current_setting('request.jwt.claim.sub',true),
+      (select count(*) from public.hotel_bookings b where b.hotel_id=-9991
+        and b.user_id=public.current_profile_user_id() and b.payment_status='paid'
+        and b.status in ('checked_out','completed')),
+      public.get_public_hotel_detail(-9991) is null;
+  end if;
   begin
     perform public.get_my_hotel_operation_snapshot(-9991);
     raise exception 'Guest read hotel operations';
