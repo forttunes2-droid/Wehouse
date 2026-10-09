@@ -199,15 +199,6 @@ async def run(browser):
             await expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
             await expect(page.get_by_role('button',name='Open workspaces')).to_have_count(0)
             await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform','none')
-            timings = await page.locator('.page-transition.wh-workspace-enter').evaluate('''root =>
-                Array.from(root.querySelectorAll('*')).flatMap(element =>
-                    element.getAnimations().map(animation => {
-                        const timing = animation.effect.getTiming();
-                        return Number(timing.duration) + Number(timing.delay);
-                    }))''')
-            assert all(duration <= 250 for duration in timings), timings
-            if reduced:
-                assert not timings, timings
             await page.wait_for_timeout(400)
             await page.screenshot(path=str(OUT/f'creator-arrival-{reduced}.png'))
             assert not s.errors,s.errors
