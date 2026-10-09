@@ -47,7 +47,7 @@ test('compact property drafts cannot navigate, auto-send, or trigger a payment',
  assert.doesNotMatch(picker,/autoFocus|sendMessage\(|initialize.*Payment/);
 });
 test('booking special request is visible in the hotel conversation without becoming a fake chat message', () => {
- const request=read('src/components/HotelSpecialRequest.tsx');assert.match(request,/inConversation/);assert.match(request,/Booking request/);assert.doesNotMatch(request, /<details/);
+ const request=read('src/components/HotelSpecialRequest.tsx');assert.match(request,/inConversation/);assert.match(request,/Booking request/);assert.match(request, /<details/);assert.match(request, /<summary>/);assert.match(request, /wh-request-body/);
  assert.doesNotMatch(request, /sendHotelMessage|openHotelBookingConversation/);
  const chat=read('src/components/HotelBookingChat.tsx');assert.match(chat,/<HotelSpecialRequest[^>]*inConversation/);assert.match(chat,/context\?\.special_requests/);assert.match(chat,/context\?\.viewer_party === \"hotel\"/);
 });
