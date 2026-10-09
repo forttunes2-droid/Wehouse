@@ -18,7 +18,9 @@ const PROFILE_COUNT = 6_000_000;
 const LISTING_COUNT = 7_000_000;
 const BOOKING_ATTEMPTS = Number(process.env.WEHOUSE_BOOKING_ATTEMPTS || 700_000);
 const ROOMMATE_ACTORS = Number(process.env.WEHOUSE_ROOMMATE_ACTORS || 1_000_000);
-const CONCURRENCY = Number(process.env.WEHOUSE_LARGE_CONCURRENCY || 5_000);
+const CONCURRENCY = Number(process.env.WEHOUSE_LARGE_CONCURRENCY || 10_000);
+assert.ok(Number.isSafeInteger(CONCURRENCY) && CONCURRENCY >= 1 && CONCURRENCY <= 25_000,
+  "WEHOUSE_LARGE_CONCURRENCY must be an integer between 1 and 25,000");
 const agent = new Agent({ keepAlive: true, maxSockets: CONCURRENCY, maxFreeSockets: Math.min(500, CONCURRENCY) });
 
 function actorUuid(i) {
