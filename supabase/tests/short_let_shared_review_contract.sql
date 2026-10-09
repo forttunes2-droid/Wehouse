@@ -18,12 +18,23 @@ insert into public.creator_policy_versions(policy_key,version,value,status,effec
 values('accommodation_arrival_issue_window',99001,'{"default_hours":2,"minimum_hours":1,"maximum_hours":6}',
 'active',now()-interval '1 minute','reviewed','Rollback-only booking fixture','short-split-contract');
 -- Reservation snapshots require both Creator-approved cancellation and rate-term policies.
+-- Reuse the migration-seeded active scope where present; do not violate the one-active-policy-per-scope invariant.
+update public.creator_policy_versions set
+ value='{"standard_full_refund_hours_before_check_in":24,"late_cancellation_requires_review":true,"provider_failure_full_refund":true,"payment_protection_required":true}',
+ effective_from=now()-interval '1 minute',effective_until=null,legal_review_state='reviewed'
+where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*' and status='active';
 insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
-values
-('short_let_cancellation',99002,'{"standard_full_refund_hours_before_check_in":24,"late_cancellation_requires_review":true,"provider_failure_full_refund":true,"payment_protection_required":true}',
- 'active',now()-interval '1 minute','reviewed','Rollback-only Short Let cancellation fixture','short-split-cancellation'),
-('accommodation_non_refundable_rate',99003,'{"minimum_discount_percent":5,"maximum_discount_percent":20,"guest_cancellation_refund_percent":0,"no_show_provider_eligible_after_review":true,"security_deposit_full_refund_without_occupancy":true,"provider_failure_overrides_non_refundable":true,"payment_or_listing_mismatch_reviewable":true,"payment_protection_required":true}',
- 'active',now()-interval '1 minute','reviewed','Rollback-only Short Let rate terms fixture','short-split-rate-terms');
+select 'short_let_cancellation',99002,'{"standard_full_refund_hours_before_check_in":24,"late_cancellation_requires_review":true,"provider_failure_full_refund":true,"payment_protection_required":true}',
+ 'active',now()-interval '1 minute','reviewed','Rollback-only Short Let cancellation fixture','short-split-cancellation'
+where not exists(select 1 from public.creator_policy_versions where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*' and status='active');
+update public.creator_policy_versions set
+ value='{"minimum_discount_percent":5,"maximum_discount_percent":20,"guest_cancellation_refund_percent":0,"no_show_provider_eligible_after_review":true,"security_deposit_full_refund_without_occupancy":true,"provider_failure_overrides_non_refundable":true,"payment_or_listing_mismatch_reviewable":true,"payment_protection_required":true}',
+ effective_from=now()-interval '1 minute',effective_until=null,legal_review_state='reviewed'
+where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*' and status='active';
+insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
+select 'accommodation_non_refundable_rate',99003,'{"minimum_discount_percent":5,"maximum_discount_percent":20,"guest_cancellation_refund_percent":0,"no_show_provider_eligible_after_review":true,"security_deposit_full_refund_without_occupancy":true,"provider_failure_overrides_non_refundable":true,"payment_or_listing_mismatch_reviewable":true,"payment_protection_required":true}',
+ 'active',now()-interval '1 minute','reviewed','Rollback-only Short Let rate terms fixture','short-split-rate-terms'
+where not exists(select 1 from public.creator_policy_versions where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*' and status='active');
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
