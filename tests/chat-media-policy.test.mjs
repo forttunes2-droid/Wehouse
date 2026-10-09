@@ -12,6 +12,13 @@ test('picker accepts supported photos, videos and documents while rejecting unsa
  for(const type of [...policy.CHAT_PHOTO_TYPES,...policy.CHAT_VIDEO_TYPES,...policy.CHAT_DOCUMENT_TYPES]) assert.equal(policy.isSelectableChatMedia({type,size:5}),true,type);
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:0}),false);
  assert.equal(policy.isSelectableChatMedia({type:'image/png',size:policy.CHAT_MEDIA_MAX_BYTES+1}),false);
+ for(const type of [...policy.CHAT_PHOTO_TYPES,...policy.CHAT_VIDEO_TYPES]) assert.equal(policy.isSelectableChatAttachment({type,size:5},"media"),true,type);
+ for(const type of policy.CHAT_DOCUMENT_TYPES) {
+  assert.equal(policy.isSelectableChatAttachment({type,size:5},"media"),false,type);
+  assert.equal(policy.isSelectableChatAttachment({type,size:5},"document"),true,type);
+ }
+ assert.equal(policy.isSelectableChatAttachment({type:"image/png",size:5},"document"),false);
+ assert.equal(policy.isSelectableChatAttachment({type:"image/png",size:0},"media"),false);
  assert.match(policy.CHAT_MEDIA_ACCEPT,/image\/png/);
 });
 test('PDF documents are allowed and validated before upload',async()=>{
