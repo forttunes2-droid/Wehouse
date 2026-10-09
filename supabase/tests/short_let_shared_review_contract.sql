@@ -35,6 +35,13 @@ insert into public.creator_policy_versions(policy_key,version,value,status,effec
 select 'accommodation_non_refundable_rate',99003,'{"minimum_discount_percent":5,"maximum_discount_percent":20,"guest_cancellation_refund_percent":0,"no_show_provider_eligible_after_review":true,"security_deposit_full_refund_without_occupancy":true,"provider_failure_overrides_non_refundable":true,"payment_or_listing_mismatch_reviewable":true,"payment_protection_required":true}',
  'active',now()-interval '1 minute','reviewed','Rollback-only Short Let rate terms fixture','short-split-rate-terms'
 where not exists(select 1 from public.creator_policy_versions where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*' and status='active');
+-- Reservation creation also snapshots the Creator-approved commission for this listing's management mode.
+update public.creator_policy_versions set value='{"percent":10}',effective_from=now()-interval '1 minute',effective_until=null,legal_review_state='reviewed'
+where policy_key='commission_short_let_wehouse_managed' and scope_type='global' and scope_key='*' and status='active';
+insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
+select 'commission_short_let_wehouse_managed',99004,'{"percent":10}',
+ 'active',now()-interval '1 minute','reviewed','Rollback-only Short Let commission fixture','short-split-commission'
+where not exists(select 1 from public.creator_policy_versions where policy_key='commission_short_let_wehouse_managed' and scope_type='global' and scope_key='*' and status='active');
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
