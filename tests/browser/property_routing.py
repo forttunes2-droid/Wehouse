@@ -90,7 +90,12 @@ async def main():
      await expect(page.get_by_text(re.compile('2 room types.*3 rooms'))).to_be_visible()
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
      sections=page.get_by_role('navigation',name='Hotel sections')
-     await expect(sections.get_by_role('button')).to_have_count(3)
+     section_buttons = sections.get_by_role('button')
+     await expect(section_buttons).to_have_count(6)
+     section_labels = await section_buttons.all_text_contents()
+     assert len({label.strip() for label in section_labels}) == 6, section_labels
+     for label in ['Today', 'Reservations', 'Rooms and packages', 'Availability', 'Property details', 'Team']:
+      await expect(sections.get_by_role('button',name=label,exact=True)).to_be_visible()
      await expect(page.get_by_role('button',name='Hotel setup',exact=True)).to_be_visible()
      # A navigation-only screenshot can pass while the actual hotel surface is blank.
      # Wait for the authorized snapshot and assert its inventory before capturing evidence.
