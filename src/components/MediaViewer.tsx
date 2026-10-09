@@ -100,7 +100,7 @@ export default function MediaViewer(props: MediaViewerProps) {
           <ZoomablePhoto key={`${index}:${src}`} src={src} title={title} onReady={() => setReady(true)} onError={() => setFailed(true)}
             onPrevious={previous} onNext={next} />
         )}
-        {items.length > 1 && chromeVisible ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}
+        {items.length > 1 ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}
       </main>
       {variant === "gallery" && kind === "video" && duration > 0 && chromeVisible ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 font-mono text-[11px] text-white/75"
