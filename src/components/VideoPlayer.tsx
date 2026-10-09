@@ -176,10 +176,14 @@ export default function VideoPlayer({
             // when the browser suppresses that touch's compatibility click.
             // Captured swipes, drags and multi-touch never reach this path.
             pointerTapHandledUntil.current = Date.now() + 700;
+            if (viewerMode) setViewerControls(true);
             void toggle();
           }}
           onClick={event => {
-            if (event.detail === 0 || Date.now() > pointerTapHandledUntil.current) void toggle();
+            if (event.detail === 0 || Date.now() > pointerTapHandledUntil.current) {
+              if (viewerMode) setViewerControls(true);
+              void toggle();
+            }
           }}
           data-media-toggle
           className="group absolute inset-0 z-10 grid place-items-center bg-black/5 transition-colors hover:bg-black/10"
