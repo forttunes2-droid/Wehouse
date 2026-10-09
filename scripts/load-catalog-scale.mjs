@@ -88,7 +88,7 @@ const stages = process.env.WEHOUSE_CAPACITY_PRESET === 'requested'
         {concurrency:50000,count:100000},
       ]
     : [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}];
-for(const {concurrency,count} of stages){
+stageLoop: for(const {concurrency,count} of stages){
   // Keep the broad endpoint suite at lower loads; at the highest steps use a
   // feed query and a spread-out detail query to measure the full connection ramp.
   const stageScenarios = process.env.WEHOUSE_CAPACITY_PRESET === 'large' && concurrency >= 10000
@@ -98,6 +98,10 @@ for(const {concurrency,count} of stages){
     const result=await stage(scenario,concurrency,count);report.stages.push(result);
     writeFileSync('test-results/catalog-scale.json',JSON.stringify(report,null,2)+'\n');
     console.log(`${result.scenario} configured=${concurrency} peak_in_flight=${result.peak_in_flight} ok=${count-result.errors}/${count} p95=${result.p95_ms}ms p99=${result.p99_ms}ms rps=${result.requests_per_second}`);
+    if (result.errors > 0) {
+      console.error(`Stopping catalog ramp at first failing stage (${scenario.name}, concurrency=${concurrency}); preserve runner capacity for booking and roommate tests.`);
+      break stageLoop;
+    }
   }
 }
 mkdirSync('test-results',{recursive:true});writeFileSync('test-results/catalog-scale.json',JSON.stringify(report,null,2)+'\n');

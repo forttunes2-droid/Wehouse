@@ -77,6 +77,8 @@ jobs:
           ' > test-results/large-resource-samples.log 2>&1 < /dev/null &
           echo $! > /tmp/wehouse-large-resource-sampler.pid
       - name: Measure millions-scale catalog reads
+        id: catalog_load
+        continue-on-error: true
         env:
           WEHOUSE_CAPACITY_PRESET: large
         run: node scripts/load-catalog-scale.mjs
@@ -116,6 +118,11 @@ jobs:
           name: wehouse-millions-scale-results
           path: test-results/
           retention-days: 14
+      - name: Enforce catalog capacity gate after workload evidence is captured
+        if: always() && steps.catalog_load.outcome == 'failure'
+        run: |
+          echo 'Catalog capacity gate failed; see catalog-scale.json. The first failing stage was retained and booking/roommate workload checks were still allowed to run.'
+          exit 1
       - name: Destroy disposable Supabase
         if: always()
         run: npx --yes supabase@2.114.0 stop --no-backup
