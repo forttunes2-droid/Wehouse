@@ -85,6 +85,10 @@ async def mixed_gallery(browser,width):
   await page.keyboard.press('Enter');await expect(viewer).to_have_attribute('data-media-index','2')
   # No additional page, account state, conversation or network mutation.
   assert await page.evaluate('document.getElementById("root").inert')
+  # Toolbar starts hidden for an unobstructed gallery. Reveal it with the
+  # same ordinary tap a user makes before closing, then test real pointer input.
+  await stage.tap(position={'x': 24, 'y': 24})
+  await expect(viewer.get_by_role('button',name='Close media preview')).to_have_css('opacity', '1')
   await viewer.get_by_role('button',name='Close media preview').click()
   await expect(viewer).to_have_count(0)
   assert not await page.evaluate('document.getElementById("root").inert')

@@ -154,7 +154,17 @@ async def main():
        await expect(page.get_by_role('button',name='Remove Voice note',exact=True)).to_be_visible()
       elif mode=='policy':
        await expect(page.get_by_role('button',name='Attach to message',exact=True)).to_be_visible()
-       picker=page.locator('input[type=file]');accept=await picker.get_attribute('accept')
+       # The composer has separate attachment, generic-file and camera inputs.
+       # Inspect the media picker by its supported MIME allowlist, not by a
+       # selector that becomes ambiguous as the real component grows.
+       pickers=page.locator('input[type=file]')
+       matching=[]
+       for candidate in await pickers.all():
+        candidate_accept=await candidate.get_attribute('accept') or ''
+        if 'video/mp4' in candidate_accept and 'image/jpeg' in candidate_accept:
+         matching.append((candidate,candidate_accept))
+       assert len(matching)==1, f'Expected one image/video picker, found {len(matching)}'
+       picker,accept=matching[0]
        assert 'video/mp4' in accept and 'image/jpeg' in accept
        await page.get_by_placeholder('Message').fill('Keep this message while I choose a photo')
        for name,mime,body in [('lease.pdf','application/pdf',b'%PDF-1.7'),('renamed.png','image/png',b'%PDF-1.7'),('voice.webm','audio/webm',b'not-from-recorder')]:

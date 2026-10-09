@@ -10,6 +10,7 @@ do $$
 declare
   apartment_cancel text;
   hotel_cancel text;
+  hotel_cancel_compact text;
   worker_cancel text;
   record_transfer text;
   settle_transfer text;
@@ -18,6 +19,7 @@ begin
     into apartment_cancel;
   select pg_get_functiondef('public.cancel_my_hotel_booking(integer)'::regprocedure)
     into hotel_cancel;
+  hotel_cancel_compact := regexp_replace(lower(hotel_cancel), '\s+', '', 'g');
   select pg_get_functiondef('public.cancel_booking(uuid,text)'::regprocedure)
     into worker_cancel;
   select pg_get_functiondef('public.record_withdrawal_transfer_response(uuid,text,text,jsonb)'::regprocedure)
@@ -33,18 +35,21 @@ begin
     raise exception 'Apartment paid-state cancellation guard is incomplete';
   end if;
 
-  if hotel_cancel not ilike '%status=''pending''%'
-     or hotel_cancel not ilike '%payment_status<>''paid''%' then
+  -- pg_get_functiondef normalizes SQL formatting differently across PostgreSQL
+  -- versions. Compare a whitespace-free copy so the contract tests the guards,
+  -- not pretty-print spacing in the function source.
+  if hotel_cancel_compact not like '%status=''pending''%'
+     or hotel_cancel_compact not like '%payment_status<>''paid''%' then
     raise exception 'Hotel unpaid pending cancellation guard is missing';
   end if;
-  if hotel_cancel not ilike '%Active Personal account required%'
-     or hotel_cancel not ilike '%user_id=actor for update%'
-     or hotel_cancel not ilike '%cancellation_snapshot is null%'
-     or hotel_cancel not ilike '%deadline'' is null%'
-     or hotel_cancel not ilike '%now()>(b.cancellation_snapshot->>''deadline'')::timestamptz%'
-     or hotel_cancel not ilike '%Payment requires Finance reconciliation before cancellation%'
-     or hotel_cancel not ilike '%refund_hotel_cancellation%'
-     or hotel_cancel ilike '%set payment_status=''refunded''%' then
+  if hotel_cancel_compact not like '%activepersonalaccountrequired%'
+     or hotel_cancel_compact not like '%user_id=actorforupdate%'
+     or hotel_cancel_compact not like '%cancellation_snapshotisnull%'
+     or hotel_cancel_compact not like '%deadline''isnull%'
+     or hotel_cancel_compact not like '%now()>(b.cancellation_snapshot->>''deadline'')::timestamptz%'
+     or hotel_cancel_compact not like '%paymentrequiresfinancereconciliationbeforecancellation%'
+     or hotel_cancel_compact not like '%refund_hotel_cancellation%'
+     or hotel_cancel_compact like '%setpayment_status=''refunded''%' then
     raise exception 'Hotel cancellation bypasses saved terms, payment review or provider refund confirmation';
   end if;
 

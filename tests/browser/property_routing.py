@@ -96,7 +96,10 @@ async def main():
      assert len({label.strip() for label in section_labels}) == 6, section_labels
      for label in ['Today', 'Reservations', 'Rooms and packages', 'Availability', 'Property details', 'Team']:
       await expect(sections.get_by_role('button',name=label,exact=True)).to_be_visible()
-     await expect(page.get_by_role('button',name='Hotel setup',exact=True)).to_be_visible()
+     # Hotel operations now exposes setup sections directly in the section
+     # navigation; the former separate "Hotel setup" selector no longer exists.
+     for label in ['Rooms and packages', 'Property details', 'Team']:
+      await expect(sections.get_by_role('button',name=label,exact=True)).to_be_visible()
      # A navigation-only screenshot can pass while the actual hotel surface is blank.
      # Wait for the authorized snapshot and assert its inventory before capturing evidence.
      await expect(page.get_by_role('heading',name='Today at the hotel',exact=True)).to_be_visible()
