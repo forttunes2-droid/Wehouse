@@ -91,7 +91,7 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000001","role":"authenticated","session_id":"current-auth-session"}',true);
 select set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
 set local role authenticated;
-do $ declare snapshot jsonb; messages integer; notice jsonb; review_summary jsonb; begin
+do $$ declare snapshot jsonb; messages integer; notice jsonb; review_summary jsonb; begin
   snapshot:=public.get_my_hotel_operation_snapshot(-9991);
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0->>'total_rooms'<>'2' then raise exception 'Internal room count missing'; end if;
   if jsonb_array_length(snapshot->'rooms')<>1 or jsonb_array_length(snapshot->'bookings')<>1
