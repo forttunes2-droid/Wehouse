@@ -102,6 +102,41 @@ rollback;
 
 
 -- Removing a Host manager must transfer active booking/chat responsibility back
+-- The Host handover test uses a real, already-priced Short Let booking. Seed
+-- the versioned policies the booking snapshot triggers require in an empty DB.
+begin;
+set local session_replication_role=replica;
+insert into public.creator_policy_versions(
+  policy_key,scope_type,scope_key,version,value,status,effective_from,
+  legal_review_state,reason,checksum,published_at
+)
+select 'short_let_cancellation','global','*',
+  coalesce((select max(version)+1 from public.creator_policy_versions where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*'),1),
+  '{"standard":{"free_cancellation_hours":24},"fixture":true}'::jsonb,
+  'active',now()-interval '1 minute','reviewed','Rollback-only Host continuity fixture',
+  'host-continuity-short-let-cancellation',now()
+where not exists (
+  select 1 from public.creator_policy_versions
+  where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*'
+    and status='active' and effective_from<=now()
+    and (effective_until is null or effective_until>now())
+);
+insert into public.creator_policy_versions(
+  policy_key,scope_type,scope_key,version,value,status,effective_from,
+  legal_review_state,reason,checksum,published_at
+)
+select 'accommodation_non_refundable_rate','global','*',
+  coalesce((select max(version)+1 from public.creator_policy_versions where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*'),1),
+  '{"discount_percent":10,"minimum_discount_percent":1,"maximum_discount_percent":30,"fixture":true}'::jsonb,
+  'active',now()-interval '1 minute','reviewed','Rollback-only Host continuity fixture',
+  'host-continuity-nonrefundable-rate',now()
+where not exists (
+  select 1 from public.creator_policy_versions
+  where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*'
+    and status='active' and effective_from<=now()
+    and (effective_until is null or effective_until>now())
+);
+
 -- to the owner before the assignment is revoked.
 begin;
 set local session_replication_role=replica;
@@ -112,10 +147,10 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,ci
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values
 ('host-continuity-owner','property_partner','global','active');
 insert into public.listings(
-  id,listing_id,title,sub_type,state,city,status,availability_status,approved_at,
+  id,listing_id,title,price,sub_type,state,city,status,availability_status,approved_at,
   management_mode,wehouse_management_status,management_host_user_id
 ) values(
-  '86666666-2000-4000-8000-000000000001','host-continuity-home','Host continuity home',
+  '86666666-2000-4000-8000-000000000001','host-continuity-home','Host continuity home',35000,
   'short_let','Nasarawa','Lafia','available','available',now(),
   'host','not_required','host-continuity-manager'
 );
@@ -126,11 +161,16 @@ insert into public.property_host_assignments(
 ('86666666-3000-4000-8000-000000000002','86666666-2000-4000-8000-000000000001','host-continuity-manager','manager','active','host-continuity-owner',now());
 insert into public.reservations(
   id,listing_id,user_id,status,stay_type,management_mode_snapshot,responsible_host_user_id,
-  stay_check_in,stay_check_out,stay_nights
+  stay_check_in,stay_check_out,stay_nights,short_stay_rate_type,nightly_rate_snapshot,
+  stay_rent_total,short_stay_discount_percent_snapshot,short_stay_cancellation_policy_snapshot,
+  short_stay_cancellation_policy_version_id,short_stay_rate_terms_policy_version_id
 ) values(
   'host-continuity-booking','86666666-2000-4000-8000-000000000001',
   'host-continuity-guest','reserved','short_let','host','host-continuity-manager',
-  current_date+2,current_date+3,1
+  current_date+2,current_date+3,1,'standard',20000,20000,0,
+  '{"rate_type":"standard","fixture":true}'::jsonb,
+  (select policy_version_id from public.creator_policy_versions where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*' and status='active' order by effective_from desc,version desc limit 1),
+  (select policy_version_id from public.creator_policy_versions where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*' and status='active' order by effective_from desc,version desc limit 1)
 );
 insert into public.property_host_conversations(
   conversation_id,reservation_id,guest_user_id,host_user_id,status
@@ -168,7 +208,10 @@ do $$ begin
     where id='host-continuity-booking'
       and responsible_host_user_id='host-continuity-owner'
       and management_mode_snapshot='host'
-  ) then raise exception 'Active Host booking was stranded on removed manager'; end if;
+      and short_stay_rate_type='standard'
+      and nightly_rate_snapshot=20000
+      and stay_rent_total=20000
+  ) then raise exception 'Manager handover changed the booked Short Let rate snapshot'; end if;
   if not exists(
     select 1 from public.property_host_conversations
     where conversation_id='86666666-4000-4000-8000-000000000001'
@@ -205,4 +248,15 @@ do $$ begin
   end if;
 end $$;
 reset role;
+do $$ begin
+  begin
+    update public.reservations
+    set short_stay_rate_type='non_refundable'
+    where id='host-continuity-booking';
+    raise exception 'Booked Short Let rate change was accepted';
+  exception when others then
+    if sqlerrm='Booked Short Let rate change was accepted' then raise; end if;
+    if sqlerrm not like 'The booked Short Let rate cannot be changed' then raise; end if;
+  end;
+end $$;
 rollback;

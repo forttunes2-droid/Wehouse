@@ -52,6 +52,24 @@ begin
      and not (old.status='payment_pending' and old.reservation_fee_status='payment_pending') then
     raise exception 'The booked Short Let rate cannot be changed';
   end if;
+
+  -- Operational updates (for example, host handover) must never re-price a
+  -- booked stay using today's listing price or today's policy. Only a pending
+  -- checkout rate change or an explicitly changed stay date may be re-quoted.
+  if tg_op='UPDATE'
+     and old.nightly_rate_snapshot is not null
+     and old.stay_rent_total is not null
+     and new.stay_check_in is not distinct from old.stay_check_in
+     and new.stay_check_out is not distinct from old.stay_check_out
+     and lower(btrim(coalesce(old.short_stay_rate_type,'standard'))) is not distinct from new.short_stay_rate_type then
+    new.stay_nights:=coalesce(old.stay_nights,v_nights);
+    new.nightly_rate_snapshot:=old.nightly_rate_snapshot;
+    new.stay_rent_total:=old.stay_rent_total;
+    new.short_stay_discount_percent_snapshot:=old.short_stay_discount_percent_snapshot;
+    new.short_stay_cancellation_policy_snapshot:=old.short_stay_cancellation_policy_snapshot;
+    return new;
+  end if;
+
   if new.short_stay_rate_type='non_refundable' then
     if not v_listing.non_refundable_rate_enabled then
       raise exception 'This Short Let does not offer a non-refundable rate';
