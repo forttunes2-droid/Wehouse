@@ -16,6 +16,14 @@ export const CHAT_DOCUMENT_TYPES = [
 export const CHAT_MEDIA_ACCEPT = [...CHAT_PHOTO_TYPES, ...CHAT_VIDEO_TYPES].join(',');
 export const CHAT_DOCUMENT_ACCEPT = '*/*';
 export const CHAT_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
+export type ChatAttachmentSource = "media" | "document" | "camera";
+export function isSelectableChatAttachment(file: Pick<File, "type" | "size">, source: ChatAttachmentSource): boolean {
+  if (file.size <= 0 || file.size > CHAT_MEDIA_MAX_BYTES) return false;
+  // Picker labels are a product contract, not just OS hints. A crafted file input
+  // must not turn the Photos & videos action into a document-upload route.
+  return source === "document" ? isChatDocumentType(file.type) : isChatVisualType(file.type);
+}
+
 export const CHAT_MEDIA_ONLY_MESSAGE = 'Choose a supported photo, video or document (up to 25MB).';
 const recordedNotes = new WeakSet<Blob>();
 export const normaliseChatMediaType = (value: string) => value.toLowerCase().split(';', 1)[0].trim();
