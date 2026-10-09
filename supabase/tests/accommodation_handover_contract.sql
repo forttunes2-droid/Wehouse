@@ -14,7 +14,8 @@ insert into public.creator_policy_versions(
   ('commission_short_let','global','*',1,'{"percent":10,"currency":"NGN"}'::jsonb,'{"type":"commission_policy"}'::jsonb,
    'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-short-commission',now()),
   ('commission_long_let','global','*',1,'{"percent":10,"currency":"NGN"}'::jsonb,'{"type":"commission_policy"}'::jsonb,
-   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-long-commission',now());
+   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-long-commission',now())
+on conflict (policy_key,scope_type,scope_key,version) do nothing;
 
 -- Fixed synthetic records keep this contract independent of seed data. FK
 -- triggers are suspended only while the isolated fixtures are inserted; the
