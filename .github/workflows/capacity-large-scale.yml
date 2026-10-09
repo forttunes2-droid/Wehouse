@@ -96,7 +96,7 @@ jobs:
           WEHOUSE_CAPACITY_PRESET: large
           WEHOUSE_BOOKING_ATTEMPTS: ${{ inputs.booking_attempts }}
           WEHOUSE_ROOMMATE_ACTORS: ${{ inputs.roommate_actors }}
-          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '20000' }}
+          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '50000' }}
         run: |
           ulimit -n 262144
           node scripts/load-large-capacity-local.mjs
