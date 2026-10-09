@@ -14,9 +14,9 @@ on:
         required: false
         default: "1000000"
       concurrency:
-        description: "HTTP concurrency"
+        description: "HTTP concurrency (standard runner default 1000; higher values are stress diagnostics)"
         required: false
-        default: "50000"
+        default: "1000"
 permissions:
   contents: read
 
@@ -81,6 +81,7 @@ jobs:
         continue-on-error: true
         env:
           WEHOUSE_CAPACITY_PRESET: large
+          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '1000' }}
         run: node scripts/load-catalog-scale.mjs
       - name: Seed 1,000,000 roommate actors and booking inventory
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_large_fixture.sql
@@ -96,7 +97,7 @@ jobs:
           WEHOUSE_CAPACITY_PRESET: large
           WEHOUSE_BOOKING_ATTEMPTS: ${{ inputs.booking_attempts }}
           WEHOUSE_ROOMMATE_ACTORS: ${{ inputs.roommate_actors }}
-          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '50000' }}
+          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '1000' }}
         run: |
           ulimit -n 262144
           node scripts/load-large-capacity-local.mjs

@@ -12,7 +12,9 @@ assert.ok(key);
 const medium = process.env.WEHOUSE_CAPACITY_PRESET === 'medium';
 const million = process.env.WEHOUSE_CAPACITY_PRESET === 'million';
 const large = process.env.WEHOUSE_CAPACITY_PRESET === 'large';
+const largeMaxConcurrency = Number(process.env.WEHOUSE_LARGE_CONCURRENCY || 1000);
 assert.ok(!process.env.WEHOUSE_CAPACITY_PRESET || ['requested','medium','million','large','full','launch'].includes(process.env.WEHOUSE_CAPACITY_PRESET), 'Unknown capacity preset');
+assert.ok(!large || (Number.isInteger(largeMaxConcurrency) && largeMaxConcurrency >= 500 && largeMaxConcurrency <= 50000), 'Large capacity concurrency must be between 500 and 50000');
 const catalog = process.env.WEHOUSE_CAPACITY_PRESET === 'launch'
   ? {homes:500000,hotels:500000,synthetic_profiles:500000,real_auth_users:0}
   : medium
@@ -71,7 +73,7 @@ async function stage(scenario,concurrency,count) {
     response_megabytes:Math.round(samples.reduce((n,x)=>n+x.bytes,0)/1048576*100)/100};
 }
 const report={source:'disposable local Supabase HTTP API',catalog,
-  caveat:process.env.WEHOUSE_CAPACITY_PRESET==='large' ? 'Staged disposable read ramp: 500, 1k, 2.5k, 5k, 10k, 20k, 35k and 50k concurrent workers against a 7m listing catalog. It measures this runner and local stack; production capacity still requires the same workload on production-equivalent hosted infrastructure.' : 'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
+  caveat:large ? 'Staged disposable read ramp capped at ' + largeMaxConcurrency + ' concurrent workers against a 7m listing catalog. It measures this runner and local stack; production capacity still requires the same workload on production-equivalent hosted infrastructure.' : 'Closed-loop read traffic on one machine. This does not model 20 million simultaneous signed-in users, writes, CDN, payments or hosted infrastructure.',
   measured_at:new Date().toISOString(),stages:[]};
 mkdirSync('test-results',{recursive:true});
 const stages = process.env.WEHOUSE_CAPACITY_PRESET === 'requested'
@@ -86,7 +88,7 @@ const stages = process.env.WEHOUSE_CAPACITY_PRESET === 'requested'
         {concurrency:20000,count:40000},
         {concurrency:35000,count:70000},
         {concurrency:50000,count:100000},
-      ]
+      ].filter(stage => stage.concurrency <= largeMaxConcurrency)
     : [{concurrency:1,count:50},{concurrency:20,count:200},{concurrency:100,count:500},{concurrency:200,count:800},{concurrency:400,count:800}];
 stageLoop: for(const {concurrency,count} of stages){
   // Keep the broad endpoint suite at lower loads; at the highest steps use a
