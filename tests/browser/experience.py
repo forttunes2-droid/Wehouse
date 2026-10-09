@@ -192,14 +192,22 @@ async def run(browser):
     async def arrival():
         for reduced in [False, True]:
             s=Scenario(); context,page=await s.page(browser,'arrival',reduced=reduced)
-            await expect(page.locator('.wh-auth-to-app')).to_be_visible()
-            if reduced:
-                await expect(page.locator('.wh-auth-to-app-brand')).to_have_css('animation-name','none')
+            await expect(page.get_by_role('status',name='Checking your session and workspace',exact=True)).to_be_visible()
+            await expect(page.locator('.wh-auth-to-app')).to_have_count(0)
             await page.screenshot(path=str(OUT/f'arrival-shell-{reduced}.png'))
             await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
             await expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
             await expect(page.get_by_role('button',name='Open workspaces')).to_have_count(0)
             await expect(page.locator('[data-workspace-frame="v2"] > main')).to_have_css('transform','none')
+            timings = await page.locator('.page-transition.wh-workspace-enter').evaluate('''root =>
+                Array.from(root.querySelectorAll('*')).flatMap(element =>
+                    element.getAnimations().map(animation => {
+                        const timing = animation.effect.getTiming();
+                        return Number(timing.duration) + Number(timing.delay);
+                    }))''')
+            assert all(duration <= 250 for duration in timings), timings
+            if reduced:
+                assert not timings, timings
             await page.wait_for_timeout(400)
             await page.screenshot(path=str(OUT/f'creator-arrival-{reduced}.png'))
             assert not s.errors,s.errors
