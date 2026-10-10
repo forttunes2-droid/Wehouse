@@ -367,7 +367,7 @@ test("Activity badges match visible feed rows and legacy notification events rem
     assert.match(source, /visibleUnreadActivityCount\(/);
     assert.doesNotMatch(source, /events\.summary\.unread|activitySummary\.summary\.unread/);
   }
-  assert.match(mirror, /create trigger notification_canonical_activity_mirror[\s\S]*after insert or update of read,read_at,title,message,destination_route,destination_params/);
+  assert.match(mirror, /create trigger notification_canonical_activity_mirror[\s\S]*after insert or update of type,\s*read,\s*read_at,\s*title,\s*message,\s*destination_route,\s*destination_params/);
   assert.match(mirror, /insert into public\.activity_event_audiences/);
   assert.match(invitation, /'resource_invitation_response'/);
   assert.match(app, /workspace-activity-alerts:[\s\S]*Open workspace/);
