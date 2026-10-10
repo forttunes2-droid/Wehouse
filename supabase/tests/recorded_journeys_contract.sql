@@ -73,7 +73,7 @@ insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,
 insert into public.hotels(hotel_id,name,state,city,address,owner_id,status,approved_at,published_at) values(-9991,'Repair Hotel','Nasarawa','Lafia','Test address','repair-owner','active',now(),now());
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms) values(-9991,-9991,'Deluxe',1000,2);
 insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night,cancellation_template) values(-9991,-9991,-9991,'Room only','room_only','pay_now',false,1000,'standard');
-insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status) values(-9991,-9991,-9991,'repair-guest',current_date-2,current_date-1,1,1000,'checked_out','paid');
+insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status,checked_in_at,checked_out_at) values(-9991,-9991,-9991,'repair-guest',current_date-2,current_date-1,1,1000,'checked_out','paid',now()-interval '2 days',now()-interval '1 day');
 insert into public.hotel_reviews(review_id,hotel_id,user_id,rating,comment) values(-9991,-9991,'repair-guest',5,'Public review');
 insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,capabilities,invited_by) values(-9991,'repair-staff','front_desk',array['room.mark_ready'],'repair-owner');
 insert into public.partner_support_conversations(id,partner_id,subject,context_type,context_id,channel_kind) values('99999999-2222-4222-8222-000000000001','repair-owner','Property inspection','property_inspection','repair-inspection','field_operations');
@@ -113,6 +113,7 @@ do $$ declare review_summary jsonb; begin
   if public.current_profile_user_id()<>'repair-guest' then raise exception 'Review fixture authenticated as the wrong profile'; end if;
   if not exists(select 1 from public.hotel_bookings b where b.hotel_id=-9991
     and b.user_id=public.current_profile_user_id() and b.payment_status='paid'
+    and b.checked_in_at is not null and (b.checked_out_at is not null or b.status='completed')
     and b.status in ('checked_out','completed')) then
     raise exception 'Direct review eligibility predicate failed: actor=%, bookings=%',
       public.current_profile_user_id(),
@@ -127,6 +128,7 @@ do $$ declare review_summary jsonb; begin
       current_setting('request.jwt.claim.sub',true),
       (select count(*) from public.hotel_bookings b where b.hotel_id=-9991
         and b.user_id=public.current_profile_user_id() and b.payment_status='paid'
+        and b.checked_in_at is not null and (b.checked_out_at is not null or b.status='completed')
         and b.status in ('checked_out','completed')),
       public.get_public_hotel_detail(-9991) is null;
   end if;
