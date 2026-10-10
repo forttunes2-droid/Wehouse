@@ -1,8 +1,8 @@
 import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
-import { activityIsCurrent } from "@/lib/activityFeed";
+import { activityIsCurrent, visibleUnreadActivityCount } from "@/lib/activityFeed";
 import {
-  getCanonicalActivitySummary,
+  getCanonicalActivity,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
@@ -19,7 +19,7 @@ export function useWorkerInboxSummary(userId: string) {
     const [jobs, support, events, announcements] = await Promise.all([
       getCommunicationBookingConversations(userId),
       getMySupportConversations("worker"),
-      getCanonicalActivitySummary("worker"),
+      getCanonicalActivity("worker", 100),
       getAnnouncementsForUser(userId, "worker"),
     ]);
     if (!isCurrent()) return;
@@ -40,7 +40,7 @@ export function useWorkerInboxSummary(userId: string) {
       setChatUnread(jobThreads + supportThreads);
     }
 
-    const eventUnread = events.error ? 0 : events.summary.unread;
+    const eventUnread = events.error ? 0 : visibleUnreadActivityCount(events.rows, "worker");
     const announcementUnread = announcements.error
       ? 0
       : (announcements.messages || []).filter((delivery: any) => {
