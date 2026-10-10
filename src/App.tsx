@@ -778,7 +778,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       ).length;
       setUnreadCount(roommate + worker + hotel);
       setSupportUnreadCount(support);
-      setNotificationCount(activity + announcementUnread);
+      // Activity is the union of two sources. Keep the last complete count
+      // rather than showing a false zero when either read failed.
+      if (!activityResult.error && !announcementResult.error)
+        setNotificationCount(activity + announcementUnread);
     }
     const countScheduler = createRefreshScheduler(
       loadCounts,
