@@ -1,7 +1,6 @@
 -- Close inherited browser-role table grants on RLS-protected tables that intentionally
 -- have no row policies, and prevent future postgres-owned public tables from inheriting
 -- broad API grants. Existing tables with deliberate policies and service_role are unchanged.
-begin;
 
 alter default privileges for role postgres in schema public
   revoke all privileges on tables from public, anon, authenticated;
@@ -33,4 +32,3 @@ begin
 end;
 $$;
 
-commit;
