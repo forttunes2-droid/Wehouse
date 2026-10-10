@@ -10,7 +10,7 @@ const migration = readFileSync(
 test("notification read/unread transitions replace canonical Activity read_at instead of preserving stale reads", () => {
   assert.match(migration, /read_at=case when new\.read then coalesce\(new\.read_at,now\(\)\)\s+else null end/);
   assert.match(migration, /read_at=excluded\.read_at/);
-  assert.match(migration, /after insert or update of type, read, read_at, title, message, destination_route, destination_params/);
+  assert.match(migration, /after insert or update of type,\s*read,\s*read_at,\s*title,\s*message,\s*destination_route,\s*destination_params/);
 });
 
 test("legacy notification deliveries are mirrored idempotently to recipient Activity audiences", () => {
