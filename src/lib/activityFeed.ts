@@ -118,7 +118,6 @@ export function resolveActivityDestination(
   // is not a canonical app route.
   if (type === "resource_invitation_response") {
     const resourceType = String(params.resource_type || "").toLowerCase();
-    const resourceId = value(params, ["resource_id", "resourceId"]);
     // The inviter manages hotel-team membership from the Property Partner
     // workspace. "hotel_detail" is a personal-only route and is normalized
     // away for partner accounts, so sending the inviter there loses the target.
@@ -129,7 +128,6 @@ export function resolveActivityDestination(
   // Their legacy destination is "property-owner" and params carry hotel_id;
   // normalize that payload to a real application route instead of a dead page.
   if (type === "hotel_team_invitation_response") {
-    const hotelId = value(params, ["hotel_id", "hotelId"]);
     // Team responses are handled in the inviter's workspace, not public
     // hotel discovery. The hotel id remains in the Activity payload for the
     // team list to identify the relevant resource.
