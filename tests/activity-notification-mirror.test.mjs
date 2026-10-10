@@ -32,7 +32,7 @@ test("hotel invitation responses are delivered to Hotel Activity, not Property P
   assert.match(invitationWorkspaceMigration, /when 'hotel' then new\.workspace_scope := 'hotel'/);
   assert.match(invitationWorkspaceMigration, /when 'property' then new\.workspace_scope := 'property_partner'/);
   assert.match(invitationWorkspaceMigration, /before insert or update of type, destination_params, workspace_scope/);
-  assert.match(invitationWorkspaceMigration, /after insert or update of type, read, read_at, title, message,[\\s\\S]*destination_route, destination_params, workspace_scope/);
-  assert.match(invitationWorkspaceMigration, /update public\.notifications[\\s\\S]*where type in \('hotel_team_invitation_response','resource_invitation_response'\)/);
+  assert.match(invitationWorkspaceMigration, /after insert or update of type, read, read_at, title, message,[\s\S]*destination_route, destination_params, workspace_scope/);
+  assert.match(invitationWorkspaceMigration, /update public\.notifications[\s\S]*where type in \('hotel_team_invitation_response','resource_invitation_response'\)/);
   assert.match(invitationWorkspaceMigration, /delete from public\.activity_event_audiences/);
 });
