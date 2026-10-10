@@ -5,7 +5,7 @@ import BackButton from "@/components/BackButton";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import MessageMedia, { PendingMessageMedia } from "@/components/MessageMedia";
 import MessagePress from "@/components/MessagePress";
-import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatAttachment, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatAttachment, validateChatUpload, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { supabase } from "@/lib/supabase";
 import {
@@ -52,12 +52,14 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
   },[conversation.conversation_id,load,onUpdated]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"})},[messages.length,files.length]);
 
-  function chooseFiles(list:FileList|null,source:ChatAttachmentSource="media"){
+  async function chooseFiles(list:FileList|null,source:ChatAttachmentSource="media"){
     if(!list)return;
-    const incoming=Array.from(list).filter(file=>{
-      if(!isSelectableChatAttachment(file,source)){toast.error(file.size>MAX_FILE_SIZE?`${file.name} is larger than 25MB`:CHAT_MEDIA_ONLY_MESSAGE);return false}
-      return true;
-    });
+    const incoming:File[]=[];
+    for(const file of Array.from(list)){
+      if(!isSelectableChatAttachment(file,source)){toast.error(`An attachment could not be added: ${file.size>MAX_FILE_SIZE?`${file.name} is larger than 25MB`:CHAT_MEDIA_ONLY_MESSAGE}`);continue}
+      try{await validateChatUpload(file,false);incoming.push(file)}
+      catch(error){toast.error(`An attachment could not be added: ${error instanceof Error?error.message:CHAT_MEDIA_ONLY_MESSAGE}`)}
+    }
     setFiles(current=>[...current,...incoming].slice(0,6));
   }
 
