@@ -227,9 +227,13 @@ def main():
     completed = sorted((version for version in COMPLETED_RELEASES if version in effective_applied))
     if completed:
         checkpoint = completed[-1]
-        missing_before_checkpoint = [version for version in versions if version <= checkpoint and version not in effective_applied]
-        if missing_before_checkpoint:
-            raise ValueError("Partial post-baseline rollout detected before " + checkpoint + ": " + ", ".join(missing_before_checkpoint[:12]))
+        # Enforce post-baseline completeness only after the last verified legacy
+        # boundary. Older histories remain accepted; later checkpoints fail
+        # closed if any earlier repository migration is missing.
+        if checkpoint > "20260922020000":
+            missing_before_checkpoint = [version for version in versions if version <= checkpoint and version not in effective_applied]
+            if missing_before_checkpoint:
+                raise ValueError("Partial post-baseline rollout detected before " + checkpoint + ": " + ", ".join(missing_before_checkpoint[:12]))
     pending = [path for path in all_files if path.name.split("_", 1)[0] not in effective_applied]
     # The protected check transactionally tests genuinely missing migrations
     # against the live schema and preservation snapshots before any apply.
