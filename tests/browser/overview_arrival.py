@@ -28,8 +28,12 @@ async def check(browser, reduced):
         await page.wait_for_timeout(450)
         await page.screenshot(path=str(OUT/f'overview-loading-{reduced}.png'))
         scenario.ready.set()
-        rows = page.locator('[data-overview-state="ready"] > button')
-        await expect(rows).to_have_count(6)
+        # The ready overview has a hero, four KPI cards, and nested work
+        # queues; the animated rows are the KPI cards, not direct section
+        # children. Assert the real component contract rather than the old
+        # six-direct-button layout.
+        rows = page.locator('[data-overview-state="ready"] .wh-creator-kpi')
+        await expect(rows).to_have_count(4)
         await expect(rows.first).to_have_css('animation-name', 'none' if reduced else 'whOverviewRowIn')
         await page.wait_for_timeout(420)
         await expect(rows.first).to_have_css('transform', 'none')
