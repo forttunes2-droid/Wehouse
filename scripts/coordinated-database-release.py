@@ -221,6 +221,15 @@ def main():
         raise ValueError("Production migration history has unverified rows; investigate before release: " + ", ".join(unresolved[:12]))
     if any(version not in effective_applied for version in versions if version <= BASELINE):
         raise ValueError("A repository migration at or before the reviewed baseline is missing from verified production history")
+
+    # Partial post-baseline rollout detected: a recorded completed release is a
+    # checkpoint, not permission to skip any earlier repository migration.
+    completed = sorted((version for version in COMPLETED_RELEASES if version in effective_applied))
+    if completed:
+        checkpoint = completed[-1]
+        missing_before_checkpoint = [version for version in versions if version <= checkpoint and version not in effective_applied]
+        if missing_before_checkpoint:
+            raise ValueError("Partial post-baseline rollout detected before " + checkpoint + ": " + ", ".join(missing_before_checkpoint[:12]))
     pending = [path for path in all_files if path.name.split("_", 1)[0] not in effective_applied]
     # The protected check transactionally tests genuinely missing migrations
     # against the live schema and preservation snapshots before any apply.
