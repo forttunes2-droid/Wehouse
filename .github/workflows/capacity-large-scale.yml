@@ -14,7 +14,7 @@ on:
         required: false
         default: "1000000"
       concurrency:
-        description: "HTTP concurrency (standard runner default 1000; higher values are stress diagnostics)"
+        description: "HTTP concurrency on the dedicated runner"
         required: false
         default: "1000"
 permissions:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   large-scale:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, wehouse-capacity]
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
@@ -36,10 +36,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Reclaim disposable runner disk
+      - name: Require dedicated disposable runner with 100 GB free
         run: |
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/powershell || true
-          docker system prune -af || true
+          test "${{ runner.environment }}" = self-hosted
+          test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 100
           df -h /
       - run: npm ci
       - name: Start disposable Supabase
@@ -58,9 +58,9 @@ jobs:
           # Kong defaults to 512 worker connections in this local Supabase stack.
           # A proxied HTTP request consumes client and upstream connections.
           # Size the disposable gateway above the 50k concurrent-client test.
-          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=262144 supabase_kong_wehouse kong reload
+          docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=8192 supabase_kong_wehouse kong reload
           docker exec supabase_kong_wehouse cat /usr/local/kong/nginx.conf \
-            | grep -Eq 'worker_connections[[:space:]]+262144;'
+            | grep -Eq 'worker_connections[[:space:]]+8192;'
       - name: Start continuous resource and database-pressure sampling
         run: |
           mkdir -p test-results
