@@ -99,7 +99,20 @@ jobs:
           WEHOUSE_ROOMMATE_ACTORS: ${{ inputs.roommate_actors }}
           WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '1000' }}
         run: |
-          ulimit -n 262144
+          # Hosted runners may impose a hard RLIMIT_NOFILE below 262144.
+          # Never fail the entire workload before it starts just because the
+          # soft limit cannot be raised to that aspirational value. Raise only
+          # up to the runner's actual hard limit, then report both limits.
+          soft_limit="$(ulimit -Sn)"
+          hard_limit="$(ulimit -Hn)"
+          target_limit=262144
+          if [[ "$hard_limit" != "unlimited" ]] && (( hard_limit < target_limit )); then
+            target_limit="$hard_limit"
+          fi
+          if [[ "$soft_limit" == "unlimited" ]] || (( soft_limit < target_limit )); then
+            ulimit -Sn "$target_limit" || echo "::warning::Could not raise open-file soft limit; continuing with runner limit."
+          fi
+          echo "Open-file limits: soft=$(ulimit -Sn) hard=$(ulimit -Hn)"
           node scripts/load-large-capacity-local.mjs
       - name: Capture disposable evidence
         if: always()
