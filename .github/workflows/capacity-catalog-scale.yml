@@ -10,6 +10,17 @@ on:
         options:
           - million
           - full
+      concurrency:
+        description: Maximum simultaneous read clients; increase only after a smaller stage is stable
+        type: choice
+        required: true
+        default: "1000"
+        options:
+          - "100"
+          - "250"
+          - "500"
+          - "1000"
+          - "2500"
   pull_request:
     branches: [main]
     paths:
@@ -43,7 +54,10 @@ jobs:
       - name: Seed exact synthetic catalog and profile counts
         run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} bash scripts/seed-capacity-scale.sh
       - name: Measure public read paths
-        run: WEHOUSE_LARGE_CONCURRENCY=50000 WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} node scripts/load-catalog-scale.mjs
+        env:
+          WEHOUSE_LARGE_CONCURRENCY: ${{ inputs.concurrency || '1000' }}
+          WEHOUSE_CAPACITY_PRESET: ${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }}
+        run: node scripts/load-catalog-scale.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
