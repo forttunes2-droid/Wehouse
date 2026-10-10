@@ -41,9 +41,19 @@ class ProductionAliases(unittest.TestCase):
         ]
 
     def run_plan(self, rows):
+        # Model the complete canonical migration prefix as well as the
+        # timestamp-alias rows under test. The release guard must never be
+        # tested against an alias-only history that cannot represent Production.
+        canonical_rows = [
+            {"version": version,
+             "name": self.paths[version].stem.split("_", 1)[1],
+             "digest": hashlib.md5(self.paths[version].read_bytes()).hexdigest()}
+            for version in self.applied if version in self.paths
+        ]
+        history_rows = canonical_rows + [dict(row) for row in rows]
         def fake_sql(query):
             if "json_build_object('version'" in query:
-                return json.dumps(rows)
+                return json.dumps(history_rows)
             if "json_agg(version" in query:
                 return json.dumps(self.applied)
             raise AssertionError("Plan tried an unexpected database operation")
