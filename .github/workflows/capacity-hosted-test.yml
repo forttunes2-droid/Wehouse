@@ -5,6 +5,7 @@ on:
       - '.github/workflows/capacity-hosted-test.yml'
       - 'scripts/load-hosted-test-catalog.mjs'
       - 'supabase/tests/hosted_catalog_fixture.sql'
+      - 'supabase/migrations/**'
   workflow_dispatch:
 
 permissions:

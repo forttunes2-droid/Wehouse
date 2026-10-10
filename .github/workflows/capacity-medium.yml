@@ -7,6 +7,8 @@ on:
       - 'scripts/load-catalog-scale.mjs'
       - 'scripts/load-mixed-catalog.mjs'
       - 'supabase/tests/capacity_scale_*.sql'
+      - 'supabase/tests/capacity_city_index_contract.sql'
+      - 'supabase/tests/capacity_hotel_plan.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
 
@@ -34,12 +36,16 @@ jobs:
           npx --yes supabase@2.114.0 db reset --local
       - name: Seed 50k homes, 100k hotels and 50k synthetic profiles
         run: bash scripts/seed-capacity-medium.sh
-      - name: Capture home query plans
+      - name: Assert public discovery city indexes exist
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_city_index_contract.sql
+      - name: Capture home and hotel query plans
         run: |
           mkdir -p test-results
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_medium_plan.sql > test-results/home-query-plan.txt
           python scripts/explain-medium-home.py > test-results/home-expanded.sql
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < test-results/home-expanded.sql >> test-results/home-query-plan.txt
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_hotel_plan.sql > test-results/hotel-query-plan.txt
+          test -s test-results/hotel-query-plan.txt
       - name: Use a local gateway sized above the 400-client read stage
         run: |
           docker exec -e KONG_NGINX_EVENTS_WORKER_CONNECTIONS=2048 supabase_kong_wehouse kong reload
@@ -77,6 +83,7 @@ jobs:
             test-results/catalog-scale.json
             test-results/catalog-mixed.json
             test-results/home-query-plan.txt
+            test-results/hotel-query-plan.txt
             test-results/capacity-resource-samples.log
             test-results/supabase_*.log
           retention-days: 14
