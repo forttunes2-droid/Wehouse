@@ -7,6 +7,8 @@ on:
       - 'scripts/load-catalog-scale.mjs'
       - 'scripts/load-mixed-catalog.mjs'
       - 'supabase/tests/capacity_scale_*.sql'
+      - 'supabase/tests/capacity_city_index_contract.sql'
+      - 'supabase/tests/capacity_hotel_plan.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
 
@@ -42,7 +44,7 @@ jobs:
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_medium_plan.sql > test-results/home-query-plan.txt
           python scripts/explain-medium-home.py > test-results/home-expanded.sql
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < test-results/home-expanded.sql >> test-results/home-query-plan.txt
-          node scripts/explain-capacity-hotels.mjs > test-results/hotel-query-plan.txt
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/capacity_hotel_plan.sql > test-results/hotel-query-plan.txt
           test -s test-results/hotel-query-plan.txt
       - name: Use a local gateway sized above the 400-client read stage
         run: |
