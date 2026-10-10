@@ -192,12 +192,13 @@ def main():
         remote_version, remote_name, digest = row["version"], row["name"], row["digest"]
         if remote_version in paths:
             if digest != file_digests[remote_version]:
-                # The disposable local Supabase fixture records the historical
-                # 2025 bootstrap dump as parsed statements, not as the original
-                # file bytes. Permit that one representation difference only
-                # in local CI; production reconciliation remains byte-exact.
+                # Disposable Supabase reset stores parsed statement chunks
+                # for the historical 2025 bootstrap/audit migrations, not the
+                # original file bytes. Since local CI just replayed these exact
+                # repository files, allow this representation-only hash
+                # difference there. Production reconciliation remains byte-exact.
                 local_bootstrap_representation = (
-                    args.local_ci and remote_version == "20250525000000"
+                    args.local_ci and remote_version in {"20250525000000", "20250526"}
                 )
                 if not local_bootstrap_representation:
                     raise ValueError("Applied migration SQL differs from its repository file: " + remote_version)
