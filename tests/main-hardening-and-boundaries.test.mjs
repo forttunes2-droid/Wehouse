@@ -349,3 +349,26 @@ test("immersive Inbox Activity hides mobile bottom navigation in every workspace
   assert.match(layout, /const showWorkspaceBottom = workspaceRoot && workspaceTabs\.length > 0 && !nestedScreen/);
   assert.match(layout, /showWorkspaceBottom \? 'pb-\[calc\(4\.5rem\+env\(safe-area-inset-bottom\)\)\] lg:pb-0' : ''/);
 });
+
+test("Activity badges match visible feed rows and legacy notification events remain visible", async () => {
+  const [feed, partner, worker, operations, creator, app, mirror, invitation] = await Promise.all([
+    read("src/lib/activityFeed.ts"),
+    read("src/hooks/usePartnerInboxSummary.ts"),
+    read("src/hooks/useWorkerInboxSummary.ts"),
+    read("src/hooks/useOperationsInboxSummary.ts"),
+    read("src/hooks/useCreatorInboxSummary.ts"),
+    read("src/App.tsx"),
+    read("supabase/migrations/20261010133000_restore_notification_activity_mirror.sql"),
+    read("supabase/migrations/20260926111500_resource_invitations_and_hosting_workspace.sql"),
+  ]);
+  assert.match(feed, /visibleUnreadActivityCount[\s\S]*currentActivityRows[\s\S]*filter\(\(row\) => !row\.read\)/);
+  for (const source of [partner, worker, operations, creator]) {
+    assert.match(source, /getCanonicalActivity\(/);
+    assert.match(source, /visibleUnreadActivityCount\(/);
+    assert.doesNotMatch(source, /events\.summary\.unread|activitySummary\.summary\.unread/);
+  }
+  assert.match(mirror, /create trigger notification_canonical_activity_mirror[\s\S]*after insert or update of read,read_at,title,message,destination_route,destination_params/);
+  assert.match(mirror, /insert into public\.activity_event_audiences/);
+  assert.match(invitation, /'resource_invitation_response'/);
+  assert.match(app, /workspace-activity-alerts:[\s\S]*Open workspace/);
+});
