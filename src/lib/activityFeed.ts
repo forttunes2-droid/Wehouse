@@ -40,6 +40,9 @@ export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "sour
 export function activityNeedsAction(
   row: Pick<ActivityFeedRow, "type" | "title" | "message" | "source_type" | "destination_route" | "action_required" | "resolved_at">,
 ) {
+  // A withdrawn request remains as read history, never as an open action—even
+  // if a legacy projection retained an action_required flag.
+  if (String(row.type || "").toLowerCase() === "roommate_interest_withdrawn") return false;
   if (row.action_required === true) return !row.resolved_at;
   if (row.resolved_at) return false;
   const value = [
