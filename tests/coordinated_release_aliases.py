@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -91,6 +92,21 @@ class ProductionAliases(unittest.TestCase):
             for remote, local in sorted(release.PRODUCTION_ALIASES.items())
         ]
         self.assertIn("No pending database migrations", self.run_plan(rows))
+
+    def test_statement_representation_exception_is_exact_and_local_ci_only(self):
+        path = self.paths["20260913180000"]
+        self.assertTrue(release.local_ci_statement_representation_mismatch(
+            "20260913180000", path, True
+        ))
+        self.assertFalse(release.local_ci_statement_representation_mismatch(
+            "20260913180000", path, False
+        ))
+        with tempfile.TemporaryDirectory() as directory:
+            changed = Path(directory) / path.name
+            changed.write_bytes(path.read_bytes() + b"-- changed\\n")
+            self.assertFalse(release.local_ci_statement_representation_mismatch(
+                "20260913180000", changed, True
+            ))
 
     def test_transaction_rechecks_aliases_and_preserves_history(self):
         sql = release.release_sql([], self.applied, "check", [
