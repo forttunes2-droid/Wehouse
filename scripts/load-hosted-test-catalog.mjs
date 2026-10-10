@@ -12,7 +12,7 @@ const paths = [
   { name: 'hotel_feed', rpc: 'search_discoverable_hotels', body: { p_limit: 24 }, validate: d => d?.items?.length === 24 },
   { name: 'home_city', rpc: 'search_discoverable_homes', body: { p_city: 'Lafia', p_limit: 24 }, validate: d => d?.items?.length === 24 && d.items.every(x => x.city === 'Lafia') },
   { name: 'hotel_city', rpc: 'search_discoverable_hotels', body: { p_city: 'Lafia', p_limit: 24 }, validate: d => d?.items?.length === 24 && d.items.every(x => x.city === 'Lafia') },
-  { name: 'hotel_price', rpc: 'search_discoverable_hotels', body: { p_min_price: 22000, p_max_price: 24000, p_limit: 24 }, validate: d => d?.items?.length === 24 },
+  { name: 'hotel_price', rpc: 'search_discoverable_hotels', body: { p_min_price: 22000, p_max_price: 24000, p_limit: 24 }, validate: d => d?.items?.length === 24 && d.items.every(h => h.hotel_rooms?.some(r => Number(r.price_per_night) >= 22000 && Number(r.price_per_night) <= 24000)) },
   { name: 'home_detail', rpc: 'get_public_listing_detail', body: { p_listing_id: 'capacity-stage-home-1' }, validate: d => d?.listing_id === 'capacity-stage-home-1' },
   { name: 'hotel_detail', rpc: 'get_public_hotel_detail', body: { p_hotel_id: -2000001 }, validate: d => d?.hotel_id === -2000001 },
 ];
