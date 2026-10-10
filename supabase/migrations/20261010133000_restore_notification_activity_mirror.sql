@@ -63,7 +63,7 @@ begin
     domain=excluded.domain,
     state_scope=excluded.state_scope,
     read_at=case when new.read then coalesce(new.read_at,now())
-      else activity_event_audiences.read_at end;
+      else null end;
 
   return new;
 end
@@ -124,7 +124,7 @@ join public.activity_events e on e.event_key='notification:'||s.id
 on conflict(activity_event_id,recipient_user_id,workspace) do update set
   domain=excluded.domain,
   state_scope=excluded.state_scope,
-  read_at=coalesce(excluded.read_at,activity_event_audiences.read_at);
+  read_at=excluded.read_at;
 
 revoke all on function public.mirror_notification_to_activity() from public,anon,authenticated;
 grant execute on function public.mirror_notification_to_activity() to service_role;
