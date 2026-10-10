@@ -30,7 +30,7 @@ class Boundaries(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'unverified rows'):
    self.plan([row(v) for v in completed]+[{'version':'20990101000000','name':'unknown','digest':'00000000000000000000000000000000'}])
  def test_unapproved_later_partial_boundary_rejected(self):
-  with self.assertRaisesRegex(ValueError,'unverified rows'):
+  with self.assertRaisesRegex(ValueError,'Applied migration SQL differs'):
    self.plan([row(v) for v in completed]+[{'version':'20260923150000','name':'unapproved_partial','digest':'00000000000000000000000000000000'}])
  def test_known_old_boundary_still_allowed(self):
   self.plan([row(v) for v in versions if v<='20260922020000'])
