@@ -330,7 +330,7 @@ function NotificationFeed({
     onUnreadChange?.(unread);
   }, [onUnreadChange, unread]);
   const content = (
-    <main className={embedded ? "py-1" : "mx-auto max-w-4xl px-4 py-5"}>
+    <main className={embedded ? "mx-auto w-full max-w-5xl px-4 py-3 sm:px-5 lg:px-8" : "mx-auto max-w-4xl px-4 py-5"}>
       {loading ? (
         <ActivityLoading />
       ) : error && rows.length === 0 ? (
