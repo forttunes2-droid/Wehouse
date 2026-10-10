@@ -71,11 +71,11 @@ export default function MediaViewer(props: MediaViewerProps) {
       }}
       role="dialog" aria-modal="true" aria-label={title}>
       <div
-        className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "opacity-0"}`}
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
         <div className="flex items-start gap-3">
           <button type="button" onClick={dismiss}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
+            className="pointer-events-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
             aria-label={variant === "photo" ? "Close media preview" : "Back from media preview"}>
             <ArrowLeft size={22} />
           </button>
