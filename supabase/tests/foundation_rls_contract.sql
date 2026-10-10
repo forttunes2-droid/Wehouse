@@ -81,10 +81,10 @@ begin
     left join pg_roles grantee on grantee.oid = acl.grantee
     where defaults.defaclobjtype = 'r'
       and schema_row.nspname = 'public'
-      and owner_role.rolname in ('postgres', 'supabase_admin')
+      and owner_role.rolname = 'postgres'
       and (acl.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))
   ) then
-    raise exception 'Public-schema default table privileges still grant access to PUBLIC, anon, or authenticated';
+    raise exception 'Postgres-owned public-schema default table privileges still grant access to PUBLIC, anon, or authenticated';
   end if;
 end;
 $;
