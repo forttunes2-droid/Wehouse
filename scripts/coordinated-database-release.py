@@ -201,7 +201,7 @@ def main():
                 # this exception is never used for Production.
                 local_historical_comment_only = (
                     args.local_ci
-                    and path.read_text() == (
+                    and paths[remote_version].read_text() == (
                         "-- Historical production migration; schema is included in "
                         "20250525000000_remote_schema.sql.\n"
                     )
