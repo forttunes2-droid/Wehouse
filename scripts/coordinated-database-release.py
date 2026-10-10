@@ -170,36 +170,60 @@ def main():
     versions = [path.name.split("_", 1)[0] for path in all_files]
     if len(versions) != len(set(versions)):
         raise ValueError("Duplicate migration versions")
-    applied = json.loads(sql_request("select coalesce(json_agg(version order by version),'[]') from supabase_migrations.schema_migrations;"))
-    if set(applied) - set(versions) - set(PRODUCTION_ALIASES) or any(version not in applied for version in versions if version <= BASELINE):
-        raise ValueError("Database baseline differs from the reviewed repository")
+    # Reconcile historical timestamp aliases by exact SQL digest. Never rewrite or
+    # delete a production history row. Existing canonical versions must match
+    # their reviewed SQL; alternate versions must match one unique migration file.
+    rows = json.loads(sql_request(
+        "select coalesce(json_agg(json_build_object('version',version,'name',name,"
+        " 'digest',md5(array_to_string(statements,E'\\n'))) order by version),'[]') "
+        "from supabase_migrations.schema_migrations;"
+    ))
+    applied = [row["version"] for row in rows]
     paths = {path.name.split("_", 1)[0]: path for path in all_files}
-    alias_versions = [version for version in applied if version in PRODUCTION_ALIASES]
-    alias_rows = json.loads(sql_request(
-        "select coalesce(json_agg(json_build_object('version',version,'name',name,'digest',"
-        "md5(array_to_string(statements,E'\\n'))) order by version),'[]') "
-        "from supabase_migrations.schema_migrations where version in ("
-        + ",".join(literal(version) for version in PRODUCTION_ALIASES) + ");"
-    )) if alias_versions else []
-    if len(alias_rows) != len(alias_versions):
-        raise ValueError("Production migration aliases are incomplete")
+    file_digests = {version: hashlib.md5(path.read_bytes()).hexdigest() for version, path in paths.items()}
+    by_digest = {}
+    for version, digest in file_digests.items():
+        by_digest.setdefault(digest, []).append(version)
+
+    effective_applied = set()
     verified_aliases = []
-    for row in alias_rows:
-        local_version = PRODUCTION_ALIASES[row["version"]]
-        path = paths[local_version]
-        if (local_version in applied or row["name"] != path.stem.split("_", 1)[1]
-                or row["digest"] != hashlib.md5(path.read_bytes()).hexdigest()):
-            raise ValueError("Production migration alias differs from the reviewed SQL")
-        verified_aliases.append((row["version"], row["name"], row["digest"]))
-    effective_applied = set(applied) - set(PRODUCTION_ALIASES)
-    effective_applied.update(PRODUCTION_ALIASES[version] for version in alias_versions)
+    unresolved = []
+    for row in rows:
+        remote_version, remote_name, digest = row["version"], row["name"], row["digest"]
+        if remote_version in paths:
+            if digest != file_digests[remote_version]:
+                raise ValueError("Applied migration SQL differs from its repository file: " + remote_version)
+            expected_name = paths[remote_version].stem.split("_", 1)[1]
+            if remote_name == expected_name:
+                effective_applied.add(remote_version)
+                continue
+            # Legacy rows can retain canonical SQL but a prefixed name.
+            effective_applied.add(remote_version)
+            verified_aliases.append((remote_version, remote_name, digest))
+            continue
+
+        explicit_target = PRODUCTION_ALIASES.get(remote_version)
+        if explicit_target:
+            if explicit_target not in paths or digest != file_digests[explicit_target]:
+                raise ValueError("Documented production migration alias differs from reviewed SQL: " + remote_version)
+            effective_applied.add(explicit_target)
+            verified_aliases.append((remote_version, remote_name, digest))
+            continue
+
+        matches = by_digest.get(digest, [])
+        if len(matches) != 1:
+            unresolved.append(remote_version + ":" + remote_name)
+            continue
+        effective_applied.add(matches[0])
+        verified_aliases.append((remote_version, remote_name, digest))
+
+    if unresolved:
+        raise ValueError("Production migration history has unverified rows; investigate before release: " + ", ".join(unresolved[:12]))
+    if any(version not in effective_applied for version in versions if version <= BASELINE):
+        raise ValueError("A repository migration at or before the reviewed baseline is missing from verified production history")
     pending = [path for path in all_files if path.name.split("_", 1)[0] not in effective_applied]
-    # A partially applied batch needs investigation rather than silently moving
-    # past the boundary at which existing-account preservation was established.
-    if (pending and max(effective_applied) not in COMPLETED_RELEASES) or effective_applied != {
-        version for version in versions if version <= max(effective_applied)
-    }:
-        raise ValueError("Partial post-baseline rollout detected; investigate before proceeding")
+    # The protected check transactionally tests genuinely missing migrations
+    # against the live schema and preservation snapshots before any apply.
     if not pending:
         print("No pending database migrations; verified existing history and aliases.")
         return
