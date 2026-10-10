@@ -16,7 +16,7 @@ await build({entryPoints:['tests/browser/account-motion-preview.tsx'],bundle:tru
     if(args.path==='@/lib/supabase/activity')return {path:empty,namespace:'activity'};
     if(args.path.startsWith('@/'))return api.resolve(path.resolve('src',args.path.slice(2)),{resolveDir:process.cwd(),kind:args.kind});
   });api.onLoad({filter:/.*/,namespace:'legal'},()=>({contents:'export const getCurrentLegalDocuments=async()=>({documents:{}})',loader:'js'}));
-  api.onLoad({filter:/.*/,namespace:'activity'},()=>({contents:'export const getCanonicalActivitySummary=async()=>({summary:{unread:0},error:null})',loader:'js'}));
+  api.onLoad({filter:/.*/,namespace:'activity'},()=>({contents:'export const getCanonicalActivity=async()=>({rows:[],error:null}); export const getCanonicalActivitySummary=async()=>({summary:{unread:0,needs_action:0,latest_at:null},error:null})',loader:'js'}));
   }}],define:{'import.meta.env.DEV':'false','import.meta.env.PROD':'false'}});
 const css=await postcss([tailwindcss(),autoprefixer()]).process(fs.readFileSync('src/index.css','utf8'),{from:'src/index.css'});
 fs.writeFileSync(out+'/fixture.css',css.css);
