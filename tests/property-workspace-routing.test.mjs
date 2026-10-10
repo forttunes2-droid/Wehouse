@@ -4,14 +4,19 @@ import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
 const read = path => fs.readFileSync(path, 'utf8');
-const load = path => {
+const load = (path, dependencies = {}) => {
   const exports = {};
-  vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, Intl, Date });
+  const requireDependency = name => {
+    if (Object.prototype.hasOwnProperty.call(dependencies, name)) return dependencies[name];
+    throw new Error(`Unexpected dependency ${name} while loading ${path}`);
+  };
+  vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, require: requireDependency, Intl, Date });
   return exports;
 };
 const plain = value => JSON.parse(JSON.stringify(value));
 const nav = load('src/lib/propertyNavigation.ts');
-const activity = load('src/lib/activityFeed.ts');
+const activityWorkspace = load('src/lib/activityWorkspace.ts');
+const activity = load('src/lib/activityFeed.ts', { './activityWorkspace': activityWorkspace });
 
 test('property record keys preserve hotel/listing/inspection identity without numeric collisions', () => {
   const row = { id: 'inspection-a', lifecycle_stage: 'live', draft_hotel_id: 7, draft_listing_id: 'listing-b', hotel: { hotel_id: 7 } };
