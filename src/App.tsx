@@ -1022,6 +1022,52 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     workspaceAccess,
     switchWorkspace,
   ]);
+  // Operational Activity alerts must remain live when the user is outside
+  // the Personal workspace. The personal-only effect above owns personal chat
+  // counters; this subscription handles scoped work updates for other workspaces.
+  useEffect(() => {
+    const uid = profile?.user_id;
+    if (!uid || isUserRole) return;
+    const alertsEnabled = profile?.pref_push_notif !== false;
+    const channel = subscribeToCanonicalActivity(
+      uid,
+      `workspace-activity-alerts:${uid}`,
+      () => {
+        window.dispatchEvent(new Event("wehouse:workspace-activity"));
+      },
+    ).on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "activity_event_audiences",
+        filter: `recipient_user_id=eq.${uid}`,
+      },
+      (payload) => {
+        const audience = payload.new as { activity_event_id?: string; workspace?: string };
+        const scope = String(audience.workspace || "");
+        const target = workspaceForActivity(scope, uid, workspaceAccess);
+        if (!target || !audience.activity_event_id || !alertsEnabled) return;
+        void playNotificationSound(uid);
+        toast(`New ${workspaceLabel(target)} update`, {
+          id: `workspace:${target}:${audience.activity_event_id}`,
+          description: `There is a new update in your ${workspaceLabel(target)} workspace.`,
+          action: {
+            label: "Open workspace",
+            onClick: () => switchWorkspace(target),
+          },
+          classNames: {
+            toast: "!rounded-2xl !border !border-violet-400/20 !bg-[var(--wh-elevated)]/95 !text-[var(--wh-text)] !shadow-2xl !backdrop-blur-xl",
+            title: "!text-[13px] !font-semibold",
+            description: "!text-[10px] !text-[var(--wh-text-secondary)]",
+            actionButton: "!rounded-full !bg-violet-500 !px-3 !text-[9px] !font-semibold !text-white",
+          },
+        });
+      },
+    ).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [profile?.user_id, profile?.pref_push_notif, isUserRole, workspaceAccess, switchWorkspace]);
+
   const toggle = useCallback(
     async (id: string) => {
       if (!profile) return;
