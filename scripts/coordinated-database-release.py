@@ -199,11 +199,18 @@ def main():
                 # by 20250525000000_remote_schema.sql). Local CI has just reset
                 # from this exact checkout. Production reconciliation remains byte-exact;
                 # this exception is never used for Production.
+                local_historical_comment_only = (
+                    args.local_ci
+                    and path.read_text() == (
+                        "-- Historical production migration; schema is included in "
+                        "20250525000000_remote_schema.sql.\n"
+                    )
+                )
                 local_bootstrap_representation = (
                     args.local_ci and remote_version in {
                         "20250525000000", "20250526", "20260807160356"
                     }
-                )
+                ) or local_historical_comment_only
                 if not local_bootstrap_representation:
                     raise ValueError("Applied migration SQL differs from its repository file: " + remote_version)
             expected_name = paths[remote_version].stem.split("_", 1)[1]
