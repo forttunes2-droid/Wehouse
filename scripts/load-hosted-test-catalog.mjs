@@ -53,7 +53,38 @@ async function read(path) {
 }
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
   scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; max 3000 in flight (200 RPS × the 15-second request timeout).',
+  warmup: { max_seconds: 180, attempts: 0, failures: [], successful_paths: [] },
   stages: [] };
+
+// Hosted Test projects can resume from idle. Do not mix cold-start/resume
+// failures into the measured 1 RPS baseline. First require every read contract
+// to return valid data, retaining the warm-up evidence and bounding startup wait.
+const warmupDeadline = performance.now() + 180_000;
+for (const path of paths) {
+  let lastFailure = null;
+  while (performance.now() < warmupDeadline) {
+    result.warmup.attempts++;
+    const sample = await read(path);
+    if (sample.ok) {
+      result.warmup.successful_paths.push(path.name);
+      lastFailure = null;
+      break;
+    }
+    lastFailure = { path: path.name, status: sample.status, retries: sample.retries };
+    result.warmup.failures.push(lastFailure);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  if (lastFailure) {
+    result.warmup.elapsed_ms = Math.round(180_000 - Math.max(0, warmupDeadline - performance.now()));
+    mkdirSync('test-results', { recursive: true });
+    writeFileSync('test-results/hosted-test-catalog.json', JSON.stringify(result, null, 2) + '\\n');
+    console.error('Hosted Test project did not become ready during bounded warm-up', lastFailure);
+    process.exit(1);
+  }
+}
+result.warmup.elapsed_ms = Math.round(180_000 - Math.max(0, warmupDeadline - performance.now()));
+console.log(`Hosted Test warm-up ready: ${result.warmup.successful_paths.length}/${paths.length} read contracts validated in ${result.warmup.elapsed_ms}ms (${result.warmup.attempts} attempts)`);
+await new Promise(resolve => setTimeout(resolve, 5000));
 let serial = 0;
 for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [100, 30], [200, 30]]) {
   const samples = [];
