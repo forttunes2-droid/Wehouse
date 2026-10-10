@@ -144,11 +144,11 @@ insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,
 ('host-continuity-owner','property_partner','global','active');
 insert into public.listings(
   id,listing_id,title,price,sub_type,state,city,status,availability_status,approved_at,
-  management_mode,wehouse_management_status,management_host_user_id
+  management_mode,wehouse_management_status,management_host_user_id,management_updated_at
 ) values(
   '86666666-2000-4000-8000-000000000001','host-continuity-home','Host continuity home',35000,
   'short_let','Nasarawa','Lafia','available','available',now(),
-  'host','not_required','host-continuity-manager'
+  'host','not_required','host-continuity-manager',now()
 );
 insert into public.property_host_assignments(
   assignment_id,listing_id,user_id,assignment_role,status,invited_by,accepted_at
@@ -179,7 +179,30 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','86666666-1000-4000-8000-000000000001',true);
 set local role authenticated;
-do $$
+do $
+declare blocked boolean:=false;
+begin
+  -- Re-selecting the current operator is idempotent, but changing the operator
+  -- on a live home must require a separately reviewed handoff.
+  perform public.set_my_property_management_mode(
+    '86666666-2000-4000-8000-000000000001','host'
+  );
+  begin
+    perform public.set_my_property_management_mode(
+      '86666666-2000-4000-8000-000000000001','wehouse'
+    );
+  exception when others then
+    if sqlerrm like 'This live home has an operator. Ask WeHouse to review a handoff%' then
+      blocked:=true;
+    else
+      raise;
+    end if;
+  end;
+  if not blocked then
+    raise exception 'Published home operator changed without reviewed handoff';
+  end if;
+end $;
+do $
 declare removed boolean;
 begin
   removed:=public.revoke_property_host_manager('86666666-3000-4000-8000-000000000002');
