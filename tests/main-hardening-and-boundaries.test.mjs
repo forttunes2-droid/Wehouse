@@ -391,6 +391,6 @@ test("hotel team acceptance Activity opens the inviter's hotel with an explicit 
 test("historical parsed-migration digest exception is restricted to disposable local CI", async () => {
   const release = await read("scripts/coordinated-database-release.py");
   assert.match(release, /args\.local_ci and remote_version in \{[\s\S]*"20250525000000",[\s\S]*"20250526",[\s\S]*"20260807160356"/);
-  assert.match(release, /local_historical_comment_only = \([\s\S]*args\.local_ci[\s\S]*Historical production migration; schema is included in/);
+  assert.match(release, /local_historical_comment_only = \([\s\S]*args\.local_ci[\s\S]*paths\[remote_version\]\.read_text\(\)[\s\S]*Historical production migration; schema is included in/);
   assert.match(release, /Production reconciliation remains byte-exact/);
 });
