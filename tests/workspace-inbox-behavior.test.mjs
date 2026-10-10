@@ -36,6 +36,8 @@ test('Internal workspace presentation reads State and LGA from the active grant'
   assert.match(app,/assigned_state: activeWorkspaceGrant\.state \?\? null/);
   assert.match(app,/assigned_lga:[\s\S]*activeWorkspaceGrant\.lga \?\? null/);
 });
+const activityWorkspace = moduleAt('src/lib/activityWorkspace.ts');
+const activityFeed = moduleAt('src/lib/activityFeed.ts', { './activityWorkspace': activityWorkspace });
 function workspaceHarness() {
   const slots=[];let cursor=0;const effects=[];const requests=[];
   const same=(a,b)=>a?.length===b?.length&&a.every((v,i)=>Object.is(v,b[i]));
@@ -120,6 +122,7 @@ test('Existing professional profiles remain visible before public approval and d
     '@/lib/appearance':{useAppearance:()=> 'dark',setAppearance(){}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
     '@/lib/supabase/activity':{getCanonicalActivitySummary:async()=>({count:0})},
+    '@/lib/activityFeed':activityFeed,
   }).default;
   const render=(roles,workspace='personal',accessIdentity='person-a')=>{stateIndex=0;return renderToStaticMarkup(Account({
     profile:{user_id:'person-a',role:'user',worker_status:'profile_under_review'},
