@@ -22,6 +22,7 @@ import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
+import BackButton from "@/components/BackButton";
 import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
 
 type PartnerTab = "properties" | "finance" | "communication" | "tools";
@@ -452,9 +453,7 @@ function PropertiesTab({
             Live {assetKind === "hotel" ? "hotels" : "apartments"}
           </h2>
         </div>
-        <span className="rounded-full bg-[var(--wh-interactive)] px-3 py-1 text-[10px] text-[var(--wh-text-secondary)]">
-          {assets.length}{hasMore ? "+" : ""}
-        </span>
+        <span className="text-[10px] font-medium text-[var(--wh-text-muted)]">{hasMore ? "Showing current page" : `${assets.length} ${assetKind === "hotel" ? (assets.length === 1 ? "hotel" : "hotels") : (assets.length === 1 ? "property" : "properties")}`}</span>
       </div>
       {loading ? (
         <Loading />
@@ -464,20 +463,20 @@ function PropertiesTab({
           text="A property appears here after it is ready and published by WeHouse."
         />
       ) : (
-        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+        <div className="grid gap-3 sm:grid-cols-2">
           {assets.map((property) => (
             <button
               key={property.id}
               onClick={() => setSelected(property)}
-              className="flex w-full items-center gap-3 py-4 text-left transition hover:bg-[var(--wh-interactive)]"
+              className="group overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-left shadow-[0_10px_35px_rgba(0,0,0,.12)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-400/25"
             >
-              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--wh-elevated)]">
+              <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-[var(--wh-elevated)]">
                 {property.images?.[0] ? (
                   <ListingMediaImage
                     reference={property.images[0]}
                     alt={property.title || "Property"}
                     loading="lazy"
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                   />
                 ) : (
                   <div className="grid h-full place-items-center text-[var(--wh-text-muted)]">
@@ -608,12 +607,7 @@ export function PropertyDetails({
   }
   return (
     <div className="space-y-5">
-      <button
-        onClick={closeRecord}
-        className="text-xs text-[var(--wh-text-secondary)] hover:text-white"
-      >
-        ← Back to properties
-      </button>
+      <BackButton onClick={closeRecord} ariaLabel="Back to properties" />
       <section className="overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {property.images?.length || property.videos?.length ? (
           <PropertyMediaCarousel

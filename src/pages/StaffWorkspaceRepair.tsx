@@ -25,7 +25,7 @@ type Module =
   | "security"
   | "worker_operations"
   | "field_officer";
-type MainTab = "home" | "work" | "bookings" | "conversations";
+type MainTab = "work" | "bookings" | "conversations";
 type WorkView =
   | "pipeline"
   | "overview"
@@ -161,50 +161,28 @@ function Workspace({
     communicationQueue,
   );
   const items = directConversation
-    ? [
-        { id: "home", label: "Home" },
-        {
-          id: "conversations",
-          label: "Inbox",
-          badge: inboxSummary.totalUnread,
-        },
-      ]
+    ? [{ id: "conversations", label: "Inbox", badge: inboxSummary.totalUnread }]
     : module === "operations"
       ? [
-          { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
           { id: "bookings", label: "Bookings" },
-          {
-            id: "conversations",
-            label: "Inbox",
-            badge: inboxSummary.totalUnread,
-          },
+          { id: "conversations", label: "Inbox", badge: inboxSummary.totalUnread },
         ]
       : [
-          { id: "home", label: "Home" },
           { id: "work", label: copy.workLabel },
-          {
-            id: "conversations",
-            label: "Inbox",
-            badge: inboxSummary.totalUnread,
-          },
+          { id: "conversations", label: "Inbox", badge: inboxSummary.totalUnread },
         ];
-  const [tab, setTab] = useState<MainTab>("home"),
+  const [tab, setTab] = useState<MainTab>(directConversation ? "conversations" : "work"),
     [workTargetId, setWorkTargetId] = useState<string | undefined>(),
     [bookingTargetId, setBookingTargetId] = useState<string | undefined>(),
     [conversationTargetId, setConversationTargetId] = useState<string | undefined>(),
     [workView, setWorkView] = useState<WorkView>(
-      module === "finance"
-        ? "overview"
-        : module === "security"
-          ? "signals"
-          : "pipeline",
+      module === "finance" ? "overview" : module === "security" ? "signals" : "pipeline",
     );
   const scope = {
       state: profile.assigned_state || "",
       lga: profile.assigned_lga || "",
-    },
-    coverage = scope.lga ? [scope.lga, scope.state].filter(Boolean).join(", ") : `${scope.state} State`;
+    };
   function openStaffDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (/propert|listing|inspection/.test(route)) {
@@ -230,18 +208,7 @@ function Workspace({
     onNavigate?.(page, id);
   }
   let content: React.ReactNode;
-  if (tab === "home")
-    content = (
-      <StaffHome
-        profile={profile}
-        module={module}
-        copy={copy}
-        branch={coverage}
-        openWork={() => setTab(directConversation ? "conversations" : "work")}
-        onNavigate={onNavigate}
-      />
-    );
-  else if (tab === "bookings" && module === "operations")
+  if (tab === "bookings" && module === "operations")
     content = <HousingOperationsWorkspace initialRecordId={bookingTargetId} />;
   else if (tab === "conversations" && module === "operations")
     content = (
@@ -284,16 +251,7 @@ function Workspace({
         setView={setWorkView}
       />
     );
-  const activeLabel =
-    items.find((item) => item.id === tab)?.label || copy.title;
-  const activeDescription =
-    tab === "bookings"
-      ? "Continue exact reservations through arrival, verified handover, active tenancy and completion."
-      : tab === "conversations"
-        ? "Messages are conversations. Activity contains official updates and work that needs action."
-        : tab === "home"
-          ? `See today’s ${copy.title.toLowerCase()} work and priorities.`
-          : copy.description;
+  const activeLabel = items.find((item) => item.id === tab)?.label || copy.title;
   return (
     <>
 
@@ -302,7 +260,6 @@ function Workspace({
         identityAvatar={profile.avatar_url}
         label={`WEHOUSE TEAM · ${copy.title}`}
         title={activeLabel}
-        description={`${activeDescription} · ${coverage}`}
         items={items}
         active={tab}
         setActive={(id) => setTab(id as MainTab)}
@@ -537,50 +494,6 @@ function ActivityOnlyInbox({
           onUnreadChange={onUnreadChange}
           onNavigate={onNavigate}
         />
-    </div>
-  );
-}
-function StaffHome({
-  module,
-  copy,
-  branch,
-  openWork,
-}: {
-  profile: Profile;
-  module: Module;
-  copy: { title: string; description: string; workLabel: string };
-  branch: string;
-  openWork: () => void;
-  onNavigate?: (page: string) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <section className="border-b border-[var(--wh-border-subtle)] pb-6">
-        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-violet-300">
-          YOUR WORK AREA
-        </p>
-        <h2 className="mt-3 text-2xl font-bold">{copy.title}</h2>
-        <p className="mt-2 max-w-xl text-xs leading-6 text-[var(--wh-text-secondary)]">
-          {copy.description}
-        </p>
-        <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">Coverage · {branch}</p>
-      </section>
-      <div className="border-y border-[var(--wh-border-subtle)]">
-        <button
-          onClick={openWork}
-          className="flex min-h-16 w-full items-center justify-between py-3 text-left"
-        >
-          <span>
-            <strong className="block text-sm">
-              {module === "support" ? "Open conversations" : copy.workLabel}
-            </strong>
-            <span className="mt-1 block text-[10px] text-[var(--wh-text-muted)]">
-              Continue your assigned work
-            </span>
-          </span>
-          <span className="text-violet-300">›</span>
-        </button>
-      </div>
     </div>
   );
 }

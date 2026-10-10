@@ -44,8 +44,8 @@ test("workspace history and sign-in restore keep internal workspaces intentional
     read("src/App.tsx"),
     read("src/lib/workspaceSession.ts"),
   ]);
-  assert.match(app, /pushState\(\{ page: safe, workspace: activeWorkspace \}/);
-  assert.match(app, /replaceState\(\{ page: destination, workspace \}/);
+  assert.match(app, /pushState\(\{ page: safe, workspace: activeWorkspace, entry_id:/);
+  assert.match(app, /replaceState\(\{ page: destination, workspace, entry_id:/);
   assert.match(app, /Browser Back must never silently change persona/);
   assert.match(session, /\["creator", "admin", "staff"\]|\['creator', 'admin', 'staff'\]/);
 });
@@ -190,15 +190,54 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(pro, /Partner tools could not load/);
   assert.match(security, /Additional protection/);
   assert.match(video, /Video unavailable here/);
-  assert.match(roommate, /receivedUserIds/);
-  assert.match(roommate, /acceptedIncomingIds/);
+  assert.match(roommate, /getReceivedRoommateInterests/);
+  assert.match(roommate, /acceptedIncomingUserIds/);
   assert.match(roommate, /uniqueMatches/);
   assert.match(roommate, /row\.status === "accepted"/);
   assert.match(roommateProfile, /!fullProfile && <PublicProfileSurface/);
-  assert.match(account, /Switch WeHouse between light and dark mode/);
+  assert.match(account, /Choose how WeHouse looks on this device/);
+  assert.match(account, /role="radiogroup"/);
   assert.doesNotMatch(account, /Automatic/);
   assert.doesNotMatch(account, /h-28/);
   assert.match(creatorModal, /var\(--wh-surface\)/);
   assert.match(migration, /get_my_received_roommate_interests/);
   assert.match(migration, /match_highlights text\[\]/);
+});
+
+
+test("shared reservation state stays participant-specific and payment-gated", async () => {
+  const [details, share, rpc] = await Promise.all([
+    read("src/components/SharedHousingDetails.tsx"),
+    read("src/components/ShortLetSplitCosts.tsx"),
+    read("src/lib/supabase/shared-housing.ts"),
+  ]);
+  assert.match(details, /member\.user_id === userId/);
+  assert.match(details, /allAccepted/);
+  assert.match(details, /payment_status/);
+  assert.match(details, /reservation is no longer accepting new participants/);
+  assert.doesNotMatch(share, /split cost/i);
+  assert.match(share, /same reservation/);
+  assert.match(share, /reservation_fee_status/);
+  assert.match(rpc, /createSharedShortLet/);
+  assert.match(rpc, /respondToSharedHousingInvite/);
+});
+
+test("media viewer keeps one coherent full-screen shell with safe navigation actions", async () => {
+  const [viewer, photo, video, propertyMedia] = await Promise.all([
+    read("src/components/MediaViewer.tsx"),
+    read("src/components/ZoomablePhoto.tsx"),
+    read("src/components/VideoPlayer.tsx"),
+    read("src/components/PropertyMediaCarousel.tsx"),
+  ]);
+  assert.match(viewer, /Back from media preview/);
+  assert.doesNotMatch(viewer, /navigator\.share/);
+  assert.doesNotMatch(viewer, /ExternalLink/);
+  assert.match(viewer, /chromeVisible/);
+  assert.match(video, /viewerMode/);
+  assert.match(photo, /touchAction: 'none'/);
+  assert.match(photo, /onPrevious/);
+  assert.match(video, /playsInline/);
+  assert.match(video, /View video full screen/);
+  assert.match(propertyMedia, /Back from media viewer/);
+  assert.match(propertyMedia, /snap-x snap-mandatory/);
 });

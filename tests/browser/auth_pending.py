@@ -21,10 +21,7 @@ async def main():
      # the real Google-transaction implementation still reads/writes its keys.
      await page.evaluate("""() => { window.__authTest={calls:[]};for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}}""")
      await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
-     masthead_signin=page.locator('.wh-public-entry section').first.get_by_role('button',name='Sign in',exact=True)
-     # The masthead action is mobile-only; desktop enters through the visible
-     # personal navigation. Both routes lead to the same pending Auth state.
-     entry_signin=(masthead_signin if width<1024 else page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True))
+     entry_signin=page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True)
      form_signin=page.locator('form').get_by_role('button',name='Sign in',exact=True)
      await entry_signin.click()
      if mode=='google-pending':
@@ -37,7 +34,7 @@ async def main():
       # Native Back is not a dead-end. The same pending operation may not be
       # submitted again from the landing masthead while its outcome is unknown.
       await page.go_back()
-      pending_signin=(page.locator('.wh-public-entry section').first if width<1024 else page.get_by_role('navigation',name='Main navigation')).get_by_role('button',name='Signing in…',exact=True)
+      pending_signin=page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Signing in…',exact=True)
       await expect(pending_signin).to_be_disabled()
       await page.evaluate('window.__authTest.resolve({error:{message:"Network error"}})')
       await expect(entry_signin).to_be_enabled()

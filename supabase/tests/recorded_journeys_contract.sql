@@ -72,8 +72,8 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values('repair-owner','property_partner','global','active');
 insert into public.hotels(hotel_id,name,state,city,address,owner_id,status,approved_at,published_at) values(-9991,'Repair Hotel','Nasarawa','Lafia','Test address','repair-owner','active',now(),now());
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms) values(-9991,-9991,'Deluxe',1000,2);
-insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night) values(-9991,-9991,-9991,'Room only','room_only','pay_now',false,1000);
-insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status) values(-9991,-9991,-9991,'repair-guest','2026-09-24','2026-09-25',1,1000,'checked_out','paid');
+insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night,cancellation_template) values(-9991,-9991,-9991,'Room only','room_only','pay_now',false,1000,'standard');
+insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status,checked_in_at,checked_out_at) values(-9991,-9991,-9991,'repair-guest',current_date-2,current_date-1,1,1000,'checked_out','paid',now()-interval '2 days',now()-interval '1 day');
 insert into public.hotel_reviews(review_id,hotel_id,user_id,rating,comment) values(-9991,-9991,'repair-guest',5,'Public review');
 insert into public.hotel_team_members(hotel_id,member_user_id,hotel_role,capabilities,invited_by) values(-9991,'repair-staff','front_desk',array['room.mark_ready'],'repair-owner');
 insert into public.partner_support_conversations(id,partner_id,subject,context_type,context_id,channel_kind) values('99999999-2222-4222-8222-000000000001','repair-owner','Property inspection','property_inspection','repair-inspection','field_operations');
@@ -91,7 +91,7 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000001","role":"authenticated","session_id":"current-auth-session"}',true);
 select set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
 set local role authenticated;
-do $$ declare snapshot jsonb; messages integer; notice jsonb; begin
+do $$ declare snapshot jsonb; messages integer; notice jsonb; review_summary jsonb; begin
   snapshot:=public.get_my_hotel_operation_snapshot(-9991);
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0->>'total_rooms'<>'2' then raise exception 'Internal room count missing'; end if;
   if jsonb_array_length(snapshot->'rooms')<>1 or jsonb_array_length(snapshot->'bookings')<>1
@@ -104,13 +104,34 @@ end $$;
 reset role;
 update public.notifications set read=true where source_id='99999999-3333-4333-8333-000000000003';
 set local role authenticated;
-do $$ begin
+do $$ declare review_summary jsonb; begin
   if public.get_my_pending_device_login_alert() is not null then raise exception 'Reviewed or same-device alert repeated'; end if;
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000002',true);
   if jsonb_array_length(public.get_my_hotel_operation_snapshot(-9991)->'bookings')<>0 then raise exception 'Room-only staff received guest bookings'; end if;
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000003',true);
+  perform set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000003","role":"authenticated"}',true);
+  if public.current_profile_user_id()<>'repair-guest' then raise exception 'Review fixture authenticated as the wrong profile'; end if;
+  if not exists(select 1 from public.hotel_bookings b where b.hotel_id=-9991
+    and b.user_id=public.current_profile_user_id() and b.payment_status='paid'
+    and b.checked_in_at is not null and (b.checked_out_at is not null or b.status='completed')
+    and b.status in ('checked_out','completed')) then
+    raise exception 'Direct review eligibility predicate failed: actor=%, bookings=%',
+      public.current_profile_user_id(),
+      (select coalesce(jsonb_agg(jsonb_build_object('hotel_id',b.hotel_id,'user_id',b.user_id,'payment_status',b.payment_status,'status',b.status,'check_out',b.check_out)),'[]'::jsonb)
+       from public.hotel_bookings b where b.hotel_id=-9991);
+  end if;
   if public.get_public_hotel_detail(-9991)->'hotel_rooms'->0 ? 'total_rooms' then raise exception 'Guest received internal inventory'; end if;
-  if public.get_hotel_review_summary(-9991)->>'eligible'<>'true' then raise exception 'Completed guest cannot review'; end if;
+  review_summary:=public.get_hotel_review_summary(-9991);
+  if review_summary->>'eligible'<>'true' then
+    raise exception 'Completed guest cannot review: summary=%, actor=%, auth_uid=%, claims_sub=%, booking_matches=%, public_detail_is_null=%',
+      review_summary,public.current_profile_user_id(),auth.uid(),
+      current_setting('request.jwt.claim.sub',true),
+      (select count(*) from public.hotel_bookings b where b.hotel_id=-9991
+        and b.user_id=public.current_profile_user_id() and b.payment_status='paid'
+        and b.checked_in_at is not null and (b.checked_out_at is not null or b.status='completed')
+        and b.status in ('checked_out','completed')),
+      public.get_public_hotel_detail(-9991) is null;
+  end if;
   begin
     perform public.get_my_hotel_operation_snapshot(-9991);
     raise exception 'Guest read hotel operations';

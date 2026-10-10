@@ -93,12 +93,12 @@ export default function WorkspaceFrameV2({
             <div className="flex items-start justify-between gap-3 pb-3">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <p className="truncate text-[11px] font-bold uppercase tracking-[.2em] wh-accent-text">{label}</p>
+                  <p className="truncate text-[10px] font-semibold uppercase tracking-[.16em] wh-accent-text">{label}</p>
                   {labelBadge}
                 </div>
                 <div className="mt-1 flex min-w-0 items-center gap-1">
                   {onBack && <BackButton onClick={onBack} ariaLabel={backLabel} />}
-                  <h1 className="min-w-0 break-words text-lg font-semibold">{title}</h1>
+                  <h1 className="min-w-0 break-words text-xl font-semibold tracking-[-0.02em]">{title}</h1>
                 </div>
                 {description ? (
                   <p className={`mt-1 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)] ${compact ? "hidden sm:block" : ""}`}>{description}</p>
@@ -119,7 +119,7 @@ export default function WorkspaceFrameV2({
                 <button
                   key={item.id}
                   onClick={() => go(item.id)}
-                  className={`relative flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 text-xs font-semibold transition ${active === item.id ? "border-[var(--wh-violet)] text-[var(--wh-text)]" : "border-transparent text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]"}`}
+                  className={`relative flex min-h-12 shrink-0 items-center gap-2 border-b-2 text-[13px] font-semibold transition ${active === item.id ? "border-[var(--wh-violet)] text-[var(--wh-text)]" : "border-transparent text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]"}`}
                 >
                   <span>{item.label}</span>
                   {Boolean(item.badge) && <CountBadge count={item.badge || 0} />}

@@ -2,6 +2,23 @@
 
 begin;
 
+-- The contract is intentionally independent of production seed data. Seed the
+-- immutable Creator commission authority required by reservation snapshot
+-- triggers instead of relying on whatever policies happen to exist in a local
+-- environment.
+insert into public.creator_policy_versions(
+  policy_key,scope_type,scope_key,version,value,value_schema,status,
+  effective_from,public_disclosure,disclosure_text,legal_review_state,
+  reason,checksum,published_at
+) values
+  -- The reservation trigger resolves the managed-service policy keys, not
+  -- the legacy partner-managed keys. Use a high fixture-only version so this
+  -- transaction does not silently reuse a stale policy from database seeds.
+  ('commission_short_let_wehouse_managed','global','*',999999,'{"percent":10}'::jsonb,'{"type":"percent"}'::jsonb,
+   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-short-commission-fixture',now()),
+  ('commission_long_let_wehouse_managed','global','*',999999,'{"percent":10}'::jsonb,'{"type":"percent"}'::jsonb,
+   'active',now()-interval '1 minute',true,'Test fixture commission policy','pending','Accommodation handover contract fixture','handover-long-commission-fixture',now());
+
 -- Fixed synthetic records keep this contract independent of seed data. FK
 -- triggers are suspended only while the isolated fixtures are inserted; the
 -- authorization and reservation triggers run in normal mode below.

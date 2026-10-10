@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnnouncementsTab } from "@/components/AnnouncementsTab";
 import SecureSupportAttachment from "@/components/SecureSupportAttachment";
-import { CHAT_MEDIA_ACCEPT, CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatMedia } from "@/lib/chatMediaPolicy";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
+import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatAttachment, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
@@ -81,8 +82,7 @@ export default function CommunicationsWorkspace({
     [caseAction, setCaseAction] = useState<CaseAction | null>(null),
     [caseNote, setCaseNote] = useState(""),
     [updatingCase, setUpdatingCase] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null),
-    bottomRef = useRef<HTMLDivElement>(null),
+  const bottomRef = useRef<HTMLDivElement>(null),
     inputRef = useRef<HTMLTextAreaElement>(null),
     openedInitialRef = useRef<string | null>(null),
     listLoadedRef = useRef(false),
@@ -242,10 +242,10 @@ export default function CommunicationsWorkspace({
     // No automatic composer focus: the recording showed the keyboard opening
     // and pushing the entire Inbox before the person chose to write anything.
   }
-  function addFiles(list: FileList | null) {
+  function addFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
     const valid = Array.from(list).filter((file) => {
-      if (isSelectableChatMedia(file)) return true;
+      if (isSelectableChatAttachment(file, source)) return true;
       toast.error(file.size > 25 * 1024 * 1024 ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
       return false;
     });
@@ -255,7 +255,6 @@ export default function CommunicationsWorkspace({
         toast.error("A maximum of 6 files can be sent at once");
       return next;
     });
-    if (fileRef.current) fileRef.current.value = "";
   }
   async function reply() {
     if (!selected || sending || loadingThread || threadError || (!input.trim() && !files.length)) return;
@@ -601,23 +600,7 @@ export default function CommunicationsWorkspace({
             </div>
           )}
           <div className="mx-auto flex max-w-4xl items-end gap-2">
-            <button
-              type="button"
-              aria-label="Attach a photo or video"
-              onClick={() => fileRef.current?.click()}
-              disabled={conversationLocked}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
-            >
-              ＋
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept={CHAT_MEDIA_ACCEPT}
-              onChange={(e) => addFiles(e.target.files)}
-              className="hidden"
-            />
+            <ChatAttachmentPicker onFiles={addFiles} disabled={conversationLocked} />
             <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
                 ref={inputRef}

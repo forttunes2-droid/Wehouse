@@ -27,6 +27,9 @@ type Hotel = {
   images: string[] | null;
   access_role: "manager" | "front_desk";
   capabilities: string[];
+  room_type_count?: number;
+  total_room_count?: number;
+  starting_rate?: number | null;
 };
 
 export default function HotelTeamDashboard({
@@ -282,53 +285,144 @@ export default function HotelTeamDashboard({
           </div>
         </section>
       ) : (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">Assigned hotels</h2>
+        <section className="space-y-5">
+          <header className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-300">
+                Hotel access
+              </p>
+              <h2 className="mt-1 text-xl font-bold tracking-tight">Your hotels</h2>
+              <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
+                Each hotel keeps its own role, permissions and operating data.
+              </p>
+            </div>
+            {!loading ? (
+              <span className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-3 py-1.5 text-[11px] font-semibold text-[var(--wh-text-muted)]">
+                {hotels.length} {hotels.length === 1 ? "hotel" : "hotels"}
+              </span>
+            ) : null}
+          </header>
+
           {loading ? (
-            <div
-              className="min-h-40"
-              role="status"
-              aria-label="Loading assigned hotels"
-            />
+            <div className="grid gap-4 sm:grid-cols-2" aria-label="Loading assigned hotels" role="status">
+              {[0, 1].map((item) => (
+                <div
+                  key={item}
+                  className="overflow-hidden rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]"
+                >
+                  <div className="h-32 animate-pulse bg-[var(--wh-elevated)]" />
+                  <div className="space-y-3 p-5">
+                    <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--wh-elevated)]" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-[var(--wh-elevated)]" />
+                    <div className="h-8 w-full animate-pulse rounded-xl bg-[var(--wh-elevated)]" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : hotels.length === 0 ? (
-            <div className="border-y border-dashed border-[var(--wh-border-subtle)] py-10 text-center text-xs text-[var(--wh-text-muted)]">
-              No active hotel assignment is available.
+            <div className="rounded-[28px] border border-dashed border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-6 py-14 text-center">
+              <p className="text-sm font-semibold">No active hotel assignment</p>
+              <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[var(--wh-text-muted)]">
+                Hotels appear here only while your hotel access is active.
+              </p>
             </div>
           ) : (
-            <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-              {hotels.map((hotel) => (
-                <button
-                  key={hotel.hotel_id}
-                  onClick={() => { setInitialBookingId(undefined); setSelected(hotel); }}
-                  className="flex w-full items-center gap-4 py-4 text-left"
-                >
-                  <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">
-                    {hotel.images?.[0] ? (
-                      <img
-                        src={hotel.images[0]}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-full place-items-center text-[8px] text-[var(--wh-text-muted)]">
-                        No photo
+            <div className="grid gap-4 sm:grid-cols-2">
+              {hotels.map((hotel) => {
+                const roleLabel =
+                  hotel.access_role === "manager" ? "Manager" : "Front desk";
+                const capabilityLabels = [
+                  hotel.capabilities.includes("stay.read") ? "Reservations" : null,
+                  hotel.capabilities.includes("stay.message") ? "Guest messages" : null,
+                  hotel.capabilities.includes("room.mark_ready") ? "Room readiness" : null,
+                  hotel.capabilities.includes("hotel.inventory.manage") ? "Availability" : null,
+                  hotel.capabilities.includes("hotel.rate.manage") ? "Rates" : null,
+                ].filter(Boolean) as string[];
+                const location = [hotel.city, hotel.state].filter(Boolean).join(", ");
+                return (
+                  <button
+                    key={hotel.hotel_id}
+                    type="button"
+                    onClick={() => {
+                      setInitialBookingId(undefined);
+                      setSelected(hotel);
+                    }}
+                    className="group overflow-hidden rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-left shadow-[0_14px_45px_rgba(0,0,0,.14)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-400/30 hover:shadow-[0_18px_55px_rgba(0,0,0,.2)] focus:outline-none focus:ring-2 focus:ring-violet-400/40"
+                  >
+                    <div className="relative h-32 overflow-hidden bg-[var(--wh-elevated)]">
+                      {hotel.images?.[0] ? (
+                        <img
+                          src={hotel.images[0]}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+                        />
+                      ) : (
+                        <div className="grid h-full place-items-center text-xs text-[var(--wh-text-muted)]">
+                          No hotel image
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+                      <span className="absolute bottom-3 left-4 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur-md">
+                        {roleLabel}
+                      </span>
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-base font-bold">{hotel.name}</h3>
+                          {location ? (
+                            <p className="mt-1 truncate text-xs text-[var(--wh-text-muted)]">
+                              {location}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] text-lg text-[var(--wh-text-muted)] transition group-hover:border-violet-400/30 group-hover:text-violet-200">
+                          →
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{hotel.name}</p>
-                    <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
-                      {[hotel.city, hotel.state].filter(Boolean).join(", ")}
-                    </p>
-                    <p className="mt-2 text-[8px] font-semibold uppercase tracking-wide text-violet-300">
-                      {hotel.access_role === "manager" ? "Manager" : "Front desk"}
-                    </p>
-                  </div>
-                  <span aria-hidden="true" className="text-[var(--wh-text-muted)]">›</span>
-                </button>
-              ))}
+
+                      <div className="mt-5 grid grid-cols-2 gap-2">
+                        <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]/50 px-3 py-2.5">
+                          <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">Rooms</p>
+                          <p className="mt-1 text-sm font-bold">{hotel.total_room_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]/50 px-3 py-2.5">
+                          <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">Room types</p>
+                          <p className="mt-1 text-sm font-bold">{hotel.room_type_count ?? 0}</p>
+                        </div>
+                      </div>
+
+                      {capabilityLabels.length ? (
+                        <div className="mt-4 flex flex-wrap gap-1.5">
+                          {capabilityLabels.slice(0, 4).map((label) => (
+                            <span
+                              key={label}
+                              className="rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[9px] text-[var(--wh-text-muted)]"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                          {capabilityLabels.length > 4 ? (
+                            <span className="rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[9px] text-[var(--wh-text-muted)]">
+                              +{capabilityLabels.length - 4}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="mt-5 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-4">
+                        <span className="text-[10px] font-medium text-[var(--wh-text-muted)]">
+                          {hotel.status || "Status unavailable"}
+                        </span>
+                        <span className="text-xs font-semibold text-violet-200">Open hotel</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </section>

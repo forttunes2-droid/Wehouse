@@ -1,8 +1,8 @@
 import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
-import { activityIsCurrent } from "@/lib/activityFeed";
+import { activityIsCurrent, visibleUnreadActivityCount } from "@/lib/activityFeed";
 import {
-  getCanonicalActivitySummary,
+  getCanonicalActivity,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
@@ -20,7 +20,7 @@ export function useCreatorInboxSummary(
     if (!userId) return;
     const [support, events, announcements] = await Promise.all([
       getSupportInbox("all"),
-      getCanonicalActivitySummary(activityScope),
+      getCanonicalActivity(activityScope, 100),
       getAnnouncementsForUser(userId, activityScope),
     ]);
     if (!isCurrent()) return;
@@ -32,8 +32,10 @@ export function useCreatorInboxSummary(
         ).length,
       );
     }
-    if (!events.error || !announcements.error) {
-      const eventUnread = events.summary.unread;
+    // Keep the last complete count if either source failed; zero is not evidence
+    // that a failed Activity read is empty.
+    if (!events.error && !announcements.error) {
+      const eventUnread = events.error ? 0 : visibleUnreadActivityCount(events.rows, activityScope);
       const announcementUnread = (announcements.messages || []).filter(
         (delivery: any) => {
           const announcement = Array.isArray(delivery.announcements)

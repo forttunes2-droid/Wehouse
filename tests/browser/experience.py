@@ -192,9 +192,8 @@ async def run(browser):
     async def arrival():
         for reduced in [False, True]:
             s=Scenario(); context,page=await s.page(browser,'arrival',reduced=reduced)
-            await expect(page.locator('.wh-auth-to-app')).to_be_visible()
-            if reduced:
-                await expect(page.locator('.wh-auth-to-app-brand')).to_have_css('animation-name','none')
+            await expect(page.get_by_role('status',name='Checking your session and workspace',exact=True)).to_be_visible()
+            await expect(page.locator('.wh-auth-to-app')).to_have_count(0)
             await page.screenshot(path=str(OUT/f'arrival-shell-{reduced}.png'))
             await page.evaluate('window.dispatchEvent(new Event("qa-auth-ready"))')
             await expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()

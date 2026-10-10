@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Maximize2, Pause, Play, Volume2, VolumeX } from "lucide-react";
 
 type Props = {
   src: string;
@@ -12,6 +13,7 @@ type Props = {
   onTime?: (seconds: number) => void;
   onPlaybackError?: () => void;
   controlsPositionClassName?: string;
+  viewerMode?: boolean;
 };
 
 export default function VideoPlayer({
@@ -26,6 +28,7 @@ export default function VideoPlayer({
   onTime,
   onPlaybackError,
   controlsPositionClassName = "bottom-0",
+  viewerMode = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -37,12 +40,14 @@ export default function VideoPlayer({
   // begin reliably, then the viewer can explicitly unmute it.
   const [silent, setSilent] = useState(muted || autoPlay);
   const [failed, setFailed] = useState(false);
+  const [viewerControls, setViewerControls] = useState(false);
 
   useEffect(() => {
     setCurrent(0);
     setDuration(durationHint || durationFromSource(src));
     setFailed(false);
     setSilent(muted || autoPlay);
+    setViewerControls(false);
   }, [autoPlay, durationHint, muted, src]);
 
   useEffect(() => {
@@ -109,7 +114,7 @@ export default function VideoPlayer({
   }
 
   return (
-    <div className={`relative overflow-hidden ${containerClassName}`}>
+    <div className={`relative overflow-hidden rounded-[inherit] ${containerClassName}`}>
       <video
         ref={videoRef}
         src={src}
@@ -171,28 +176,32 @@ export default function VideoPlayer({
             // when the browser suppresses that touch's compatibility click.
             // Captured swipes, drags and multi-touch never reach this path.
             pointerTapHandledUntil.current = Date.now() + 700;
+            if (viewerMode) setViewerControls(true);
             void toggle();
           }}
           onClick={event => {
-            if (event.detail === 0 || Date.now() > pointerTapHandledUntil.current) void toggle();
+            if (event.detail === 0 || Date.now() > pointerTapHandledUntil.current) {
+              if (viewerMode) setViewerControls(true);
+              void toggle();
+            }
           }}
           data-media-toggle
-          className="absolute inset-0 grid place-items-center"
+          className="group absolute inset-0 z-10 grid place-items-center bg-black/5 transition-colors hover:bg-black/10"
           aria-label={playing ? "Pause video" : "Play video"}
         >
           {!playing ? (
-            <span className="grid h-14 w-14 place-items-center rounded-full bg-black/65 text-lg text-white backdrop-blur">▶</span>
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-black/70 text-white shadow-[0_10px_35px_rgba(0,0,0,.35)] backdrop-blur-md transition-transform duration-200 group-active:scale-95"><Play size={22} fill="currentColor" /></span>
           ) : null}
         </button>
       )}
-      {!failed ? (
+      {!failed && (!viewerMode || viewerControls) ? (
         <div className={`absolute inset-x-0 ${controlsPositionClassName} z-20 flex items-center gap-2 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-8`}>
-          <button type="button" onClick={() => void toggle()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label={playing ? "Pause video" : "Play video"}>{playing ? "Ⅱ" : "▶"}</button>
+          <button type="button" onClick={() => void toggle()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm transition active:scale-95" aria-label={playing ? "Pause video" : "Play video"}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
           <span className="w-9 shrink-0 font-mono text-xs text-white/75">{formatDuration(current)}</span>
           <input type="range" min={0} max={Math.max(duration, .1)} step=".1" value={Math.min(current, duration || 0)} onChange={(event) => { const value = Number(event.target.value); if (videoRef.current) videoRef.current.currentTime = value; setCurrent(value); }} className="h-11 min-w-0 flex-1 accent-violet-400" aria-label="Video position" />
           <span className="w-9 shrink-0 text-right font-mono text-xs text-white/75">{formatDuration(duration)}</span>
-          <button type="button" onClick={() => { const next = !silent; setSilent(next); if (videoRef.current) videoRef.current.muted = next; }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label={silent ? "Unmute video" : "Mute video"}>{silent ? "⌁" : "◖"}</button>
-          <button type="button" onClick={() => void openFullscreen()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label="View video full screen">⛶</button>
+          <button type="button" onClick={() => { const next = !silent; setSilent(next); if (videoRef.current) videoRef.current.muted = next; }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label={silent ? "Unmute video" : "Mute video"}>{silent ? <VolumeX size={17} /> : <Volume2 size={17} />}</button>
+          <button type="button" onClick={() => void openFullscreen()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-sm" aria-label="View video full screen"><Maximize2 size={17} /></button>
         </div>
       ) : null}
     </div>

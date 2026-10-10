@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WorkspaceSectionHeading from '@/components/WorkspaceSectionHeading';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -487,4 +488,4 @@ function Avatar({person}:{person:{full_name?:string|null;username?:string|null;e
 }
 function Metric({label,value}:{label:string;value:number}){return <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3"><p className="text-lg font-bold">{value}</p><p className="text-[8px] text-[var(--wh-text-muted)]">{label}</p></div>}
 function Empty({text}:{text:string}){return <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-8 text-center text-xs text-[var(--wh-text-muted)]">{text}</div>}
-function Loading({compact=false}:{compact?:boolean}){return <div className={'grid '+(compact?'min-h-24':'min-h-52')+' place-items-center'}><div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
+function Loading({compact=false}:{compact?:boolean}){return <WeHouseLoadingState compact={compact} label="Loading workspace…" />;}

@@ -339,3 +339,58 @@ test("legal surfaces use reviewed versioned documents and Long Let never gains a
   assert.match(drafts, /Biometric\/liveness DPIA/);
   assert.match(rentOnly, /Long Let payment must contain rent only/);
 });
+
+test("immersive Inbox Activity hides mobile bottom navigation in every workspace", async () => {
+  const [layout, inbox] = await Promise.all([
+    read("src/components/DesktopLayout.tsx"),
+    read("src/pages/Chat.tsx"),
+  ]);
+  assert.match(inbox, /wehouse:nested-screen[\s\S]*open: true/);
+  assert.match(layout, /const showWorkspaceBottom = workspaceRoot && workspaceTabs\.length > 0 && !nestedScreen/);
+  assert.match(layout, /showWorkspaceBottom \? 'pb-\[calc\(4\.5rem\+env\(safe-area-inset-bottom\)\)\] lg:pb-0' : ''/);
+});
+
+test("Activity badges match visible feed rows and legacy notification events remain visible", async () => {
+  const [feed, partner, worker, operations, creator, app, mirror, invitation] = await Promise.all([
+    read("src/lib/activityFeed.ts"),
+    read("src/hooks/usePartnerInboxSummary.ts"),
+    read("src/hooks/useWorkerInboxSummary.ts"),
+    read("src/hooks/useOperationsInboxSummary.ts"),
+    read("src/hooks/useCreatorInboxSummary.ts"),
+    read("src/App.tsx"),
+    read("supabase/migrations/20261010133000_restore_notification_activity_mirror.sql"),
+    read("supabase/migrations/20260926111500_resource_invitations_and_hosting_workspace.sql"),
+  ]);
+  assert.match(feed, /visibleUnreadActivityCount[\s\S]*currentActivityRows[\s\S]*filter\(\(row\) => !row\.read\)/);
+  for (const source of [partner, worker, operations, creator]) {
+    assert.match(source, /getCanonicalActivity\(/);
+    assert.match(source, /visibleUnreadActivityCount\(/);
+    assert.doesNotMatch(source, /events\.summary\.unread|activitySummary\.summary\.unread/);
+  }
+  assert.match(mirror, /create trigger notification_canonical_activity_mirror[\s\S]*after insert or update of type,\s*read,\s*read_at,\s*title,\s*message,\s*destination_route,\s*destination_params/);
+  assert.match(mirror, /insert into public\.activity_event_audiences/);
+  assert.match(invitation, /'resource_invitation_response'/);
+  assert.match(app, /workspace-activity-alerts:[\s\S]*Open workspace/);
+});
+
+
+test("marking an Activity row read recomputes unread count by row identity", async () => {
+  const notifications = await read("src/pages/Notifications.tsx");
+  assert.match(notifications, /onUnreadChange\?\.\(rows\.filter\(item => !item\.read && item\.id !== row\.id\)\.length\)/);
+  assert.doesNotMatch(notifications, /rows\.filter\(item => !item\.read\)\.length - 1/);
+});
+
+
+test("hotel team acceptance Activity opens the inviter's hotel with an explicit label", async () => {
+  const activityFeed = await read("src/lib/activityFeed.ts");
+  assert.match(activityFeed, /type === "hotel_team_invitation_response"[\s\S]*?value\(params, \["hotel_id", "hotelId"\]\)[\s\S]*?route: "hotel_detail"/);
+  assert.match(activityFeed, /type === "hotel_team_invitation_response"\) return "View hotel team"/);
+});
+
+
+test("historical parsed-migration digest exception is restricted to disposable local CI", async () => {
+  const release = await read("scripts/coordinated-database-release.py");
+  assert.match(release, /args\.local_ci and remote_version in \{[\s\S]*"20250525000000",[\s\S]*"20250526",[\s\S]*"20260807160356"/);
+  assert.match(release, /local_historical_comment_only = \([\s\S]*args\.local_ci[\s\S]*paths\[remote_version\]\.read_text\(\)[\s\S]*Historical production migration; schema is included in/);
+  assert.match(release, /Production reconciliation remains byte-exact/);
+});

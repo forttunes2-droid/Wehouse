@@ -122,6 +122,7 @@ export {
   refreshRoommateSearch,
   getSavedMatchResults,
   updateMatchStatus,
+  cancelRoommateInterest,
   getReceivedRoommateInterests,
   respondToRoommateInterest,
   ensureRoommateConversation,

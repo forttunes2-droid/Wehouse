@@ -5,7 +5,7 @@ import BackButton from "@/components/BackButton";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import MessageMedia, { PendingMessageMedia } from "@/components/MessageMedia";
 import MessagePress from "@/components/MessagePress";
-import { CHAT_MEDIA_ONLY_MESSAGE, isChatVisualType } from "@/lib/chatMediaPolicy";
+import { CHAT_MEDIA_ONLY_MESSAGE, isSelectableChatAttachment, validateChatUpload, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { supabase } from "@/lib/supabase";
 import {
@@ -52,13 +52,14 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
   },[conversation.conversation_id,load,onUpdated]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"})},[messages.length,files.length]);
 
-  function chooseFiles(list:FileList|null){
+  async function chooseFiles(list:FileList|null,source:ChatAttachmentSource="media"){
     if(!list)return;
-    const incoming=Array.from(list).filter(file=>{
-      if(!isChatVisualType(file.type)){toast.error(CHAT_MEDIA_ONLY_MESSAGE);return false}
-      if(file.size>MAX_FILE_SIZE){toast.error(`${file.name} is larger than 25MB`);return false}
-      return true;
-    });
+    const incoming:File[]=[];
+    for(const file of Array.from(list)){
+      if(!isSelectableChatAttachment(file,source)){toast.error(`An attachment could not be added: ${file.size>MAX_FILE_SIZE?`${file.name} is larger than 25MB`:CHAT_MEDIA_ONLY_MESSAGE}`);continue}
+      try{await validateChatUpload(file,false);incoming.push(file)}
+      catch(error){toast.error(`An attachment could not be added: ${error instanceof Error?error.message:CHAT_MEDIA_ONLY_MESSAGE}`)}
+    }
     setFiles(current=>[...current,...incoming].slice(0,6));
   }
 
@@ -76,7 +77,7 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
         const upload = uploadedFiles[index];
         const file = queued[index];
         if(upload.error||!upload.path||!upload.type)throw new Error(upload.error?.message||`Could not upload ${file.name}`);
-        paths.push(upload.path);types.push(file.type.startsWith("image/")?"image":"video");
+        paths.push(upload.path);types.push(file.type.startsWith("image/")?"image":file.type.startsWith("video/")?"video":"document");
       }
       const result=await sendPropertyHostMessage(conversation.conversation_id,text,paths,types,reply?.id||null);
       if(result.error||!result.messageId)throw new Error(result.error?.message||"Message could not be sent");

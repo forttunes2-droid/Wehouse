@@ -14,8 +14,8 @@ values(-7966,-7966,-7966,'refund-guest',current_date+3,current_date+5,2,40000,'c
  jsonb_build_object('version',1,'refundable',true,'deadline',now()+interval '1 day','timezone','Africa/Lagos','refund_amount_ngn',40000,'fee_ngn',0));
 insert into public.hotel_room_units(unit_id,hotel_id,room_id,unit_label,status)
 overriding system value values(-7966,-7966,-7966,'101','ready');
-insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,price_per_night,refundable,cancellation_hours)
-overriding system value values(-7966,-7966,-7966,'Refund contract rate',20000,true,24);
+insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,price_per_night,refundable,cancellation_template,cancellation_hours)
+overriding system value values(-7966,-7966,-7966,'Refund contract rate',20000,true,'standard',24);
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status,cancellation_snapshot)
 values(-7967,-7966,-7966,'refund-guest',current_date+6,current_date+7,1,20000,'confirmed','paid',jsonb_build_object('refundable',false)),
 (-7968,-7966,-7966,'refund-guest',current_date+8,current_date+9,1,20000,'confirmed','paid',jsonb_build_object('refundable',true,'deadline',now()-interval '1 second')),
@@ -28,6 +28,14 @@ values('accommodation_arrival_issue_window',99003,'{"default_hours":2,"minimum_h
  'active',now()-interval '1 minute','reviewed','Rollback-only cancellation fixture','hotel-refund-contract');
 update public.hotels set approved_at=now(),published_at=now(),timezone='Africa/Lagos',check_in_time='14:00' where hotel_id=-7966;
 set local session_replication_role=origin;
+-- This fixture constructs the paid Payment Protection row directly rather than through the charge gateway.
+-- Start with no unrelated finance command attached to it; cancellation must create the sole refund obligation.
+delete from public.financial_action_outbox where payment_protection_id='79666666-1000-4000-8000-000000000001';
+do $$ begin
+ if (select count(*) from public.financial_action_outbox where payment_protection_id='79666666-1000-4000-8000-000000000001')<>0 then
+  raise exception 'Hotel cancellation fixture contains a pre-existing finance action';
+ end if;
+end $$;
 select set_config('request.jwt.claim.sub','79666666-0000-4000-8000-000000000003',true);
 set local role authenticated;
 do $$ begin
@@ -43,15 +51,15 @@ do $$ declare id integer; begin
   exception when others then if sqlerrm<>'This booking requires WeHouse cancellation review' then raise; end if; end;
  end loop;
 end $$;
+select public.cancel_my_hotel_booking(-7966);
 do $$ declare q jsonb; booked jsonb; expected timestamptz; begin
  q:=public.quote_hotel_room_rate(-7966,-7966,-7966,current_date+12,current_date+14);
  expected:=((current_date+11+time '14:00') at time zone 'Africa/Lagos');
- if (q->>'cancellation_deadline')::timestamptz is distinct from expected then raise exception 'Hotel-local quote deadline wrong'; end if;
+ if (q->>'cancellation_deadline')::timestamptz is distinct from expected then raise exception 'Hotel-local quote deadline wrong: actual %, expected %',(q->>'cancellation_deadline')::timestamptz,expected; end if;
  select to_jsonb(x) into booked from public.create_my_hotel_booking_with_rate(-7966,-7966,-7966,current_date+12,current_date+14,1,'Refund Guest','08000000000',null) x;
  if (booked->'cancellation_snapshot'->>'deadline')::timestamptz is distinct from expected then raise exception 'Booking did not snapshot local deadline'; end if;
  perform public.cancel_my_hotel_booking((booked->>'booking_id')::integer);
 end $$;
-select public.cancel_my_hotel_booking(-7966);
 select public.cancel_my_hotel_booking(-7966);
 do $$ declare v jsonb; begin
  select x into v from jsonb_array_elements(public.get_my_hotel_bookings()) x where (x->>'booking_id')::integer=-7966;

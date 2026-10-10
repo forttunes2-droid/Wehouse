@@ -8,11 +8,13 @@ free_gb=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
 required_gb=100
 if [[ "${WEHOUSE_CAPACITY_PRESET:-full}" == requested ]]; then required_gb=8; fi
 if [[ "${WEHOUSE_CAPACITY_PRESET:-full}" == launch ]]; then required_gb=16; fi
+if [[ "${WEHOUSE_CAPACITY_PRESET:-full}" == large ]]; then required_gb=45; fi
 if (( free_gb < required_gb )); then echo "Need at least ${required_gb} GB free on disposable runner; found ${free_gb} GB" >&2; exit 1; fi
 case "${WEHOUSE_CAPACITY_PRESET:-full}" in
   requested) homes=500000; hotels=50000; profiles=50000 ;;
   launch) homes=500000; hotels=500000; profiles=500000 ;;
   million) homes=1000000; hotels=1000000; profiles=1000000 ;;
+  large) homes=7000000; hotels=0; profiles=6000000 ;;
   full) homes=3000000; hotels=4000000; profiles=20000000 ;;
   *) echo "Unknown catalog preset" >&2; exit 1 ;;
 esac
@@ -27,8 +29,7 @@ seed() {
   done
 }
 seed homes "$homes"
-seed hotels "$hotels"
-seed rooms "$hotels"
+if (( hotels > 0 )); then seed hotels "$hotels"; seed rooms "$hotels"; fi
 seed profiles "$profiles"
 docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'analyze public.listings; analyze public.hotels; analyze public.hotel_rooms; analyze public.profiles;'
 docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -Atc "select (select count(*) from public.listings where listing_id like 'load-home-scale-%'),(select count(*) from public.hotels where hotel_id between -5000000 and -1000001),(select count(*) from public.profiles where user_id like 'load-user-%')" | grep -x "${homes}|${hotels}|${profiles}"

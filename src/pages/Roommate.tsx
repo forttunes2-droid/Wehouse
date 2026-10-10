@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   checkSearchExpiry,
+  cancelRoommateInterest,
   getReceivedRoommateInterests,
   getSavedMatchResults,
   refreshRoommateSearch,
@@ -294,6 +295,18 @@ export default function RoommateWorkspace({
     status: "accepted" | "viewed",
   ) {
     if (interestBusy) return;
+    if (status === "viewed" && match.status === "accepted" && !match.mutual_accepted && !match.conversation_id) {
+      setInterestBusy(match.id);
+      const { error } = await cancelRoommateInterest(match.id);
+      setInterestBusy(null);
+      if (error) return toast.error(error.message || "Roommate request could not be cancelled");
+      const latest = await load();
+      if (latest.some(row => row.id === match.id && (row.mutual_accepted || row.conversation_id))) {
+        return toast.error("This request has already become a match. Your connection was preserved.");
+      }
+      toast.success("Roommate request cancelled. No match or conversation was created.");
+      return;
+    }
     setInterestBusy(match.id);
     if (status === "accepted") {
       setMatches((current) => current.map((row) => row.id === match.id ? { ...row, status: "accepted" } : row));
@@ -653,7 +666,7 @@ function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onI
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[var(--wh-text-muted)]" aria-label={`Open ${name} profile`}>›</button>
       </div>
-      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<div className="flex min-h-10 flex-1 items-center rounded-xl border border-violet-400/15 px-3 text-sm font-semibold text-violet-200">Waiting for {name} to accept</div>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Skip</button></>}</div>
+      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 flex-1 rounded-xl border border-violet-400/25 px-4 text-sm font-semibold text-violet-200 disabled:opacity-45">{busyId===row.id?"Cancelling…":"Cancel request"}</button>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Skip</button></>}</div>
     </article>;
   })}</div>;
 }
@@ -662,7 +675,7 @@ function RoommateProfileSheet({row,schoolFilter,busy,onClose,onChat,onInterest}:
   const p=row.matched_profile,score=row.match_score;
   const connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
   const highlights=p.match_highlights || [];
-  return <RoommatePublicProfile context="discovery" person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score ?? undefined} matchLabel={roommateScoreLabel(score,p.compared_answers)} highlights={highlights} discuss={p.discuss_before_deciding} comparedAnswers={p.compared_answers} primaryAction={connected?<button type="button" disabled={busy} onClick={()=>void onChat?.(row)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Opening…":"Message"}</button>:sent?<button type="button" disabled className="h-12 w-full rounded-2xl border border-violet-400/15 text-xs font-semibold text-violet-200 opacity-80">Request pending</button>:<button type="button" disabled={busy} onClick={()=>void onInterest(row,"accepted")} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Sending…":"Connect"}</button>}/>;
+  return <RoommatePublicProfile context="discovery" person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score ?? undefined} matchLabel={roommateScoreLabel(score,p.compared_answers)} highlights={highlights} discuss={p.discuss_before_deciding} comparedAnswers={p.compared_answers} primaryAction={connected?<button type="button" disabled={busy} onClick={()=>void onChat?.(row)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busy} onClick={()=>void onInterest(row,"viewed")} className="h-12 w-full rounded-2xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-45">{busy?"Cancelling…":"Cancel request"}</button>:<button type="button" disabled={busy} onClick={()=>void onInterest(row,"accepted")} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Sending…":"Connect"}</button>}/>;
 }
 
 function ReceivedInterests({

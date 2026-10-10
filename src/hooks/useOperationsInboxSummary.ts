@@ -1,9 +1,8 @@
 import { useInboxRefresh } from "./useInboxRefresh";
 import { useCallback, useEffect, useState } from "react";
-import { activityIsCurrent } from "@/lib/activityFeed";
+import { activityIsCurrent, currentActivityRows, visibleUnreadActivityCount } from "@/lib/activityFeed";
 import {
   getCanonicalActivity,
-  getCanonicalActivitySummary,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
@@ -26,10 +25,7 @@ export function useOperationsInboxSummary(
       queue
         ? getSupportInbox(queue)
         : Promise.resolve({ conversations: [], error: null }),
-      Promise.all([
-        getCanonicalActivitySummary(activityScope),
-        getCanonicalActivity(activityScope, 1),
-      ]),
+      getCanonicalActivity(activityScope, 100),
       getAnnouncementsForUser(userId, activityScope),
     ]);
     if (!isCurrent()) return;
@@ -42,10 +38,10 @@ export function useOperationsInboxSummary(
       );
     }
 
-    const [activitySummary, activityFeed] = events;
+    const activityFeed = events;
     const currentEvents = activityFeed.error
       ? []
-      : activityFeed.rows.map((row) => ({ ...row, source: "event" as const }));
+      : currentActivityRows(activityFeed.rows.filter((row) => row.workspace && row.workspace.length > 0)).map((row) => ({ ...row, source: "event" as const }));
     const currentAnnouncements = (announcements.messages || []).filter(
       (delivery: any) => {
         const announcement = Array.isArray(delivery.announcements)
@@ -59,8 +55,10 @@ export function useOperationsInboxSummary(
       },
     );
 
-    if (!activitySummary.error || !announcements.error) {
-      const eventUnread = activitySummary.error ? 0 : activitySummary.summary.unread;
+    // Keep the last complete count if either source failed; zero is not evidence
+    // that a failed Activity read is empty.
+    if (!activityFeed.error && !announcements.error) {
+      const eventUnread = activityFeed.error ? 0 : visibleUnreadActivityCount(activityFeed.rows, activityScope);
       const unreadAnnouncements = currentAnnouncements.filter(
         (delivery: any) => !delivery.read_status,
       );

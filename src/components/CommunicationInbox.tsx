@@ -143,6 +143,7 @@ const items = useMemo<InboxItem[]>(() => [
 
   return (
     <div className="min-h-[65dvh]">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-5 lg:px-8">
       {!hostingOnly ? <InboxActivityEntry unread={activityUnread} detail="Property, booking, payment and official updates" onOpen={() => setShowActivity(true)} /> : null}
       <section className="pt-1">
         <div className="mb-3 flex items-center justify-between">
@@ -167,6 +168,7 @@ const items = useMemo<InboxItem[]>(() => [
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

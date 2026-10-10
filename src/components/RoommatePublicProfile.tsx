@@ -55,12 +55,12 @@ export default function RoommatePublicProfile({
       {!conversationMode && <>
         {(hasScore || highlights.length > 0 || discuss.length > 0) && <section className="border-t border-[var(--wh-border-subtle)] py-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Preference match</h2>
-            {hasScore && <p className="text-right text-sm text-[var(--wh-text-secondary)]"><strong className="font-semibold text-violet-300">{score}%</strong> similarity{comparedAnswers ? <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">{comparedAnswers} answers compared</span> : null}</p>}
+            <h2 className="text-base font-semibold">How your plans line up</h2>
+            {hasScore && <p className="text-right text-sm text-[var(--wh-text-secondary)]"><strong className="font-semibold text-violet-300">{score}%</strong> {matchLabel || "preference fit"}{comparedAnswers ? <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">{comparedAnswers} preferences compared</span> : null}</p>}
           </div>
           {highlights.length > 0 && <ul className="mt-4 space-y-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{highlights.map(item => <li key={item} className="flex gap-2"><span aria-hidden="true" className="text-violet-300">✓</span><span>{item}</span></li>)}</ul>}
           {discuss.length > 0 && <div className="mt-4 border-l-2 border-violet-400/60 pl-3 text-sm leading-6 text-[var(--wh-text-secondary)]"><h3 className="font-medium text-[var(--wh-text)]">Discuss before deciding</h3>{discuss.map(item => <p key={item}>{item}</p>)}</div>}
-          <details className="mt-3 text-sm text-[var(--wh-text-muted)]"><summary className="w-fit cursor-pointer py-3">How matching works</summary><p className="pb-2 leading-6">Similarity compares answered preferences, not the chance that living together will succeed. Unanswered choices do not count as agreement.</p></details>
+          <details className="mt-3 text-sm text-[var(--wh-text-muted)]"><summary className="w-fit cursor-pointer py-3">How matching works</summary><p className="pb-2 leading-6">This compares the practical preferences you both answered. It is not a prediction that living together will succeed, and unanswered choices are not treated as agreement.</p></details>
         </section>}
         {Boolean(person.preferredArea || person.school || person.occupation) && <section className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
           {person.preferredArea && <Detail label="Preferred area" value={person.preferredArea} />}
@@ -72,8 +72,20 @@ export default function RoommatePublicProfile({
     </PublicProfileSurface>}
     {/* Keep the originating info screen mounted: Back restores that exact step,
         with the same permission-filtered person data, rather than starting over. */}
-    {fullProfile ? <RoommatePublicProfile person={person} score={score} matchLabel={matchLabel} highlights={highlights} discuss={discuss} comparedAnswers={comparedAnswers}
-      onClose={() => setFullProfile(false)} /> : null}
+    {fullProfile ? <RoommatePublicProfile
+      person={person}
+      score={score}
+      matchLabel={matchLabel}
+      highlights={highlights}
+      discuss={discuss}
+      comparedAnswers={comparedAnswers}
+      presence={presence}
+      actions={actions}
+      footer={footer}
+      primaryAction={primaryAction}
+      context="discovery"
+      onClose={() => setFullProfile(false)}
+    /> : null}
   </>;
 }
 function Detail({ label, value }: { label: string; value: string }) {

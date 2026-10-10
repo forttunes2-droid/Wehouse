@@ -1,5 +1,6 @@
-import { CHAT_MEDIA_ACCEPT, CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
+import { CHAT_MEDIA_ONLY_MESSAGE } from "@/lib/chatMediaPolicy";
 import { PendingMessageMedia } from "@/components/MessageMedia";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -90,8 +91,7 @@ export default function SupportChat({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const firstSendAttemptRef = useRef<{
+    const firstSendAttemptRef = useRef<{
     draftId: string;
     content: string;
     context: SupportOpenContext;
@@ -154,7 +154,6 @@ export default function SupportChat({
       return true;
     });
     setFiles((current) => [...current, ...allowed].slice(0, 6));
-    if (fileRef.current) fileRef.current.value = "";
   }
 
   const loadMessages = useCallback(async (id: string, quiet = false, request = requestRef.current) => {
@@ -601,34 +600,7 @@ export default function SupportChat({
           <PendingMessageMedia files={files} disabled={sending || Boolean(firstSendAttemptRef.current)} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
 
           <div className="flex items-end gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              hidden
-              multiple
-              accept={CHAT_MEDIA_ACCEPT}
-              onChange={(event) => addFiles(event.target.files)}
-            />
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
-              aria-label="Add photo or video"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m20.5 11.5-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.7 9.7a2 2 0 0 1-2.8-2.8l8.9-8.9" />
-              </svg>
-            </button>
+            <ChatAttachmentPicker onFiles={addFiles} disabled={caseLocked || loading || Boolean(loadError) || sending || Boolean(firstSendAttemptRef.current)} />
             <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/35">
               <textarea
                 ref={inputRef}

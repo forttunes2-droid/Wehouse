@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
 import MediaPagingActions from "./MediaPagingActions";
 import VideoPlayer from "./VideoPlayer";
@@ -134,23 +135,25 @@ export default function PropertyMediaCarousel({
       </section>
       {fullscreen && createPortal(
         <div ref={dialogRef} tabIndex={-1}
-          className="fixed inset-0 z-[100200] flex h-[100svh] flex-col bg-black"
+          className="wh-media-viewer fixed inset-0 z-[100200] flex h-[100svh] flex-col bg-black"
           role="dialog"
           aria-modal="true"
           aria-label={`${title} media viewer`}
         >
-          <header className="flex min-h-14 shrink-0 items-center justify-between px-4 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]">
-            <span className="text-xs text-white/70">
-              {activeIndex + 1} of {items.length} · {items[activeIndex]?.kind}
-            </span>
+          <header className="flex min-h-16 shrink-0 items-center gap-2 border-b border-white/10 bg-black/85 px-3 pb-2 pt-[max(.5rem,env(safe-area-inset-top))] backdrop-blur-xl">
             <button
               type="button"
               onClick={closeFullscreen}
-              className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-xl"
-              aria-label="Close media viewer"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
+              aria-label="Back from media viewer"
             >
-              ×
+              <ArrowLeft size={21} />
             </button>
+            <div className="min-w-0 flex-1 px-1">
+              <p className="truncate text-sm font-semibold text-white">{title}</p>
+              <p className="mt-0.5 text-xs text-white/55">{activeIndex + 1} of {items.length} · {items[activeIndex]?.kind}</p>
+            </div>
+
           </header>
           <div
             ref={fullscreenRailRef}
@@ -164,7 +167,7 @@ export default function PropertyMediaCarousel({
                   ),
                 );
             }}
-            className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain bg-black scrollbar-hide"
+            className="wh-media-stage flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain bg-black scrollbar-hide"
           >
             {items.map((item, index) => (
               <div

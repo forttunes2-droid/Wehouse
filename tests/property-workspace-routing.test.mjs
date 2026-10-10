@@ -4,14 +4,19 @@ import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
 const read = path => fs.readFileSync(path, 'utf8');
-const load = path => {
+const load = (path, dependencies = {}) => {
   const exports = {};
-  vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, Intl, Date });
+  const requireDependency = name => {
+    if (Object.prototype.hasOwnProperty.call(dependencies, name)) return dependencies[name];
+    throw new Error(`Unexpected dependency ${name} while loading ${path}`);
+  };
+  vm.runInNewContext(ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, require: requireDependency, Intl, Date });
   return exports;
 };
 const plain = value => JSON.parse(JSON.stringify(value));
 const nav = load('src/lib/propertyNavigation.ts');
-const activity = load('src/lib/activityFeed.ts');
+const activityWorkspace = load('src/lib/activityWorkspace.ts');
+const activity = load('src/lib/activityFeed.ts', { './activityWorkspace': activityWorkspace });
 
 test('property record keys preserve hotel/listing/inspection identity without numeric collisions', () => {
   const row = { id: 'inspection-a', lifecycle_stage: 'live', draft_hotel_id: 7, draft_listing_id: 'listing-b', hotel: { hotel_id: 7 } };
@@ -40,6 +45,27 @@ test('cancelled unpaid stays do not request payment or conceal genuine refunds a
   assert.equal(nav.hotelPaymentLabel('cancelled', 'refunded'), 'Refunded');
   assert.equal(nav.hotelPaymentLabel('confirmed', 'paid'), 'Payment verified');
   assert.equal(nav.hotelPaymentLabel('pending', 'unpaid'), 'Awaiting payment');
+});
+
+test('resource invitation responses have a useful label and route to the inviter\'s workspace', () => {
+  const propertyResponse = {
+    type: 'resource_invitation_response',
+    source_type: 'resource_invitation',
+    source_id: 'invite-property',
+    destination_route: 'property_partner',
+    destination_params: { invitation_id: 'invite-property', resource_type: 'property', resource_id: 'listing-9' },
+  };
+  const hotelResponse = {
+    type: 'resource_invitation_response',
+    source_type: 'resource_invitation',
+    source_id: 'invite-hotel',
+    destination_route: 'property-owner',
+    destination_params: { invitation_id: 'invite-hotel', resource_type: 'hotel', resource_id: '17' },
+  };
+  assert.equal(activity.activityDestinationLabel(propertyResponse), 'View team invitation response');
+  assert.equal(activity.activityDestinationLabel(hotelResponse), 'View team invitation response');
+  assert.deepEqual(plain(activity.resolveActivityDestination(propertyResponse)), { route: 'property_partner' });
+  assert.deepEqual(plain(activity.resolveActivityDestination(hotelResponse)), { route: 'hotel_detail', id: '17' });
 });
 
 test('hotel lifecycle Activity keeps the exact booking and parent regardless of legacy destination', () => {

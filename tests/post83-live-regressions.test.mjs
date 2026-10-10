@@ -61,3 +61,17 @@ test("coordinated release starts after the verified PR83 production boundary", (
   assert.match(release, /20260921235500/);
   assert.match(release, /Partial post-baseline rollout detected/);
 });
+
+test("Discovery filters fully cover the discovery page and isolate background interaction", () => {
+  const shell = read("src/components/DiscoveryShell.tsx");
+  const isolation = read("src/lib/dialogIsolation.ts");
+  const interaction = read("src/hooks/useDialogInteraction.ts");
+  assert.match(shell, /fixed inset-0 z-\[100000\][\s\S]*overflow-hidden/);
+  assert.match(shell, /aria-hidden="true" className="absolute inset-0 bg-black\/70"/);
+  assert.match(shell, /relative z-10 flex h-\[100dvh\] w-full/);
+  assert.match(shell, /aria-modal="true"/);
+  assert.match(interaction, /isolateDialog\(root\)/);
+  assert.match(interaction, /isTopDialog\(root\)/);
+  assert.match(isolation, /child\.inert = child !== top\.root/);
+  assert.match(isolation, /doc\.body\.style\.overflow = 'hidden'/);
+});

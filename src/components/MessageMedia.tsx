@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import {  ImageOff, Images, Mic, Play, Video, X } from 'lucide-react';
+import { Download, FileText, ImageOff, Images, Mic, Play, Video, X } from 'lucide-react';
 import MediaViewer from '@/components/MediaViewer';
 import VoiceNotePlayer from '@/components/VoiceNotePlayer';
-import { attachmentSize, messageAttachmentKind, usableAttachmentUrl, type MessageAttachment } from '@/lib/messageAttachment';
+import { attachmentFileLabel, attachmentSize, messageAttachmentKind, usableAttachmentUrl, type MessageAttachment } from '@/lib/messageAttachment';
 import './message-attachments.css';
 
 export function AttachmentState({ error = false, onRetry }: { error?: boolean; onRetry?: () => void }) {
@@ -32,14 +32,19 @@ export default function MessageMedia({ items }: { items: MessageAttachment[] }) 
     {visual.length > 0 && <div className="wh-media-grid" data-count={Math.min(visual.length, 4)}>{visual.slice(0, 4).map((item, index) => <button
       key={`${item.url}-${index}`} type="button" data-message-swipe-surface="true" className="wh-media-tile" aria-label={`Open ${item.kind === 'image' ? 'photo' : 'video'} ${index + 1} of ${visual.length}`}
       onClick={event => { event.stopPropagation(); setOpened(item.url); }}>
-      {item.kind === 'image' ? <Photo key={item.url} url={item.url} /> : <span className="wh-media-play"><Play size={22} aria-hidden="true" /></span>}
+      {item.kind === 'image' ? <Photo key={item.url} url={item.url} /> : <span className="wh-media-video-preview"><video src={item.url} muted playsInline preload="metadata" aria-hidden="true" /><span className="wh-media-play"><Play size={20} fill="currentColor" aria-hidden="true" /></span></span>}
       {index === 3 && visual.length > 4 && <span className="wh-media-count">+{visual.length - 4}</span>}
     </button>)}</div>}
     {safe.map((item, index) => {
       const kind = messageAttachmentKind(item.type, item.url);
       if (kind === 'audio') return <div key={`${item.url}-${index}`} className="wh-media-audio"><VoiceNotePlayer url={item.url} /></div>;
       if (kind !== 'file') return null;
-      return <p key={`${item.url}-${index}`} className="wh-attachment-state text-sm" role="note">Documents are not supported in chat.</p>;
+      const label = attachmentFileLabel(item);
+      return <a key={`${item.url}-${index}`} href={item.url} download={label} target="_blank" rel="noreferrer" className="wh-attachment-file" aria-label={`Open document ${label}`}>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-200"><FileText size={21} aria-hidden="true" /></span>
+        <span><strong>{label}</strong><small>{item.type?.split(';')[0] || 'Document'} · Private attachment</small></span>
+        <Download size={18} className="shrink-0 text-violet-200" aria-hidden="true" />
+      </a>;
     })}
     {safe.length !== items.length && <AttachmentState error />}
     {openedIndex >= 0 && <MediaViewer items={visual} initialIndex={openedIndex} title="Shared media" onClose={() => setOpened(null)} />}

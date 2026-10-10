@@ -224,7 +224,10 @@ export default function DesktopLayout({
   }
 
   const accountItem = dashboardOwnsAccount ? undefined : navItems.find((item) => item.id === 'profile');
-  const showWorkspaceBottom = workspaceRoot && workspaceTabs.length > 0;
+  // Immersive nested screens such as Inbox Activity hide the mobile workspace rail
+  // for every operational role, matching the personal Inbox experience. Desktop
+  // navigation remains available in the persistent sidebar.
+  const showWorkspaceBottom = workspaceRoot && workspaceTabs.length > 0 && !nestedScreen;
 
   return (
     <div className="flex min-h-[100dvh] min-w-0 bg-[var(--wh-bg)]">

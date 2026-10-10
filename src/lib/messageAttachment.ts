@@ -32,7 +32,11 @@ export function attachmentFileLabel(item: MessageAttachment): string {
   // Never show storage paths, signed query strings or encryption metadata as a filename.
   if (item.name?.trim()) return item.name.trim().split(/[\\/]/).at(-1)!.slice(0, 120);
   const mime = item.type?.toLowerCase().split(';')[0].trim();
-  if (mime === 'application/pdf' || /\.pdf(?:[?#]|$)/i.test(item.url)) return 'PDF document';
+  const pathName = item.url.split(/[?#]/)[0];
+  const extension = pathName.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
+  if (mime === 'application/pdf' || extension === 'pdf') return 'PDF document';
+  if (extension) return `${extension.toUpperCase()} document`;
+  if (mime?.startsWith('text/')) return 'Text document';
   return 'Document';
 }
 export function attachmentSize(bytes: number): string {

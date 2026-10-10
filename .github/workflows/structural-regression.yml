@@ -1,0 +1,31 @@
+name: WeHouse structural regression
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+
+concurrency:
+  group: wehouse-structural-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Regression contracts
+        run: npm test
+      - name: TypeScript and production build
+        run: npm run build
+# CI ref recovery: harmless comment; keeps workflow behavior unchanged.

@@ -89,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v ffmpeg >/dev/null 2>&1; then
-            timeout 120s sudo apt-get install -y ffmpeg
+            timeout 300s sudo apt-get install -y --no-install-recommends ffmpeg
           fi
           ffmpeg -version >/dev/null
       - name: Capture Account phone screens and verify workspace tab motion

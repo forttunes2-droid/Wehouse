@@ -26,13 +26,23 @@ const buildVersion = releaseVersion()
 const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: false }, null, 2)}\n`
 const updateWorker = `// WeHouse release ${buildVersion}
 const RELEASE = ${JSON.stringify(buildVersion)};
+const OFFLINE_URL = '/offline.html';
+const CACHE_NAME = 'wehouse-offline-' + RELEASE;
 
 self.addEventListener('install', function (event) {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(function (cache) { return cache.add(OFFLINE_URL); })
+      .then(function () { return self.skipWaiting(); })
+  );
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.filter(function (key) { return key !== CACHE_NAME; }).map(function (key) { return caches.delete(key); }));
+    }).then(function () { return self.clients.claim(); })
+  );
 });
 
 self.addEventListener('fetch', function (event) {
@@ -40,7 +50,11 @@ self.addEventListener('fetch', function (event) {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).catch(function () {
+        return caches.match(OFFLINE_URL);
+      })
+    );
   }
 });
 

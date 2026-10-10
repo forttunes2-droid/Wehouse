@@ -5,9 +5,26 @@ export { prepareChatImageFile } from "@/lib/supabase/utils";
 export const CHAT_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export const CHAT_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
 export const CHAT_VOICE_TYPES = ['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/x-wav'] as const;
+export const CHAT_DOCUMENT_TYPES = [
+  'application/pdf', 'application/msword', 'application/rtf',
+  'application/vnd.ms-word', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip', 'application/json', 'application/xml', 'text/plain', 'text/csv', 'text/markdown',
+] as const;
 export const CHAT_MEDIA_ACCEPT = [...CHAT_PHOTO_TYPES, ...CHAT_VIDEO_TYPES].join(',');
+export const CHAT_DOCUMENT_ACCEPT = '*/*';
 export const CHAT_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
-export const CHAT_MEDIA_ONLY_MESSAGE = 'Choose a photo or video. Document and audio-file uploads are not supported.';
+export type ChatAttachmentSource = "media" | "document" | "camera";
+export function isSelectableChatAttachment(file: Pick<File, "type" | "size">, source: ChatAttachmentSource): boolean {
+  if (file.size <= 0 || file.size > CHAT_MEDIA_MAX_BYTES) return false;
+  // Picker labels are a product contract, not just OS hints. A crafted file input
+  // must not turn the Photos & videos action into a document-upload route.
+  return source === "document" ? isChatDocumentType(file.type) : isChatVisualType(file.type);
+}
+
+export const CHAT_MEDIA_ONLY_MESSAGE = 'Choose a supported photo, video or document (up to 25MB).';
 const recordedNotes = new WeakSet<Blob>();
 export const normaliseChatMediaType = (value: string) => value.toLowerCase().split(';', 1)[0].trim();
 export function isChatVisualType(type: string): boolean {
@@ -16,8 +33,15 @@ export function isChatVisualType(type: string): boolean {
 export function isChatVoiceType(type: string): boolean {
   return CHAT_VOICE_TYPES.some(value => value === normaliseChatMediaType(type));
 }
+export function isChatDocumentType(type: string): boolean {
+  const normalized = normaliseChatMediaType(type);
+  return CHAT_DOCUMENT_TYPES.some(value => value === normalized) || (normalized.startsWith('text/') && normalized !== 'text/html');
+}
+export function isChatAttachmentType(type: string, allowVoice = false): boolean {
+  return isChatVisualType(type) || isChatDocumentType(type) || (allowVoice && isChatVoiceType(type));
+}
 export function isSelectableChatMedia(file: Pick<File, 'type' | 'size'>): boolean {
-  return isChatVisualType(file.type) && file.size > 0 && file.size <= CHAT_MEDIA_MAX_BYTES;
+  return isChatAttachmentType(file.type) && file.size > 0 && file.size <= CHAT_MEDIA_MAX_BYTES;
 }
 /** Recorder provenance within this client, not a claim that a hostile client is trusted. */
 export function markRecordedVoiceNote<T extends Blob>(file: T): T {
@@ -38,10 +62,10 @@ const extensions: Record<string, string[]> = {
  */
 export async function validateMessageMedia(blob: Blob, metadata: { type: string; name?: string }, allowVoice = true): Promise<void> {
   const type = normaliseChatMediaType(metadata.type);
-  if (!isChatVisualType(type) && !(allowVoice && isChatVoiceType(type))) throw new Error(CHAT_MEDIA_ONLY_MESSAGE);
+  if (!isChatAttachmentType(type, allowVoice)) throw new Error(CHAT_MEDIA_ONLY_MESSAGE);
   if (!blob.size || blob.size > CHAT_MEDIA_MAX_BYTES) throw new Error('Photos, videos and voice notes must be 25MB or smaller and cannot be empty.');
   const name = metadata.name || '';
-  if (name && (/[\\/]/.test(name) || Array.from(name).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) || !extensions[type]?.includes(name.split('.').at(-1)!.toLowerCase()))) {
+  if (name && (/[\\/]/.test(name) || Array.from(name).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) || (!isChatDocumentType(type) && !extensions[type]?.includes(name.split('.').at(-1)!.toLowerCase())))) {
     throw new Error('The attachment name does not match its media type.');
   }
   const bytes = new Uint8Array(await blob.slice(0, 4096).arrayBuffer());
@@ -54,7 +78,15 @@ export async function validateMessageMedia(blob: Blob, metadata: { type: string;
   else if (type === 'audio/ogg') valid = ascii(bytes, 0, 4) === 'OggS';
   else if (type === 'audio/wav' || type === 'audio/x-wav') valid = ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 12) === 'WAVE';
   else if (['video/mp4', 'video/quicktime', 'audio/mp4'].includes(type)) valid = bytes.length >= 16 && ascii(bytes, 4, 8) === 'ftyp';
-  if (!valid) throw new Error('This attachment is not a supported photo, video or voice recording.');
+  else if (isChatDocumentType(type)) {
+    // Documents are kept private and are never executed by WeHouse. Validate the strongest
+    // cheap signatures where one exists; text/CSV/JSON/XML/RTF are content-addressed by type.
+    valid = type === 'application/pdf' ? ascii(bytes, 0, 5) === '%PDF-' :
+      ['application/zip','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.presentationml.presentation'].includes(type)
+        ? ascii(bytes, 0, 2) === 'PK'
+        : true;
+  }
+  if (!valid) throw new Error('This attachment is not a supported photo, video, document or voice recording.');
 }
 export async function validateChatUpload(file: File, allowVoice = true): Promise<void> {
   if (isChatVoiceType(file.type) && (!allowVoice || !recordedNotes.has(file))) {

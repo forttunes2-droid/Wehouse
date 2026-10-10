@@ -12,8 +12,8 @@ values(-19000001,'Capacity price contract A','Nasarawa','Capacity contract','Syn
 (-19000002,'Capacity price contract B','Nasarawa','Capacity contract','Synthetic','capacity-price-contract-owner','active',now(),now());
 insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms)
 values(-19100001,-19000001,'Synthetic',100,10),(-19100002,-19000002,'Synthetic',100,10);
-insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,price_per_night,active)
-values(-19200001,-19000001,-19100001,'Synthetic price override','room_only','pay_now',false,200,true);
+insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,cancellation_template,price_per_night,active)
+values(-19200001,-19000001,-19100001,'Synthetic price override','room_only','pay_now',false,'standard',200,true);
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"role":"anon"}',true);
 set local role anon;

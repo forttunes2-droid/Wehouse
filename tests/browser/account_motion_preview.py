@@ -28,9 +28,9 @@ async def main():
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Appearance',exact=False).click()
   await expect(page.get_by_role('heading',name='Appearance')).to_be_visible()
-  await page.get_by_role('switch').click()
+  await page.get_by_role('radio', name='Light Bright and clean').click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
-  await expect(page.get_by_role('switch')).to_have_attribute('aria-checked','false')
+  await expect(page.get_by_role('radio', name='Light Bright and clean')).to_have_attribute('aria-checked','true')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='light'
   await page.screenshot(path=str(OUT/'account-appearance-light-390.png'),full_page=True)
   await page.get_by_role('button',name='Back').click()
@@ -49,7 +49,7 @@ async def main():
   await page.get_by_role('button',name='Back').click()
   await page.get_by_role('button',name='Appearance',exact=False).click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','light')
-  await page.get_by_role('switch').click()
+  await page.get_by_role('radio', name='Dark Low-light friendly').click()
   await expect(page.locator('html')).to_have_attribute('data-wh-theme','dark')
   assert await page.evaluate('localStorage.getItem("wehouse:appearance")')=='dark'
   print('APPEARANCE_ACCOUNT_LIGHT_DARK=passed',flush=True)

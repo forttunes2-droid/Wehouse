@@ -149,8 +149,9 @@ do $$ declare c uuid:='88999999-1000-4000-8000-000000000001'; p text:=c::text||'
  id:=public.send_hotel_booking_message(c,'Room photo',array[p||'valid.png'],array['image/png']);
  id:=public.send_hotel_booking_message(c,'Room video',array[p||'clip.mp4'],array['video/mp4']);
  id:=public.send_hotel_booking_message(c,'',array[p||'voice.webm'],array['audio/webm;codecs=opus']);
- foreach f in array array['document.pdf','fake.png','empty.png','large.png','missing.png'] loop
-   t:=case when f='document.pdf' then 'application/pdf' else 'image/png' end;
+ id:=public.send_hotel_booking_message(c,'Document attachment',array[p||'document.pdf'],array['application/pdf']);
+ foreach f in array array['fake.png','empty.png','large.png','missing.png'] loop
+   t:='image/png';
    begin
      perform public.send_hotel_booking_message(c,'Cannot bypass media policy',array[p||f],array[t]);
      raise exception 'Forbidden hotel attachment accepted: %',f;
@@ -164,12 +165,13 @@ do $$ declare c uuid:='88999999-1000-4000-8000-000000000001'; p text:=c::text||'
  perform public.send_hotel_booking_message(c,'Reply to earlier note','{}','{}','88999999-2000-4000-8000-000000000001');
  perform public.mark_hotel_booking_messages_read(c);
 end $$;
--- Support accepts photos/videos but NOT imported files OR voice notes.
+-- Support accepts photos, videos and approved documents, but not voice notes or invalid objects.
 do $$ declare c uuid:=current_setting('wh.media.support')::uuid; p text:=c::text||'/'; f text; t text; r jsonb; begin
  perform public.send_support_message(c,'Photo',array[p||'valid.png'],array['image/png']);
  perform public.send_support_message(c,'Video',array[p||'clip.mp4'],array['video/mp4']);
- foreach f in array array['document.pdf','voice.webm','fake.png','empty.png','large.png','missing.png'] loop
-   t:=case when f='document.pdf' then 'application/pdf' when f='voice.webm' then 'audio/webm' else 'image/png' end;
+ perform public.send_support_message(c,'Document',array[p||'document.pdf'],array['application/pdf']);
+ foreach f in array array['voice.webm','fake.png','empty.png','large.png','missing.png'] loop
+   t:=case when f='voice.webm' then 'audio/webm' else 'image/png' end;
    begin
      perform public.send_support_message(c,'Blocked',array[p||f],array[t]);
      raise exception 'Forbidden support attachment accepted: %',f;
@@ -195,7 +197,9 @@ do $$ begin
  if not exists(select 1 from public.partner_support_messages where id='88999999-2000-4000-8000-000000000002' and attachments=array['legacy.pdf']) then raise exception 'History was deleted or rewritten'; end if;
  if exists(select 1 from storage.buckets where id in('support-files','hotel-chat-files','chat-files') and public) then raise exception 'Chat bucket is public'; end if;
  if not exists(select 1 from storage.buckets where id='chat-files' and allowed_mime_types=array['application/octet-stream'] and file_size_limit=26214416) then raise exception 'Encrypted media bucket lost ciphertext support'; end if;
- if exists(select 1 from storage.buckets b,unnest(b.allowed_mime_types) m where b.id in('support-files','hotel-chat-files') and m like 'application/%') then raise exception 'Plain chat bucket allows documents'; end if;
+ if not exists(select 1 from storage.buckets where id='support-files' and 'application/pdf'=any(allowed_mime_types))
+    or not exists(select 1 from storage.buckets where id='hotel-chat-files' and 'application/pdf'=any(allowed_mime_types)) then
+   raise exception 'Approved document support missing from plain chat buckets'; end if;
  if exists(select 1 from storage.buckets b,unnest(b.allowed_mime_types) m where b.id='support-files' and m like 'audio/%') then raise exception 'Support imported audio enabled'; end if;
  if has_function_privilege('anon','private.guard_chat_media_message()','execute') or has_function_privilege('authenticated','private.guard_chat_media_message()','execute') then raise exception 'Trigger routine exposed as callable API'; end if;
 end $$;

@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -41,9 +42,19 @@ class ProductionAliases(unittest.TestCase):
         ]
 
     def run_plan(self, rows):
+        # Model the complete canonical migration prefix as well as the
+        # timestamp-alias rows under test. The release guard must never be
+        # tested against an alias-only history that cannot represent Production.
+        canonical_rows = [
+            {"version": version,
+             "name": self.paths[version].stem.split("_", 1)[1],
+             "digest": hashlib.md5(self.paths[version].read_bytes()).hexdigest()}
+            for version in self.applied if version in self.paths
+        ]
+        history_rows = canonical_rows + [dict(row) for row in rows]
         def fake_sql(query):
             if "json_build_object('version'" in query:
-                return json.dumps(rows)
+                return json.dumps(history_rows)
             if "json_agg(version" in query:
                 return json.dumps(self.applied)
             raise AssertionError("Plan tried an unexpected database operation")
@@ -81,6 +92,38 @@ class ProductionAliases(unittest.TestCase):
             for remote, local in sorted(release.PRODUCTION_ALIASES.items())
         ]
         self.assertIn("No pending database migrations", self.run_plan(rows))
+
+    def test_statement_representation_exception_is_exact_and_local_ci_only(self):
+        path = self.paths["20260913180000"]
+        self.assertTrue(release.local_ci_statement_representation_mismatch(
+            "20260913180000", path, True
+        ))
+        self.assertFalse(release.local_ci_statement_representation_mismatch(
+            "20260913180000", path, False
+        ))
+        with tempfile.TemporaryDirectory() as directory:
+            changed = Path(directory) / path.name
+            changed.write_bytes(path.read_bytes() + b"-- changed\\n")
+            self.assertFalse(release.local_ci_statement_representation_mismatch(
+                "20260913180000", changed, True
+            ))
+
+    def test_local_ci_accepts_only_exact_transaction_normalized_migration(self):
+        path = self.paths["20260914113621"]
+        normalized = release.migration_body(path.read_text())
+        digest = hashlib.md5(normalized.encode()).hexdigest()
+        self.assertTrue(release.local_ci_normalized_migration_matches(
+            "20260914113621", path, digest, True
+        ))
+        self.assertFalse(release.local_ci_normalized_migration_matches(
+            "20260914113621", path, digest, False
+        ))
+        with tempfile.TemporaryDirectory() as directory:
+            changed = Path(directory) / path.name
+            changed.write_text(path.read_text() + "-- altered content\\n")
+            self.assertFalse(release.local_ci_normalized_migration_matches(
+                "20260914113621", changed, digest, True
+            ))
 
     def test_transaction_rechecks_aliases_and_preserves_history(self):
         sql = release.release_sql([], self.applied, "check", [

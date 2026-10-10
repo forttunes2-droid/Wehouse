@@ -78,7 +78,7 @@ export default function WorkerShowcasePostViewer({ post, workerName, workerAvata
   }
   return createPortal(<div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${workerName} work post`} className="wh-media-immersive fixed inset-0 z-[100200] isolate flex h-[100dvh] flex-col overflow-hidden bg-[#090B10] text-white outline-none"
     onKeyDown={event => { if (commentsOpen || (event.target as HTMLElement).closest("input,textarea,select,button")) return; if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); (event.key === "ArrowDown" ? onNext : onPrevious)?.(); } }}>
-    <header inert={commentsOpen} className="pointer-events-none absolute inset-x-0 top-0 z-10 flex min-h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 bg-gradient-to-b from-black/70 to-transparent px-3 pt-[env(safe-area-inset-top)] sm:px-5">
+    <header inert={commentsOpen} className="pointer-events-none absolute inset-x-0 top-0 z-30 flex min-h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 bg-gradient-to-b from-black/70 to-transparent px-3 pt-[env(safe-area-inset-top)] sm:px-5">
       <div className="pointer-events-auto"><BackButton onClick={dismiss} ariaLabel="Back to work posts" /></div>
       <div className="flex-1" />{ownerActions && <div className="pointer-events-auto flex shrink-0 items-center gap-1">{ownerActions}</div>}
     </header>

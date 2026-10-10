@@ -13,7 +13,7 @@ export default function SecureSupportAttachment({ path, type = '', className = '
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const kind = messageAttachmentKind(type, path);
-  const supported = kind === 'image' || kind === 'video';
+  const supported = kind === 'image' || kind === 'video' || kind === 'file';
   useEffect(() => {
     let active = true; setFailed(false); setUrl(null);
     if (!supported) return;
@@ -35,6 +35,6 @@ export default function SecureSupportAttachment({ path, type = '', className = '
     })();
     return () => { active = false; };
   }, [path, attempt, supported]);
-  if (!supported) return <p className="wh-attachment-state text-sm" role="note">Documents are not supported in chat.</p>;
+  if (!supported) return <p className="wh-attachment-state text-sm" role="note">This attachment type is unavailable.</p>;
   return <div className={className}>{failed ? <AttachmentState error onRetry={() => setAttempt(value => value + 1)} /> : !url ? <AttachmentState /> : <MessageMedia items={[{ url, type }]} />}</div>;
 }

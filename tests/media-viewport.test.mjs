@@ -30,7 +30,7 @@ test('only an unzoomed single-finger horizontal gesture changes the gallery',()=
 test('media viewer owns native Back, focus and dynamic opaque viewport',()=>{
  const s=fs.readFileSync('src/components/MediaViewer.tsx','utf8');
  assert.match(s,/useRecordScreenBack\(props.onClose\)/);assert.match(s,/useDialogInteraction\(dismiss\)/);
- assert.match(s,/useVisualViewportFrame\(dialogRoot\)/);assert.doesNotMatch(s,/100svh|backdrop-blur/);
+ assert.match(s,/useVisualViewportFrame\(dialogRoot\)/);assert.match(s,/100dvh/);assert.match(s,/backdrop-blur/);
  assert.match(s,/ZoomablePhoto key=\{`\$\{index\}:\$\{src\}`\}/);
  assert.doesNotMatch(s,/user-scalable|maximum-scale/);
 });
@@ -65,4 +65,6 @@ test('video and post paging share input ownership with photo gestures and seek c
  assert.match(gesture,/data-photo-stage/);assert.match(gesture,/input,textarea,a,select/);
  assert.match(gesture,/current.pointers.size !== 1/);assert.match(gesture,/start.identity !== identity/);
  assert.match(gesture,/onPointerCancel/);assert.match(gesture,/event.detail > 0/);
+ assert.match(gesture,/--wh-swipe-transform/);assert.match(gesture,/willChange: "transform"/);
+ assert.match(gesture,/setPointerCapture/);assert.match(gesture,/preventDefault/);
 });

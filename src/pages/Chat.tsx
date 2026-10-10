@@ -578,15 +578,13 @@ export default function Chat({
         <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
           <ActivityHeader onBack={() => setView("messages")} className="mx-auto max-w-5xl" />
         </div>
-        <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
-          <Notifications
-            profile={profile}
-            scope="personal"
-            embedded
-            onNavigate={openActivityDestination}
-            onUnreadChange={onActivityUnreadChange}
-          />
-        </main>
+        <Notifications
+          profile={profile}
+          scope="personal"
+          embedded
+          onNavigate={openActivityDestination}
+          onUnreadChange={onActivityUnreadChange}
+        />
       </div>
     );
   }

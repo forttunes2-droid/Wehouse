@@ -29,12 +29,11 @@ import type {
   HotelVenue,
   Profile,
 } from "@/types";
-import WeHouseSelect from "@/components/WeHouseSelect";
 import BackButton from "@/components/BackButton";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import BookingDateField from "@/components/BookingDateField";
 
-type HotelAccessRole = "owner" | "manager" | "front_desk" | "staff";
+type HotelAccessRole = "owner" | "manager" | "front_desk";
 type HotelCapability =
   | "stay.read"
   | "stay.message"
@@ -385,12 +384,15 @@ export default function PartnerHotelOperations({
         ) : null}
       </header>
 
-      <div className="space-y-3">
-        <nav aria-label="Hotel sections" className="grid grid-cols-3 gap-2 border-b border-[var(--wh-border-subtle)]">
-          {sections.filter(item => ["overview", "reservations", "availability"].includes(item.id)).map(item => <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined} onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }} className={`min-h-12 border-b-2 px-1 text-sm font-semibold ${visibleSection === item.id ? "border-violet-400 text-violet-300" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{item.label}</button>)}
-        </nav>
-        <WeHouseSelect value={["rooms", "details", "team"].includes(visibleSection) ? visibleSection : ""} options={[{ value: "", label: "Hotel setup" }, ...sections.filter(item => ["rooms", "details", "team"].includes(item.id)).map(item => ({ value: item.id, label: item.label }))]} onChange={value => { if (value) { setSection(value); setFocusedBooking(undefined); } }} eyebrow="Hotel setup" title="Manage your hotel" ariaLabel="Hotel setup" />
-      </div>
+      <nav aria-label="Hotel sections" className="flex flex-wrap gap-1 border-y border-[var(--wh-border-subtle)] px-1 py-1">
+        {sections.map(item => (
+          <button key={item.id} type="button" aria-current={visibleSection === item.id ? "page" : undefined}
+            onClick={() => { setSection(item.id); if (item.id !== "reservations") setFocusedBooking(undefined); }}
+            className={`min-h-11 rounded-xl px-3 text-xs font-semibold ${visibleSection === item.id ? "bg-violet-500/[.12] text-violet-200" : "text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"}`}>
+            {item.label}
+          </button>
+        ))}
+      </nav>
       {visibleSection === "details" && (hotel.images?.length ? (
         <section className="-mx-4 sm:mx-0">
           <PropertyMediaCarousel images={hotel.images} title={hotel.name} />
@@ -418,14 +420,14 @@ export default function PartnerHotelOperations({
               <div><h3 className="text-sm font-semibold">Today at the hotel</h3><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Arrivals, departures and rooms needing attention.</p></div>
               <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ${metrics.attention ? "bg-amber-500/10 text-amber-200" : "bg-emerald-500/10 text-emerald-300"}`}>{metrics.attention ? `${metrics.attention} needs action` : "Up to date"}</span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {([
                 ["Rooms available", available, "available"],
                 ["Arriving", metrics.arrivals, "arrivals_today"],
                 ["Staying", metrics.staying, "staying"],
                 ["Leaving", metrics.departures, "departures_today"],
                 ["Needs action", metrics.attention, "attention"],
-              ] as const).map(([label, value, filter]) => <button type="button" key={label} onClick={() => openDailyWork(filter)} aria-label={`${label}: ${value}`} className="bg-[var(--wh-bg)] p-4 text-left last:col-span-2 sm:last:col-span-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">{label} <span aria-hidden="true">›</span></p></button>)}
+              ] as const).map(([label, value, filter]) => <button type="button" key={label} onClick={() => openDailyWork(filter)} aria-label={`${label}: ${value}`} className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-left shadow-[0_8px_25px_rgba(0,0,0,.1)] transition hover:border-violet-400/20 last:col-span-2 sm:last:col-span-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"><p className="text-xl font-bold">{value}</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">{label} <span aria-hidden="true">›</span></p></button>)}
             </div>
             <TodayRooms rows={dailyRooms} />
           </section> : null}
@@ -459,7 +461,7 @@ export default function PartnerHotelOperations({
           {visibleSection === "availability" && canManageInventory ? (
             <section id="availability" className="scroll-mt-20">
               <div className="mb-4"><h3 className="text-base font-bold">Availability and daily pricing</h3><p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">Set sellable rooms for a date range. Confirmed reservations and active payment holds are deducted automatically.</p></div>
-              <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {rooms.map((room) => <AvailabilityRow key={room.room_id} room={room} inventory={inventory.find((row) => row.room_id === room.room_id && row.inventory_date === date)} onSaved={() => load(true)} />)}
                 {rooms.length === 0 ? <Empty text="Add a room type before setting availability." /> : null}
               </div>
@@ -662,8 +664,8 @@ function RoomUnitRow({ unit, roomName, editable, onSaved }: { unit: HotelRoomUni
 }
 
 function TodayRooms({ rows }: { rows: Array<{ room: Room } & ReturnType<typeof hotelRoomAvailability>> }) {
-  return <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{rows.map(({ room, occupied, holds, operational, configured, available, closed, setupIncomplete, maintenance }) => (
-    <div key={room.room_id} data-room-availability={room.room_id} className="flex items-center justify-between gap-3 py-3">
+  return <div className="mt-4 grid gap-3 sm:grid-cols-2">{rows.map(({ room, occupied, holds, operational, configured, available, closed, setupIncomplete, maintenance }) => (
+    <div key={room.room_id} data-room-availability={room.room_id} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[0_8px_25px_rgba(0,0,0,.08)]">
       <div><p className="text-xs font-semibold">{room.room_type}</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">{occupied} confirmed/staying · {holds} active hold · {operational}/{configured} operational</p></div>
       <div className="text-right"><p className="text-sm font-bold">{available} sellable</p>{closed ? <p className="text-sm text-amber-300">Sales closed today</p> : setupIncomplete ? <p className="text-sm text-amber-300">Room setup incomplete</p> : maintenance > 0 ? <p className="text-sm text-amber-300">Maintenance reduces capacity</p> : null}</div>
     </div>
@@ -672,7 +674,7 @@ function TodayRooms({ rows }: { rows: Array<{ room: Room } & ReturnType<typeof h
 
 function RoomRow({ room, canEditRoom, canManageRates, onEdit, onRate }: { room: Room; canEditRoom: boolean; canManageRates: boolean; onEdit: () => void; onRate: (plan?: HotelRatePlan) => void }) {
   const plans = room.rate_plans || [];
-  return <article className="py-5"><div className="flex items-start justify-between gap-3"><div><p className="text-base font-semibold">{room.room_type}</p><p className="mt-1 text-sm text-[var(--wh-text-muted)]">{room.total_rooms} units · up to {room.max_guests} guests · {room.bed_type || "Bed not specified"}</p></div>{canEditRoom ? <button onClick={onEdit} className="rounded-full border border-violet-500/20 px-3 py-2 text-sm font-semibold text-violet-300">Edit room</button> : null}</div>{room.images?.length ? <div className="-mx-4 mt-4 sm:mx-0"><PropertyMediaCarousel images={room.images} title={room.room_type} /></div> : <div className="mt-4 grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-[var(--wh-border-subtle)] text-sm text-[var(--wh-text-muted)]">No approved room photos</div>}{room.description ? <p className="mt-4 text-sm leading-5 text-[var(--wh-text-secondary)]">{room.description}</p> : null}{room.amenities?.length ? <div className="mt-3 flex flex-wrap gap-2">{room.amenities.map((item) => <span key={item} className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-sm text-[var(--wh-text-secondary)]">{item}</span>)}</div> : null}<div className="mt-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold">Bookable packages</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Room-only, breakfast, VIP or other clear choices.</p></div>{canManageRates ? <button type="button" onClick={() => onRate()} className="text-sm font-semibold text-violet-300">Add package</button> : null}</div><div className="mt-2 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{plans.map((plan) => <button type="button" key={plan.rate_plan_id} disabled={!canManageRates} onClick={() => onRate(plan)} className="flex w-full items-start justify-between gap-3 py-3 text-left disabled:cursor-default"><span><span className="block text-sm font-semibold">{plan.name}</span><span className="mt-1 block text-sm text-[var(--wh-text-secondary)]">{mealLabel(plan.meal_plan)} · {plan.refundable ? `${plan.cancellation_hours || 0}h cancellation` : "Non-refundable"}</span>{plan.included_features?.length ? <span className="mt-1 block text-sm text-emerald-300">{plan.included_features.join(" · ")}</span> : null}</span><span className="shrink-0 text-right"><span className="block text-sm font-bold text-violet-200">{money(plan.price_per_night)}</span><span className={`mt-1 block text-sm ${plan.active ? "text-emerald-300" : "text-[var(--wh-text-secondary)]"}`}>{plan.active ? "Bookable" : "Hidden"}</span></span></button>)}{plans.length === 0 ? <Empty text="No package is available for this room." /> : null}</div></div></article>;
+  return <article className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[0_8px_25px_rgba(0,0,0,.08)]"><div className="flex items-start justify-between gap-3"><div><p className="text-base font-semibold">{room.room_type}</p><p className="mt-1 text-sm text-[var(--wh-text-muted)]">{room.total_rooms} units · up to {room.max_guests} guests · {room.bed_type || "Bed not specified"}</p></div>{canEditRoom ? <button onClick={onEdit} className="rounded-full border border-violet-500/20 px-3 py-2 text-sm font-semibold text-violet-300">Edit room</button> : null}</div>{room.images?.length ? <div className="-mx-4 mt-4 sm:mx-0"><PropertyMediaCarousel images={room.images} title={room.room_type} /></div> : <div className="mt-4 grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-[var(--wh-border-subtle)] text-sm text-[var(--wh-text-muted)]">No approved room photos</div>}{room.description ? <p className="mt-4 text-sm leading-5 text-[var(--wh-text-secondary)]">{room.description}</p> : null}{room.amenities?.length ? <div className="mt-3 flex flex-wrap gap-2">{room.amenities.map((item) => <span key={item} className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-sm text-[var(--wh-text-secondary)]">{item}</span>)}</div> : null}<div className="mt-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold">Bookable packages</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Room-only, breakfast, VIP or other clear choices.</p></div>{canManageRates ? <button type="button" onClick={() => onRate()} className="text-sm font-semibold text-violet-300">Add package</button> : null}</div><div className="mt-2 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{plans.map((plan) => <button type="button" key={plan.rate_plan_id} disabled={!canManageRates} onClick={() => onRate(plan)} className="flex w-full items-start justify-between gap-3 py-3 text-left disabled:cursor-default"><span><span className="block text-sm font-semibold">{plan.name}</span><span className="mt-1 block text-sm text-[var(--wh-text-secondary)]">{mealLabel(plan.meal_plan)} · {plan.refundable ? `${plan.cancellation_hours || 0}h cancellation` : "Non-refundable"}</span>{plan.included_features?.length ? <span className="mt-1 block text-sm text-emerald-300">{plan.included_features.join(" · ")}</span> : null}</span><span className="shrink-0 text-right"><span className="block text-sm font-bold text-violet-200">{money(plan.price_per_night)}</span><span className={`mt-1 block text-sm ${plan.active ? "text-emerald-300" : "text-[var(--wh-text-secondary)]"}`}>{plan.active ? "Bookable" : "Hidden"}</span></span></button>)}{plans.length === 0 ? <Empty text="No package is available for this room." /> : null}</div></div></article>;
 }
 
 function AvailabilityRow({ room, inventory, onSaved }: { room: Room; inventory?: Inventory; onSaved: () => Promise<void> }) {
@@ -749,6 +751,7 @@ function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat,
 }
 
 type HotelTeamRow = { id: string; member_user_id: string; hotel_role: "manager" | "front_desk"; status: "invited" | "active"; capabilities: HotelCapability[]; name: string; username?: string | null };
+type HotelTeamRecipient = { user_id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null; city?: string | null; state?: string | null };
 const PRIMARY_STAY_FILTERS = [
   { value: "all", label: "All" }, { value: "arrivals_today", label: "Arriving" },
   { value: "staying", label: "Staying" }, { value: "departures_today", label: "Leaving" },
@@ -772,37 +775,97 @@ function HotelReservationFilters({ value, onChange }: { value: string; onChange:
       <div className="grid grid-cols-2 gap-2">{OTHER_STAY_FILTERS.map(item => <button key={item.value} type="button" aria-pressed={value === item.value} onClick={() => { onChange(item.value); setOpen(false); }} className={`${buttonClass(value === item.value)} text-left px-3`}>{item.label}</button>)}</div>
     </Sheet> : null}
   </div>;
-}
-function HotelTeam({ hotelId, grantableCapabilities }: { hotelId: number; grantableCapabilities: HotelCapability[] }) {
-  const [rows, setRows] = useState<HotelTeamRow[]>([]); const [identifier, setIdentifier] = useState(""); const [role, setRole] = useState<"manager" | "front_desk">("front_desk"); const [saving, setSaving] = useState(false); const [removing, setRemoving] = useState<string | null>(null);
+}function HotelTeam({ hotelId, grantableCapabilities }: { hotelId: number; grantableCapabilities: HotelCapability[] }) {
+  const [rows, setRows] = useState<HotelTeamRow[]>([]);
+  const [identifier, setIdentifier] = useState("");
+  const [recipients, setRecipients] = useState<HotelTeamRecipient[]>([]);
+  const [recipient, setRecipient] = useState<HotelTeamRecipient | null>(null);
+  const [role, setRole] = useState<"manager" | "front_desk">("front_desk");
+  const [saving, setSaving] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
   const load = useCallback(async () => {
-    const team=await supabase.rpc("get_my_hotel_team", { p_hotel_id: hotelId });
+    const team = await supabase.rpc("get_my_hotel_team", { p_hotel_id: hotelId });
     if (team.error) return toast.error(team.error.message);
     setRows(Array.isArray(team.data) ? team.data : []);
   }, [hotelId]);
   useEffect(() => { void load(); }, [load]);
-  async function invite() { if (!identifier.trim()) return toast.error("Enter a WeHouse username or user ID"); setSaving(true); const { error } = await supabase.rpc("create_hotel_team_invitation", {
-      p_hotel_id: hotelId,
-      p_role: role,
-      p_identifier: identifier.trim(),
-      p_delivery: "direct",
-    }); setSaving(false); if (error) return toast.error(error.message); setIdentifier(""); toast.success("Invitation sent. Access starts only after acceptance."); window.dispatchEvent(new Event("wehouse:resource-invitations-changed")); await load(); }
-  async function shareInvite() {
-    if(saving)return;
+  useEffect(() => {
+    const q = identifier.trim();
+    setRecipient(null);
+    if (q.length < 2) { setRecipients([]); setSearching(false); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSearching(true);
+      const result = await supabase.rpc("search_hotel_team_recipients", { p_hotel_id: hotelId, p_search: q });
+      if (cancelled) return;
+      setSearching(false);
+      if (result.error) { setRecipients([]); return; }
+      setRecipients(Array.isArray(result.data) ? result.data as HotelTeamRecipient[] : []);
+    }, 220);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [hotelId, identifier]);
+  async function invite() {
+    if (!recipient) return toast.error("Choose the person who should receive this invitation first");
+    const target = recipient.username || recipient.user_id;
     setSaving(true);
-    const {data,error}=await supabase.rpc("create_hotel_team_invitation",{p_hotel_id:hotelId,p_role:role,p_identifier:null,p_delivery:"link"});
+    const { error } = await supabase.rpc("create_hotel_team_invitation", { p_hotel_id: hotelId, p_role: role, p_identifier: target, p_delivery: "direct" });
     setSaving(false);
-    if(error||!data?.token)return toast.error(error?.message||"Invite link could not be created");
-    try{
-      const result=await shareInvitationExternally(String(data.token),`Join this hotel on WeHouse as ${role==="manager"?"Manager":"Front desk"}`);
-      if(result==="copied")toast.success("Invite link copied");
-      window.dispatchEvent(new Event("wehouse:resource-invitations-changed"));await load();
-    }catch{return toast.error("Invite link could not be shared")}
+    if (error) return toast.error(error.message);
+    const name = recipient.full_name || (recipient.username ? `@${recipient.username}` : "WeHouse member");
+    setIdentifier(""); setRecipients([]); setRecipient(null);
+    toast.success(`Invitation sent to ${name}. Access starts only after acceptance.`);
+    window.dispatchEvent(new Event("wehouse:resource-invitations-changed")); await load();
   }
-  async function remove(row: HotelTeamRow) { setRemoving(row.id); const { error } = await supabase.rpc("owner_revoke_hotel_team_member", { p_membership_id: row.id }); setRemoving(null); if (error) return toast.error(error.message); toast.success(row.status === "invited" ? "Invitation cancelled" : "Hotel access removed"); await load(); }
-  return <div className="space-y-5"><section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4"><h3 className="text-base font-bold">Hotel team</h3><p className="mt-1 text-sm leading-relaxed text-[var(--wh-text-muted)]">Invite an existing WeHouse account directly, or create a single-use link. Access starts only after acceptance.</p><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_150px_auto]"><input value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="@username or WH user ID" autoCapitalize="none" autoCorrect="off" className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/35" /><WeHouseChoice aria-label="Hotel team role" value={role} onChange={(event) => setRole(event.target.value as "manager" | "front_desk")} className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs"><option value="manager">Manager</option><option value="front_desk">Front desk</option></WeHouseChoice><button disabled={saving} onClick={() => void invite()} className="h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold disabled:opacity-40">{saving ? "Sending…" : "Send invite"}</button></div><button type="button" disabled={saving} onClick={() => void shareInvite()} className="mt-2 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">Share invite link for {role === "manager" ? "Manager" : "Front desk"}</button><div className="mt-3 grid grid-cols-2 gap-2 text-sm leading-4 text-[var(--wh-text-secondary)]"><p className="rounded-xl bg-[var(--wh-interactive)] p-2.5"><strong className="block text-[var(--wh-text-secondary)]">Manager</strong>Reservations, guest messages, check-in/out, rooms, packages and availability</p><p className="rounded-xl bg-[var(--wh-interactive)] p-2.5"><strong className="block text-[var(--wh-text-secondary)]">Front desk</strong>Reservations, guest messages, room readiness, check-in and checkout</p></div><p className="mt-3 text-[9px] leading-4 text-[var(--wh-text-muted)]">Team access never transfers hotel ownership or payout authority.</p><SentResourceInvitations resourceType="hotel" resourceId={String(hotelId)} /></section>{rows.length === 0 ? <Empty text="No pending invitations or active team members." /> : <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{rows.map((row) => <HotelTeamMemberRow key={row.id} row={row} grantableCapabilities={grantableCapabilities} removing={removing === row.id} onRemove={() => void remove(row)} onSaved={load} />)}</div>}</div>;
+  async function shareInvite() {
+    if (saving) return;
+    setSaving(true);
+    const { data, error } = await supabase.rpc("create_hotel_team_invitation", { p_hotel_id: hotelId, p_role: role, p_identifier: null, p_delivery: "link" });
+    setSaving(false);
+    if (error || !data?.token) return toast.error(error?.message || "Invite link could not be created");
+    try {
+      const result = await shareInvitationExternally(String(data.token), `Join this hotel on WeHouse as ${role === "manager" ? "Manager" : "Front desk"}`);
+      if (result === "copied") toast.success("Invite link copied");
+      window.dispatchEvent(new Event("wehouse:resource-invitations-changed")); await load();
+    } catch { toast.error("Invite link could not be shared"); }
+  }
+  async function remove(row: HotelTeamRow) {
+    setRemoving(row.id);
+    const { error } = await supabase.rpc("owner_revoke_hotel_team_member", { p_membership_id: row.id });
+    setRemoving(null);
+    if (error) return toast.error(error.message);
+    toast.success(row.status === "invited" ? "Invitation cancelled" : "Hotel access removed"); await load();
+  }
+  return <div className="space-y-5">
+    <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+      <h3 className="text-base font-bold">Hotel team</h3>
+      <p className="mt-1 text-sm leading-relaxed text-[var(--wh-text-muted)]">Choose an existing Personal account, review exactly who will receive the request, then assign the hotel role.</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_150px_auto]">
+        <div className="relative">
+          <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Search name or @username" autoCapitalize="none" autoCorrect="off" className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/35" aria-label="Search hotel team recipient" />
+          {identifier.trim().length >= 2 && !recipient ? <div className="absolute inset-x-0 top-12 z-20 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] shadow-2xl">
+            {searching ? <p className="px-4 py-4 text-xs text-[var(--wh-text-muted)]">Finding WeHouse accounts…</p> : recipients.length ? recipients.map(person => <button key={person.user_id} type="button" onClick={() => { setRecipient(person); setIdentifier(person.username ? `@${person.username}` : person.full_name || ""); setRecipients([]); }} className="flex w-full items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--wh-interactive)]">
+              <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-violet-500/10 text-xs font-bold text-violet-200">{person.avatar_url ? <img src={person.avatar_url} alt="" className="h-full w-full object-cover" /> : (person.full_name || person.username || "W").slice(0,1).toUpperCase()}</div>
+              <div className="min-w-0"><p className="truncate text-xs font-semibold">{person.full_name || "Personal account"}</p><p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">{person.username ? `@${person.username}` : "WeHouse account"}{[person.city, person.state].filter(Boolean).length ? ` · ${[person.city, person.state].filter(Boolean).join(", ")}` : ""}</p></div>
+            </button>) : <p className="px-4 py-4 text-xs text-[var(--wh-text-muted)]">No active Personal account matches that search.</p>}
+          </div> : null}
+        </div>
+        <WeHouseChoice aria-label="Hotel team role" value={role} onChange={(event) => setRole(event.target.value as "manager" | "front_desk")} className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs"><option value="manager">Manager</option><option value="front_desk">Front desk</option></WeHouseChoice>
+        <button disabled={saving || !recipient} onClick={() => void invite()} className="h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold disabled:opacity-40">{saving ? "Sending…" : "Send invite"}</button>
+      </div>
+      {recipient ? <div className="mt-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+        <p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">Invitation recipient</p>
+        <div className="mt-2 flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-violet-500/10 text-xs font-bold text-violet-200">{recipient.avatar_url ? <img src={recipient.avatar_url} alt="" className="h-full w-full object-cover" /> : (recipient.full_name || recipient.username || "W").slice(0,1).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{recipient.full_name || "Personal account"}</p><p className="truncate text-[10px] text-[var(--wh-text-muted)]">{recipient.username ? `@${recipient.username}` : recipient.user_id}</p></div><button type="button" onClick={() => { setRecipient(null); setIdentifier(""); }} className="min-h-9 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-[10px] font-semibold">Change</button></div>
+        <p className="mt-3 text-[10px] leading-4 text-[var(--wh-text-secondary)]">You are sending a <strong>{role === "manager" ? "Manager" : "Front desk"}</strong> invitation to this person. They must accept it before hotel access becomes active.</p>
+      </div> : null}
+      <button type="button" disabled={saving} onClick={() => void shareInvite()} className="mt-2 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">Share invite link for {role === "manager" ? "Manager" : "Front desk"}</button>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm leading-4 text-[var(--wh-text-secondary)]"><p className="rounded-xl bg-[var(--wh-interactive)] p-2.5"><strong className="block text-[var(--wh-text-secondary)]">Manager</strong>Reservations, guest messages, check-in/out, rooms, packages and availability</p><p className="rounded-xl bg-[var(--wh-interactive)] p-2.5"><strong className="block text-[var(--wh-text-secondary)]">Front desk</strong>Reservations, guest messages, room readiness, check-in and checkout</p></div>
+      <p className="mt-3 text-[9px] leading-4 text-[var(--wh-text-muted)]">Team access never transfers hotel ownership or payout authority.</p>
+      <SentResourceInvitations resourceType="hotel" resourceId={String(hotelId)} />
+    </section>
+    {rows.length === 0 ? <Empty text="No pending invitations or active team members." /> : <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{rows.map((row) => <HotelTeamMemberRow key={row.id} row={row} grantableCapabilities={grantableCapabilities} removing={removing === row.id} onRemove={() => void remove(row)} onSaved={load} />)}</div>}
+  </div>;
 }
-
 function HotelTeamMemberRow({ row, grantableCapabilities, removing, onRemove, onSaved }: { row: HotelTeamRow; grantableCapabilities: HotelCapability[]; removing: boolean; onRemove: () => void; onSaved: () => Promise<unknown> }) {
   const [selected, setSelected] = useState<HotelCapability[]>(row.capabilities || []);
   const [saving, setSaving] = useState(false);

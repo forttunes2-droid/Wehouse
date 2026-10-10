@@ -13,7 +13,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
       <span className={`rounded-full px-3 py-1 text-xs font-bold ${r.status.includes("refund") ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>{r.status === "refunded" ? "Refunded" : r.status.includes("refund") ? "Partial refund" : "Paid"}</span>
     </header>
     <div className="px-5 pb-5 pt-6 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">Payment receipt</p>
+      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">{r.booking_type === "hotel" ? "Hotel receipt" : r.booking_type === "housing" ? "Apartment receipt" : r.booking_type === "service" ? "Service receipt" : "Payment receipt"}</p>
       <p className="mt-2 text-xs text-[var(--wh-text-muted)]">{displayDateTime(r.paid_at, "Africa/Lagos") + " WAT"}</p>
       <div className="mt-5 rounded-2xl bg-[#F6F3FC] px-4 py-4">
         <p className="text-xs font-semibold text-[var(--wh-text-muted)]">Amount paid</p>
@@ -169,7 +169,7 @@ export function ReceiptViewer({ open, onClose, receipt, onList, children }: { op
     <DialogContent showCloseButton={false} overlayClassName="!z-[100400]" className="!z-[100410] !left-0 !top-0 !flex h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 flex-col !gap-0 !rounded-none border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] !p-0 text-[var(--wh-text)] sm:!left-1/2 sm:!top-1/2 sm:h-[min(90dvh,850px)] sm:!max-w-xl sm:!-translate-x-1/2 sm:!-translate-y-1/2 sm:!rounded-2xl">
       <header className="flex shrink-0 items-center gap-2 border-b border-[var(--wh-border-subtle)] px-2 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]">
         <BackButton onClick={receipt && onList ? onList : onClose} ariaLabel={receipt && onList ? "All receipts" : "Close receipts"} />
-        <div><DialogTitle className="text-sm">{receipt ? "Payment receipt" : "Payment receipts"}</DialogTitle><DialogDescription className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">Verified payments through WeHouse</DialogDescription></div>
+        <div><DialogTitle className="text-sm">{receipt ? (receipt.booking_type === "hotel" ? `${receipt.merchant_name} · Hotel receipt` : receipt.booking_type === "housing" ? "Apartment receipt" : receipt.booking_type === "service" ? "Service receipt" : "Payment receipt") : "Payment receipts"}</DialogTitle><DialogDescription className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">Verified payments through WeHouse</DialogDescription></div>
         {receipt && onList && <button onClick={onClose} className="ml-auto min-h-11 px-3 text-sm" aria-label="Close receipts">Close</button>}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">{receipt ? <ReceiptDocument receipt={receipt} /> : children}</div>

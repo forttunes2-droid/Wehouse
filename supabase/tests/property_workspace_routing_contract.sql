@@ -105,6 +105,37 @@ rollback;
 -- to the owner before the assignment is revoked.
 begin;
 set local session_replication_role=replica;
+insert into public.creator_policy_versions(
+  policy_key,scope_type,scope_key,version,value,status,effective_from,
+  legal_review_state,reason,checksum,published_at
+)
+select 'short_let_cancellation','global','*',
+  coalesce((select max(version)+1 from public.creator_policy_versions where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*'),1),
+  '{"standard":{"free_cancellation_hours":24},"fixture":true}'::jsonb,
+  'active',now()-interval '1 minute','reviewed','Rollback-only Host continuity fixture',
+  'host-continuity-short-let-cancellation',now()
+where not exists (
+  select 1 from public.creator_policy_versions
+  where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*'
+    and status='active' and effective_from<=now()
+    and (effective_until is null or effective_until>now())
+);
+insert into public.creator_policy_versions(
+  policy_key,scope_type,scope_key,version,value,status,effective_from,
+  legal_review_state,reason,checksum,published_at
+)
+select 'accommodation_non_refundable_rate','global','*',
+  coalesce((select max(version)+1 from public.creator_policy_versions where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*'),1),
+  '{"discount_percent":10,"minimum_discount_percent":1,"maximum_discount_percent":30,"fixture":true}'::jsonb,
+  'active',now()-interval '1 minute','reviewed','Rollback-only Host continuity fixture',
+  'host-continuity-nonrefundable-rate',now()
+where not exists (
+  select 1 from public.creator_policy_versions
+  where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*'
+    and status='active' and effective_from<=now()
+    and (effective_until is null or effective_until>now())
+);
+
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city) values
 ('86666666-1000-4000-8000-000000000001','host-owner@example.invalid','host-continuity-owner','property_partner',true,'Nasarawa','Lafia'),
 ('86666666-1000-4000-8000-000000000002','host-manager@example.invalid','host-continuity-manager','user',true,'Nasarawa','Lafia'),
@@ -112,12 +143,12 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,ci
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values
 ('host-continuity-owner','property_partner','global','active');
 insert into public.listings(
-  id,listing_id,title,sub_type,state,city,status,availability_status,approved_at,
-  management_mode,wehouse_management_status,management_host_user_id
+  id,listing_id,title,price,sub_type,state,city,status,availability_status,approved_at,
+  management_mode,wehouse_management_status,management_host_user_id,management_updated_at
 ) values(
-  '86666666-2000-4000-8000-000000000001','host-continuity-home','Host continuity home',
+  '86666666-2000-4000-8000-000000000001','host-continuity-home','Host continuity home',35000,
   'short_let','Nasarawa','Lafia','available','available',now(),
-  'host','not_required','host-continuity-manager'
+  'host','not_required','host-continuity-manager',now()
 );
 insert into public.property_host_assignments(
   assignment_id,listing_id,user_id,assignment_role,status,invited_by,accepted_at
@@ -126,11 +157,16 @@ insert into public.property_host_assignments(
 ('86666666-3000-4000-8000-000000000002','86666666-2000-4000-8000-000000000001','host-continuity-manager','manager','active','host-continuity-owner',now());
 insert into public.reservations(
   id,listing_id,user_id,status,stay_type,management_mode_snapshot,responsible_host_user_id,
-  stay_check_in,stay_check_out,stay_nights
+  stay_check_in,stay_check_out,stay_nights,short_stay_rate_type,nightly_rate_snapshot,
+  stay_rent_total,short_stay_discount_percent_snapshot,short_stay_cancellation_policy_snapshot,
+  short_stay_cancellation_policy_version_id,short_stay_rate_terms_policy_version_id
 ) values(
   'host-continuity-booking','86666666-2000-4000-8000-000000000001',
   'host-continuity-guest','reserved','short_let','host','host-continuity-manager',
-  current_date+2,current_date+3,1
+  current_date+2,current_date+3,1,'standard',20000,20000,0,
+  '{"rate_type":"standard","fixture":true}'::jsonb,
+  (select policy_version_id from public.creator_policy_versions where policy_key='short_let_cancellation' and scope_type='global' and scope_key='*' and status='active' order by effective_from desc,version desc limit 1),
+  (select policy_version_id from public.creator_policy_versions where policy_key='accommodation_non_refundable_rate' and scope_type='global' and scope_key='*' and status='active' order by effective_from desc,version desc limit 1)
 );
 insert into public.property_host_conversations(
   conversation_id,reservation_id,guest_user_id,host_user_id,status
@@ -143,7 +179,30 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','86666666-1000-4000-8000-000000000001',true);
 set local role authenticated;
-do $$
+do $guard$
+declare blocked boolean:=false;
+begin
+  -- Re-selecting the current operator is idempotent, but changing the operator
+  -- on a live home must require a separately reviewed handoff.
+  perform public.set_my_property_management_mode(
+    '86666666-2000-4000-8000-000000000001','host'
+  );
+  begin
+    perform public.set_my_property_management_mode(
+      '86666666-2000-4000-8000-000000000001','wehouse'
+    );
+  exception when others then
+    if sqlerrm like 'This live home has an operator. Ask WeHouse to review a handoff%' then
+      blocked:=true;
+    else
+      raise;
+    end if;
+  end;
+  if not blocked then
+    raise exception 'Published home operator changed without reviewed handoff';
+  end if;
+end $guard$;
+do $handover$
 declare removed boolean;
 begin
   removed:=public.revoke_property_host_manager('86666666-3000-4000-8000-000000000002');
@@ -158,7 +217,7 @@ begin
     select 1 from public.property_host_assignments
     where assignment_id='86666666-3000-4000-8000-000000000002' and status='revoked'
   ) then raise exception 'Manager assignment was not revoked'; end if;
-end $$;
+end $handover$;
 reset role;
 -- RPC-only conversations and booking/audit internals are checked as the fixture
 -- administrator; their browser table privileges must stay closed.
@@ -168,7 +227,10 @@ do $$ begin
     where id='host-continuity-booking'
       and responsible_host_user_id='host-continuity-owner'
       and management_mode_snapshot='host'
-  ) then raise exception 'Active Host booking was stranded on removed manager'; end if;
+      and short_stay_rate_type='standard'
+      and nightly_rate_snapshot=20000
+      and stay_rent_total=20000
+  ) then raise exception 'Manager handover changed the booked Short Let rate snapshot'; end if;
   if not exists(
     select 1 from public.property_host_conversations
     where conversation_id='86666666-4000-4000-8000-000000000001'
@@ -205,4 +267,213 @@ do $$ begin
   end if;
 end $$;
 reset role;
+do $$ begin
+  begin
+    update public.reservations
+    set short_stay_rate_type='non_refundable'
+    where id='host-continuity-booking';
+    raise exception 'Booked Short Let rate change was accepted';
+  exception when others then
+    if sqlerrm='Booked Short Let rate change was accepted' then raise; end if;
+    if sqlerrm not like 'The booked Short Let rate cannot be changed' then raise; end if;
+  end;
+end $$;
+rollback;
+
+
+-- Invitation outcomes must land in the inviter's owning workspace and in the
+-- canonical Activity feed exactly once. Test all three legacy response forms.
+begin;
+set local session_replication_role=replica;
+insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city)
+values ('86666666-9000-4000-8000-000000000001','invitation-route-owner@example.invalid',
+        'invitation-route-owner','user',true,'Nasarawa','Lafia');
+set local session_replication_role=origin;
+
+insert into public.notifications(
+  recipient_id,type,title,message,related_id,source_type,source_id,
+  destination_route,destination_params,event_key,workspace_scope
+) values
+('invitation-route-owner','hotel_team_invitation_response','Hotel invitation accepted',
+ 'A team member accepted the hotel invitation.','fixture-team-invite-1',
+ 'hotel_team_member','fixture-team-invite-1','property-owner',
+ '{"hotel_id":-8671}'::jsonb,'fixture:invitation:hotel-team:1','property_partner'),
+('invitation-route-owner','resource_invitation_response','Hotel resource invitation accepted',
+ 'The hotel resource invitation was accepted.','fixture-resource-invite-1',
+ 'resource_invitation','fixture-resource-invite-1','activity',
+ '{"resource_type":"hotel","hotel_id":-8671}'::jsonb,
+ 'fixture:invitation:resource-hotel:1','personal'),
+('invitation-route-owner','resource_invitation_response','Property resource invitation accepted',
+ 'The property resource invitation was accepted.','fixture-resource-invite-2',
+ 'resource_invitation','fixture-resource-invite-2','activity',
+ '{"resource_type":"property","listing_id":"fixture-property"}'::jsonb,
+ 'fixture:invitation:resource-property:2','personal');
+
+do $invitation_activity$
+declare
+  v_bad integer;
+begin
+  select count(*) into v_bad
+  from public.notifications n
+  where n.recipient_id='invitation-route-owner'
+    and n.event_key in (
+      'fixture:invitation:hotel-team:1',
+      'fixture:invitation:resource-hotel:1',
+      'fixture:invitation:resource-property:2'
+    )
+    and n.workspace_scope is distinct from case
+      when n.type='hotel_team_invitation_response' then 'hotel'
+      when n.type='resource_invitation_response'
+        and n.destination_params->>'resource_type'='hotel' then 'hotel'
+      when n.type='resource_invitation_response'
+        and n.destination_params->>'resource_type'='property' then 'property_partner'
+      else n.workspace_scope
+    end;
+  if v_bad<>0 then
+    raise exception 'Invitation response notification routed to the wrong workspace';
+  end if;
+
+  select count(*) into v_bad
+  from public.notifications n
+  where n.recipient_id='invitation-route-owner'
+    and n.event_key in (
+      'fixture:invitation:hotel-team:1',
+      'fixture:invitation:resource-hotel:1',
+      'fixture:invitation:resource-property:2'
+    )
+    and not exists (
+      select 1
+      from public.activity_events e
+      join public.activity_event_audiences a using(activity_event_id)
+      where e.event_key='notification:'||n.id
+        and a.recipient_user_id=n.recipient_id
+        and a.workspace=n.workspace_scope
+    );
+  if v_bad<>0 then
+    raise exception 'Invitation response missing canonical Activity audience';
+  end if;
+
+  if exists (
+    select 1
+    from public.notifications n
+    join public.activity_events e on e.event_key='notification:'||n.id
+    join public.activity_event_audiences a using(activity_event_id)
+    where n.recipient_id='invitation-route-owner'
+      and n.event_key in (
+        'fixture:invitation:hotel-team:1',
+        'fixture:invitation:resource-hotel:1',
+        'fixture:invitation:resource-property:2'
+      )
+      and a.workspace is distinct from n.workspace_scope
+  ) then
+    raise exception 'Invitation response left a duplicate audience in the wrong workspace';
+  end if;
+end
+$invitation_activity$;
+rollback;
+
+
+-- Exercise the real invitation response RPCs as authenticated users. The current
+-- hotel-team RPC delegates to a linked resource invitation; its response must
+-- still appear in the inviter's Hotel workspace. Property responses belong in
+-- Property Partner Activity. All fixture writes roll back.
+begin;
+set local session_replication_role=replica;
+insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city)
+values
+('86666666-9900-4000-8000-000000000011','invite-rpc-owner@example.invalid',
+ 'invite-rpc-owner-20261010','user',true,'Nasarawa','Lafia'),
+('86666666-9900-4000-8000-000000000012','invite-rpc-acceptor@example.invalid',
+ 'invite-rpc-acceptor-20261010','user',true,'Nasarawa','Lafia');
+insert into public.hotels(hotel_id,name,state,city,owner_id,status)
+values(-8699,'Invitation RPC Fixture Hotel','Nasarawa','Lafia',
+       'invite-rpc-owner-20261010','active');
+insert into public.hotel_team_members(
+  id,hotel_id,member_user_id,hotel_role,status,capabilities,invited_by
+) values(
+  '86666666-9900-4000-8000-000000000103',-8699,
+  'invite-rpc-acceptor-20261010','front_desk','invited',
+  array['stay.read'],'invite-rpc-owner-20261010'
+);
+insert into public.resource_invitations(
+  invitation_id,resource_type,resource_id,role_key,permission_profile,delivery,
+  inviter_user_id,intended_user_id,subject_assignment_id,status,expires_at
+) values
+(
+  '86666666-9900-4000-8000-000000000101','hotel','-8699',
+  'hotel_front_desk','front_desk','direct',
+  'invite-rpc-owner-20261010','invite-rpc-acceptor-20261010',
+  '86666666-9900-4000-8000-000000000103','pending',now()+interval '1 day'
+),
+(
+  '86666666-9900-4000-8000-000000000102','property',
+  '86666666-9900-4000-8000-000000000104',
+  'property_cohost','manager','direct',
+  'invite-rpc-owner-20261010','invite-rpc-acceptor-20261010',
+  null,'pending',now()+interval '1 day'
+);
+set local session_replication_role=origin;
+select set_config('request.jwt.claim.sub','86666666-9900-4000-8000-000000000012',true);
+select set_config('request.jwt.claim.role','authenticated',true);
+set local role authenticated;
+do $invitation_rpc_journey$
+declare v_hotel jsonb; v_property jsonb;
+begin
+  v_hotel:=public.respond_to_hotel_team_invitation(
+    '86666666-9900-4000-8000-000000000103',true
+  );
+  v_property:=public.respond_to_resource_invitation(
+    '86666666-9900-4000-8000-000000000102',false,null
+  );
+  if v_hotel->>'accepted'<>'true' or v_property->>'accepted'<>'false' then
+    raise exception 'Invitation response RPC returned an unexpected result';
+  end if;
+end
+$invitation_rpc_journey$;
+reset role;
+do $invitation_rpc_activity$
+declare bad integer;
+begin
+  if not exists(
+    select 1 from public.notifications
+    where recipient_id='invite-rpc-owner-20261010'
+      and type='resource_invitation_response'
+      and related_id='86666666-9900-4000-8000-000000000101'
+      and workspace_scope='hotel'
+  ) then raise exception 'Hotel team acceptance did not route into Hotel Activity'; end if;
+  if not exists(
+    select 1 from public.notifications
+    where recipient_id='invite-rpc-owner-20261010'
+      and type='resource_invitation_response'
+      and related_id='86666666-9900-4000-8000-000000000102'
+      and workspace_scope='property_partner'
+  ) then raise exception 'Property resource decline did not route into Property Partner Activity'; end if;
+  select count(*) into bad
+  from public.notifications n
+  where n.recipient_id='invite-rpc-owner-20261010'
+    and n.related_id in (
+      '86666666-9900-4000-8000-000000000101',
+      '86666666-9900-4000-8000-000000000102'
+    )
+    and not exists(
+      select 1 from public.activity_events e
+      join public.activity_event_audiences a using(activity_event_id)
+      where e.event_key='notification:'||n.id
+        and a.recipient_user_id=n.recipient_id
+        and a.workspace=n.workspace_scope
+    );
+  if bad<>0 then raise exception 'Invitation RPC response missing canonical Activity audience: %',bad; end if;
+  if exists(
+    select 1 from public.notifications n
+    join public.activity_events e on e.event_key='notification:'||n.id
+    join public.activity_event_audiences a using(activity_event_id)
+    where n.recipient_id='invite-rpc-owner-20261010'
+      and n.related_id in (
+        '86666666-9900-4000-8000-000000000101',
+        '86666666-9900-4000-8000-000000000102'
+      )
+      and a.workspace is distinct from n.workspace_scope
+  ) then raise exception 'Invitation RPC left a duplicate audience in the wrong workspace'; end if;
+end
+$invitation_rpc_activity$;
 rollback;

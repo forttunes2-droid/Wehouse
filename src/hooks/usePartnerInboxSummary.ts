@@ -4,9 +4,9 @@ import { supabase } from "@/lib/supabase";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
 import { getAnnouncementsForUser } from "@/lib/supabase/announcements";
-import { activityIsCurrent } from "@/lib/activityFeed";
+import { activityIsCurrent, visibleUnreadActivityCount } from "@/lib/activityFeed";
 import {
-  getCanonicalActivitySummary,
+  getCanonicalActivity,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
 
@@ -18,19 +18,21 @@ export function usePartnerInboxSummary(userId: string) {
     const [wehouse, hotels, events, announcements] = await Promise.all([
       getMySupportConversations("property_partner"),
       getMyHotelConversations("property_partner"),
-      getCanonicalActivitySummary("partner"),
+      getCanonicalActivity("partner", 100),
       getAnnouncementsForUser(userId, "partner"),
     ]);
     if (!isCurrent()) return;
-    const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).filter((row) => Number(row.unread_count || 0) > 0).length;
-    const hotelUnread = hotels.error ? 0 : hotels.conversations.filter((row) => Number(row.unread_count || 0) > 0).length;
+    const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).reduce((sum, row) => sum + Number(row.unread_count || 0), 0);
+    const hotelUnread = hotels.error ? 0 : hotels.conversations.reduce((sum, row) => sum + Number(row.unread_count || 0), 0);
     setChatUnread(wehouseUnread + hotelUnread);
-    const eventUnread = events.error ? 0 : events.summary.unread;
+    const eventUnread = events.error ? 0 : visibleUnreadActivityCount(events.rows, "partner");
     const announcementUnread = (announcements.messages || []).filter((delivery: any) => {
       const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
       return !delivery.read_status && activityIsCurrent({ type: "announcement", source: "announcement", created_at: announcement?.created_at || delivery.delivered_at });
     }).length;
-    if (!events.error || !announcements.error) setActivityUnread(eventUnread + announcementUnread);
+    // Never replace a complete Activity count with a partial result. The feed
+    // reports its load error and this badge keeps the last known complete value.
+    if (!events.error && !announcements.error) setActivityUnread(eventUnread + announcementUnread);
   }, [userId]);
 
   const refresh = useInboxRefresh(load, Boolean(userId));

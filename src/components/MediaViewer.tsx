@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { isTopDialog } from "@/lib/dialogIsolation";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -30,7 +31,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   const dismiss = useRecordScreenBack(props.onClose);
   const dialogRoot = useDialogInteraction(dismiss);
   useVisualViewportFrame(dialogRoot);
-  const { title = "Media preview", subtitle, avatarUrl, variant = "gallery" } = props;
+  const { title = "Media preview", subtitle, variant = "gallery" } = props;
   const items: MediaViewerItem[] = props.items !== undefined ? props.items : [{ url: props.src, kind: props.kind }];
   const requestedIndex = props.items !== undefined ? props.initialIndex ?? 0 : 0;
   const maxIndex = Math.max(0, items.length - 1);
@@ -45,6 +46,9 @@ export default function MediaViewer(props: MediaViewerProps) {
   const [failed, setFailed] = useState(!src);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  // A photo preview needs an immediately usable close action. Mixed galleries keep
+  // their controls tucked away until the viewer is tapped.
+  const [chromeVisible, setChromeVisible] = useState(variant === "photo");
 
   useEffect(() => setIndex(Math.min(Math.max(requestedIndex, 0), maxIndex)), [requestedIndex, maxIndex]);
   useEffect(() => {
@@ -57,7 +61,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   return createPortal(
     <div ref={dialogRoot} tabIndex={-1} data-media-index={index} data-media-count={items.length}
       data-media-variant={variant}
-      className="fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
+      className="wh-media-viewer fixed inset-0 z-[100200] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden overscroll-none bg-black text-white outline-none"
       onKeyDown={event => {
         if (event.defaultPrevented || !dialogRoot.current || !isTopDialog(dialogRoot.current) ||
             (event.target as HTMLElement).closest("button,input,select,textarea")) return;
@@ -66,37 +70,32 @@ export default function MediaViewer(props: MediaViewerProps) {
         if (event.key === "ArrowRight") { event.preventDefault(); next?.(); }
       }}
       role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" onClick={dismiss}
-        className={`absolute z-30 grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-black/45 text-xl leading-none text-white shadow-lg transition active:scale-95 ${variant === "photo" ? "left-3" : "right-3"}`}
-        style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
-        aria-label="Close media preview">
-        <span aria-hidden="true">×</span>
-      </button>
-
-      {variant === "gallery" ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/70 via-black/25 to-transparent px-4 pb-10"
-          style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-          <div className="pr-14">
-            <div className="flex min-w-0 items-center gap-2.5">
-              {avatarUrl ? <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/15" /> : null}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{title}</p>
-                {subtitle ? <p className="mt-0.5 truncate text-xs text-white/60">{subtitle}</p> :
-                  items.length > 1 ? <p className="mt-0.5 text-xs text-white/60">{index + 1} / {items.length}</p> : null}
-              </div>
-            </div>
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/75 via-black/25 to-transparent px-3 pb-10 transition-opacity duration-200 ${chromeVisible ? "opacity-100" : "opacity-0"}`}
+        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
+        <div className="flex items-start gap-3">
+          <button type="button" onClick={dismiss}
+            className="pointer-events-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/45 text-white shadow-[0_8px_28px_rgba(0,0,0,.35)] backdrop-blur-md transition active:scale-95"
+            aria-label={variant === "photo" ? "Close media preview" : "Back from media preview"}>
+            <ArrowLeft size={22} />
+          </button>
+          <div className="min-w-0 flex-1 pt-1">
+            <p className="truncate text-sm font-semibold">{title}</p>
+            {subtitle ? <p className="mt-0.5 truncate text-xs text-white/60">{subtitle}</p> :
+              items.length > 1 ? <p className="mt-0.5 text-xs text-white/60">{index + 1} / {items.length}</p> : null}
           </div>
         </div>
-      ) : null}
+      </div>
 
       <main {...paging} data-media-stage
-        className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
-        style={{ touchAction: "pan-y pinch-zoom" }}>
+        onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setChromeVisible(value => !value); }}
+        className="wh-media-stage relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
+        style={{ ...paging.style, touchAction: "pan-y pinch-zoom" }}>
         {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
         {failed ? (
           <div className="px-6 text-center"><p className="text-sm font-semibold">This media could not be loaded</p><p className="mt-2 text-sm text-white/55">Close the viewer and try again.</p></div>
         ) : kind === "video" ? (
-          <VideoPlayer key={`${index}:${src}`} src={src} autoPlay onTime={setCurrentTime}
+          <VideoPlayer key={`${index}:${src}`} src={src} autoPlay viewerMode onTime={setCurrentTime}
             onDuration={value => { setDuration(value); setReady(true); }}
             onPlaybackError={() => setFailed(true)} containerClassName="h-full w-full bg-black" className="h-full w-full object-contain" />
         ) : (
@@ -105,7 +104,7 @@ export default function MediaViewer(props: MediaViewerProps) {
         )}
         {items.length > 1 ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}
       </main>
-      {variant === "gallery" && kind === "video" && duration > 0 ? (
+      {variant === "gallery" && kind === "video" && duration > 0 && chromeVisible ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 font-mono text-[11px] text-white/75"
           style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
           {formatDuration(currentTime)} / {formatDuration(duration)}

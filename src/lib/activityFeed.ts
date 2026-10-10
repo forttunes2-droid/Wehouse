@@ -1,3 +1,4 @@
+import { activityWorkspaceMatches } from "./activityWorkspace";
 export type ActivityFeedRow = {
   id?: string;
   type?: string | null;
@@ -12,6 +13,7 @@ export type ActivityFeedRow = {
   action_required?: boolean;
   resolved_at?: string | null;
   source?: "event" | "announcement";
+  workspace?: string;
 };
 
 const FINANCIAL_ACTIVITY = /payment|payout|earning|dispute|refund/i;
@@ -38,6 +40,9 @@ export function isOrdinaryMessageEvent(row: Pick<ActivityFeedRow, "type" | "sour
 export function activityNeedsAction(
   row: Pick<ActivityFeedRow, "type" | "title" | "message" | "source_type" | "destination_route" | "action_required" | "resolved_at">,
 ) {
+  // A withdrawn request remains as read history, never as an open action—even
+  // if a legacy projection retained an action_required flag.
+  if (String(row.type || "").toLowerCase() === "roommate_interest_withdrawn") return false;
   if (row.action_required === true) return !row.resolved_at;
   if (row.resolved_at) return false;
   const value = [
@@ -107,6 +112,28 @@ export function resolveActivityDestination(
   let route = normalizeRoute(
     String(row.destination_route || legacyActivityRoute(type, sourceType)),
   );
+
+  // An invitation response belongs to the inviter's operational record, not
+  // the invitee response form. Legacy deliveries used "property-owner", which
+  // is not a canonical app route.
+  if (type === "resource_invitation_response") {
+    const resourceType = String(params.resource_type || "").toLowerCase();
+    const resourceId = value(params, ["resource_id", "resourceId"]);
+    if (resourceType === "hotel" && resourceId) {
+      return { route: "hotel_detail", id: resourceId };
+    }
+    return { route: "property_partner" };
+  }
+
+  // Hotel team acceptance/decline notifications are addressed to the inviter.
+  // Their legacy destination is "property-owner" and params carry hotel_id;
+  // normalize that payload to a real application route instead of a dead page.
+  if (type === "hotel_team_invitation_response") {
+    const hotelId = value(params, ["hotel_id", "hotelId"]);
+    return hotelId
+      ? { route: "hotel_detail", id: hotelId }
+      : { route: "property_partner" };
+  }
 
   if (route === "security" && /device|login|session/.test(`${type} ${sourceType}`))
     route = "devices";
@@ -216,6 +243,8 @@ export function resolveActivityDestination(
 export function activityDestinationLabel(row: Parameters<typeof resolveActivityDestination>[0]) {
   const { route } = resolveActivityDestination(row);
   const type = String(row.type || "").toLowerCase();
+  if (type === "hotel_team_invitation_response") return "View hotel team";
+  if (type === "resource_invitation_response") return "View team invitation response";
   if (type === "property_move_in_requested") return "Prepare handover";
   if (type === "property_rent_confirmed") return "View reservation";
   if (type.startsWith("sponsored_campaign_")) return "View Sponsored placement";
@@ -284,6 +313,12 @@ export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = 
       seen.add(key);
       return true;
     });
+}
+
+/** Count exactly the canonical Activity rows the corresponding feed can render as unread. */
+export function visibleUnreadActivityCount<T extends ActivityFeedRow>(rows: T[], workspace: string) {
+  return currentActivityRows(rows.filter((row) => activityWorkspaceMatches(workspace, row.workspace)))
+    .filter((row) => !row.read).length;
 }
 
 export function longestActivityCutoff(now = Date.now()) {
