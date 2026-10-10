@@ -55,7 +55,9 @@ export function useOperationsInboxSummary(
       },
     );
 
-    if (!activityFeed.error || !announcements.error) {
+    // Keep the last complete count if either source failed; zero is not evidence
+    // that a failed Activity read is empty.
+    if (!activityFeed.error && !announcements.error) {
       const eventUnread = activityFeed.error ? 0 : visibleUnreadActivityCount(activityFeed.rows, activityScope);
       const unreadAnnouncements = currentAnnouncements.filter(
         (delivery: any) => !delivery.read_status,
