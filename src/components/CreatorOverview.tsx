@@ -13,7 +13,7 @@ const number = (value: unknown) => Number(value || 0).toLocaleString('en-NG');
 export default function CreatorOverview({ userId, onOpen }: { userId: string; onOpen: (destination: Destination, id?: string) => void }) {
   const { data, loading, error, refresh } = useRpcRead<Summary>('creator_get_dashboard_summary', userId);
 
-  if (loading) return <section role="status" aria-label="Loading platform overview" className="space-y-5">
+  if (loading) return <section role="status" aria-label="Loading platform overview" data-overview-state="loading" className="space-y-5">
     <div className="wh-creator-hero"><div className="shimmer h-2.5 w-28 rounded-full" /><div className="shimmer mt-4 h-8 w-64 max-w-full rounded-lg" /><div className="shimmer mt-3 h-3 w-80 max-w-full rounded-full" /></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0,1,2,3].map(item => <div key={item} className="wh-creator-kpi"><div className="shimmer h-3 w-20 rounded-full"/><div className="shimmer mt-4 h-8 w-16 rounded-lg"/></div>)}</div>
     <div className="space-y-3">{[0,1,2].map(item => <div key={item} className="shimmer h-16 rounded-xl"/>)}</div>
@@ -21,7 +21,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
 
   if (error || !data) return <section role="alert" className="rounded-2xl border border-amber-500/25 bg-amber-500/[.05] p-5">
     <p className="text-sm font-semibold">Platform overview unavailable</p><p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{error || 'The summary returned no data.'}</p>
-    <button type="button" onClick={() => void refresh()} className="mt-4 min-h-10 rounded-xl border border-[var(--wh-border)] px-4 text-sm font-semibold">Retry summary</button>
+    <button type="button" onClick={() => void refresh()} className="mt-4 min-h-10 rounded-xl border border-[var(--wh-border)] px-4 text-sm font-semibold">Try again</button>
   </section>;
 
   const metrics = [
@@ -82,7 +82,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
           <button type="button" onClick={() => onOpen('workers')} className="wh-panel-link mt-5">Manage Worker lifecycle <span aria-hidden="true">→</span></button>
         </section>
         <section className="wh-overview-panel">
-          <p className="wh-section-kicker">WEHOUSE TEAM</p><div className="mt-2 flex items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">People behind the platform</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">Admins and assigned Operations members.</p></div><strong className="text-3xl font-semibold tabular-nums">{number(data.team)}</strong></div>
+          <p className="wh-section-kicker">WeHouse team</p><div className="mt-2 flex items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">People behind the platform</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">Admins and assigned Operations members.</p></div><strong className="text-3xl font-semibold tabular-nums">{number(data.team)}</strong></div>
           <button type="button" onClick={() => onOpen('team')} className="wh-panel-link mt-5">Manage team access <span aria-hidden="true">→</span></button>
         </section>
       </aside>
