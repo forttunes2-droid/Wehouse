@@ -104,7 +104,7 @@ end $$;
 reset role;
 update public.notifications set read=true where source_id='99999999-3333-4333-8333-000000000003';
 set local role authenticated;
-do $ declare review_summary jsonb; begin
+do $$ declare review_summary jsonb; begin
   if public.get_my_pending_device_login_alert() is not null then raise exception 'Reviewed or same-device alert repeated'; end if;
   perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000002',true);
   if jsonb_array_length(public.get_my_hotel_operation_snapshot(-9991)->'bookings')<>0 then raise exception 'Room-only staff received guest bookings'; end if;
