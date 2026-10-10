@@ -43,7 +43,7 @@ jobs:
       - name: Seed exact synthetic catalog and profile counts
         run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} bash scripts/seed-capacity-scale.sh
       - name: Measure public read paths
-        run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} node scripts/load-catalog-scale.mjs
+        run: WEHOUSE_LARGE_CONCURRENCY=50000 WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} node scripts/load-catalog-scale.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
