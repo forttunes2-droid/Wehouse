@@ -47,6 +47,27 @@ test('cancelled unpaid stays do not request payment or conceal genuine refunds a
   assert.equal(nav.hotelPaymentLabel('pending', 'unpaid'), 'Awaiting payment');
 });
 
+test('resource invitation responses have a useful label and route to the inviter\'s workspace', () => {
+  const propertyResponse = {
+    type: 'resource_invitation_response',
+    source_type: 'resource_invitation',
+    source_id: 'invite-property',
+    destination_route: 'property_partner',
+    destination_params: { invitation_id: 'invite-property', resource_type: 'property', resource_id: 'listing-9' },
+  };
+  const hotelResponse = {
+    type: 'resource_invitation_response',
+    source_type: 'resource_invitation',
+    source_id: 'invite-hotel',
+    destination_route: 'property-owner',
+    destination_params: { invitation_id: 'invite-hotel', resource_type: 'hotel', resource_id: '17' },
+  };
+  assert.equal(activity.activityDestinationLabel(propertyResponse), 'View team invitation response');
+  assert.equal(activity.activityDestinationLabel(hotelResponse), 'View team invitation response');
+  assert.deepEqual(plain(activity.resolveActivityDestination(propertyResponse)), { route: 'property_partner' });
+  assert.deepEqual(plain(activity.resolveActivityDestination(hotelResponse)), { route: 'hotel_detail', id: '17' });
+});
+
 test('hotel lifecycle Activity keeps the exact booking and parent regardless of legacy destination', () => {
   for (const route of ['my_reservations', 'hotel_detail', 'operations_properties', 'conversation']) {
     assert.deepEqual(plain(activity.resolveActivityDestination({ type: 'hotel.stay_confirmed', source_type: 'hotel_booking', source_id: '42', destination_route: route, destination_params: { hotelId: 7, bookingId: 42, conversation_id: 'thread-99' } })), { route: 'hotel_booking', id: '42', hotelId: '7' });
