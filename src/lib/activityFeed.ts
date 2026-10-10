@@ -122,6 +122,16 @@ export function resolveActivityDestination(
     return { route: "property_partner" };
   }
 
+  // Hotel team acceptance/decline notifications are addressed to the inviter.
+  // Their legacy destination is "property-owner" and params carry hotel_id;
+  // normalize that payload to a real application route instead of a dead page.
+  if (type === "hotel_team_invitation_response") {
+    const hotelId = value(params, ["hotel_id", "hotelId"]);
+    return hotelId
+      ? { route: "hotel_detail", id: hotelId }
+      : { route: "property_partner" };
+  }
+
   if (route === "security" && /device|login|session/.test(`${type} ${sourceType}`))
     route = "devices";
 
@@ -230,6 +240,7 @@ export function resolveActivityDestination(
 export function activityDestinationLabel(row: Parameters<typeof resolveActivityDestination>[0]) {
   const { route } = resolveActivityDestination(row);
   const type = String(row.type || "").toLowerCase();
+  if (type === "hotel_team_invitation_response") return "View hotel team";
   if (type === "property_move_in_requested") return "Prepare handover";
   if (type === "property_rent_confirmed") return "View reservation";
   if (type.startsWith("sponsored_campaign_")) return "View Sponsored placement";
