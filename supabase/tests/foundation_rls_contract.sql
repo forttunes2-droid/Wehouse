@@ -36,7 +36,7 @@ $$;
 
 -- Browser roles must not retain direct table privileges where RLS has no policies.
 -- Also prevent broad default grants from silently reopening future tables.
-do $
+do $$
 declare
   exposed_tables text;
 begin
@@ -87,7 +87,7 @@ begin
     raise exception 'Postgres-owned public-schema default table privileges still grant access to PUBLIC, anon, or authenticated';
   end if;
 end;
-$;
+$$;
 
 create function public.wh_contract_default_grant_probe() returns integer
 language sql security definer as 'select 1';
