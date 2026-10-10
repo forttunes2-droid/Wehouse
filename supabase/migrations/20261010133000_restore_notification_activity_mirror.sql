@@ -72,7 +72,7 @@ $$;
 drop trigger if exists notification_canonical_activity_mirror
   on public.notifications;
 create trigger notification_canonical_activity_mirror
-after insert or update of read,read_at,title,message,destination_route,destination_params
+after insert or update of type, read, read_at, title, message, destination_route, destination_params
 on public.notifications
 for each row execute function public.mirror_notification_to_activity();
 
