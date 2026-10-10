@@ -244,6 +244,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   const { route } = resolveActivityDestination(row);
   const type = String(row.type || "").toLowerCase();
   if (type === "hotel_team_invitation_response") return "View hotel team";
+  if (type === "resource_invitation_response") return "View team invitation response";
   if (type === "property_move_in_requested") return "Prepare handover";
   if (type === "property_rent_confirmed") return "View reservation";
   if (type.startsWith("sponsored_campaign_")) return "View Sponsored placement";
