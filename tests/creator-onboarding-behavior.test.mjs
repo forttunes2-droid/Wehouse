@@ -28,6 +28,19 @@ function overview(state) {
     './creator-overview.css': {},
   }).default;
 }
+function collectElements(node, result = []) {
+  if (Array.isArray(node)) { node.forEach(child => collectElements(child, result)); return result; }
+  if (node && typeof node === 'object' && node.props) {
+    result.push(node);
+    collectElements(node.props.children, result);
+  }
+  return result;
+}
+function elementText(node) {
+  if (Array.isArray(node)) return node.map(elementText).join(' ');
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  return node && typeof node === 'object' ? elementText(node.props?.children) : '';
+}
 test('Creator overview keeps Workers and internal team separate and opens the correct people filter', () => {
   const data = { accounts: 38, partners: 5, workers: 8, team: 5, apartments: 3, hotels: 1, hotel_team: 2, pending_reviews: 1, inspections: 2, payouts: 0 };
   const View = overview({ data, loading: false, error: '', refresh() {} });
@@ -36,8 +49,9 @@ test('Creator overview keeps Workers and internal team separate and opens the co
   const html = renderToStaticMarkup(element);
   assert.match(html,/Personal accounts/); assert.match(html,/Workers/); assert.match(html,/WeHouse team/); assert.match(html,/2 hotel team members/);
   assert.doesNotMatch(html,/Workers &amp; internal team/);
-  element.props.children.find(child => child.key === 'Property partners').props.onClick();
-  element.props.children.find(child => child.key === 'WeHouse team').props.onClick();
+  const rendered = collectElements(element);
+  rendered.find(child => child.key === 'Property partners').props.onClick();
+  rendered.find(child => child.type === 'button' && elementText(child).includes('Manage team access')).props.onClick();
   assert.deepEqual(opened,[['people','property_partner'],['team',undefined]]);
   assert.equal(element.props['data-overview-state'],'ready');
 });
