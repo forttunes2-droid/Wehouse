@@ -32,7 +32,9 @@ export function useCreatorInboxSummary(
         ).length,
       );
     }
-    if (!events.error || !announcements.error) {
+    // Keep the last complete count if either source failed; zero is not evidence
+    // that a failed Activity read is empty.
+    if (!events.error && !announcements.error) {
       const eventUnread = events.error ? 0 : visibleUnreadActivityCount(events.rows, activityScope);
       const announcementUnread = (announcements.messages || []).filter(
         (delivery: any) => {
