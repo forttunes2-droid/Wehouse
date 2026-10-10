@@ -1,3 +1,4 @@
+import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
 export type ActivityFeedRow = {
   id?: string;
   type?: string | null;
@@ -12,6 +13,7 @@ export type ActivityFeedRow = {
   action_required?: boolean;
   resolved_at?: string | null;
   source?: "event" | "announcement";
+  workspace?: string;
 };
 
 const FINANCIAL_ACTIVITY = /payment|payout|earning|dispute|refund/i;
@@ -284,6 +286,12 @@ export function currentActivityRows<T extends ActivityFeedRow>(rows: T[], now = 
       seen.add(key);
       return true;
     });
+}
+
+/** Count exactly the canonical Activity rows the corresponding feed can render as unread. */
+export function visibleUnreadActivityCount<T extends ActivityFeedRow>(rows: T[], workspace: string) {
+  return currentActivityRows(rows.filter((row) => activityWorkspaceMatches(workspace, row.workspace)))
+    .filter((row) => !row.read).length;
 }
 
 export function longestActivityCutoff(now = Date.now()) {
