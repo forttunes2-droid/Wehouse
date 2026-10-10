@@ -372,3 +372,10 @@ test("Activity badges match visible feed rows and legacy notification events rem
   assert.match(invitation, /'resource_invitation_response'/);
   assert.match(app, /workspace-activity-alerts:[\s\S]*Open workspace/);
 });
+
+
+test("marking an Activity row read recomputes unread count by row identity", async () => {
+  const notifications = await read("src/pages/Notifications.tsx");
+  assert.match(notifications, /onUnreadChange\?\.\(rows\.filter\(item => !item\.read && item\.id !== row\.id\)\.length\)/);
+  assert.doesNotMatch(notifications, /rows\.filter\(item => !item\.read\)\.length - 1/);
+});
