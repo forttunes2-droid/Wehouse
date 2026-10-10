@@ -19,3 +19,15 @@ test("legacy notification deliveries are mirrored idempotently to recipient Acti
   assert.match(migration, /on conflict\(activity_event_id,recipient_user_id,workspace\) do update/);
   assert.match(migration, /where n\.created_at >= now\(\) - interval '180 days'/);
 });
+
+const invitationWorkspaceMigration = readFileSync(
+  new URL("../supabase/migrations/20261010150000_fix_resource_invitation_response_workspace_scope.sql", import.meta.url),
+  "utf8",
+);
+
+test("hotel invitation responses are delivered to Hotel Activity, not Property Partner Activity", () => {
+  assert.match(invitationWorkspaceMigration, /new\.type = 'resource_invitation_response'/);
+  assert.match(invitationWorkspaceMigration, /when 'hotel' then new\.workspace_scope := 'hotel'/);
+  assert.match(invitationWorkspaceMigration, /when 'property' then new\.workspace_scope := 'property_partner'/);
+  assert.match(invitationWorkspaceMigration, /before insert or update of type, destination_params, workspace_scope/);
+});
