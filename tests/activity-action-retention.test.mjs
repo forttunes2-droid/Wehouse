@@ -122,3 +122,17 @@ test('retaining an action does not change the caller array or its typed destinat
   const plain = JSON.parse(JSON.stringify(resolveActivityDestination(action)));
   assert.deepEqual(plain, { route: 'hotel_booking', id: 'booking-1', hotelId: 'hotel-1' });
 });
+
+
+test('hotel team invitation responses route to the inviter hotel with a canonical destination', () => {
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(resolveActivityDestination({
+      type: 'hotel_team_invitation_response',
+      source_type: 'hotel_team_member',
+      source_id: 'invitation-1',
+      destination_route: 'property-owner',
+      destination_params: { hotel_id: 42 },
+    }))),
+    { route: 'hotel_detail', id: '42' },
+  );
+});
