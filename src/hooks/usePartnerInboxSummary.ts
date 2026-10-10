@@ -30,7 +30,9 @@ export function usePartnerInboxSummary(userId: string) {
       const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
       return !delivery.read_status && activityIsCurrent({ type: "announcement", source: "announcement", created_at: announcement?.created_at || delivery.delivered_at });
     }).length;
-    if (!events.error || !announcements.error) setActivityUnread(eventUnread + announcementUnread);
+    // Never replace a complete Activity count with a partial result. The feed
+    // reports its load error and this badge keeps the last known complete value.
+    if (!events.error && !announcements.error) setActivityUnread(eventUnread + announcementUnread);
   }, [userId]);
 
   const refresh = useInboxRefresh(load, Boolean(userId));
