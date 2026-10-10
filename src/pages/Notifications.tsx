@@ -216,7 +216,7 @@ function NotificationFeed({
       return next;
     });
     // Navigation can unmount this feed before its unread-count effect runs.
-    onUnreadChange?.(Math.max(0, rows.filter(item => !item.read).length - 1));
+    onUnreadChange?.(rows.filter(item => !item.read && item.id !== row.id).length);
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     return true;
   }
