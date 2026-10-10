@@ -26,6 +26,8 @@ const invitationWorkspaceMigration = readFileSync(
 );
 
 test("hotel invitation responses are delivered to Hotel Activity, not Property Partner Activity", () => {
+  assert.match(invitationWorkspaceMigration, /new\.type = 'hotel_team_invitation_response'/);
+  assert.match(invitationWorkspaceMigration, /new\.workspace_scope := 'hotel'/);
   assert.match(invitationWorkspaceMigration, /new\.type = 'resource_invitation_response'/);
   assert.match(invitationWorkspaceMigration, /when 'hotel' then new\.workspace_scope := 'hotel'/);
   assert.match(invitationWorkspaceMigration, /when 'property' then new\.workspace_scope := 'property_partner'/);
