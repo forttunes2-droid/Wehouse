@@ -386,3 +386,10 @@ test("hotel team acceptance Activity opens the inviter's hotel with an explicit 
   assert.match(activityFeed, /type === "hotel_team_invitation_response"[\s\S]*?value\(params, \["hotel_id", "hotelId"\]\)[\s\S]*?route: "hotel_detail"/);
   assert.match(activityFeed, /type === "hotel_team_invitation_response"\) return "View hotel team"/);
 });
+
+
+test("historical parsed-migration digest exception is restricted to disposable local CI", async () => {
+  const release = await read("scripts/coordinated-database-release.py");
+  assert.match(release, /args\.local_ci and remote_version in \{"20250525000000", "20250526"\}/);
+  assert.match(release, /Production reconciliation remains byte-exact/);
+});
