@@ -1,4 +1,4 @@
-import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
+import { activityWorkspaceMatches } from "./activityWorkspace";
 export type ActivityFeedRow = {
   id?: string;
   type?: string | null;
