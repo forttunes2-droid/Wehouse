@@ -339,3 +339,13 @@ test("legal surfaces use reviewed versioned documents and Long Let never gains a
   assert.match(drafts, /Biometric\/liveness DPIA/);
   assert.match(rentOnly, /Long Let payment must contain rent only/);
 });
+
+test("immersive Inbox Activity hides mobile bottom navigation in every workspace", async () => {
+  const [layout, inbox] = await Promise.all([
+    read("src/components/DesktopLayout.tsx"),
+    read("src/pages/Chat.tsx"),
+  ]);
+  assert.match(inbox, /wehouse:nested-screen[\s\S]*open: true/);
+  assert.match(layout, /const showWorkspaceBottom = workspaceRoot && workspaceTabs\.length > 0 && !nestedScreen/);
+  assert.match(layout, /showWorkspaceBottom \? 'pb-\[calc\(4\.5rem\+env\(safe-area-inset-bottom\)\)\] lg:pb-0' : ''/);
+});
