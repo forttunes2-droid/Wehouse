@@ -228,8 +228,10 @@ export default function AccountCenter({
         return { role, ...result };
       }));
       if (!current) return;
-      setWorkspaceUnread(Object.fromEntries(results.filter(result => !result.error)
-        .map(result => [result.role, visibleUnreadActivityCount(result.rows, result.role)])));
+      setWorkspaceUnread(current => Object.fromEntries(results.map(result => [
+        result.role,
+        result.error ? (current[result.role] || 0) : visibleUnreadActivityCount(result.rows, result.role),
+      ])));
     };
     void refresh();
     window.addEventListener('wehouse:workspace-activity', refresh);
