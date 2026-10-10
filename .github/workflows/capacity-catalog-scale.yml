@@ -16,7 +16,7 @@ on:
       - '.github/workflows/capacity-catalog-scale.yml'
       - 'scripts/seed-capacity-scale.sh'
       - 'scripts/load-catalog-scale.mjs'
-      - 'supabase/migrations/**
+      - 'supabase/migrations/**'
 
 permissions:
   contents: read
