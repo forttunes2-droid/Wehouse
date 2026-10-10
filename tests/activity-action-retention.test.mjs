@@ -5,10 +5,20 @@ import test from 'node:test';
 import ts from 'typescript';
 
 const sourcePath = process.env.ACTIVITY_SOURCE || 'src/lib/activityFeed.ts';
+const workspaceExports = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/activityWorkspace.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: workspaceExports, Intl, Date });
 const exports = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(sourcePath, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText, { exports, Intl, Date });
+}).outputText, {
+  exports, Intl, Date,
+  require: (specifier) => {
+    if (specifier === './activityWorkspace') return workspaceExports;
+    throw new Error(`Unexpected Activity test dependency: ${specifier}`);
+  },
+});
 const { currentActivityRows, resolveActivityDestination } = exports;
 const now = Date.parse('2026-09-23T12:00:00Z');
 const at = minutesAgo => new Date(now - minutesAgo * 60000).toISOString();
