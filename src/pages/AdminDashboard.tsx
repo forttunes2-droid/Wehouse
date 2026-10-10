@@ -384,25 +384,18 @@ function Operations({
         : `${stats.workers || 0} Workers`,
     };
     return (
-      <div className="space-y-4">
-        <p className="max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
-          Choose the work area. Each record belongs to one area so the same task is not repeated in several places.
-        </p>
-        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-          {OPS.map(([id, label, note]) => (
-            <button
-              key={id}
-              onClick={() => setActive(id)}
-              className="flex min-h-[4.5rem] w-full items-center gap-4 py-3 text-left"
-            >
-              <span className="min-w-0 flex-1">
-                <strong className="block text-sm font-semibold">{label}</strong>
-                <span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-muted)]">{note}</span>
-              </span>
-              <span className="shrink-0 text-right">
-                {counts[id] ? <span className="block text-[9px] font-semibold text-violet-300">{counts[id]}</span> : null}
-                <span className="mt-1 block text-[var(--wh-text-muted)]">›</span>
-              </span>
+      <div className="space-y-5">
+        <header className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[radial-gradient(ellipse_at_100%_0%,rgba(124,92,255,.12),transparent_48%),var(--wh-surface)] p-5 sm:p-6">
+          <p className="text-[10px] font-bold uppercase tracking-[.15em] text-violet-300">LOCAL CONTROL</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">Operations directory</h2>
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a focused workspace for your assigned coverage. Each record has one canonical home, so the same task is not repeated across sections.</p>
+        </header>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {OPS.map(([id, label, note], index) => (
+            <button key={id} type="button" onClick={() => setActive(id)} className="group flex min-h-[8.25rem] min-w-0 flex-col rounded-2xl border border-[var(--wh-border-subtle)] bg-[linear-gradient(145deg,rgba(255,255,255,.025),transparent_75%),var(--wh-surface)] p-4 text-left transition hover:-translate-y-0.5 hover:border-violet-400/30" style={{ animationDelay: `${index * 30}ms` }}>
+              <span className="flex w-full items-start justify-between gap-3"><strong className="text-sm font-semibold">{label}</strong><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--wh-border-subtle)] bg-white/[.025] text-sm text-violet-300 transition group-hover:bg-violet-500/10">↗</span></span>
+              <span className="mt-2 block text-xs leading-5 text-[var(--wh-text-muted)]">{note}</span>
+              <span className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4"><span className="text-[10px] font-semibold text-[var(--wh-accent-text)]">{counts[id] || "Scoped workspace"}</span><span className="text-[10px] font-bold text-[var(--wh-accent-text)]">Open →</span></span>
             </button>
           ))}
         </div>
