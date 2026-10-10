@@ -110,6 +110,18 @@ export function resolveActivityDestination(
     String(row.destination_route || legacyActivityRoute(type, sourceType)),
   );
 
+  // An invitation response belongs to the inviter's operational record, not
+  // the invitee response form. Legacy deliveries used "property-owner", which
+  // is not a canonical app route.
+  if (type === "resource_invitation_response") {
+    const resourceType = String(params.resource_type || "").toLowerCase();
+    const resourceId = value(params, ["resource_id", "resourceId"]);
+    if (resourceType === "hotel" && resourceId) {
+      return { route: "hotel_detail", id: resourceId };
+    }
+    return { route: "property_partner" };
+  }
+
   if (route === "security" && /device|login|session/.test(`${type} ${sourceType}`))
     route = "devices";
 
