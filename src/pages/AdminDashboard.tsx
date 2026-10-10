@@ -283,113 +283,78 @@ function Overview({
   inboxUnread: number;
   openCommunications: () => void;
 }) {
-  const cards: [string, number, Operation, string][] = [
-    ["Users", stats.users || 0, "people", "Regular users"],
-    ["Property Partners", stats.partners || 0, "people", "Property owners"],
-    ["Team", Number(stats.staff || 0) + Number(stats.admins || 0), "staff", "Admins and Operations members"],
-    [
-      "Properties",
-      stats.listings || 0,
-      "properties",
-      "Published inventory in this coverage",
-    ],
-    [
-      "Workers",
-      stats.workers || 0,
-      "workers",
-      `${stats.pending_verifications || 0} of ${stats.workers || 0} need review`,
-    ],
+  const fmt = (value: unknown) => Number(value || 0).toLocaleString("en-NG");
+  const cards: { label: string; value: number; target: Operation; note: string; tone: string; mark: string }[] = [
+    { label: "Users", value: Number(stats.users || 0), target: "people", note: "Personal accounts in your coverage", tone: "violet", mark: "↗" },
+    { label: "Property Partners", value: Number(stats.partners || 0), target: "people", note: "Accommodation providers", tone: "blue", mark: "⌂" },
+    { label: "Team", value: Number(stats.staff || 0) + Number(stats.admins || 0), target: "staff", note: "Admins and Operations members", tone: "teal", mark: "✳" },
+    { label: "Properties", value: Number(stats.listings || 0), target: "properties", note: "Published inventory in this coverage", tone: "amber", mark: "▦" },
+    { label: "Workers", value: Number(stats.workers || 0), target: "workers", note: `${fmt(stats.pending_verifications)} waiting for review`, tone: "violet", mark: "✓" },
   ];
   const attention = [
-    stats.pending_verifications
-      ? {
-          key: "workers",
-          label: "Worker review",
-          detail: `${stats.pending_verifications} Worker${Number(stats.pending_verifications) === 1 ? "" : "s"} waiting for review`,
-          action: () => openOperation("workers"),
-        }
+    Number(stats.pending_verifications || 0) > 0
+      ? { key: "workers", label: "Worker review", detail: `${fmt(stats.pending_verifications)} Worker${Number(stats.pending_verifications) === 1 ? "" : "s"} waiting for a decision`, action: () => openOperation("workers"), count: Number(stats.pending_verifications) }
       : null,
-    inboxUnread
-      ? {
-          key: "inbox",
-          label: "Inbox",
-          detail: `${inboxUnread} unread conversation${inboxUnread === 1 ? "" : "s"} or Activity item${inboxUnread === 1 ? "" : "s"}`,
-          action: openCommunications,
-        }
+    inboxUnread > 0
+      ? { key: "inbox", label: "Inbox & Activity", detail: `${fmt(inboxUnread)} unread conversation${inboxUnread === 1 ? "" : "s"} or Activity item${inboxUnread === 1 ? "" : "s"}`, action: openCommunications, count: inboxUnread }
       : null,
-  ].filter(Boolean) as Array<{ key: string; label: string; detail: string; action: () => void }>;
+  ].filter(Boolean) as Array<{ key: string; label: string; detail: string; action: () => void; count: number }>;
+  const coverage = profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`;
 
   return (
-    <div className="space-y-5">
-      <section className="border-b border-[var(--wh-border-subtle)] pb-5">
-        <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-violet-300">Coverage</p>
-        <h2 className="mt-2 text-2xl font-bold lg:text-3xl">
-          {profile.assigned_lga ? `${profile.assigned_lga}, ${profile.assigned_state}` : `${profile.assigned_state} State`}
-        </h2>
-        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--wh-text-secondary)]">
-          Admin authority follows the Creator-set State or LGA coverage;
-          Precise location improves maps and distance but never expands Admin coverage.
-        </p>
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-3xl border border-violet-500/20 bg-[radial-gradient(ellipse_at_90%_0%,rgba(124,92,255,.16),transparent_42%),linear-gradient(125deg,rgba(124,92,255,.07),var(--wh-surface)_52%,var(--wh-bg))] p-5 sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.16em] text-violet-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,.12)]" /> Operations workspace</span>
+          <span className="rounded-full border border-[var(--wh-border)] px-3 py-1.5 text-[10px] text-[var(--wh-text-muted)]">Scoped access · Admin</span>
+        </div>
+        <p className="mt-5 text-xs font-semibold text-[var(--wh-text-muted)]">YOUR COVERAGE</p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{coverage}</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--wh-text-secondary)]">Keep local marketplace operations moving. This workspace only exposes records and actions within your Creator-assigned State or LGA coverage.</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button type="button" onClick={() => openOperation("workers")} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-violet-500 px-4 text-xs font-bold text-white transition hover:bg-violet-400">Review Workers <span aria-hidden="true">→</span></button>
+          <button type="button" onClick={openCommunications} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--wh-border)] bg-white/[.025] px-4 text-xs font-bold transition hover:bg-white/[.06]">Open Inbox <span aria-hidden="true">↗</span></button>
+        </div>
       </section>
 
-      <section>
-        <div className="mb-2 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Needs attention</p>
-            <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">Only unresolved work that needs an Admin action appears here.</p>
-          </div>
-        </div>
-        {attention.length ? (
-          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-            {attention.map((item) => (
-              <button key={item.key} type="button" onClick={item.action} className="flex min-h-16 w-full items-center gap-4 py-3 text-left">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/[.08] text-[11px] font-bold text-violet-300">!</span>
-                <span className="min-w-0 flex-1">
-                  <strong className="block text-xs font-semibold">{item.label}</strong>
-                  <span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-muted)]">{item.detail}</span>
-                </span>
-                <span className="text-[var(--wh-text-muted)]">›</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="border-y border-[var(--wh-border-subtle)] py-5">
-            <p className="text-xs font-semibold">Nothing urgent in this coverage</p>
-            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">New review, security and conversation work will appear here when action is required.</p>
-          </div>
-        )}
-      </section>
-
-      <section>
-        <div className="mb-2">
-          <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Coverage summary</p>
-        </div>
-        <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-        {cards.map(([label, value, target, note]) => (
-          <button
-            key={label}
-            onClick={() => openOperation(target)}
-            className="flex min-h-16 w-full items-center gap-4 py-3 text-left"
-          >
-            <p className="w-12 shrink-0 text-xl font-bold">{value}</p>
-            <span className="min-w-0 flex-1"><strong className="block text-xs">{label}</strong><span className="mt-1 block text-[9px] text-[var(--wh-text-muted)]">{note}</span></span>
-            <span className="text-[var(--wh-text-muted)]">›</span>
+      <section aria-label="Coverage metrics" className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        {cards.map((card, index) => (
+          <button key={card.label} type="button" onClick={() => openOperation(card.target)} className="group min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[linear-gradient(145deg,rgba(255,255,255,.035),transparent_75%),var(--wh-surface)] p-4 text-left transition hover:-translate-y-0.5 hover:border-violet-400/30" style={{ animationDelay: `${index * 35}ms` }}>
+            <span className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-[var(--wh-text-secondary)]">{card.label}</span><span className={`grid h-8 w-8 place-items-center rounded-xl text-sm ${card.tone === "blue" ? "bg-blue-400/10 text-blue-300" : card.tone === "teal" ? "bg-teal-400/10 text-teal-300" : card.tone === "amber" ? "bg-amber-400/10 text-amber-300" : "bg-violet-400/10 text-violet-300"}`} aria-hidden="true">{card.mark}</span></span>
+            <strong className="mt-5 block text-3xl font-semibold tracking-tight tabular-nums">{fmt(card.value)}</strong>
+            <span className="mt-2 block min-h-9 text-[11px] leading-5 text-[var(--wh-text-muted)]">{card.note}</span>
+            <span className="mt-3 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3 text-[10px] font-bold text-[var(--wh-accent-text)]">Open area <span aria-hidden="true" className="transition group-hover:translate-x-0.5">→</span></span>
           </button>
         ))}
-        </div>
       </section>
-      <section className="border-y border-[var(--wh-border-subtle)]">
-        <button
-          onClick={openCommunications}
-          className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"
-        >
-          <span><strong className="block text-sm">Inbox</strong><span className="mt-1 block text-[10px] text-[var(--wh-text-muted)]">Contextual conversations and official Activity for this coverage.</span></span>
-          <span className="text-[var(--wh-text-muted)]">›</span>
-        </button>
-      </section>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,.75fr)]">
+        <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-4"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-violet-300">ACTION QUEUE</p><h3 className="mt-1 text-lg font-semibold">Needs attention</h3><p className="mt-1 text-xs text-[var(--wh-text-muted)]">Only items with an action available to this Admin.</p></div><span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[10px] text-[var(--wh-text-muted)]">{attention.length} queues</span></div>
+          {attention.length ? <div className="divide-y divide-[var(--wh-border-subtle)]">{attention.map(item => <button key={item.key} type="button" onClick={item.action} className="flex min-h-[5.25rem] w-full items-center gap-3 py-3 text-left transition hover:bg-[var(--wh-interactive)]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-400/20 bg-amber-400/[.07] text-sm font-bold text-amber-300">{item.count}</span><span className="min-w-0 flex-1"><strong className="block text-sm font-semibold">{item.label}</strong><span className="mt-1 block text-xs leading-5 text-[var(--wh-text-muted)]">{item.detail}</span></span><span className="text-[var(--wh-text-muted)]">→</span>
+          </button>)}</div> : <div className="py-7"><p className="text-sm font-semibold">You’re up to date</p><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">No Worker reviews or unread Inbox items currently require attention in this coverage.</p></div>}
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
+          <p className="text-[10px] font-bold uppercase tracking-[.15em] text-violet-300">QUICK ACCESS</p><h3 className="mt-1 text-lg font-semibold">Operational areas</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">Go straight to the work without navigating through unrelated sections.</p>
+          <div className="mt-4 space-y-1">
+            {[
+              { label: "Property lifecycle", note: "Submissions, inspections and publishing", target: "properties" as Operation, icon: "⌂" },
+              { label: "Worker Operations", note: "Review and service marketplace status", target: "workers" as Operation, icon: "✳" },
+              { label: "Team access", note: "Admins and assigned Operations members", target: "staff" as Operation, icon: "◎" },
+            ].map(item => <button key={item.target} type="button" onClick={() => openOperation(item.target)} className="flex min-h-[4.5rem] w-full items-center gap-3 rounded-xl px-2 text-left transition hover:bg-[var(--wh-interactive)]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--wh-border-subtle)] bg-white/[.025] text-sm text-violet-300">{item.icon}</span><span className="min-w-0 flex-1"><strong className="block text-xs font-semibold">{item.label}</strong><span className="mt-1 block text-[10px] leading-4 text-[var(--wh-text-muted)]">{item.note}</span></span><span className="text-[var(--wh-text-muted)]">→</span>
+            </button>)}
+          </div>
+          <button type="button" onClick={openCommunications} className="mt-3 flex min-h-11 w-full items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3 text-left text-xs font-bold text-[var(--wh-accent-text)]">Inbox & Activity <span aria-hidden="true">↗</span></button>
+        </section>
+      </div>
+      <p className="text-[10px] leading-5 text-[var(--wh-text-muted)]">Coverage is enforced by the platform. Location accuracy helps operations but never grants access beyond your assigned area.</p>
     </div>
   );
 }
+
 function Operations({
   profile,
   stats,
