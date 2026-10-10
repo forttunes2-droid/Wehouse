@@ -65,6 +65,21 @@ def local_ci_statement_representation_mismatch(version, path, local_ci):
     )
 
 
+def local_ci_normalized_migration_matches(version, path, digest, local_ci):
+    # Our coordinated runner intentionally strips a migration's outer
+    # BEGIN/COMMIT before storing its statement array. In disposable CI only,
+    # compare against that exact normalized body before treating a raw-file
+    # digest mismatch as a parser/transaction-wrapper representation difference.
+    if not local_ci:
+        return False
+    source = path.read_text()
+    try:
+        normalized = migration_body(source)
+    except ValueError:
+        return False
+    return hashlib.md5(normalized.encode()).hexdigest() == digest
+
+
 def literal(value):
     return "'" + value.replace("'", "''") + "'"
 
@@ -229,6 +244,8 @@ def main():
                     }
                 ) or local_historical_comment_only or local_ci_statement_representation_mismatch(
                     remote_version, paths[remote_version], args.local_ci
+                ) or local_ci_normalized_migration_matches(
+                    remote_version, paths[remote_version], digest, args.local_ci
                 )
                 if not local_bootstrap_representation:
                     raise ValueError("Applied migration SQL differs from its repository file: " + remote_version)
