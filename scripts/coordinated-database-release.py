@@ -197,8 +197,8 @@ def main():
                 # cases: historical bootstrap/audit migrations and the
                 # comment-only profile-security marker (its schema is supplied
                 # by 20250525000000_remote_schema.sql). Local CI has just reset
-                # from this exact checkout; Production reconciliation remains
-                # byte-exact and does not use this exception.
+                # from this exact checkout. Production reconciliation
+                # remains byte-exact and does not use this exception.
                 local_bootstrap_representation = (
                     args.local_ci and remote_version in {
                         "20250525000000", "20250526", "20260807160356"
