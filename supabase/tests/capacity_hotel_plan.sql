@@ -20,5 +20,16 @@ begin
   if jsonb_array_length(v_result->'items')<>24 then
     raise exception 'Price-filtered hotel discovery must return 24 matching rows for the scale fixture';
   end if;
+  if exists (
+    select 1
+    from jsonb_array_elements(v_result->'items') as hotels(value)
+    where not exists (
+      select 1
+      from jsonb_array_elements(coalesce(hotels.value->'hotel_rooms','[]'::jsonb)) as rooms(value)
+      where (rooms.value->>'price_per_night')::numeric between 22000 and 24000
+    )
+  ) then
+    raise exception 'Every returned hotel must contain room inventory inside the requested price band';
+  end if;
 end
 $$;
