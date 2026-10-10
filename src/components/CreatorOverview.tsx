@@ -13,10 +13,12 @@ const number = (value: unknown) => Number(value || 0).toLocaleString('en-NG');
 export default function CreatorOverview({ userId, onOpen }: { userId: string; onOpen: (destination: Destination, id?: string) => void }) {
   const { data, loading, error, refresh } = useRpcRead<Summary>('creator_get_dashboard_summary', userId);
 
-  if (loading) return <section role="status" aria-label="Loading platform overview" data-overview-state="loading" className="space-y-5">
+  if (loading) return <section role="status" aria-label="Loading overview" data-overview-state="loading" className="space-y-5">
     <div className="wh-creator-hero"><div className="shimmer h-2.5 w-28 rounded-full" /><div className="shimmer mt-4 h-8 w-64 max-w-full rounded-lg" /><div className="shimmer mt-3 h-3 w-80 max-w-full rounded-full" /></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[0,1,2,3].map(item => <div key={item} className="wh-creator-kpi"><div className="shimmer h-3 w-20 rounded-full"/><div className="shimmer mt-4 h-8 w-16 rounded-lg"/></div>)}</div>
-    <div className="space-y-3">{[0,1,2].map(item => <div key={item} className="shimmer h-16 rounded-xl"/>)}</div>
+    <div className="wh-overview-panel h-24"><div className="shimmer h-3 w-24 rounded-full"/><div className="shimmer mt-4 h-5 w-44 rounded-lg"/></div>
+    <div className="grid gap-5 xl:grid-cols-2">{[0,1].map(item => <div key={item} className="wh-overview-panel h-40"><div className="shimmer h-3 w-28 rounded-full"/><div className="shimmer mt-5 h-5 w-48 rounded-lg"/><div className="shimmer mt-3 h-3 w-36 rounded-full"/></div>)}</div>
+    <div className="wh-overview-panel h-16"><div className="shimmer h-3 w-40 rounded-full"/></div>
   </section>;
 
   if (error || !data) return <section role="alert" className="rounded-2xl border border-amber-500/25 bg-amber-500/[.05] p-5">
