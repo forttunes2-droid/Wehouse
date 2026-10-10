@@ -34,6 +34,61 @@ begin
 end;
 $$;
 
+-- Browser roles must not retain direct table privileges where RLS has no policies.
+-- Also prevent broad default grants from silently reopening future tables.
+do $
+declare
+  exposed_tables text;
+begin
+  select string_agg(format('%I.%I', n.nspname, c.relname), ', ' order by n.nspname, c.relname)
+    into exposed_tables
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where c.relkind in ('r', 'p')
+    and n.nspname in ('public', 'private')
+    and c.relrowsecurity
+    and not exists (
+      select 1 from pg_policies policy
+      where policy.schemaname = n.nspname and policy.tablename = c.relname
+    )
+    and (
+      has_table_privilege('anon', c.oid, 'SELECT')
+      or has_table_privilege('anon', c.oid, 'INSERT')
+      or has_table_privilege('anon', c.oid, 'UPDATE')
+      or has_table_privilege('anon', c.oid, 'DELETE')
+      or has_table_privilege('anon', c.oid, 'TRUNCATE')
+      or has_table_privilege('anon', c.oid, 'REFERENCES')
+      or has_table_privilege('anon', c.oid, 'TRIGGER')
+      or has_table_privilege('authenticated', c.oid, 'SELECT')
+      or has_table_privilege('authenticated', c.oid, 'INSERT')
+      or has_table_privilege('authenticated', c.oid, 'UPDATE')
+      or has_table_privilege('authenticated', c.oid, 'DELETE')
+      or has_table_privilege('authenticated', c.oid, 'TRUNCATE')
+      or has_table_privilege('authenticated', c.oid, 'REFERENCES')
+      or has_table_privilege('authenticated', c.oid, 'TRIGGER')
+    );
+
+  if exposed_tables is not null then
+    raise exception 'RLS-enabled tables without policies retain browser-role privileges: %', exposed_tables;
+  end if;
+
+  if exists (
+    select 1
+    from pg_default_acl defaults
+    join pg_roles owner_role on owner_role.oid = defaults.defaclrole
+    join pg_namespace schema_row on schema_row.oid = defaults.defaclnamespace
+    cross join lateral aclexplode(defaults.defaclacl) acl
+    left join pg_roles grantee on grantee.oid = acl.grantee
+    where defaults.defaclobjtype = 'r'
+      and schema_row.nspname = 'public'
+      and owner_role.rolname in ('postgres', 'supabase_admin')
+      and (acl.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))
+  ) then
+    raise exception 'Public-schema default table privileges still grant access to PUBLIC, anon, or authenticated';
+  end if;
+end;
+$;
+
 create function public.wh_contract_default_grant_probe() returns integer
 language sql security definer as 'select 1';
 do $$
