@@ -227,10 +227,11 @@ def main():
     completed = sorted((version for version in COMPLETED_RELEASES if version in effective_applied))
     if completed:
         checkpoint = completed[-1]
-        # Enforce post-baseline completeness only after the last verified legacy
-        # boundary. Older histories remain accepted; later checkpoints fail
-        # closed if any earlier repository migration is missing.
-        if checkpoint > "20260922020000":
+        # The 2026-09-22 17:00 boundary is the first checkpoint whose
+        # compatibility contract explicitly allows planning an omitted migration.
+        # Once a later release checkpoint exists, require the entire repository
+        # prefix through that checkpoint before permitting another release.
+        if checkpoint > "20260922170000":
             missing_before_checkpoint = [version for version in versions if version <= checkpoint and version not in effective_applied]
             if missing_before_checkpoint:
                 raise ValueError("Partial post-baseline rollout detected before " + checkpoint + ": " + ", ".join(missing_before_checkpoint[:12]))
