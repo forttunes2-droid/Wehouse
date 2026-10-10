@@ -44,7 +44,7 @@ function Fixture() {
     <footer className="shrink-0 border-t border-white/10 bg-[#10131B] p-3">
       {replyTarget && <div role="status" aria-label="Reply selected" className="mb-2 border-l-2 border-violet-400 px-3 py-2 text-sm">Replying to shared message<button type="button" className="ml-3 min-h-11" onClick={()=>setReplyTarget(null)}>Cancel reply</button></div>}
       {property && <PropertyDraftAttachment property={property} onRemove={()=>setProperty(null)} />}
-      {mediaError && <p role="alert" className="mb-3 text-sm text-amber-200">{mediaError}</p>}
+      {mediaError && <p role="alert" aria-label="Chat attachment validation error" className="mb-3 text-sm text-amber-200">{mediaError}</p>}
       {mode==='policy' && <ChatAttachmentPicker onFiles={(selection,source)=>void selectMedia(selection,source)} />}
       <PendingMessageMedia files={files} onRemove={index=>setFiles(current=>current.filter((_,i)=>i!==index))}/>
       <div className="flex items-end gap-2"><textarea aria-label="Message" placeholder="Message" rows={1} className="min-h-11 min-w-0 flex-1 resize-none rounded-3xl border border-white/10 bg-[#181B24] px-4 py-3 text-sm" value={note} onChange={event=>setNote(event.target.value)}/><button type="button" aria-label="Send message" disabled={!property&&!note.trim()} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:opacity-40" onClick={onSend}><Send size={19} /></button></div>
