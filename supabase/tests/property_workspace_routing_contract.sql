@@ -279,3 +279,95 @@ do $$ begin
   end;
 end $$;
 rollback;
+
+
+-- Invitation outcomes must land in the inviter's owning workspace and in the
+-- canonical Activity feed exactly once. Test all three legacy response forms.
+begin;
+set local session_replication_role=replica;
+insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city)
+values ('86666666-9000-4000-8000-000000000001','invitation-route-owner@example.invalid',
+        'invitation-route-owner','user',true,'Nasarawa','Lafia');
+set local session_replication_role=origin;
+
+insert into public.notifications(
+  recipient_id,type,title,message,related_id,source_type,source_id,
+  destination_route,destination_params,event_key,workspace_scope
+) values
+('invitation-route-owner','hotel_team_invitation_response','Hotel invitation accepted',
+ 'A team member accepted the hotel invitation.','fixture-team-invite-1',
+ 'hotel_team_member','fixture-team-invite-1','property-owner',
+ '{"hotel_id":-8671}'::jsonb,'fixture:invitation:hotel-team:1','property_partner'),
+('invitation-route-owner','resource_invitation_response','Hotel resource invitation accepted',
+ 'The hotel resource invitation was accepted.','fixture-resource-invite-1',
+ 'resource_invitation','fixture-resource-invite-1','activity',
+ '{"resource_type":"hotel","hotel_id":-8671}'::jsonb,
+ 'fixture:invitation:resource-hotel:1','personal'),
+('invitation-route-owner','resource_invitation_response','Property resource invitation accepted',
+ 'The property resource invitation was accepted.','fixture-resource-invite-2',
+ 'resource_invitation','fixture-resource-invite-2','activity',
+ '{"resource_type":"property","listing_id":"fixture-property"}'::jsonb,
+ 'fixture:invitation:resource-property:2','personal');
+
+do $invitation_activity$
+declare
+  v_bad integer;
+begin
+  select count(*) into v_bad
+  from public.notifications n
+  where n.recipient_id='invitation-route-owner'
+    and n.event_key in (
+      'fixture:invitation:hotel-team:1',
+      'fixture:invitation:resource-hotel:1',
+      'fixture:invitation:resource-property:2'
+    )
+    and n.workspace_scope is distinct from case
+      when n.type='hotel_team_invitation_response' then 'hotel'
+      when n.type='resource_invitation_response'
+        and n.destination_params->>'resource_type'='hotel' then 'hotel'
+      when n.type='resource_invitation_response'
+        and n.destination_params->>'resource_type'='property' then 'property_partner'
+      else n.workspace_scope
+    end;
+  if v_bad<>0 then
+    raise exception 'Invitation response notification routed to the wrong workspace';
+  end if;
+
+  select count(*) into v_bad
+  from public.notifications n
+  where n.recipient_id='invitation-route-owner'
+    and n.event_key in (
+      'fixture:invitation:hotel-team:1',
+      'fixture:invitation:resource-hotel:1',
+      'fixture:invitation:resource-property:2'
+    )
+    and not exists (
+      select 1
+      from public.activity_events e
+      join public.activity_event_audiences a using(activity_event_id)
+      where e.event_key='notification:'||n.id
+        and a.recipient_user_id=n.recipient_id
+        and a.workspace=n.workspace_scope
+    );
+  if v_bad<>0 then
+    raise exception 'Invitation response missing canonical Activity audience';
+  end if;
+
+  if exists (
+    select 1
+    from public.notifications n
+    join public.activity_events e on e.event_key='notification:'||n.id
+    join public.activity_event_audiences a using(activity_event_id)
+    where n.recipient_id='invitation-route-owner'
+      and n.event_key in (
+        'fixture:invitation:hotel-team:1',
+        'fixture:invitation:resource-hotel:1',
+        'fixture:invitation:resource-property:2'
+      )
+      and a.workspace is distinct from n.workspace_scope
+  ) then
+    raise exception 'Invitation response left a duplicate audience in the wrong workspace';
+  end if;
+end
+$invitation_activity$;
+rollback;
