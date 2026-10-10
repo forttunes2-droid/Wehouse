@@ -233,7 +233,7 @@ function NotificationFeed({
       setExpanded((current) => (current === row.id ? null : row.id));
       return;
     }
-    if (row.source_type === "resource_invitation" || row.destination_route === "invitation") {
+    if (row.type !== "resource_invitation_response" && (row.source_type === "resource_invitation" || row.destination_route === "invitation")) {
       const invitationId=String(row.destination_params?.invitation_id||row.source_id||"");
       if(!invitationId)return toast.error("Invitation reference is missing");
       setInvitationId(invitationId);
@@ -573,6 +573,7 @@ function activityAction(row: Activity, expanded: boolean) {
     return expanded ? "Show less" : "Read update";
   if (row.type === "work_post_confirmation_requested")
     return "Review completed work";
+  if (row.type === "resource_invitation_response") return "View team access";
   const label = activityDestinationLabel(row);
   return label === "View details" && expanded ? "Show less" : label;
 }
@@ -591,6 +592,7 @@ function dayLabel(value: string) {
 }
 function icon(type: string) {
   if (type === "announcement") return "W";
+  if (/resource_invitation|invitation/.test(type)) return "✓";
   if (type === "saved_search_match" || type === "followed_search_match") return "⌕";
   if (type.includes("payment")) return "₦";
   if (type.includes("roommate")) return "◉";
@@ -643,6 +645,7 @@ function matchesActivityFilter(row: Activity, filter: ActivityFilter) {
 }
 function activityKind(row: Activity) {
   const value = `${row.type} ${row.source_type}`.toLowerCase();
+  if (/resource_invitation|invitation/.test(value)) return "Team access";
   if (/saved_search_match|followed_search_match/.test(value)) return "Followed search";
   if (/security|device|password|login/.test(value)) return "Security";
   if (/payment|payout|earning|refund|wallet|commission/.test(value))
