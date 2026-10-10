@@ -9,6 +9,7 @@ type Summary = {
 type Destination = 'people' | 'team' | 'properties' | 'workers' | 'finance' | 'analytics';
 
 const number = (value: unknown) => Number(value || 0).toLocaleString('en-NG');
+const countLabel = (value: unknown, singular: string, plural = `${singular}s`) => `${number(value)} ${Number(value || 0) === 1 ? singular : plural}`;
 
 export default function CreatorOverview({ userId, onOpen }: { userId: string; onOpen: (destination: Destination, id?: string) => void }) {
   const { data, loading, error, refresh } = useRpcRead<Summary>('creator_get_dashboard_summary', userId);
@@ -31,11 +32,11 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
     { label: 'Personal accounts', value: data.accounts, note: 'Customer accounts', tone: 'violet', destination: 'people' as Destination },
     { label: 'Property partners', value: data.partners, note: 'Accommodation supply', tone: 'blue', destination: 'people' as Destination, id: 'property_partner' },
     { label: 'Service Workers', value: data.workers, note: 'Service marketplace', tone: 'teal', destination: 'workers' as Destination },
-    { label: 'Published inventory', value: Number(data.apartments || 0) + Number(data.hotels || 0), note: `${number(data.apartments)} apartments · ${number(data.hotels)} hotels`, tone: 'amber', destination: 'properties' as Destination },
+    { label: 'Published inventory', value: Number(data.apartments || 0) + Number(data.hotels || 0), note: `${countLabel(data.apartments, 'apartment')} · ${countLabel(data.hotels, 'hotel')}`, tone: 'amber', destination: 'properties' as Destination },
   ];
   const work = [
-    { title: 'Worker verification', description: data.pending_reviews ? `${number(data.pending_reviews)} profiles waiting for a decision` : 'No Worker reviews waiting', count: data.pending_reviews, tag: data.pending_reviews ? 'Needs review' : 'Clear', destination: 'workers' as Destination, accent: 'violet' },
-    { title: 'Property inspections', description: `${number(data.inspections)} inspections in the current pipeline`, count: data.inspections, tag: 'Property lifecycle', destination: 'properties' as Destination, accent: 'blue' },
+    { title: 'Worker verification', description: data.pending_reviews ? `${countLabel(data.pending_reviews, 'profile')} waiting for a decision` : 'No Worker reviews waiting', count: data.pending_reviews, tag: data.pending_reviews ? 'Needs review' : 'Clear', destination: 'workers' as Destination, accent: 'violet' },
+    { title: 'Property inspections', description: `${countLabel(data.inspections, 'inspection')} in the current pipeline`, count: data.inspections, tag: 'Property lifecycle', destination: 'properties' as Destination, accent: 'blue' },
     { title: 'Payout requests', description: 'Review requests before financial actions are processed', count: data.payouts, tag: data.payouts ? 'Finance queue' : 'No pending count', destination: 'finance' as Destination, accent: 'amber' },
   ];
   const reviewed = Math.max(0, Number(data.workers_reviewed || 0));
@@ -85,7 +86,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
           <button type="button" onClick={() => onOpen('workers')} className="wh-panel-link mt-5">Manage Worker lifecycle <span aria-hidden="true">→</span></button>
         </section>
         <section className="wh-overview-panel">
-          <p className="wh-section-kicker">WeHouse team</p><div className="mt-2 flex items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">People behind the platform</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">{number(data.hotel_team)} hotel team members · Admins and assigned Operations members.</p></div><strong className="text-3xl font-semibold tabular-nums">{number(data.team)}</strong></div>
+          <p className="wh-section-kicker">WeHouse team</p><div className="mt-2 flex items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">People behind the platform</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">{countLabel(data.hotel_team, 'hotel team member')} · Admins and assigned Operations members.</p></div><strong className="text-3xl font-semibold tabular-nums">{number(data.team)}</strong></div>
           <button type="button" onClick={() => onOpen('team')} className="wh-panel-link mt-5">Manage team access <span aria-hidden="true">→</span></button>
         </section>
       </aside>
