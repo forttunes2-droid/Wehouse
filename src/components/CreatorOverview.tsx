@@ -85,7 +85,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
           <button type="button" onClick={() => onOpen('workers')} className="wh-panel-link mt-5">Manage Worker lifecycle <span aria-hidden="true">→</span></button>
         </section>
         <section className="wh-overview-panel">
-          <p className="wh-section-kicker">WeHouse team</p><div className="mt-2 flex items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">People behind the platform</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">Admins and assigned Operations members.</p></div><strong className="text-3xl font-semibold tabular-nums">{number(data.team)}</strong></div>
+          <p className="wh-section-kicker">WeHouse team</p><div className="mt-2 flex items-end justify-between gap-3"><div><h3 className="text-lg font-semibold">People behind the platform</h3><p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">{number(data.hotel_team)} hotel team members · Admins and assigned Operations members.</p></div><strong className="text-3xl font-semibold tabular-nums">{number(data.team)}</strong></div>
           <button type="button" onClick={() => onOpen('team')} className="wh-panel-link mt-5">Manage team access <span aria-hidden="true">→</span></button>
         </section>
       </aside>
