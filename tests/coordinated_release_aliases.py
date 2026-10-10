@@ -108,6 +108,23 @@ class ProductionAliases(unittest.TestCase):
                 "20260913180000", changed, True
             ))
 
+    def test_local_ci_accepts_only_exact_transaction_normalized_migration(self):
+        path = self.paths["20260914113621"]
+        normalized = release.migration_body(path.read_text())
+        digest = hashlib.md5(normalized.encode()).hexdigest()
+        self.assertTrue(release.local_ci_normalized_migration_matches(
+            "20260914113621", path, digest, True
+        ))
+        self.assertFalse(release.local_ci_normalized_migration_matches(
+            "20260914113621", path, digest, False
+        ))
+        with tempfile.TemporaryDirectory() as directory:
+            changed = Path(directory) / path.name
+            changed.write_text(path.read_text() + "-- altered content\\n")
+            self.assertFalse(release.local_ci_normalized_migration_matches(
+                "20260914113621", changed, digest, True
+            ))
+
     def test_transaction_rechecks_aliases_and_preserves_history(self):
         sql = release.release_sql([], self.applied, "check", [
             (row["version"], row["name"], row["digest"]) for row in self.alias_rows
