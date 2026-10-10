@@ -118,10 +118,9 @@ export function resolveActivityDestination(
   // is not a canonical app route.
   if (type === "resource_invitation_response") {
     const resourceType = String(params.resource_type || "").toLowerCase();
-    const resourceId = value(params, ["resource_id", "resourceId"]);
-    if (resourceType === "hotel" && resourceId) {
-      return { route: "hotel_detail", id: resourceId };
-    }
+    // The inviter manages hotel-team membership from the Property Partner
+    // workspace. "hotel_detail" is a personal-only route and is normalized
+    // away for partner accounts, so sending the inviter there loses the target.
     return { route: "property_partner" };
   }
 
@@ -129,10 +128,10 @@ export function resolveActivityDestination(
   // Their legacy destination is "property-owner" and params carry hotel_id;
   // normalize that payload to a real application route instead of a dead page.
   if (type === "hotel_team_invitation_response") {
-    const hotelId = value(params, ["hotel_id", "hotelId"]);
-    return hotelId
-      ? { route: "hotel_detail", id: hotelId }
-      : { route: "property_partner" };
+    // Team responses are handled in the inviter's workspace, not public
+    // hotel discovery. The hotel id remains in the Activity payload for the
+    // team list to identify the relevant resource.
+    return { route: "property_partner" };
   }
 
   if (route === "security" && /device|login|session/.test(`${type} ${sourceType}`))
@@ -243,8 +242,8 @@ export function resolveActivityDestination(
 export function activityDestinationLabel(row: Parameters<typeof resolveActivityDestination>[0]) {
   const { route } = resolveActivityDestination(row);
   const type = String(row.type || "").toLowerCase();
-  if (type === "hotel_team_invitation_response") return "View hotel team";
-  if (type === "resource_invitation_response") return "View team invitation response";
+  if (type === "hotel_team_invitation_response") return "View team access";
+  if (type === "resource_invitation_response") return "View team access";
   if (type === "property_move_in_requested") return "Prepare handover";
   if (type === "property_rent_confirmed") return "View reservation";
   if (type.startsWith("sponsored_campaign_")) return "View Sponsored placement";
