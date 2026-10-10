@@ -6,7 +6,7 @@ type Summary = {
   apartments: number; hotels: number; hotel_team: number;
   pending_reviews: number; workers_reviewed?: number; workers_under_review?: number; workers_onboarding?: number; inspections: number; payouts: number;
 };
-type Destination = 'people' | 'team' | 'properties' | 'workers' | 'finance';
+type Destination = 'people' | 'team' | 'properties' | 'workers' | 'finance' | 'analytics';
 
 const number = (value: unknown) => Number(value || 0).toLocaleString('en-NG');
 
