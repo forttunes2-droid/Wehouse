@@ -57,7 +57,9 @@ export function useWorkerInboxSummary(userId: string) {
             })
           );
         }).length;
-    if (!events.error || !announcements.error)
+    // Keep the last complete count if either source failed; zero is not evidence
+    // that a failed Activity read is empty.
+    if (!events.error && !announcements.error)
       setActivityUnread(eventUnread + announcementUnread);
   }, [userId]);
 
