@@ -10,12 +10,20 @@ on:
         options:
           - million
           - full
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/capacity-catalog-scale.yml'
+      - 'scripts/seed-capacity-scale.sh'
+      - 'scripts/load-catalog-scale.mjs'
+      - 'supabase/migrations/**
 
 permissions:
   contents: read
 
 jobs:
   exact-catalog-cardinality:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'fix/next-structural-work-20261007'
     # Deliberately never scheduled on the 14 GB standard runner or on hosted Supabase.
     runs-on: [self-hosted, linux, x64, wehouse-capacity]
     timeout-minutes: 360
@@ -33,9 +41,9 @@ jobs:
           npx --yes supabase@2.114.0 start
           npx --yes supabase@2.114.0 db reset --local
       - name: Seed exact synthetic catalog and profile counts
-        run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog }} bash scripts/seed-capacity-scale.sh
+        run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} bash scripts/seed-capacity-scale.sh
       - name: Measure public read paths
-        run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog }} node scripts/load-catalog-scale.mjs
+        run: WEHOUSE_CAPACITY_PRESET=${{ inputs.catalog || (github.event_name == 'pull_request' && 'large' || 'million') }} node scripts/load-catalog-scale.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
