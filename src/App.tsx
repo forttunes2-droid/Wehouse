@@ -53,10 +53,10 @@ import {
   activityIsCurrent,
   currentActivityRows,
   resolveActivityDestination,
+  visibleUnreadActivityCount,
 } from "@/lib/activityFeed";
 import {
   getCanonicalActivity,
-  getCanonicalActivitySummary,
   markCanonicalActivityRead,
   subscribeToCanonicalActivity,
 } from "@/lib/supabase/activity";
@@ -375,9 +375,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     }
     let current = true;
     const refresh = async () => {
-      const results = await Promise.all(otherWorkspaceRoles.split(',').map(role => getCanonicalActivitySummary(role)));
+      const roles = otherWorkspaceRoles.split(',');
+      const results = await Promise.all(roles.map(role => getCanonicalActivity(role, 100)));
       if (current && results.every(result => !result.error))
-        setOtherWorkspaceUnread(results.reduce((sum, result) => sum + result.summary.unread, 0));
+        setOtherWorkspaceUnread(results.reduce((sum, result, index) => sum + visibleUnreadActivityCount(result.rows, roles[index]), 0));
     };
     void refresh();
     const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
