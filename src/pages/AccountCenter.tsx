@@ -13,7 +13,8 @@ import type { Profile } from "@/types";
 import PrivacySecuritySettings from "@/pages/PrivacySecuritySettings";
 import MediaViewer from "@/components/MediaViewer";
 import { getCurrentLegalDocuments } from "@/lib/supabase/legal";
-import { getCanonicalActivitySummary } from "@/lib/supabase/activity";
+import { getCanonicalActivity } from "@/lib/supabase/activity";
+import { visibleUnreadActivityCount } from "@/lib/activityFeed";
 import {
   workspaceLabel,
   workspaceGroup,
@@ -223,12 +224,12 @@ export default function AccountCenter({
     const refresh = async () => {
       const roles = workspaceRolesKey.split(',').filter(role => role && role !== 'hosting');
       const results = await Promise.all(roles.map(async role => {
-        const result = await getCanonicalActivitySummary(role);
+        const result = await getCanonicalActivity(role, 100);
         return { role, ...result };
       }));
       if (!current) return;
       setWorkspaceUnread(Object.fromEntries(results.filter(result => !result.error)
-        .map(result => [result.role, result.summary.unread])));
+        .map(result => [result.role, visibleUnreadActivityCount(result.rows, result.role)])));
     };
     void refresh();
     window.addEventListener('wehouse:workspace-activity', refresh);
