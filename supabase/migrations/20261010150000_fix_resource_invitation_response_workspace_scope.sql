@@ -22,7 +22,8 @@ begin
   end if;
   return new;
 end
-$$;
+$;
+revoke all on function public.set_resource_invitation_response_workspace() from public, anon, authenticated;
 
 drop trigger if exists resource_invitation_response_workspace on public.notifications;
 create trigger resource_invitation_response_workspace
