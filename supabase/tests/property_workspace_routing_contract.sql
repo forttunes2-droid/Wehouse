@@ -179,7 +179,7 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','86666666-1000-4000-8000-000000000001',true);
 set local role authenticated;
-do $
+do $guard$
 declare blocked boolean:=false;
 begin
   -- Re-selecting the current operator is idempotent, but changing the operator
@@ -201,8 +201,8 @@ begin
   if not blocked then
     raise exception 'Published home operator changed without reviewed handoff';
   end if;
-end $;
-do $
+end $guard$;
+do $handover$
 declare removed boolean;
 begin
   removed:=public.revoke_property_host_manager('86666666-3000-4000-8000-000000000002');
@@ -217,7 +217,7 @@ begin
     select 1 from public.property_host_assignments
     where assignment_id='86666666-3000-4000-8000-000000000002' and status='revoked'
   ) then raise exception 'Manager assignment was not revoked'; end if;
-end $$;
+end $handover$;
 reset role;
 -- RPC-only conversations and booking/audit internals are checked as the fixture
 -- administrator; their browser table privileges must stay closed.
