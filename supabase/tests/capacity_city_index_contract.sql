@@ -16,10 +16,9 @@ begin
       and p.proname='search_discoverable_hotels'
       and p.pronargs=13
       and l.lanname='plpgsql'
-      and position('execute $query
- in lower(pg_get_functiondef(p.oid)))>0
+      and position('execute $query$' in lower(pg_get_functiondef(p.oid)))>0
   ) then
     raise exception 'Hotel discovery must retain parameter-aware bounded query planning';
   end if;
 end
-$;
+$$;
