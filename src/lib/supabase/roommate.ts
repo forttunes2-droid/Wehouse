@@ -152,6 +152,14 @@ export async function updateMatchStatus(
   return { conversationId: data || null, error };
 }
 
+export async function cancelRoommateInterest(matchId: string) {
+  const { data, error } = await supabase.rpc(
+    "cancel_my_roommate_interest",
+    { p_match_id: matchId },
+  );
+  return { cancelled: data === true, error };
+}
+
 export async function getReceivedRoommateInterests() {
   const { data, error } = await supabase.rpc(
     "get_my_received_roommate_interests_v2",
