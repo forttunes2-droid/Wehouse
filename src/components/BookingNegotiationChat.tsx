@@ -1,863 +1,3 @@
-import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
-import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import BookingDateField from "@/components/BookingDateField";
-import {
-  getBookingMessages,
-  sendBookingMessage,
-  uploadBookingChatAttachment,
-  workerAcceptBooking,
-  workerStartJob,
-  workerMarkComplete,
-  customerConfirmCompletion,
-  customerRaiseDispute,
-  cancelBooking,
-  getBookingDetails,
-  createWorkerBookingPayment,
-  BOOKING_STATUS_LABELS,
-  markBookingMessagesRead,
-  hideBookingConversation,
-  getMyWorkerBookingReview,
-  submitWorkerBookingReview,
-  reactToBookingMessage,
-} from "@/lib/supabase/worker-bookings";
-import { chatPresenceLabel } from "@/lib/supabase/presence";
-import useChatPresence from "@/hooks/useChatPresence";
-import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/types";
-import { toast } from "sonner";
-import MediaViewer from "@/components/MediaViewer";
-import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
-import PrivateCallHistory from "@/components/PrivateCallHistory";
-import BackButton from "@/components/BackButton";
-import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
-import useVoiceRecorder from "@/hooks/useVoiceRecorder";
-import SecureChatOnboarding from "@/components/SecureChatOnboarding";
-import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
-import MessagePress from "@/components/MessagePress";
-import MessageActionSheet from "@/components/MessageActionSheet";
-import ConfirmDialog from "@/components/ConfirmDialog";
-import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
-import RoommatePublicProfile from "@/components/RoommatePublicProfile";
-import WorkerPublicProfile from "@/components/WorkerPublicProfile";
-import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
-import { PublicProfileAction } from "@/components/PublicProfileSurface";
-import {
-  lockEncryptionIdentity,
-  privateConversationReadiness,
-  rememberPrivateMessagingProfile,
-  type PrivateConversationReadiness,
-} from "@/lib/e2ee";
-
-type Props = {
-  conversationId: string;
-  bookingId: string;
-  profile: Profile;
-  isWorker: boolean;
-  onClose: () => void;
-};
-type ChatMessage = {
-  id: string;
-  sender_id: string;
-  sender_name?: string | null;
-  content: string;
-  attachments?: string[] | null;
-  attachment_types?: string[];
-  attachment_names?: string[];
-  attachment_failed?: boolean;
-  is_read?: boolean | null;
-  reactions?: Record<string, string>;
-  decryption_failed?: boolean;
-  reply_to_id?: string | null;
-  created_at: string;
-  delivery_state?: "sending" | "failed";
-};
-type Booking = {
-  user_id: string;
-  worker_id: string;
-  status: string;
-  booking_code?: string | null;
-  service_type?: string | null;
-  scheduled_date?: string | null;
-  negotiated_amount?: number | null;
-  agreed_amount?: number | null;
-  address?: string | null;
-  description?: string | null;
-  customer_message?: string | null;
-  request_attachments?: string[] | null;
-  customer_username?: string | null;
-  user_name?: string | null;
-  worker_name?: string | null;
-  user_avatar?: string | null;
-  worker_avatar?: string | null;
-  payment_review_required?: boolean | null;
-  payment_protected?: boolean | null;
-  blocked_by_me?: boolean | null;
-  blocked_me?: boolean | null;
-  payment_status?: string | null;
-  payment_released_at?: string | null;
-  job_support_until?: string | null;
-  job_support_open?: boolean | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-type ConversationProfile = Partial<Profile> & {
-  lga?: string | null;
-  school?: string | null;
-  bio?: string | null;
-};
-const MAX_FILES = 6,
-  MAX_FILE_SIZE = 25 * 1024 * 1024;
-export default function BookingNegotiationChat({
-  conversationId,
-  bookingId,
-  profile,
-  isWorker,
-  onClose,
-}: Props) {
-  useEffect(() => {
-    rememberPrivateMessagingProfile(profile.user_id);
-  }, [profile.user_id]);
-  const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]),
-    [messageError, setMessageError] = useState<string | null>(null),
-    [booking, setBooking] = useState<Booking | null>(null),
-    [input, setInput] = useState(""),
-    [loading, setLoading] = useState(true),
-    [acceptAmount, setAcceptAmount] = useState(""),
-    [acceptDate, setAcceptDate] = useState(""),
-    [showAcceptForm, setShowAcceptForm] = useState(false),
-    [disputeReason, setDisputeReason] = useState(""),
-    [showDisputeForm, setShowDisputeForm] = useState(false),
-    [cancelReason, setCancelReason] = useState(""),
-    [showCancelForm, setShowCancelForm] = useState(false),
-    [paying, setPaying] = useState(false),
-    [sending, setSending] = useState(false),
-    [files, setFiles] = useState<File[]>([]),
-    [menuOpen, setMenuOpen] = useState(false),
-    [profileOpen, setProfileOpen] = useState(false),
-    [peerProfile, setPeerProfile] = useState<ConversationProfile | null>(null),
-    [peerBlocked, setPeerBlocked] = useState(false),
-    [blockedByPeer, setBlockedByPeer] = useState(false),
-    [blockBusy, setBlockBusy] = useState(false),
-    [blockPrompt, setBlockPrompt] = useState(false),
-    [messageMenu, setMessageMenu] = useState<ChatMessage | null>(null),
-    [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions"),
-    [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null),
-    [messageToRemove, setMessageToRemove] = useState<ChatMessage | null>(null),
-    [confirmDelete, setConfirmDelete] = useState(false),
-    [secureChat, setSecureChat] = useState<PrivateConversationReadiness | null>(
-      null,
-    );
-  const [review, setReview] = useState<any>(null),
-    [reviewRating, setReviewRating] = useState(0),
-    [reviewComment, setReviewComment] = useState(""),
-    [reviewSaving, setReviewSaving] = useState(false),
-    [reviewOpen, setReviewOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const voice = useVoiceRecorder();
-  const messageById = useMemo(
-    () => new Map(messages.map((message) => [message.id, message])),
-    [messages],
-  );
-  const peerId = booking
-    ? isWorker
-      ? booking.user_id
-      : booking.worker_id
-    : null;
-  const presence = useChatPresence(peerId);
-  const presenceText = chatPresenceLabel(presence);
-  const refreshSecureChat = useCallback(async () => {
-    if (!peerId) return setSecureChat(null);
-    setSecureChat(
-      await privateConversationReadiness("worker", conversationId, peerId),
-    );
-  }, [conversationId, peerId]);
-  const loadMessages = useCallback(
-    async (loadedPeerId: string | null, quiet = false) => {
-      const msgRes = await getBookingMessages(conversationId, loadedPeerId);
-      if (!msgRes.error) {
-        setMessages((msgRes.messages || []) as ChatMessage[]);
-        setMessageError(null);
-        void markBookingMessagesRead(conversationId);
-      } else if (!quiet) {
-        setMessageError(
-          msgRes.error.message || "Conversation could not be loaded",
-        );
-        toast.error("Conversation could not be loaded");
-      }
-    },
-    [conversationId],
-  );
-  const loadAll = useCallback(
-    async (quiet = false) => {
-      if (!quiet) setLoading(true);
-      const bookingRes = await getBookingDetails(bookingId);
-      const loadedBooking = (bookingRes.booking || null) as Booking | null;
-      if (!bookingRes.error) {
-        setBooking(loadedBooking);
-        setPeerBlocked(Boolean(loadedBooking?.blocked_by_me));
-        setBlockedByPeer(Boolean(loadedBooking?.blocked_me));
-      }
-      const loadedPeerId = loadedBooking
-        ? isWorker
-          ? loadedBooking.user_id
-          : loadedBooking.worker_id
-        : null;
-      await loadMessages(loadedPeerId, quiet);
-      if (!quiet) setLoading(false);
-      if (loadedBooking?.status === "approved_released" && !isWorker)
-        void getMyWorkerBookingReview(bookingId).then((reviewResult) => {
-          if (!reviewResult.error && reviewResult.review) {
-            setReview(reviewResult.review);
-            setReviewRating(Number(reviewResult.review.rating || 0));
-            setReviewComment(String(reviewResult.review.comment || ""));
-          }
-        });
-    },
-    [bookingId, isWorker, loadMessages],
-  );
-  const finishSecureUnlock = useCallback(async () => {
-    if (!peerId) return;
-    setSecureChat(null);
-    const result = await privateConversationReadiness(
-      "worker",
-      conversationId,
-      peerId,
-    );
-    setSecureChat(result);
-    if (result.state === "ready") await loadMessages(peerId, true);
-  }, [conversationId, loadMessages, peerId]);
-  const retryLockedMessages = useCallback(async () => {
-    setSecureChat(null);
-    await lockEncryptionIdentity();
-    await refreshSecureChat();
-  }, [refreshSecureChat]);
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
-  useEffect(() => {
-    void refreshSecureChat();
-  }, [refreshSecureChat]);
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, files.length]);
-  useEffect(() => {
-    document.body.classList.add("wehouse-conversation-open");
-    window.dispatchEvent(
-      new CustomEvent("wehouse:conversation-open", { detail: { open: true } }),
-    );
-    return () => {
-      document.body.classList.remove("wehouse-conversation-open");
-      window.dispatchEvent(
-        new CustomEvent("wehouse:conversation-open", {
-          detail: { open: false },
-        }),
-      );
-    };
-  }, []);
-  useEffect(() => {
-    const channel = supabase
-      .channel(`booking-chat-live:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "booking_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () =>
-          void (peerId
-            ? loadMessages(peerId, true)
-            : loadAll(true)),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "booking_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        () =>
-          void (peerId
-            ? loadMessages(peerId, true)
-            : loadAll(true)),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "worker_bookings",
-          filter: `id=eq.${bookingId}`,
-        },
-        () => void loadAll(true),
-      )
-      .subscribe();
-    const refresh = () => {
-      if (document.visibilityState === "visible") void loadAll(true);
-    };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-      void supabase.removeChannel(channel);
-    };
-  }, [bookingId, conversationId, loadAll, loadMessages, peerId]);
-  function openSupport() {
-    setMenuOpen(false);
-    window.dispatchEvent(
-      new CustomEvent("openSupportChat", {
-        detail: {
-          category: "service_booking_help",
-          subject: `${booking?.service_type || "Service booking"} help`,
-          contextType: "worker_booking",
-          contextId: bookingId,
-          contextSnapshot: {
-            source_type: "worker_booking",
-            source_id: bookingId,
-            booking_code: booking?.booking_code || null,
-            service_type: booking?.service_type || null,
-            status: booking?.status || null,
-            scheduled_date: booking?.scheduled_date || null,
-            agreed_amount:
-              booking?.negotiated_amount || booking?.agreed_amount || null,
-            address: booking?.address || null,
-            worker_id: booking?.worker_id || null,
-            customer_id: booking?.user_id || null,
-          },
-        },
-      }),
-    );
-  }
-  function openReport() {
-    setProfileOpen(false);
-    openSupport();
-  }
-  function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
-    if (!list) return;
-    const incoming = Array.from(list).filter((file) => {
-      if (!isSelectableChatAttachment(file, source)) {
-        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
-        return false;
-      }
-      return true;
-    });
-    setFiles((current) => {
-      const next = [...current, ...incoming].slice(0, MAX_FILES);
-      if (current.length + incoming.length > MAX_FILES)
-        toast.error("You can send up to 6 photos or videos at once");
-      return next;
-    });
-  }
-  async function handleSend() {
-    if (sending || (!input.trim() && !files.length)) return;
-    if (peerBlocked || blockedByPeer)
-      return toast.error("Messages are stopped for this blocked connection");
-    if (secureChat?.state !== "ready" || !peerId)
-      return toast.error("Secure chat is not ready yet");
-    const content = input.trim(),
-      queuedFiles = [...files],
-      replyTarget = replyingTo;
-    setSending(true);
-    setInput("");
-    setFiles([]);
-    setReplyingTo(null);
-    const optimisticId = `pending-${Date.now()}`;
-    if (content)
-      setMessages((current) => [
-        ...current,
-        {
-          id: optimisticId,
-          sender_id: profile.user_id,
-          sender_name: profile.full_name || profile.username || "You",
-          content,
-          attachments: [],
-          reply_to_id: replyTarget?.id || null,
-          is_read: false,
-          created_at: new Date().toISOString(),
-          delivery_state: "sending",
-        },
-      ]);
-    const paths: string[] = [],
-      attachments: Array<{
-        path: string;
-        file_iv: string;
-        metadata_ciphertext: string;
-        metadata_iv: string;
-      }> = [];
-    try {
-      const uploadedFiles = await Promise.all(
-        queuedFiles.map((file) => uploadBookingChatAttachment(file, conversationId, peerId || "")),
-      );
-      for (let index = 0; index < uploadedFiles.length; index++) {
-        const uploaded = uploadedFiles[index];
-        const file = queuedFiles[index];
-        if (uploaded.error || !uploaded.path || !uploaded.attachment)
-          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
-        paths.push(uploaded.path);
-        attachments.push(uploaded.attachment);
-      }
-      const { error } = await sendBookingMessage(
-        conversationId,
-        peerId || "",
-        content,
-        attachments,
-        replyTarget?.id || null,
-      );
-      if (error) throw error;
-      await loadAll(true);
-    } catch (error: unknown) {
-      setMessages((current) =>
-        current.filter((message) => message.id !== optimisticId),
-      );
-      setInput(content);
-      setFiles(queuedFiles);
-      setReplyingTo(replyTarget);
-      if (paths.length) await supabase.storage.from("chat-files").remove(paths);
-      toast.error(
-        error instanceof Error ? error.message : "Message could not be sent",
-      );
-    } finally {
-      setSending(false);
-    }
-  }
-  async function toggleVoice() {
-    if (voice.recording) return voice.finish();
-    if (files.length >= MAX_FILES)
-      return toast.error("Remove an attachment before recording a voice note");
-    try {
-      await voice.start();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Microphone permission is required for voice messages",
-      );
-    }
-  }
-  async function openPeerProfile() {
-    const [{ data, error }, blockResult] = await Promise.all([
-      supabase.rpc("get_allowed_conversation_profile", {
-        p_context_type: "worker_booking",
-        p_context_id: bookingId,
-      }),
-      peerId
-        ? supabase.rpc("get_my_worker_block_state", { p_user_id: peerId })
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-    if (error) return toast.error("Profile could not be opened");
-    setPeerProfile(data || null);
-    if (!blockResult.error)
-      {
-        setPeerBlocked(Boolean(blockResult.data?.blocked_by_me));
-        setBlockedByPeer(Boolean(blockResult.data?.blocked_me));
-      }
-    setProfileOpen(true);
-  }
-  async function togglePeerBlock() {
-    if (!peerId || blockBusy) return;
-    setBlockBusy(true);
-    const next = !peerBlocked;
-    const { data, error } = await supabase.rpc("set_my_worker_block", {
-      p_user_id: peerId,
-      p_blocked: next,
-      p_reason: next ? "Blocked from the service conversation" : null,
-    });
-    setBlockBusy(false);
-    setBlockPrompt(false);
-    if (error) return toast.error(error.message || "Safety setting could not be changed");
-    setPeerBlocked(next);
-    toast.success(next ? "Person blocked" : "Person unblocked");
-    if (data?.booking_action === "review_required")
-      toast.info("WeHouse will review the secured booking payment.");
-    await loadAll(true);
-  }
-  async function deleteFromMessages() {
-    const { hidden, error } = await hideBookingConversation(conversationId);
-    if (error || !hidden)
-      return toast.error(error?.message || "Could not remove conversation");
-    toast.success("Conversation removed");
-    setConfirmDelete(false);
-    setMenuOpen(false);
-    onClose();
-  }
-  async function deleteMessageForMe() {
-    if (!messageToRemove) return;
-    const { error } = await supabase.rpc("delete_conversation_message_for_me", {
-      p_kind: "worker",
-      p_message_id: messageToRemove.id,
-    });
-    if (error)
-      return toast.error(error.message || "Message could not be removed");
-    setMessageToRemove(null);
-    await loadAll(true);
-  }
-  async function startCall(kind: "audio" | "video") {
-    if (peerBlocked || blockedByPeer)
-      return toast.error("Private calls are stopped for this blocked connection");
-    const { capabilities, error } = await getCallCapabilities(
-      "worker_booking",
-      conversationId,
-    );
-    if (error || !capabilities)
-      return toast.error(error?.message || "Call is not available");
-    const allowed =
-      kind === "video"
-        ? capabilities.allow_video_calls
-        : capabilities.allow_audio_calls;
-    if (!allowed)
-      return toast.error(
-        `This person is not accepting ${kind === "video" ? "video" : "audio"} calls`,
-      );
-    launchPrivateCall("worker_booking", conversationId, kind);
-  }
-  async function saveReview() {
-    if (reviewRating < 1) return toast.error("Choose a star rating");
-    setReviewSaving(true);
-    const { review: next, error } = await submitWorkerBookingReview(
-      bookingId,
-      reviewRating,
-      reviewComment,
-    );
-    setReviewSaving(false);
-    if (error || !next)
-      return toast.error(error?.message || "Review could not be saved");
-    setReview(next);
-    setReviewOpen(false);
-    toast.success("Your review was saved");
-  }
-  async function handleWorkerAccept() {
-    const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
-    if (!amount || amount <= 0) return toast.error("Enter a valid amount");
-    if (!acceptDate) return toast.error("Pick a schedule date");
-    const { success, error } = await workerAcceptBooking(
-      bookingId,
-      amount,
-      acceptDate,
-    );
-    if (error || !success)
-      return toast.error(error?.message || "Booking could not be accepted");
-    toast.success("Booking accepted. The customer can now pay.");
-    setShowAcceptForm(false);
-    void loadAll(true);
-  }
-  async function handleWorkerStart() {
-    const { success, error } = await workerStartJob(bookingId);
-    if (error || !success)
-      return toast.error(error?.message || "Job could not be started");
-    toast.success("Job started");
-    void loadAll(true);
-  }
-  async function handleWorkerComplete() {
-    const { success, error } = await workerMarkComplete(bookingId);
-    if (error || !success)
-      return toast.error(error?.message || "Job could not be completed");
-    toast.success("Marked complete. Waiting for customer confirmation.");
-    void loadAll(true);
-  }
-  async function handleCustomerConfirm() {
-    const { success, error } = await customerConfirmCompletion(bookingId);
-    if (error || !success)
-      return toast.error(error?.message || "Completion could not be confirmed");
-    toast.success("Job confirmed. Payment released to the Worker.");
-    void loadAll(true);
-  }
-  async function handleCustomerDispute() {
-    if (!disputeReason.trim()) return toast.error("Enter a reason");
-    const { success, error } = await customerRaiseDispute(
-      bookingId,
-      disputeReason.trim(),
-    );
-    if (error || !success)
-      return toast.error(error?.message || "Dispute could not be raised");
-    toast.success("Dispute sent to WeHouse for review");
-    setShowDisputeForm(false);
-    void loadAll(true);
-  }
-  async function handleCancel() {
-    if (!cancelReason.trim()) return toast.error("Enter a reason");
-    const { success, error } = await cancelBooking(
-      bookingId,
-      cancelReason.trim(),
-    );
-    if (error || !success)
-      return toast.error(error?.message || "Booking could not be cancelled");
-    toast.success("Booking cancelled");
-    setShowCancelForm(false);
-    void loadAll(true);
-  }
-  async function handleCustomerPay() {
-    setPaying(true);
-    try {
-      const { result: bootstrap, error: bootstrapErr } =
-        await createWorkerBookingPayment(bookingId);
-      if (bootstrapErr || !bootstrap?.success) {
-        setPaying(false);
-        return toast.error(bootstrap?.error || "Payment initialization failed");
-      }
-      const reference = bootstrap.reference as string,
-        amount = bootstrap.amount as number;
-      const { data: initialized, error: initError } =
-        await supabase.functions.invoke("payment-init", {
-          body: { reference },
-        });
-      if (initError || !initialized?.success) {
-        throw new Error(
-          initialized?.error ||
-            initError?.message ||
-            "Checkout could not start",
-        );
-      }
-      if (initialized.already_paid) {
-        toast.success("Payment is already confirmed");
-        setPaying(false);
-        void loadAll(true);
-        return;
-      }
-      if (!initialized.authorization_url)
-        throw new Error("Paystack checkout link is missing");
-      try {
-        localStorage.setItem(
-          "wh_worker_booking_payment",
-          JSON.stringify({ reference, bookingId, amount }),
-        );
-      } catch {
-        /* Checkout still works when storage is unavailable. */
-      }
-      window.location.assign(String(initialized.authorization_url));
-    } catch (error: unknown) {
-      setPaying(false);
-      toast.error(error instanceof Error ? error.message : "Payment failed");
-    }
-  }
-  const statusInfo = booking?.status
-      ? BOOKING_STATUS_LABELS[booking.status]
-      : null,
-    paymentReview = booking?.payment_review_required === true,
-    contactBlocked = peerBlocked || blockedByPeer,
-    openConversation = [
-      "booking_requested",
-      "negotiating",
-      "waiting_payment",
-      "confirmed",
-      "in_progress",
-      "completed_pending_approval",
-      "disputed",
-    ].includes(booking?.status || ""),
-    jobSupportOpen =
-      booking?.job_support_open === true ||
-      (booking?.job_support_open == null && openConversation),
-    peerName = isWorker
-      ? booking?.customer_username
-        ? `@${booking.customer_username}`
-        : booking?.user_name || "Customer"
-      : booking?.worker_name || "Worker",
-    peerAvatar = isWorker ? booking?.user_avatar : booking?.worker_avatar;
-  if (loading)
-    return createPortal(
-      <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--wh-bg)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>,
-      document.body,
-    );
-  return createPortal(
-    <div className="fixed inset-0 z-[100020] isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--wh-bg)] text-[var(--wh-text)]">
-      <header className="relative shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
-        <div className="mx-auto flex max-w-4xl items-center gap-2.5">
-          <BackButton onClick={onClose} />
-          <button
-            onClick={() => void openPeerProfile()}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl p-1 text-left active:bg-[var(--wh-interactive)]"
-          >
-            <ChatAvatar name={peerName} src={peerAvatar} />
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <p className="min-w-0 flex-1 truncate text-[14px] font-semibold">
-                  {peerName}
-                </p>
-                {statusInfo && (
-                  <span
-                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[7px] ${statusInfo.color}`}
-                  >
-                    {statusInfo.label}
-                  </span>
-                )}
-              </div>
-              <p
-                className={`mt-0.5 truncate text-[9px] ${presence?.online ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
-              >
-                {presenceText ||
-                  `${booking?.service_type || "Worker booking"} · #${booking?.booking_code || ""}`}
-              </p>
-            </div>
-          </button>
-          {openConversation && !contactBlocked && (
-            <>
-              <button
-                onClick={() => void startCall("audio")}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D5D8E0] hover:bg-[var(--wh-interactive)]"
-                aria-label="Start audio call"
-              >
-                <Phone />
-              </button>
-              <button
-                onClick={() => void startCall("video")}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D5D8E0] hover:bg-[var(--wh-interactive)]"
-                aria-label="Start video call"
-              >
-                <VideoCall />
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => setMenuOpen((value) => !value)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
-            aria-label="Conversation options"
-          >
-            ⋯
-          </button>
-        </div>
-        {menuOpen && (
-          <div className="absolute right-3 top-[3.65rem] z-30 w-56 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
-            {jobSupportOpen && (
-              <button
-                onClick={openSupport}
-                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-violet-300 hover:bg-violet-500/[.06]"
-              >
-                <span>?</span>
-                <span>Message WeHouse</span>
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                setConfirmDelete(true);
-              }}
-              className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-[11px] text-red-300 hover:bg-red-500/[.07]"
-            >
-              <TrashIcon />
-              <span>Remove from Inbox</span>
-            </button>
-          </div>
-        )}
-        {booking && (
-          <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
-            <button
-              type="button"
-              onClick={() => setDetailsOpen(true)}
-              className="flex w-full items-center justify-between gap-3 text-left"
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-[10px] font-semibold">
-                  {booking.service_type || "Service request"}
-                </span>
-                <span className="mt-1 block truncate text-[8px] text-[var(--wh-text-muted)]">
-                  #{booking.booking_code || "—"} ·{" "}
-                  {statusInfo?.label || "Booking"}
-                </span>
-              </span>
-              <span className="shrink-0 text-[10px] font-semibold text-violet-300">
-                View request ›
-              </span>
-            </button>
-            <div className="mb-2 mt-3 flex items-start justify-between gap-3 border-t border-[var(--wh-border-subtle)] pt-3">
-              <div className="min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
-                  What happens next
-                </p>
-                <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
-                  {workerNextStep(booking.status, isWorker)}
-                </p>
-              </div>
-              {Number(booking.negotiated_amount || 0) > 0 && (
-                <p className="shrink-0 text-xs font-bold">
-                  ₦{Number(booking.negotiated_amount).toLocaleString()}
-                </p>
-              )}
-            </div>
-            {!isWorker &&
-              [
-                "confirmed",
-                "in_progress",
-                "completed_pending_approval",
-              ].includes(booking.status) && (
-                <div className="mt-3 border-y border-emerald-500/15 py-3">
-                  <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 text-emerald-300">✓</span>
-                    <div>
-                      <p className="text-[10px] font-semibold text-emerald-300">
-                        Payment secured for this job
-                      </p>
-                      <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">
-                        The Worker is paid only after the work is completed and
-                        you confirm it. If something goes wrong, raise a dispute
-                        before confirming completion.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            {isWorker &&
-              [
-                "confirmed",
-                "in_progress",
-                "completed_pending_approval",
-              ].includes(booking.status) && (
-                <p className="mt-3 border-y border-emerald-500/15 py-3 text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">
-                  Customer payment is secured. Your earnings become available
-                  after completed work is confirmed.
-                </p>
-              )}
-            {paymentReview && (
-              <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/[.06] px-3 py-2">
-                <p className="text-[9px] font-semibold text-amber-300">
-                  Payment review required
-                </p>
-                <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
-                  Paystack verified a payment, but this booking could not finish
-                  payment processing automatically. Do not pay or cancel again.
-                  WeHouse must review it first.
-                </p>
-              </div>
-            )}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {isWorker &&
-                ["booking_requested", "negotiating"].includes(
-                  booking.status,
-                ) && (
-                  <button
-                    onClick={() => setShowAcceptForm((v) => !v)}
-                    className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
-                  >
-                    Set price &amp; accept
-                  </button>
-                )}
-              {isWorker && booking.status === "confirmed" && (
-                <button
-                  onClick={() => void handleWorkerStart()}
-                  className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
-                >
-                  Start job
-                </button>
-              )}
-              {isWorker && booking.status === "in_progress" && (
-                <button
-                  onClick={() => void handleWorkerComplete()}
-                  className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
-                >
-                  Mark complete
-                </button>
-              )}
-              {!isWorker &&
-                !paymentReview &&
-                booking.status === "waiting_payment" && (
-                  <button
                     onClick={() => void handleCustomerPay()}
                     disabled={paying}
                     className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold disabled:opacity-50"
@@ -865,6 +5,1071 @@ export default function BookingNegotiationChat({
                     {paying
                       ? "Processing…"
                       : `Pay ₦${Number(booking.negotiated_amount || 0).toLocaleString()}`}
+                  </button>
+                )}
+              {!isWorker && booking.status === "completed_pending_approval" && (
+                <button
+                  onClick={() => void handleCustomerConfirm()}
+                  className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
+                >
+                  Confirm completion
+                </button>
+              )}
+              {!isWorker &&
+                [
+                  "confirmed",
+                  "in_progress",
+                  "completed_pending_approval",
+                ].includes(booking.status) && (
+                  <button
+                    onClick={() => setShowDisputeForm((v) => !v)}
+                    className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] font-semibold text-red-300"
+                  >
+                    Raise dispute
+                  </button>
+                )}
+              {!paymentReview &&
+                [
+                  "booking_requested",
+                  "negotiating",
+                  "waiting_payment",
+                ].includes(booking.status) && (
+                  <button
+                    onClick={() => setShowCancelForm((v) => !v)}
+                    className="rounded-lg bg-[var(--wh-interactive)] px-3 py-1.5 text-[9px] text-[var(--wh-text-secondary)]"
+                  >
+                    Cancel
+                  </button>
+                )}
+            </div>
+            {showAcceptForm && (
+              <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
+                <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
+                  Your price (₦)
+                  <input
+                    inputMode="numeric"
+                    value={acceptAmount}
+                    onChange={(e) =>
+                      setAcceptAmount(e.target.value.replace(/[^0-9]/g, ""))
+                    }
+                    placeholder="Enter the final price"
+                    className="mt-1 h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
+                  />
+                </label>
+                <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
+                <button
+                  disabled={!Number(acceptAmount) || !acceptDate}
+                  onClick={() => void handleWorkerAccept()}
+                  className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
+                >
+                  Confirm price &amp; accept booking
+                </button>
+              </div>
+            )}
+            {showDisputeForm && (
+              <div className="mt-2 space-y-2 rounded-xl border border-red-500/15 bg-red-500/[.035] p-2">
+                <textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  rows={2}
+                  placeholder="What went wrong?"
+                  className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
+                />
+                <button
+                  onClick={() => void handleCustomerDispute()}
+                  className="h-9 w-full rounded-lg bg-red-500 text-[10px] font-semibold"
+                >
+                  Submit dispute
+                </button>
+              </div>
+            )}
+            {showCancelForm && (
+              <div className="mt-2 space-y-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-2">
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={2}
+                  placeholder="Reason for cancellation"
+                  className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setShowCancelForm(false)}
+                    className="h-9 rounded-lg bg-[var(--wh-interactive)] text-[10px]"
+                  >
+                    Keep booking
+                  </button>
+                  <button
+                    onClick={() => void handleCancel()}
+                    className="h-9 rounded-lg bg-red-500/10 text-[10px] font-semibold text-red-300"
+                  >
+                    Cancel booking
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </header>
+      <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
+        <div className="mx-auto max-w-4xl space-y-3">
+          {messages.some((message) => message.decryption_failed) ? (
+            <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+              <div>
+                <p className="text-[10px] font-semibold text-violet-100">
+                  Some messages are still locked
+                </p>
+                <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
+                  Re-enter your Inbox PIN to unlock this conversation on this device.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void retryLockedMessages()}
+                className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
+              >
+                Enter PIN
+              </button>
+            </section>
+          ) : null}
+          {messageError ? (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/[.06] p-4 text-center">
+              <p className="text-xs font-semibold text-red-200">
+                Messages could not be loaded
+              </p>
+              <button
+                onClick={() => void loadAll()}
+                className="mt-2 text-[10px] font-semibold text-violet-300"
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
+          {!messageError && messages.length === 0 ? (
+            <div className="grid min-h-44 place-items-center text-center">
+              <div>
+                <p className="text-sm font-semibold">No messages yet</p>
+                <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
+                  Start with the work details, schedule and price.
+                </p>
+              </div>
+            </div>
+          ) : null}
+          <PrivateCallHistory
+            contextType="worker_booking"
+            contextId={conversationId}
+          />
+          {messages.map((msg, index) => {
+            const mine = msg.sender_id === profile.user_id,
+              reactions = Object.values(msg.reactions || {}).reduce<
+                Record<string, number>
+              >(
+                (all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }),
+                {},
+              ),
+              prev = messages[index - 1],
+              showDay =
+                !prev ||
+                new Date(prev.created_at).toDateString() !==
+                  new Date(msg.created_at).toDateString();
+            return (
+              <div key={msg.id}>
+                {showDay && <DaySeparator value={msg.created_at} />}
+                <MessagePress
+                  onOpen={(anchor) => {
+                    setMessageMenuAnchor(anchor);
+                    setMessageMenuMode("actions");
+                    setMessageMenu(msg);
+                  }}
+                  onTap={(anchor) => {
+                    setMessageMenuAnchor(anchor);
+                    setMessageMenuMode("reactions");
+                    setMessageMenu(msg);
+                  }}
+                  onReply={() => setReplyingTo(msg)}
+                  className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[86%] overflow-hidden rounded-[20px] px-3.5 py-2.5 sm:max-w-[72%] ${mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
+                  >
+                    {!mine && (
+                      <p className="mb-1 text-[9px] font-semibold text-violet-300">
+                        {msg.sender_name || "Job participant"}
+                      </p>
+                    )}
+                    {msg.reply_to_id &&
+                      (() => {
+                        const quoted = messageById.get(msg.reply_to_id);
+                        return quoted ? (
+                          <div
+                            className={`mb-2 border-l-2 px-2.5 py-1.5 ${mine ? "border-violet-100/70 bg-black/10" : "border-violet-400 bg-[var(--wh-interactive)]"}`}
+                          >
+                            <p className="truncate text-[8px] font-semibold text-violet-200">
+                              {quoted.sender_id === profile.user_id
+                                ? "You"
+                                : quoted.sender_name || peerName}
+                            </p>
+                            <p className="mt-0.5 truncate text-[9px] opacity-70">
+                              {quoted.content ||
+                                (quoted.attachments?.length
+                                  ? "Attachment"
+                                  : "Message")}
+                            </p>
+                          </div>
+                        ) : null;
+                      })()}
+                    <MessageMedia items={(msg.attachments || []).map((url, i) => ({url, type: msg.attachment_types?.[i], name: msg.attachment_names?.[i]}))} />
+                    {msg.attachment_failed && <AttachmentState error />}
+                    {msg.content && <MessageContent content={msg.content} />}
+                    <p
+                      className={`mt-1 text-[8px] ${mine ? "text-violet-100/70" : "text-[var(--wh-text-muted)]"}`}
+                    >
+                      {new Date(msg.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {mine && (
+                        <span
+                          className={
+                            msg.is_read
+                              ? "ml-1 font-bold text-cyan-200"
+                              : "ml-1 text-violet-100/50"
+                          }
+                        >
+                          {msg.delivery_state === "sending"
+                            ? " · Sending…"
+                            : msg.delivery_state === "failed"
+                              ? " · Not sent"
+                              : msg.is_read
+                                ? " ✓✓"
+                                : " ✓"}
+                        </span>
+                      )}
+                    </p>
+                    {Object.keys(reactions).length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {Object.entries(reactions).map(([emoji, count]) => (
+                          <span
+                            key={emoji}
+                            className="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px]"
+                          >
+                            {emoji}
+                            {count > 1 ? ` ${count}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </MessagePress>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+      </main>
+      <footer className="chat-input-container shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+        {openConversation && !contactBlocked ? (
+          <div className="mx-auto max-w-4xl">
+            {!secureChat ? (
+              <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] px-4 py-3 text-[10px] text-[var(--wh-text-secondary)]">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-violet-400" />
+                Opening conversation…
+              </div>
+            ) : secureChat.state !== "ready" ? (
+              <SecureChatOnboarding
+                status={secureChat}
+                personName={peerName}
+                onReady={() => void finishSecureUnlock()}
+              />
+            ) : (
+              <>
+                <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
+                <VoiceRecorderPanel
+                  recording={voice.recording}
+                  seconds={voice.seconds}
+                  level={voice.level}
+                  draft={voice.draft}
+                  onCancel={voice.cancel}
+                  onFinish={voice.finish}
+                  onDiscard={voice.discard}
+                  onUse={(file) => {
+                    setFiles((current) =>
+                      [...current, file].slice(0, MAX_FILES),
+                    );
+                    voice.discard();
+                  }}
+                />
+                {replyingTo && (
+                  <div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-[var(--wh-interactive)] px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[8px] font-semibold text-violet-300">
+                        Replying to{" "}
+                        {replyingTo.sender_id === profile.user_id
+                          ? "yourself"
+                          : replyingTo.sender_name || peerName}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10px] text-[var(--wh-text-secondary)]">
+                        {replyingTo.content ||
+                          (replyingTo.attachments?.length
+                            ? "Attachment"
+                            : "Message")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="grid h-8 w-8 place-items-center text-[var(--wh-text-secondary)]"
+                      aria-label="Cancel reply"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <ChatAttachmentPicker
+                    onFiles={chooseFiles}
+                  />
+                  <button
+                    onClick={() => void toggleVoice()}
+                    aria-label={
+                      voice.recording
+                        ? "Finish voice recording"
+                        : "Record voice message"
+                    }
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
+                  >
+                    <Mic />
+                  </button>
+                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/40">
+                    <textarea
+                      rows={1}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSend();
+                        }
+                      }}
+                      placeholder="Write in this conversation…"
+                      className="max-h-24 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void handleSend()}
+                    disabled={sending || (!input.trim() && !files.length)}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
+                  >
+                    {sending ? "…" : "➤"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ) : contactBlocked ? (
+          <div className="mx-auto max-w-4xl py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold text-amber-200">
+                  Messages and private calls are stopped
+                </p>
+                <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                  {peerBlocked
+                    ? "You blocked this person. Unblock them from their profile to restore contact."
+                    : "This person blocked contact. The conversation history remains available."}
+                </p>
+              </div>
+              {jobSupportOpen && (
+                <button
+                  onClick={openSupport}
+                  className="shrink-0 text-[9px] font-semibold text-violet-300"
+                >
+                  {paymentReview ? "Open review" : "Message WeHouse"}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-4xl py-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] text-[var(--wh-text-muted)]">
+                This job conversation is closed.
+              </p>
+              {jobSupportOpen && (
+                <button
+                  onClick={openSupport}
+                  className="text-[10px] font-semibold text-violet-300"
+                >
+                  Message WeHouse
+                </button>
+              )}
+            </div>
+            {!isWorker && booking?.status === "approved_released" && (
+              <section className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
+                {review && !reviewOpen ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold text-amber-300">
+                        {"★".repeat(Number(review.rating))}
+                      </p>
+                      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                        Your verified review ·{" "}
+                        {review.comment
+                          ? "Written review included"
+                          : "No written comment"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setReviewOpen(true)}
+                      className="text-[9px] font-semibold text-violet-300"
+                    >
+                      Edit review
+                    </button>
+                  </div>
+                ) : reviewOpen ? (
+                  <div>
+                    <p className="text-xs font-semibold">
+                      Rate this completed job
+                    </p>
+                    <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                      Your rating and review appear on this professional’s
+                      public profile.
+                    </p>
+                    <div className="mt-3 flex gap-2" aria-label="Choose rating">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-label={`${value} star${value === 1 ? "" : "s"}`}
+                          onClick={() => setReviewRating(value)}
+                          className={`text-2xl ${value <= reviewRating ? "text-amber-300" : "text-[var(--wh-text-muted)]"}`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={reviewComment}
+                      onChange={(event) =>
+                        setReviewComment(event.target.value.slice(0, 1200))
+                      }
+                      placeholder="Describe the work, communication and reliability (optional)"
+                      className="mt-3 min-h-20 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none focus:border-violet-500/40"
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        disabled={reviewSaving}
+                        onClick={() => void saveReview()}
+                        className="h-10 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40"
+                      >
+                        {reviewSaving ? "Saving…" : "Publish verified review"}
+                      </button>
+                      {review && (
+                        <button
+                          onClick={() => setReviewOpen(false)}
+                          className="h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-[10px]"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setReviewOpen(true)}
+                    className="h-11 w-full rounded-xl bg-amber-500/10 text-[10px] font-semibold text-amber-300"
+                  >
+                    Rate and review this job
+                  </button>
+                )}
+              </section>
+            )}
+          </div>
+        )}
+      </footer>
+      {(!openConversation || contactBlocked) &&
+      secureChat &&
+      (secureChat.state === "setup_required" ||
+        secureChat.state === "unlock_required") ? (
+        <SecureChatOnboarding
+          status={secureChat}
+          personName={peerName}
+          onReady={() => void finishSecureUnlock()}
+        />
+      ) : null}
+      {profileOpen ? (
+        <ConversationIdentitySheet
+          profile={peerProfile}
+          booking={booking}
+          isWorker={isWorker}
+          name={peerName}
+          avatar={peerAvatar}
+          presence={presenceText || ""}
+          onClose={() => setProfileOpen(false)}
+          onAudioCall={() => {
+            setProfileOpen(false);
+            void startCall("audio");
+          }}
+          onVideoCall={() => {
+            setProfileOpen(false);
+            void startCall("video");
+          }}
+          blocked={peerBlocked}
+          blockedByPeer={blockedByPeer}
+          blockBusy={blockBusy}
+          onToggleBlock={() => {
+            if (peerBlocked) void togglePeerBlock();
+            else setBlockPrompt(true);
+          }}
+          onReport={openReport}
+        />
+      ) : null}
+      {detailsOpen && booking ? (
+        <JobRequestDetailsSheet
+          booking={booking}
+          bookingId={bookingId}
+          isWorker={isWorker}
+          onClose={() => setDetailsOpen(false)}
+        />
+      ) : null}
+      {messageMenu && (
+        <MessageActionSheet
+          anchor={messageMenuAnchor}
+          mode={messageMenuMode}
+          currentReaction={messageMenu.reactions?.[profile.user_id] || null}
+          onClose={() => setMessageMenu(null)}
+          onReact={async (emoji) => {
+            const current = messageMenu.reactions?.[profile.user_id];
+            const result = await reactToBookingMessage(
+              conversationId,
+              messageMenu.id,
+              current === emoji ? null : emoji,
+            );
+            if (result.error) return toast.error(result.error.message);
+            setMessages((rows) =>
+              rows.map((row) =>
+                row.id === messageMenu.id
+                  ? { ...row, reactions: result.reactions }
+                  : row,
+              ),
+            );
+            setMessageMenu(null);
+          }}
+          onReply={() => {
+            setReplyingTo(messageMenu);
+            setMessageMenu(null);
+          }}
+          onRemove={() => {
+            setMessageToRemove(messageMenu);
+            setMessageMenu(null);
+          }}
+          onCopy={messageMenu.content ? () => {
+            void navigator.clipboard.writeText(messageMenu.content || "");
+            toast.success("Message copied");
+            setMessageMenu(null);
+          } : undefined}
+        />
+      )}
+      <ConfirmDialog
+        isOpen={Boolean(messageToRemove)}
+        title="Remove this message?"
+        description="This removes the message only from your chat. The other person keeps their copy."
+        confirmLabel="Remove for me"
+        onCancel={() => setMessageToRemove(null)}
+        onConfirm={() => void deleteMessageForMe()}
+      />
+      <ConfirmDialog
+        isOpen={blockPrompt}
+        title={`Stop contact with ${peerProfile?.full_name || peerName}?`}
+        description="Messages and private calls will stop. Your booking, payment review and chat history will stay intact unless WeHouse flags a real safety issue."
+        confirmLabel="Stop contact"
+        variant="danger"
+        onCancel={() => setBlockPrompt(false)}
+        onConfirm={() => void togglePeerBlock()}
+      />
+      {showPaymentReview && !isWorker && booking?.status === "waiting_payment" ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review service booking and payment"
+          className="fixed inset-0 z-[100040] flex items-end justify-center overflow-y-auto bg-black/55 p-3 backdrop-blur-sm sm:items-center sm:p-5"
+        >
+          <div className="my-auto w-full max-w-xl">
+            <BookingPaymentReview
+              eyebrow="Service booking"
+              title="Review the agreed work"
+              subtitle="Confirm the service, provider, schedule, location and agreed price before opening Paystack."
+              rows={[
+                { label: "Service", value: booking.service_type || "Service" },
+                { label: "Provider", value: booking.worker_name || "Assigned provider" },
+                { label: "Scheduled date", value: formatWorkerBookingDate(booking.scheduled_date) },
+                { label: "Service location", value: booking.address || "Agreed in your conversation" },
+                ...(booking.description ? [{ label: "Agreed work", value: booking.description }] : []),
+                ...(booking.booking_code ? [{ label: "Booking reference", value: booking.booking_code }] : []),
+              ]}
+              amountLabel="Agreed total due now"
+              amount={"₦" + Number(booking.negotiated_amount || booking.agreed_amount || 0).toLocaleString("en-NG")}
+              termsTitle="Payment protection"
+              terms="WeHouse keeps the payment protected while the work is active. When the provider marks the job complete, confirm the work to release payment. If it is incomplete, raise a dispute from this booking for WeHouse to review."
+              note="This is the amount agreed in the booking. Go back to chat if the work, date or price needs to change. The booking is updated only after Paystack confirms payment."
+              editLabel="Back to chat"
+              confirmLabel="Continue to Paystack"
+              busy={paying}
+              confirmDisabled={Number(booking.negotiated_amount || booking.agreed_amount || 0) <= 0 || booking.payment_review_required === true}
+              busyLabel="Opening Paystack…"
+              onEdit={() => setShowPaymentReview(false)}
+              onConfirm={() => void handleCustomerPay()}
+            />
+          </div>
+        </div>
+      ) : null}
+      {confirmDelete && (
+        <DeleteSheet
+          onCancel={() => setConfirmDelete(false)}
+          onDelete={() => void deleteFromMessages()}
+        />
+      )}
+    </div>,
+    document.body,
+  );
+}
+function formatWorkerBookingDate(value?: string | null) {
+  if (!value) return "To be confirmed";
+  const dayOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const date = new Date(dayOnly ? value + "T12:00:00" : value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-NG", dayOnly
+    ? { dateStyle: "medium" }
+    : { dateStyle: "medium", timeStyle: "short" });
+}
+
+function ChatAvatar({ name, src }: { name: string; src?: string | null }) {
+  return (
+    <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-sm font-bold text-violet-300">
+      {src ? (
+        <img src={src} alt="" className="h-full w-full object-cover" />
+      ) : (
+        (name || "W")[0].toUpperCase()
+      )}
+    </div>
+  );
+}
+function ConversationIdentitySheet({
+  profile,
+  booking,
+  isWorker,
+  name,
+  avatar,
+  presence,
+  onClose,
+  onAudioCall,
+  onVideoCall,
+  blocked,
+  blockedByPeer,
+  blockBusy,
+  onToggleBlock,
+  onReport,
+}: {
+  profile: ConversationProfile | null;
+  booking: Booking | null;
+  isWorker: boolean;
+  name: string;
+  avatar?: string | null;
+  presence: string;
+  onClose: () => void;
+  onAudioCall: () => void;
+  onVideoCall: () => void;
+  blocked: boolean;
+  blockedByPeer: boolean;
+  blockBusy: boolean;
+  onToggleBlock: () => void;
+  onReport: () => void;
+}) {
+  const [fullProfile, setFullProfile] = useState(false);
+  const viewingWorker = !isWorker;
+  const displayName = profile?.full_name || name;
+  const avatarUrl = profile?.avatar_url || avatar || null;
+  const location = [profile?.lga || profile?.local_government || profile?.city, profile?.state]
+    .filter(Boolean)
+    .join(", ");
+  const reviewed = ["approved", "verified", "live"].includes(
+    String((profile as any)?.verification_status || (profile as any)?.worker_status || "").toLowerCase(),
+  );
+  if (fullProfile && viewingWorker && profile?.user_id) {
+    return (
+      <WorkerPublicProfile
+        worker={{ ...profile, local_government: profile.lga || profile.local_government } as Profile}
+        onBack={() => setFullProfile(false)}
+        onBook={() => undefined}
+        showBookingAction={false}
+          communicationActions={!blocked && !blockedByPeer ? (
+          <>
+            <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
+            <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
+          </>
+        ) : undefined}
+        safetyAction={
+          <div className="mt-5 space-y-2">
+            <button type="button" className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200" onClick={onReport}>Report profile</button>
+            <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+          </div>
+        }
+      />
+    );
+  }
+  return (
+    <RoommatePublicProfile
+      context="conversation"
+      onViewProfile={viewingWorker && profile?.user_id ? () => setFullProfile(true) : undefined}
+      person={{
+        name: displayName,
+        username: profile?.username,
+        avatar: avatarUrl,
+        location,
+        bio: viewingWorker
+          ? profile?.worker_bio || profile?.bio
+          : profile?.bio || "Customer for this service booking.",
+        occupation: viewingWorker
+          ? reviewed
+            ? "WeHouse reviewed service worker"
+            : "WeHouse service worker"
+          : "WeHouse customer",
+      }}
+      presence={presence}
+      onClose={onClose}
+      actions={!blocked && !blockedByPeer ? (
+        <div className="flex gap-5">
+          <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
+          <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
+        </div>
+      ) : undefined}
+      footer={
+        <>
+        {isWorker && booking ? (
+          <div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
+            <p className="text-[9px] font-bold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
+              This booking
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <CaseFact label="Service" value={booking.service_type || "Service request"} />
+              <CaseFact label="Status" value={booking.status.replaceAll("_", " ")} />
+              <CaseFact
+                label="Scheduled"
+                value={booking.scheduled_date ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString() : "Not agreed"}
+              />
+              <CaseFact
+                label="Agreed price"
+                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `₦${Number(booking.agreed_amount || booking.negotiated_amount).toLocaleString("en-NG")}` : "Not agreed"}
+              />
+            </div>
+            {booking.address ? (
+              <div className="mt-2 rounded-xl bg-[var(--wh-interactive)] p-3">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-[var(--wh-text-muted)]">Job location</p>
+                <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-secondary)]">{booking.address}</p>
+              </div>
+            ) : null}
+            {booking.customer_message || booking.description ? (
+              <div className="mt-2 rounded-xl bg-[var(--wh-interactive)] p-3">
+                <p className="text-[8px] font-bold uppercase tracking-wide text-[var(--wh-text-muted)]">Original request</p>
+                <p className="mt-1 whitespace-pre-line text-[10px] leading-4 text-[var(--wh-text-secondary)]">{booking.customer_message || booking.description}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="mt-5 space-y-2">
+          <button type="button" className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text)]" onClick={onReport}>Report profile</button>
+          <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        </div>
+        </>
+      }
+    />
+  );
+}
+function CaseFact({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl bg-[var(--wh-interactive)] p-3"><p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p><p className="mt-1 capitalize text-[10px] font-semibold text-[#CFD2DA]">{value}</p></div>;
+}
+function DaySeparator({ value }: { value: string }) {
+  const date = new Date(value),
+    today = new Date(),
+    yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const label =
+    date.toDateString() === today.toDateString()
+      ? "Today"
+      : date.toDateString() === yesterday.toDateString()
+        ? "Yesterday"
+        : date.toLocaleDateString([], {
+            day: "numeric",
+            month: "short",
+            year:
+              date.getFullYear() === today.getFullYear()
+                ? undefined
+                : "numeric",
+          });
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
+      <span className="text-[8px] font-semibold text-[var(--wh-text-muted)]">{label}</span>
+      <span className="h-px flex-1 bg-[var(--wh-interactive)]" />
+    </div>
+  );
+}
+function DeleteSheet({
+  onCancel,
+  onDelete,
+}: {
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end bg-black/70 p-3 sm:items-center sm:justify-center"
+      onClick={onCancel}
+    >
+      <section
+        className="w-full rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-5 sm:max-w-sm"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300">
+          <TrashIcon />
+        </div>
+        <h2 className="text-base font-bold">Remove this conversation?</h2>
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-muted)]">
+          The job and its audit history stay intact, and the other participant
+          keeps their copy. A new reply can make this conversation appear again.
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            onClick={onCancel}
+            className="h-11 rounded-xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text-secondary)]"
+          >
+            Keep
+          </button>
+          <button
+            onClick={onDelete}
+            className="h-11 rounded-xl border border-red-500/20 bg-red-500/10 text-[11px] font-semibold text-red-200"
+          >
+            Remove from Inbox
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function MessageContent({ content }: { content: string }) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+  if (isImage(content))
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          className="mb-1 block max-w-full overflow-hidden rounded-xl bg-black"
+        >
+          <img
+            src={content}
+            alt="Shared"
+            loading="lazy"
+            decoding="async"
+            className="max-h-72 max-w-full object-contain"
+          />
+        </button>
+        {viewerOpen ? (
+          <MediaViewer
+            src={content}
+            kind="image"
+            title="Shared image"
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </>
+    );
+  return (
+    <p className="whitespace-pre-wrap text-xs leading-relaxed">{content}</p>
+  );
+}
+function BookingAttachment({ url }: { url: string }) {
+  return <MessageMedia items={[{ url }]} />;
+}
+function isImage(v: string) {
+  return /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(v);
+}
+function Mic() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8" />
+    </svg>
+  );
+}
+function Phone() {
+  return (
+    <svg
+      width="19"
+      height="19"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92z" />
+    </svg>
+  );
+}
+function VideoCall() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
+    </svg>
+  );
+}
+function ProfileBlockAction({ blocked, busy, onClick }: { blocked: boolean; busy: boolean; onClick: () => void }) {
+  return <button type="button" disabled={busy} onClick={onClick} className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Resume contact" : "Stop contact"}</button>;
+}
+function TrashIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="m9 7 .6-2h4.8l.6 2" />
+      <path d="m6.5 7 .8 13h9.4l.8-13" />
+      <path d="M10 11v5M14 11v5" />
+    </svg>
+  );
+}
+function JobRequestDetails({ booking }: { booking: Booking }) {
+  const facts = [
+    [
+      "Requested date",
+      booking.scheduled_date
+        ? new Date(`${booking.scheduled_date}T12:00:00`).toLocaleDateString()
+        : "To be agreed",
+    ],
+    ["Service location", booking.address || "Not supplied"],
+  ];
+  return (
+    <div className="space-y-3 rounded-xl border border-violet-500/12 bg-violet-500/[.035] p-3">
+      <div className="border-b border-[var(--wh-border-subtle)] pb-3">
+        <div>
+          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">Original service request</p>
+          <p className="mt-1 text-[10px] font-semibold text-[#E2E4EA]">#{booking.booking_code || "—"} · {booking.service_type || "Service request"}</p>
+        </div>
+      </div>
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+        {facts.map(([label, value]) => (
+          <div key={label}>
+            <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">
+              {label}
+            </p>
+            <p className="mt-1 break-words text-[10px] leading-4 text-[#D4D7E0]">
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-[var(--wh-border-subtle)] pt-3">
+        <p className="text-[8px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">
+          What the customer requested
+        </p>
+        <p className="mt-1 whitespace-pre-wrap text-[10px] leading-5 text-[var(--wh-text-secondary)]">
+          {booking.description ||
+            booking.customer_message ||
+            "No written description was supplied with this request."}
+        </p>
+      </div>
+      {booking.request_attachments?.length ? (
+        <div className="grid gap-2 border-t border-[var(--wh-border-subtle)] pt-3 sm:grid-cols-2">
+          {booking.request_attachments.map((url, index) => (
+            <div key={`${url}-${index}`}>
+              <p className="mb-1 text-[8px] text-[var(--wh-text-muted)]">
+                Request attachment {index + 1}
+              </p>
+              <BookingAttachment url={url} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function JobRequestDetailsSheet({
+  booking,
+  bookingId,
+  isWorker,
+  onClose,
+}: {
+  booking: Booking;
+  bookingId: string;
+  isWorker: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[100120] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Service request details"
+    >
+      <header className="flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-3 pt-[env(safe-area-inset-top)]">
+        <BackButton onClick={onClose} className="!ml-0 !w-10" ariaLabel="Back to chat" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
+            {booking.service_type || "Service request"}
+          </p>
+          <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
+            #{booking.booking_code || "—"}
+          </p>
+        </div>
+      </header>
+      <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+        <div className="mx-auto max-w-xl space-y-4">
+          <JobRequestDetails booking={booking} />
+          <WorkerBookingDocuments bookingId={bookingId} isWorker={isWorker} />
+        </div>
+      </main>
+    </div>
+  );
+}
+function workerNextStep(status: string, isWorker: boolean) {
+  const copy: Record<string, [string, string]> = {
+    booking_requested: ["Review the request, set the full price and confirm the work date.", "The professional is reviewing your request and will set the full price and work date."],
+    negotiating: ["Agree the work details, full price and date with the customer.", "Agree the work details, full price and date with the professional."],
+    waiting_payment: ["Wait for the customer to approve the agreement and pay through WeHouse.", "Review the final price and date, then pay through WeHouse to confirm the job."],
+    confirmed: ["Payment is secured. Start the job only when you arrive and begin the agreed work.", "Payment is secured. The professional can start the job when the agreed work begins."],
+    in_progress: ["Complete the agreed work, then mark it ready for the customer to review.", "The work is in progress. Do not confirm completion until you have checked the result."],
+    completed_pending_approval: ["Wait for the customer to confirm the work or open a problem report.", "Check the finished work. Confirm it only if the agreed work is complete, or report a problem."],
+    approved_released: ["The customer confirmed the work and your earnings are available under the payout rules.", "The work is complete and payment has been released under the booking rules."],
+    disputed: ["Do not make a new payment or private settlement while WeHouse reviews the problem.", "Do not confirm or pay again while WeHouse reviews the problem."],
+    cancelled: ["This job is cancelled. No work should begin.", "This job is cancelled. No further booking action is needed."],
+    refunded: ["This job is closed and the customer refund has been recorded.", "The refund has been recorded. Open WeHouse support if the record is incorrect."],
+  };
+  const item = copy[status] || ["Open the request to see the next available action.", "Open the request to see the next available action."];
+  return item[isWorker ? 0 : 1];
+}
+                    onClick={() => setShowPaymentReview(true)}
+                    disabled={paying}
+                    className="min-h-10 rounded-xl bg-violet-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-violet-600 dark:hover:bg-violet-500"
+                  >
+                    {paying
+                      ? "Processing…"
+                      : "Review payment · ₦" + Number(booking.negotiated_amount || booking.agreed_amount || 0).toLocaleString("en-NG")}
                   </button>
                 )}
               {!isWorker && booking.status === "completed_pending_approval" && (
