@@ -1,6 +1,7 @@
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
+import ReportListingDialog from "@/components/ReportListingDialog";
 import { sharePropertyExternally } from "@/lib/propertyShare";
 import { displayDate } from "@/lib/displayDate";
 import DateField from "@/components/BookingDateField";
@@ -131,6 +132,7 @@ export default function ListingDetail({
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [roommateRecipients, setRoommateRecipients] = useState<RoommateRecipient[]>([]);
   const [missingRoommateIdentities, setMissingRoommateIdentities] = useState(0);
   const [sharedGroup, setSharedGroup] = useState<any>(null);
@@ -576,13 +578,27 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
         </PropertyMediaCarousel>
 
         {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} stayType={listing.sub_type === 'short_let' ? 'short_let' : 'long_stay'} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
+        {reportOpen && profile && listing && (
+          <ReportListingDialog
+            listingId={String(listing.id)}
+            listingTitle={displayTitle}
+            reporterId={profile.user_id}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
         <main className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mb-3 flex justify-end"><button type="button" onClick={() => {
-      if (profile) { setSendPropertyOpen(true); return; }
-      void sharePropertyExternally({ kind: "listing", id: String(listing.id) }, displayTitle)
-        .then(result => { if (result === "copied") toast.success("Property link copied"); })
-        .catch(() => toast.error("This property could not be shared"));
-    }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
+          <div className="mb-3 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => {
+              if (profile) { setSendPropertyOpen(true); return; }
+              void sharePropertyExternally({ kind: "listing", id: String(listing.id) }, displayTitle)
+                .then(result => { if (result === "copied") toast.success("Property link copied"); })
+                .catch(() => toast.error("This property could not be shared"));
+            }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-violet-300">Share ↗</button>
+            <button type="button" onClick={() => {
+              if (!profile) { onRequireAuth?.(); return; }
+              setReportOpen(true);
+            }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text-secondary)]">Report listing</button>
+          </div>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 space-y-5">
               <section>
