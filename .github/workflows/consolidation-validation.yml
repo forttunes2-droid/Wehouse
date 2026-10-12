@@ -112,6 +112,16 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
       - name: Hotel base tables are not directly readable or writable by browser roles
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_base_table_exposure_contract.sql
+      - name: Companion relationship and payer cap
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_relationship_contract.sql
+      - name: Companion bucket and encrypted chat
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_bucket_and_chat_contract.sql
+      - name: Companion chat key exchange
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_chat_key_exchange_contract.sql
+      - name: Long Let split with Roommate or Companion
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_companion_contract.sql
+      - name: Shared content reports and scoped moderation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_content_reports_contract.sql
       - name: Practical reciprocal roommate rules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
       - name: Fresh linked-provider recovery
