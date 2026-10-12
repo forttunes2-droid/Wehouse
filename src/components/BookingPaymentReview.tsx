@@ -59,9 +59,9 @@ export default function BookingPaymentReview({
 
       <dl className="mt-5 divide-y divide-[var(--wh-border-subtle)] rounded-2xl border border-[var(--wh-border-subtle)] px-4">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-start justify-between gap-5 py-3">
-            <dt className="shrink-0 text-sm text-[var(--wh-text-muted)]">{row.label}</dt>
-            <dd className="min-w-0 text-right text-sm font-medium text-[var(--wh-text)]">
+          <div key={row.label} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
+            <dt className="text-xs text-[var(--wh-text-muted)] sm:shrink-0 sm:text-sm">{row.label}</dt>
+            <dd className="min-w-0 break-words text-left text-sm font-medium text-[var(--wh-text)] sm:text-right">
               {row.value}
             </dd>
           </div>
