@@ -81,14 +81,14 @@ the native release and store checklists before using them.
 
 ## Product and release references
 
+The full, ordered list of authoritative documents is in [docs/README.md](./docs/README.md).
 Start with the accepted product rules and recorded decisions, then check the
 implementation and release evidence before changing behavior:
 
 - [Product rules](./docs/PRODUCT_RULES.md) and [decision log](./docs/DECISION_LOG.md)
 - [Product implementation audit and current status](./docs/PRODUCT_MASTER.md)
 - [Known inconsistencies and safe migration order](./docs/KNOWN_INCONSISTENCIES.md)
-- [Account, staff, and database review](./docs/account-staff-and-database-review.md)
-- [Release blocker investigation](./docs/RELEASE_BLOCKER_INVESTIGATION_2026-10-01.md)
+- [Release roadmap](./docs/WEHOUSE_RELEASE_ROADMAP.md) and [R1–R11 operating model](./docs/WEHOUSE_OPERATING_MODEL_R1_R11.md)
 - [Capacity acceptance gates](./docs/LAUNCH_CAPACITY_ACCEPTANCE_2026-09-27.md)
 - [Payment and money rules](./docs/PAYMENTS_AND_MONEY.md)
 - [Native release checklist](./docs/native-release.md)

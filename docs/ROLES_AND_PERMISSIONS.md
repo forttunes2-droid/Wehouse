@@ -1,8 +1,6 @@
 # Roles and Permissions
 
-> **Status note — 19 September 2026:** This file's original implementation audit below is historical (11 September), not a current deployment inventory. Use the accepted rules in [Product Rules](./PRODUCT_RULES.md) and [Decision Log](./DECISION_LOG.md), with cross-workspace constraints summarized in [the alignment note](./MASTER_PLAN_ALIGNMENT_NOTE_2026-09-15.md). Do not treat old proposed decisions, counts or role descriptions below as newer authority.
->
-> Continue with [the current account, Staff and database review](./account-staff-and-database-review.md), [Creator/control-layout evidence](./creator-controls-and-layout-review.md), and [legal signup evidence](./legal-review-and-preview-status.md). Repairs remain on existing draft PR #74. Live customer records belong to Production; Test is isolated. Complete signed-in, privileged-action, provider, device and restoration checks remain outstanding. WeHouse is not yet technically production-ready.
+> **Status note — 12 October 2026:** The implementation audit below is historical (11 September), not a current deployment inventory. Accepted rules are in [Product Rules](./PRODUCT_RULES.md) and the [Decision Log](./DECISION_LOG.md). Current release status and remaining work are in the [Release roadmap](./WEHOUSE_RELEASE_ROADMAP.md). Start from the [documentation index](./README.md). WeHouse is not yet production-ready.
 
 ## Historical audit begins here
 

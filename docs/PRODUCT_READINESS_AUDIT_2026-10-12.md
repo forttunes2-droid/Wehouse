@@ -1,6 +1,6 @@
 # WeHouse product-readiness audit
 
-Date: 20 October 2026  
+Date: 12 October 2026  
 Repository commit at start: `f990fc4a` (`main`, 10 October 2026)  
 Scope: current shared worktree, Phase 2/3 completion notes, product/release
 registers, local automated checks, and available GitHub Actions evidence.
@@ -260,7 +260,7 @@ running larger tests; do not run a million-user experiment against production.
 That is a strong and honest product-development claim. It is not yet a claim
 that all screens or production launch gates are complete.
 
-## Reconciliation addendum (2026-10-21)
+## Reconciliation addendum (2026-10-12)
 
 Verified in a real Chromium run and by 483/483 tests, lint and build:
 
