@@ -815,12 +815,9 @@ export default function BookingNegotiationChat({
                 booking.status === "waiting_payment" && (
                   <button
                     onClick={() => setShowPaymentReview(true)}
-                    disabled={paying}
-                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold disabled:opacity-50"
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                   >
-                    {paying
-                      ? "Processing…"
-                      : `Pay ₦${Number(booking.negotiated_amount || 0).toLocaleString()}`}
+                    {`Review payment · ₦${Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0).toLocaleString()}`}
                   </button>
                 )}
               {!isWorker && booking.status === "completed_pending_approval" && (
