@@ -11,6 +11,7 @@ import {
   createInspectionRequest,
   createReservation,
   createShortStayReservation,
+  cancelReservation,
   getInspectionRequestForReservation,
   getListing,
   getReservationForListing,
@@ -44,6 +45,7 @@ import { listingDisplayTitle } from "@/lib/listingPresentation";
 import { locationLabel } from "@/lib/locationPresentation";
 import { hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
 import BackButton from "@/components/BackButton";
+import BookingPaymentReview from "@/components/BookingPaymentReview";
 
 type Props = {
   listingId: string;
@@ -139,6 +141,7 @@ export default function ListingDetail({
   const [shortCheckIn, setShortCheckIn] = useState("");
   const [shortCheckOut, setShortCheckOut] = useState("");
   const [shortGuests, setShortGuests] = useState(1);
+  const [paymentReview, setPaymentReview] = useState<"short_let" | "long_let" | null>(null);
   const { location } = useDiscoveryLocation();
   const [distance, setDistance] = useState<number | null>(null);
   const { getNumber } = usePlatformSettings();
@@ -272,27 +275,26 @@ export default function ListingDetail({
   async function reserveShortLet() {
     if (!profile) { onRequireAuth?.(); return; }
     if (!listing || listing.sub_type !== "short_let" || reservationInFlight.current || busy || accountLoading || accountError || !selection.valid) return;
-    reservationInFlight.current = true; setBusy(true);
+    reservationInFlight.current = true;
+    setBusy(true);
     const request = loadGeneration.current;
     try {
-      const created = await withTimeout(createShortStayReservation(listingId, shortCheckIn, shortCheckOut, shortGuests), 20000, "Reservation could not be confirmed. Check your bookings before trying again.");
-      if (created.error || !created.reservation?.id) throw created.error || new Error("Reservation could not be created.");
+      const created = await withTimeout(
+        createShortStayReservation(listingId, shortCheckIn, shortCheckOut, shortGuests),
+        20000,
+        "Reservation could not be confirmed. Check your bookings before trying again.",
+      );
+      if (created.error || !created.reservation?.id)
+        throw created.error || new Error("Reservation could not be created.");
       if (request !== loadGeneration.current) return;
       setReservation(created.reservation);
-      const reference = String(created.reservation.payment_reference || "");
-      if (!reference) throw new Error("Reserve date payment reference is missing.");
-      const initialized = await initializeReservationPayment(reference);
-      if (!initialized.result?.success) throw new Error(initialized.result?.error || "Secure Reserve date payment could not open.");
-      if (initialized.result.already_paid) {
-        toast.success("Your dates are reserved");
-        onOpenBooking(String(created.reservation.id));
-        return;
-      }
-      if (!initialized.result.authorization_url) throw new Error("Secure payment link is missing.");
-      window.location.assign(String(initialized.result.authorization_url));
+      setPaymentReview("short_let");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Those dates could not be reserved. Please try again.");
-    } finally { reservationInFlight.current = false; setBusy(false); }
+    } finally {
+      reservationInFlight.current = false;
+      setBusy(false);
+    }
   }
 
   async function openCheckout() {
@@ -308,19 +310,52 @@ export default function ListingDetail({
         await load();
         return;
       }
-      const reference = String(created.payment_reference || "");
-      if (!reference) throw new Error("Reservation payment reference is missing");
-      const { result, error } = await initializeReservationPayment(reference);
+      setPaymentReview("long_let");
+    } catch (error: any) {
+      toast.error(error?.message || "Could not start reservation");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function continueReservationPayment() {
+    if (!reservation?.id || !reservation.payment_reference || !paymentReview || busy) return;
+    if (paymentReview === "short_let" && !reservation.short_stay_cancellation_policy_snapshot) {
+      toast.error("Saved cancellation terms are missing, so payment is paused.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { result, error } = await initializeReservationPayment(String(reservation.payment_reference));
       if (error) throw error;
       if (result?.already_paid) {
         toast.success("Reservation payment is already confirmed");
-        await load();
+        setPaymentReview(null);
+        onOpenBooking(String(reservation.id));
         return;
       }
-      if (!result?.success || !result.authorization_url) throw new Error(result?.error || "Paystack checkout could not be opened");
-      window.location.assign(result.authorization_url);
+      if (!result?.success || !result.authorization_url)
+        throw new Error(result?.error || "Paystack checkout could not be opened");
+      window.location.assign(String(result.authorization_url));
     } catch (error: any) {
-      toast.error(error?.message || "Could not start payment");
+      toast.error(error?.message || "Could not open secure payment");
+      setBusy(false);
+    }
+  }
+
+  async function editPaymentReview() {
+    if (!reservation?.id || busy) return;
+    setBusy(true);
+    try {
+      const { reservation: cancelled, error } = await cancelReservation(String(reservation.id));
+      if (error || !cancelled) throw new Error(error?.message || "The unpaid reservation hold could not be released");
+      setReservation(null);
+      setPaymentReview(null);
+      toast.success("Reservation hold released. You can edit your selection.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.message || "Could not release this reservation hold");
+    } finally {
       setBusy(false);
     }
   }
