@@ -14,7 +14,6 @@ import {
   customerRaiseDispute,
   cancelBooking,
   getBookingDetails,
-  createWorkerBookingPayment,
   BOOKING_STATUS_LABELS,
   markBookingMessagesRead,
   hideBookingConversation,
@@ -593,50 +592,6 @@ export default function BookingNegotiationChat({
     toast.success("Booking cancelled");
     setShowCancelForm(false);
     void loadAll(true);
-  }
-  async function handleCustomerPay() {
-    setPaying(true);
-    try {
-      const { result: bootstrap, error: bootstrapErr } =
-        await createWorkerBookingPayment(bookingId);
-      if (bootstrapErr || !bootstrap?.success) {
-        setPaying(false);
-        return toast.error(bootstrap?.error || "Payment initialization failed");
-      }
-      const reference = bootstrap.reference as string,
-        amount = bootstrap.amount as number;
-      const { data: initialized, error: initError } =
-        await supabase.functions.invoke("payment-init", {
-          body: { reference },
-        });
-      if (initError || !initialized?.success) {
-        throw new Error(
-          initialized?.error ||
-            initError?.message ||
-            "Checkout could not start",
-        );
-      }
-      if (initialized.already_paid) {
-        toast.success("Payment is already confirmed");
-        setPaying(false);
-        void loadAll(true);
-        return;
-      }
-      if (!initialized.authorization_url)
-        throw new Error("Paystack checkout link is missing");
-      try {
-        localStorage.setItem(
-          "wh_worker_booking_payment",
-          JSON.stringify({ reference, bookingId, amount }),
-        );
-      } catch {
-        /* Checkout still works when storage is unavailable. */
-      }
-      window.location.assign(String(initialized.authorization_url));
-    } catch (error: unknown) {
-      setPaying(false);
-      toast.error(error instanceof Error ? error.message : "Payment failed");
-    }
   }
   const statusInfo = booking?.status
       ? BOOKING_STATUS_LABELS[booking.status]
