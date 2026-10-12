@@ -23,7 +23,7 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   assert.match(detail, /Stay balance due later/);
   assert.match(review, /Edit details/);
   assert.match(review, /Secure checkout by Paystack/);
-  assert.match(review, /stay charge and any refundable security deposit/i);
+  assert.match(detail, /stay rent and refundable security deposit are due in a separate checkout/i);
   assert.match(paymentInit, /Reserve date payment must be confirmed before the stay balance/);
 });
 
