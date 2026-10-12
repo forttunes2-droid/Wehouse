@@ -8,16 +8,16 @@ test('Short Let Reserve date is fee-first and keeps stay/deposit separate',async
   const [sql,detail,review]=await Promise.all([
     read('supabase/migrations/20260926061000_short_let_paid_reserve_date.sql'),
     read('src/pages/ListingDetailCore.tsx'),
-    read('src/components/ShortLetPaymentReview.tsx'),
+    read('src/components/BookingPaymentReview.tsx'),
   ]);
   assert.match(sql,/policy_key='short_let_reservation_fee'/);
   assert.match(sql,/reservation_fee_status='paid'/);
   assert.match(sql,/short_stay_balance_due_at/);
   assert.match(sql,/Reserve date payment must be confirmed first/);
   assert.match(sql,/v_total:=v_stay\+v_caution/);
-  assert.match(detail,/Reserve date · ₦/);
-  assert.match(review,/Complete the reservation fee first/);
-  assert.match(review,/Reserve date paid/);
+  assert.match(detail,/Review dates · ₦/);
+  assert.match(detail,/shortCancellationTerms/);\n  assert.match(detail,/confirmDisabled=\{paymentReview === "short_let" && !shortPolicy\}/);
+  assert.match(review,/editLabel = "Edit details"/);
 });
 
 test('Host authority is property-specific and booking responsibility is snapshotted',async()=>{
