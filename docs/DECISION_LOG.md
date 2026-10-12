@@ -32,6 +32,11 @@
 | C-020 | Inbox keeps the modern nested Activity entry followed by one chronological Messages list. | Confirmed direction | Thread purpose and status appear within each row; WeHouse help is not a separate Inbox section or navigation tab. |
 | C-021 | Short Let pages show a useful public street/area before booking while entrance instructions, unit/access details, codes and precise directions remain gated. | Confirmed direction and implemented in customer presentation | Long Let keeps the stricter pre-reservation location rule. |
 | C-022 | Worker customer ratings and review content appear only after a completed paid WeHouse job produces at least one verified review. | Confirmed direction and implemented | Reviewed/Trusted remain separate earned platform decisions; PRO remains a paid software entitlement. |
+| C-023 | Admin and staff authority is scoped to assigned state/LGA; Creator is the only global role. Cross-scope Admin access needs a separate audited grant. | Confirmed by product owner 2026-10-12 (resolves D-003) | Direct room/inventory policies that are currently global must be scoped. |
+| C-024 | `payment_protected` is a money status only: it protects the payer until they receive what they paid for, before release. A job or booking becomes `confirmed` only when required protection is active. | Confirmed by product owner 2026-10-12 (resolves D-009) | Remove `payment_protected` as a job status in migrations and UI. |
+| C-025 | Nigeria/Lagos is the starting market, not a permanent jurisdiction. WeHouse will go global. | Confirmed by product owner 2026-10-12 (replaces D-015) | Country, currency, timezone and legal rules must be stored as data, not hard-coded. Nigeria-first launch is still allowed. |
+| C-026 | Short Let follows the familiar Airbnb pattern (whole-unit stays, calendar, house rules) but WeHouse sets its own rules, design and protected payment. | Confirmed direction 2026-10-12; whole-home vs room-level listing still to be pinned down | Do not copy Airbnb rules blindly; align with WeHouse protection and review. |
+| C-027 | Roommate is for Long Let. Split payment is also available for Short Let and hotel stays between two or more connections, not only roommates. | Confirmed direction 2026-10-12 | Split payment must be a general booking feature built on the money authority in C-011. |
 
 ## Repository-established decisions
 
@@ -48,17 +53,14 @@
 
 | ID | Product decision | Conflicting evidence/options | Recommended default |
 |---|---|---|---|
-| D-003 | Is Admin globally privileged or geographically scoped? | Many helpers scope Admin; some direct room/inventory policies are global. | Admin is scoped by default; Creator is global. Exceptional cross-scope Admin access requires a separate audited grant. |
 | D-004 | After the public base-table privacy defect is fixed, should a completed paid guest retain exact address/location access to an inactive hotel forever? | `get_public_hotel_detail` treats paid `checked_out/completed` as exact-location eligible. | Retain address in the guest's booking receipt/history, but do not grant perpetual broader internal hotel-record access. |
 | D-005 | What is the canonical non-financial lifecycle for a hotel booking after `checked_out`: immediate completion or a later system completion? | Both `checked_out` and `completed` exist; current transition stops at checked_out. Accommodation payment release is now independently governed by the snapshotted arrival-issue deadline and any open case. | Keep `checked_out` for a short service/review window, then system-complete; never use checkout itself as a payout signal. |
 | D-006 | How should apartment short-let supply represent simultaneous future stays and current occupancy? | Date overlap logic exists, but listing-wide reserved/occupied state conflicts. | Use per-unit/date holds and occupancy; listing remains published/available when other dates are sellable. |
 | D-007 | Do hotel cleaning/turnover times reduce same-day/future sellable capacity? | Cleaning units count as operational capacity for quote bounds; no turnover buffer exists. | Add hotel-defined turnover/readiness policy; only same-day assignment needs real ready capacity, future sale uses forecast capacity. |
 | D-008 | After completion/cancellation, should users be able to message an old WeHouse case, open a new issue, or only view history? | Some booking pages keep Message WeHouse; hotel direct chat closes. | Old case becomes read-only; a separately labelled “Report an issue” creates a new linked case within policy/retention window. |
-| D-009 | Is `payment_protected` a worker job state or only a money state, and when does the job become `confirmed`? | Migrations/UI use both; current payment confirmation may set `confirmed` while protection row says protected. | Protection is a money state; job uses `confirmed/ready_to_start`, derived only when required protection is active. |
 | D-011 | Is Worker block pair-wide across all historical/current jobs or specific to one relationship/thread? | Current RPC applies pair-wide; UI entry can look thread-specific. | Pair-wide for personal safety, with explicit warning and separate per-job dispute resolution. |
 | D-012 | What does roommate “skip” mean? | Current `viewed` can mean seen/skip; `declined` exists elsewhere. | Distinguish `viewed`, `passed`, `interest_sent`, `interest_declined`, and `withdrawn`. |
 | D-013 | Can a user resume a paused followed search and receive matches published while paused? | Current model resumes without a stated replay contract. | No automatic replay; show current matching results on open and notify only for new match versions after resume. |
-| D-015 | Is Nigeria/Lagos the permanent product jurisdiction? | Scope concepts and hard-coded timezone/domain point to Nigeria, but model is not explicit. | Declare Nigeria-only v1; still store IANA timezone per hotel to avoid hidden assumptions. |
 
 ## Decision process
 
