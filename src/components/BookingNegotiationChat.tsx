@@ -132,7 +132,6 @@ export default function BookingNegotiationChat({
     [showDisputeForm, setShowDisputeForm] = useState(false),
     [cancelReason, setCancelReason] = useState(""),
     [showCancelForm, setShowCancelForm] = useState(false),
-    [paying, setPaying] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
     [menuOpen, setMenuOpen] = useState(false),
