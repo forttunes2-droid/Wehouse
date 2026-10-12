@@ -20,6 +20,7 @@ type Props = {
   busyLabel?: string;
   busy?: boolean;
   confirmDisabled?: boolean;
+  checkoutLabel?: string;
   onEdit: () => void;
   onConfirm: () => void;
 };
@@ -39,6 +40,7 @@ export default function BookingPaymentReview({
   busyLabel = "Opening secure checkout…",
   busy = false,
   confirmDisabled = false,
+  checkoutLabel = "Secure checkout by Paystack",
   onEdit,
   onConfirm,
 }: Props) {
@@ -71,7 +73,7 @@ export default function BookingPaymentReview({
       <div className="mt-4 flex items-end justify-between gap-4 rounded-2xl bg-[var(--wh-elevated)] p-4">
         <div>
           <p className="text-sm font-medium text-[var(--wh-text)]">{amountLabel}</p>
-          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">Secure checkout by Paystack</p>
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{checkoutLabel}</p>
         </div>
         <p className="shrink-0 text-xl font-bold tabular-nums text-[var(--wh-text)]">{amount}</p>
       </div>
