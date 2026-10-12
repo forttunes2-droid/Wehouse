@@ -10,7 +10,7 @@ registers, local automated checks, and available GitHub Actions evidence.
 WeHouse is a substantial, functioning product codebase with role-based
 workspaces, housing and service discovery, bookings, messaging, account
 controls, payment protections, and optional Pro feature surfaces. The current
-code builds and lints, its 476 Node regression tests now pass, and the
+code builds and lints, its 483 Node regression tests now pass, and the
 committed 10 October revision had successful build, regression, and database
 migration-replay CI.
 
@@ -38,7 +38,7 @@ route payload; no application behavior was changed.
 
 | Evidence | Result | What it proves / does not prove |
 |---|---|---|
-| Local `npm test` on the current worktree | **476 passed, 0 failed** | Node regression tests pass; not equivalent to live role journeys or visual QA. |
+| Local `npm test` on the current worktree | **483 passed, 0 failed** | Node regression tests pass; not equivalent to live role journeys or visual QA. |
 | Local `npm run lint` on the current worktree | **Passed** | ESLint found no lint errors; not a security certification. |
 | Local `npm run build` on the current worktree | **Passed**; TypeScript and Vite production build completed | The web bundle compiles. Vite also reported an empty `vendor-react` chunk; it was non-blocking. |
 | GitHub Actions for commit `f990fc4a` (10 October) | **Passed**: build check, structural regression, consolidation validation | Included lint/test/type/build/Edge-function checks and migration replay/account-upgrade jobs for that committed revision. The shared worktree has newer uncommitted edits, so this is not CI evidence for those edits. |
@@ -252,7 +252,7 @@ running larger tests; do not run a million-user experiment against production.
 > Worker, Property Partner, Staff, Admin, and Creator workflows; both theme
 > palettes; account, discovery, booking, messaging, and payment-protection
 > code; and a meaningful automated test/build pipeline. The current worktree
-> passes 476 regression tests, lint, and a production web build. It is still
+> passes 483 regression tests, lint, and a production web build. It is still
 > undergoing release QA: real-provider money flows, complete role/device
 > journeys, independent security verification, legal approvals, native-store
 > releases, and measured production scale are not yet proven.
