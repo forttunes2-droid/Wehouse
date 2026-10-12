@@ -9,7 +9,7 @@
 WeHouse Web v1 is ready for a controlled public release only when all of these are true:
 
 1. The reviewed commit passes required GitHub checks, including the browser journeys, build, lint, tests, migration validation, and upgrade checks.
-2. Vercel has a successful preview for that exact commit; production uses the approved commit and expected environment. The current Vercel check reports deployment blocked, so this must be diagnosed separately from a code build failure.
+2. Vercel has a successful preview for that exact commit; production uses the approved commit and expected environment. Vercel preview readiness is verified per exact reviewed commit; production promotion remains a separate release approval.
 3. The route and journey inventory covers signed-out and signed-in users, each enabled workspace/role, empty/loading/error/success states, refresh/back/deep links, and phone/tablet/desktop in light and dark themes. Every in-scope journey has recorded evidence and no unresolved release-blocking defect.
 4. The production and test Supabase histories have been compared read-only. Every difference has an explained disposition. No migration is applied just to make the two environments look alike.
 5. Security, money movement, privacy, support, and operating rules have owners and pass their release checks. Any feature without the required approval stays disabled.
