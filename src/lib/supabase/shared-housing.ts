@@ -25,3 +25,8 @@ export async function getSharedHousingGroup(groupId:string) {
   const {data,error}=await supabase.rpc('get_my_shared_housing_group',{p_group_id:groupId});
   return {group:data as SharedHousingGroup|null,error};
 }
+
+export async function createSharedLongLet(listingId:string, roommateConversationIds:string[], companionUserIds:string[]) {
+  const {data,error}=await supabase.rpc('create_my_shared_long_let',{p_listing_id:listingId,p_roommate_conversation_ids:roommateConversationIds,p_companion_user_ids:companionUserIds});
+  return {group:data,error};
+}

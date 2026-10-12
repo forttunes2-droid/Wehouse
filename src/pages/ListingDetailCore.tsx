@@ -23,12 +23,13 @@ import {
   initializeShortStayPayment,
 } from "@/lib/supabase/housing-payments";
 import {
-  createSharedHousingGroup,
+  createSharedLongLet,
   getMySharedHousingGroups,
   initializeSharedHousingPayment,
   respondToSharedHousingInvite,
 } from "@/lib/supabase/shared-housing";
 import { getRoommateConversationPeople } from "@/lib/supabase/chat";
+import { listMyCompanions, type Companion } from "@/lib/supabase/companions";
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from "@/lib/roommateRecipients";
 import { withTimeout } from "@/lib/withTimeout";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
@@ -136,6 +137,8 @@ export default function ListingDetail({
   const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [roommateRecipients, setRoommateRecipients] = useState<RoommateRecipient[]>([]);
+  const [companionRecipients, setCompanionRecipients] = useState<Companion[]>([]);
+  const [pickedPeople, setPickedPeople] = useState<string[]>([]);
   const [missingRoommateIdentities, setMissingRoommateIdentities] = useState(0);
   const [sharedGroup, setSharedGroup] = useState<any>(null);
   const [shortCheckIn, setShortCheckIn] = useState("");
@@ -397,8 +400,13 @@ function support(
     setBusy(true);
     setShareOpen(false);
     setRoommateRecipients([]);
+    setCompanionRecipients([]);
+    setPickedPeople([]);
     setMissingRoommateIdentities(0);
     try {
+      const companions = await withTimeout(listMyCompanions(), 15000, "Companions took too long to load.");
+      if (companions.error) throw companions.error;
+      setCompanionRecipients(companions.companions.filter((companion) => companion.status === "accepted"));
       const peers = await withTimeout(getRoommateConversationPeople(), 15000, "Connections took too long to load.");
       if (peers.error) throw peers.error;
       setRoommateRecipients(selectRoommateRecipientsFromPeers(profile.user_id, peers.connections));
@@ -409,17 +417,23 @@ function support(
       setBusy(false);
     }
   }
-  async function shareWith(conversationId: string) {
-    setBusy(true);
-    const { group, error } = await createSharedHousingGroup(
-      String(listing?.id || listingId),
-      conversationId,
+  // Picked keys are "roommate:<conversationId>" or "companion:<userId>". Up to 2 others, so 3 people pay.
+  function togglePicked(key: string) {
+    setPickedPeople((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : current.length >= 2 ? current : [...current, key],
     );
+  }
+  async function sendShareInvitation() {
+    const roommateIds = pickedPeople.filter((key) => key.startsWith("roommate:")).map((key) => key.slice(9));
+    const companionIds = pickedPeople.filter((key) => key.startsWith("companion:")).map((key) => key.slice(10));
+    if (!roommateIds.length && !companionIds.length) return;
+    setBusy(true);
+    const { group, error } = await createSharedLongLet(String(listing?.id || listingId), roommateIds, companionIds);
     setBusy(false);
     if (error) return toast.error(error.message);
     setSharedGroup(group);
     setShareOpen(false);
-    toast.success("Shared-home invitation sent in your roommate relationship");
+    toast.success("Shared-home invitation sent");
   }
   async function answerShare(accept: boolean) {
     if (!sharedGroup) return;
@@ -1100,40 +1114,59 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 <p className="text-sm font-semibold uppercase text-violet-300">
                   Shared apartment
                 </p>
-                <h2 className="mt-1 text-lg font-bold">Your connections</h2>
+                <h2 className="mt-1 text-lg font-bold">Split with</h2>
                 <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
-                  Only people with an accepted roommate conversation appear
-                  here.
+                  Choose up to 2 people. At most 3 people can pay, and each must accept.
                 </p>
               </div>
               <button onClick={() => setShareOpen(false)}>×</button>
             </div>
-            <div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">
-              {roommateRecipients.length ? (
-                roommateRecipients.map((recipient) => (
-                  <button
-                    key={recipient.userId}
-                    disabled={busy}
-                    onClick={() => void shareWith(recipient.conversationId)}
-                    className="flex min-h-16 w-full items-center gap-3 py-3 text-left disabled:opacity-40"
-                  >
-                    <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/10 text-violet-300">
-                      {recipient.avatar ? <img src={recipient.avatar} alt="" className="h-full w-full object-cover" />
-                        : recipient.name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block break-words text-base font-semibold">{recipient.name}</span>
-                      {recipient.username && <span className="mt-1 block break-words text-sm text-[var(--wh-text-secondary)]">@{recipient.username}</span>}
-                      <span className="mt-1 block text-sm text-[var(--wh-text-secondary)]">Invite to split this apartment equally</span>
-                    </span>
-                    <span className="text-violet-300" aria-hidden="true">›</span>
-                  </button>
-                ))
-              ) : !missingRoommateIdentities ? (
-                <p className="py-8 text-center text-sm leading-6 text-[var(--wh-text-secondary)]">
-                  No connected roommates are available for this invitation.
-                </p>
-              ) : null}
+            <div className="mt-4">
+              {[
+                { title: "Roommates", people: roommateRecipients.map((r) => ({ key: `roommate:${r.conversationId}`, id: r.userId, name: r.name, username: r.username, avatar: r.avatar })) },
+                { title: "Companions", people: companionRecipients.map((c) => ({ key: `companion:${c.user_id}`, id: c.user_id, name: c.full_name || c.username || "Companion", username: c.username || "", avatar: null as string | null })) },
+              ].map((group) => (
+                <div key={group.title} className="mb-4">
+                  <h3 className="text-sm font-semibold uppercase text-[var(--wh-text-secondary)]">{group.title}</h3>
+                  <div className="divide-y divide-[var(--wh-border-subtle)]">
+                    {group.people.length ? group.people.map((person) => {
+                      const picked = pickedPeople.includes(person.key);
+                      return (
+                        <button
+                          key={person.key}
+                          type="button"
+                          aria-pressed={picked}
+                          disabled={busy}
+                          onClick={() => togglePicked(person.key)}
+                          className="flex min-h-16 w-full items-center gap-3 py-3 text-left disabled:opacity-40"
+                        >
+                          <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/10 text-violet-300">
+                            {person.avatar ? <img src={person.avatar} alt="" className="h-full w-full object-cover" />
+                              : person.name.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block break-words text-base font-semibold">{person.name}</span>
+                            {person.username && <span className="mt-1 block break-words text-sm text-[var(--wh-text-secondary)]">@{person.username}</span>}
+                          </span>
+                          <span className={picked ? "text-violet-300" : "text-[var(--wh-text-secondary)]"} aria-hidden="true">{picked ? "Selected" : "Select"}</span>
+                        </button>
+                      );
+                    }) : (
+                      <p className="py-4 text-sm text-[var(--wh-text-secondary)]">
+                        {group.title === "Roommates" ? "No accepted Roommates for this invitation." : "No accepted Companions yet."}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                disabled={busy || !pickedPeople.length}
+                onClick={() => void sendShareInvitation()}
+                className="min-h-12 w-full rounded-2xl bg-violet-600 px-4 text-base font-semibold text-white disabled:opacity-40"
+              >
+                Send invitation
+              </button>
               {missingRoommateIdentities > 0 && <div role="status" className="py-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
                 <p>Some connection names could not be loaded. Refresh before choosing them.</p>
                 <button type="button" disabled={busy} onClick={() => void openShare()} className="mt-2 min-h-11 text-violet-300">Refresh connections</button>
