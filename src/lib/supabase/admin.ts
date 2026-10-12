@@ -185,14 +185,15 @@ export async function getReports() {
   return { reports: data as ListingReport[] | null, error };
 }
 
-export async function createReport(reporterId: string, reason: string, listingId?: string, reportedUserId?: string) {
+export async function createReport(reporterId: string, reason: string, listingId?: string) {
+  // listing_reports intentionally stores the reported record, not a profile
+  // identifier. Keep inserts aligned with the live canonical schema.
   const { data, error } = await supabase.from('listing_reports').insert({
     reporter_id: reporterId,
     listing_id: listingId || null,
-    reported_user_id: reportedUserId || null,
     reason,
     status: 'active',
-  }).select();
+  }).select('id,listing_id,reason,status,created_at');
   return { report: data?.[0] || null, error };
 }
 
