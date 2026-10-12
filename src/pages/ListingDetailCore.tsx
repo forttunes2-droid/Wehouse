@@ -223,7 +223,23 @@ export default function ListingDetail({
     if (!loading && listing?.id === listingId) savePublicBrowseDraft("listing", listingId, { checkIn: shortCheckIn, checkOut: shortCheckOut, guests: shortGuests });
   }, [loading, listing, listingId, shortCheckIn, shortCheckOut, shortGuests]);
 
-  function support(
+  function formatNaira(value: unknown) {
+  return `₦${Number(value || 0).toLocaleString("en-NG")}`;
+}
+
+function formatBookingDate(value: string | null | undefined) {
+  if (!value) return "Not available";
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-NG", { dateStyle: "medium" });
+}
+
+function formatBookingDeadline(value: string | null | undefined) {
+  if (!value) return "Not available";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function support(
     kind: "property" | "reservation" | "inspection" | "payment" = "property",
   ) {
 
@@ -577,6 +593,39 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
   void accommodationPaid;
   const visibleAddress = locationLabel(listing.address, listing.city, listing.state);
   const displayTitle = listingDisplayTitle(listing);
+  const reviewAmount = Number(
+    paymentReview === "short_let"
+      ? reservation?.reservation_fee_snapshot ?? reservation?.amount ?? shortReservationFee
+      : reservation?.amount ?? reservationFee,
+  );
+  const shortPolicy = reservation?.short_stay_cancellation_policy_snapshot as Record<string, unknown> | undefined;
+  const shortCancellationTerms = shortPolicy
+    ? shortPolicy.non_refundable
+      ? "This discounted rate is non-refundable for ordinary guest cancellation. Provider failure and payment errors remain reviewable by WeHouse."
+      : `Cancel at least ${Number(shortPolicy.full_refund_hours_before_check_in || 48)} hours before check-in for a full refund. Late cancellations and no-shows may be charged up to ${Number(shortPolicy.late_cancel_max_nights || 1)} night. The refundable security deposit is never used as a cancellation charge. These terms are saved with your reservation.`
+    : "Cancellation terms are missing from this reservation. Payment stays paused until WeHouse can show the saved policy.";
+
+  const reviewRows = paymentReview === "short_let"
+    ? [
+        { label: "Property", value: String(reservation?.listing_title || displayTitle) },
+        { label: "Check-in", value: formatBookingDate(reservation?.stay_check_in || shortCheckIn) },
+        { label: "Check-out", value: formatBookingDate(reservation?.stay_check_out || shortCheckOut) },
+        { label: "Nights and guests", value: `${Number(reservation?.stay_nights || selection.nights)} nights · ${Number(reservation?.guest_count || shortGuests)} guest${Number(reservation?.guest_count || shortGuests) === 1 ? "" : "s"}` },
+        { label: "Nightly rate", value: formatNaira(reservation?.nightly_rate_snapshot) },
+        { label: "Stay rent due later", value: formatNaira(reservation?.stay_rent_total) },
+        ...(Number(reservation?.security_deposit_snapshot || 0) > 0
+          ? [{ label: "Refundable security deposit due later", value: formatNaira(reservation?.security_deposit_snapshot) }]
+          : []),
+        { label: "Stay balance due later", value: formatNaira(Number(reservation?.stay_rent_total || 0) + Number(reservation?.security_deposit_snapshot || 0)) },
+        { label: "Date hold expires", value: formatBookingDeadline(reservation?.payment_expires_at || reservation?.hold_expires_at) },
+      ]
+    : [
+        { label: "Apartment", value: String(reservation?.listing_title || displayTitle) },
+        { label: "Location", value: String(reservation?.listing_location || visibleAddress) },
+        { label: "Reservation fee", value: formatNaira(reviewAmount) },
+        { label: "Hold expires", value: formatBookingDeadline(reservation?.payment_expires_at || reservation?.hold_expires_at) },
+        { label: "Next step", value: "Arrange an inspection before the tenancy and rent plan are finalised" },
+      ];
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[var(--wh-bg)] pb-12 text-[var(--wh-text)]">
