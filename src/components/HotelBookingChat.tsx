@@ -31,6 +31,7 @@ import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import type { Profile } from "@/types";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import BackButton from "@/components/BackButton";
+import ReportDialog from "@/components/ReportDialog";
 
 type Props = {
   bookingId: number;
@@ -59,9 +60,17 @@ export default function HotelBookingChat({
   onUpdated,
 }: Props) {
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ user_id: string; display_name: string } | null>(null);
   const [conversationId, setConversationId] = useState(
     initialConversationId || "",
   );
+  const openReport = useCallback(async () => {
+    if (!conversationId) return;
+    const { data, error } = await supabase.rpc('hotel_chat_report_target', { p_conversation_id: conversationId });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (error || !row) return toast.error('Could not open the report form');
+    setReportTarget(row);
+  }, [conversationId]);
   const [messages, setMessages] = useState<LocalHotelMessage[]>([]);
   const [context, setContext] = useState<HotelConversationContext | null>(null);
   const [input, setInput] = useState("");
@@ -308,8 +317,10 @@ export default function HotelBookingChat({
               {chatSubtitle}
             </p>
           </div>
+          {conversationId && !loading ? <button type="button" onClick={() => void openReport()} className="h-10 shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Report</button> : null}
         </div>
       </header>
+      {reportTarget ? <ReportDialog subjectType="hotel_chat" subjectUserId={reportTarget.user_id} subjectName={reportTarget.display_name} subjectRef={conversationId} onClose={() => setReportTarget(null)} /> : null}
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
