@@ -63,7 +63,7 @@ select pg_temp.expect(not exists(select 1 from public.roommate_user_blocks where
 select pg_temp.expect(not exists(select 1 from public.conversations where participant_a like 'cb-%'),'Companion chat creates no Roommate conversation');
 
 -- After 30 days a new request is allowed.
-update public.companions set responded_at = now() - interval '31 days' where user_low='cb-a' and user_high='cb-b';
+update public.companions set responded_at = now() - public.companion_rerequest_wait() - interval '1 day' where user_low='cb-a' and user_high='cb-b';
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select pg_temp.expect((public.send_companion_request('cb-b')->>'status')='pending','a request is allowed after the 30-day wait');

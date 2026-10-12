@@ -44,6 +44,12 @@ $$;
 revoke all on function public.companion_bucket_count(text) from public, anon, authenticated;
 grant execute on function public.companion_bucket_count(text) to service_role;
 
+-- The one place to change how long a cancelled or declined pair must wait before asking again.
+create or replace function public.companion_rerequest_wait()
+returns interval language sql immutable set search_path = 'pg_catalog' as $$ select interval '30 days' $$;
+revoke all on function public.companion_rerequest_wait() from public, anon, authenticated;
+grant execute on function public.companion_rerequest_wait() to service_role;
+
 create or replace function public.send_companion_request(p_user_id text)
 returns jsonb language plpgsql security definer set search_path = 'pg_catalog','public' as $$
 declare
@@ -69,7 +75,7 @@ begin
   if c.id is not null and c.status in ('pending','accepted') then
     return jsonb_build_object('id', c.id, 'status', c.status, 'requested_by_me', c.requested_by = actor);
   end if;
-  if c.id is not null and c.status in ('declined','removed') and c.responded_at > now() - interval '30 days' then
+  if c.id is not null and c.status in ('declined','removed') and c.responded_at > now() - public.companion_rerequest_wait() then
     raise exception 'That person cannot receive a companion request';
   end if;
   if public.companion_bucket_count(actor) >= 5 then
