@@ -22,6 +22,7 @@ import {
   setRoommateBlock,
   uploadRoommateChatAttachment,
 } from "@/lib/supabase/chat";
+import ReportDialog from "@/components/ReportDialog";
 import type { RoommatePeer } from "@/lib/supabase/chat";
 import {
   BOOKING_STATUS_LABELS,
@@ -191,6 +192,7 @@ export default function Chat({
     [profilePerson, setProfilePerson] = useState<Person | null>(null),
     [blockBusy, setBlockBusy] = useState(false),
     [blockPrompt, setBlockPrompt] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
     [blockReason, setBlockReason] = useState(""),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [bulkDelete, setBulkDelete] = useState(false),
@@ -813,7 +815,7 @@ export default function Chat({
     );
     setBlockBusy(false);
     if (error)
-      return toast.error(error.message || "Could not update this block");
+      return toast.error(error.message || "Could not update this connection");
     setPeople((current) => ({
       ...current,
       [peerId]: { ...current[peerId], isBlocked: nextBlocked },
@@ -827,11 +829,11 @@ export default function Chat({
     toast.success(
       nextBlocked
         ? cancellationState === "review"
-          ? "Person blocked. The linked paid booking was sent to WeHouse for cancellation."
+          ? "Connection cancelled. The linked paid booking was sent to WeHouse for cancellation."
           : cancellationState === "cancelled"
-            ? "Person blocked and the linked shared booking was cancelled."
-            : "Person blocked and removed from discovery."
-        : "Person unblocked",
+            ? "Connection cancelled and the linked shared booking was cancelled."
+            : "Connection cancelled and removed from discovery."
+        : "Connection restored",
     );
   }
   async function openActiveProfile() {
@@ -1138,6 +1140,16 @@ export default function Chat({
                 <span>Contact info</span>
               </button>
               <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReportOpen(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm"
+              >
+                <span>⚑</span>
+                <span>Report</span>
+              </button>
+              <button
                 disabled={blockBusy}
                 onClick={() => {
                   if (person?.isBlocked) void toggleBlock();
@@ -1150,7 +1162,7 @@ export default function Chat({
               >
                 <span>⊘</span>
                 <span>
-                  {person?.isBlocked ? "Unblock person" : "Block person"}
+                  {person?.isBlocked ? "Restore connection" : "Cancel connection"}
                 </span>
               </button>
               <button
@@ -1238,14 +1250,14 @@ export default function Chat({
             {person?.isBlocked ? (
               <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
                 <p className="text-xs text-amber-100">
-                  This person is blocked. Matching, messages and calls are off.
+                  This connection is cancelled. Matching, messages and calls are off.
                 </p>
                 <button
                   type="button"
                   onClick={() => void toggleBlock()}
                   className="shrink-0 text-xs font-semibold text-violet-300"
                 >
-                  Unblock
+                  Restore
                 </button>
               </div>
             ) : !secureChat ? (
@@ -1434,6 +1446,14 @@ export default function Chat({
             busy={blockBusy}
           />
         )}
+        {reportOpen && peerId && (
+          <ReportDialog
+            subjectType="roommate_chat"
+            subjectUserId={peerId}
+            subjectName={person?.name || "this person"}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
         {blockPrompt && (
           <div
             className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm"
@@ -1446,7 +1466,7 @@ export default function Chat({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-base font-bold">
-                    Block {person?.name || "this person"}?
+                    Cancel connection with {person?.name || "this person"}?
                   </h2>
                   <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">
                     They will leave your discovery results. A linked shared
@@ -1486,7 +1506,7 @@ export default function Chat({
                   disabled={blockBusy}
                   className="h-11 rounded-xl bg-red-500 text-xs font-semibold disabled:opacity-40"
                 >
-                  {blockBusy ? "Blocking…" : "Block and continue"}
+                  {blockBusy ? "Cancelling…" : "Cancel connection"}
                 </button>
               </div>
             </section>
@@ -2090,7 +2110,7 @@ function PeerProfileSheet({
           onClick={onToggleBlock}
           className="mt-8 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200"
         >
-          {person?.isBlocked ? "Unblock person" : "Block person"}
+          {person?.isBlocked ? "Restore connection" : "Cancel connection"}
         </button>
       }
     />

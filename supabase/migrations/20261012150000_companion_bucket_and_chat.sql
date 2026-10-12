@@ -1,20 +1,6 @@
--- Companion rules (C-029, C-030): a bucket of at most 5, cancel with a 30-day wait, report, and a private encrypted chat.
+-- Companion rules (C-029, C-030): a bucket of at most 5, cancel with a 30-day wait, and a private encrypted chat.
 -- There is no block: Companion is a connection state that either side can cancel.
 -- Nothing here reads or writes Roommate tables. The server only stores ciphertext.
-
-create table if not exists public.companion_reports (
-  id uuid primary key default gen_random_uuid(),
-  reporter_user_id text not null,
-  reported_user_id text not null,
-  reason text not null,
-  details text,
-  status text not null default 'open',
-  created_at timestamptz not null default now(),
-  constraint companion_reports_not_self check (reporter_user_id <> reported_user_id),
-  constraint companion_reports_reason_len check (char_length(btrim(reason)) between 1 and 80),
-  constraint companion_reports_details_len check (details is null or char_length(details) <= 2000),
-  constraint companion_reports_status_check check (status in ('open','reviewed','closed'))
-);
 
 create table if not exists public.companion_messages (
   id uuid primary key default gen_random_uuid(),
@@ -29,10 +15,9 @@ create table if not exists public.companion_messages (
 );
 create index if not exists companion_messages_thread_idx on public.companion_messages(companion_id, created_at);
 
-alter table public.companion_reports enable row level security;
 alter table public.companion_messages enable row level security;
-revoke all on table public.companion_reports, public.companion_messages from public, anon, authenticated;
-grant all on table public.companion_reports, public.companion_messages to service_role;
+revoke all on table public.companion_messages from public, anon, authenticated;
+grant all on table public.companion_messages to service_role;
 
 -- Bucket size: accepted Companions plus requests the user has sent and not yet had answered.
 create or replace function public.companion_bucket_count(p_user_id text)
@@ -123,25 +108,6 @@ begin
   return jsonb_build_object('id', c.id, 'status', c.status);
 end $$;
 
--- Only someone who has had a Companion relationship with the person can report them here.
-create or replace function public.report_companion(p_user_id text, p_reason text, p_details text default null)
-returns uuid language plpgsql security definer set search_path = 'pg_catalog','public' as $$
-declare actor text := public.current_profile_user_id(); rid uuid;
-begin
-  if actor is null or not public.current_actor_has_personal_workspace() then
-    raise exception 'Active Personal account required';
-  end if;
-  if p_user_id is null or p_user_id = actor then raise exception 'Choose another person'; end if;
-  if not exists(select 1 from public.companions c
-      where c.user_low = least(actor, p_user_id) and c.user_high = greatest(actor, p_user_id)) then
-    raise exception 'You can only report someone you have a Companion relationship with';
-  end if;
-  insert into public.companion_reports(reporter_user_id, reported_user_id, reason, details)
-  values (actor, p_user_id, btrim(p_reason), nullif(btrim(coalesce(p_details, '')), ''))
-  returning id into rid;
-  return rid;
-end $$;
-
 create or replace function public.send_companion_encrypted_message(
   p_companion_id uuid, p_ciphertext text, p_encryption_iv text,
   p_encrypted_attachments jsonb default '[]'::jsonb, p_reply_to_id uuid default null)
@@ -188,9 +154,7 @@ begin
     from public.companion_messages m where m.companion_id = c.id order by m.created_at;
 end $$;
 
-revoke all on function public.report_companion(text,text,text),
-  public.send_companion_encrypted_message(uuid,text,text,jsonb,uuid),
+revoke all on function public.send_companion_encrypted_message(uuid,text,text,jsonb,uuid),
   public.get_companion_encrypted_messages(uuid) from public, anon, authenticated;
-grant execute on function public.report_companion(text,text,text),
-  public.send_companion_encrypted_message(uuid,text,text,jsonb,uuid),
+grant execute on function public.send_companion_encrypted_message(uuid,text,text,jsonb,uuid),
   public.get_companion_encrypted_messages(uuid) to authenticated, service_role;

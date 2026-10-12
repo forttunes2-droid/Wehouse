@@ -47,9 +47,6 @@ select pg_temp.expect(pg_temp.rejects(format('select public.send_companion_encry
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select pg_temp.expect((select count(*) from public.get_companion_encrypted_messages(current_setting('test.cid')::uuid))=1,'participant reads the thread');
 select pg_temp.expect(pg_temp.rejects('select 1 from public.companion_messages'),'no direct table read');
-select pg_temp.expect(pg_temp.rejects($$select public.report_companion('cb-g','  ')$$),'blank report reason rejected');
-select pg_temp.expect(public.report_companion('cb-b','spam','details') is not null,'a Companion can be reported');
-select pg_temp.expect(pg_temp.rejects($$select public.report_companion('cb-d_nobody','spam')$$),'cannot report a stranger');
 
 -- Cancel: either side can end it; the chat closes; a new request waits 30 days.
 select public.remove_companion('cb-b');
@@ -69,5 +66,5 @@ set local role authenticated;
 select pg_temp.expect((public.send_companion_request('cb-b')->>'status')='pending','a request is allowed after the 30-day wait');
 reset role;
 
-select 'companion_bucket_report_chat_contract_ok' as result;
+select 'companion_bucket_and_chat_contract_ok' as result;
 rollback;

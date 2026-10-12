@@ -18,10 +18,6 @@ export async function removeCompanion(userId:string){
   const {error}=await supabase.rpc('remove_companion',{p_user_id:userId});
   return {error};
 }
-export async function reportCompanion(userId:string,reason:string,details?:string){
-  const {error}=await supabase.rpc('report_companion',{p_user_id:userId,p_reason:reason,p_details:details??null});
-  return {error};
-}
 // Companion chat uses the same ciphertext and iv as other private chats; the server never sees plaintext.
 export async function sendCompanionEncryptedMessage(companionId:string,ciphertext:string,iv:string,attachments:unknown[]=[],replyToId?:string){
   const {data,error}=await supabase.rpc('send_companion_encrypted_message',{p_companion_id:companionId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId??null});
