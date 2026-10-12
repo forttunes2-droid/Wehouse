@@ -43,6 +43,7 @@ import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
+import ReportDialog from "@/components/ReportDialog";
 import {
   lockEncryptionIdentity,
   privateConversationReadiness,
@@ -132,6 +133,7 @@ export default function BookingNegotiationChat({
     [showDisputeForm, setShowDisputeForm] = useState(false),
     [cancelReason, setCancelReason] = useState(""),
     [showCancelForm, setShowCancelForm] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
     [menuOpen, setMenuOpen] = useState(false),
@@ -653,6 +655,15 @@ export default function BookingNegotiationChat({
               </p>
             </div>
           </button>
+          {peerId && (
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="min-h-10 shrink-0 px-2 text-[11px] font-semibold text-amber-200"
+            >
+              Report
+            </button>
+          )}
           {openConversation && !contactBlocked && (
             <>
               <button
@@ -924,6 +935,15 @@ export default function BookingNegotiationChat({
           </div>
         )}
       </header>
+      {reportOpen && peerId && (
+        <ReportDialog
+          subjectType="worker_chat"
+          subjectUserId={peerId}
+          subjectName={peerName || "this person"}
+          subjectRef={conversationId}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
           {messages.some((message) => message.decryption_failed) ? (
