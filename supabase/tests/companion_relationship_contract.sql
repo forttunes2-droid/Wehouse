@@ -50,6 +50,13 @@ insert into public.roommate_user_blocks(blocker_user_id,blocked_user_id) values(
 select set_config('request.jwt.claims','{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('companion-d')$$),'blocked pair cannot request');
+select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request_by_username('no-such-user')$$),'unknown username gets the same generic rejection');
+select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request_by_username('  ')$$),'blank username is rejected');
+reset role;
+update public.profiles set username='companion_c_user' where user_id='companion-c';
+select set_config('request.jwt.claims','{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select pg_temp.expect((public.send_companion_request_by_username(' Companion_C_User ')->>'status')='pending','username request is exact and case-insensitive');
 
 -- Removing ends the relationship.
 select pg_temp.expect((public.remove_companion('companion-b')->>'removed')::boolean,'remove succeeds');

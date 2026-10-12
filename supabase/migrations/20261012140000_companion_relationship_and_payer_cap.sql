@@ -70,6 +70,19 @@ begin
   return jsonb_build_object('id', c.id, 'status', c.status, 'requested_by_me', c.requested_by = actor);
 end $$;
 
+create or replace function public.send_companion_request_by_username(p_username text)
+returns jsonb language plpgsql security definer set search_path = 'pg_catalog','public' as $$
+declare target text;
+begin
+  select p.user_id into target from public.profiles p
+  where lower(p.username) = lower(btrim(coalesce(p_username, ''))) and btrim(coalesce(p_username, '')) <> ''
+    and p.account_kind = 'consumer'
+    and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)
+  limit 1;
+  if target is null then raise exception 'That person cannot receive a companion request'; end if;
+  return public.send_companion_request(target);
+end $$;
+
 create or replace function public.respond_to_companion_request(p_companion_id uuid, p_accept boolean)
 returns jsonb language plpgsql security definer set search_path = 'pg_catalog','public' as $$
 declare
@@ -115,6 +128,7 @@ begin
       'companion_id', c.id,
       'user_id', other.user_id,
       'full_name', other.full_name,
+      'username', other.username,
       'status', c.status,
       'requested_by_me', c.requested_by = actor
     ) order by c.updated_at desc)
@@ -125,10 +139,12 @@ begin
 end $$;
 
 revoke all on function public.send_companion_request(text) from public, anon;
+revoke all on function public.send_companion_request_by_username(text) from public, anon;
 revoke all on function public.respond_to_companion_request(uuid,boolean) from public, anon;
 revoke all on function public.remove_companion(text) from public, anon;
 revoke all on function public.list_my_companions() from public, anon;
 grant execute on function public.send_companion_request(text) to authenticated, service_role;
+grant execute on function public.send_companion_request_by_username(text) to authenticated, service_role;
 grant execute on function public.respond_to_companion_request(uuid,boolean) to authenticated, service_role;
 grant execute on function public.remove_companion(text) to authenticated, service_role;
 grant execute on function public.list_my_companions() to authenticated, service_role;

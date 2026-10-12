@@ -17,8 +17,8 @@ export async function startSharedHousingContractSplit(groupId:string){const{data
 
 export type SharedHousingMember = {user_id:string;name:string;invitation_status:string;share_amount:number;eligible_partner_share?:number;refundable_share?:number;payment_status:string};
 export type SharedHousingGroup = {id:string;created_by:string;listing_id:string;reservation_id?:string|null;conversation_id?:string|null;status:string;booking_status?:string|null;product_type?:string;payment_phase:string;expires_at:string;created_at?:string;guest_count?:number;stay_check_in?:string;stay_check_out?:string;total_amount?:number;members:SharedHousingMember[];listing:{id:string;title:string;image?:string|null;city?:string;state?:string}};
-export async function createSharedShortLet(reservationId:string, conversationIds:string[]) {
-  const {data,error}=await supabase.rpc('create_my_shared_short_let',{p_reservation_id:reservationId,p_conversation_ids:conversationIds});
+export async function createSharedShortLet(reservationId:string, companionUserIds:string[]) {
+  const {data,error}=await supabase.rpc('create_my_shared_short_let',{p_reservation_id:reservationId,p_user_ids:companionUserIds});
   return {group:data as SharedHousingGroup|null,error};
 }
 export async function getSharedHousingGroup(groupId:string) {

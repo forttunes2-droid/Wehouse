@@ -2,15 +2,21 @@
 begin;
 create function pg_temp.expect(value boolean, description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description; end if;end$$;
 grant execute on function pg_temp.expect(boolean,text) to authenticated,anon,service_role;
+create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$
+begin execute statement; return false; exception when others then return true; end $$;
+grant execute on function pg_temp.rejects(text) to authenticated,anon,service_role;
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_kind,full_name,state,city,local_government) values
 ('94000000-0000-4000-8000-000000000001','short-split-a@example.invalid','short-split-a','user',true,'consumer','Ada','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000002','short-split-b@example.invalid','short-split-b','creator',true,'consumer','Bola','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000003','short-split-c@example.invalid','short-split-c','user',true,'consumer','Chika','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000004','short-split-d@example.invalid','short-split-d','user',true,'consumer','Different guest','Nasarawa','Lafia','Lafia');
+-- Short Let splits use Companions. A Roommate conversation alone must not qualify (short-split-d).
+insert into public.companions(user_low,user_high,requested_by,status) values
+('short-split-a','short-split-b','short-split-a','accepted'),
+('short-split-a','short-split-c','short-split-a','accepted');
 insert into public.conversations(id,participant_a,participant_b,conversation_type,status) values
-('94000000-0000-4000-8000-000000000012','short-split-a','short-split-b','roommate','active'),
-('94000000-0000-4000-8000-000000000013','short-split-a','short-split-c','roommate','active');
+('94000000-0000-4000-8000-000000000014','short-split-a','short-split-d','roommate','active');
 insert into public.listings(id,listing_id,title,price,property_type,sub_type,status,availability_status,max_guests,max_occupants,security_deposit_amount,state,city,address)
 values('94000000-0000-4000-8000-000000000020','short-split-listing','Short Let contract',1000,'apartment','short_let','available','available',3,3,500,'Nasarawa','Lafia','Published test address');
 -- A real reservation requires an active policy snapshot, including in an empty test database.
@@ -60,8 +66,10 @@ select pg_temp.expect((select status='reserved' and reservation_fee_status='paid
 select short_stay_balance_due_at as original_deadline from public.reservations where id=:'reservation' \gset
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select (public.create_my_shared_short_let(:'reservation',array['94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000013']::uuid[])->>'id') as shared_group \gset
-select pg_temp.expect((public.create_my_shared_short_let(:'reservation',array['94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000013']::uuid[])->>'id')=:'shared_group','Retry reuses the same group and reservation');
+select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L])',:'reservation','short-split-d')),'A roommate who is not a companion cannot be invited to a Short Let split');
+select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L,%L,%L])',:'reservation','short-split-b','short-split-c','short-split-d')),'More than 3 paying people is rejected');
+select (public.create_my_shared_short_let(:'reservation',array['short-split-b','short-split-c'])->>'id') as shared_group \gset
+select pg_temp.expect((public.create_my_shared_short_let(:'reservation',array['short-split-b','short-split-c'])->>'id')=:'shared_group','Retry reuses the same group and reservation');
 select set_config('test.shared_group',:'shared_group',true);
 do $$begin
  begin perform public.create_short_stay_payment(current_setting('test.shared_reservation'));raise exception 'FAIL: Shared owner could pay full bill';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
