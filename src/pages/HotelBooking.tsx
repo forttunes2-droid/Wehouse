@@ -211,9 +211,12 @@ export default function HotelBooking({
 
   if (pendingBooking) {
     const savedCancellation = pendingBooking.cancellation_snapshot;
-    const cancellationTerms = savedCancellation?.refundable
-      ? `Full refund ${money(Number(savedCancellation.refund_amount_ngn))} if cancelled by ${formatDeadline(savedCancellation.deadline, savedCancellation.timezone)}. These terms are saved for this booking.`
-      : "This rate is non-refundable for ordinary cancellation or missed arrival. A payment or stay problem can still be reported to WeHouse for review.";
+    const cancellationTerms = savedCancellation
+      ? savedCancellation.refundable
+        ? `Full refund ${money(Number(savedCancellation.refund_amount_ngn))} if cancelled by ${formatDeadline(savedCancellation.deadline, savedCancellation.timezone)}. These terms are saved for this booking.`
+        : "This rate is non-refundable for ordinary cancellation or missed arrival. A payment or stay problem can still be reported to WeHouse for review."
+      : "Saved cancellation terms are not available. Payment is disabled until the booking can show the terms.");
+
     const pendingRows = [
       { label: "Hotel", value: room?.hotels.name || "Selected hotel" },
       { label: "Room and package", value: `${room?.room_type || "Room"} · ${pendingBooking.rate_plan_name || ratePlan?.name || "Selected package"}` },
@@ -245,6 +248,7 @@ export default function HotelBooking({
               confirmLabel="Accept terms and continue"
               busy={submitting}
               busyLabel="Releasing room hold…"
+              confirmDisabled={!savedCancellation}
               onEdit={() => void editPendingBooking()}
               onConfirm={() => void openPayment()}
             />
