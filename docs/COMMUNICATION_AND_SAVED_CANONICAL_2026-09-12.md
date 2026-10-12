@@ -107,6 +107,7 @@ The current production read model still excludes a hotel conversation from the I
 
 - Roommate direct chat uses the private E2EE message/attachment path.
 - Service-job direct chat uses the private E2EE message/attachment path.
+- Companion (pay-together relationship, decision C-027) has no chat of its own. It never reuses a Roommate conversation, and no message path is created for it.
 - WeHouse support cases are operational support records and are **not** presented as E2EE participant chat.
 - Hotel chat is business/operational hotel communication; current implementation is not the roommate/service E2EE path.
 - Encryption readiness must never make the composer visually jump, disappear under the keyboard, or send an unintended message from the mobile Enter key.
