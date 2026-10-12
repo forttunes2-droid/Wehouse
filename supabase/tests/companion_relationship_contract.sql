@@ -46,7 +46,7 @@ select pg_temp.expect(not exists(select 1 from public.conversations where conver
   'companion acceptance creates no roommate conversation');
 
 -- Blocked pairs cannot send requests.
-insert into public.roommate_user_blocks(blocker_user_id,blocked_user_id) values('companion-d','companion-a');
+insert into public.companion_blocks(blocker_user_id,blocked_user_id) values('companion-d','companion-a');
 select set_config('request.jwt.claims','{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('companion-d')$$),'blocked pair cannot request');
