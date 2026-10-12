@@ -17,8 +17,12 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   assert.match(migration, /v_total:=v_stay\+v_caution/);
   assert.match(migration, /Reserve date payment must be confirmed first/);
   assert.match(detail, /Review dates · ₦/);
-  assert.match(detail, /setPaymentReview\("short_let"\)/);\n  assert.match(detail, /continueReservationPayment[\\s\\S]*initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
-  assert.match(detail, /shortCancellationTerms/);\n  assert.match(detail, /Stay balance due later/);\n  assert.match(review, /Edit details/);\n  assert.match(review, /Secure checkout by Paystack/);
+  assert.match(detail, /setPaymentReview\("short_let"\)/);
+  assert.match(detail, /continueReservationPayment[\s\\S]*initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
+  assert.match(detail, /shortCancellationTerms/);
+  assert.match(detail, /Stay balance due later/);
+  assert.match(review, /Edit details/);
+  assert.match(review, /Secure checkout by Paystack/);
   assert.match(review, /stay charge and any refundable security deposit/i);
   assert.match(paymentInit, /Reserve date payment must be confirmed before the stay balance/);
 });
