@@ -8,7 +8,7 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   const [migration, detail, review, paymentInit] = await Promise.all([
     read('supabase/migrations/20260926061000_short_let_paid_reserve_date.sql'),
     read('src/pages/ListingDetailCore.tsx'),
-    read('src/components/ShortLetPaymentReview.tsx'),
+    read('src/components/BookingPaymentReview.tsx'),
     read('supabase/functions/payment-init/index.ts'),
   ]);
   assert.match(migration, /policy_key='short_let_reservation_fee'/);
@@ -16,9 +16,9 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   assert.match(migration, /payment_component','short_stay_balance'/);
   assert.match(migration, /v_total:=v_stay\+v_caution/);
   assert.match(migration, /Reserve date payment must be confirmed first/);
-  assert.match(detail, /Reserve date · ₦/);
-  assert.match(detail, /initializeReservationPayment\(reference\)/);
-  assert.match(review, /Reserve date paid/);
+  assert.match(detail, /Review dates · ₦/);
+  assert.match(detail, /setPaymentReview\("short_let"\)/);\n  assert.match(detail, /continueReservationPayment[\\s\\S]*initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
+  assert.match(detail, /shortCancellationTerms/);\n  assert.match(detail, /Stay balance due later/);\n  assert.match(review, /Edit details/);\n  assert.match(review, /Secure checkout by Paystack/);
   assert.match(review, /stay charge and any refundable security deposit/i);
   assert.match(paymentInit, /Reserve date payment must be confirmed before the stay balance/);
 });
