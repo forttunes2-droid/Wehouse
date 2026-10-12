@@ -117,7 +117,6 @@ export function resolveActivityDestination(
   // the invitee response form. Legacy deliveries used "property-owner", which
   // is not a canonical app route.
   if (type === "resource_invitation_response") {
-    const resourceType = String(params.resource_type || "").toLowerCase();
     // The inviter manages hotel-team membership from the Property Partner
     // workspace. "hotel_detail" is a personal-only route and is normalized
     // away for partner accounts, so sending the inviter there loses the target.

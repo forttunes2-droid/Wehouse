@@ -78,7 +78,7 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
   if (!alert || alert.ownerId !== profile.user_id || typeof document === "undefined") return null;
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[100200] flex justify-center px-3 pt-[max(.75rem,env(safe-area-inset-top))]">
-    <section className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-amber-400/15 bg-[#11141C] text-white shadow-2xl shadow-black/70" role="region" aria-live="polite" aria-labelledby="new-login-title" aria-describedby="new-login-description">
+    <section className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-amber-400/15 wh-media-immersive bg-[#11141C] text-white shadow-2xl shadow-black/70" role="region" aria-live="polite" aria-labelledby="new-login-title" aria-describedby="new-login-description">
       <div className="flex items-start gap-3 px-4 pb-3 pt-4">
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-300/10 text-amber-200"><DeviceShieldIcon /></div>
         <div className="min-w-0 flex-1">

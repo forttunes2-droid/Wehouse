@@ -2052,7 +2052,7 @@ function SubmittedMedia({ row }: { row: any }) {
       )}
       {active && (
         <div
-          className="fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
+          className="wh-media-immersive fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
           role="dialog"
           aria-modal="true"
           aria-label="Property Partner media preview"

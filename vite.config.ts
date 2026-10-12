@@ -27,12 +27,13 @@ const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: f
 const updateWorker = `// WeHouse release ${buildVersion}
 const RELEASE = ${JSON.stringify(buildVersion)};
 const OFFLINE_URL = '/offline.html';
+const OFFLINE_ASSETS = [OFFLINE_URL, '/offline.js', '/app-icon.svg'];
 const CACHE_NAME = 'wehouse-offline-' + RELEASE;
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(function (cache) { return cache.add(OFFLINE_URL); })
+      .then(function (cache) { return cache.addAll(OFFLINE_ASSETS); })
       .then(function () { return self.skipWaiting(); })
   );
 });
@@ -49,6 +50,10 @@ self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  if (event.request.mode !== 'navigate' && OFFLINE_ASSETS.indexOf(url.pathname) !== -1) {
+    event.respondWith(caches.match(url.pathname).then(function (hit) { return hit || fetch(event.request); }));
+    return;
+  }
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request, { cache: 'no-store' }).catch(function () {

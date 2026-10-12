@@ -48,7 +48,7 @@ export default function LegalDocumentPage({ kind }: { kind: LegalKind }) {
   }
   function back() { if (window.history.length > 1) window.history.back(); else window.location.href = '/'; }
 
-  return <div className="min-h-[100svh] bg-[var(--wh-bg)] text-[#F6F2FC]">
+  return <div className="min-h-[100svh] bg-[var(--wh-bg)] text-[var(--wh-text)]">
     <main className="mx-auto w-full max-w-3xl pl-[max(20px,env(safe-area-inset-left))] pr-[max(20px,env(safe-area-inset-right))] pb-[max(32px,env(safe-area-inset-bottom))] pt-[max(20px,env(safe-area-inset-top))] sm:px-8 sm:pt-10">
       <header className="flex items-center gap-2">
         <BackButton onClick={back} />

@@ -101,7 +101,7 @@ export default function PublicProfileSurface({
         <div className={`flex items-center ${conversation ? "flex-col gap-3 text-center" : "gap-4"}`}>
           <button type="button" disabled={!avatar} onClick={() => avatar && setAvatarOpen(true)}
             aria-label={avatar ? `Preview ${name}'s profile photo` : "No profile photo"}
-            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default">
+            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-violet-500/15 text-3xl font-bold text-[var(--wh-accent-text)] disabled:cursor-default">
             {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : name[0]?.toUpperCase() || "W"}
           </button>
           <div className="min-w-0 flex-1">
@@ -141,7 +141,7 @@ export function PublicProfileAction({ label, onClick, children }: {
   label: string; onClick: () => void; children: ReactNode;
 }) {
   return <button type="button" onClick={onClick} className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-[var(--wh-text-secondary)]">
-    <span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D8DAE1]">{children}</span>
+    <span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text)]">{children}</span>
     {label}
   </button>;
 }

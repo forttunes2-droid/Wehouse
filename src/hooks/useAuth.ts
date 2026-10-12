@@ -129,6 +129,11 @@ async function wipeOnLogout() {
     keys.forEach((k) => localStorage.removeItem(k));
     sessionStorage.clear();
   } catch {}
+  // Property draft photos/videos live in IndexedDB; leaving them would expose
+  // one user's drafts to the next person on a shared device.
+  try {
+    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("wehouse-property-drafts");
+  } catch {}
 }
 function publicRole(value: unknown): PublicRole | undefined {
   return value === "user" || value === "worker" || value === "property_partner"

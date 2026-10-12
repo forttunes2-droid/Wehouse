@@ -259,3 +259,27 @@ running larger tests; do not run a million-user experiment against production.
 
 That is a strong and honest product-development claim. It is not yet a claim
 that all screens or production launch gates are complete.
+
+## Reconciliation addendum (2026-10-21)
+
+Verified in a real Chromium run and by 483/483 tests, lint and build:
+
+- Offline screen: its retry button was dead under the production CSP (inline
+  handler). It now uses `/offline.js`, follows the saved theme, retries on
+  reconnect, and the service worker precaches its assets.
+- Sign-out now also deletes the local property-draft IndexedDB database.
+- Worker occupation inference no longer maps "phone/computer repair" or any
+  "technician" to Handyperson.
+- Light mode: invisible text on profile/conversation surfaces, legal pages,
+  solid violet buttons and red/amber/emerald notices was corrected through
+  tokens and a guarded remap. A scan of the guest routes (terms, privacy,
+  login, hotels, roommates, services, search) at 390px and 1280px in both
+  themes reports 0 low-contrast text.
+- Pull request disposition: #117 is included. #87 is already in main. #116 and
+  #72 are superseded by main. #110 conflicts and would regress light-mode
+  overlays; do not merge it.
+
+Still unverified: signed-in screens (chat, bookings, wallet, Pro, onboarding)
+under the contrast scan, the z-index layering map, backend followed-search
+matching on edited listings, Paystack sandbox journey, native builds, load
+staging and legal approvals.
