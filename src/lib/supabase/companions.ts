@@ -18,14 +18,6 @@ export async function removeCompanion(userId:string){
   const {error}=await supabase.rpc('remove_companion',{p_user_id:userId});
   return {error};
 }
-export async function blockCompanion(userId:string){
-  const {error}=await supabase.rpc('block_companion',{p_user_id:userId});
-  return {error};
-}
-export async function unblockCompanion(userId:string){
-  const {error}=await supabase.rpc('unblock_companion',{p_user_id:userId});
-  return {error};
-}
 export async function reportCompanion(userId:string,reason:string,details?:string){
   const {error}=await supabase.rpc('report_companion',{p_user_id:userId,p_reason:reason,p_details:details??null});
   return {error};

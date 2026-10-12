@@ -51,22 +51,23 @@ select pg_temp.expect(pg_temp.rejects($$select public.report_companion('cb-g',' 
 select pg_temp.expect(public.report_companion('cb-b','spam','details') is not null,'a Companion can be reported');
 select pg_temp.expect(pg_temp.rejects($$select public.report_companion('cb-d_nobody','spam')$$),'cannot report a stranger');
 
--- Block: ends the relationship, closes chat, and is separate from Roommate blocks.
-select public.block_companion('cb-b');
-select pg_temp.expect(pg_temp.rejects(format('select * from public.get_companion_encrypted_messages(%L::uuid)',current_setting('test.cid'))),'blocked chat is closed');
-select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('cb-b')$$),'blocker cannot re-request');
+-- Cancel: either side can end it; the chat closes; a new request waits 30 days.
+select public.remove_companion('cb-b');
+select pg_temp.expect(pg_temp.rejects(format('select * from public.get_companion_encrypted_messages(%L::uuid)',current_setting('test.cid'))),'cancelled chat is closed');
+select pg_temp.expect(pg_temp.rejects(format('select public.send_companion_encrypted_message(%L::uuid,%L,%L)',current_setting('test.cid'),'a','b')),'cannot send after cancelling');
+select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('cb-b')$$),'canceller cannot re-request within 30 days');
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
-select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('cb-a')$$),'blocked person cannot request the blocker');
+select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('cb-a')$$),'the other person cannot re-request within 30 days either');
 reset role;
-select pg_temp.expect(not exists(select 1 from public.roommate_user_blocks where blocker_user_id in ('cb-a','cb-b')),'Companion block writes nothing to Roommate blocks');
+select pg_temp.expect(not exists(select 1 from public.roommate_user_blocks where blocker_user_id like 'cb-%'),'Companion cancel writes nothing to Roommate blocks');
 select pg_temp.expect(not exists(select 1 from public.conversations where participant_a like 'cb-%'),'Companion chat creates no Roommate conversation');
 
--- Unblock allows a fresh request again.
+-- After 30 days a new request is allowed.
+update public.companions set responded_at = now() - interval '31 days' where user_low='cb-a' and user_high='cb-b';
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select public.unblock_companion('cb-b');
-select pg_temp.expect((public.send_companion_request('cb-b')->>'status')='pending','unblock allows a new request');
+select pg_temp.expect((public.send_companion_request('cb-b')->>'status')='pending','a request is allowed after the 30-day wait');
 reset role;
 
-select 'companion_bucket_block_report_chat_contract_ok' as result;
+select 'companion_bucket_report_chat_contract_ok' as result;
 rollback;

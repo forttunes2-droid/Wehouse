@@ -45,11 +45,8 @@ select pg_temp.expect(not exists(select 1 from public.conversations where conver
   and participant_a in ('companion-a','companion-b') and participant_b in ('companion-a','companion-b')),
   'companion acceptance creates no roommate conversation');
 
--- Blocked pairs cannot send requests.
-insert into public.companion_blocks(blocker_user_id,blocked_user_id) values('companion-d','companion-a');
 select set_config('request.jwt.claims','{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('companion-d')$$),'blocked pair cannot request');
 select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request_by_username('no-such-user')$$),'unknown username gets the same generic rejection');
 select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request_by_username('  ')$$),'blank username is rejected');
 reset role;
@@ -62,6 +59,10 @@ select pg_temp.expect((public.send_companion_request_by_username(' Companion_C_U
 select pg_temp.expect((public.remove_companion('companion-b')->>'removed')::boolean,'remove succeeds');
 reset role;
 select pg_temp.expect(not public.are_companions('companion-a','companion-b'),'removed pair is not companions');
+select set_config('request.jwt.claims','{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('companion-b')$$),'a cancelled pair waits 30 days before a new request');
+reset role;
 
 -- Payer cap: 3 payers maximum, and never more than the guest count.
 set local session_replication_role=replica;

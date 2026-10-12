@@ -44,8 +44,6 @@ begin
    if not exists(select 1 from public.profiles p where p.user_id = peer and p.account_kind = 'consumer'
      and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false)) then
      raise exception 'Every invited person must have an active Personal account'; end if;
-   if public.companion_is_blocked(actor, peer) then
-     raise exception 'A blocked person cannot join a shared payment'; end if;
    peers := array_append(peers, peer);
  end loop;
 
