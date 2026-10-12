@@ -40,7 +40,7 @@ async def main():
       await expect(nav.get_by_role('button',name=label,exact=True)).to_be_visible()
      await expect(nav.get_by_role('button',name='Account',exact=True)).to_have_count(0)
      await nav.get_by_role('button',name='Bookings',exact=True).click()
-     await expect(page.get_by_role('heading',name='Sign in to see your bookings',exact=True)).to_be_visible()
+     await expect(page.get_by_role('heading',name='Sign in to view your bookings',exact=True)).to_be_visible()
      await expect(page.get_by_role('main').get_by_role('button',name='Sign in',exact=True)).to_be_visible()
      await nav.get_by_role('button',name='Inbox',exact=True).click()
      await expect(page.get_by_role('heading',name='Sign in to open your inbox',exact=True)).to_be_visible()
