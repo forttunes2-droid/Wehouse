@@ -977,6 +977,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               confirmLabel="Accept terms and continue"
               busy={busy}
               busyLabel="Opening Paystack…"
+              confirmDisabled={paymentReview === "short_let" && !shortPolicy}
               onEdit={() => void editPaymentReview()}
               onConfirm={() => void continueReservationPayment()}
             />
