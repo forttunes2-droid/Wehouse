@@ -215,7 +215,7 @@ export default function HotelBooking({
       ? savedCancellation.refundable
         ? `Full refund ${money(Number(savedCancellation.refund_amount_ngn))} if cancelled by ${formatDeadline(savedCancellation.deadline, savedCancellation.timezone)}. These terms are saved for this booking.`
         : "This rate is non-refundable for ordinary cancellation or missed arrival. A payment or stay problem can still be reported to WeHouse for review."
-      : "Saved cancellation terms are not available. Payment is disabled until the booking can show the terms.");
+      : "Saved cancellation terms are not available. Payment is disabled until the booking can show the terms.";
 
     const pendingRows = [
       { label: "Hotel", value: room?.hotels.name || "Selected hotel" },
