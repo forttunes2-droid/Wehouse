@@ -18,7 +18,7 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   assert.match(migration, /Reserve date payment must be confirmed first/);
   assert.match(detail, /Review dates · ₦/);
   assert.match(detail, /setPaymentReview\("short_let"\)/);
-  assert.match(detail, /continueReservationPayment[\s\\S]*initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
+  assert.match(detail, /continueReservationPayment[\s\S]*initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
   assert.match(detail, /shortCancellationTerms/);
   assert.match(detail, /Stay balance due later/);
   assert.match(review, /Edit details/);
