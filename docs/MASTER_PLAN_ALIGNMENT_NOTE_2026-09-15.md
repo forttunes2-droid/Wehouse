@@ -1,6 +1,6 @@
 # Master plan alignment note — 2026-09-16
 
-This branch must follow `WEHOUSE_CANONICAL_MASTER_PRODUCT_PLAN_2026-09-11.md` as product authority where rules are owner-locked.
+This note records cross-workspace alignment constraints. Accepted product rules and owner decisions are maintained in [Product Rules](./PRODUCT_RULES.md) and [the Decision Log](./DECISION_LOG.md); use those documents when determining current authority.
 
 ## Identity and work access
 

@@ -2,6 +2,20 @@
 (() => {
 // Run small, trusted startup repairs from an independent same-origin script so the deployed
 // Content Security Policy does not need to allow inline scripts.
+function applyStartupTheme(light) {
+    document.documentElement.dataset.whTheme = light ? 'light' : 'dark';
+    document.documentElement.classList.toggle('dark', !light);
+    document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+    const color = light ? '#F7F8FB' : '#090B10';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+    document.querySelector('meta[name="background-color"]')?.setAttribute('content', color);
+}
+try {
+    applyStartupTheme(localStorage.getItem('wehouse:appearance') === 'light');
+} catch (_) {
+    applyStartupTheme(false);
+}
+
 function renderStartupFailure(reason) {
     if (document.documentElement.dataset.whReactMounted === "true")
         return;
@@ -17,7 +31,7 @@ function renderStartupFailure(reason) {
     root.replaceChildren();
     const shell = document.createElement("main");
     shell.style.cssText =
-        "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#0E0C12;color:#F6F2FC;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+        "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:var(--wh-startup-bg);color:var(--wh-startup-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
     const card = document.createElement("section");
     card.style.cssText =
         "width:min(100%,380px);text-align:center";

@@ -25,6 +25,7 @@ export function applyAppearance() {
   root.style.colorScheme = resolved;
   const color = resolved === 'dark' ? '#090B10' : '#F7F8FB';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  document.querySelector('meta[name="background-color"]')?.setAttribute('content', color);
   if (isNative()) {
     void import('@capacitor/status-bar').then(({ StatusBar, Style }) =>
       Promise.allSettled([

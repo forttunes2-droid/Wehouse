@@ -8,7 +8,7 @@ Navigation answers “where am I?” A status answers “what condition is this 
 
 ### Router
 
-`src/App.tsx` is the current router. It uses `navPage`, local storage, hash/history, custom events, and separate state fields for listing, hotel, room, rate, reservation, conversation, worker, and roommate IDs. React Router is installed but is not the application routing authority.
+`src/App.tsx` is the current router. It uses `navPage`, local storage, hash/history, custom events, and separate state fields for listing, hotel, room, rate, reservation, conversation, worker, and roommate IDs. React Router is installed but is not the application routing authority. The current hash route is authoritative on refresh when it is a recognized destination; the role normalizer still enforces the active workspace. Record context needed to restore a detail is carried in the hash query and browser history state. Only an allowlist of route parameters is accepted.
 
 Historical destinations remain restorable: `activity`, `notifications`, `chat`, `messages`, `my_bookings`, and `my_reservations`. Aliases normalize `messages`/`chat` to `conversation` and `my_bookings` to `my_reservations`. `activity` bridges into the unified Inbox/Activity surface. Both `conversation` and `notifications` can render `Chat`.
 
@@ -110,7 +110,7 @@ If space is constrained, overflow may hide destinations visually but may not ren
 2. Introduce a typed route adapter that accepts old keys and produces canonical URLs.
 3. Migrate notification destinations and deep links before deleting aliases.
 4. Move one workspace at a time to the shared shell.
-5. Add browser tests for direct load, refresh, browser back, workspace switch, nested conversation close, and notification deep link.
+5. Add browser tests for direct load, refresh, browser back, workspace switch, nested conversation close, and notification deep link. Unit coverage for the current hash adapter must also round-trip IDs, ignore unknown fields, and bound parameter lengths.
 6. Remove old route keys only after logs show no current events or external links produce them.
 
 ## Decisions requiring approval

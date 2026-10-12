@@ -37,6 +37,7 @@ type Props = {
 type Form = RoommatePreferenceForm;
 const EMPTY: Form = roommatePreferenceForm();
 const MATCH_PAGE_SIZE = 24;
+const MAX_ACTIVE_ROOMMATE_CONNECTIONS = 5;
 type RoommateSnapshot = {
   prefs: RoommatePreferences | null;
   matches: RoommateMatchResult[];
@@ -597,12 +598,19 @@ function Matches({
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const openProfile = rows.find((row) => row.id === openProfileId) || null;
   const established = rows.filter((row) => isEstablishedMatch(row) || acceptedIncomingIds.has(row.matched_user_id));
+  const connectionLimitReached = established.length >= MAX_ACTIVE_ROOMMATE_CONNECTIONS;
   const discoverable = discoveryActive
     ? rows.filter((row) => !isEstablishedMatch(row) && !acceptedIncomingIds.has(row.matched_user_id) && row.status !== "accepted" && !receivedUserIds.has(row.matched_user_id))
     : [];
 
   return (
     <>
+      {connectionLimitReached ? (
+        <section className="mb-3 rounded-2xl border border-amber-500/20 bg-amber-500/[.05] p-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
+          <p className="font-semibold text-amber-200">Connection limit reached</p>
+          <p className="mt-1">You have {established.length} active roommate connections. Cancel or pause one to make room for a new connection without losing your history.</p>
+        </section>
+      ) : null}
       {established.length > 0 ? (
         <section>
           <div className="mb-3 flex items-end justify-between gap-3">
@@ -628,7 +636,7 @@ function Matches({
               {discoverable.length} new
             </span>
           </div>
-          {discoverable.length > 0 ? <MatchRail items={discoverable} focusedId={focusedId} busyId={busyId} schoolFilter={schoolFilter} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} /> : (
+          {discoverable.length > 0 ? <MatchRail items={discoverable} focusedId={focusedId} busyId={busyId} schoolFilter={schoolFilter} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} connectionLimitReached={connectionLimitReached} /> : (
             <div className="border-y border-[var(--wh-border-subtle)] px-3 py-10 text-center">
               <p className="text-sm font-semibold">No new matches yet</p>
               <p className="mt-1 text-sm text-[var(--wh-text-muted)]">Refresh when more compatible people become available.</p>
@@ -649,11 +657,12 @@ function Matches({
 }
 
 function sameSchool(filter:string, candidate?:string|null){return Boolean(filter.trim()&&candidate?.trim()&&filter.trim().toLocaleLowerCase()===candidate.trim().toLocaleLowerCase())}
-function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"viewed")=>void}) {
+function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest,connectionLimitReached}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"viewed")=>void;connectionLimitReached?:boolean}) {
   return <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{items.map((row)=>{
     const p=row.matched_profile,score=row.match_score,connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
     const name=p.full_name||`@${p.username||"user"}`;
     const contextIds=[row.id,row.conversation_id].filter(Boolean).join(" "),focused=[row.id,row.conversation_id].filter(Boolean).some(id=>String(id)===focusedId);
+    const connectDisabled = connectionLimitReached && !connected;
     return <article key={row.id} tabIndex={-1} data-activity-context={contextIds} className={`rounded-2xl px-2 py-4 outline-none transition ${focused?"bg-violet-500/[.08] ring-1 ring-violet-400/35":""}`}>
       <div className="flex items-center gap-3">
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="shrink-0 rounded-full" aria-label={`View ${name} profile`}>
@@ -662,11 +671,14 @@ function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onI
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="min-w-0 flex-1 text-left">
           <div className="flex items-center justify-between gap-3"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="shrink-0 text-sm font-bold text-violet-300">{Number.isFinite(score) ? `${score}%` : "—"}</span></div>
           <p className="mt-1 truncate text-sm text-[var(--wh-text-muted)]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{sameSchool(schoolFilter,p.school)?` · ${p.school}`:""}</p>
-          <p className={`mt-1 text-sm font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[var(--wh-text-secondary)]"}`}>{connected?"Matched":sent?"Request pending":roommateScoreLabel(score,p.compared_answers)}</p>
+          <p className={`mt-1 text-sm font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[var(--wh-text-secondary)]"}`}>{connected?"Connected":sent?"Request pending":roommateScoreLabel(score,p.compared_answers)}</p>
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[var(--wh-text-muted)]" aria-label={`Open ${name} profile`}>›</button>
       </div>
-      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 flex-1 rounded-xl border border-violet-400/25 px-4 text-sm font-semibold text-violet-200 disabled:opacity-45">{busyId===row.id?"Cancelling…":"Cancel request"}</button>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Skip</button></>}</div>
+      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected ? <>
+        <button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>
+        <button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text)] disabled:opacity-40">{busyId===row.id?"Pausing…":"Pause connection"}</button>
+      </> : sent ? <button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 flex-1 rounded-xl border border-violet-400/25 px-4 text-sm font-semibold text-violet-200 disabled:opacity-45">{busyId===row.id?"Cancelling…":"Cancel request"}</button> : <><button type="button" disabled={busyId===row.id || connectDisabled} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">{connectDisabled ? "Connection limit" : (busyId===row.id?"Sending…":"Connect")}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Skip</button></>}</div>
     </article>;
   })}</div>;
 }

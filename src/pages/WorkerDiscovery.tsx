@@ -400,8 +400,8 @@ export default function WorkerDiscovery({
                 {profileBlock.busy
                   ? "Updating…"
                   : profileBlock.blockedByMe
-                    ? "Unblock Worker"
-                    : "Block Worker"}
+                    ? "Resume contact"
+                    : "Stop contact"}
               </button>
             </div>
           ) : undefined}

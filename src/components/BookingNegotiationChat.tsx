@@ -335,6 +335,10 @@ export default function BookingNegotiationChat({
       }),
     );
   }
+  function openReport() {
+    setProfileOpen(false);
+    openSupport();
+  }
   function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
@@ -1377,6 +1381,7 @@ export default function BookingNegotiationChat({
             if (peerBlocked) void togglePeerBlock();
             else setBlockPrompt(true);
           }}
+          onReport={openReport}
         />
       ) : null}
       {detailsOpen && booking ? (
@@ -1435,9 +1440,9 @@ export default function BookingNegotiationChat({
       />
       <ConfirmDialog
         isOpen={blockPrompt}
-        title={`Block ${peerProfile?.full_name || peerName}?`}
-        description="Messages and private calls will stop. If money is secured for an active job, WeHouse will move it to review instead of silently cancelling it."
-        confirmLabel="Block person"
+        title={`Stop contact with ${peerProfile?.full_name || peerName}?`}
+        description="Messages and private calls will stop. Your booking, payment review and chat history will stay intact unless WeHouse flags a real safety issue."
+        confirmLabel="Stop contact"
         variant="danger"
         onCancel={() => setBlockPrompt(false)}
         onConfirm={() => void togglePeerBlock()}
@@ -1477,6 +1482,7 @@ function ConversationIdentitySheet({
   blockedByPeer,
   blockBusy,
   onToggleBlock,
+  onReport,
 }: {
   profile: ConversationProfile | null;
   booking: Booking | null;
@@ -1491,6 +1497,7 @@ function ConversationIdentitySheet({
   blockedByPeer: boolean;
   blockBusy: boolean;
   onToggleBlock: () => void;
+  onReport: () => void;
 }) {
   const [fullProfile, setFullProfile] = useState(false);
   const viewingWorker = !isWorker;
@@ -1515,7 +1522,12 @@ function ConversationIdentitySheet({
             <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
           </>
         ) : undefined}
-        safetyAction={<ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />}
+        safetyAction={
+          <div className="mt-5 space-y-2">
+            <button type="button" className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200" onClick={onReport}>Report profile</button>
+            <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+          </div>
+        }
       />
     );
   }
@@ -1578,7 +1590,10 @@ function ConversationIdentitySheet({
             ) : null}
           </div>
         ) : null}
-        <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        <div className="mt-5 space-y-2">
+          <button type="button" className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text)]" onClick={onReport}>Report profile</button>
+          <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        </div>
         </>
       }
     />
@@ -1731,7 +1746,7 @@ function VideoCall() {
   );
 }
 function ProfileBlockAction({ blocked, busy, onClick }: { blocked: boolean; busy: boolean; onClick: () => void }) {
-  return <button type="button" disabled={busy} onClick={onClick} className="mt-6 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Unblock person" : "Block person"}</button>;
+  return <button type="button" disabled={busy} onClick={onClick} className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Resume contact" : "Stop contact"}</button>;
 }
 function TrashIcon() {
   return (

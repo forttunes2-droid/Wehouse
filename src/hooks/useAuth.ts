@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { withTimeout } from "@/lib/withTimeout";
+import { buildNavigationHash, identityEntryRoute } from "@/lib/navigationRoute";
 import {
   supabase,
   getProfileByAuthId,
@@ -194,10 +195,11 @@ function syncIdentityNavigation(p: Profile) {
     const previous = localStorage.getItem(key);
     localStorage.setItem(key, p.auth_id);
     if (previous === p.auth_id) return;
-    const page = roleRoot(p);
-    localStorage.setItem("wh_navpage", page);
-    window.history.replaceState({ page }, "", `#${page}`);
-    window.dispatchEvent(new PopStateEvent("popstate", { state: { page } }));
+    const route = identityEntryRoute(window.location.hash, roleRoot(p));
+    localStorage.setItem("wh_navpage", route.page);
+    const state = { page: route.page, route: route.params };
+    window.history.replaceState(state, "", buildNavigationHash(route.page, route.params));
+    window.dispatchEvent(new PopStateEvent("popstate", { state }));
   } catch {}
 }
 async function ensurePropertyPartnerRecord() {
