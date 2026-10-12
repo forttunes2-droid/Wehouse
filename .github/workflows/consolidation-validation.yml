@@ -110,6 +110,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_showcase_comment_pages_contract.sql
       - name: Hotel conversation context and recipient receipts
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
+      - name: Hotel base tables are not directly readable or writable by browser roles
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_base_table_exposure_contract.sql
       - name: Practical reciprocal roommate rules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
       - name: Fresh linked-provider recovery
