@@ -19,17 +19,18 @@ A green build alone is not product completion. Native-store release and a capaci
 
 ## Current baseline
 
-- PR #118 is open against `main`. Its latest reviewed source change fixes a stale browser assertion: the signed-out Bookings screen says “Sign in to view your bookings.” A new CI run is in progress for commit `7ac55b9`.
-- The last observed Vercel production deployment was READY from `main` at `f990fc4`. The Vercel status on the new PR commit currently reports a blocked deployment; there is no confirmed PR preview for that commit yet.
-- Both connected Supabase projects report healthy status. Their applied migration histories differ: production has 712 recorded entries and test has 694, with different latest versions. These counts are not evidence of a defect by themselves. Reconcile the histories using the repository's read-only release plan and explain each difference before any database write.
+- PR #118 is open against `main`. The current reviewed source commit is `e1cd31264475d4dad19dbfdbb3f8c903ccb693fd`. It includes the stale signed-out Bookings assertion fix and the browser-job FFmpeg timeout correction.
+- Required checks observed on `e1cd312` passed: browser interaction matrix, media-compression/FFmpeg, structural regression, build, isolated mixed-journey preflight, consolidation validation (migration replay/tests/build/existing-account upgrade), and deployment previews. Vercel has a READY deployment for that exact SHA; Netlify preview is green. Reconfirm exact-SHA status after any PR update.
+- Both connected Supabase projects report healthy status. Their applied migration histories differ: production has 712 recorded entries and test has 694, with different latest versions. These counts are not evidence of a defect by themselves. Reconcile the histories using the repository's read-only release plan and explain each difference before any database write. No production writes were made during the product audit.
 - The PR's readiness audit has future-dated headings/addenda (20 and 21 October) relative to this status date. Correct the dates and evidence after checking the actual source; do not treat future-dated claims as completed verification.
+- Product/code audit findings are recorded in [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md). The most important open product contracts are owner unlisting/removal, public listing reports, Short Let sleeping/room facts, and worker service fulfillment/package terms.
 - Production readiness still includes external or unverified work: legal and operating approval, signed payment-provider journeys, role-by-role security evidence, complete signed-in screen/device checks, recovery drills, and hosted load testing. Do not promise a million-user capacity or a full transactional launch date before those gates pass.
 
 ## Delivery sequence and ownership
 
 | Stage | Target window from 12 Oct | Owner | Exit evidence |
 |---|---|---|---|
-| **0. Stabilize PR #118** | 12–16 Oct | Codex: inspect and fix code/docs; user: confirm product rules where authority is unclear | Fresh CI run is green on the final PR SHA; browser failure is fixed by matching verified behavior; Vercel block is understood and a preview is available or the precise access/configuration dependency is recorded. No production change. |
+| **0. Stabilize PR #118** | 12–16 Oct | Codex: inspect and fix code/docs; user: confirm product rules where authority is unclear | CI is green on `e1cd312`; the browser environment timeout is fixed; Vercel and Netlify previews are available for the reviewed commit. No production change. |
 | **1. Establish live baseline (R1, R4, R8)** | 13–20 Oct | Codex: read-only comparison and evidence; user/admin: provide platform access or approve admin-only settings | One source-of-truth map links product rule → route/component → database/Edge Function enforcement. Production/test migration differences are explained by a read-only plan. Vercel production/preview settings and environment separation are recorded without exposing secrets. |
 | **2. Close release-blocking product defects (R2, R6, R7, R9)** | 19–30 Oct | Codex + Copilot, one editor/branch at a time; user resolves product decisions | High-severity inconsistencies are fixed or explicitly disabled; each behavior has a regression check. Role/action security review covers RLS, RPC grants, storage, and Edge Functions. No unresolved critical or high defect in the v1 scope. |
 | **3. Complete web journey and quality pass (R10, R11)** | 26 Oct–6 Nov | Codex: test matrix and fixes; user: review the actual product and approve scope | Route/workspace matrix passes at agreed device widths and themes. Loading, empty, validation, error, and success states are verified. Browser console has no uncaught app errors; accessibility and agreed performance budgets are measured and pass. CI remains green. |
@@ -59,5 +60,6 @@ Codex will keep the release checklist and evidence current, inspect GitHub/Supab
 
 ## Progress log
 
-- **12 Oct:** Confirmed GitHub PR #118 and both Supabase projects and the Vercel project are connected. Identified the Bookings browser assertion mismatch and committed its correction as `7ac55b9`; waiting on the resulting CI run.
+- **12 Oct:** Confirmed GitHub PR #118 and both Supabase projects and the Vercel project are connected. Fixed the signed-out Bookings assertion and the FFmpeg setup timeout. Browser, build, database-consolidation and preview checks passed on `e1cd312`.
 - **12 Oct:** Added this staged release roadmap. Remaining gates are open until their evidence is recorded; the schedule is an estimate and should be updated after Stage 0 and Stage 1.
+- **12 Oct:** Added [the product coherence audit](WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) from the current branch and read-only production catalog/advisor checks. No production data or schema was changed.
