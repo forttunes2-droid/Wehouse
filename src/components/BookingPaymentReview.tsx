@@ -19,6 +19,7 @@ type Props = {
   confirmLabel: string;
   busyLabel?: string;
   busy?: boolean;
+  confirmDisabled?: boolean;
   onEdit: () => void;
   onConfirm: () => void;
 };
@@ -37,6 +38,7 @@ export default function BookingPaymentReview({
   confirmLabel,
   busyLabel = "Opening secure checkout…",
   busy = false,
+  confirmDisabled = false,
   onEdit,
   onConfirm,
 }: Props) {
@@ -94,7 +96,7 @@ export default function BookingPaymentReview({
         </button>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || confirmDisabled}
           onClick={onConfirm}
           className="min-h-12 rounded-xl bg-violet-700 px-5 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-violet-600 dark:hover:bg-violet-500 sm:min-w-52"
         >
