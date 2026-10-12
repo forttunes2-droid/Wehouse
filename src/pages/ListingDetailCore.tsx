@@ -893,7 +893,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     <button type="button" disabled={busy || !selection.valid}
                       onClick={() => void reserveShortLet()}
                       className="mt-4 min-h-12 w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold disabled:opacity-40">
-                      {busy ? "Opening secure Reserve date…" : `Reserve date · ₦${shortReservationFee.toLocaleString()}`}
+                      {busy ? "Checking availability…" : `Review dates · ₦${shortReservationFee.toLocaleString()}`}
                     </button>
                     <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">Reserve date pays only the reservation fee. Your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable security deposit" : ""} are reviewed and paid separately after your dates are reserved.</p>
                   </section>
@@ -926,7 +926,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       onClick={() => void openCheckout()}
                       className="mt-4 h-12 w-full rounded-full bg-violet-500 text-sm font-semibold disabled:opacity-50"
                     >
-                      Proceed with reservation
+                      Review reservation fee
                     </button>
                     <button
                       onClick={() => setReservationOptionsOpen(true)}
@@ -948,6 +948,41 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           </div>
         </main>
       </div>
+
+      {paymentReview && reservation ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review reservation and payment"
+          className="fixed inset-0 z-[100040] flex items-end justify-center overflow-y-auto bg-black/55 p-3 backdrop-blur-sm sm:items-center sm:p-5"
+        >
+          <div className="my-auto w-full max-w-xl">
+            <BookingPaymentReview
+              eyebrow={paymentReview === "short_let" ? "Short Let" : "Long Let"}
+              title={paymentReview === "short_let" ? "Review your dates and payment" : "Review your reservation"}
+              subtitle={paymentReview === "short_let"
+                ? "Your dates are held while you review. The amount due now is the reserve-date fee; the stay balance is separate."
+                : "Check the apartment and reservation fee before continuing. Rent and any tenancy deposit are handled after inspection."}
+              rows={reviewRows}
+              amountLabel={paymentReview === "short_let" ? "Reserve-date fee due now" : "Reservation fee due now"}
+              amount={formatNaira(reviewAmount)}
+              termsTitle={paymentReview === "short_let" ? "Cancellation and stay terms" : "What this reservation payment covers"}
+              terms={paymentReview === "short_let"
+                ? shortCancellationTerms
+                : "This payment holds the apartment while you begin the inspection and tenancy journey. It is the reservation fee only; it is not rent, an installment, or a security deposit. Paid reservations that need cancellation or a refund are handled through WeHouse support."}
+              note={paymentReview === "short_let"
+                ? "Only the reserve-date fee is paid now. The stay rent and refundable security deposit are due in a separate checkout before the stay. WeHouse confirms payment only after verified Paystack confirmation."
+                : "Your reservation fee and hold expiry come from the saved booking record. WeHouse confirms payment only after verified Paystack confirmation."}
+              editLabel={paymentReview === "short_let" ? "Edit dates and guests" : "Edit reservation"}
+              confirmLabel="Accept terms and continue"
+              busy={busy}
+              busyLabel="Opening Paystack…"
+              onEdit={() => void editPaymentReview()}
+              onConfirm={() => void continueReservationPayment()}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {!shortStay && showPlan && (
         <div
