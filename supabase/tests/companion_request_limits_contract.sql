@@ -46,8 +46,10 @@ select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('rl
 reset role;
 delete from public.companions where user_low='rl-a' and user_high='rl-c';
 update public.companion_request_log set created_at=now()-interval '2 days';
-select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 set local role authenticated;
+select public.respond_to_companion_request((select id from public.companions where user_low='rl-a' and user_high='rl-b'),true);
+select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select pg_temp.expect((public.block_friend('rl-b')->>'blocked')='true','a Friend can be blocked');
 select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('rl-b')$$),'a request to a blocked person is refused');
 select pg_temp.expect((select (x->>'status')='blocked' from jsonb_array_elements(public.list_my_companions()) x limit 1),'the blocker sees the blocked person to unblock');
