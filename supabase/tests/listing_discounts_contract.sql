@@ -45,6 +45,7 @@ select pg_temp.expect((select count(*) from public.creator_list_wehouse_discount
 select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount(null,'Lagos',10)$$),'an Admin cannot spend WeHouse money');
 select pg_temp.expect(pg_temp.rejects($$select * from public.creator_list_wehouse_discounts()$$),'an Admin cannot list WeHouse discounts');
+reset role;
 select pg_temp.expect((select partner_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e1',current_date,0))=20,'the partner side stays at the host discount');
 select pg_temp.expect((select wehouse_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e1',current_date,0))=8,'WeHouse share is its commission on the host price, not on the list price');
 select pg_temp.expect((select wehouse_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e1',current_date,30))=0,'WeHouse adds nothing once the partner side reaches the 50% cap');
