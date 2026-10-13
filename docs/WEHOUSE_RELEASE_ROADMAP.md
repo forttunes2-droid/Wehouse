@@ -54,6 +54,37 @@ The 2–4 week estimate is a planning range for a web release candidate, not a g
 - **R10 — Whole product:** recorded role/device/theme journey evidence, plus provider and operational evidence for enabled features.
 - **R11 — Consistent quality:** module boundaries, CI-enforced conventions, generated/cross-checked contracts, and docs kept current with behavior.
 
+## Open work register (single list; update in place, do not start another)
+
+Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verified on the live test project. **Open** = not built. **Codex** = needs Supabase/Paystack access.
+
+| Area | Item | Status |
+|---|---|---|
+| Security | Hotel data exposure fix | Done |
+| Security | Admin extra security password (extend Creator step-up) | Codex |
+| Reports | Report in Roommate, Companion, worker, hotel chats and profiles | Done |
+| Reports | Admin and Creator queues with area scoping | Done (area-scoping test still Open) |
+| Connections | Roommate cancel, 30-day wait, other person notified | Done |
+| Connections | Companion bucket of 5, chat, split pay | Built |
+| Connections | Companion request daily cap and expiry | Open |
+| Connections | Companion/Roommate rename decision (Companion sounds like marriage) | Decision |
+| Connections | Hotel and Companion conversation-info screens | Open |
+| Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
+| Pricing | Discount on the posting form | Open |
+| Pricing | Creator WeHouse-funded discount control (5-15%) | Open |
+| Pricing | Long Let and Hotel discounts | Open |
+| Pricing | Display, charge and refund agree on the test project | Codex |
+| Account | Change account email (Airbnb/Booking.com allow it with verification) | Open, needs auth settings (Codex) |
+| Workers | Skills, submission and profile structure review | Open |
+| UX | One loading and animation pattern (33 spinners, 6 skeletons today) | Open |
+| UX | Back, refresh, offline, sign-in/out audit | Open |
+| Scale | CDN caching, read replicas, request queue, rate limits | Open (design only) |
+| Scale | catalog load test at 100 req/s, then 1,000 | Codex |
+| Payments | Paystack test-mode journeys | Codex |
+| Release | Two-device E2EE test | Done by owner |
+| Release | Phone light/dark check | Owner |
+| Release | One merge to main, then close #117, #116, #110, #87, #72 | After all gates |
+
 ## How Codex and Copilot fit together
 
 Codex will keep the release checklist and evidence current, inspect GitHub/Supabase/Vercel state, make focused changes on the PR branch, and follow each CI failure to its source. Copilot can help you edit and review in VS Code. To avoid overwriting work, coordinate on one branch at a time: if you edit locally, tell Codex and push your commit; if Codex commits through GitHub, pull that commit into VS Code before continuing. Product decisions and external approvals stay with you and the responsible human owners.
