@@ -116,6 +116,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_relationship_contract.sql
       - name: Companion bucket and encrypted chat
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_bucket_and_chat_contract.sql
+      - name: Friend request expiry and daily cap
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_request_limits_contract.sql
       - name: Companion chat key exchange
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_chat_key_exchange_contract.sql
       - name: Long Let split with Roommate or Companion
