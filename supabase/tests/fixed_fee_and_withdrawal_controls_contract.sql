@@ -14,7 +14,8 @@ values('fixed_fee_worker',901,'{"enabled":true,"amount":500}','active',now()-int
 select pg_temp.expect(public.fixed_fee_amount('worker')=500,'enabled fee is read');
 select pg_temp.expect(public.calculate_commission(10000,'worker')=(select pct_only from base)+500,'commission adds the fixed fee');
 select pg_temp.expect(public.calculate_commission(300,'worker')<=300,'fee never exceeds the amount');
-update public.creator_policy_versions set value='{"enabled":false,"amount":500}' where policy_key='fixed_fee_worker' and version=901;
+update public.creator_policy_versions set status='retired',effective_until=now(),retired_at=now() where policy_key='fixed_fee_worker' and version=901;
+insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,reason,checksum) values('fixed_fee_worker',902,'{"enabled":false,"amount":500}','active',now(),'test','t902');
 select pg_temp.expect(public.calculate_commission(10000,'worker')=(select pct_only from base),'turning it off removes the fee');
 
 -- Withdrawal controls.
