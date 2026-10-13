@@ -1,4 +1,4 @@
-import { runSafeAction } from "@/lib/safeAction";
+import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
@@ -316,15 +316,17 @@ function support(
     reservationInFlight.current = true;
     setBusy(true);
     const request = loadGeneration.current;
+    const reserveSignature = `reserve:${listingId}:${shortCheckIn}:${shortCheckOut}:${shortGuests}`;
     try {
       const created = await withTimeout(
-        runSafeAction(`reserve:${listingId}:${shortCheckIn}:${shortCheckOut}:${shortGuests}`, () => createShortStayReservation(listingId, shortCheckIn, shortCheckOut, shortGuests)),
+        runSafeAction(reserveSignature, () => createShortStayReservation(listingId, shortCheckIn, shortCheckOut, shortGuests, requestKeyFor(reserveSignature))),
         20000,
         "Reservation could not be confirmed. Check your bookings before trying again.",
       );
       if (created.error || !created.reservation?.id)
         throw created.error || new Error("Reservation could not be created.");
       if (request !== loadGeneration.current) return;
+      releaseRequestKey(reserveSignature);
       setReservation(created.reservation);
       setPaymentReview("short_let");
     } catch (error) {

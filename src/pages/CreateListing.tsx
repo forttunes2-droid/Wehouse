@@ -1,5 +1,6 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useRef, useState } from 'react';
+import { releaseRequestKey, requestKeyFor } from '@/lib/safeAction';
 import { createListing, uploadListingImage, uploadListingVideo, checkDuplicateListing, supabase } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -156,9 +157,11 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
         uploaded.push({ bucket: item.kind === 'image' ? 'listing-images' : 'listing-videos', path: pathFromPublicUrl(result.url, item.kind === 'image' ? 'listing-images' : 'listing-videos') });
       });
 
+      const postSignature = `listing:${form.title.trim()}:${location.state}:${location.city}:${form.price}`;
       const { listing, error } = await createListing({
         title:form.title.trim(),description:form.description.trim()||null,price:Number(form.price),currency:form.currency,state:location.state,city:location.city,address:form.address.trim()||location.area||null,images:imageUrls,videos:videoUrls,property_type:form.property_type,sub_type:form.property_type==='apartment'?form.sub_type:null,bedrooms:Number(form.bedrooms)||1,bathrooms:Number(form.bathrooms)||1,max_guests:form.property_type==='apartment'&&form.sub_type==='short_let'?Number(form.max_guests):null,availability_status:'pending_approval' as any,status:'pending_approval',owner_id:owner,partner_id:assignedPartnerId||null,chat_agent_id:profile.role==='staff'?profile.user_id:null,reserved_by:null,reservation_expiry:null,reservation_fee_paid:false,chat_unlocked:false,submitted_by_role:profile.role,approved_by:null,approved_at:null,rejection_reason:null,security_deposit_amount:form.property_type==='apartment'&&form.sub_type==='short_let'&&form.security_deposit_amount?Number(form.security_deposit_amount):null,contact_phone:form.contact_phone.trim()||null,amenities:form.amenities
-      });
+      }, requestKeyFor(postSignature));
+      if (!error) releaseRequestKey(postSignature);
       if (error || !listing) throw new Error(error?.message || 'Could not create listing');
 
       const discountPercent=Number(form.discount_percent);

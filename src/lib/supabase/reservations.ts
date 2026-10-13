@@ -73,8 +73,10 @@ export async function createShortStayReservation(
   checkIn: string,
   checkOut: string,
   guestCount: number,
+  idempotencyKey: string = crypto.randomUUID(),
 ) {
-  const { data, error } = await supabase.rpc("create_short_stay_reservation", {
+  const { data, error } = await supabase.rpc("create_short_stay_reservation_idem", {
+    p_idempotency_key: idempotencyKey,
     p_listing_id: listingId,
     p_check_in: checkIn,
     p_check_out: checkOut,

@@ -24,3 +24,38 @@ export async function runSafeAction<T>(key: string, action: () => Promise<T>): P
   inFlight.set(key, task);
   return task;
 }
+
+const KEY_STORE = "wh:request-keys";
+
+function readKeys(): Record<string, { id: string; at: number }> {
+  try {
+    return JSON.parse(localStorage.getItem(KEY_STORE) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+// One UUID per intended action. A retry after a timeout or reload reuses it, so the server
+// returns the first result instead of creating a second booking. Release it once the action succeeded.
+export function requestKeyFor(signature: string): string {
+  const keys = readKeys();
+  const now = Date.now();
+  for (const k of Object.keys(keys)) if (now - keys[k].at > 24 * 3600 * 1000) delete keys[k];
+  if (!keys[signature]) keys[signature] = { id: crypto.randomUUID(), at: now };
+  try {
+    localStorage.setItem(KEY_STORE, JSON.stringify(keys));
+  } catch {
+    /* Private mode: the key still works for this attempt. */
+  }
+  return keys[signature].id;
+}
+
+export function releaseRequestKey(signature: string) {
+  const keys = readKeys();
+  delete keys[signature];
+  try {
+    localStorage.setItem(KEY_STORE, JSON.stringify(keys));
+  } catch {
+    /* Nothing to clean up. */
+  }
+}

@@ -52,7 +52,14 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select id as reservation from public.create_short_stay_reservation('94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3) \gset
+-- A repeated request with the same key returns the stored result and creates nothing new.
+select public.create_short_stay_reservation_idem('94000000-0000-4000-8000-0000000000f1','94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3)->>'id' as idem_first \gset
+select pg_temp.expect(public.create_short_stay_reservation_idem('94000000-0000-4000-8000-0000000000f1','94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3)->>'id'=:'idem_first','same key returns the same booking');
+select pg_temp.expect(pg_temp.rejects($$select public.create_short_stay_reservation_idem('94000000-0000-4000-8000-0000000000f1','94000000-0000-4000-8000-000000000020',current_date+20,current_date+21,3)$$),'same key with different details is refused');
+select pg_temp.expect(pg_temp.rejects($$select public.create_short_stay_reservation_idem(null,'94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3)$$),'a missing key is refused');
+select pg_temp.expect(pg_temp.rejects($$select count(*) from public.idempotency_keys$$),'keys table is not readable by users');
 reset role;
+select pg_temp.expect((select count(*)=1 from public.idempotency_keys),'one stored key');
 select payment_expires_at as original_deadline from public.reservations where id=:'reservation' \gset
 select pg_temp.expect((select payment_reference is not null and reservation_fee_status='payment_pending' and shared_payment_group_id is null and stay_rent_total=1000 and security_deposit_snapshot=500 from public.reservations where id=:'reservation'),'Reserve date creates only the reservation-fee checkout');
 select set_config('test.shared_reservation',:'reservation',true);

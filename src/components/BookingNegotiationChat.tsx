@@ -1539,6 +1539,7 @@ function ConversationIdentitySheet({
         onBack={() => setFullProfile(false)}
         onBook={() => undefined}
         showBookingAction={false}
+        fullProfile
           communicationActions={!blocked && !blockedByPeer ? (
           <>
             <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>

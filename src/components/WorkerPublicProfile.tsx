@@ -52,10 +52,12 @@ type Props = {
   previewMode?: boolean;
   communicationActions?: ReactNode;
   safetyAction?: ReactNode;
+  // The person opened "View profile" from a chat: show the full public profile, not the small contact card.
+  fullProfile?: boolean;
 };
 
 export default function WorkerPublicProfileV2(props: Props) {
-  const context = !props.showBookingAction && Boolean(props.communicationActions) ? "conversation" : props.previewMode ? "preview" : "public";
+  const context = !props.fullProfile && !props.showBookingAction && Boolean(props.communicationActions) ? "conversation" : props.previewMode ? "preview" : "public";
   return <WorkerProfileContent key={`${props.worker.user_id}:${context}`} {...props} />;
 }
 function WorkerProfileContent({
@@ -65,11 +67,12 @@ function WorkerProfileContent({
   bookingActive = false,
   onOpenBooking,
   showBookingAction = true,
+  fullProfile = false,
   previewMode = false,
   communicationActions,
   safetyAction,
 }: Props) {
-  const privateConversationMode = !showBookingAction && Boolean(communicationActions);
+  const privateConversationMode = !fullProfile && !showBookingAction && Boolean(communicationActions);
   const showcase = useWorkerShowcase(worker.user_id, false, !privateConversationMode);
   const [viewer, setViewer] = useState<Post | null>(null), [mediaFailed, setMediaFailed] = useState(false), [section, setSection] = useState<"work" | "reviews">("work");
   const [trust, setTrust] = useState<Trust | null>(null), [reviews, setReviews] = useState<PublicReview[]>([]);
@@ -162,6 +165,7 @@ function WorkerProfileContent({
       badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">From ₦{Number(worker.worker_price).toLocaleString()}</span> : null}</>}
       bottomAction={previewMode ? <button type="button" disabled className="h-12 w-full rounded-2xl bg-violet-500/40 text-sm font-semibold text-white/70">Request service · preview only</button> : showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
+      {fullProfile && safetyAction ? <section>{safetyAction}</section> : null}
       {previewMode && <p className="rounded-xl border border-violet-400/20 bg-violet-400/[.08] px-4 py-3 text-sm leading-5 text-violet-100">Creator preview · customer actions are disabled. Public availability is controlled separately.</p>}
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-[var(--wh-border-subtle)] py-4 text-sm text-[var(--wh-text-secondary)]">
         {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
