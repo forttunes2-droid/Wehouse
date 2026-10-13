@@ -17,6 +17,7 @@ import {
   getReservationForListing,
   initializeReservationPayment,
   updateReservationPlan,
+  supabase,
 } from "@/lib/supabase";
 import {
   initializeApartmentRentPayment,
@@ -122,6 +123,7 @@ export default function ListingDetail({
 }: Props) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [loadError, setLoadError] = useState("");
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountError, setAccountError] = useState("");
@@ -206,6 +208,22 @@ export default function ListingDetail({
       if (request === loadGeneration.current) { setLoading(false); setAccountLoading(false); }
     }
   }
+
+  useEffect(() => {
+    if (!listing?.id || listing.sub_type !== "short_let") {
+      setDiscountPercent(0);
+      return;
+    }
+    let active = true;
+    void supabase
+      .rpc("listing_discount_percent", { p_listing_id: listing.id })
+      .then(({ data }) => {
+        if (active) setDiscountPercent(Number(data || 0));
+      });
+    return () => {
+      active = false;
+    };
+  }, [listing?.id, listing?.sub_type]);
 
   useEffect(() => {
     setShortCheckIn(""); setShortCheckOut(""); setShortGuests(1);
@@ -710,7 +728,12 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     </p>
                   </div>
                   <p className="shrink-0 text-xl font-bold text-violet-400">
-                    ₦{Number(listing.price || 0).toLocaleString()}
+                    {discountPercent > 0 ? (
+                      <span className="mr-1 text-sm font-normal text-[var(--wh-text-muted)] line-through">
+                        ₦{Number(listing.price || 0).toLocaleString()}
+                      </span>
+                    ) : null}
+                    ₦{Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)).toLocaleString()}
                     <span className="ml-1 text-sm font-normal text-[var(--wh-text-muted)]">
                       {listing.sub_type === "short_let" ? "/night" : "/year"}
                     </span>
@@ -838,8 +861,13 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       </div>
                       <p className="text-right">
                         <span className="block text-sm font-bold">
-                          ₦{Number(listing.price || 0).toLocaleString()}
+                          ₦{Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)).toLocaleString()}
                         </span>
+                        {discountPercent > 0 ? (
+                          <span className="block text-xs text-[var(--wh-text-muted)]">
+                            <span className="line-through">₦{Number(listing.price || 0).toLocaleString()}</span> · {discountPercent}% off
+                          </span>
+                        ) : null}
                         <span className="text-sm text-[var(--wh-text-muted)]">
                           per night
                         </span>

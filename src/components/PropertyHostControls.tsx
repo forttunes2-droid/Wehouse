@@ -48,6 +48,8 @@ export default function PropertyHostControls({
   const [price,setPrice]=useState("");
   const [from,setFrom]=useState("");
   const [reopen,setReopen]=useState("");
+  const [discount,setDiscount]=useState("");
+  const [activeDiscount,setActiveDiscount]=useState(0);
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -64,6 +66,34 @@ export default function PropertyHostControls({
   },[listingId]);
 
   useEffect(()=>{void load()},[load]);
+
+  const loadDiscount=useCallback(async()=>{
+    const {data}=await supabase.rpc("listing_discount_percent",{p_listing_id:listingId});
+    setActiveDiscount(Number(data||0));
+  },[listingId]);
+  useEffect(()=>{void loadDiscount()},[loadDiscount]);
+
+  async function saveDiscount(){
+    const percent=Number(discount);
+    if(!Number.isFinite(percent)||percent<5||percent>50)return toast.error("A discount must be between 5% and 50%");
+    if(busy)return;
+    setBusy("discount");
+    const {error}=await supabase.rpc("set_my_listing_discount",{p_listing_id:listingId,p_percent:percent});
+    setBusy("");
+    if(error)return toast.error(error.message||"Discount could not be saved");
+    setDiscount("");await loadDiscount();onChanged?.();
+    toast.success("Discount saved for new bookings");
+  }
+
+  async function removeDiscount(){
+    if(busy)return;
+    setBusy("discount");
+    const {error}=await supabase.rpc("clear_my_listing_discount",{p_listing_id:listingId});
+    setBusy("");
+    if(error)return toast.error(error.message||"Discount could not be removed");
+    await loadDiscount();onChanged?.();
+    toast.success("Discount removed");
+  }
 
   async function savePrice(){
     const amount=Number(price);
@@ -173,6 +203,29 @@ export default function PropertyHostControls({
       </div>
       <p className="mt-1.5 text-[9px] text-[var(--wh-text-muted)]">{shortLet?`${money(currentPrice)} per night`:money(currentPrice)}</p>
     </div>
+
+    {shortLet?<div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
+      <h4 className="text-xs font-semibold">Discount</h4>
+      <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">Take 5–50% off the nightly price for new bookings. Stays already booked keep the price they were quoted.</p>
+      <div className="mt-2 flex gap-2">
+        <div className="flex h-11 min-w-0 flex-1 items-center rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3">
+          <input
+            inputMode="numeric"
+            value={discount}
+            placeholder="5–50"
+            onChange={event=>setDiscount(event.target.value.replace(/[^0-9]/g,"").slice(0,2))}
+            aria-label="Discount percent"
+            className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+          />
+          <span className="ml-1 text-xs text-[var(--wh-text-muted)]">%</span>
+        </div>
+        <button type="button" disabled={Boolean(busy)||!discount} onClick={()=>void saveDiscount()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-35">{busy==="discount"?"Saving…":"Save"}</button>
+      </div>
+      {activeDiscount>0?<div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-[9px] text-[var(--wh-text-secondary)]">Guests now pay {money(currentPrice*(1-activeDiscount/100))} per night ({activeDiscount}% off)</p>
+        <button type="button" disabled={Boolean(busy)} onClick={()=>void removeDiscount()} className="min-h-10 text-[10px] font-semibold text-violet-300 disabled:opacity-35">Remove mine</button>
+      </div>:null}
+    </div>:null}
 
     {shortLet?<div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
       <div className="flex items-center justify-between gap-3">
