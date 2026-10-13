@@ -113,6 +113,16 @@ const ACTIVE_RESERVATION_STATES = new Set([
   "occupied",
 ]);
 
+function DiscountSourceNote({ split }: { split: { host: number; wehouse: number; endsOn: string | null } }) {
+  if (split.host + split.wehouse <= 0) return null;
+  return (
+    <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">
+      {[split.host > 0 ? `${split.host}% off from the host` : "", split.wehouse > 0 ? `${split.wehouse}% off from WeHouse` : ""].filter(Boolean).join(" + ")}
+      {split.endsOn ? ` · ends ${split.endsOn}` : ""}
+    </p>
+  );
+}
+
 export default function ListingDetail({
   listingId,
   onNavigate,
@@ -126,6 +136,7 @@ export default function ListingDetail({
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountSplit, setDiscountSplit] = useState({ host: 0, wehouse: 0, endsOn: null as string | null });
   const [loadError, setLoadError] = useState("");
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountError, setAccountError] = useState("");
@@ -214,13 +225,17 @@ export default function ListingDetail({
   useEffect(() => {
     if (!listing?.id || !["short_let", "long_stay"].includes(String(listing.sub_type))) {
       setDiscountPercent(0);
+      setDiscountSplit({ host: 0, wehouse: 0, endsOn: null });
       return;
     }
     let active = true;
     void supabase
-      .rpc("listing_discount_percent", { p_listing_id: listing.id })
+      .rpc("listing_discount_breakdown", { p_listing_id: listing.id })
       .then(({ data }) => {
-        if (active) setDiscountPercent(Number(data || 0));
+        if (!active) return;
+        const row = (data || {}) as { host_percent?: number; wehouse_percent?: number; total_percent?: number; ends_on?: string | null };
+        setDiscountPercent(Number(row.total_percent || 0));
+        setDiscountSplit({ host: Number(row.host_percent || 0), wehouse: Number(row.wehouse_percent || 0), endsOn: row.ends_on || null });
       });
     return () => {
       active = false;
@@ -741,6 +756,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     </span>
                   </p>
                 </div>
+                <DiscountSourceNote split={discountSplit} />
               </section>
               <section className="grid grid-cols-3 gap-2">
                 <Fact
@@ -875,6 +891,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         </span>
                       </p>
                     </div>
+                    <DiscountSourceNote split={discountSplit} />
                     <p className="mt-2 text-sm text-[var(--wh-text-muted)]">
                       {shortMinNights}–{shortMaxNights} nights · dates outside
                       this booking window are unavailable.

@@ -1,4 +1,6 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { createPortal } from "react-dom";
 import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
@@ -214,6 +216,7 @@ export default function Chat({
     useState<RoommateMessage | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
+  const messagePins = useMessagePins(active ? "roommate" : null, active?.id, messages.length);
   const {
     status: inboxSecurityStatus,
     refresh: refreshInboxSecurity,
@@ -1179,6 +1182,11 @@ export default function Chat({
             </div>
           )}
         </header>
+        <PinnedMessagesBar
+          items={messagePins.pinned.map((id) => messageById.get(id)).filter((m): m is RoommateMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || "Attachment" }))}
+          onJump={scrollToMessage}
+          onUnpin={(id) => void messagePins.toggle(id)}
+        />
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
             {lockedMessages ? (
@@ -1373,6 +1381,8 @@ export default function Chat({
               messageActions.reactions?.[profile.user_id] || null
             }
             onClose={() => setMessageActions(null)}
+            pinned={messagePins.pinned.includes(messageActions.id)}
+            onPin={() => { const id = messageActions.id; setMessageActions(null); void messagePins.toggle(id); }}
             onReply={() => {
               setReplyingTo(messageActions);
               setMessageActions(null);

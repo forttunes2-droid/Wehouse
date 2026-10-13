@@ -1,4 +1,6 @@
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -122,6 +124,7 @@ export default function BookingNegotiationChat({
   }, [profile.user_id]);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
+    pins = useMessagePins("worker", conversationId, messages.length),
     [messageError, setMessageError] = useState<string | null>(null),
     [booking, setBooking] = useState<Booking | null>(null),
     [input, setInput] = useState(""),
@@ -935,6 +938,11 @@ export default function BookingNegotiationChat({
           </div>
         )}
       </header>
+      <PinnedMessagesBar
+        items={pins.pinned.map((id) => messages.find((m) => m.id === id)).filter((m): m is ChatMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || "Attachment" }))}
+        onJump={scrollToMessage}
+        onUnpin={(id) => void pins.toggle(id)}
+      />
       {reportOpen && peerId && (
         <ReportDialog
           subjectType="worker_chat"
@@ -1009,6 +1017,7 @@ export default function BookingNegotiationChat({
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
                 <MessagePress
+                  messageId={msg.id}
                   onOpen={(anchor) => {
                     setMessageMenuAnchor(anchor);
                     setMessageMenuMode("actions");
@@ -1367,6 +1376,8 @@ export default function BookingNegotiationChat({
       ) : null}
       {messageMenu && (
         <MessageActionSheet
+          pinned={pins.pinned.includes(messageMenu.id)}
+          onPin={() => { const id = messageMenu.id; setMessageMenu(null); void pins.toggle(id); }}
           anchor={messageMenuAnchor}
           mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}

@@ -2,17 +2,19 @@ import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { messageMenuPosition, type MessageMenuAnchor } from "@/lib/messageMenuPosition";
-import { Copy, Plus, Reply, Trash2 } from "lucide-react";
+import { Copy, Pin, PinOff, Plus, Reply, Trash2 } from "lucide-react";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 type Props = {
   anchor?: MessageMenuAnchor | null;
   mode?: "reactions" | "actions";
   currentReaction?: string | null;
-  onReact: (emoji: string) => void;
+  onReact?: (emoji: string) => void;
   onReply?: () => void;
   onRemove?: () => void;
   onCopy?: () => void;
+  onPin?: () => void;
+  pinned?: boolean;
   onClose: () => void;
 };
 
@@ -34,6 +36,8 @@ export default function MessageActionSheet({
   onReply,
   onRemove,
   onCopy,
+  onPin,
+  pinned,
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLElement>(null);
@@ -74,7 +78,7 @@ export default function MessageActionSheet({
   function choose(emoji: string) {
     const reaction = firstGrapheme(emoji);
     if (!reaction) return;
-    onReact(reaction);
+    onReact?.(reaction);
   }
 
   return createPortal(
@@ -92,7 +96,7 @@ export default function MessageActionSheet({
         aria-label="Message options"
         data-opened-for={mode}
       >
-          <>
+          {onReact ? <>
             <div className="flex items-center justify-between gap-0.5 rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
               {QUICK_EMOJIS.map((emoji) => (
                 <button
@@ -153,8 +157,8 @@ export default function MessageActionSheet({
                 Tap your selected reaction to remove it.
               </p>
             ) : null}
-          </>
-        {(onReply || onCopy || onRemove) && (
+          </> : null}
+        {(onReply || onCopy || onPin || onRemove) && (
           <div className="mt-2 overflow-hidden rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] shadow-2xl">
             {onReply ? (
               <button
@@ -164,6 +168,16 @@ export default function MessageActionSheet({
               >
                 <Reply className="h-4 w-4 text-[var(--wh-text-secondary)]" />
                 Reply
+              </button>
+            ) : null}
+            {onPin ? (
+              <button
+                type="button"
+                onClick={onPin}
+                className="flex min-h-11 w-full items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 text-left text-xs font-semibold"
+              >
+                {pinned ? <PinOff className="h-4 w-4 text-[var(--wh-text-secondary)]" /> : <Pin className="h-4 w-4 text-[var(--wh-text-secondary)]" />}
+                {pinned ? "Unpin message" : "Pin message"}
               </button>
             ) : null}
             {onCopy ? (

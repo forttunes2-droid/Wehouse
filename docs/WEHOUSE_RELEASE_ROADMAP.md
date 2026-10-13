@@ -79,6 +79,8 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Account | Email-change flow and recovery policy (C-035) | Open; no owner decision recorded |
 | Reliability | One shared action pattern (`src/lib/safeAction.ts`): a second tap joins the first request, clear offline message, no false success. Applied to Short Let booking, payment, cancel, Friend requests and Friend chat. Other actions and a visible Retry button | Built (partly applied). Server side: Short Let booking and posting a listing carry a UUID key stored for 24h (`idempotency_keys`), so a repeat returns the first result. Payment already has a unique reference; other actions still open |
 | Reliability | Long Let discounts use the Short Let pipeline | Built |
+| Chat | Pinned messages in every chat (Roommate, Service, Friend, Hotel, Property host), both people, up to 10 | Built (migration 20261012380000) |
+| Pricing | Discount end date, and host/WeHouse source labels on the listing | Built |
 | Reliability | Hotel discounts use the same pipeline | Open |
 | Workers | Skills, submission and profile structure review | Open |
 | UX | One loading and animation pattern (33 spinners, 6 skeletons today) | Open |

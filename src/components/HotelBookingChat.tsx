@@ -1,4 +1,6 @@
 import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { hotelMessagePresentation, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { displayDate } from "@/lib/displayDate";
@@ -78,6 +80,7 @@ export default function HotelBookingChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
+  const pins = useMessagePins("hotel", conversationId || null, messages.length);
   const [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions");
   const [replyingTo, setReplyingTo] = useState<HotelMessage | null>(null);
   const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(
@@ -320,6 +323,11 @@ export default function HotelBookingChat({
           {conversationId && !loading ? <button type="button" onClick={() => void openReport()} className="h-10 shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Report</button> : null}
         </div>
       </header>
+      <PinnedMessagesBar
+        items={pins.pinned.map((id) => messages.find((m) => m.id === id)).filter((m): m is LocalHotelMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || (m.attachments?.length ? "Attachment" : "Message") }))}
+        onJump={scrollToMessage}
+        onUnpin={(id) => void pins.toggle(id)}
+      />
       {reportTarget ? <ReportDialog subjectType="hotel_chat" subjectUserId={reportTarget.user_id} subjectName={reportTarget.display_name} subjectRef={conversationId} onClose={() => setReportTarget(null)} /> : null}
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
@@ -359,6 +367,7 @@ export default function HotelBookingChat({
               return (
                 <MessagePress
                   key={message.id}
+                  messageId={message.id}
                   onOpen={(anchor) => {
                     setMessageMenuAnchor(anchor);
                     if (message.delivery_state) return;
@@ -553,6 +562,8 @@ export default function HotelBookingChat({
             setMessageToRemove(messageMenu);
             setMessageMenu(null);
           }}
+          pinned={pins.pinned.includes(messageMenu.id)}
+          onPin={() => { const id = messageMenu.id; setMessageMenu(null); void pins.toggle(id); }}
           onCopy={messageMenu.content ? () => {
             void navigator.clipboard.writeText(messageMenu.content || "");
             toast.success("Message copied");

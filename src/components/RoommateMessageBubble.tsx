@@ -31,6 +31,7 @@ export default function RoommateBubble({
   >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
   return (
     <MessagePress
+      messageId={msg.id}
       onOpen={onOpenActions}
       onTap={onTapReaction}
       onReply={onReply}

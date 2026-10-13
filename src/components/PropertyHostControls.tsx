@@ -49,6 +49,8 @@ export default function PropertyHostControls({
   const [from,setFrom]=useState("");
   const [reopen,setReopen]=useState("");
   const [discount,setDiscount]=useState("");
+  const [discountEnds,setDiscountEnds]=useState("");
+  const [discountEndsOn,setDiscountEndsOn]=useState<string|null>(null);
   const [activeDiscount,setActiveDiscount]=useState(0);
 
   const load=useCallback(async()=>{
@@ -68,8 +70,10 @@ export default function PropertyHostControls({
   useEffect(()=>{void load()},[load]);
 
   const loadDiscount=useCallback(async()=>{
-    const {data}=await supabase.rpc("listing_discount_percent",{p_listing_id:listingId});
-    setActiveDiscount(Number(data||0));
+    const {data}=await supabase.rpc("listing_discount_breakdown",{p_listing_id:listingId});
+    const row=(data||{}) as {total_percent?:number;ends_on?:string|null};
+    setActiveDiscount(Number(row.total_percent||0));
+    setDiscountEndsOn(row.ends_on||null);
   },[listingId]);
   useEffect(()=>{void loadDiscount()},[loadDiscount]);
 
@@ -78,10 +82,10 @@ export default function PropertyHostControls({
     if(!Number.isFinite(percent)||percent<5||percent>50)return toast.error("A discount must be between 5% and 50%");
     if(busy)return;
     setBusy("discount");
-    const {error}=await supabase.rpc("set_my_listing_discount",{p_listing_id:listingId,p_percent:percent});
+    const {error}=await supabase.rpc("set_my_listing_discount",{p_listing_id:listingId,p_percent:percent,p_ends_on:discountEnds||null});
     setBusy("");
     if(error)return toast.error(error.message||"Discount could not be saved");
-    setDiscount("");await loadDiscount();onChanged?.();
+    setDiscount("");setDiscountEnds("");await loadDiscount();onChanged?.();
     toast.success("Discount saved for new bookings");
   }
 
@@ -222,8 +226,11 @@ export default function PropertyHostControls({
         </div>
         <button type="button" disabled={Boolean(busy)||!discount} onClick={()=>void saveDiscount()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-35">{busy==="discount"?"Saving…":"Save"}</button>
       </div>
+      <div className="mt-2">
+        <BookingDateField label="Ends on (optional, otherwise it runs until you remove it)" value={discountEnds} min={new Date().toISOString().slice(0,10)} onChange={setDiscountEnds} context="Discount" />
+      </div>
       {activeDiscount>0?<div className="mt-2 flex items-center justify-between gap-3">
-        <p className="text-[9px] text-[var(--wh-text-secondary)]">{shortLet?`Guests now pay ${money(currentPrice*(1-activeDiscount/100))} per night`:`New renters pay ${money(currentPrice*(1-activeDiscount/100))} for Year 1`} ({activeDiscount}% off)</p>
+        <p className="text-[9px] text-[var(--wh-text-secondary)]">{shortLet?`Guests now pay ${money(currentPrice*(1-activeDiscount/100))} per night`:`New renters pay ${money(currentPrice*(1-activeDiscount/100))} for Year 1`} ({activeDiscount}% off{discountEndsOn?`, until ${discountEndsOn}`:""})</p>
         <button type="button" disabled={Boolean(busy)} onClick={()=>void removeDiscount()} className="min-h-10 text-[10px] font-semibold text-violet-300 disabled:opacity-35">Remove mine</button>
       </div>:null}
     </div>}

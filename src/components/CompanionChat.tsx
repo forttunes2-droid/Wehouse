@@ -1,4 +1,6 @@
 import { runSafeAction } from "@/lib/safeAction";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Mic } from "lucide-react";
@@ -35,6 +37,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
   const [replyingTo, setReplyingTo] = useState<Line | null>(null);
   const [actions, setActions] = useState<{ line: Line; mode: "reactions" | "actions"; anchor: MessageMenuAnchor } | null>(null);
   const [busy, setBusy] = useState(false);
+  const pins = useMessagePins("friend", companion.companion_id, lines.length);
   const [reporting, setReporting] = useState(false);
   const [info, setInfo] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
@@ -129,6 +132,11 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
         <button type="button" onClick={onClose} aria-label="Back" className="grid h-11 w-11 place-items-center text-xl">←</button>
         <button type="button" onClick={() => setInfo(true)} aria-label="Friend info" className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Friend · end-to-end encrypted</p></button>
       </header>
+      <PinnedMessagesBar
+        items={pins.pinned.map((id) => lines.find((l) => l.id === id)).filter((l): l is Line => Boolean(l)).map((l) => ({ id: l.id, text: l.content || (l.attachments.length ? "Attachment" : "Message") }))}
+        onJump={scrollToMessage}
+        onUnpin={(id) => void pins.toggle(id)}
+      />
       {readiness && readiness.state !== "ready" ? (
         <div className="flex-1 overflow-y-auto p-4"><SecureChatOnboarding status={readiness} personName={name} onReady={() => void load()} /></div>
       ) : (
@@ -184,6 +192,8 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
               onClose={() => setActions(null)}
               onReply={blocked ? undefined : () => { setReplyingTo(actions.line); setActions(null); }}
               onRemove={() => { const line = actions.line; setActions(null); if (window.confirm("Delete this message for you? The other person will still see it.")) void removeForMe(line); }}
+              pinned={pins.pinned.includes(actions.line.id)}
+              onPin={() => { const id = actions.line.id; setActions(null); void pins.toggle(id); }}
               onCopy={actions.line.content ? () => { void navigator.clipboard.writeText(actions.line.content); toast.success("Message copied"); setActions(null); } : undefined}
               onReact={async (emoji) => { const line = actions.line; setActions(null); if (!blocked) await react(line, emoji); }}
             />

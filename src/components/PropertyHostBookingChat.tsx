@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import MessageActionSheet from "@/components/MessageActionSheet";
+import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import BackButton from "@/components/BackButton";
@@ -29,6 +33,8 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
   const [loading,setLoading]=useState(true);
   const [loadError,setLoadError]=useState("");
   const [sending,setSending]=useState(false);
+  const [menu,setMenu]=useState<{message:PropertyHostMessage;anchor:MessageMenuAnchor}|null>(null);
+  const pins=useMessagePins("property_host",conversation.conversation_id,messages.length);
   const sendingRef=useRef(false);
   const bottomRef=useRef<HTMLDivElement>(null);
   const closeRef=useRef(onClose);closeRef.current=onClose;
@@ -96,12 +102,17 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
       <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">{conversation.other_person_avatar?<img src={conversation.other_person_avatar} alt="" className="h-full w-full object-cover"/>:(conversation.other_person_name||"H")[0]}</div>
       <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-semibold">{conversation.other_person_name}</h1><p className="mt-0.5 truncate text-xs text-[var(--wh-text-muted)]">{context}</p></div>
     </div></header>
+    <PinnedMessagesBar
+      items={pins.pinned.map(id=>messages.find(m=>m.id===id)).filter((m):m is PropertyHostMessage=>Boolean(m)).map(m=>({id:m.id,text:m.content||"Attachment"}))}
+      onJump={scrollToMessage}
+      onUnpin={id=>void pins.toggle(id)}
+    />
     <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><div className="mx-auto max-w-3xl space-y-2">
       {loadError?<div role="alert" className="text-sm text-amber-200">{loadError}<button type="button" onClick={()=>void load()} className="ml-2 min-h-10 font-semibold text-violet-300">Try again</button></div>:null}
       {loading?<div className="min-h-48" role="status" aria-label="Loading host messages"/>:messages.length===0?<div className="py-16 text-center"><p className="text-sm font-semibold">Start the booking conversation</p><p className="mt-2 text-sm text-[var(--wh-text-muted)]">Coordinate arrival, access or the stay here.</p></div>:messages.map(message=>{
         const mine=message.sender_id===profile.user_id;
         const quoted=message.reply_to_id?byId.get(message.reply_to_id):null;
-        return <MessagePress key={message.id} onOpen={() => setReplyingTo(message)} onReply={()=>setReplyingTo(message)} className={`flex ${mine?"justify-end":"justify-start"}`}>
+        return <MessagePress key={message.id} messageId={message.id} onOpen={anchor => setMenu({message,anchor})} onReply={()=>setReplyingTo(message)} className={`flex ${mine?"justify-end":"justify-start"}`}>
           <div className={`max-w-[84%] rounded-2xl px-3 py-2.5 ${mine?"rounded-br-md bg-violet-500":"rounded-bl-md bg-[var(--wh-elevated)]"}`}>
             {quoted?<div className="mb-2 border-l-2 border-violet-300/70 bg-black/10 px-2 py-1.5"><p className="truncate text-xs opacity-75">{quoted.content||"Media"}</p></div>:null}
             {message.content?<p className="whitespace-pre-wrap break-words text-sm leading-5">{message.content}</p>:null}
@@ -117,5 +128,14 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
       {replyingTo?<div className="mb-2 flex items-center gap-3 border-l-2 border-violet-400 bg-[var(--wh-interactive)] px-3 py-2"><p className="min-w-0 flex-1 truncate text-sm text-[var(--wh-text-secondary)]">{replyingTo.content||"Media"}</p><button type="button" onClick={()=>setReplyingTo(null)} className="h-8 w-8">×</button></div>:null}
       <div className="flex items-end gap-2"><ChatAttachmentPicker onFiles={chooseFiles}/><textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} placeholder="Message" className="max-h-28 min-h-11 flex-1 resize-none rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 py-3 text-base outline-none focus:border-violet-500/40"/><button type="button" onClick={()=>void send()} disabled={sending||(!input.trim()&&!files.length)} aria-label="Send message" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 text-lg disabled:opacity-40">↑</button></div>
     </div></footer>
-  </div>,document.body);
+  {menu?<MessageActionSheet
+      anchor={menu.anchor}
+      mode="actions"
+      onClose={()=>setMenu(null)}
+      onReply={()=>{setReplyingTo(menu.message);setMenu(null)}}
+      pinned={pins.pinned.includes(menu.message.id)}
+      onPin={()=>{const id=menu.message.id;setMenu(null);void pins.toggle(id)}}
+      onCopy={menu.message.content?()=>{void navigator.clipboard.writeText(menu.message.content||"");toast.success("Message copied");setMenu(null)}:undefined}
+    />:null}
+    </div>,document.body);
 }
