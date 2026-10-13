@@ -228,6 +228,28 @@ named operational owners, support/escalation procedures, retention and restore
 drills, and recorded approval. This audit did not change live settings or
 independently verify those approvals.
 
+## Country and cross-border readiness
+
+Nigeria is the planned first transactional market. The current implementation is
+not ready to transact across countries, and adding another country to a selector
+would not make it ready:
+
+- Property, hotel, worker-discovery, setup, and listing-entry screens still import
+  the Nigerian state/city lists directly.
+- The country-settings migration currently seeds Nigeria only and explicitly says
+  existing callers are not yet driven by that table.
+- Homes and hotels do not yet carry an explicit country code through discovery
+  filters and booking records. A user's profile country is not a safe substitute
+  for a property's destination country.
+
+Keep Nigeria as the only enabled transactional market until the whole destination
+path is country-aware. Before enabling Ghana or another country, add destination
+country to home/hotel/service coverage, carry it through search and immutable
+booking/payment snapshots, apply the destination's currency and time zone, and
+gate booking on local payment, legal, support, and refund readiness. An account
+created in Nigeria must still be able to choose a supported foreign destination
+once that destination has passed those gates.
+
 ## Remaining work, in release order
 
 | Priority | Work | Evidence required to close |
