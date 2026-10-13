@@ -67,11 +67,11 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Connections | Roommate cancel, 30-day wait, other person notified | Done |
 | Connections | Companion bucket of 5, chat, split pay | Built |
 | Connections | Companion request daily cap and expiry | Open |
-| Connections | Companion/Roommate rename decision (Companion sounds like marriage) | Decision |
+| Connections | Companion renamed **Friend** in the app (database names unchanged) | Done |
 | Connections | Hotel and Companion conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount on the posting form | Open |
-| Pricing | Creator WeHouse-funded discount control (5-15%, per state, Booking money screen) | Built |
+| Pricing | Creator WeHouse-funded discount control (5-15%, capped at the commission WeHouse earns, per state, Booking money screen) | Built |
 | Pricing | Long Let and Hotel discounts | Open |
 | Pricing | Display, charge and refund agree on the test project | Codex |
 | Account | Change account email (Airbnb/Booking.com allow it with verification) | Open, needs auth settings (Codex) |

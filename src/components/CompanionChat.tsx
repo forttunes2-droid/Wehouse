@@ -8,7 +8,7 @@ import { getCompanionEncryptedMessages, sendCompanionEncryptedMessage, type Comp
 type Line = { id: string; mine: boolean; text: string; at: string };
 
 export default function CompanionChat({ companion, myUserId, onClose }: { companion: Companion; myUserId: string; onClose: () => void }) {
-  const name = companion.full_name || companion.username || "Companion";
+  const name = companion.full_name || companion.username || "Friend";
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState("");
@@ -52,7 +52,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
     <div role="dialog" aria-modal="true" aria-label={`Chat with ${name}`} className="fixed inset-0 z-[70] flex flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
       <header className="flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4">
         <button type="button" onClick={onClose} aria-label="Back" className="grid h-11 w-11 place-items-center text-xl">←</button>
-        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Companion · end-to-end encrypted</p></div>
+        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Friend · end-to-end encrypted</p></div>
         <button type="button" onClick={() => setReporting(true)} className="min-h-11 px-3 text-xs font-semibold text-amber-200">Report</button>
       </header>
       {readiness && readiness.state !== "ready" ? (

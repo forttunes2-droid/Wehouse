@@ -16,6 +16,8 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_
 ('98000000-0000-4000-8000-000000000006','dc-creator@example.invalid','dc-creator','user',true,'consumer','CR','Lagos','Ikeja','Ikeja');
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state) values
 ('dc-lagos-admin','admin','state','Lagos'),('dc-abuja-admin','admin','state','Abuja'),('dc-creator','creator','global',null);
+insert into public.creator_policy_versions(policy_key,scope_type,scope_key,version,value,value_schema,status,effective_from,public_disclosure,disclosure_text,legal_review_state,reason,checksum,published_at)
+values('commission_short_let_wehouse_managed','global','*',999997,'{"percent":12}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','discount cap fixture','discount-cap-fixture',now());
 insert into public.listings(id,listing_id,title,price,state,owner_id) values
 ('98000000-0000-4000-8000-0000000000e1','dc-home-1','Home 1',100000,'Lagos','dc-a'),
 ('98000000-0000-4000-8000-0000000000e2','dc-home-2','Home 2',100000,'Lagos','dc-b');
@@ -32,10 +34,11 @@ select pg_temp.expect(public.set_my_listing_discount('98000000-0000-4000-8000-00
 select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=20,'only the newest host discount counts');
 select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000006","role":"authenticated"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1',null,16)$$),'WeHouse discount above 15% is refused');
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1',null,13)$$),'WeHouse cannot discount above the 12% commission it earns');
 select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1','Lagos',10)$$),'property and state together is refused');
-select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',15) is not null,'Creator can fund a state-wide discount');
-select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=35,'host 20% plus WeHouse 15% adds up');
-select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e2')=15,'state discount reaches other Lagos homes');
+select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',12) is not null,'Creator can fund a state-wide discount up to the commission');
+select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=32,'host 20% plus WeHouse 12% adds up');
+select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e2')=12,'state discount reaches other Lagos homes');
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
 select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=0,'Creator can stop it');

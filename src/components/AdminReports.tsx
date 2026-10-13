@@ -4,7 +4,7 @@ import { REPORT_REASONS, listContentReports, resolveContentReport, type ContentR
 
 const FILTERS: ContentReport["status"][] = ["open", "reviewing", "actioned", "dismissed"];
 const SUBJECTS: Record<string, string> = {
-  roommate_chat: "Roommate chat", companion_chat: "Companion chat", worker_chat: "Worker chat",
+  roommate_chat: "Roommate chat", companion_chat: "Friend chat", worker_chat: "Worker chat",
   hotel_chat: "Hotel chat", support_case: "Support", profile: "Profile", message: "Message",
 };
 

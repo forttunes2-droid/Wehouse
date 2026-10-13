@@ -27,3 +27,8 @@ export async function getCompanionEncryptedMessages(companionId:string){
   const {data,error}=await supabase.rpc('get_companion_encrypted_messages',{p_companion_id:companionId});
   return {messages:(Array.isArray(data)?data:[]) as {id:string;sender_id:string;ciphertext:string;encryption_iv:string;encryption_version:number;encrypted_attachments:unknown[];reply_to_id:string|null;created_at:string}[],error};
 }
+
+// The database still uses the original name in its error text; people see "Friend".
+export function friendlyConnectionMessage(message?: string | null): string {
+  return (message || "").replace(/\bCompanions\b/g, "Friends").replace(/\bCompanion\b/g, "Friend").replace(/\bcompanions\b/g, "friends").replace(/\bcompanion\b/g, "friend");
+}

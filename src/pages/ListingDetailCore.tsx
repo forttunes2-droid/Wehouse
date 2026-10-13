@@ -422,7 +422,7 @@ function support(
     setPickedPeople([]);
     setMissingRoommateIdentities(0);
     try {
-      const companions = await withTimeout(listMyCompanions(), 15000, "Companions took too long to load.");
+      const companions = await withTimeout(listMyCompanions(), 15000, "Friends took too long to load.");
       if (companions.error) throw companions.error;
       setCompanionRecipients(companions.companions.filter((companion) => companion.status === "accepted"));
       const peers = await withTimeout(getRoommateConversationPeople(), 15000, "Connections took too long to load.");
@@ -1152,7 +1152,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
             <div className="mt-4">
               {[
                 { title: "Roommates", people: roommateRecipients.map((r) => ({ key: `roommate:${r.conversationId}`, id: r.userId, name: r.name, username: r.username, avatar: r.avatar })) },
-                { title: "Companions", people: companionRecipients.map((c) => ({ key: `companion:${c.user_id}`, id: c.user_id, name: c.full_name || c.username || "Companion", username: c.username || "", avatar: null as string | null })) },
+                { title: "Friends", people: companionRecipients.map((c) => ({ key: `companion:${c.user_id}`, id: c.user_id, name: c.full_name || c.username || "Friend", username: c.username || "", avatar: null as string | null })) },
               ].map((group) => (
                 <div key={group.title} className="mb-4">
                   <h3 className="text-sm font-semibold uppercase text-[var(--wh-text-secondary)]">{group.title}</h3>
@@ -1181,7 +1181,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       );
                     }) : (
                       <p className="py-4 text-sm text-[var(--wh-text-secondary)]">
-                        {group.title === "Roommates" ? "No accepted Roommates for this invitation." : "No accepted Companions yet."}
+                        {group.title === "Roommates" ? "No accepted Roommates for this invitation." : "No accepted Friends yet."}
                       </p>
                     )}
                   </div>
