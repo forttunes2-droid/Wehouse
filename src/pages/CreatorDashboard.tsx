@@ -31,6 +31,7 @@ import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
 import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
 import CreatorFixedFees from "@/components/CreatorFixedFees";
 import CreatorWithdrawalControls from "@/components/CreatorWithdrawalControls";
+import CreatorWorkerRefundRules from "@/components/CreatorWorkerRefundRules";
 import CreatorWeHouseDiscounts from "@/components/CreatorWeHouseDiscounts";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
@@ -987,6 +988,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
         <>
           <CreatorBookingMoneyRules />
           <CreatorFixedFees />
+          <CreatorWorkerRefundRules />
           <CreatorWithdrawalControls />
           <CreatorWeHouseDiscounts />
         </>

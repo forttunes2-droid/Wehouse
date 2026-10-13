@@ -1,4 +1,5 @@
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useMessagePins } from "@/hooks/useMessagePins";
 import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
@@ -136,6 +137,7 @@ export default function BookingNegotiationChat({
     [showAcceptForm, setShowAcceptForm] = useState(false),
     [disputeReason, setDisputeReason] = useState(""),
     [showDisputeForm, setShowDisputeForm] = useState(false),
+    [reviewKind, setReviewKind] = useState<"customer_cancel_after_start" | "worker_no_show" | "worker_not_delivered">("worker_not_delivered"),
     [cancelReason, setCancelReason] = useState(""),
     [showCancelForm, setShowCancelForm] = useState(false),
     [reportOpen, setReportOpen] = useState(false),
@@ -577,10 +579,10 @@ export default function BookingNegotiationChat({
   }
   async function handleCustomerDispute() {
     if (!disputeReason.trim()) return toast.error("Enter a reason");
-    if (booking?.status === "in_progress") {
+    if (booking?.status === "in_progress" || booking?.status === "confirmed") {
       const { reviewId, error: reviewError } = await requestWorkerRefundReview(
         bookingId,
-        "customer_cancel_after_start",
+        booking.status === "confirmed" ? "worker_no_show" : reviewKind,
         disputeReason.trim(),
       );
       if (reviewError || !reviewId)
@@ -654,7 +656,7 @@ export default function BookingNegotiationChat({
   if (loading)
     return createPortal(
       <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--wh-bg)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        <WeHouseLoadingState />
       </div>,
       document.body,
     );
@@ -883,7 +885,7 @@ export default function BookingNegotiationChat({
                     onClick={() => setShowDisputeForm((v) => !v)}
                     className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] font-semibold text-red-300"
                   >
-                    {booking.status === "in_progress" ? "Ask for a refund review" : "Raise dispute"}
+                    {booking.status === "in_progress" || booking.status === "confirmed" ? "Ask for a refund review" : "Raise dispute"}
                   </button>
                 )}
               {!paymentReview &&
@@ -927,6 +929,18 @@ export default function BookingNegotiationChat({
             )}
             {showDisputeForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-red-500/15 bg-red-500/[.035] p-2">
+                {booking.status === "in_progress" && (
+                  <select
+                    value={reviewKind}
+                    onChange={(e) => setReviewKind(e.target.value as typeof reviewKind)}
+                    aria-label="Reason for the review"
+                    className="h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-xs outline-none"
+                  >
+                    <option value="worker_not_delivered">The work was not delivered or is not what we agreed</option>
+                    <option value="worker_no_show">The Worker stopped showing up</option>
+                    <option value="customer_cancel_after_start">I no longer want the job</option>
+                  </select>
+                )}
                 <textarea
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
