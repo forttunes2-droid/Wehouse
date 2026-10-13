@@ -36,7 +36,11 @@ select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discou
 select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',15) is not null,'Creator can fund a state-wide discount');
 select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=35,'host 20% plus WeHouse 15% adds up');
 select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e2')=15,'state discount reaches other Lagos homes');
+select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
+select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));
+select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=0,'Creator can stop it');
 select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount(null,'Lagos',10)$$),'an Admin cannot spend WeHouse money');
+select pg_temp.expect(pg_temp.rejects($$select * from public.creator_list_wehouse_discounts()$$),'an Admin cannot list WeHouse discounts');
 select 'listing_discounts_contract_ok';
 rollback;

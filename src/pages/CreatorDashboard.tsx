@@ -28,6 +28,7 @@ import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
 import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
 import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
+import CreatorWeHouseDiscounts from "@/components/CreatorWeHouseDiscounts";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
@@ -979,7 +980,12 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
           description="Platform-wide availability and account creation controls."
         />
       )}
-      {section === "booking_money" && <CreatorBookingMoneyRules />}
+      {section === "booking_money" && (
+        <>
+          <CreatorBookingMoneyRules />
+          <CreatorWeHouseDiscounts />
+        </>
+      )}
       {section === "workers" && (
         <div className="space-y-5">
           <WorkerPublicationControls userId={profile.user_id} />

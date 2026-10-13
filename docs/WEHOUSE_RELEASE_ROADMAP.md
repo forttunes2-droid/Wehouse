@@ -71,7 +71,7 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Connections | Hotel and Companion conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount on the posting form | Open |
-| Pricing | Creator WeHouse-funded discount control (5-15%) | Open |
+| Pricing | Creator WeHouse-funded discount control (5-15%, per state, Booking money screen) | Built |
 | Pricing | Long Let and Hotel discounts | Open |
 | Pricing | Display, charge and refund agree on the test project | Codex |
 | Account | Change account email (Airbnb/Booking.com allow it with verification) | Open, needs auth settings (Codex) |
