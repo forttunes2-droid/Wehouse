@@ -24,10 +24,19 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
   const nameOf = (p: Companion) => p.full_name || p.username || "WeHouse member";
   async function run(action: () => Promise<{ error: { message?: string } | null }>, done: string) {
     setBusy(true);
-    const { error } = await action();
-    setBusy(false);
-    if (error) toast.error(error.message || "That did not work");
-    else { toast.success(done); await refresh(); }
+    try {
+      const { error } = await action();
+      if (error) {
+        toast.error(error.message || "That did not work");
+        return;
+      }
+      toast.success(done);
+      await refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "That did not work");
+    } finally {
+      setBusy(false);
+    }
   }
   const accepted = people.filter((p) => p.status === "accepted");
   const incoming = people.filter((p) => p.status === "pending" && !p.requested_by_me);
