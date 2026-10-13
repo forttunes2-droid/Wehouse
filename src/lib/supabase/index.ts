@@ -21,6 +21,8 @@ export {
   updateUsername,
   changePassword,
   requestEmailChange,
+  startEmailChangeWithGoogle,
+  finishEmailChangeWithGoogle,
   logPasswordChange,
 } from "./auth";
 

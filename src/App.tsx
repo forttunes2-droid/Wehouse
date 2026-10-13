@@ -1,4 +1,5 @@
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
+import EmailChangeFinisher from "@/components/EmailChangeFinisher";
 import { parsePropertyShareUrl, type SharedProperty } from "@/lib/propertyShare";
 import SharedPropertyWorkspaceView from "@/components/SharedPropertyWorkspaceView";
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
@@ -1766,6 +1767,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           <PrivateCallCenter />
         </Suspense>
         {profile && <NewLoginAlert profile={profile} />}
+        {profile && <EmailChangeFinisher />}
         <DesktopLayout
           navItems={desktopNavItems}
           activePage={navPage}

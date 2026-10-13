@@ -1,5 +1,5 @@
 import { useCallback,useEffect,useMemo,useState } from 'react';
-import { requestEmailChange,changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
+import { startEmailChangeWithGoogle,requestEmailChange,changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import AccountShell, { AccountInfo } from '@/components/AccountShell';
 import type { Profile } from '@/types';
@@ -119,6 +119,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   }
 
   async function savePassword(){if(!currentPassword||!newPassword||!confirmPassword)return toast.error('Complete all password fields');if(newPassword!==confirmPassword)return toast.error('New passwords do not match');if(newPassword.length<8)return toast.error('Password must be at least 8 characters');setChanging(true);const {error}=await changePassword(currentPassword,newPassword,profile.email);setChanging(false);if(error)return toast.error(error.message);await logPasswordChange(profile.user_id,profile.auth_id);setCurrentPassword('');setNewPassword('');setConfirmPassword('');setShowPassword(false);toast.success('Password changed')}
+  async function saveEmailWithGoogle(){if(!emailPassword||!newEmail)return toast.error('Enter the new email and your password');setEmailBusy(true);const {error}=await startEmailChangeWithGoogle(emailPassword,profile.email,newEmail);setEmailBusy(false);if(error)toast.error(error.message)}
   async function saveEmail(){if(!emailPassword||!newEmail)return toast.error('Enter the new email and your password');setEmailBusy(true);const {error}=await requestEmailChange(emailPassword,profile.email,newEmail);setEmailBusy(false);if(error)return toast.error(error.message);setEmailSent(newEmail.trim().toLowerCase());setEmailPassword('');setNewEmail('');setShowEmail(false)}
   async function startPasswordRecovery(){setChanging(true);await supabase.auth.signOut({scope:'local'}).catch(()=>{});window.location.assign('/?auth=recovery')}
   async function logoutAll(){await supabase.auth.signOut({scope:'global'})}
@@ -131,11 +132,11 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
 
     {(focus==='all'||focus==='password')&&usesPassword&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
-        <div><h2 className="text-sm font-semibold">Change email</h2><p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">We send a confirmation link to the new address. Your current email stays active until you open it.</p></div>
+        <div><h2 className="text-sm font-semibold">Change email</h2><p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">Google confirms the new address, like when you signed up. It works for any email that is a Google account. If it is not, we send a confirmation link instead. Your current email stays active until the change is confirmed.</p></div>
         <button onClick={()=>setShowEmail(v=>!v)} className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2 text-[10px] font-semibold text-[var(--wh-text-secondary)]">{showEmail?'Cancel':'Change'}</button>
       </div>
       {emailSent&&<p className="mt-3 rounded-xl bg-emerald-500/10 p-3 text-[11px] leading-5 text-emerald-300">Check {emailSent} and open the link to finish. Until then you keep signing in with {profile.email}.</p>}
-      {showEmail&&<div className="mt-4 space-y-3"><label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">New email</span><input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"/></label><Field label="Current password" value={emailPassword} onChange={setEmailPassword}/><button onClick={()=>void saveEmail()} disabled={emailBusy} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{emailBusy?'Sending…':'Send confirmation link'}</button></div>}
+      {showEmail&&<div className="mt-4 space-y-3"><label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">New email</span><input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"/></label><Field label="Current password" value={emailPassword} onChange={setEmailPassword}/><button onClick={()=>void saveEmailWithGoogle()} disabled={emailBusy} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{emailBusy?'Opening Google…':'Confirm with Google'}</button><button onClick={()=>void saveEmail()} disabled={emailBusy} className="w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-60">Not a Google account? Send a confirmation link</button></div>}
     </section>}
 
     {(focus==='all'||focus==='password')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
