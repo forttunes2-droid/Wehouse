@@ -73,11 +73,13 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount on the posting form | Built (Short Let, optional field when posting; applied right after the listing is saved) |
 | Pricing | Creator WeHouse-funded discount control (5-15%, capped at the commission WeHouse earns, per state, Booking money screen) | Built |
-| Pricing | Long Let and Hotel discounts | Open |
+| Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
+| Pricing | Hotel discounts | Open (hotels price through rate plans; needs an owner choice) |
 | Pricing | Display, charge and refund agree on the test project | Codex |
 | Account | Email-change flow and recovery policy (C-035) | Open; no owner decision recorded |
 | Reliability | One shared action pattern (`src/lib/safeAction.ts`): a second tap joins the first request, clear offline message, no false success. Applied to Short Let booking, payment, cancel, Friend requests and Friend chat. Other actions and a visible Retry button | Built (partly applied). Server side: Short Let booking and posting a listing carry a UUID key stored for 24h (`idempotency_keys`), so a repeat returns the first result. Payment already has a unique reference; other actions still open |
-| Reliability | Hotel and Long Let discounts use the same pipeline | Open |
+| Reliability | Long Let discounts use the Short Let pipeline | Built |
+| Reliability | Hotel discounts use the same pipeline | Open |
 | Workers | Skills, submission and profile structure review | Open |
 | UX | One loading and animation pattern (33 spinners, 6 skeletons today) | Open |
 | UX | Back, refresh, offline, sign-in/out audit | Open |

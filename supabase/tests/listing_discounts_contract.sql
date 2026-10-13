@@ -17,10 +17,13 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state) values
 ('dc-lagos-admin','admin','state','Lagos'),('dc-abuja-admin','admin','state','Abuja'),('dc-creator','creator','global',null);
 insert into public.creator_policy_versions(policy_key,scope_type,scope_key,version,value,value_schema,status,effective_from,public_disclosure,disclosure_text,legal_review_state,reason,checksum,published_at)
-values('commission_short_let_wehouse_managed','global','*',999997,'{"percent":12}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','discount cap fixture','discount-cap-fixture',now());
+values('commission_short_let_wehouse_managed','global','*',999997,'{"percent":12}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','discount cap fixture','discount-cap-fixture',now()),
+('commission_long_let_wehouse_managed','global','*',999996,'{"percent":5}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','long let cap fixture','long-let-cap-fixture',now());
 insert into public.listings(id,listing_id,title,price,state,owner_id) values
 ('98000000-0000-4000-8000-0000000000e1','dc-home-1','Home 1',100000,'Lagos','dc-a'),
 ('98000000-0000-4000-8000-0000000000e2','dc-home-2','Home 2',100000,'Lagos','dc-b');
+insert into public.listings(id,listing_id,title,price,state,owner_id,sub_type) values
+('98000000-0000-4000-8000-0000000000e3','dc-long-3','Long Let 3',1000000,'Lagos','dc-b','long_stay');
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
@@ -46,6 +49,15 @@ select pg_temp.expect((select wehouse_percent from public.short_let_discount_bre
 select pg_temp.expect((select amount_payee from public.short_let_payout_split(72000,80000,10))=72000,'partner keeps rent after commission even when WeHouse funds a discount');
 select pg_temp.expect((select amount_commission from public.short_let_payout_split(72000,80000,10))=0,'WeHouse funded its whole commission');
 select pg_temp.expect((select amount_commission from public.short_let_payout_split(76000,80000,10))=4000,'WeHouse keeps its commission minus what it funded');
+-- Long Let: the state discount is capped by the Long Let commission (5% fixture) and applies to Year 1 only.
+select pg_temp.expect(public.wehouse_discount_ceiling_for('long_stay')<=5,'Long Let WeHouse discount follows the Long Let commission');
+select pg_temp.expect((select wehouse_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e3',current_date,0))<=5,'state discount is capped for a Long Let');
+select pg_temp.expect((select wehouse_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e2',current_date,0))=10,'Short Let cap is unchanged by the Long Let cap');
+select pg_temp.expect((select partner_rent from public.long_let_year_one_quote('98000000-0000-4000-8000-0000000000e3',1000000))=1000000,'partner Year 1 rent is untouched by a WeHouse-funded discount');
+select pg_temp.expect((select payable from public.long_let_year_one_quote('98000000-0000-4000-8000-0000000000e3',1000000))
+  =round(1000000*(1-(select wehouse_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e3',current_date,0))/100),2),'renter pays Year 1 rent minus the discount');
+select pg_temp.expect((select amount_payee from public.short_let_payout_split(
+  (select payable from public.long_let_year_one_quote('98000000-0000-4000-8000-0000000000e3',1000000)),1000000,10))=900000,'Long Let partner keeps Year 1 rent minus commission');
 set local role authenticated;
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
 select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));

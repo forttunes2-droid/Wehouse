@@ -212,7 +212,7 @@ export default function ListingDetail({
   }
 
   useEffect(() => {
-    if (!listing?.id || listing.sub_type !== "short_let") {
+    if (!listing?.id || !["short_let", "long_stay"].includes(String(listing.sub_type))) {
       setDiscountPercent(0);
       return;
     }
@@ -737,7 +737,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     ) : null}
                     ₦{Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)).toLocaleString()}
                     <span className="ml-1 text-sm font-normal text-[var(--wh-text-muted)]">
-                      {listing.sub_type === "short_let" ? "/night" : "/year"}
+                      {listing.sub_type === "short_let" ? "/night" : discountPercent > 0 ? "Year 1" : "/year"}
                     </span>
                   </p>
                 </div>

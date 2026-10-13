@@ -149,6 +149,7 @@ export default function PropertyHostControls({
   if(!state)return <section className="border-b border-[var(--wh-border-subtle)] py-5"><button type="button" onClick={()=>void load()} className="min-h-10 text-[10px] font-semibold text-violet-300">Retry hosting controls</button></section>;
 
   const shortLet=(state.sub_type||subType)==="short_let";
+  const hotelLike=!shortLet&&(state.sub_type||subType)!=="long_stay";
   const currentPrice=Number(state.price||0);
   const canManageCommercials=Boolean(state.can_manage_commercials);
 
@@ -204,9 +205,9 @@ export default function PropertyHostControls({
       <p className="mt-1.5 text-[9px] text-[var(--wh-text-muted)]">{shortLet?`${money(currentPrice)} per night`:money(currentPrice)}</p>
     </div>
 
-    {shortLet?<div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
+    {hotelLike?null:<div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
       <h4 className="text-xs font-semibold">Discount</h4>
-      <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">Take 5–50% off the nightly price for new bookings. Stays already booked keep the price they were quoted.</p>
+      <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">{shortLet?"Take 5–50% off the nightly price for new bookings. Stays already booked keep the price they were quoted.":"Take 5–50% off the Year 1 rent for new reservations. Later years stay at the full rent, and reservations already made keep the price they were quoted."}</p>
       <div className="mt-2 flex gap-2">
         <div className="flex h-11 min-w-0 flex-1 items-center rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3">
           <input
@@ -222,10 +223,10 @@ export default function PropertyHostControls({
         <button type="button" disabled={Boolean(busy)||!discount} onClick={()=>void saveDiscount()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-35">{busy==="discount"?"Saving…":"Save"}</button>
       </div>
       {activeDiscount>0?<div className="mt-2 flex items-center justify-between gap-3">
-        <p className="text-[9px] text-[var(--wh-text-secondary)]">Guests now pay {money(currentPrice*(1-activeDiscount/100))} per night ({activeDiscount}% off)</p>
+        <p className="text-[9px] text-[var(--wh-text-secondary)]">{shortLet?`Guests now pay ${money(currentPrice*(1-activeDiscount/100))} per night`:`New renters pay ${money(currentPrice*(1-activeDiscount/100))} for Year 1`} ({activeDiscount}% off)</p>
         <button type="button" disabled={Boolean(busy)} onClick={()=>void removeDiscount()} className="min-h-10 text-[10px] font-semibold text-violet-300 disabled:opacity-35">Remove mine</button>
       </div>:null}
-    </div>:null}
+    </div>}
 
     {shortLet?<div className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4">
       <div className="flex items-center justify-between gap-3">
