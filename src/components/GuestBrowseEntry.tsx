@@ -127,11 +127,13 @@ export function guestProductCopy(product: 'roommate' | 'services') {
         eyebrow: 'ROOMMATE MATCHING',
         title: 'Find a roommate who fits your plans.',
         body: 'Sign in to set your location, budget and living preferences.',
+        steps: ['Tell us your area, budget and living habits.', 'See people whose plans fit yours, with how well you match.', 'When you both show interest, chat privately and plan a Long Let together.'],
       }
     : {
         eyebrow: 'HOME SERVICES',
         title: 'Find a professional for your home.',
         body: 'Sign in to browse local providers, review their work and request a job.',
+        steps: ['Browse service workers near you and see their past work and reviews.', 'Send a request and agree the price in a private chat.', 'Pay through WeHouse so your money is protected until the job is done.'],
       };
 }
 
@@ -171,6 +173,11 @@ function GuestProductPreview({ product, busy, onBack, onSignIn }: { product: 'ro
       <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">{content.eyebrow}</p>
       <h1 id="guest-product-title" className="mt-2 max-w-xl text-2xl font-bold tracking-tight text-[var(--wh-text)] sm:text-3xl">{content.title}</h1>
       <p id="guest-product-body" className="mt-3 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
+      <ol className="mt-5 space-y-3">
+        {content.steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
+          <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-300">{index + 1}</span>{step}
+        </li>)}
+      </ol>
       <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
     </section>
   </main>;
