@@ -41,6 +41,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Reject duplicate migration versions
         shell: bash
         run: |
@@ -52,9 +57,9 @@ jobs:
           fi
       - name: Start local Supabase and apply migrations
         # Consolidation replay does not use Inbucket; avoid a shared runner port collision.
-        run: npx --yes supabase@2.114.0 start --exclude inbucket
+        run: supabase start --exclude inbucket
       - name: Replay migrations from an empty database
-        run: npx --yes supabase@2.114.0 db reset --local
+        run: supabase db reset --local
       - name: Verify canonical schema exists
         shell: bash
         run: |
@@ -174,7 +179,7 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   existing-account-upgrade:
     name: Existing Account Upgrade
@@ -191,10 +196,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Start disposable local Supabase
-        run: npx --yes supabase@2.114.0 start
+        run: supabase start
       - name: Load the current production baseline
-        run: npx --yes supabase@2.114.0 db reset --local --version 20260913181317
+        run: supabase db reset --local --version 20260913181317
       - name: Seed existing approvals, reviews, private evidence and a wallet
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
       - name: Verify the full upgrade rolls back without changing records or history
@@ -207,7 +217,7 @@ jobs:
         run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   consolidation-gate:
     name: Consolidation Validation
