@@ -28,12 +28,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Require disposable runner space
         run: test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 8
       - name: Start local Supabase and replay migrations
         run: |
-          npx --yes supabase@2.114.0 start --exclude inbucket
-          npx --yes supabase@2.114.0 db reset --local
+          supabase start --exclude inbucket
+          supabase db reset --local
       - name: Seed 50k homes, 100k hotels and 50k synthetic profiles
         run: bash scripts/seed-capacity-medium.sh
       - name: Assert public discovery city indexes exist
@@ -89,4 +94,4 @@ jobs:
           retention-days: 14
       - name: Destroy disposable services
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
