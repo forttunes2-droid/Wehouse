@@ -133,7 +133,7 @@ export function guestProductCopy(product: 'roommate' | 'services') {
         eyebrow: 'HOME SERVICES',
         title: 'Find a professional for your home.',
         body: 'Sign in to browse local providers, review their work and request a job.',
-        steps: ['Browse service workers near you and see their past work and reviews.', 'Send a request and agree the price in a private chat.', 'Pay through WeHouse so your money is protected until the job is done.'],
+        steps: ['Browse service workers near you and see their past work and reviews.', 'Send a request and agree the price in a private chat.', 'Review the agreed scope, price and cancellation terms before checkout. Payment stays paused until approved terms are saved for the job.'],
       };
 }
 
