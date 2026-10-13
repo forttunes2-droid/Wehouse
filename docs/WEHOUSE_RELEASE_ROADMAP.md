@@ -74,7 +74,9 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Pricing | Creator WeHouse-funded discount control (5-15%, capped at the commission WeHouse earns, per state, Booking money screen) | Built |
 | Pricing | Long Let and Hotel discounts | Open |
 | Pricing | Display, charge and refund agree on the test project | Codex |
-| Account | Change account email (Airbnb/Booking.com allow it with verification) | Open, needs auth settings (Codex) |
+| Account | Email change: locked for now (C-035); support recovery route needed | Decision recorded |
+| Reliability | One shared action pattern: lock button while sending, unique key per action, clear offline message with Retry, no false success | Open |
+| Reliability | Hotel and Long Let discounts use the same pipeline | Open |
 | Workers | Skills, submission and profile structure review | Open |
 | UX | One loading and animation pattern (33 spinners, 6 skeletons today) | Open |
 | UX | Back, refresh, offline, sign-in/out audit | Open |
