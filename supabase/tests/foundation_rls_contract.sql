@@ -22,6 +22,7 @@ begin
       'get_hotel_review_summary(integer)',
       'get_accommodation_rate_terms()',
       'get_listing_review_summary(text)',
+      'listing_discount_percent(uuid,date)',
       -- This bounded reader returns IDs for eligible public home/hotel ads;
       -- its Worker branch explicitly requires an authenticated viewer.
       'get_sponsored_discovery(text,text,text,text,integer)',
