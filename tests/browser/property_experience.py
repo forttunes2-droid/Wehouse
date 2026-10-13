@@ -49,7 +49,7 @@ class Scenario:
    await asyncio.sleep(.6); self.hotel_sent=True; data='hotel-ack'
   elif name=='mark_hotel_booking_messages_read':
    await asyncio.sleep(1); data=True
-  elif name=='create_short_stay_reservation': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000,'short_stay_cancellation_policy_snapshot':{'full_refund_hours_before_check_in':48,'late_cancel_max_nights':1}}
+  elif name=='create_short_stay_reservation_idem': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000,'short_stay_cancellation_policy_snapshot':{'full_refund_hours_before_check_in':48,'late_cancel_max_nights':1}}
   elif name=='payment-init': data={'success':True,'already_paid':True,'reference':'WHDATE-QA-1','purpose':'apartment_reservation'}
   elif name=='get_my_roommate_peer_details': data=PEERS
   elif name=='get_user_conversations': data=CONNECTIONS
@@ -138,7 +138,7 @@ async def main():
      await expect(review.get_by_text(re.compile('Only the reserve-date fee is paid now'))).to_be_visible()
      await expect(review.get_by_role('button',name='Edit dates and guests',exact=True)).to_be_visible()
      await expect(review.get_by_role('button',name='Accept terms and continue',exact=True)).to_be_enabled()
-     assert sum(name=='create_short_stay_reservation' for name,_ in scenario.calls)==1
+     assert sum(name=='create_short_stay_reservation_idem' for name,_ in scenario.calls)==1
      assert sum(name=='payment-init' for name,_ in scenario.calls)==0, 'Payment must wait for reviewed terms to be accepted'
      await review.get_by_role('button',name='Accept terms and continue',exact=True).click()
      await expect(page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
