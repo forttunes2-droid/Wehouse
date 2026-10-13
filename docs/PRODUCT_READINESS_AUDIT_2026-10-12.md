@@ -243,7 +243,7 @@ would not make it ready:
   for a property's destination country.
 
 Keep Nigeria as the only enabled transactional market until the whole destination
-path is country-aware. Before enabling Ghana or another country, add destination
+path is country-aware. Before enabling another country, add destination
 country to home/hotel/service coverage, carry it through search and immutable
 booking/payment snapshots, apply the destination's currency and time zone, and
 gate booking on local payment, legal, support, and refund readiness. An account
