@@ -63,11 +63,11 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Security | Hotel data exposure fix | Done |
 | Security | Admin extra security password (extend Creator step-up) | Codex |
 | Reports | Report in Roommate, Companion, worker, hotel chats and profiles | Done |
-| Reports | Admin and Creator queues with area scoping | Done (area-scoping test still Open) |
+| Reports | Admin and Creator queues with state and local-area scoping | Done (state and branch/LGA contracts pass in CI) |
 | Connections | Roommate cancel, 30-day wait, other person notified | Done |
 | Connections | Companion bucket of 5, chat, split pay | Built |
 | Connections | Companion request daily cap and expiry | Open |
-| Connections | Companion renamed **Friend** in the app (database names unchanged) | Done |
+| Connections | User-facing name for the separate Roommate/payment-sharing connection | Open: user suggested “Connection”; current app says “Friend” |
 | Connections | Hotel and Companion conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount on the posting form | Open |
