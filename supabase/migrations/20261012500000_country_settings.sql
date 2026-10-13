@@ -27,4 +27,4 @@ create or replace function public.platform_default_country()
 returns public.platform_countries language sql stable security definer set search_path to 'pg_catalog','public' as $$
   select c from public.platform_countries c where c.enabled and c.is_default limit 1 $$;
 revoke all on function public.platform_default_country() from public;
-grant execute on function public.platform_default_country() to anon, authenticated, service_role;
+grant execute on function public.platform_default_country() to authenticated, service_role;
