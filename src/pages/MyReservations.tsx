@@ -404,7 +404,12 @@ export default function MyReservations({
     setBusyId(row.id);
     const { refundAmount, error } = await cancelPaidShortLetStay(row.id);
     setBusyId(null);
-    if (error) return toast.error(error.message);
+    if (error) {
+      if (/ask WeHouse/i.test(error.message)) {
+        return toast.error(error.message, { duration: 12000, action: { label: "Contact Support", onClick: () => support(row) } });
+      }
+      return toast.error(error.message);
+    }
     toast.success(`Stay cancelled. ₦${refundAmount.toLocaleString()} is being refunded to your original payment method.`);
     await load();
   }

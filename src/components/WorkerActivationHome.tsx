@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import WorkerVerificationChecklist from '@/components/WorkerVerificationChecklist';
 import { supabase } from '@/lib/supabase';
+import WeHouseLoadingState from '@/components/WeHouseLoadingState';
 import type { Profile } from '@/types';
 
 type Props = { profile: Profile; onProfile: () => void; onVerification: () => void };
@@ -33,7 +34,7 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
   }, [profile.user_id, profile.worker_status, profile.worker_verified]);
 
   if (error) return <State text={error} />;
-  if (!data) return <State text="Loading…" />;
+  if (!data) return <WeHouseLoadingState compact label="Loading" />;
 
   const identityRequired = data.identity_required === true;
   const actualIdentityPassed = data.identity_captured === true && data.identity_passed === true;
