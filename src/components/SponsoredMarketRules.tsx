@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -182,7 +183,7 @@ export default function SponsoredMarketRules(){
     </div>
 
     <div className="mt-4">
-      {loading?<p role="status" className="py-6 text-xs text-muted-foreground">Loading Sponsored controls…</p>:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No Sponsored markets configured. Sponsored stays off.</p>:<div className="divide-y divide-border border-y border-border">
+      {loading?<WeHouseLoadingState compact label="Loading Sponsored controls" />:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No Sponsored markets configured. Sponsored stays off.</p>:<div className="divide-y divide-border border-y border-border">
         {rules.map(rule=><button key={rule.rule_id} type="button" onClick={()=>edit(rule)} className="flex w-full items-center gap-3 py-3 text-left">
           <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-foreground">{resourceLabels[rule.resource_type]} · {rule.scope_type==="global"?"Global":rule.lga_name}</span><span className="mt-1 block text-[10px] text-muted-foreground">{rule.slot_count} slots · ₦{Number(rule.daily_price_ngn||0).toLocaleString("en-NG")}/day · {(rule.allowed_durations||[]).join(", ")} days</span></span>
           <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold ${rule.enabled?"border-emerald-500/20 text-emerald-600 dark:text-emerald-300":"border-border text-muted-foreground"}`}>{rule.enabled?"Open":"Off"}</span>

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { acceptReviewedLegalDocument, getCurrentLegalDocuments, type PublishedLegalDocument } from '@/lib/supabase/legal';
@@ -54,7 +55,7 @@ export default function LegalDocumentPage({ kind }: { kind: LegalKind }) {
         <BackButton onClick={back} />
         <h1 className="min-w-0 text-2xl font-semibold tracking-tight sm:text-3xl">{legalTitles[kind]}</h1>
       </header>
-      {loading ? <p role="status" className="mt-8 text-sm text-[var(--wh-text-secondary)]">Loading document…</p> : error ?
+      {loading ? <WeHouseLoadingState compact label="Loading document" /> : error ?
         <div className="mt-8"><p role="alert" className="text-sm text-red-200">{error}</p><button onClick={() => void load()} className="mt-4 min-h-11 text-sm font-semibold text-violet-300">Reload document</button></div> : document ? <>
           <p className="mb-8 mt-3 text-sm text-[var(--wh-text-secondary)]">Version {document.version} · Effective {new Date(document.effective_from).toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
           <LegalDocumentBody key={`${document.policy_version_id}:${document.checksum}`} body={document.body} onReachedEnd={loggedIn && !accepted ? markEnd : undefined} />

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -109,7 +110,7 @@ export default function WorkerCapacityManager(){
     </div>
 
     <div className="mt-4">
-      {loading?<p role="status" className="py-6 text-xs text-muted-foreground">Loading capacity…</p>:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No LGA occupation limits yet. Without a rule, verified approval remains uncapped for that market.</p>:<div className="divide-y divide-border border-y border-border">
+      {loading?<WeHouseLoadingState compact label="Loading capacity" />:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No LGA occupation limits yet. Without a rule, verified approval remains uncapped for that market.</p>:<div className="divide-y divide-border border-y border-border">
         {rules.map(rule=><article key={rule.capacity_id} className="flex items-center gap-3 py-3">
           <button type="button" onClick={()=>edit(rule)} className="min-w-0 flex-1 text-left">
             <p className="truncate text-xs font-semibold text-foreground">{rule.occupation_name} · {rule.lga_name}</p>

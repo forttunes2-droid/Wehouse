@@ -9,7 +9,7 @@ export default function WeHouseLoadingState({ compact = false, label = "Loading 
     >
       <div className="w-full max-w-xs px-6 text-center">
         <div className="mx-auto grid h-11 w-11 place-items-center rounded-[14px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] shadow-sm">
-          <span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-[var(--wh-text-muted)] border-t-violet-400" />
+          <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--wh-text-muted)] border-t-violet-400" />
         </div>
         <p className="mt-4 text-xs font-medium text-[var(--wh-text-secondary)]">{label}</p>
         <div aria-hidden="true" className="mx-auto mt-3 h-1 w-28 overflow-hidden rounded-full bg-[var(--wh-interactive)]">

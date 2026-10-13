@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -34,7 +35,7 @@ function Activity({rows,showAmounts}:{rows:any[];showAmounts:boolean}){return <s
 function ActivityRow({row,showAmounts}:{row:any;showAmounts:boolean}){const n=Number(row.amount||0);return <div className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-[11px] font-medium">{row.title}</p><p className="mt-1 text-[9px] capitalize text-[var(--wh-text-muted)]">{new Date(row.date).toLocaleDateString()} · {friendly(row.status)}</p></div><p className={`shrink-0 text-xs font-semibold ${n<0?'text-red-300':'text-emerald-300'}`}>{showAmounts?`${n<0?'-':'+'}${money(Math.abs(n))}`:'••••'}</p></div>}
 function BankLogo({name}:{name:string}){return <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-xs font-bold text-violet-200">{name?.slice(0,2).toUpperCase()}</div>}
 function EmptyBank(){return <div className="rounded-xl border border-amber-500/15 bg-amber-500/[.05] p-4"><p className="text-xs font-medium text-amber-200">No withdrawal account</p><p className="mt-1 text-[10px] leading-relaxed text-amber-200/60">Connect a verified bank account before requesting a withdrawal.</p></div>}
-function Loading(){return <div className="grid min-h-52 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
+function Loading(){return <WeHouseLoadingState compact label="Loading" />}
 function withdrawalStatus(value:any){const status=String(value||'').toLowerCase();if(status==='pending'||status==='requested')return 'Awaiting review';if(status==='processing'||status==='approved')return 'Processing';if(status==='completed'||status==='paid')return 'Paid';if(status==='failed'||status==='rejected')return 'Failed';return friendly(status)}
 function earningStatus(status:any,event:any){const value=String(status||'').toLowerCase();if(value==='pending'||value==='held')return 'Payment protected';if(value==='available')return event?'Available after '+friendly(event):'Available';if(value==='reversed')return 'Reversed';return friendly(value)}
 function friendly(value:any){return String(value||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}

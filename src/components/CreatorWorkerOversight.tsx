@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WorkerPublicationControls from "@/components/WorkerPublicationControls";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import type { Profile } from "@/types";
@@ -486,11 +487,7 @@ function Status({ value }: { value: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-32 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function Empty() {
   return (

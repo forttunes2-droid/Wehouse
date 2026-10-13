@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -317,9 +318,7 @@ export default function CreatorBookingMoneyRules() {
 
   if (loading)
     return (
-      <div className="grid min-h-44 place-items-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (loadError || !policy) return (

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -197,7 +198,7 @@ export default function StaffWorkerReviewModern() {
             </div>
             <Status value={selected.worker_status} />
           </div>
-          {detailLoading ? <p role="status" className="mt-4 text-sm text-[var(--wh-text-secondary)]">Loading review details…</p> : detailError ? <div role="alert" className="mt-4 text-sm text-amber-100"><p>{detailError}</p><button type="button" onClick={() => void open(selected)} className="min-h-11 text-violet-300">Try again</button></div> : null}
+          {detailLoading ? <WeHouseLoadingState compact label="Loading review details" /> : detailError ? <div role="alert" className="mt-4 text-sm text-amber-100"><p>{detailError}</p><button type="button" onClick={() => void open(selected)} className="min-h-11 text-violet-300">Try again</button></div> : null}
           <div className={`mt-4 grid gap-3 ${identity?.identity_required ? 'lg:grid-cols-2' : ''}`}>
             {identity?.identity_required === true && <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <div className="flex items-start justify-between gap-3">

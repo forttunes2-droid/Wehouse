@@ -203,6 +203,12 @@
 .wh-auth-to-app-shell > *:nth-child(2) { animation-delay: 20ms; }
 .wh-auth-to-app-shell > *:nth-child(3) { animation-delay: 40ms; }
 .wh-auth-to-app-shell > *:nth-child(n+4) { animation-delay: 60ms; }
+@keyframes whLoadingProgress { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+.wh-loading-progress { animation: whLoadingProgress 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .wh-loading-progress { animation: none; transform: translateX(50%); }
+  .wh-loading-state .animate-spin { animation: none; }
+}
 @keyframes whAuthToAppBrand { from { opacity: .65; } to { opacity: 1; } }
 @keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
 

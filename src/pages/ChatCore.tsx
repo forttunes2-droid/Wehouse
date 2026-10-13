@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { createPortal } from "react-dom";
 import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
@@ -2257,11 +2258,7 @@ function Divider() {
   return <div className="ml-[4.5rem] h-px bg-[var(--wh-interactive)]" />;
 }
 function Loading() {
-  return (
-    <div className="grid min-h-24 place-items-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function MessageSkeleton() {
   return (

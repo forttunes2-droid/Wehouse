@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -12,7 +13,7 @@ type Props={
 export default function ManageListing({listingId,source}:Props){
  const[listing,setListing]=useState<any|null>(null),[loading,setLoading]=useState(true);
  useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.from('listings').select('*').eq('id',listingId).maybeSingle();if(!active)return;if(error)toast.error(error.message);setListing(data);setLoading(false)})();return()=>{active=false}},[listingId]);
- if(loading)return <div className="grid min-h-48 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>;
+ if(loading)return <WeHouseLoadingState compact label="Loading" />;
  if(!listing)return <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.04] p-4 text-[10px] text-amber-200">The published listing record could not be loaded.</div>;
  const photos=Array.isArray(listing.images)?listing.images:[];
  const videos=Array.isArray(listing.videos)?listing.videos:[];

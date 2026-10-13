@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import {useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import BackButton from '@/components/BackButton';
@@ -93,7 +94,7 @@ export default function SharedHousingDetails({groupId,userId,onBack,onChanged,on
     <div className="mx-auto max-w-2xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6">
       <header className="sticky top-0 flex items-center gap-3 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 py-4 shadow-[var(--wh-shadow-sm)] backdrop-blur-xl"><BackButton onClick={dismiss} ariaLabel={short?"Back from shared stay":"Back from shared home"}/><h2 className="flex-1 text-lg font-semibold">{short?"Shared stay":"Shared home"}</h2><button type="button" disabled={busy || loading} onClick={() => refreshRef.current()} className="min-h-11 px-2 text-sm font-semibold text-violet-300">Refresh</button></header>
       {error&&<div role="alert" className="my-5 text-sm leading-6 text-amber-300"><p>{error}</p><button type="button" disabled={busy} onClick={()=>refreshRef.current()} className="min-h-11 font-semibold underline">Refresh shared reservation</button></div>}
-      {loading?<p role="status" className="py-8 text-sm">Loading shared reservation…</p>:group&&<main className="space-y-5 py-5">
+      {loading?<WeHouseLoadingState compact label="Loading shared reservation" />:group&&<main className="space-y-5 py-5">
         <section><p className="text-sm font-medium text-violet-300">{short?'Short Let · Shared stay':'Long Let · Shared home'}</p><h3 className="mt-2 break-words text-xl font-semibold">{group.listing.title||'Shared home'}</h3>
           {short&&<p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{displayDate(group.stay_check_in)} – {displayDate(group.stay_check_out)} · {group.guest_count} guests</p>}
           <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">{ended?'This shared reservation is no longer accepting new participants. Any payment or refund review remains in its recorded history.':['refunding','refund_pending'].includes(group.status)?'The shared stay has ended. Recorded payments are awaiting refund review; no new payment is available.':group.status==='paid'?'All participant payments are confirmed. Arrival and handover still follow the reservation.':allAccepted?'Everyone has accepted. Each participant completes the amount assigned to them.':'Waiting for everyone to accept before participant payments open.'}</p>

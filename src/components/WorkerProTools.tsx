@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import WorkerProBusinessTools from "@/components/WorkerProBusinessTools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -243,7 +244,7 @@ function WorkDocuments({ profile, canUsePaidTools }: { profile: Profile; canUseP
         <button type="submit" disabled={Boolean(busyId) || jobsLoading || Boolean(jobError) || !bookingId} className={`${button} w-full bg-primary text-primary-foreground`}>{busyId === "create" ? "Saving…" : "Save draft"}</button>
       </fieldset>
     </form>}
-    {loading ? <p role="status" className="py-6 text-sm text-foreground/70">Loading your records…</p> : loadError ? <div role="alert" className="py-6 text-sm"><p>{loadError}</p><button type="button" onClick={() => void load()} className={`${button} mt-3`}>Retry records</button></div> : documents.length === 0 ? <Empty text="No quotes or invoices yet." /> : <div className="mt-4 divide-y divide-border border-y border-border">{documents.map(document => <DocumentRow key={document.id} document={document} workerName={profile.full_name || profile.username || 'Worker'} canUsePaidTools={canUsePaidTools} busy={Boolean(busyId)} onSend={() => void act(document, "send")} onPaid={() => void act(document, "paid")} />)}</div>}
+    {loading ? <WeHouseLoadingState compact label="Loading your records" /> : loadError ? <div role="alert" className="py-6 text-sm"><p>{loadError}</p><button type="button" onClick={() => void load()} className={`${button} mt-3`}>Retry records</button></div> : documents.length === 0 ? <Empty text="No quotes or invoices yet." /> : <div className="mt-4 divide-y divide-border border-y border-border">{documents.map(document => <DocumentRow key={document.id} document={document} workerName={profile.full_name || profile.username || 'Worker'} canUsePaidTools={canUsePaidTools} busy={Boolean(busyId)} onSend={() => void act(document, "send")} onPaid={() => void act(document, "paid")} />)}</div>}
   </section>;
 }
 

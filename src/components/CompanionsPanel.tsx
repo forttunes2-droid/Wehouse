@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { runSafeAction } from "@/lib/safeAction";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -49,7 +50,7 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
     <section aria-label="Friends" className="mb-6 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <div className="flex items-baseline justify-between"><h2 className="text-sm font-bold">Friends</h2><span className="text-xs text-[var(--wh-text-secondary)]">{used} of 5 used</span></div>
       <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">People you already know. Chat privately and pay together for a Short Let or Long Let. Not the same as Roommates.</p>
-      {loading && <p role="status" className="mt-3 text-sm">Loading…</p>}
+      {loading && <WeHouseLoadingState compact label="Loading" />}
       <ul className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
         {incoming.map((p) => (
           <li key={p.companion_id} className="flex min-h-14 flex-wrap items-center gap-2 py-2">

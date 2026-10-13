@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -480,9 +481,7 @@ export default function Search({
             </button>
           </section>
         ) : loading && !listings.length ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
         ) : filtered.length === 0 ? (
           <DiscoveryEmpty
             title={emptyTitle}

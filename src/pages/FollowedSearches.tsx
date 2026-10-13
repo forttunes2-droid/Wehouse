@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useRef, useState } from 'react';
 import AccountShell from '@/components/AccountShell';
 import type { Profile } from '@/types';
@@ -56,7 +57,7 @@ export default function FollowedSearches({ profile, onBack, onNavigate }: Props)
 
   return <AccountShell profile={profile} workspace="personal" title="Followed searches"
     description="Alerts for matching homes and hotels." onBack={onBack} narrow>
-    {loading ? <p role="status" className="text-xs text-[var(--wh-text-secondary)]">Loading followed searches…</p>
+    {loading ? <WeHouseLoadingState compact label="Loading followed searches" />
       : error ? <div role="alert" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4"><p className="text-sm">{error}</p><button type="button" className="mt-2 min-h-11 text-sm text-violet-300" onClick={() => setReload(value => value + 1)}>Try again</button></div>
       : rows.length ? <ul className="divide-y divide-[var(--wh-border-subtle)] overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
         {rows.map(row => <li key={row.id} className="px-4 py-3">

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WorkspaceSectionHeading from '@/components/WorkspaceSectionHeading';
 import { useEffect,useMemo,useState } from 'react';
 import { toast } from 'sonner';
@@ -38,5 +39,5 @@ function ChangeItem({row}:{row:ChangeRow}){return <article className="grid grid-
 function groupByDay(rows:ChangeRow[]){const map=new Map<string,ChangeRow[]>();for(const row of rows){const d=new Date(row.occurred_at),now=new Date(),yesterday=new Date(now);yesterday.setDate(now.getDate()-1);const label=d.toDateString()===now.toDateString()?'Today':d.toDateString()===yesterday.toDateString()?'Yesterday':d.toLocaleDateString([],{month:'short',day:'numeric',year:d.getFullYear()===now.getFullYear()?undefined:'numeric'});map.set(label,[...(map.get(label)||[]),row])}return Array.from(map,([label,groupRows])=>({label,rows:groupRows}))}
 function icon(area:string){const a=area.toLowerCase();if(a.includes('setting'))return'⚙';if(a.includes('team')||a.includes('account'))return'◉';if(a.includes('worker'))return'W';if(a.includes('propert'))return'⌂';if(a.includes('finance'))return'₦';if(a.includes('moderation'))return'!';return'W'}
 function time(value:string){return new Date(value).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
-function Loading(){return <div className="grid min-h-52 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
+function Loading(){return <WeHouseLoadingState compact label="Loading" />}
 function Empty(){return <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-14 text-center"><p className="text-sm font-semibold">No matching changes</p><p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">Try another search or refresh the history.</p></div>}

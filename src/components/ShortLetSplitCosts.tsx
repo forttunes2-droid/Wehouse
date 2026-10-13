@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import {useEffect,useRef,useState} from 'react';
 import {listMyCompanions,sendCompanionRequestByUsername,respondToCompanionRequest,friendlyFriendMessage,type Companion} from '@/lib/supabase/companions';
 import {createSharedShortLet,type SharedHousingGroup} from '@/lib/supabase/shared-housing';
@@ -59,7 +60,7 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
       <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Your Reserve date fee is already paid. Invite accepted friends to join the same reservation. The stay is shared; each participant completes the amount assigned to them before the reservation is confirmed.</p>
       <p className="text-xs font-medium text-[var(--wh-text-secondary)]">{chosen.length+1} participants · up to {row.guest_count} reserved guests</p>
       {error&&<div role="alert" className="text-sm leading-6 text-amber-200"><p>{error}</p><button type="button" disabled={busy} onClick={()=>setAttempt(n=>n+1)} className="min-h-11 font-semibold underline">Refresh friends</button></div>}
-      {loading?<p role="status" className="text-sm">Loading your friends…</p>:<div className="divide-y divide-[var(--wh-border-subtle)]">{accepted.map(person=><label key={person.user_id} className="flex min-h-16 items-center gap-3 py-3">
+      {loading?<WeHouseLoadingState compact label="Loading your friends" />:<div className="divide-y divide-[var(--wh-border-subtle)]">{accepted.map(person=><label key={person.user_id} className="flex min-h-16 items-center gap-3 py-3">
         <input type="checkbox" aria-label={`Invite ${nameOf(person)}`} checked={ids.includes(person.user_id)} disabled={busy||(!ids.includes(person.user_id)&&ids.length>=capacity-1)} onChange={e=>setIds(current=>e.target.checked?[...current,person.user_id]:current.filter(id=>id!==person.user_id))} className="h-5 w-5 shrink-0"/>
         <span className="min-w-0"><span className="block break-words text-base font-medium">{nameOf(person)}</span>{person.username&&<span className="block break-words text-sm text-[var(--wh-text-secondary)]">@{person.username}</span>}</span>
       </label>)}{waiting.map(person=><div key={person.user_id} className="flex min-h-14 items-center gap-3 py-3 text-sm"><span className="min-w-0 flex-1 break-words">{nameOf(person)}</span>{person.requested_by_me?<span className="text-[var(--wh-text-secondary)]">Waiting for them to accept</span>:<span className="flex gap-2"><button type="button" onClick={()=>void answer(person,true)} className="min-h-11 font-semibold underline">Accept</button><button type="button" onClick={()=>void answer(person,false)} className="min-h-11 underline">Decline</button></span>}</div>)}</div>}

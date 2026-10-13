@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useRef, useState } from 'react';
 import { getMySharedHousingGroups, type SharedHousingGroup } from '@/lib/supabase/shared-housing';
 import { sharedHousingLane } from '@/lib/sharedHousingPresentation';
@@ -24,7 +25,7 @@ export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation
       .finally(() => { if (current === generation.current) setLoading(false); });
     return () => { generation.current += 1; };
   }, [profileId, attempt]);
-  if (loading && !groups.length) return <p role="status" className="py-5 text-sm text-[var(--wh-text-secondary)]">Loading shared payments…</p>;
+  if (loading && !groups.length) return <WeHouseLoadingState compact label="Loading shared payments" />;
   if (!groups.length && !error) return null;
   return <section className="space-y-3">
     <header><h2 className="text-base font-semibold">Shared homes</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Review the people, invitation and individual payment shares together.</p></header>

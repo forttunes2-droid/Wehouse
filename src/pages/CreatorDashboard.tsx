@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import AdminReports from "@/components/AdminReports";
 import { internalActivityDestination } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -1083,11 +1084,7 @@ function Top({
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-44 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function Empty({ text }: { text: string }) {
   return (

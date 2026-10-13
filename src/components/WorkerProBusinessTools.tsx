@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import WorkerProJobCosts from '@/components/WorkerProJobCosts';
@@ -115,7 +116,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
       {tabs.map(([id,name]) => <button key={id} type="button" aria-pressed={tab===id} onClick={() => setTab(id)}
         className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${tab===id ? 'bg-violet-500 text-white' : 'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>{name}</button>)}
     </div>
-    {loading ? <p role="status" className="py-6 text-sm">Loading your business tools…</p> : error ?
+    {loading ? <WeHouseLoadingState compact label="Loading your business tools" /> : error ?
       <div role="alert" className={card}>Business tools could not load. <button type="button" onClick={() => void load()} className="ml-2 underline">Try again</button></div> : <>
       {tab==='costs' && <WorkerProJobCosts key={profile.user_id} />}
       {tab==='schedule' && <div className="space-y-4">

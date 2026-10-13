@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
@@ -573,9 +574,7 @@ function support(
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center justify-center gap-4 p-5 text-center text-white">
     <h1 className="text-xl font-semibold">Property could not be loaded</h1>

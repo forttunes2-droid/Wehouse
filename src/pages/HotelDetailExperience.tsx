@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
@@ -251,9 +252,7 @@ export default function HotelDetailExperience({
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (!hotel)

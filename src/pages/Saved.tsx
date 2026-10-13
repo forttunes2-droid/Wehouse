@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getListing } from '@/lib/supabase/listings';
 import { getHotelById } from '@/lib/supabase/hotels';
@@ -112,7 +113,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
       </div>
     </header>
     <main className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
-      {loading ? <p role="status" className="py-10 text-sm text-[var(--wh-text-secondary)]">Loading saved places…</p>
+      {loading ? <WeHouseLoadingState compact label="Loading saved places" />
         : snapshot.error ? <div role="alert" className="space-y-3 py-8">
           <p className="text-sm leading-6">{snapshot.error}</p>
           <button type="button" onClick={() => setRetry(value => value + 1)} className="min-h-11 rounded-xl border border-violet-400/30 px-4 text-sm text-violet-300">Try again</button>

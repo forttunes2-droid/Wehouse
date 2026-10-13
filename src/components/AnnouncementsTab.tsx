@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect,useMemo,useRef,useState } from 'react';
 import { deleteAnnouncement,getAllAnnouncements,getAllUsers,getAnnouncementsSentBy,getFilteredRecipientCount,sendAnnouncement } from '@/lib/supabase';
 import { canSendAnnouncements } from '@/hooks/useAuth';
@@ -160,7 +161,7 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
 
     {view==='history'&&<div className="space-y-3">
       {historyError&&<div className="rounded-xl border border-red-500/15 bg-red-500/[.05] p-3 text-xs text-red-300">{historyError}<button type="button" onClick={()=>void loadHistory()} className="block min-h-11 font-semibold text-violet-300">Try again</button></div>}
-      {historyLoading&&<p role="status" className="py-6 text-xs text-[var(--wh-text-secondary)]">Loading sent updates…</p>}
+      {historyLoading&&<WeHouseLoadingState compact label="Loading sent updates" />}
       {!historyLoading&&!historyError&&!history.length&&<div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-10 text-center text-sm text-[var(--wh-text-muted)]">No announcements sent yet.</div>}
       {history.map(row=><AnnouncementCard key={row.id} row={row} canDelete={canSend} onDelete={()=>void remove(Number(row.id))}/>) }
     </div>}

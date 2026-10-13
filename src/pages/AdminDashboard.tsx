@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { internalActivityDestination } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { useEffect, useMemo, useState } from "react";
@@ -962,11 +963,7 @@ function Empty({ title, text }: { title: string; text: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-40 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function money(v: any) {
   return `₦${Number(v || 0).toLocaleString("en-NG")}`;

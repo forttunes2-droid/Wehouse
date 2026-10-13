@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -29,7 +30,7 @@ export default function WorkerProJobCosts() {
  }
  return <section aria-label="Job costs and profit" className="space-y-3"><div className="flex flex-wrap justify-between gap-2"><h3 className="text-base font-semibold">Job costs and profit</h3><button type="button" disabled={loading||error||!rows.length} onClick={exportCsv} className="min-h-11 rounded-xl border px-3 text-sm disabled:opacity-40">Export costs CSV</button></div>
  <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Record materials, transport and other job costs as a total. Net uses released Worker earnings minus costs you entered; it is not tax profit or proof of payout. Latest 150 jobs are shown. Blank cost means unrecorded, not zero.</p>
- {loading?<p role="status">Loading job costs…</p>:error?<p role="alert">Could not load job costs. <button onClick={()=>void load()} className="underline">Try again</button></p>:!rows.length?<p>No eligible jobs yet.</p>:rows.map(row=>{
+ {loading?<WeHouseLoadingState compact label="Loading job costs" />:error?<p role="alert">Could not load job costs. <button onClick={()=>void load()} className="underline">Try again</button></p>:!rows.length?<p>No eligible jobs yet.</p>:rows.map(row=>{
  const d=drafts[row.id]||{amount:'',note:''};const net=row.released_earnings_ngn!==null&&row.cost_ngn!==null?Number(row.released_earnings_ngn)-Number(row.cost_ngn):null;
  return <form key={row.id} onSubmit={e=>{e.preventDefault();void save(row);}} className="rounded-2xl border border-[var(--wh-border-subtle)] p-4"><h4 className="text-sm font-semibold">{row.service_type||'Service job'} · #{row.booking_code||row.id.slice(0,8)}</h4>
  <p className="mt-1 text-xs">{row.released_earnings_ngn===null?'Earnings not released':`Released earnings ${money(row.released_earnings_ngn)}`}{net!==null?` · Net after recorded costs ${money(net)}`:''}</p>

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { hotelInventorySummary, matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
 import type { ActivityDestination } from "@/lib/activityFeed";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -836,11 +837,7 @@ function Empty({ title, text }: { title: string; text: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-40 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function partnerDate(value?: string | null) {
   return value

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -531,9 +532,7 @@ export default function WorkerDiscovery({
           )}
         </div>
         {loading || settingsLoading ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
         ) : !marketplaceEnabled ? (
           <DiscoveryEmpty
             title="WeHouse Services is not open yet"

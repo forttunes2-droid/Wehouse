@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, ClipboardList, Download, Plus, TrendingUp, BedDouble } from 'lucide-react';
 import { downloadCalendar } from '@/lib/proCalendar';
@@ -202,7 +203,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
       {([['calendar','Calendar',CalendarDays],['income','Income',TrendingUp],['tasks','Tasks',ClipboardList],['occupancy','Occupancy',BedDouble]] as const).map(([id,label,Icon]) =>
         <button key={id} type="button" aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 text-xs font-semibold sm:text-sm ${section === id ? 'bg-violet-500 text-white' : 'text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]'}`}><Icon size={17} /><span>{label}</span></button>)}
     </nav>
-    {loading ? <p role="status" className="py-12 text-center text-sm text-[var(--wh-text-secondary)]">Loading your portfolio…</p> : error ? <section role="alert" className="rounded-2xl border border-red-400/20 p-5 text-sm">Portfolio tools could not load. <button type="button" onClick={() => void load()} className="ml-2 text-violet-600 underline dark:text-violet-300">Try again</button></section> : <>
+    {loading ? <WeHouseLoadingState compact label="Loading your portfolio" /> : error ? <section role="alert" className="rounded-2xl border border-red-400/20 p-5 text-sm">Portfolio tools could not load. <button type="button" onClick={() => void load()} className="ml-2 text-violet-600 underline dark:text-violet-300">Try again</button></section> : <>
       {section !== 'income' && section !== 'occupancy' && <div><p className="mb-2 text-sm text-[var(--wh-text-secondary)]">Property</p>
         <WeHouseSelect value={asset} onChange={setAsset} title="Choose a property" ariaLabel="Choose property"
           className="min-h-12 w-full text-[13px] sm:max-w-md"

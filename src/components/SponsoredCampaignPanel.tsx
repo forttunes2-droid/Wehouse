@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -135,7 +136,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
       <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-secondary)]">Show an eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} in a clearly marked Sponsored area for a chosen period. Payment never changes verification, reviews, or organic order.</p>
     </div>
     <div className="py-4">
-    {loading ? <p role="status" className="text-xs text-[var(--wh-text-secondary)]">Loading your promotion options…</p> : resources.length === 0
+    {loading ? <WeHouseLoadingState compact label="Loading your promotion options" /> : resources.length === 0
       ? <p className="rounded-2xl bg-[var(--wh-interactive)] p-4 text-xs leading-5 text-[var(--wh-text-secondary)]">There is no published, eligible {types.includes('worker') ? 'Worker profile' : 'home or hotel'} to promote yet. Your existing campaign history appears below.</p>
       : <div className="space-y-4">
         <label className="block text-xs font-medium text-[var(--wh-text)]">Choose what to promote

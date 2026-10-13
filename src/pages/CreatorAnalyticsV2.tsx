@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -79,5 +80,5 @@ function Metric({label,value}:{label:string;value:any}){return <div className="b
 function Money({label,value}:{label:string;value:any}){return <div className="border-r border-[var(--wh-border-subtle)] px-3 py-4"><p className="text-2xl font-semibold tracking-tight tabular-nums text-emerald-300">₦{Number(value||0).toLocaleString('en-NG')}</p><p className="mt-1 text-[11px] text-[var(--wh-text-muted)]">{label}</p></div>}
 function workerLabel(value:string){const map:Record<string,string>={pending:'Work profile / setup',verification_paid:'Work verification',profile_under_review:'WeHouse review',verified:'Reviewed / live',rejected:'Needs changes',suspended:'Suspended'};return map[value]||friendly(value)}
 function friendly(value:string){return String(value||'').replace(/_/g,' ').replace(/\b\w/g,(c)=>c.toUpperCase())}
-function Loading(){return <div className="grid min-h-48 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>}
+function Loading(){return <WeHouseLoadingState compact label="Loading" />}
 function Empty({text}:{text:string}){return <div className="rounded-xl border border-dashed border-[var(--wh-border-subtle)] px-4 py-8 text-center text-xs text-[var(--wh-text-muted)]">{text}</div>}

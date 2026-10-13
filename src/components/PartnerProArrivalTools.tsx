@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import WeHouseChoice from '@/components/WeHouseChoice';
@@ -47,7 +48,7 @@ export default function PartnerProArrivalTools({ assets }: { assets: Asset[] }) 
     finally { setBusy(false); }
   }
   return <section aria-label="Occupancy and arrival instructions" className="space-y-5">
-    {loading ? <p role="status" className="py-8 text-sm">Loading occupancy and arrival details…</p> : error ?
+    {loading ? <WeHouseLoadingState compact label="Loading occupancy and arrival details" /> : error ?
       <div role="alert" className="rounded-2xl border p-4 text-sm">Could not load the portfolio details. <button onClick={()=>void load()} className="underline">Try again</button></div> : <>
       <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 sm:p-6">
         <h2 className="text-lg font-semibold">Next 30 days</h2>

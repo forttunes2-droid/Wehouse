@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { locationLabel } from "@/lib/locationPresentation";
 import { displayDate, nigeriaDate } from "@/lib/displayDate";
@@ -1288,11 +1289,7 @@ function SmallRow({ label, value }: { label: string; value: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-48 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function Empty() {
   return (
