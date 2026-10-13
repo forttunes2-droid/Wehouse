@@ -67,6 +67,7 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Connections | Roommate cancel, 30-day wait, other person notified | Done |
 | Connections | Companion bucket of 5, chat, split pay | Built |
 | Connections | Companion request daily cap and expiry | Built: unanswered requests expire after 24 hours and free the slot; 10 requests per person per day. Both numbers are single functions in the database and need your confirmation |
+| Connections | Friend chat matches Roommate chat | Built: photos, videos, voice notes, replies, reactions and delete-for-me, all end-to-end encrypted. Friend media is stored under its own `e2ee/companion/` path that only the two Friends can open. While blocked, nobody can send, react or upload, but both can still read the old chat |
 | Connections | User-facing name for the separate Roommate/payment-sharing connection | Open: user suggested “Connection”; current app says “Friend” |
 | Connections | Hotel and Companion conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |

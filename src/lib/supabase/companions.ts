@@ -1,4 +1,7 @@
 import { supabase } from './client';
+import { prepareChatVideo, validateChatUpload } from '@/lib/chatMediaPolicy';
+import { prepareChatImageFile } from './utils';
+import { decryptPrivateAttachment, encryptPrivateAttachment, type EncryptedAttachment } from '@/lib/e2ee';
 
 export type Companion = {companion_id:string;user_id:string;full_name:string|null;username:string|null;status:'pending'|'accepted'|'blocked';requested_by_me:boolean};
 
@@ -33,10 +36,36 @@ export async function sendCompanionEncryptedMessage(companionId:string,ciphertex
 }
 export async function getCompanionEncryptedMessages(companionId:string){
   const {data,error}=await supabase.rpc('get_companion_encrypted_messages',{p_companion_id:companionId});
-  return {messages:(Array.isArray(data)?data:[]) as {id:string;sender_id:string;ciphertext:string;encryption_iv:string;encryption_version:number;encrypted_attachments:unknown[];reply_to_id:string|null;created_at:string}[],error};
+  return {messages:(Array.isArray(data)?data:[]) as {id:string;sender_id:string;ciphertext:string;encryption_iv:string;encryption_version:number;encrypted_attachments:unknown[];reply_to_id:string|null;created_at:string;reactions?:Record<string,string>}[],error};
 }
 
 // The database still uses the original name in its error text; people see "Friend".
 export function friendlyFriendMessage(message?: string | null): string {
   return (message || "").replace(/\bCompanions\b/g, "Friends").replace(/\bCompanion\b/g, "Friend").replace(/\bcompanions\b/g, "friends").replace(/\bcompanion\b/g, "friend");
+}
+
+export async function uploadFriendChatAttachment(file:File,companionId:string,peerUserId:string){
+  try{
+    await validateChatUpload(file);
+    let upload:Blob|File=file,contentType=file.type||'application/octet-stream',extension=(file.name.split('.').pop()||'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase();
+    if(file.type.startsWith('image/')){const prepared=await prepareChatImageFile(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
+    else if(file.type.startsWith('video/')){const prepared=await prepareChatVideo(file);upload=prepared.body;contentType=prepared.contentType;extension=prepared.extension}
+    const safeBase=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,48)||'attachment';
+    const encrypted=await encryptPrivateAttachment('companion',companionId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
+    const path=`e2ee/companion/${companionId}/${Date.now()}-${crypto.randomUUID()}.bin`;
+    const {error}=await supabase.storage.from('chat-files').upload(path,encrypted.blob,{contentType:'application/octet-stream',upsert:false});
+    if(error)throw error;
+    return {attachment:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv} as EncryptedAttachment,error:null as Error|null};
+  }catch(error){return {attachment:null,error:error instanceof Error?error:new Error('Upload failed')}}
+}
+export async function openFriendChatAttachment(companionId:string,peerUserId:string,item:EncryptedAttachment){
+  return decryptPrivateAttachment('companion',companionId,peerUserId,item);
+}
+export async function reactToFriendMessage(companionId:string,messageId:string,emoji:string|null){
+  const {data,error}=await supabase.rpc('set_companion_message_reaction',{p_companion_id:companionId,p_message_id:messageId,p_emoji:emoji});
+  return {reactions:(data||{}) as Record<string,string>,error};
+}
+export async function deleteFriendMessageForMe(companionId:string,messageId:string){
+  const {error}=await supabase.rpc('delete_companion_message_for_me',{p_companion_id:companionId,p_message_id:messageId});
+  return {error};
 }

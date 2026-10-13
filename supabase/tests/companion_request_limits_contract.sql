@@ -58,4 +58,24 @@ select pg_temp.expect((public.unblock_friend('rl-a')->>'unblocked')='false','the
 select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select pg_temp.expect((public.unblock_friend('rl-b')->>'unblocked')='true','the blocker can unblock');
 select pg_temp.expect((select (x->>'status')='accepted' from jsonb_array_elements(public.list_my_companions()) x limit 1),'unblock restores the Friend without a new request');
+
+-- Friend chat: reactions, delete for me, media paths, and block rules.
+reset role;
+select set_config('test.fid',(select id::text from public.companions where user_low='rl-a' and user_high='rl-b'),true);
+set local role authenticated;
+select set_config('test.mid',public.send_companion_encrypted_message(current_setting('test.fid')::uuid,'ZmFrZQ==','aXY=')::text,true);
+select pg_temp.expect(pg_temp.rejects(format($q$select public.send_companion_encrypted_message(%L::uuid,'ZmFrZQ==','aXY=',%L::jsonb)$q$,current_setting('test.fid'),'[{"path":"e2ee/companion/00000000-0000-4000-8000-000000000000/x.bin","file_iv":"AAAAAAAAAAAAAAAA","metadata_iv":"AAAAAAAAAAAAAAAA","metadata_ciphertext":"AAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]')),'media from another conversation is refused');
+select pg_temp.expect(public.send_companion_encrypted_message(current_setting('test.fid')::uuid,'ZmFrZQ==','aXY=',format('[{"path":"e2ee/companion/%s/x.bin","file_iv":"AAAAAAAAAAAAAAAA","metadata_iv":"AAAAAAAAAAAAAAAA","metadata_ciphertext":"AAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]',current_setting('test.fid'))::jsonb) is not null,'valid encrypted media is accepted');
+select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select pg_temp.expect((public.set_companion_message_reaction(current_setting('test.fid')::uuid,current_setting('test.mid')::uuid,'👍')->>'rl-b')='👍','a Friend can react');
+select pg_temp.expect((select reactions->>'rl-b'='👍' from public.get_companion_encrypted_messages(current_setting('test.fid')::uuid) where id=current_setting('test.mid')::uuid),'the reaction is returned with the message');
+select pg_temp.expect(public.delete_companion_message_for_me(current_setting('test.fid')::uuid,current_setting('test.mid')::uuid),'delete for me works');
+select pg_temp.expect((select count(*)=1 from public.get_companion_encrypted_messages(current_setting('test.fid')::uuid)),'a deleted message is hidden only for me');
+select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select pg_temp.expect((select count(*)=2 from public.get_companion_encrypted_messages(current_setting('test.fid')::uuid)),'the other person still sees both');
+select public.block_friend('rl-b');
+select pg_temp.expect(pg_temp.rejects(format('select public.send_companion_encrypted_message(%L::uuid,%L,%L)',current_setting('test.fid'),'a','b')),'nobody can send while blocked');
+select pg_temp.expect(pg_temp.rejects(format('select public.set_companion_message_reaction(%L::uuid,%L::uuid,%L)',current_setting('test.fid'),current_setting('test.mid'),'👍')),'nobody can react while blocked');
+select pg_temp.expect((select count(*)=2 from public.get_companion_encrypted_messages(current_setting('test.fid')::uuid)),'the old chat can still be read while blocked');
+select public.unblock_friend('rl-b');
 rollback;
