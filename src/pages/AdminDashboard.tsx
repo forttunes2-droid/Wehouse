@@ -23,9 +23,10 @@ import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue"
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import AdminSecurityCases from "@/components/AdminSecurityCases";
 import BackButton from "@/components/BackButton";
+import AdminReports from "@/components/AdminReports";
 
 type AdminTab = "overview" | "operations" | "inbox";
-type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security";
+type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security" | "reports";
 type OperationTarget = { operation: Operation; id?: string } | null;
 type PersonFilter = "user" | "property_partner";
 type Props = {
@@ -58,6 +59,7 @@ const OPS: [Operation, string, string][] = [
     "Security Operations",
     "Security Operations escalations and account decisions in your coverage",
   ],
+  ["reports", "Reports", "User reports from chats and profiles in your coverage"],
 ];
 export default function AdminDashboard({
   profile,
@@ -419,6 +421,7 @@ function Operations({
           initialRecordId={target?.operation === "bookings" ? target.id : undefined}
         />
       )}{" "}
+      {active === "reports" && <AdminReports />}{" "}
       {active === "security" && (
         <AdminSecurityCases
           onViewAccount={onView}

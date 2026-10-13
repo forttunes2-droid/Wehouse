@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import BackButton from "@/components/BackButton";
 import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 import MediaViewer from "@/components/MediaViewer";
+import ReportDialog from "@/components/ReportDialog";
 import { bindProfileScreenHistory, isTopProfileScreen } from "@/lib/profileScreenHistory";
 
 type Props = {
@@ -22,14 +23,16 @@ type Props = {
   maxWidth?: "xl" | "4xl";
   conversation?: boolean;
   suspended?: boolean;
+  reportUserId?: string | null;
 };
 
 
 export default function PublicProfileSurface({
   name, username, avatar, subtitle, location, presence, about, badges, actions,
-  children, bottomAction, onClose, ariaLabel, maxWidth = "xl", conversation = false, suspended = false,
+  children, bottomAction, onClose, ariaLabel, maxWidth = "xl", conversation = false, suspended = false, reportUserId,
 }: Props) {
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const width = maxWidth === "4xl" ? "max-w-4xl" : "max-w-xl";
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -121,7 +124,9 @@ export default function PublicProfileSurface({
           <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--wh-text-secondary)]">{about}</p>
         </section> : null}
         {children ? <div className="space-y-5">{children}</div> : null}
+        {reportUserId ? <button type="button" onClick={() => setReportOpen(true)} className="mx-auto block min-h-11 px-4 text-xs font-semibold text-[var(--wh-text-muted)] underline-offset-4 hover:underline">Report {name}</button> : null}
       </main>
+      {reportOpen && reportUserId ? <ReportDialog subjectType="profile" subjectUserId={reportUserId} subjectName={name} onClose={() => setReportOpen(false)} /> : null}
       {bottomAction ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
         <div className={`mx-auto ${width}`}>{bottomAction}</div>
       </div> : null}
