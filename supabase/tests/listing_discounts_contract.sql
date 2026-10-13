@@ -34,11 +34,11 @@ select pg_temp.expect(public.set_my_listing_discount('98000000-0000-4000-8000-00
 select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=20,'only the newest host discount counts');
 select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000006","role":"authenticated"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1',null,16)$$),'WeHouse discount above 15% is refused');
-select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1',null,13)$$),'WeHouse cannot discount above the 12% commission it earns');
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1',null,11)$$),'WeHouse cannot discount above the lowest 10% commission it can earn');
 select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount('98000000-0000-4000-8000-0000000000e1','Lagos',10)$$),'property and state together is refused');
-select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',12) is not null,'Creator can fund a state-wide discount up to the commission');
-select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=32,'host 20% plus WeHouse 12% adds up');
-select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e2')=12,'state discount reaches other Lagos homes');
+select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',10) is not null,'Creator can fund a state-wide discount up to the lowest commission');
+select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=30,'host 20% plus WeHouse 10% adds up');
+select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e2')=10,'state discount reaches other Lagos homes');
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
 select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=0,'Creator can stop it');
