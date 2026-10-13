@@ -71,5 +71,5 @@ begin
   return v_review;
 end $$;
 
-revoke all on function public.list_worker_refund_reviews(text),public.decide_worker_refund(uuid,numeric,text) from public,anon;
-grant execute on function public.list_worker_refund_reviews(text),public.decide_worker_refund(uuid,numeric,text) to authenticated,service_role;
+revoke all on function public.list_worker_refund_reviews(text),public.decide_worker_refund(uuid,numeric,text) from public,anon,service_role;
+grant execute on function public.list_worker_refund_reviews(text),public.decide_worker_refund(uuid,numeric,text) to authenticated;
