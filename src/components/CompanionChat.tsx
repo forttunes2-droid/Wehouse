@@ -91,7 +91,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
             <div className="mt-8 space-y-2">
               <button type="button" onClick={() => { setInfo(false); setReporting(true); }} className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold">Report</button>
               <button type="button" disabled={busy} onClick={() => {
-                if (!window.confirm(`Block ${name}? You will stop being Friends and neither of you can send the other a request. You can unblock them later.`)) return;
+                if (!window.confirm(`Block ${name}? They will not be able to message you or send you requests. You can unblock them anytime and your chat will still be there.`)) return;
                 void runSafeAction(`friend-block:${companion.user_id}`, () => blockFriend(companion.user_id)).then((result) => {
                   if (result.error) return toast.error(friendlyFriendMessage(result.error.message));
                   toast.success("Blocked");

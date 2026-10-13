@@ -63,7 +63,7 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
             <span className="min-w-0 flex-1"><span className="block break-words text-sm font-medium">{nameOf(p)}</span>{p.username && <span className="block text-xs text-[var(--wh-text-secondary)]">@{p.username}</span>}</span>
             <button type="button" onClick={() => setChat(p)} className="min-h-11 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white">Chat</button>
             <button type="button" onClick={() => setReport(p)} className="min-h-11 px-2 text-xs font-semibold text-amber-200">Report</button>
-            <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Block ${nameOf(p)}? You will stop being Friends and neither of you can send the other a request. You can unblock them later.`)) void run(() => blockFriend(p.user_id), "Blocked"); }} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Block</button>
+            <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Block ${nameOf(p)}? They will not be able to message you or send you requests. You can unblock them anytime and your chat will still be there.`)) void run(() => blockFriend(p.user_id), "Blocked"); }} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Block</button>
           </li>
         ))}
         {sent.map((p) => (

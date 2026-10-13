@@ -49,7 +49,7 @@ update public.companion_request_log set created_at=now()-interval '2 days';
 select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select pg_temp.expect((public.block_friend('rl-b')->>'blocked')='true','a Friend can be blocked');
-select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('rl-b')$$),'the blocker cannot send a request to someone they blocked');
+select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('rl-b')$$),'a request to a blocked person is refused');
 select pg_temp.expect((select (x->>'status')='blocked' from jsonb_array_elements(public.list_my_companions()) x limit 1),'the blocker sees the blocked person to unblock');
 select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.send_companion_request('rl-a')$$),'the blocked person cannot send a request');
@@ -57,5 +57,5 @@ select pg_temp.expect(jsonb_array_length(public.list_my_companions())=0,'the blo
 select pg_temp.expect((public.unblock_friend('rl-a')->>'unblocked')='false','the blocked person cannot unblock');
 select set_config('request.jwt.claims','{"sub":"97100000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select pg_temp.expect((public.unblock_friend('rl-b')->>'unblocked')='true','the blocker can unblock');
-select pg_temp.expect((public.send_companion_request('rl-b')->>'status')='pending','after unblock they must ask again');
+select pg_temp.expect((select (x->>'status')='accepted' from jsonb_array_elements(public.list_my_companions()) x limit 1),'unblock restores the Friend without a new request');
 rollback;
