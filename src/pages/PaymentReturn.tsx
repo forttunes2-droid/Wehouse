@@ -53,6 +53,12 @@ function successActionLabel(purpose?: string) {
   return 'Continue';
 }
 
+function successMessage(purpose?: string) {
+  if (['worker_booking', 'hotel_booking', 'apartment_reservation', 'apartment_rent', 'housing_reservation', 'reservation_fee', 'shared_housing_share', 'rent_plan_contribution'].includes(purpose || ''))
+    return 'Your payment is confirmed. WeHouse holds it safely and releases it to the other side only when the release conditions are met.';
+  return 'Your payment is confirmed.';
+}
+
 function paymentHeading(purpose?: string) {
   if (purpose === 'sponsored_campaign') return 'Sponsored campaign active';
   if (purpose === 'partner_pro_access') return 'Property Partner Pro active';
@@ -96,9 +102,15 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
       if (result.purpose === 'partner_pro_access') {
         try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
       }
-      if (!cancelled) {
-        onNavigate(destinationForPurpose(result.purpose, profile.role), receipt?.booking_id || undefined);
-      }
+      if (cancelled) return;
+      // Paystack's query string would otherwise re-run this check on every reload.
+      try {
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete('reference');
+        clean.searchParams.delete('trxref');
+        window.history.replaceState(window.history.state, '', clean.pathname + clean.search + '#payment-return');
+      } catch { /* The confirmation still shows. */ }
+      setState({ kind: 'success', message: successMessage(result.purpose), purpose: result.purpose, receipt });
     })().catch(() => {
       if (!cancelled) setState({ kind: 'error', message: 'We could not check your payment. Please try again; do not pay a second time.' });
     });
@@ -117,7 +129,7 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
   return <div className="min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-8 text-[var(--wh-text)]"><div className="mx-auto max-w-md">
     <div className="mb-8 flex items-center gap-3"><img src="/brand-mark-dark.svg" alt="WeHouse" className="h-11 w-11" /><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-violet-300">WEHOUSE PAYMENTS</p><h1 className="mt-1 text-lg font-bold">Payment confirmation</h1></div></div>
     <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-2xl">
-      <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : '…'}</div>
+      <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-300' : 'bg-violet-500/10 text-violet-300'}`}>{state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : <span aria-hidden="true" className="h-6 w-6 animate-spin rounded-full border-2 border-violet-300 border-t-transparent motion-reduce:animate-none" />}</div>
       <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? paymentHeading(successPurpose) : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>
       <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{state.message}</p>
       <div className="mt-6 space-y-2">
@@ -129,7 +141,7 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
         }} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{successActionLabel(successPurpose)}</button>}
         {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">Check payment again</button>}
         {state.kind === 'error' && <button type="button" onClick={() => onNavigate('my_reservations')} className="h-12 w-full rounded-2xl border border-violet-400/25 bg-violet-500/[.08] text-sm font-semibold text-violet-200">Open bookings to continue payment</button>}
-        {state.kind !== 'checking' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-[var(--wh-text-secondary)]">Back to WeHouse</button>}
+        {state.kind === 'error' && <button type="button" onClick={() => onNavigate(destinationForPurpose(undefined, profile.role))} className="h-11 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-[var(--wh-text-secondary)]">Back to WeHouse</button>}
       </div>
     </section>
     {state.kind === 'success' && <section className="mt-5 space-y-3">
