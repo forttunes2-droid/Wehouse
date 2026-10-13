@@ -32,6 +32,7 @@ import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
 import CreatorFixedFees from "@/components/CreatorFixedFees";
 import CreatorWithdrawalControls from "@/components/CreatorWithdrawalControls";
 import CreatorWorkerRefundRules from "@/components/CreatorWorkerRefundRules";
+import AdminRefundReviews from "@/components/AdminRefundReviews";
 import CreatorWeHouseDiscounts from "@/components/CreatorWeHouseDiscounts";
 import CreatorHotelDiscounts from "@/components/CreatorHotelDiscounts";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
@@ -54,6 +55,7 @@ type Operation =
   | "analytics"
   | "audit"
   | "reports"
+  | "refunds"
   | "platform";
 type PersonRole = "all" | "property_partner";
 type Props = {
@@ -126,6 +128,12 @@ const OPS: Array<{
     id: "reports",
     label: "Reports",
     note: "User reports from chats and profiles, across all regions.",
+    group: "Platform",
+  },
+  {
+    id: "refunds",
+    label: "Service Worker refunds",
+    note: "Review protected Service Worker refunds and decisions.",
     group: "Platform",
   },
   {
@@ -337,6 +345,7 @@ function Operations({
       {active === "people" && <People userId={profile.user_id} initialRole={target?.operation === 'people' && target.id === 'property_partner' ? 'property_partner' : 'all'} onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
       {active === "reports" && <AdminReports />}
+      {active === "refunds" && <AdminRefundReviews />}
       {active === "properties" && (
         <div className="space-y-5">
           <AccountIdentityReviewQueue accountRole="property_partner" />
