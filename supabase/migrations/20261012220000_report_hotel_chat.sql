@@ -2,7 +2,7 @@
 create or replace function public.hotel_chat_report_target(p_conversation_id uuid)
 returns table(user_id text, display_name text) language sql stable security definer set search_path to 'pg_catalog','public' as $$
   select p.user_id, coalesce(nullif(p.full_name,''),'this person')
-  from public.hotel_booking_conversations c join public.hotels h on h.id=c.hotel_id
+  from public.hotel_booking_conversations c join public.hotels h on h.hotel_id=c.hotel_id
   join public.profiles a on a.auth_id=(select auth.uid())::text
   join public.profiles p on p.user_id=case when c.guest_user_id=a.user_id then h.owner_id else c.guest_user_id end
   where c.id=p_conversation_id and public.can_access_hotel_booking_conversation(c.id) limit 1 $$;
@@ -24,7 +24,7 @@ begin
   if p_subject_type='worker_chat' and not exists(select 1 from public.booking_conversations c
      where a.user_id in(c.user_id,c.worker_id) and s.user_id in(c.user_id,c.worker_id)) then
     raise exception 'You can only report people you have a worker conversation with'; end if;
-  if p_subject_type='hotel_chat' and not exists(select 1 from public.hotel_booking_conversations c join public.hotels h on h.id=c.hotel_id
+  if p_subject_type='hotel_chat' and not exists(select 1 from public.hotel_booking_conversations c join public.hotels h on h.hotel_id=c.hotel_id
      where c.id::text=p_subject_ref and public.can_access_hotel_booking_conversation(c.id)
        and s.user_id=case when c.guest_user_id=a.user_id then h.owner_id else c.guest_user_id end) then
     raise exception 'You can only report the other side of your own hotel conversation'; end if;
