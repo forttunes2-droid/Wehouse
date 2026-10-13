@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import ReportDialog from "@/components/ReportDialog";
 import { decryptPrivateMessage, encryptPrivateMessage, privateConversationReadiness, type PrivateConversationReadiness } from "@/lib/e2ee";
-import { getCompanionEncryptedMessages, sendCompanionEncryptedMessage, type Companion } from "@/lib/supabase/companions";
+import { getCompanionEncryptedMessages, blockFriend, friendlyFriendMessage, sendCompanionEncryptedMessage, type Companion } from "@/lib/supabase/companions";
 
 type Line = { id: string; mine: boolean; text: string; at: string };
 
@@ -15,6 +15,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [info, setInfo] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -55,8 +56,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
     <div role="dialog" aria-modal="true" aria-label={`Chat with ${name}`} className="fixed inset-0 z-[70] flex flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
       <header className="flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4">
         <button type="button" onClick={onClose} aria-label="Back" className="grid h-11 w-11 place-items-center text-xl">←</button>
-        <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Friend · end-to-end encrypted</p></div>
-        <button type="button" onClick={() => setReporting(true)} className="min-h-11 px-3 text-xs font-semibold text-amber-200">Report</button>
+        <button type="button" onClick={() => setInfo(true)} aria-label="Friend info" className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Friend · end-to-end encrypted</p></button>
       </header>
       {readiness && readiness.state !== "ready" ? (
         <div className="flex-1 overflow-y-auto p-4"><SecureChatOnboarding status={readiness} personName={name} onReady={() => void load()} /></div>
@@ -76,6 +76,31 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
             <button type="button" onClick={() => void send()} disabled={busy || !draft.trim()} className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-40">Send</button>
           </footer>
         </>
+      )}
+      {info && (
+        <div role="dialog" aria-modal="true" aria-label="Friend info" className="fixed inset-0 z-[80] flex flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
+          <header className="flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4">
+            <button type="button" onClick={() => setInfo(false)} aria-label="Back to chat" className="grid h-11 w-11 place-items-center text-xl">←</button>
+            <p className="text-sm font-semibold">Friend info</p>
+          </header>
+          <div className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-5 py-8 text-center">
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[var(--wh-interactive)] text-2xl font-semibold">{name.slice(0, 1).toUpperCase()}</div>
+            <h2 className="mt-4 text-lg font-semibold">{name}</h2>
+            {companion.username && <p className="text-sm text-[var(--wh-text-secondary)]">@{companion.username}</p>}
+            <p className="mt-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Friends can chat privately and split a Short Let payment. Messages are end-to-end encrypted, so WeHouse cannot read them.</p>
+            <div className="mt-8 space-y-2">
+              <button type="button" onClick={() => { setInfo(false); setReporting(true); }} className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold">Report</button>
+              <button type="button" disabled={busy} onClick={() => {
+                if (!window.confirm(`Block ${name}? You will stop being Friends and neither of you can send the other a request. You can unblock them later.`)) return;
+                void runSafeAction(`friend-block:${companion.user_id}`, () => blockFriend(companion.user_id)).then((result) => {
+                  if (result.error) return toast.error(friendlyFriendMessage(result.error.message));
+                  toast.success("Blocked");
+                  onClose();
+                }).catch((error) => toast.error(error instanceof Error ? error.message : "Could not block"));
+              }} className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200">Block</button>
+            </div>
+          </div>
+        </div>
       )}
       {reporting && <ReportDialog subjectType="companion_chat" subjectUserId={companion.user_id} subjectName={name} onClose={() => setReporting(false)} />}
     </div>

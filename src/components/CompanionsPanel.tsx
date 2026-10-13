@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import CompanionChat from "@/components/CompanionChat";
 import ReportDialog from "@/components/ReportDialog";
-import { listMyCompanions, removeCompanion, respondToCompanionRequest, sendCompanionRequestByUsername, friendlyConnectionMessage, type Companion } from "@/lib/supabase/companions";
+import { blockFriend, unblockFriend, listMyCompanions, removeCompanion, respondToCompanionRequest, sendCompanionRequestByUsername, friendlyFriendMessage, type Companion } from "@/lib/supabase/companions";
 
 // Friends: people you already know, used for chatting and paying together. Not Roommates.
 export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
@@ -28,13 +28,13 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
     try {
       const { error } = await runSafeAction(`friend-panel:${done}`, action);
       if (error) {
-        toast.error(friendlyConnectionMessage(error.message) || "That did not work");
+        toast.error(friendlyFriendMessage(error.message) || "That did not work");
         return;
       }
       toast.success(done);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? friendlyConnectionMessage(error.message) : "That did not work");
+      toast.error(error instanceof Error ? friendlyFriendMessage(error.message) : "That did not work");
     } finally {
       setBusy(false);
     }
@@ -42,6 +42,7 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
   const accepted = people.filter((p) => p.status === "accepted");
   const incoming = people.filter((p) => p.status === "pending" && !p.requested_by_me);
   const sent = people.filter((p) => p.status === "pending" && p.requested_by_me);
+  const blocked = people.filter((p) => p.status === "blocked");
   const used = accepted.length + sent.length;
 
   return (
@@ -62,13 +63,19 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
             <span className="min-w-0 flex-1"><span className="block break-words text-sm font-medium">{nameOf(p)}</span>{p.username && <span className="block text-xs text-[var(--wh-text-secondary)]">@{p.username}</span>}</span>
             <button type="button" onClick={() => setChat(p)} className="min-h-11 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white">Chat</button>
             <button type="button" onClick={() => setReport(p)} className="min-h-11 px-2 text-xs font-semibold text-amber-200">Report</button>
-            <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Cancel your Friend connection with ${nameOf(p)}? You cannot add each other again for 30 days.`)) void run(() => removeCompanion(p.user_id), "Friend connection cancelled"); }} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Cancel</button>
+            <button type="button" disabled={busy} onClick={() => { if (window.confirm(`Block ${nameOf(p)}? You will stop being Friends and neither of you can send the other a request. You can unblock them later.`)) void run(() => blockFriend(p.user_id), "Blocked"); }} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Block</button>
           </li>
         ))}
         {sent.map((p) => (
           <li key={p.companion_id} className="flex min-h-14 items-center gap-2 py-2 text-sm">
             <span className="min-w-0 flex-1 break-words">{nameOf(p)} · request sent</span>
             <button type="button" disabled={busy} onClick={() => void run(() => removeCompanion(p.user_id), "Request cancelled")} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Cancel</button>
+          </li>
+        ))}
+        {blocked.map((p) => (
+          <li key={p.companion_id} className="flex min-h-14 items-center gap-2 py-2 text-sm">
+            <span className="min-w-0 flex-1 break-words">{nameOf(p)} · blocked</span>
+            <button type="button" disabled={busy} onClick={() => void run(() => unblockFriend(p.user_id), "Unblocked")} className="min-h-11 px-2 text-xs font-semibold text-violet-300">Unblock</button>
           </li>
         ))}
       </ul>

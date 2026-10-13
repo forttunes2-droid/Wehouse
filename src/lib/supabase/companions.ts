@@ -1,6 +1,6 @@
 import { supabase } from './client';
 
-export type Companion = {companion_id:string;user_id:string;full_name:string|null;username:string|null;status:'pending'|'accepted';requested_by_me:boolean};
+export type Companion = {companion_id:string;user_id:string;full_name:string|null;username:string|null;status:'pending'|'accepted'|'blocked';requested_by_me:boolean};
 
 export async function listMyCompanions(){
   const {data,error}=await supabase.rpc('list_my_companions');
@@ -18,6 +18,14 @@ export async function removeCompanion(userId:string){
   const {error}=await supabase.rpc('remove_companion',{p_user_id:userId});
   return {error};
 }
+export async function blockFriend(userId:string){
+  const {error}=await supabase.rpc('block_friend',{p_user_id:userId});
+  return {error};
+}
+export async function unblockFriend(userId:string){
+  const {error}=await supabase.rpc('unblock_friend',{p_user_id:userId});
+  return {error};
+}
 // Companion chat uses the same ciphertext and iv as other private chats; the server never sees plaintext.
 export async function sendCompanionEncryptedMessage(companionId:string,ciphertext:string,iv:string,attachments:unknown[]=[],replyToId?:string){
   const {data,error}=await supabase.rpc('send_companion_encrypted_message',{p_companion_id:companionId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId??null});
@@ -29,6 +37,6 @@ export async function getCompanionEncryptedMessages(companionId:string){
 }
 
 // The database still uses the original name in its error text; people see "Friend".
-export function friendlyConnectionMessage(message?: string | null): string {
+export function friendlyFriendMessage(message?: string | null): string {
   return (message || "").replace(/\bCompanions\b/g, "Friends").replace(/\bCompanion\b/g, "Friend").replace(/\bcompanions\b/g, "friends").replace(/\bcompanion\b/g, "friend");
 }

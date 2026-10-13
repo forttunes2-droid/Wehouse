@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {listMyCompanions,sendCompanionRequestByUsername,respondToCompanionRequest,friendlyConnectionMessage,type Companion} from '@/lib/supabase/companions';
+import {listMyCompanions,sendCompanionRequestByUsername,respondToCompanionRequest,friendlyFriendMessage,type Companion} from '@/lib/supabase/companions';
 import {createSharedShortLet,type SharedHousingGroup} from '@/lib/supabase/shared-housing';
 import {shortLetPayment} from '@/lib/shortLetPayment';
 import {sharedAmounts} from '@/lib/sharedHousingPresentation';
@@ -43,7 +43,7 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
     try{const result=await withTimeout(createSharedShortLet(row.id,chosen.map(person=>person.user_id)),20000,'The invitation could not be confirmed. Refresh this booking before retrying.');
       if(result.error||!result.group?.id||result.group.reservation_id!==row.id)throw result.error||new Error('The shared reservation could not be confirmed.');
       if(current===generation.current)onCreated(result.group);
-    }catch(failure){if(current===generation.current)setError(friendlyConnectionMessage(failure instanceof Error?failure.message:String((failure as {message?:string})?.message||'Invitation could not be confirmed. Refresh before retrying.')));}
+    }catch(failure){if(current===generation.current)setError(friendlyFriendMessage(failure instanceof Error?failure.message:String((failure as {message?:string})?.message||'Invitation could not be confirmed. Refresh before retrying.')));}
     finally{inFlight.current=false;if(current===generation.current)setBusy(false);}
   }
   const reserveDatePaid=row.reservation_fee_status==='paid'||['paid','completed'].includes(String(row.manual_payment_status||''));
