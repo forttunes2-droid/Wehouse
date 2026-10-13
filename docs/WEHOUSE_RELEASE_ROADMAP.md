@@ -70,7 +70,7 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | Connections | User-facing name for the separate Roommate/payment-sharing connection | Open: user suggested “Connection”; current app says “Friend” |
 | Connections | Hotel and Companion conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
-| Pricing | Discount on the posting form | Open |
+| Pricing | Discount on the posting form | Built (Short Let, optional field when posting; applied right after the listing is saved) |
 | Pricing | Creator WeHouse-funded discount control (5-15%, capped at the commission WeHouse earns, per state, Booking money screen) | Built |
 | Pricing | Long Let and Hotel discounts | Open |
 | Pricing | Display, charge and refund agree on the test project | Codex |
