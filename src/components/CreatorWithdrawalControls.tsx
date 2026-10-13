@@ -4,12 +4,13 @@ import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 
-type Controls = { new_account_cooldown_hours: string; daily_max_count: string; daily_max_amount: string };
+type Controls = { new_account_cooldown_hours: string; daily_max_count: string; daily_max_amount: string; require_recent_login_minutes: string };
 
 const FIELDS: { key: keyof Controls; label: string; hint: string }[] = [
   { key: "new_account_cooldown_hours", label: "Hours before a new payout account can receive money", hint: "0 = no wait" },
   { key: "daily_max_count", label: "Withdrawals per wallet per day", hint: "0 = no limit" },
   { key: "daily_max_amount", label: "Total withdrawn per wallet per day (₦)", hint: "0 = no limit" },
+  { key: "require_recent_login_minutes", label: "Minutes a sign-in stays fresh for withdrawing", hint: "Default 10. 0 = never ask the user to sign in again" },
 ];
 
 export default function CreatorWithdrawalControls() {
@@ -28,6 +29,7 @@ export default function CreatorWithdrawalControls() {
       new_account_cooldown_hours: String(row.new_account_cooldown_hours ?? 0),
       daily_max_count: String(row.daily_max_count ?? 0),
       daily_max_amount: String(row.daily_max_amount ?? 0),
+      require_recent_login_minutes: String(row.require_recent_login_minutes ?? 10),
     };
     setValues(next);
     setSaved(JSON.stringify(next));
@@ -50,6 +52,7 @@ export default function CreatorWithdrawalControls() {
         new_account_cooldown_hours: Number(values.new_account_cooldown_hours) || 0,
         daily_max_count: Number(values.daily_max_count) || 0,
         daily_max_amount: Number(values.daily_max_amount) || 0,
+        require_recent_login_minutes: values.require_recent_login_minutes.trim() === "" ? 10 : Number(values.require_recent_login_minutes) || 0,
       },
       p_value_schema: { type: "withdrawal_controls" },
       p_effective_from: new Date().toISOString(),

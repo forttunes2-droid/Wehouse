@@ -33,4 +33,5 @@ insert into public.withdrawals(wallet_id,amount,status,bank_account_id) values('
 select pg_temp.expect(pg_temp.rejects($$insert into public.withdrawals(wallet_id,amount,status,bank_account_id) values('99100000-0000-4000-8000-000000000001',16000,'awaiting_review','99100000-0000-4000-8000-0000000000b2')$$),'daily amount limit holds');
 insert into public.withdrawals(wallet_id,amount,status,bank_account_id) values('99100000-0000-4000-8000-000000000001',5000,'paid','99100000-0000-4000-8000-0000000000b2');
 select pg_temp.expect(pg_temp.rejects($$insert into public.withdrawals(wallet_id,amount,status,bank_account_id) values('99100000-0000-4000-8000-000000000001',5000,'awaiting_review','99100000-0000-4000-8000-0000000000b2')$$),'daily count limit holds');
+select pg_temp.expect(pg_temp.rejects($$insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,reason,checksum) values('withdrawal_controls',903,'{"new_account_cooldown_hours":1,"daily_max_count":1,"daily_max_amount":1,"require_recent_login_minutes":5000}','draft',now(),'test','w903')$$),'recent sign-in minutes stay in range');
 rollback;
