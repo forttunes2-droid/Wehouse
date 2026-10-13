@@ -47,6 +47,9 @@ type Quote = {
   cancellation_deadline?: string | null;
   cancellation_timezone?: string;
   refund_amount_ngn?: number;
+  original_price?: number;
+  discount_percent?: number;
+  discount_amount?: number;
 };
 
 const money = (value: number) => `₦${value.toLocaleString('en-NG')}`;
@@ -313,7 +316,7 @@ export default function HotelBooking({
           {quoteLoading ? <p className="mt-3 text-xs text-violet-700 dark:text-violet-300">Checking live room inventory…</p> : null}
           {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-700 dark:text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
           {quote?.available && quote.nights && quote.total_price ? (
-            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><p className="text-lg font-bold">₦{Number(quote.total_price).toLocaleString()}</p></div>
+            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">₦{Number(quote.original_price).toLocaleString()}</span> · {quote.discount_percent}% off from the hotel</p> : null}<p className="text-lg font-bold">₦{Number(quote.total_price).toLocaleString()}</p></div></div>
           ) : null}
         </section>
 

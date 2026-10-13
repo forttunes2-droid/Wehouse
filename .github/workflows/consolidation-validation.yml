@@ -136,6 +136,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fixed_fee_and_withdrawal_controls_contract.sql
       - name: Service Worker refund rules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_refund_rules_contract.sql
+      - name: Hotel discounts
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_discounts_contract.sql
       - name: Practical reciprocal roommate rules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
       - name: Fresh linked-provider recovery

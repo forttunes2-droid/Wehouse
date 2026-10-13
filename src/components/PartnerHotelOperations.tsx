@@ -1,4 +1,5 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
+import PartnerHotelDiscounts from "@/components/PartnerHotelDiscounts";
 import { hotelTodayMetrics, matchesHotelReservationFilter } from "@/lib/hotelDailyWork";
 import { hotelPaymentLabel, hotelRoomAvailability } from "@/lib/propertyNavigation";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -455,6 +456,7 @@ export default function PartnerHotelOperations({
                 ))}
                 {rooms.length === 0 ? <Empty text="No room types yet. Add the first sellable room type here." /> : null}
               </div>
+              {canManageRates && rooms.length > 0 ? <PartnerHotelDiscounts hotelId={hotel.hotel_id} rooms={rooms} /> : null}
             </section>
           ) : null}
 
