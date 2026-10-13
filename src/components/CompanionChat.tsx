@@ -1,4 +1,4 @@
-import { runSafeAction } from "@/lib/safeAction";
+import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
 import { useMessagePins } from "@/hooks/useMessagePins";
 import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -97,13 +97,15 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
     const queued = [...files];
     const replyId = replyingTo?.id || null;
     try {
-      await runSafeAction(`friend-chat:${companion.companion_id}:${text}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`, async () => {
+      const signature = `friend-chat:${companion.companion_id}:${text}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
+      await runSafeAction(signature, async () => {
         const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, companion.companion_id, companion.user_id)));
         const failed = uploaded.find((u) => u.error || !u.attachment);
         if (failed) throw failed.error || new Error("Could not upload the attachment");
         const { ciphertext, iv } = await encryptPrivateMessage("companion", companion.companion_id, companion.user_id, text);
-        const { error } = await sendCompanionEncryptedMessage(companion.companion_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined);
+        const { error } = await sendCompanionEncryptedMessage(companion.companion_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
         if (error) throw error;
+        releaseRequestKey(signature);
       });
       setDraft(""); setFiles([]); setReplyingTo(null);
       await load();

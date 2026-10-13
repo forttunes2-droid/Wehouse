@@ -15,6 +15,8 @@ import {
   customerConfirmCompletion,
   customerRaiseDispute,
   cancelBooking,
+  cancelPaidBookingBeforeStart,
+  requestWorkerRefundReview,
   getBookingDetails,
   BOOKING_STATUS_LABELS,
   markBookingMessagesRead,
@@ -575,6 +577,19 @@ export default function BookingNegotiationChat({
   }
   async function handleCustomerDispute() {
     if (!disputeReason.trim()) return toast.error("Enter a reason");
+    if (booking?.status === "in_progress") {
+      const { reviewId, error: reviewError } = await requestWorkerRefundReview(
+        bookingId,
+        "customer_cancel_after_start",
+        disputeReason.trim(),
+      );
+      if (reviewError || !reviewId)
+        return toast.error(reviewError?.message || "Refund review could not be requested");
+      toast.success("WeHouse is reviewing your refund. The money stays protected until it is decided.");
+      setShowDisputeForm(false);
+      void loadAll(true);
+      return;
+    }
     const { success, error } = await customerRaiseDispute(
       bookingId,
       disputeReason.trim(),
@@ -587,6 +602,22 @@ export default function BookingNegotiationChat({
   }
   async function handleCancel() {
     if (!cancelReason.trim()) return toast.error("Enter a reason");
+    if (booking?.status === "confirmed") {
+      const { result, error: cancelError } = await cancelPaidBookingBeforeStart(
+        bookingId,
+        cancelReason.trim(),
+      );
+      if (cancelError || !result?.cancelled)
+        return toast.error(cancelError?.message || "Booking could not be cancelled");
+      toast.success(
+        result.refund_amount
+          ? `Booking cancelled. ₦${Number(result.refund_amount).toLocaleString("en-NG")} is being refunded.`
+          : "Booking cancelled",
+      );
+      setShowCancelForm(false);
+      void loadAll(true);
+      return;
+    }
     const { success, error } = await cancelBooking(
       bookingId,
       cancelReason.trim(),
@@ -852,7 +883,7 @@ export default function BookingNegotiationChat({
                     onClick={() => setShowDisputeForm((v) => !v)}
                     className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] font-semibold text-red-300"
                   >
-                    Raise dispute
+                    {booking.status === "in_progress" ? "Ask for a refund review" : "Raise dispute"}
                   </button>
                 )}
               {!paymentReview &&
@@ -860,6 +891,7 @@ export default function BookingNegotiationChat({
                   "booking_requested",
                   "negotiating",
                   "waiting_payment",
+                  "confirmed",
                 ].includes(booking.status) && (
                   <button
                     onClick={() => setShowCancelForm((v) => !v)}

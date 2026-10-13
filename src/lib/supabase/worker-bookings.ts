@@ -125,6 +125,10 @@ export async function getPublicWorkerReviews(workerId:string){const{data,error}=
 export async function customerRaiseDispute(bookingId:string,reason:string){const{data,error}=await supabase.rpc('customer_raise_dispute',{p_booking_id:bookingId,p_reason:reason});return{success:data,error}}
 export async function cancelBooking(bookingId:string,reason:string){const{data,error}=await supabase.rpc('cancel_booking',{p_booking_id:bookingId,p_reason:reason});return{success:data,error}}
 
+export async function cancelPaidBookingBeforeStart(bookingId:string,reason:string){const{data,error}=await supabase.rpc('cancel_my_worker_booking',{p_booking_id:bookingId,p_reason:reason});return{result:data as {cancelled?:boolean;refund_amount?:number}|null,error}}
+
+export async function requestWorkerRefundReview(bookingId:string,kind:'customer_cancel_after_start'|'worker_no_show'|'worker_not_delivered',reason:string){const{data,error}=await supabase.rpc('request_worker_refund_review',{p_booking_id:bookingId,p_kind:kind,p_reason:reason});return{reviewId:data as string|null,error}}
+
 export async function getBookingDetails(bookingId:string){
   const{data,error}=await supabase.rpc('get_my_worker_booking_details',{p_booking_id:bookingId});
   return{booking:error||!data?null:normalizeWorkerBookingRow(data as any),error};

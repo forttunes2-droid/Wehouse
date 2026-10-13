@@ -30,8 +30,8 @@ export async function unblockFriend(userId:string){
   return {error};
 }
 // Companion chat uses the same ciphertext and iv as other private chats; the server never sees plaintext.
-export async function sendCompanionEncryptedMessage(companionId:string,ciphertext:string,iv:string,attachments:unknown[]=[],replyToId?:string){
-  const {data,error}=await supabase.rpc('send_companion_encrypted_message',{p_companion_id:companionId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId??null});
+export async function sendCompanionEncryptedMessage(companionId:string,ciphertext:string,iv:string,attachments:unknown[]=[],replyToId?:string,clientMessageId?:string){
+  const {data,error}=await supabase.rpc('send_companion_encrypted_message',{p_companion_id:companionId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId??null,p_client_message_id:clientMessageId??null});
   return {id:data as string|null,error};
 }
 export async function getCompanionEncryptedMessages(companionId:string){

@@ -36,6 +36,8 @@ select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-00000000
 select set_config('test.cid',(select (x->>'companion_id') from jsonb_array_elements(public.list_my_companions()) x limit 1),true);
 select public.respond_to_companion_request(current_setting('test.cid')::uuid,true);
 select pg_temp.expect(public.send_companion_encrypted_message(current_setting('test.cid')::uuid,'ZmFrZQ==','aXY=') is not null,'accepted Companion can send ciphertext');
+select pg_temp.expect(public.send_companion_encrypted_message(current_setting('test.cid')::uuid,'ZmFrZQ==','aXY=','[]'::jsonb,null,'98200000-0000-4000-8000-000000000001')=public.send_companion_encrypted_message(current_setting('test.cid')::uuid,'ZmFrZQ==','aXY=','[]'::jsonb,null,'98200000-0000-4000-8000-000000000001'),'same client id sends one message');
+select pg_temp.expect((select count(*) from public.companion_messages where id='98200000-0000-4000-8000-000000000001')=1,'duplicate send stored once');
 select pg_temp.expect(pg_temp.rejects(format('select public.send_companion_encrypted_message(%L::uuid,%L,%L)',current_setting('test.cid'),'','x')),'empty ciphertext is rejected');
 
 -- Outsider cannot read or write the thread.
