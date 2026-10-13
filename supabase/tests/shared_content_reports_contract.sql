@@ -46,7 +46,7 @@ select pg_temp.expect((select subject_user_id from public.admin_list_content_rep
 select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000006","role":"authenticated"}',true);
 select pg_temp.expect((select count(*) from public.admin_list_content_reports())=3,'Creator sees every report');
 
-select set_config('request.jwt.claims','{\"sub\":\"97000000-0000-4000-8000-000000000008\",\"role\":\"authenticated\"}',true);
+select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000008","role":"authenticated"}',true);
 select pg_temp.expect((select count(*) from public.admin_list_content_reports())=1,'branch admin sees only Ikeja reports');
 select pg_temp.expect((select subject_user_id from public.admin_list_content_reports() limit 1)='sr-b','branch admin sees the Ikeja subject');
 
