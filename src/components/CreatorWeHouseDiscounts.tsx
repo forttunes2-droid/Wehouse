@@ -9,6 +9,7 @@ export default function CreatorWeHouseDiscounts() {
   const [state, setState] = useState("");
   const [percent, setPercent] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ceiling, setCeiling] = useState(0);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("creator_list_wehouse_discounts");
@@ -16,11 +17,14 @@ export default function CreatorWeHouseDiscounts() {
     setRows((data as Row[]) || []);
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void supabase.rpc("wehouse_discount_ceiling").then(({ data }) => setCeiling(Number(data || 0)));
+  }, []);
 
   async function save() {
     const value = Number(percent);
     if (!state.trim()) return toast.error("Enter a state");
-    if (!Number.isFinite(value) || value < 5 || value > 15) return toast.error("WeHouse-funded discounts are 5–15%");
+    if (!Number.isFinite(value) || value < 5 || value > ceiling) return toast.error(`WeHouse-funded discounts are 5–${ceiling}% (your commission)`);
     setBusy(true);
     const { error } = await supabase.rpc("creator_set_wehouse_discount", { p_listing_id: null, p_state: state.trim(), p_percent: value });
     setBusy(false);
@@ -41,10 +45,10 @@ export default function CreatorWeHouseDiscounts() {
   return (
     <section className="mt-6 border-t border-[var(--wh-border-subtle)] pt-5">
       <p className="text-[9px] font-bold uppercase tracking-[.15em] text-violet-300">WeHouse-funded discount</p>
-      <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">WeHouse pays 5–15% of the nightly price for every Short Let in a state. It adds to any host discount, up to 50% in total, and only affects new bookings.</p>
+      <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">WeHouse pays at least 5% and at most its own commission ({ceiling}% now) of the nightly price for every Short Let in a state. It adds to any host discount, up to 50% in total, and only affects new bookings.</p>
       <div className="mt-3 flex gap-2">
         <input value={state} onChange={(e) => setState(e.target.value)} placeholder="State, e.g. Lagos" aria-label="State" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none" />
-        <input value={percent} inputMode="numeric" onChange={(e) => setPercent(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} placeholder="5–15 %" aria-label="Discount percent" className="h-11 w-24 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none" />
+        <input value={percent} inputMode="numeric" onChange={(e) => setPercent(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} placeholder={`5–${ceiling} %`} aria-label="Discount percent" className="h-11 w-24 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm outline-none" />
         <button type="button" disabled={busy || !state || !percent} onClick={() => void save()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-35">Start</button>
       </div>
       {rows.length ? (
