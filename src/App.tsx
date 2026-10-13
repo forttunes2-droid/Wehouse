@@ -1728,29 +1728,15 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     unreadCount + supportUnreadCount,
     notificationCount,
   );
-  const hide = [
-    "profile",
-    "account",
-    "detail",
-    "chat",
-    "saved",
-    "followed_searches",
-    "profile_edit",
-    "privacy",
-    "security",
-    "devices",
-    "new_listing",
-    "worker_setup",
-    "hotel_detail",
-    "hotel_booking",
-    "worker_verification",
-    "payment_return",
-  ] as NavPage[];
+  // The tab bar belongs to the four main tabs only. Every other screen is a
+  // drill-down and keeps its own Back control, so the bar never sits on top of
+  // a property, a chat, a booking flow or any settings page.
+  const bottomNavPages = ["search", "my_reservations", "conversation", "messages"] as NavPage[];
   const showBottomNav =
       isUserRole &&
       !conversationOpen &&
       !nestedScreen &&
-      !hide.includes(navPage),
+      bottomNavPages.includes(navPage),
     supportRole = ["user", "worker", "property_partner", "hosting", "hotel_staff"].includes(
       profile?.role || "",
     );
