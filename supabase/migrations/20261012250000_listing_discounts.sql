@@ -36,7 +36,7 @@ begin
   select * into a from public.profiles p where p.auth_id=(select auth.uid())::text and not coalesce(p.deleted,false) and not coalesce(p.suspended,false) and not coalesce(p.banned,false) limit 1;
   if a.user_id is null then raise exception 'Sign in first'; end if;
   if not exists(select 1 from public.listings l where l.id=p_listing_id and l.owner_id=a.user_id) then raise exception 'You can only discount your own property'; end if;
-  if p_percent is null or p_percent<5 or p_percent>50 then raise exception 'A discount must be between 5% and 50%'; end if;
+  if p_percent is null or p_percent<5 or p_percent>50 then raise exception 'A discount must be between 5%% and 50%%'; end if;
   update public.listing_discounts set active=false where listing_id=p_listing_id and funded_by='host' and active;
   insert into public.listing_discounts(listing_id,funded_by,percent,ends_on,created_by) values(p_listing_id,'host',p_percent,p_ends_on,a.user_id) returning id into v_id;
   return v_id;
@@ -59,7 +59,7 @@ begin
   v_actor:=public._admin_dashboard_actor();
   if v_actor.role<>'creator' then raise exception 'Only the Creator can set a WeHouse-funded discount'; end if;
   if (p_listing_id is null)=(v_state is null) then raise exception 'Choose one property or one state'; end if;
-  if p_percent is null or p_percent<5 or p_percent>15 then raise exception 'A WeHouse-funded discount must be between 5% and 15%'; end if;
+  if p_percent is null or p_percent<5 or p_percent>15 then raise exception 'A WeHouse-funded discount must be between 5%% and 15%%'; end if;
   update public.listing_discounts set active=false where funded_by='wehouse' and active
     and ((p_listing_id is not null and listing_id=p_listing_id) or (v_state is not null and state_key=v_state));
   insert into public.listing_discounts(listing_id,state_key,funded_by,percent,ends_on,created_by)
