@@ -323,6 +323,7 @@ export type HotelDiscountRow = {
   percent: number;
   starts_on: string;
   ends_on: string | null;
+  funded_by: 'host' | 'wehouse';
 };
 
 export async function partnerListHotelDiscounts(hotelId: number) {

@@ -60,7 +60,7 @@ export default function PartnerHotelDiscounts({ hotelId, rooms }: { hotelId: num
   return (
     <section className="mt-6 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <h3 className="text-base font-bold">Discounts</h3>
-      <p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">Choose what the discount covers. Guests see the normal price crossed out and your discount. The narrowest discount that applies is used; they do not add up.</p>
+      <p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">Choose what the discount covers. Guests see the normal price crossed out and your discount. A WeHouse-funded discount never reduces what you are paid. The narrowest discount that applies is used; they do not add up.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-xs text-[var(--wh-text-muted)]">Covers
           <select className={field} value={roomId} onChange={(e) => { setRoomId(e.target.value); setPlanId(""); }}>
@@ -87,8 +87,8 @@ export default function PartnerHotelDiscounts({ hotelId, rooms }: { hotelId: num
           : rows.length === 0 ? <p className="text-sm text-[var(--wh-text-secondary)]">No active discounts.</p>
           : rows.map((row) => (
             <div key={row.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-sm">
-              <div><strong>{row.percent}% off</strong> · {scopeLabel(row)}<p className="text-xs text-[var(--wh-text-muted)]">{row.ends_on ? `Until check-in ${row.ends_on}` : "No end date"}</p></div>
-              <button type="button" disabled={busy} onClick={() => void clear(row.id)} className="min-h-10 rounded-lg border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Remove</button>
+              <div><strong>{row.percent}% off</strong> · {scopeLabel(row)}{row.funded_by === "wehouse" ? " · paid by WeHouse" : ""}<p className="text-xs text-[var(--wh-text-muted)]">{row.ends_on ? `Until check-in ${row.ends_on}` : "No end date"}</p></div>
+              {row.funded_by === "host" ? <button type="button" disabled={busy} onClick={() => void clear(row.id)} className="min-h-10 rounded-lg border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Remove</button> : null}
             </div>
           ))}
       </div>

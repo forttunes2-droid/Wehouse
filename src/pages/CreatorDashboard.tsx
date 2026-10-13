@@ -33,6 +33,7 @@ import CreatorFixedFees from "@/components/CreatorFixedFees";
 import CreatorWithdrawalControls from "@/components/CreatorWithdrawalControls";
 import CreatorWorkerRefundRules from "@/components/CreatorWorkerRefundRules";
 import CreatorWeHouseDiscounts from "@/components/CreatorWeHouseDiscounts";
+import CreatorHotelDiscounts from "@/components/CreatorHotelDiscounts";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
@@ -991,6 +992,7 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
           <CreatorWorkerRefundRules />
           <CreatorWithdrawalControls />
           <CreatorWeHouseDiscounts />
+          <CreatorHotelDiscounts />
         </>
       )}
       {section === "workers" && (
