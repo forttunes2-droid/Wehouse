@@ -140,3 +140,15 @@ export async function logPasswordChange(userId: string, authId: string) {
   });
   return { error };
 }
+
+// Password accounts only. The password is checked first, then Supabase emails a confirmation link
+// to the new address. The old address stays active until that link is opened.
+export async function requestEmailChange(currentPassword: string, currentEmail: string, newEmail: string) {
+  const clean = newEmail.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return { error: { message: 'Enter a valid email address' } };
+  if (clean === currentEmail.trim().toLowerCase()) return { error: { message: 'That is already your email' } };
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword });
+  if (signInError) return { error: { message: 'Current password is incorrect' } };
+  const { error } = await supabase.auth.updateUser({ email: clean }, { emailRedirectTo: `${window.location.origin}/` });
+  return { error: error ? { message: error.message || 'Email could not be changed' } : null };
+}

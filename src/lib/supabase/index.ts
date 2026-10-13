@@ -20,6 +20,7 @@ export {
   isUsernameTaken,
   updateUsername,
   changePassword,
+  requestEmailChange,
   logPasswordChange,
 } from "./auth";
 
