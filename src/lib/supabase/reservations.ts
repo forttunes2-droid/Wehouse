@@ -212,6 +212,11 @@ export async function cancelReservation(reservationId: string) {
   return { reservation: (data as ReservationRecord) || null, error };
 }
 
+export async function cancelPaidShortLetStay(reservationId: string) {
+  const { data, error } = await supabase.rpc("cancel_my_paid_short_let", { p_reservation_id: reservationId });
+  return { refundAmount: Number((data as { refund_amount?: number } | null)?.refund_amount ?? 0), error };
+}
+
 export async function updateReservationPlan(
   reservationId: string,
   planYears: number,

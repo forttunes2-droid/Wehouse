@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   cancelReservation,
+  cancelPaidShortLetStay,
   createInspectionRequest,
   getInspectionRequestsForUser,
   getReservationsForUser,
@@ -158,7 +159,7 @@ export default function MyReservations({
   const [arrivalBusy, setArrivalBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<{
-    kind: "cancel_housing" | "cancel_hotel";
+    kind: "cancel_housing" | "cancel_hotel" | "cancel_short_let_paid";
     row: any;
   } | null>(null);
 
@@ -399,6 +400,15 @@ export default function MyReservations({
     await load();
   }
 
+  async function cancelPaidShortLet(row: any) {
+    setBusyId(row.id);
+    const { refundAmount, error } = await cancelPaidShortLetStay(row.id);
+    setBusyId(null);
+    if (error) return toast.error(error.message);
+    toast.success(`Stay cancelled. ₦${refundAmount.toLocaleString()} is being refunded to your original payment method.`);
+    await load();
+  }
+
   async function cancelHotel(row: any) {
     const id = Number(row.booking_id);
     setBusyId(`hotel-${id}`);
@@ -540,6 +550,7 @@ export default function MyReservations({
     setPending(null);
     if (!action) return;
     if (action.kind === "cancel_housing") return cancelHousing(action.row);
+    if (action.kind === "cancel_short_let_paid") return cancelPaidShortLet(action.row);
     return cancelHotel(action.row);
   }
 
@@ -737,7 +748,10 @@ export default function MyReservations({
           onResume={() => void continueHousing(activeHousing)}
           onCancel={() => {
             setActiveHousing(null);
-            setPending({ kind: "cancel_housing", row: activeHousing });
+            setPending({
+              kind: activeHousing.stay_type === "short_let" && activeHousing.stay_payment_protection_id ? "cancel_short_let_paid" : "cancel_housing",
+              row: activeHousing,
+            });
           }}
           onInspect={() => void inspectHousing(activeHousing)}
           onRent={() => void payHousingRent(activeHousing)}
@@ -924,7 +938,7 @@ export default function MyReservations({
       <ConfirmDialog
         isOpen={Boolean(pending)}
         title="Cancel this reservation?"
-        description={pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the reservation and cannot be undone."}
+        description={pending?.kind === "cancel_short_let_paid" ? "This cancels your stay and queues a refund of everything you paid, discount included, to your original payment method. It is complete only when the provider confirms it. This cannot be undone." : pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the reservation and cannot be undone."}
         confirmLabel="Cancel reservation"
         variant="danger"
         onCancel={() => setPending(null)}
@@ -1556,6 +1570,11 @@ function PropertyBookingDetail({
           </section>
           <PropertyBookingJourney row={row} inspection={inspection} />
           <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
+          {short && row.stay_payment_protection_id && !["cancelled", "completed", "expired"].includes(String(row.status)) && journey.action !== "reservation_payment" ? (
+            <button type="button" disabled={busy} onClick={onCancel} className="mt-4 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
+              Cancel stay and get a refund
+            </button>
+          ) : null}
           {row.shared_payment_group_id && <button type="button" onClick={()=>onOpenShared(String(row.shared_payment_group_id))} className="mt-4 min-h-12 w-full rounded-xl bg-violet-600 px-4 text-sm font-semibold">View shared stay</button>}
 
           {journey.action === "reservation_payment" ? (
