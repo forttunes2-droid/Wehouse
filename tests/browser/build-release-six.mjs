@@ -12,6 +12,8 @@ const mock = [
   "const s=()=>window.__releaseSix;",
   "export const getStoredSessionId=()=> 'current-session';",
   "export const parseDeviceInfo=()=>({device:'Test phone',browser:'Chrome',os:'Android'});",
+  "export const startEmailChangeWithGoogle=async()=>({error:null});",
+  "export const requestEmailChange=async()=>({error:null});",
   "export const changePassword=async()=>({error:null});",
   "export const logPasswordChange=async()=>({error:null});",
   "export const supabase={",
