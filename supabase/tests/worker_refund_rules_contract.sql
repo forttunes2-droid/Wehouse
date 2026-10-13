@@ -45,20 +45,20 @@ reset role;
 select pg_temp.expect((select protection_state from public.payment_protection_transactions where id='98100000-1000-4000-8000-000000000002')='disputed','money stays protected during review');
 select set_config('request.jwt.claims','{"sub":"98100000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 set local role authenticated;
-select pg_temp.expect(pg_temp.rejects($select * from public.list_worker_refund_reviews('open')$),'Admin cannot read globally unscoped refund queue');
-select pg_temp.expect(pg_temp.rejects($select public.decide_worker_refund((select id from rv),40,'Admin is not Creator')$),'Admin cannot decide an unscoped refund');
+select pg_temp.expect(pg_temp.rejects($$select * from public.list_worker_refund_reviews('open')$$),'Admin cannot read globally unscoped refund queue');
+select pg_temp.expect(pg_temp.rejects($$select public.decide_worker_refund((select id from rv),40,'Admin is not Creator')$$),'Admin cannot decide an unscoped refund');
 reset role;
 
 select set_config('request.jwt.claims','{"sub":"98100000-0000-4000-8000-000000000004","role":"authenticated"}',true);
 set local role authenticated;
-select pg_temp.expect(pg_temp.rejects($select * from public.list_worker_refund_reviews('open')$),'Staff cannot read globally unscoped refund queue');
-select pg_temp.expect(pg_temp.rejects($select public.decide_worker_refund((select id from rv),40,'Staff is not Creator')$),'Staff cannot decide an unscoped refund');
+select pg_temp.expect(pg_temp.rejects($$select * from public.list_worker_refund_reviews('open')$$),'Staff cannot read globally unscoped refund queue');
+select pg_temp.expect(pg_temp.rejects($$select public.decide_worker_refund((select id from rv),40,'Staff is not Creator')$$),'Staff cannot decide an unscoped refund');
 reset role;
 
 select set_config('request.jwt.claims','{"sub":"98100000-0000-4000-8000-000000000005","role":"authenticated"}',true);
 set local role authenticated;
 select pg_temp.expect((select count(*) from public.list_worker_refund_reviews('open'))=1,'Creator can see the global refund queue');
-select pg_temp.expect(pg_temp.rejects($select public.decide_worker_refund((select id from rv),150,'over one hundred percent')$),'invalid share refused');
+select pg_temp.expect(pg_temp.rejects($$select public.decide_worker_refund((select id from rv),150,'over one hundred percent')$$),'invalid share refused');
 select pg_temp.expect((public.decide_worker_refund((select id from rv),40,'Half the work was done')).refund_amount=4000,'Creator can decide partial refund');
 reset role;
 select pg_temp.expect((select amount from public.financial_action_outbox where action_type='release_worker_payment' and payment_protection_id='98100000-1000-4000-8000-000000000002')=6000,'rest goes to the worker');
