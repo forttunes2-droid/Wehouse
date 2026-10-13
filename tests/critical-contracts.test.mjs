@@ -130,6 +130,21 @@ test('Validation workflow runs regression tests before build',()=>{
   assert.match(workflow,/Reject duplicate migration versions/);
 });
 
+test('Disposable Supabase workflows share the pinned CLI release',()=>{
+  const paths=[
+    '.github/workflows/consolidation-validation.yml',
+    '.github/workflows/capacity-medium.yml',
+    '.github/workflows/capacity-stage1.yml',
+    '.github/workflows/mixed-journey-preflight.yml',
+  ];
+  for(const path of paths){
+    const workflow=read(path);
+    assert.match(workflow,/uses: supabase\/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244/);
+    assert.match(workflow,/version: 2\.114\.0/);
+    assert.doesNotMatch(workflow,/npx --yes supabase@/);
+  }
+});
+
 test('Internal lifecycle transition helper closes the execution review queue',()=>{
   const preflight=read('supabase/migrations/20260913051251_close_invoker_registry_and_projection_rls.sql');
   const migration=read('supabase/migrations/20260913055204_close_internal_transition_registry_drift.sql');
