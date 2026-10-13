@@ -25,6 +25,7 @@ import InboxActivityEntry from "@/components/InboxActivityEntry";
 import AdminSecurityCases from "@/components/AdminSecurityCases";
 import BackButton from "@/components/BackButton";
 import AdminReports from "@/components/AdminReports";
+import AdminRefundReviews from "@/components/AdminRefundReviews";
 
 type AdminTab = "overview" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security" | "reports";
@@ -422,7 +423,12 @@ function Operations({
           initialRecordId={target?.operation === "bookings" ? target.id : undefined}
         />
       )}{" "}
-      {active === "reports" && <AdminReports />}{" "}
+      {active === "reports" && (
+        <div className="space-y-8">
+          <AdminReports />
+          <AdminRefundReviews />
+        </div>
+      )}{" "}
       {active === "security" && (
         <AdminSecurityCases
           onViewAccount={onView}
