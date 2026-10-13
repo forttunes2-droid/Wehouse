@@ -1,3 +1,4 @@
+import AdminReports from "@/components/AdminReports";
 import { internalActivityDestination } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import CreatorOverview from "@/components/CreatorOverview";
@@ -45,6 +46,7 @@ type Operation =
   | "finance"
   | "analytics"
   | "audit"
+  | "reports"
   | "platform";
 type PersonRole = "all" | "property_partner";
 type Props = {
@@ -111,6 +113,12 @@ const OPS: Array<{
     id: "analytics",
     label: "Analytics",
     note: "Platform trends and lifecycle movement.",
+    group: "Platform",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    note: "User reports from chats and profiles, across all regions.",
     group: "Platform",
   },
   {
@@ -321,6 +329,7 @@ function Operations({
     <div className="space-y-5">
       {active === "people" && <People userId={profile.user_id} initialRole={target?.operation === 'people' && target.id === 'property_partner' ? 'property_partner' : 'all'} onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
+      {active === "reports" && <AdminReports />}
       {active === "properties" && (
         <div className="space-y-5">
           <AccountIdentityReviewQueue accountRole="property_partner" />
