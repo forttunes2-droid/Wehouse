@@ -25,7 +25,6 @@ import InboxActivityEntry from "@/components/InboxActivityEntry";
 import AdminSecurityCases from "@/components/AdminSecurityCases";
 import BackButton from "@/components/BackButton";
 import AdminReports from "@/components/AdminReports";
-import AdminRefundReviews from "@/components/AdminRefundReviews";
 import { formatMoney } from "@/lib/regional";
 
 type AdminTab = "overview" | "operations" | "inbox";
@@ -425,10 +424,7 @@ function Operations({
         />
       )}{" "}
       {active === "reports" && (
-        <div className="space-y-8">
-          <AdminReports />
-          <AdminRefundReviews />
-        </div>
+        <AdminReports />
       )}{" "}
       {active === "security" && (
         <AdminSecurityCases
