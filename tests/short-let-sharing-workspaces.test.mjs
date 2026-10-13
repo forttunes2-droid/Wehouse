@@ -43,7 +43,7 @@ test('Short Let creates a dated hold, reviews it, and only opens checkout after 
   const text = fs.readFileSync('src/pages/ListingDetailCore.tsx', 'utf8');
   const reserve = text.slice(text.indexOf('async function reserveShortLet'), text.indexOf('async function openCheckout'));
   const payment = text.slice(text.indexOf('async function continueReservationPayment'), text.indexOf('async function editPaymentReview'));
-  assert.match(reserve, /createShortStayReservation\(listingId, shortCheckIn, shortCheckOut, shortGuests\)/);
+  assert.match(reserve, /createShortStayReservation\(listingId, shortCheckIn, shortCheckOut, shortGuests, requestKeyFor\(reserveSignature\)\)/);
   assert.match(reserve, /!selection.valid/);
   assert.match(reserve, /setPaymentReview\("short_let"\)/);
   assert.doesNotMatch(reserve, /initializeReservationPayment|window\.location\.assign/);
