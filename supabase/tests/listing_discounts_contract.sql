@@ -39,12 +39,6 @@ select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discou
 select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',10) is not null,'Creator can fund a state-wide discount up to the lowest commission');
 select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e1')=28,'host 20% plus WeHouse limited to 10% of the host price (8%)');
 select pg_temp.expect(public.listing_discount_percent('98000000-0000-4000-8000-0000000000e2')=10,'state discount reaches other Lagos homes');
-select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
-select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));
-select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=0,'Creator can stop it');
-select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
-select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount(null,'Lagos',10)$$),'an Admin cannot spend WeHouse money');
-select pg_temp.expect(pg_temp.rejects($$select * from public.creator_list_wehouse_discounts()$$),'an Admin cannot list WeHouse discounts');
 reset role;
 select pg_temp.expect((select partner_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e1',current_date,0))=20,'the partner side stays at the host discount');
 select pg_temp.expect((select wehouse_percent from public.short_let_discount_breakdown('98000000-0000-4000-8000-0000000000e1',current_date,0))=8,'WeHouse share is its commission on the host price, not on the list price');
@@ -52,5 +46,12 @@ select pg_temp.expect((select wehouse_percent from public.short_let_discount_bre
 select pg_temp.expect((select amount_payee from public.short_let_payout_split(72000,80000,10))=72000,'partner keeps rent after commission even when WeHouse funds a discount');
 select pg_temp.expect((select amount_commission from public.short_let_payout_split(72000,80000,10))=0,'WeHouse funded its whole commission');
 select pg_temp.expect((select amount_commission from public.short_let_payout_split(76000,80000,10))=4000,'WeHouse keeps its commission minus what it funded');
+set local role authenticated;
+select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
+select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));
+select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=0,'Creator can stop it');
+select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount(null,'Lagos',10)$$),'an Admin cannot spend WeHouse money');
+select pg_temp.expect(pg_temp.rejects($$select * from public.creator_list_wehouse_discounts()$$),'an Admin cannot list WeHouse discounts');
 select 'listing_discounts_contract_ok';
 rollback;
