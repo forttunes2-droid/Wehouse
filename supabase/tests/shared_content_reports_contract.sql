@@ -16,8 +16,8 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_
 ('97000000-0000-4000-8000-000000000005','sr-abuja-admin@example.invalid','sr-abuja-admin','user',true,'consumer','AA','Abuja','Garki','Garki'),
 ('97000000-0000-4000-8000-000000000006','sr-creator@example.invalid','sr-creator','user',true,'consumer','CR','Lagos','Ikeja','Ikeja'),
 ('97000000-0000-4000-8000-000000000008','sr-branch-admin@example.invalid','sr-branch-admin','user',true,'consumer','BA','Lagos','Ikeja','Ikeja');
-insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state) values
-('sr-lagos-admin','admin','state','Lagos'),('sr-abuja-admin','admin','state','Abuja'),('sr-creator','creator','global',null),
+insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state,scope_lga) values
+('sr-lagos-admin','admin','state','Lagos',null),('sr-abuja-admin','admin','state','Abuja',null),('sr-creator','creator','global',null,null),
 ('sr-branch-admin','admin','branch','Lagos','Ikeja');
 insert into public.conversations(id,conversation_type,participant_a,participant_b) values
 ('97000000-0000-4000-8000-0000000000a1','roommate','sr-a','sr-b');
