@@ -1,6 +1,6 @@
 # WeHouse release roadmap
 
-**Status date:** 12 October 2026  
+**Status date:** 13 October 2026  
 **Working branch:** `reconcile/readiness-baseline-20261012` (PR #118)  
 **Purpose:** take WeHouse from a substantial codebase to one verified, supportable web product. R1–R11 remain the engineering checklist; this document adds an execution order, owners, evidence, and a realistic release window.
 
@@ -19,12 +19,13 @@ A green build alone is not product completion. Native-store release and a capaci
 
 ## Current baseline
 
-- PR #118 is open against `main`. The current reviewed source commit is `e1cd31264475d4dad19dbfdbb3f8c903ccb693fd`. It includes the stale signed-out Bookings assertion fix and the browser-job FFmpeg timeout correction.
-- Required checks observed on `e1cd312` passed: browser interaction matrix, media-compression/FFmpeg, structural regression, build, isolated mixed-journey preflight, consolidation validation (migration replay/tests/build/existing-account upgrade), and deployment previews. Vercel has a READY deployment for that exact SHA; Netlify preview is green. Reconfirm exact-SHA status after any PR update.
-- Both connected Supabase projects report healthy status. Their applied migration histories differ: production has 712 recorded entries and test has 694, with different latest versions. These counts are not evidence of a defect by themselves. Reconcile the histories using the repository's read-only release plan and explain each difference before any database write. No production writes were made during the product audit.
-- The readiness audit's future-dated headings (20 and 21 October) were corrected to 12 October and the file renamed `PRODUCT_READINESS_AUDIT_2026-10-12.md`. Its verification claims still need re-checking against current source before they are treated as evidence.
-- Product/code findings are in [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md); the end-to-end rules and sequencing are in [WEHOUSE_OPERATING_MODEL_R1_R11.md](WEHOUSE_OPERATING_MODEL_R1_R11.md). Open contracts include owner unlisting/removal, complete public reporting and moderation, Short Let sleeping facts, provider fulfillment/packages and response deadlines, checkout review/edit, Paystack settlement/refunds, and store billing for digital products.
-- Production readiness still includes external or unverified work: legal and operating approval, signed payment-provider journeys, role-by-role security evidence, complete signed-in screen/device checks, recovery drills, and hosted load testing. Do not promise a million-user capacity or a full transactional launch date before those gates pass.
+- PR #118 is open and unmerged at `63aa86ad5b6554d8efe38acebefd9eb66a37dd87` (254 changed files). Build, Structural Regression, Consolidation Validation, Isolated mixed journey preflight, Capacity Stage 1 baseline, and Medium disposable catalog passed on that commit. Vercel and Netlify report successful preview deployments for the commit.
+- The Experience browser check failed at the Short Let date-review step: after clicking “Review dates”, the expected accessible review dialog did not appear. The dialog markup and label are present in the current source, so the failure still needs to be reproduced and traced to its booking action/test fixture. Do not mark that journey passed by changing only the selector.
+- The hosted Test catalog passed 10–100 requests/second; at 100 requests/second it completed 3,000/3,000 with 0 errors, 0 retries and 228 ms p95. The 200 requests/second tier failed (3,643 errors, 1,699 dropped, 14,383 ms p95). The 1,000 requests/second test has not run. This is a catalog RPC test, not end-to-end app or payment capacity evidence.
+- GitHub's disposable-stack migration replay, database contracts, existing-account upgrade and build checks passed. Live Supabase histories are behind this PR: WeHouse Test currently ends at `20261012113554`; Production ends at `20261010120000`. The newer PR migrations are not recorded in Test. No database writes were made during this check.
+- The repository's `scripts/coordinated-database-release.py` is explicitly restricted to the Production database connection; it cannot safely be used as a Test-project check/apply tool. The direct Supabase reads here compared project histories but did not run that coordinated script. Do not apply migrations until a Test-specific ordered release plan preserves exact versions and explains history differences.
+- “Friend” is the approved user-facing name. Older decision-log and roadmap wording contradicted that decision; the decision log has now been aligned. Internal `companion` identifiers remain for database/API/storage compatibility.
+- Product readiness is not complete: live Paystack charge/webhook/refund journeys; the failed Short Let review journey; Owner pause/unlist/removal behavior across all property types; Hotel Friend split and hotel discount rules; service fulfillment modes, package selection and response deadlines; security-password/step-up verification; provider/Creator/Admin/Staff dashboard checks in both themes; and role-by-role phone/tablet/desktop visual checks still need evidence. The 2–4 week release-candidate window below is a planning estimate only and is no longer dependable until these checks close.
 
 ## Delivery sequence and ownership
 
@@ -62,17 +63,17 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 |---|---|---|
 | Security | Hotel data exposure fix | Done |
 | Security | Admin extra security password (extend Creator step-up) | Codex |
-| Reports | Report in Roommate, Companion, worker, hotel chats and profiles | Done |
+| Reports | Report in Roommate, Friend, worker, hotel chats and profiles | Built; CI contracts pass, hosted user flow still needs full check |
 | Reports | Admin and Creator queues with state and local-area scoping | Done (state and branch/LGA contracts pass in CI) |
 | Connections | Roommate cancel, 30-day wait, other person notified | Done |
-| Connections | Companion bucket of 5, chat, split pay | Built |
-| Connections | Companion request daily cap and expiry | Built: unanswered requests expire after 24 hours and free the slot; 10 requests per person per day. Both numbers are single functions in the database and were confirmed by the owner |
-| Connections | Friend chat matches Roommate chat | Built: photos, videos, voice notes, replies, reactions and delete-for-me, all end-to-end encrypted. Friend media is stored under its own `e2ee/companion/` path that only the two Friends can open. While blocked, nobody can send, react or upload, but both can still read the old chat |
-| Connections | User-facing name for the separate Roommate/payment-sharing connection | Open: user suggested “Connection”; current app says “Friend” |
-| Connections | Hotel and Companion conversation-info screens | Open |
+| Connections | Friend list limit of 5, requests, chat and split pay | Built; two-device E2EE and real-device theme check remain |
+| Connections | Friend request daily cap and expiry | Built: unanswered requests expire after 24 hours; 10 per person per day |
+| Connections | Friend chat: encrypted messages, media and controls | Built; internal storage path remains `e2ee/companion/`; two-device encryption check remains |
+| Connections | User-facing name | Friend confirmed; internal database/API objects retain `companion` |
+| Connections | Hotel and Friend conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount on the posting form | Built (Short Let, optional field when posting; applied right after the listing is saved) |
-| Pricing | Creator WeHouse-funded discount control (5-15%, capped at the commission WeHouse earns, per state, Booking money screen) | Built |
+| Pricing | Creator WeHouse-funded discount control | Built and commission-capped in current migration; docs still conflict on whether the campaign cap is 15% or commission-only—reconcile before campaigns |
 | Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
 | Pricing | Hotel discounts | Open (hotels price through rate plans; needs an owner choice) |
 | Pricing | Display, charge and refund agree on the test project | Codex |
@@ -86,7 +87,7 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 | UX | One loading and animation pattern (33 spinners, 6 skeletons today) | Open |
 | UX | Back, refresh, offline, sign-in/out audit | Open |
 | Scale | CDN caching, read replicas, request queue, rate limits | Open (design only) |
-| Scale | catalog load test at 100 req/s, then 1,000 | Codex |
+| Scale | Catalog capacity evidence | 10–100 req/s passed at last head; 200 req/s failed; 1,000 req/s not run |
 | Payments | Paystack test-mode journeys | Codex |
 | Release | Two-device E2EE test | Done by owner |
 | Release | Phone light/dark check | Owner |
