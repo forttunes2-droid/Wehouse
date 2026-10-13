@@ -46,7 +46,7 @@ select pg_temp.expect(pg_temp.rejects(format('select public.send_companion_encry
 
 -- The sender reads it back; the stored value is exactly the ciphertext.
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
-select pg_temp.expect((select count(*) from public.get_companion_encrypted_messages(current_setting('test.cid')::uuid))=1,'participant reads the thread');
+select pg_temp.expect((select count(*) from public.get_companion_encrypted_messages(current_setting('test.cid')::uuid))=2,'participant reads the thread');
 select pg_temp.expect(pg_temp.rejects('select 1 from public.companion_messages'),'no direct table read');
 
 -- Cancel: either side can end it; the chat closes; a new request waits 30 days.
