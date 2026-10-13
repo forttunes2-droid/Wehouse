@@ -17,10 +17,12 @@ test("Creator exposes one nested Booking & money rules surface", async () => {
     (dashboard.match(/label: "Booking & money rules"/g) || []).length,
     1,
   );
-  assert.match(
-    dashboard,
-    /section === "booking_money" && <CreatorBookingMoneyRules \/>/,
-  );
+  const bookingMoneyStart = dashboard.indexOf('{section === "booking_money"');
+  const bookingMoneyEnd = dashboard.indexOf('{section === "workers"', bookingMoneyStart);
+  const bookingMoney = dashboard.slice(bookingMoneyStart, bookingMoneyEnd);
+  assert.match(bookingMoney, /section === "booking_money"/);
+  assert.match(bookingMoney, /<CreatorBookingMoneyRules \/>/);
+  assert.match(bookingMoney, /<CreatorWeHouseDiscounts \/>/);
   assert.match(editor, /creator_get_booking_money_rules/);
   assert.match(editor, /creator_publish_booking_money_rules/);
   assert.match(editor, /requestElevation\("policy_publish"/);
