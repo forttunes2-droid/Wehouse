@@ -76,6 +76,7 @@ type ConversationUnreadRow = {
   last_message_at: string | null;
 };
 type IncomingMessageRow = {
+  id?: string | number;
   sender_id?: string;
   conversation_id?: string;
 };
@@ -885,7 +886,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (String(message.sender_id || "") === uid) return;
           void count();
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: "chat", key: `message:${String(message.id ?? message.conversation_id)}` });
           toast("New message", {
             description: "Open Inbox to read it.",
             action: {
@@ -911,7 +912,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (String(message.sender_id || "") === uid) return;
           void count();
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: "chat", key: `booking-message:${String(message.id ?? message.conversation_id)}` });
           toast("New service message", {
             description: "Open the conversation to read it.",
             action: {
@@ -929,7 +930,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (String(message.sender_id || "") === uid) return;
           void count();
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: "chat", key: `hotel-message:${String(message.id ?? message.conversation_id)}` });
           toast("New hotel message", {
             description: "Open Inbox to read it.",
             action: {
@@ -976,7 +977,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             if (!target) return;
             window.dispatchEvent(new Event('wehouse:workspace-activity'));
             if (alertsEnabled) {
-              void playNotificationSound(uid);
+              void playNotificationSound(uid, { key: `activity:${audience.activity_event_id}` });
               toast(`New update in ${workspaceLabel(target)}`, {
                 id: `workspace:${target}:${audience.activity_event_id}`,
                 description: 'Open that workspace to see its update.',
@@ -1002,7 +1003,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           )
             return;
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: /pay|refund|payout|security|password|device|verification/i.test(type) ? "important" : "update", key: `activity:${event.id}` });
           const viewActivity = () => {
             void markCanonicalActivityRead(event.id, "personal").then((result) => {
               if (!result.error)
@@ -1048,7 +1049,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             .eq("id", announcementId)
             .maybeSingle();
           if (alertsEnabled)
-            void playNotificationSound(uid);
+            void playNotificationSound(uid, { key: `announcement:${announcementId}` });
           if (alertsEnabled)
             toast(data?.title || "Official WeHouse update", {
               description: data?.content
@@ -1130,7 +1131,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         const scope = String(audience.workspace || "");
         const target = workspaceForActivity(scope, uid, workspaceAccess);
         if (!target || !audience.activity_event_id || !alertsEnabled) return;
-        void playNotificationSound(uid);
+        void playNotificationSound(uid, { key: `activity:${audience.activity_event_id}` });
         toast(`New ${workspaceLabel(target)} update`, {
           id: `workspace:${target}:${audience.activity_event_id}`,
           description: `There is a new update in your ${workspaceLabel(target)} workspace.`,
