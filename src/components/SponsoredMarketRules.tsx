@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
+import { formatMoney } from "@/lib/regional";
 
 type ResourceType="worker"|"property"|"hotel";
 type ScopeType="global"|"lga";
@@ -177,7 +178,7 @@ export default function SponsoredMarketRules(){
           setStorePlatform(product.platform);setStoreDuration(product.duration_days);
           setStoreProductId(product.product_id);setStoreEnabled(product.enabled);
         }} className="w-full rounded-lg border border-border p-2 text-left">
-          {product.platform} · {product.duration_days} days · {product.product_id} · ₦{Number(product.price_ngn).toLocaleString("en-NG")} · {product.enabled?"Open":"Off"}
+          {product.platform} · {product.duration_days} days · {product.product_id} · {formatMoney(Number(product.price_ngn))} · {product.enabled?"Open":"Off"}
         </button>
       </li>)}</ul>}
     </div>
@@ -185,7 +186,7 @@ export default function SponsoredMarketRules(){
     <div className="mt-4">
       {loading?<WeHouseLoadingState compact label="Loading Sponsored controls" />:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No Sponsored markets configured. Sponsored stays off.</p>:<div className="divide-y divide-border border-y border-border">
         {rules.map(rule=><button key={rule.rule_id} type="button" onClick={()=>edit(rule)} className="flex w-full items-center gap-3 py-3 text-left">
-          <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-foreground">{resourceLabels[rule.resource_type]} · {rule.scope_type==="global"?"Global":rule.lga_name}</span><span className="mt-1 block text-[10px] text-muted-foreground">{rule.slot_count} slots · ₦{Number(rule.daily_price_ngn||0).toLocaleString("en-NG")}/day · {(rule.allowed_durations||[]).join(", ")} days</span></span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-foreground">{resourceLabels[rule.resource_type]} · {rule.scope_type==="global"?"Global":rule.lga_name}</span><span className="mt-1 block text-[10px] text-muted-foreground">{rule.slot_count} slots · {formatMoney(Number(rule.daily_price_ngn||0))}/day · {(rule.allowed_durations||[]).join(", ")} days</span></span>
           <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold ${rule.enabled?"border-emerald-500/20 text-emerald-600 dark:text-emerald-300":"border-border text-muted-foreground"}`}>{rule.enabled?"Open":"Off"}</span>
         </button>)}
       </div>}
@@ -196,7 +197,7 @@ export default function SponsoredMarketRules(){
       <p className="mt-1 text-[10px] text-muted-foreground">Recent campaigns, payment references and unique daily viewer counts. Paused paid campaigns need Finance follow up.</p>
       {campaigns.length===0?<p className="mt-3 text-xs text-muted-foreground">No campaigns yet.</p>:<div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
         {campaigns.map(campaign=><div key={campaign.campaign_id} className="rounded-xl border border-border bg-card p-3 text-[10px]">
-          <div className="flex flex-wrap items-center gap-2"><strong>{resourceLabels[campaign.resource_type]}</strong><span>{campaign.status==="active"&&campaign.ends_at&&new Date(campaign.ends_at)<=new Date()?"expired":campaign.status}</span><span>₦{Number(campaign.amount_ngn).toLocaleString("en-NG")}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><strong>{resourceLabels[campaign.resource_type]}</strong><span>{campaign.status==="active"&&campaign.ends_at&&new Date(campaign.ends_at)<=new Date()?"expired":campaign.status}</span><span>{formatMoney(Number(campaign.amount_ngn))}</span></div>
           <div className="mt-1 text-muted-foreground">{campaign.impressions} daily viewer records · {campaign.opens} opens{campaign.ends_at?` · Ends ${new Date(campaign.ends_at).toLocaleDateString()}`:""}</div>
           {campaign.payment_reference&&<div className="mt-1 break-all font-mono text-muted-foreground">{campaign.payment_reference}</div>}
           {campaign.status==="active"&&(!campaign.ends_at||new Date(campaign.ends_at)>new Date())&&(pauseTarget===campaign.campaign_id?<div className="mt-2 flex flex-wrap gap-2"><input aria-label="Reason to pause Sponsored campaign" value={pauseReason} onChange={e=>setPauseReason(e.target.value)} placeholder="Reason for pause (10+ characters)" className="h-10 min-w-48 flex-1 rounded-lg border border-border bg-background px-3 text-foreground"/><button disabled={busy||pauseReason.trim().length<10} onClick={()=>pause(campaign.campaign_id)} className="rounded-lg border border-border px-3 font-semibold disabled:opacity-40">Confirm pause</button><button onClick={()=>{setPauseTarget("");setPauseReason("");}} className="px-2">Cancel</button></div>:<button onClick={()=>setPauseTarget(campaign.campaign_id)} className="mt-2 rounded-lg border border-border px-3 py-2 font-semibold">Pause placement</button>)}

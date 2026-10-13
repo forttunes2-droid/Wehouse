@@ -1,7 +1,8 @@
 import { useCallback,useEffect,useRef,useState } from 'react';
+import { formatMoney } from "@/lib/regional";
 
 interface DualRangeSliderProps{min:number;max:number;floor:number;ceiling:number;step:number;onChange:(min:number,max:number)=>void}
-function short(v:number){if(v>=1000000)return `₦${(v/1000000).toFixed(v%1000000?1:0)}M`;if(v>=1000)return `₦${Math.round(v/1000)}k`;return `₦${v}`}
+function short(v:number){if(v>=1000000)return `${formatMoney((v/1000000).toFixed(v%1000000?1:0))}M`;if(v>=1000)return `${formatMoney(Math.round(v/1000))}k`;return `${formatMoney(v)}`}
 
 export default function DualRangeSlider({min,max,floor,ceiling,step,onChange}:DualRangeSliderProps){
  const trackRef=useRef<HTMLDivElement>(null);const[dragging,setDragging]=useState<'min'|'max'|null>(null),[editing,setEditing]=useState<'min'|'max'|null>(null),[minDraft,setMinDraft]=useState(String(min)),[maxDraft,setMaxDraft]=useState(String(max));

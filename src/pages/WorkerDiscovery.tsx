@@ -25,6 +25,7 @@ import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } fr
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { formatMoney } from "@/lib/regional";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
 type ActiveBooking = { worker_id?: string | null };
@@ -788,7 +789,7 @@ function WorkerCard({
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="text-[10px] font-semibold text-[var(--wh-text)]">
           {worker.worker_price
-            ? `From ₦${Number(worker.worker_price).toLocaleString()}`
+            ? `From ${formatMoney(Number(worker.worker_price))}`
             : "Discuss price"}
         </p>
         {active && bookable ? (

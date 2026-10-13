@@ -12,6 +12,7 @@ import BackButton from "@/components/BackButton";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import ProfilePhotoEditor from "@/components/ProfilePhotoEditor";
 import { occupationForService, workerOccupation } from "@/lib/workerTaxonomy";
+import { formatMoney } from "@/lib/regional";
 
 type Props = {
   profile: Profile;
@@ -343,7 +344,7 @@ export default function WorkerSetupProfessional({
                       <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                         {item.categoryName}
                         {item.price
-                          ? ` · From ₦${Number(item.price).toLocaleString()}`
+                          ? ` · From ${formatMoney(Number(item.price))}`
                           : " · Price discussed with customer"}
                       </p>
                     </div>

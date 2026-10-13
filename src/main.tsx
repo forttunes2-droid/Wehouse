@@ -14,6 +14,7 @@ startAppearanceSync();
 
 function NativeInit() {
   useEffect(() => { document.documentElement.dataset.whReactMounted = "true"; }, []);
+  useEffect(() => { void import('@/lib/regionalLoader').then(m => m.loadRegionalDefaults()).catch(() => {}); }, []);
   useEffect(() => {
     if (!isNative()) return;
     void registerNativeOAuthHandler().catch(() => {});

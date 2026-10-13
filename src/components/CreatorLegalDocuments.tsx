@@ -96,7 +96,7 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
       p_document: kind,
       p_title: editor.title.trim(),
       p_body: editor.body.trim(),
-      p_locale: "en-NG",
+      p_locale: undefined,
       p_reason: "Prepared for Nigerian legal review",
     });
     setBusy(null);

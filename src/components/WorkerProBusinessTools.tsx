@@ -6,6 +6,7 @@ import { downloadCalendar } from '@/lib/proCalendar';
 import WeHouseChoice from '@/components/WeHouseChoice';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import { formatMoney } from "@/lib/regional";
 
 type Job = { id: string; booking_code: string | null; service_type: string | null; scheduled_date: string; status: string; customer_name: string };
 type Customer = { customer_id: string; customer_name: string; completed_jobs: number; last_job_at: string; last_service: string | null; note: string };
@@ -15,8 +16,8 @@ type Receipt = { booking_id: string; booking_code: string | null; service_type: 
 type Book = { schedule: Job[]; customers: Customer[]; packages: Package[]; reminders: Reminder[]; receipts: Receipt[] };
 type Tab = 'schedule' | 'customers' | 'packages' | 'receipts' | 'costs';
 const empty = { schedule: [], customers: [], packages: [], reminders: [], receipts: [] } as Book;
-const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
-const label = (value: string) => new Date(value).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+const money = (value: number) => `${formatMoney(Number(value || 0))}`;
+const label = (value: string) => new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 const card = 'rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4';
 const field = 'min-h-11 w-full rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-3 py-2 text-sm text-[var(--wh-text)]';
 const action = 'min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40';
@@ -101,7 +102,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
       pdf.setDrawColor(225, 219, 232); pdf.line(17, 100, 193, 100);
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15);
       pdf.text('Completed job amount', 17, 116);
-      pdf.text(`NGN ${Number(row.total_ngn).toLocaleString('en-NG')}`, 193, 116, { align: 'right' });
+      pdf.text(`NGN ${Number(row.total_ngn).toLocaleString(undefined)}`, 193, 116, { align: 'right' });
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10);
       const note = row.note.trim();
       if (note) pdf.text(pdf.splitTextToSize(`Worker note: ${note}`, 175), 17, 136);

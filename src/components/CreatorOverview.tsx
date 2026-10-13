@@ -8,7 +8,7 @@ type Summary = {
 };
 type Destination = 'people' | 'team' | 'properties' | 'workers' | 'finance' | 'analytics';
 
-const number = (value: unknown) => Number(value || 0).toLocaleString('en-NG');
+const number = (value: unknown) => Number(value || 0).toLocaleString(undefined);
 const countLabel = (value: unknown, singular: string, plural = `${singular}s`) => `${number(value)} ${Number(value || 0) === 1 ? singular : plural}`;
 
 export default function CreatorOverview({ userId, onOpen }: { userId: string; onOpen: (destination: Destination, id?: string) => void }) {

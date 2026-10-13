@@ -1,5 +1,6 @@
+import { propertyTimeZone } from "@/lib/regional";
 import { roommatePreferenceForm, roommatePreferenceError, roommateScoreLabel } from "@/lib/roommatePreferences";
-import { nigeriaCalendarDate } from "@/lib/shortLetQuote";
+import { platformCalendarDate } from "@/lib/shortLetQuote";
 import { withTimeout } from "@/lib/withTimeout";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ import type { RoommatePreferenceForm } from "@/components/RoommatePreferencesPan
 import DiscoveryShell from "@/components/DiscoveryShell";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import type { Profile, RoommatePreferences } from "@/types";
+import { formatMoney } from "@/lib/regional";
 
 type Props = {
   profile: Profile;
@@ -221,7 +223,7 @@ export default function RoommateWorkspace({
       return toast.error(
         "Turn on Roommate discovery and profile visibility in Privacy first",
       );
-    const validationError = roommatePreferenceError(form,nigeriaCalendarDate());
+    const validationError = roommatePreferenceError(form,platformCalendarDate(new Date(), propertyTimeZone()));
     if (validationError) return toast.error(validationError);
     setBusy(true);
     const { prefs: p, error } = await saveRoommatePreferences({
@@ -471,7 +473,7 @@ export default function RoommateWorkspace({
                 </span>
               </div>
               <p className="mt-2 text-base font-semibold">
-                ₦{Number(prefs.budget_min).toLocaleString()} – ₦{Number(prefs.budget_max).toLocaleString()}
+                {formatMoney(Number(prefs.budget_min))} – {formatMoney(Number(prefs.budget_max))}
               </p>
               {prefs.school_match && <p className="mt-1 text-xs text-violet-300">Same school · {prefs.school_name}</p>}
               <div className="mt-3 flex flex-wrap gap-2">

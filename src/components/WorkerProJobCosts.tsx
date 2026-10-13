@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 type Job = {id:string;booking_code:string|null;service_type:string|null;scheduled_date:string;status:string;released_earnings_ngn:number|null;cost_ngn:number|null;note:string};
-const money=(value:number)=>'₦'+Number(value).toLocaleString('en-NG');
+const money=(value:number)=>'₦'+Number(value).toLocaleString(undefined);
 export default function WorkerProJobCosts() {
  const [rows,setRows]=useState<Job[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(false),[busy,setBusy]=useState<string|null>(null);
  const [drafts,setDrafts]=useState<Record<string,{amount:string;note:string}>>({});

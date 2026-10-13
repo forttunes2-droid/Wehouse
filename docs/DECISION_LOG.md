@@ -92,3 +92,9 @@
 ## Decision process
 
 For each open item, record the selected option, owner, date, rationale, affected rules/lifecycles, rollout/migration, and tests. Do not treat implementation order or an existing legacy branch as approval. Once approved, move the decision to Confirmed, update the canonical sections, and reference the enforcing migration/commit.
+
+## C-055 Regional layer (currency, time zone, date)
+- `src/lib/regional.ts` is the only place that knows the default country. Defaults load from `platform_countries` at app start; the built-in fallback keeps the app working before it loads.
+- Moments (payments, deadlines) show in the viewer's time zone with the zone name. Property times (check-in, handover) use the property's own zone. Calendar dates are never shifted.
+- Money is shown in the currency it was charged in, formatted for the viewer. No ₦, `en-NG` or `Africa/Lagos` literals in `src` outside the regional layer; `tests/regional-layer.test.mjs` enforces this.
+- Still to do: locations list as data, server-side Lagos time in the Short Let cancel window, `refund_amount_ngn` naming.

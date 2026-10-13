@@ -10,6 +10,7 @@ import {
 } from "@/lib/supabase";
 import type { Hotel, HotelRatePlan, HotelRoom } from "@/types";
 import { toast } from "sonner";
+import { formatMoney, propertyTimeZone } from "@/lib/regional";
 import BackButton from "@/components/BackButton";
 import BookingPaymentReview from "@/components/BookingPaymentReview";
 
@@ -53,7 +54,7 @@ type Quote = {
   wehouse_discount_percent?: number;
 };
 
-const money = (value: number) => `₦${value.toLocaleString('en-NG')}`;
+const money = (value: number) => formatMoney(value);
 const mealLabels: Record<HotelRatePlan["meal_plan"], string> = {
   room_only: "Room only",
   breakfast: "Breakfast included",
@@ -297,7 +298,7 @@ export default function HotelBooking({
           <div className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div><h2 className="text-base font-bold">{room.room_type}</h2><p className="mt-1 text-xs text-[var(--wh-text-muted)]">Up to {room.max_guests} guests{room.bed_type ? ` · ${room.bed_type}` : ""}</p></div>
-              <p className="text-sm font-bold text-violet-700 dark:text-violet-300">₦{Number(ratePlan.price_per_night).toLocaleString()}<span className="block text-right text-[11px] font-normal text-[var(--wh-text-muted)]">per night</span></p>
+              <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{formatMoney(Number(ratePlan.price_per_night))}<span className="block text-right text-[11px] font-normal text-[var(--wh-text-muted)]">per night</span></p>
             </div>
             <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
               <p className="text-xs font-semibold">{ratePlan.name}</p>
@@ -317,7 +318,7 @@ export default function HotelBooking({
           {quoteLoading ? <p className="mt-3 text-xs text-violet-700 dark:text-violet-300">Checking live room inventory…</p> : null}
           {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-700 dark:text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
           {quote?.available && quote.nights && quote.total_price ? (
-            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">₦{Number(quote.original_price).toLocaleString()}</span> · {quote.discount_percent}% off{quote.wehouse_discount_percent ? ` · includes ${quote.wehouse_discount_percent}% from WeHouse` : " from the hotel"}</p> : null}<p className="text-lg font-bold">₦{Number(quote.total_price).toLocaleString()}</p></div></div>
+            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">{formatMoney(Number(quote.original_price))}</span> · {quote.discount_percent}% off{quote.wehouse_discount_percent ? ` · includes ${quote.wehouse_discount_percent}% from WeHouse` : " from the hotel"}</p> : null}<p className="text-lg font-bold">{formatMoney(Number(quote.total_price))}</p></div></div>
           ) : null}
         </section>
 
@@ -346,12 +347,12 @@ export default function HotelBooking({
               ? `This rate is refundable when you request cancellation at least ${ratePlan.cancellation_hours ?? 0} hours before the hotel's check-in time. After that deadline, a refund is not automatic.`
               : "This rate is non-refundable if you cancel or do not arrive. A payment or stay problem can still be reported to WeHouse for review."}
           </p>
-          {quote?.cancellation_deadline && <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Full refund {money(Number(quote.refund_amount_ngn || 0))} if cancelled by {new Date(quote.cancellation_deadline).toLocaleString('en-NG',{timeZone:quote.cancellation_timezone || 'Africa/Lagos'})} ({quote.cancellation_timezone || 'Africa/Lagos'}). The confirmed booking saves these terms.</p>}
+          {quote?.cancellation_deadline && <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Full refund {money(Number(quote.refund_amount_ngn || 0))} if cancelled by {new Date(quote.cancellation_deadline).toLocaleString(undefined,{timeZone:propertyTimeZone(quote.cancellation_timezone)})} ({propertyTimeZone(quote.cancellation_timezone)}). The confirmed booking saves these terms.</p>}
           <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Eligible paid bookings can be cancelled from your booking. Refunds go to the original payment method and remain processing until confirmed. Contact WeHouse for exceptions or a stay the hotel could not provide.</p>
         </section>
 
         <button type="button" onClick={() => void book()} disabled={submitting || quoteLoading || !quote?.available} className="h-12 w-full rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">
-          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ₦${Number(quote.total_price).toLocaleString()}` : "Choose available dates"}
+          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ${formatMoney(Number(quote.total_price))}` : "Choose available dates"}
         </button>
         <p className="text-center text-xs leading-4 text-[var(--wh-text-muted)]">Your room, package, dates, guest and payment stay attached to one WeHouse booking record.</p>
       </main>
@@ -366,13 +367,13 @@ function Field({ label, value, onChange, type = "text", autoComplete }: { label:
 
 function formatBookingDate(value: string) {
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-NG", { dateStyle: "medium" });
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
 function formatDeadline(value: string, timezone?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-NG", { timeZone: timezone || "Africa/Lagos", dateStyle: "medium", timeStyle: "short" });
+  return date.toLocaleString(undefined, { timeZone: propertyTimeZone(timezone), dateStyle: "medium", timeStyle: "short" });
 }
 
 function formatHotelTime(value: unknown, fallback: string) {

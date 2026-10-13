@@ -1,7 +1,7 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { locationLabel } from "@/lib/locationPresentation";
-import { displayDate, nigeriaDate } from "@/lib/displayDate";
+import { displayDate, propertyDate } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +20,7 @@ import {
   getPropertyBookingJourney,
   propertyBookingStatusLabel,
 } from "@/lib/propertyBookingLifecycle";
+import { formatMoney } from "@/lib/regional";
 
 type Filter = "all" | "needs_action" | "upcoming" | "active" | "finished";
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -532,7 +533,7 @@ function ShortStayCase({
   back: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
-  const checkInDate = nigeriaDate();
+  const checkInDate = propertyDate();
   const arrivalOpen = checkInDate >= String(row.check_in || "") && checkInDate < String(row.check_out || "");
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
@@ -651,7 +652,7 @@ function ShortStayCase({
           />
           <Info
             label="Stay rent"
-            value={`₦${Number(row.stay_rent_total || 0).toLocaleString()}`}
+            value={`${formatMoney(Number(row.stay_rent_total || 0))}`}
           />
           <Info
             label="Refundable deposit"
@@ -753,7 +754,7 @@ function HousingCase({
   back: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
-  const startDate = nigeriaDate();
+  const startDate = propertyDate();
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
   >("maintenance");
@@ -936,7 +937,7 @@ function HousingCase({
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Info
             label="Annual rent"
-            value={`₦${Number(row.annual_rent || 0).toLocaleString()}`}
+            value={`${formatMoney(Number(row.annual_rent || 0))}`}
           />
           <Info
             label="Property"
@@ -998,7 +999,7 @@ function HousingCase({
             />
             <Info
               label="Year 1 due"
-              value={`₦${Number(row.upfront_rent_required || row.annual_rent || 0).toLocaleString()}`}
+              value={`${formatMoney(Number(row.upfront_rent_required || row.annual_rent || 0))}`}
             />
             <Info
               label="Future plan"

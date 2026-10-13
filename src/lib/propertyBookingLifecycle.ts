@@ -1,4 +1,4 @@
-import { displayDate, displayDateTime } from "./displayDate";
+import { displayDate, displayDateTimeAtProperty } from "./displayDate";
 export type PropertyJourneyAudience = "customer" | "operations";
 export type PropertyJourneyState = "complete" | "current" | "upcoming" | "stopped";
 export type PropertyJourneyAction =
@@ -249,7 +249,7 @@ export function getPropertyBookingJourney(
     : row.requested_move_in_at
       ? complete(
           operations ? "Customer move-in time" : "Move-in time",
-          `${operations ? "Customer requested" : "Requested for"} ${displayDateTime(row.requested_move_in_at, "Africa/Lagos")} WAT.`,
+          `${operations ? "Customer requested" : "Requested for"} ${displayDateTimeAtProperty(row.requested_move_in_at)}.`,
         )
       : action === "move_in_request"
         ? current(

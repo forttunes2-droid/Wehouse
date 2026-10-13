@@ -1,3 +1,4 @@
+import { propertyTimeZone } from "@/lib/regional";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
@@ -8,7 +9,7 @@ import { sharePropertyExternally } from "@/lib/propertyShare";
 import { displayDate } from "@/lib/displayDate";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useRef, useState } from "react";
-import { addCalendarDays, nigeriaCalendarDate, validateShortLetDates } from "@/lib/shortLetQuote";
+import { addCalendarDays, platformCalendarDate, validateShortLetDates } from "@/lib/shortLetQuote";
 import {
   createInspectionRequest,
   createReservation,
@@ -50,6 +51,7 @@ import { locationLabel } from "@/lib/locationPresentation";
 import { hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
 import BackButton from "@/components/BackButton";
 import BookingPaymentReview from "@/components/BookingPaymentReview";
+import { formatMoney } from "@/lib/regional";
 
 type Props = {
   listingId: string;
@@ -261,20 +263,16 @@ export default function ListingDetail({
     if (!loading && listing?.id === listingId) savePublicBrowseDraft("listing", listingId, { checkIn: shortCheckIn, checkOut: shortCheckOut, guests: shortGuests });
   }, [loading, listing, listingId, shortCheckIn, shortCheckOut, shortGuests]);
 
-  function formatNaira(value: unknown) {
-  return `₦${Number(value || 0).toLocaleString("en-NG")}`;
-}
-
 function formatBookingDate(value: string | null | undefined) {
   if (!value) return "Not available";
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-NG", { dateStyle: "medium" });
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
 function formatBookingDeadline(value: string | null | undefined) {
   if (!value) return "Not available";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" });
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function support(
@@ -625,7 +623,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
     shortMaxNights,
     Math.round(getNumber("short_stay_booking_advance_days", 365)),
   );
-  const today = nigeriaCalendarDate();
+  const today = platformCalendarDate(new Date(), propertyTimeZone());
   const bookingWindowEnd = addCalendarDays(today, bookingWindowDays);
   const minShortCheckout = addCalendarDays(shortCheckIn || today, shortMinNights);
   const maxGuests = Number(listing.max_guests || 0);
@@ -660,18 +658,18 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
         { label: "Check-in", value: formatBookingDate(reservation?.stay_check_in || shortCheckIn) },
         { label: "Check-out", value: formatBookingDate(reservation?.stay_check_out || shortCheckOut) },
         { label: "Nights and guests", value: `${Number(reservation?.stay_nights || selection.nights)} nights · ${Number(reservation?.guest_count || shortGuests)} guest${Number(reservation?.guest_count || shortGuests) === 1 ? "" : "s"}` },
-        { label: "Nightly rate", value: formatNaira(reservation?.nightly_rate_snapshot) },
-        { label: "Stay rent due later", value: formatNaira(reservation?.stay_rent_total) },
+        { label: "Nightly rate", value: formatMoney(reservation?.nightly_rate_snapshot) },
+        { label: "Stay rent due later", value: formatMoney(reservation?.stay_rent_total) },
         ...(Number(reservation?.security_deposit_snapshot || 0) > 0
-          ? [{ label: "Refundable security deposit due later", value: formatNaira(reservation?.security_deposit_snapshot) }]
+          ? [{ label: "Refundable security deposit due later", value: formatMoney(reservation?.security_deposit_snapshot) }]
           : []),
-        { label: "Stay balance due later", value: formatNaira(Number(reservation?.stay_rent_total || 0) + Number(reservation?.security_deposit_snapshot || 0)) },
+        { label: "Stay balance due later", value: formatMoney(Number(reservation?.stay_rent_total || 0) + Number(reservation?.security_deposit_snapshot || 0)) },
         { label: "Date hold expires", value: formatBookingDeadline(reservation?.payment_expires_at || reservation?.hold_expires_at) },
       ]
     : [
         { label: "Apartment", value: String(reservation?.listing_title || displayTitle) },
         { label: "Location", value: String(reservation?.listing_location || visibleAddress) },
-        { label: "Reservation fee", value: formatNaira(reviewAmount) },
+        { label: "Reservation fee", value: formatMoney(reviewAmount) },
         { label: "Hold expires", value: formatBookingDeadline(reservation?.payment_expires_at || reservation?.hold_expires_at) },
         { label: "Next step", value: "Arrange an inspection before the tenancy and rent plan are finalised" },
       ];
@@ -747,10 +745,10 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                   <p className="shrink-0 text-xl font-bold text-violet-400">
                     {discountPercent > 0 ? (
                       <span className="mr-1 text-sm font-normal text-[var(--wh-text-muted)] line-through">
-                        ₦{Number(listing.price || 0).toLocaleString()}
+                        {formatMoney(Number(listing.price || 0))}
                       </span>
                     ) : null}
-                    ₦{Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)).toLocaleString()}
+                    {formatMoney(Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)))}
                     <span className="ml-1 text-sm font-normal text-[var(--wh-text-muted)]">
                       {listing.sub_type === "short_let" ? "/night" : discountPercent > 0 ? "Year 1" : "/year"}
                     </span>
@@ -879,11 +877,11 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       </div>
                       <p className="text-right">
                         <span className="block text-sm font-bold">
-                          ₦{Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)).toLocaleString()}
+                          {formatMoney(Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)))}
                         </span>
                         {discountPercent > 0 ? (
                           <span className="block text-xs text-[var(--wh-text-muted)]">
-                            <span className="line-through">₦{Number(listing.price || 0).toLocaleString()}</span> · {discountPercent}% off
+                            <span className="line-through">{formatMoney(Number(listing.price || 0))}</span> · {discountPercent}% off
                           </span>
                         ) : null}
                         <span className="text-sm text-[var(--wh-text-muted)]">
@@ -954,7 +952,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     <button type="button" disabled={busy || !selection.valid}
                       onClick={() => void reserveShortLet()}
                       className="mt-4 min-h-12 w-full rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold disabled:opacity-40">
-                      {busy ? "Checking availability…" : `Review dates · ₦${shortReservationFee.toLocaleString()}`}
+                      {busy ? "Checking availability…" : `Review dates · ${formatMoney(shortReservationFee)}`}
                     </button>
                     <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">Reserve date pays only the reservation fee. Your stay price{Number(listing.security_deposit_amount || 0) > 0 ? " and refundable security deposit" : ""} are reviewed and paid separately after your dates are reserved.</p>
                   </section>
@@ -971,7 +969,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       </div>
                       <p className="text-right">
                         <span className="block text-sm font-bold">
-                          ₦{reservationFee.toLocaleString()}
+                          {formatMoney(reservationFee)}
                         </span>
                         <span className="text-sm text-[var(--wh-text-muted)]">
                           reservation fee
@@ -1026,7 +1024,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 : "Check the apartment and reservation fee before continuing. Rent and any tenancy deposit are handled after inspection."}
               rows={reviewRows}
               amountLabel={paymentReview === "short_let" ? "Reserve-date fee due now" : "Reservation fee due now"}
-              amount={formatNaira(reviewAmount)}
+              amount={formatMoney(reviewAmount)}
               termsTitle={paymentReview === "short_let" ? "Cancellation and stay terms" : "What this reservation payment covers"}
               terms={paymentReview === "short_let"
                 ? shortCancellationTerms
@@ -1289,7 +1287,7 @@ function SharedHomeCard({
               </p>
             </div>
             <p className="text-xs font-semibold text-violet-300">
-              ₦{Number(member.share_amount || 0).toLocaleString()}
+              {formatMoney(Number(member.share_amount || 0))}
             </p>
           </div>
         ))}
@@ -1322,7 +1320,7 @@ function SharedHomeCard({
           >
             {busy
               ? "Opening secure checkout…"
-              : `Pay my share · ₦${Number(mine.share_amount || 0).toLocaleString()}`}
+              : `Pay my share · ${formatMoney(Number(mine.share_amount || 0))}`}
           </button>
         )}
       {mine?.payment_status === "paid" && !allPaid && (
@@ -1383,7 +1381,7 @@ function ReservationPanel({
         </p>
         <h2 className="mt-2 text-lg font-bold">Finish your reservation</h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-muted)]">
-          Complete the ₦{fee.toLocaleString()} reservation payment to submit
+          Complete the {formatMoney(fee)} reservation payment to submit
           this booking.
         </p>
         {reservation.payment_expires_at && (
@@ -1439,7 +1437,7 @@ function ReservationPanel({
         {Number(reservation.installment_balance || 0) > 0 && (
           <Row
             label="Installment balance"
-            value={`₦${Number(reservation.installment_balance).toLocaleString()}`}
+            value={`${formatMoney(Number(reservation.installment_balance))}`}
           />
         )}
         <button
@@ -1468,16 +1466,16 @@ function ReservationPanel({
           <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
             <Row
               label="Total contract"
-              value={`₦${Number(reservation.contract_rent_total || 0).toLocaleString()}`}
+              value={`${formatMoney(Number(reservation.contract_rent_total || 0))}`}
             />
             <Row
               label="Required now"
-              value={`₦${Number(reservation.upfront_rent_required || 0).toLocaleString()}`}
+              value={`${formatMoney(Number(reservation.upfront_rent_required || 0))}`}
             />
             {Number(reservation.installment_balance || 0) > 0 && (
               <Row
                 label={`${reservation.installment_count || 4} installments later`}
-                value={`₦${Number(reservation.installment_balance).toLocaleString()}`}
+                value={`${formatMoney(Number(reservation.installment_balance))}`}
               />
             )}
           </div>
@@ -1559,7 +1557,7 @@ function ReservationPanel({
       <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
         <Row
           label="Reservation fee"
-          value={`₦${Number(reservation.amount || fee).toLocaleString()}`}
+          value={`${formatMoney(Number(reservation.amount || fee))}`}
         />
         <Row
           label="Rent plan"
@@ -1621,11 +1619,11 @@ function ShortStayReservationPanel({
       <Row label="Guests" value={String(reservation.guest_count || 1)} />
       <Row
         label="Stay rent"
-        value={`₦${Number(reservation.stay_rent_total || 0).toLocaleString()}`}
+        value={`${formatMoney(Number(reservation.stay_rent_total || 0))}`}
       />
       <Row
         label="Refundable deposit"
-        value={`₦${Number(reservation.security_deposit_snapshot || 0).toLocaleString()}`}
+        value={`${formatMoney(Number(reservation.security_deposit_snapshot || 0))}`}
       />
     </div>
   );

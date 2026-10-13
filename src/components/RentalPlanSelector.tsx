@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { HOUSING_RENTAL_PLANS, calculateHousingRentTerms } from '@/lib/housing-rental';
 import type { HousingRentalDuration } from '@/lib/housing-rental';
 import type { RentalDuration } from '@/types';
+import { formatMoney } from "@/lib/regional";
 
 interface Props {
   annualRent: number;
@@ -37,15 +38,15 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
 
     <div className="space-y-2">
       {HOUSING_RENTAL_PLANS.map(plan => <button key={plan.durationYears} type="button" onClick={() => select(plan.durationYears)} className={`w-full rounded-xl border p-4 text-left transition ${selectedDuration === plan.durationYears ? 'border-violet-500 bg-violet-500/10' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]'}`}>
-        <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-semibold ${selectedDuration === plan.durationYears ? 'text-violet-300' : 'text-white'}`}>{plan.label}</p><p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-muted)]">{plan.description}</p></div><p className="shrink-0 text-xs font-bold">₦{annualRent.toLocaleString()}<span className="text-[8px] font-normal text-[var(--wh-text-muted)]">/yr</span></p></div>
+        <div className="flex items-start justify-between gap-3"><div><p className={`text-sm font-semibold ${selectedDuration === plan.durationYears ? 'text-violet-300' : 'text-white'}`}>{plan.label}</p><p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-muted)]">{plan.description}</p></div><p className="shrink-0 text-xs font-bold">{formatMoney(annualRent)}<span className="text-[8px] font-normal text-[var(--wh-text-muted)]">/yr</span></p></div>
       </button>)}
     </div>
 
     <section className="space-y-2 rounded-2xl border border-emerald-500/10 bg-emerald-500/[.035] p-4">
       <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-300">Rent · after inspection</p>
-      <Line label="Year 1 rent" value={`₦${terms.upfrontAmount.toLocaleString()}`} strong />
+      <Line label="Year 1 rent" value={`${formatMoney(terms.upfrontAmount)}`} strong />
       <Line label="Selected stay" value={`${selectedDuration} year${selectedDuration === 1 ? '' : 's'}`} />
-      {securityDeposit > 0 && <Line label="Refundable security deposit" value={`₦${securityDeposit.toLocaleString()}`} />}
+      {securityDeposit > 0 && <Line label="Refundable security deposit" value={`${formatMoney(securityDeposit)}`} />}
       <p className="text-[9px] leading-4 text-[var(--wh-text-muted)]">You are not asked to pay every future year before moving in.</p>
     </section>
 
@@ -53,7 +54,7 @@ export default function RentalPlanSelector({ annualRent, subType = 'long_stay', 
       <p className="text-[9px] font-semibold uppercase tracking-wide text-violet-300">After move-in · Prepare the next year's rent</p>
       <Line label="Months 1–4" value="No next-year contribution" />
       <Line label="Months 5–12" value={`${terms.contributionsPerFutureYear} monthly contributions`} />
-      <Line label="Typical monthly amount" value={`₦${terms.monthlyContribution.toLocaleString()}`} strong />
+      <Line label="Typical monthly amount" value={`${formatMoney(terms.monthlyContribution)}`} strong />
       <p className="text-[9px] leading-4 text-[var(--wh-text-muted)]">Those eight payments add up to one full annual rent. {terms.futureYears > 1 ? `For each later year, the same four-month break and eight-payment cycle repeats until Year ${selectedDuration} is funded.` : 'By renewal, Year 2 rent is already funded.'} You can pay an upcoming contribution early if that is more convenient.</p>
     </section>}
 

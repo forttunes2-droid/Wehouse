@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
+import { formatMoney } from "@/lib/regional";
 
 type Wallet={id:string;available_balance:number;pending_balance:number;frozen_balance:number;total_withdrawn:number;is_frozen:boolean;frozen_reason:string|null};
 type Bank={id:string;bank_name:string;account_number:string;account_name:string;is_default:boolean};
 type Movement={id:string;title:string;date:string;amount:number;status:string};
 type View="wallet"|"withdraw"|"activity";
-const money=(n:number)=>`₦${Number(n||0).toLocaleString("en-NG",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const money=(n:number)=>`${formatMoney(Number(n||0))}`;
 
 export default function WorkerWallet({profile}:{profile:Profile}){
  const amountKey=`wh_finance_amounts_visible_${profile.user_id}`;

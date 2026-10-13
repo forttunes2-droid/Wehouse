@@ -41,6 +41,7 @@ import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import type { Profile } from "@/types";
 import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import { formatMoney } from "@/lib/regional";
 
 type Tab = "overview" | "operations" | "inbox";
 type Operation =
@@ -718,7 +719,7 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
                               row.amount ||
                               row.reservation_fee_amount ||
                               0,
-                          ).toLocaleString("en-NG")}
+                          ).toLocaleString(undefined)}
                         </p>
                       )}
                       <span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px] capitalize text-[var(--wh-text-secondary)]">
@@ -769,7 +770,7 @@ function BookingRecord({
         ? new Date(row.created_at).toLocaleString()
         : "Unavailable",
     ],
-    ["Amount", amount ? `₦${amount.toLocaleString("en-NG")}` : "Not recorded"],
+    ["Amount", amount ? `${formatMoney(amount)}` : "Not recorded"],
   ];
   return (
     <section className="space-y-5">
@@ -1081,7 +1082,7 @@ function Top({
       <div className="shrink-0 text-right">
         {amount != null && (
           <p className="mb-1 text-sm font-bold">
-            ₦{Number(amount || 0).toLocaleString("en-NG")}
+            {formatMoney(Number(amount || 0))}
           </p>
         )}
         <span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px] capitalize text-[var(--wh-text-secondary)]">

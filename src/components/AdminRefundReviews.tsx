@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { formatMoney } from "@/lib/regional";
 
 type Review = {
   review_id: string; worker_booking_id: string; kind: string; reason: string; status: string; created_at: string;
@@ -13,7 +14,7 @@ const KINDS: Record<string, string> = {
   worker_no_show: "Worker did not show up",
   worker_not_delivered: "Work not delivered",
 };
-const money = (n: number | null) => `₦${Number(n ?? 0).toLocaleString()}`;
+const money = (n: number | null) => `${formatMoney(Number(n ?? 0))}`;
 
 export default function AdminRefundReviews() {
   const [status, setStatus] = useState<"open" | "decided">("open");

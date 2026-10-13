@@ -33,6 +33,7 @@ import {
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
 import { locationLabel } from "@/lib/locationPresentation";
+import { formatMoney } from "@/lib/regional";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -400,7 +401,7 @@ export default function HotelDetailExperience({
                     Availability is rechecked before payment.
                   </p>
                 </div>
-                <p className="text-lg font-bold">₦{total.toLocaleString()}</p>
+                <p className="text-lg font-bold">{formatMoney(total)}</p>
               </div>
             ) : null}
           </section>

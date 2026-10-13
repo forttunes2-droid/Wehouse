@@ -57,7 +57,7 @@ export default function LegalDocumentPage({ kind }: { kind: LegalKind }) {
       </header>
       {loading ? <WeHouseLoadingState compact label="Loading document" /> : error ?
         <div className="mt-8"><p role="alert" className="text-sm text-red-200">{error}</p><button onClick={() => void load()} className="mt-4 min-h-11 text-sm font-semibold text-violet-300">Reload document</button></div> : document ? <>
-          <p className="mb-8 mt-3 text-sm text-[var(--wh-text-secondary)]">Version {document.version} · Effective {new Date(document.effective_from).toLocaleDateString('en-NG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          <p className="mb-8 mt-3 text-sm text-[var(--wh-text-secondary)]">Version {document.version} · Effective {new Date(document.effective_from).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
           <LegalDocumentBody key={`${document.policy_version_id}:${document.checksum}`} body={document.body} onReachedEnd={loggedIn && !accepted ? markEnd : undefined} />
           {loggedIn && <section className="mt-8 border-t border-[var(--wh-border-subtle)] pt-6">
             {accepted ? <p role="status" className="text-sm text-emerald-300">You have confirmed this version.</p> : <>

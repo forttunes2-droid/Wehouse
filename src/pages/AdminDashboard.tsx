@@ -26,6 +26,7 @@ import AdminSecurityCases from "@/components/AdminSecurityCases";
 import BackButton from "@/components/BackButton";
 import AdminReports from "@/components/AdminReports";
 import AdminRefundReviews from "@/components/AdminRefundReviews";
+import { formatMoney } from "@/lib/regional";
 
 type AdminTab = "overview" | "operations" | "inbox";
 type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security" | "reports";
@@ -287,7 +288,7 @@ function Overview({
   inboxUnread: number;
   openCommunications: () => void;
 }) {
-  const fmt = (value: unknown) => Number(value || 0).toLocaleString("en-NG");
+  const fmt = (value: unknown) => Number(value || 0).toLocaleString(undefined);
   const cards: { label: string; value: number; target: Operation; note: string; tone: string; mark: string }[] = [
     { label: "Users", value: Number(stats.users || 0), target: "people", note: "Personal accounts in your coverage", tone: "violet", mark: "↗" },
     { label: "Property Partners", value: Number(stats.partners || 0), target: "people", note: "Accommodation providers", tone: "blue", mark: "⌂" },
@@ -972,7 +973,7 @@ function Loading() {
   return <WeHouseLoadingState compact label="Loading" />;
 }
 function money(v: any) {
-  return `₦${Number(v || 0).toLocaleString("en-NG")}`;
+  return `${formatMoney(Number(v || 0))}`;
 }
 function dateText(v: any) {
   if (!v) return "Date unavailable";

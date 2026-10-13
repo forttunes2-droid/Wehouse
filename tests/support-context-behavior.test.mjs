@@ -11,7 +11,7 @@ function moduleAt(path, dependencies={}, globals={}) {
   const exports={};vm.runInNewContext(code,{exports,require:name=>name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name]??require(name),...globals});return exports;
 }
 const api=moduleAt('src/lib/supabase/support.ts',{'./client':{},'@/lib/propertyBookingLifecycle':{propertyBookingStatusLabel:()=> 'Status unavailable'}});
-const dates=moduleAt('src/lib/displayDate.ts');
+const dates=moduleAt('src/lib/displayDate.ts',{'./regional':moduleAt('src/lib/regional.ts')});
 const topic=id=>({contextType:'hotel_property',contextId:id,contextSnapshot:{hotel_name:id}});
 const thread=id=>({conversation_id:'chat-'+id,subject:id,status:'open',context_type:'hotel_property',context_id:id,context_snapshot:{hotel_name:id}});
 const tick=()=>new Promise(setImmediate);

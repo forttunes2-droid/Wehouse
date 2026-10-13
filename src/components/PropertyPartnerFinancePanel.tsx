@@ -5,13 +5,14 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 import WeHouseSelect from '@/components/WeHouseSelect';
+import { formatMoney } from "@/lib/regional";
 
 type Finance={available_balance:number;pending_balance:number;frozen_balance:number;total_withdrawn:number;total_earnings:number;apartment_commission_rate:number;hotel_commission_rate:number;minimum_withdrawal:number;is_frozen:boolean};
 type BankAccount={id:string;bank_name:string;bank_code:string|null;account_number:string;account_name:string;is_default:boolean};
 type View='wallet'|'withdraw'|'transactions';
 type TransactionFilter='all'|'income'|'withdrawals'|'protected';
 type Props={profile:Profile;showAmounts?:boolean;onToggleAmounts?:()=>void};
-const money=(value:number)=>`₦${Number(value||0).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const money=(value:number)=>`${formatMoney(Number(value||0))}`;
 const hidden='₦••••••';
 
 export default function PropertyPartnerFinancePanel({profile,showAmounts=true,onToggleAmounts}:Props){

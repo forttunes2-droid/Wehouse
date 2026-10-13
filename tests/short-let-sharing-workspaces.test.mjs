@@ -15,6 +15,7 @@ function load(name, mocks = {}, extra = {}) {
   vm.runInNewContext(compiled, { exports, require: requested => {
     if (requested === '@/lib/chatMediaPolicy') return chatMediaPolicy;
     if (requested in mocks) return mocks[requested];
+    if (requested === '@/lib/regional') return load('src/lib/regional.ts');
     if (!requested.startsWith('.')) throw Error(`Unexpected dependency ${requested}`);
     return load(path.resolve(path.dirname(filename), `${requested}.ts`));
   }, Blob, File, URL, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
@@ -35,7 +36,7 @@ test('Short Let has no deposit-only or fabricated total before complete valid da
 });
 test('Short Let capacity, stay rules and non-finite commercial values fail closed', () => {
   for (const change of [{ guests: 3 }, { guests: 0 }, { guests: 1.5 }, { maxGuests: 0 }, { minNights: 3 }, { maxNights: 1 }, { nightlyRate: NaN }, { nightlyRate: 0 }, { refundableDeposit: -1 }, { refundableDeposit: Infinity }]) assert.equal(quote.shortLetQuote({ ...defaultStay, ...change }).valid, false);
-  assert.equal(quote.nigeriaCalendarDate(new Date('2026-09-23T23:30:00Z')), '2026-09-24');
+  assert.equal(quote.platformCalendarDate(new Date('2026-09-23T23:30:00Z'), 'Africa/Lagos'), '2026-09-24');
   assert.equal(quote.calendarDay('2026-02-30'), null);
   assert.equal(quote.addCalendarDays('2026-09-30', 1), '2026-10-01');
 });
@@ -49,7 +50,7 @@ test('Short Let creates a dated hold, reviews it, and only opens checkout after 
   assert.doesNotMatch(reserve, /initializeReservationPayment|window\.location\.assign/);
   assert.match(payment, /initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
   assert.match(payment, /window\.location\.assign/);
-  assert.match(text, /Review dates · ₦/);
+  assert.match(text, /Review dates · \$\{formatMoney\(/);
   assert.match(text, /short_let_reservation_fee/);
   assert.doesNotMatch(payment, /initializeShortStayPayment/);
 });
@@ -58,9 +59,9 @@ test('Saved preserves public type, exact identifiers and rental units', () => {
   assert.equal(routes.publicPropertyDestination('hotel_detail', '7').kind, 'hotel');
   assert.equal(routes.publicPropertyDestination('detail', '7').kind, 'listing');
   assert.equal(routes.publicPropertyDestination('hotel_detail', 'javascript:7'), null);
-  const labels = load('src/lib/savedPlacePresentation.ts');
-  assert.equal(labels.savedHomePrice(120000, true), '₦120,000 / night');
-  assert.equal(labels.savedHomePrice(120000, false), '₦120,000 / year');
+  const labels = load('src/lib/savedPlacePresentation.ts', { '@/lib/regional': load('src/lib/regional.ts') });
+  assert.match(labels.savedHomePrice(120000, true), /120,000 \/ night$/);
+  assert.match(labels.savedHomePrice(120000, false), /120,000 \/ year$/);
   assert.equal(labels.savedHomePrice(undefined, true), 'View price and details');
 });
 test('property messages carry only canonical public references, never a financial command', () => {

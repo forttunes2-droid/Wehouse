@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import SecureInboxLock from "@/components/SecureInboxLock";
 import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import { formatMoney } from "@/lib/regional";
 
 export type WorkerBookingConversation = {
   conversation_id: string;
@@ -178,7 +179,7 @@ function JobRow({ row, onOpen }: { row: WorkerBookingConversation; onOpen: () =>
   return <button onClick={onOpen} className="flex w-full items-center gap-3 py-4 text-left">
     <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${ATTENTION.has(row.booking_status) ? "bg-amber-400" : "bg-violet-400"}`} />
     <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{row.service_type || "Service job"}</p><p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">{row.other_person_name || "Customer"}</p><p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">{workerHint(row.booking_status)}</p></div>
-    <div className="shrink-0 text-right">{amount > 0 ? <p className="text-[11px] font-semibold text-emerald-300">₦{amount.toLocaleString("en-NG")}</p> : null}<span className={`mt-1 inline-block rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color || "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}>{status?.label || row.booking_status.replace(/_/g, " ")}</span></div>
+    <div className="shrink-0 text-right">{amount > 0 ? <p className="text-[11px] font-semibold text-emerald-300">{formatMoney(amount)}</p> : null}<span className={`mt-1 inline-block rounded-full px-2 py-1 text-[8px] font-semibold ${status?.color || "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}>{status?.label || row.booking_status.replace(/_/g, " ")}</span></div>
   </button>;
 }
 

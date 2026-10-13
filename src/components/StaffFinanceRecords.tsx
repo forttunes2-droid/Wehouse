@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
+import { formatMoney } from "@/lib/regional";
 
 type View = "payments" | "payouts" | "ledger";
 
@@ -297,9 +298,7 @@ function money(row: any) {
     row.commission_amount ?? row.amount_total ?? row.amount ?? row.amount_payee;
   return value == null
     ? ""
-    : `₦${Number(value).toLocaleString("en-NG", {
-        maximumFractionDigits: 2,
-      })}`;
+    : `${formatMoney(Number(value))}`;
 }
 function bankSummary(row: any) {
   const number = String(row.snapshot_bank_account_number || "");

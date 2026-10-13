@@ -9,7 +9,8 @@ import StayArrivalInstructions from "@/components/StayArrivalInstructions";
 import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
 import { shortLetPayment } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
-import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
+import { displayDate, displayDateTime, displayDateTimeAtProperty, propertyDateTimeInput, propertyInputToISO } from "@/lib/displayDate";
+import { formatMoney, getRegionalDefaults, propertyTimeZone, timeZoneLabel } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -84,12 +85,12 @@ const STATUS_OPTIONS = [
   { value: "active", label: "Upcoming" },
   { value: "history", label: "History" },
 ] as const;
-const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
+const money = (value: unknown) => formatMoney(value);
 const date = displayDate;
 function bookingMonth(value: string) {
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit" }).formatToParts(parsed);
+  const parts = new Intl.DateTimeFormat("en", { timeZone: getRegionalDefaults().timeZone, year: "numeric", month: "2-digit" }).formatToParts(parsed);
   return `${parts.find(part => part.type === "year")?.value}-${parts.find(part => part.type === "month")?.value}`;
 }
 function bookingSearchText(item: BookingItem) {
@@ -410,7 +411,7 @@ export default function MyReservations({
       }
       return toast.error(error.message);
     }
-    toast.success(`Stay cancelled. ₦${refundAmount.toLocaleString()} is being refunded to your original payment method.`);
+    toast.success(`Stay cancelled. ${formatMoney(refundAmount)} is being refunded to your original payment method.`);
     await load();
   }
 
@@ -542,7 +543,7 @@ export default function MyReservations({
     setBusyId(row.id);
     const { error } = await requestApartmentMoveIn(
       row.id,
-      nigeriaInputToISO(requestedAt),
+      propertyInputToISO(requestedAt),
     );
     setBusyId(null);
     if (error) return toast.error(error.message);
@@ -883,7 +884,7 @@ export default function MyReservations({
           <WeHouseChoice value={month} onChange={event => setMonth(event.target.value)} aria-label="Booking month"
             className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)]">
             <option value="all">Any month</option>
-            {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
+            {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: getRegionalDefaults().timeZone }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
           </WeHouseChoice>
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
@@ -907,10 +908,10 @@ export default function MyReservations({
         ) : (
           <div className="mt-4 space-y-5">
             {groupedRows.map(([monthKey, group]) => (
-              <section key={monthKey} aria-label={monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${monthKey}-15T12:00:00Z`))}>
+              <section key={monthKey} aria-label={monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: getRegionalDefaults().timeZone }).format(new Date(`${monthKey}-15T12:00:00Z`))}>
                 <div className="mb-2 flex items-center justify-between px-1">
                   <h2 className="text-xs font-semibold text-[var(--wh-text-secondary)]">
-                    {monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${monthKey}-15T12:00:00Z`))}
+                    {monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: getRegionalDefaults().timeZone }).format(new Date(`${monthKey}-15T12:00:00Z`))}
                   </h2>
                   <span className="text-[10px] text-[var(--wh-text-muted)]">{group.length}</span>
                 </div>
@@ -1231,7 +1232,7 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
             ? "WeHouse is reviewing the apartment"
             : row.status === "ready_for_move_in" && rentPaid
               ? row.requested_move_in_at
-                ? `Handover ${displayDateTime(row.requested_move_in_at, "Africa/Lagos")} WAT`
+                ? `Handover ${displayDateTimeAtProperty(row.requested_move_in_at)}`
                 : journey.title
               : row.status === "ready_for_move_in"
                 ? short
@@ -1270,7 +1271,7 @@ function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => v
     row.status === "pending"
       ? "Complete secure payment to confirm this stay"
       : row.status === "confirmed"
-        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(hotel.check_in_time, "14:00"), hotel.timezone) || `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
+        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(hotel.check_in_time, "14:00"), propertyTimeZone(hotel.timezone)) || `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
         : row.status === "checked_in"
           ? `Check-out ${checkOut} by ${formatStayTime(hotel.check_out_time, "12:00")} (hotel local time)`
           : HOTEL_STATUS[String(row.status || "")] || "";
@@ -1454,15 +1455,15 @@ function PropertyBookingDetail({
           row.listing_price ||
           0,
   );
-  const earliestMoveIn = nigeriaDateTimeInput(
+  const earliestMoveIn = propertyDateTimeInput(
     new Date(Date.now() + 5 * 60_000),
   );
-  const latestMoveIn = nigeriaDateTimeInput(
+  const latestMoveIn = propertyDateTimeInput(
     new Date(Date.now() + 3 * 86_400_000),
   );
   const [moveInAt, setMoveInAt] = useState(
     row.requested_move_in_at
-      ? nigeriaDateTimeInput(new Date(row.requested_move_in_at))
+      ? propertyDateTimeInput(new Date(row.requested_move_in_at))
       : earliestMoveIn,
   );
   const [editingMoveIn, setEditingMoveIn] = useState(false);
@@ -1626,9 +1627,9 @@ function PropertyBookingDetail({
             <section className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <p className="text-xs font-semibold">Choose your move-in time</p>
               <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
-                Times are in Nigeria time (WAT). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
+                Times are in property time ({timeZoneLabel()}). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
               </p>
-              <input aria-label="Move-in time in Nigeria (WAT)" type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs" />
+              <input aria-label={`Move-in time (${timeZoneLabel()})`} type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs" />
               <button type="button" disabled={busy || !moveInAt} onClick={() => onMoveIn(moveInAt)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Saving move-in time…" : "Send move-in time"}
               </button>
@@ -1745,7 +1746,7 @@ function HotelBookingDetail({
     journeyStatus === "pending"
       ? "Complete secure payment to confirm the room."
       : journeyStatus === "confirmed"
-        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(row.hotels?.check_in_time || row.hotel?.check_in_time, "14:00"), row.hotels?.timezone || row.hotel?.timezone) || "Arrive from the check-in time shown above. Show your code at reception."
+        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(row.hotels?.check_in_time || row.hotel?.check_in_time, "14:00"), propertyTimeZone(row.hotels?.timezone || row.hotel?.timezone)) || "Arrive from the check-in time shown above. Show your code at reception."
         : journeyStatus === "checked_in"
           ? "Your stay is in progress."
           : journeyStatus === "completed"
@@ -1836,7 +1837,7 @@ function HotelBookingDetail({
 
           <HotelSpecialRequest request={row.special_requests} />
           {row.cancellation_snapshot && <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5">
-            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
+            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
             <p className="mt-1 text-[var(--wh-text-secondary)]">These booked terms remain fixed if the hotel later changes its rate. Exceptions can be sent to WeHouse for review.</p>
           </div>}
           {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {money(row.refund_amount_ngn)} · {row.refund_status==='completed'?'Completed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status!=='completed'?'The stay is cancelled; the money has not yet been confirmed returned.':''}</p>}

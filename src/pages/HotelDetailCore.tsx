@@ -17,6 +17,7 @@ import {
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
 import { locationLabel } from "@/lib/locationPresentation";
+import { formatMoney } from "@/lib/regional";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -359,7 +360,7 @@ export default function HotelDetail({
                         {room.bed_type ? ` · ${room.bed_type}` : ""}
                       </p>
                       <p className="mt-1 text-[11px] font-bold text-violet-200">
-                        From ₦{roomStartingPrice(room).toLocaleString()}{" "}
+                        From {formatMoney(roomStartingPrice(room))}{" "}
                         <span className="text-[8px] font-normal text-[var(--wh-text-muted)]">
                           / night
                         </span>
@@ -428,7 +429,7 @@ export default function HotelDetail({
                     </p>
                   </div>
                   {selectedRate && <p className="text-sm font-bold text-violet-200">
-                    ₦{Number(selectedRate.price_per_night).toLocaleString()}
+                    {formatMoney(Number(selectedRate.price_per_night))}
                     <span className="block text-right text-[8px] font-normal text-[var(--wh-text-muted)]">per night</span>
                   </p>}
                 </div>
@@ -465,7 +466,7 @@ export default function HotelDetail({
                             {mealLabel(plan.meal_plan)} · {paymentLabel(plan.payment_timing)} · {plan.refundable ? `Free cancellation${plan.cancellation_hours ? ` up to ${plan.cancellation_hours}h before arrival` : ""}` : "Non-refundable"}
                           </span>
                         </span>
-                        <span className="shrink-0 text-xs font-bold text-violet-200">₦{Number(plan.price_per_night).toLocaleString()}</span>
+                        <span className="shrink-0 text-xs font-bold text-violet-200">{formatMoney(Number(plan.price_per_night))}</span>
                       </span>
                       {plan.description && <span className="mt-2 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">{plan.description}</span>}
                       {plan.included_features?.length ? <span className="mt-2 block text-[8px] text-emerald-300">Includes {plan.included_features.join(" · ")}</span> : null}
@@ -527,7 +528,7 @@ export default function HotelDetail({
                 <Fact label="Nights" value={String(nights)} />
                 <Fact
                   label="Stay total"
-                  value={`₦${totalPrice.toLocaleString()}`}
+                  value={`${formatMoney(totalPrice)}`}
                 />
               </div>
             )}

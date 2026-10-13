@@ -1,13 +1,15 @@
+import { propertyTimeZone } from "@/lib/regional";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import RoommateSchoolFilter from "./RoommateSchoolFilter";
 import RoommateBudgetField from "./RoommateBudgetField";
 import { RoommateChoice } from "./RoommateChoices";
 import { getAllStates, getCitiesForState } from "@/data/nigeria-locations";
-import { nigeriaCalendarDate } from "@/lib/shortLetQuote";
+import { platformCalendarDate } from "@/lib/shortLetQuote";
 import { roommateHousingError, roommatePreferenceError, type RoommatePreferenceForm } from "@/lib/roommatePreferences";
 import BookingDateField from "@/components/BookingDateField";
 import RoommateLocationChoice from "@/components/RoommateLocationChoice";
+import { formatMoney } from "@/lib/regional";
 export type { RoommatePreferenceForm } from "@/lib/roommatePreferences";
 type Props = { form: RoommatePreferenceForm; setForm: React.Dispatch<React.SetStateAction<RoommatePreferenceForm>>; profileSchool?: string | null; busy: boolean; onSave: () => void; onCancel?: () => void };
 type Section = "location" | "rent" | "timing" | "rooms" | "people" | "smoking" | "habits" | "school";
@@ -39,7 +41,7 @@ export default function RoommatePreferencesPanel({ form, setForm, profileSchool,
   const set = (key: keyof RoommatePreferenceForm, value: string | number | boolean) => setForm(current => ({ ...current, [key]: value }));
   const choice = (key: keyof RoommatePreferenceForm, label: string, options: Array<[string, string]>) => <RoommateChoice title={label} value={String(form[key])} options={options} onChange={value => set(key, value)} />;
   function save() {
-    const problem = roommateHousingError(form, nigeriaCalendarDate()) || roommatePreferenceError(form, nigeriaCalendarDate());
+    const problem = roommateHousingError(form, platformCalendarDate(new Date(), propertyTimeZone())) || roommatePreferenceError(form, platformCalendarDate(new Date(), propertyTimeZone()));
     if (!problem) { setError(""); onSave(); return; }
     setError(problem);
     // Reveal the invalid required group; never invent missing answers to save.
@@ -69,10 +71,10 @@ export default function RoommatePreferencesPanel({ form, setForm, profileSchool,
         </div>
         <label className="block text-sm">Area (optional)<input aria-label="Preferred area" className={input} maxLength={120} value={form.preferred_area} onChange={e => set("preferred_area",e.target.value)} placeholder="Anywhere in this LGA" /></label>
       </>)}
-      {row("rent","Your yearly rent share",form.budget_min && form.budget_max ? `₦${form.budget_min.toLocaleString()}–₦${form.budget_max.toLocaleString()} · bills excluded` : "Choose your range · bills excluded",<RoommateBudgetField minimum={form.budget_min} maximum={form.budget_max} onChange={(minimum,maximum) => setForm(current => ({...current,budget_min:minimum,budget_max:maximum}))} />)}
+      {row("rent","Your yearly rent share",form.budget_min && form.budget_max ? `${formatMoney(form.budget_min)}–${formatMoney(form.budget_max)} · bills excluded` : "Choose your range · bills excluded",<RoommateBudgetField minimum={form.budget_min} maximum={form.budget_max} onChange={(minimum,maximum) => setForm(current => ({...current,budget_min:minimum,budget_max:maximum}))} />)}
       {row("timing","Move-in",timing,<>
         {choice("move_in_mode","When would you like to move?",[["asap","Within 30 days"],["date","Preferred date"],["range","Date range"],["flexible","Flexible"]])}
-        {["date","range"].includes(form.move_in_mode) && <div className="grid gap-3 sm:grid-cols-2"><BookingDateField label={form.move_in_mode === "range" ? "Earliest move-in" : "Move-in date"} value={form.move_in_from} min={nigeriaCalendarDate()} onChange={value => set("move_in_from", value)} context="Roommate timing" />{form.move_in_mode === "range" && <BookingDateField label="Latest move-in" value={form.move_in_to} min={form.move_in_from || nigeriaCalendarDate()} onChange={value => set("move_in_to", value)} context="Roommate timing" />}</div>}
+        {["date","range"].includes(form.move_in_mode) && <div className="grid gap-3 sm:grid-cols-2"><BookingDateField label={form.move_in_mode === "range" ? "Earliest move-in" : "Move-in date"} value={form.move_in_from} min={platformCalendarDate(new Date(), propertyTimeZone())} onChange={value => set("move_in_from", value)} context="Roommate timing" />{form.move_in_mode === "range" && <BookingDateField label="Latest move-in" value={form.move_in_to} min={form.move_in_from || platformCalendarDate(new Date(), propertyTimeZone())} onChange={value => set("move_in_to", value)} context="Roommate timing" />}</div>}
       </>)}
       {row("rooms","Room arrangement",labelFor(form.room_arrangement,arrangements),choice("room_arrangement","What would you share?",arrangements))}
       {row("people","Who you would live with",labelFor(form.gender_preference,genders),choice("gender_preference","Who would you live with?",genders))}

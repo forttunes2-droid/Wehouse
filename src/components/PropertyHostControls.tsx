@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import BookingDateField from "@/components/BookingDateField";
+import { formatMoney } from "@/lib/regional";
 
 type DateBlock={
   block_id:string;
@@ -26,11 +27,11 @@ type HostControlsState={
   date_blocks:DateBlock[];
 };
 
-const money=(value:number)=>`₦${Number(value||0).toLocaleString("en-NG",{maximumFractionDigits:2})}`;
+const money=(value:number)=>`${formatMoney(Number(value||0))}`;
 
 function displayDate(value:string){
   const date=new Date(`${value}T12:00:00`);
-  return Number.isNaN(date.getTime())?value:date.toLocaleDateString("en-NG",{day:"numeric",month:"short",year:"numeric"});
+  return Number.isNaN(date.getTime())?value:date.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
 }
 
 export default function PropertyHostControls({

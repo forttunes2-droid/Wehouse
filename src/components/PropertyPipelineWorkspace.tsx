@@ -23,6 +23,7 @@ import {
 } from "@/lib/supabase/listings";
 import { propertyLifecycleLabel } from "@/lib/status";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
+import { formatMoney } from "@/lib/regional";
 type Stage =
   | "all"
   | "access_required"
@@ -2389,5 +2390,5 @@ function Loading() {
   return <WeHouseLoadingState compact label="Loading" />;
 }
 function money(v: any) {
-  return `₦${Number(v || 0).toLocaleString("en-NG")}`;
+  return `${formatMoney(Number(v || 0))}`;
 }

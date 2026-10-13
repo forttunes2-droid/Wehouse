@@ -15,7 +15,8 @@ function moduleAt(path, dependencies = {}, globals = {}) {
   vm.runInNewContext(code, { exports, require: name => dependencies[name] ?? require(name), setTimeout, clearTimeout, URLSearchParams, console, ...globals });
   return exports;
 }
-const dates = moduleAt('src/lib/displayDate.ts');
+const regional = moduleAt('src/lib/regional.ts');
+const dates = moduleAt('src/lib/displayDate.ts', {'./regional':regional});
 const lifecycle = moduleAt('src/lib/propertyBookingLifecycle.ts', {'./displayDate':dates});
 test('Short Let starts with the stay payment and never asks for a reservation fee', () => {
   const row = { stay_type:'short_let', status:'payment_pending', rent_payment_status:'not_started', security_deposit_snapshot:50000 };
@@ -33,7 +34,7 @@ test('Booking dates name the month and do not expose invalid dates', () => {
 });
 test('A hotel receipt renders the verified merchant, stay, amount and reference with a Test label', () => {
   const {ReceiptDocument}=moduleAt('src/components/PaymentReceipt.tsx', {
-    '@/lib/displayDate':dates, '@/lib/supabase/receipts':{}, '@/components/ui/dialog':{}, '@/components/BackButton':moduleAt('src/components/BackButton.tsx'),
+    '@/lib/displayDate':dates, '@/lib/regional':regional, '@/lib/supabase/receipts':{}, '@/components/ui/dialog':{}, '@/components/BackButton':moduleAt('src/components/BackButton.tsx'),
   });
   const html=renderToStaticMarkup(React.createElement(ReceiptDocument,{receipt:{id:'test',reference:'TEST-REFERENCE',purpose:'hotel_booking',amount:180000,currency:'NGN',paid_at:'2026-09-20T03:00:00Z',status:'paid',environment:'test',payer_name:'Test Guest',merchant_name:'Example Hotel',description:'Deluxe',package_name:'Room only',check_in:'2026-09-24',check_out:'2026-09-30',nights:6,guests:2}}));
   for (const text of ['Example Hotel','Test Guest','Deluxe','Room only','TEST-REFERENCE','180,000.00','24 Sept 2026','No real money was charged']) assert.ok(html.includes(text),text);
@@ -98,11 +99,11 @@ test('People, Bookings and WeHouse filters keep hotel and service chats out of p
     assert.equal(inboxCategories.matchesInboxCategory(kind,'wehouse'),kind==='support');
   }
 });
-test('Move-in dates stay in Nigeria time even before midnight UTC', () => {
+test('Move-in dates stay in the property time zone even before midnight UTC', () => {
   const instant = new Date('2026-09-23T23:30:00Z');
-  assert.equal(dates.nigeriaDate(instant),'2026-09-24');
-  assert.equal(dates.nigeriaDateTimeInput(instant),'2026-09-24T00:30');
-  assert.equal(dates.nigeriaInputToISO('2026-09-24T00:30'),instant.toISOString());
+  assert.equal(dates.propertyDate(instant),'2026-09-24');
+  assert.equal(dates.propertyDateTimeInput(instant),'2026-09-24T00:30');
+  assert.equal(dates.propertyInputToISO('2026-09-24T00:30'),instant.toISOString());
 });
 
 test('Google callback exchange errors end loading and explain how to restart verification', async () => {

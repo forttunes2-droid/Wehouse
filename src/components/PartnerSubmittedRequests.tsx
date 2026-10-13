@@ -15,6 +15,7 @@ import BackButton from "@/components/BackButton";
 import { ListingMediaImage } from "./ListingCandidateMedia";
 import PartnerHotelOperations from "./PartnerHotelOperations";
 import { prepareEvidenceVideo } from "@/lib/mediaVideo";
+import { formatMoney } from "@/lib/regional";
 
 export type SubmissionFilter = "all" | "submitted" | "public" | "rejected";
 export type PartnerAssetKind = "all" | "apartment" | "hotel";
@@ -485,7 +486,7 @@ function RequestDetail({
                     </p>
                   </div>
                   <p className="text-sm font-bold text-violet-200">
-                    ₦{Number(room.nightly_rate || 0).toLocaleString()}
+                    {formatMoney(Number(room.nightly_rate || 0))}
                     <span className="block text-right text-[8px] font-normal text-[var(--wh-text-muted)]">
                       per night
                     </span>

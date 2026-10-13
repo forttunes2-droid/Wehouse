@@ -25,6 +25,7 @@ import PropertyManagementPanel, { HostArrivalAction } from "@/components/Propert
 import PropertyHostControls from "@/components/PropertyHostControls";
 import BackButton from "@/components/BackButton";
 import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
+import { formatMoney } from "@/lib/regional";
 
 type PartnerTab = "properties" | "finance" | "communication" | "tools";
 const PROPERTY_PAGE_SIZE = 40;
@@ -38,7 +39,7 @@ type Props = {
   delegatedOnly?: boolean;
 };
 const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `${formatMoney(Number(value || 0))}`;
 
 const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {

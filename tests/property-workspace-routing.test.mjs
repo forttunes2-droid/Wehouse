@@ -14,7 +14,7 @@ const load = (path, dependencies = {}) => {
   return exports;
 };
 const plain = value => JSON.parse(JSON.stringify(value));
-const nav = load('src/lib/propertyNavigation.ts');
+const nav = load('src/lib/propertyNavigation.ts', { '@/lib/regional': load('src/lib/regional.ts') });
 const activityWorkspace = load('src/lib/activityWorkspace.ts');
 const activity = load('src/lib/activityFeed.ts', { './activityWorkspace': activityWorkspace });
 
@@ -34,7 +34,7 @@ test('hotel inventory distinguishes missing projection from real empty and real 
   assert.equal(nav.hotelInventorySummary({}), 'Room inventory unavailable');
   assert.equal(nav.hotelInventorySummary({ room_type_count: null, total_room_count: 3 }), 'Room inventory unavailable');
   assert.equal(nav.hotelInventorySummary({ room_type_count: 0, total_room_count: 0 }), '0 room types · 0 rooms');
-  assert.equal(nav.hotelInventorySummary({ room_type_count: 2, total_room_count: 3, starting_rate: 20000 }), '2 room types · 3 rooms · from ₦20,000');
+  assert.match(nav.hotelInventorySummary({ room_type_count: 2, total_room_count: 3, starting_rate: 20000 }), /^2 room types · 3 rooms · from .*20,000$/);
 });
 
 test('cancelled unpaid stays do not request payment or conceal genuine refunds and failures', () => {
