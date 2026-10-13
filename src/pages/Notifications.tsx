@@ -1,3 +1,4 @@
+import { Banknote, Bell, CalendarCheck, Megaphone, Search, ShieldCheck, UserCheck, Users } from "lucide-react";
 import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
@@ -591,14 +592,15 @@ function dayLabel(value: string) {
   });
 }
 function icon(type: string) {
-  if (type === "announcement") return "W";
-  if (/resource_invitation|invitation/.test(type)) return "✓";
-  if (type === "saved_search_match" || type === "followed_search_match") return "⌕";
-  if (type.includes("payment")) return "₦";
-  if (type.includes("roommate")) return "◉";
-  if (type.includes("security")) return "⌾";
-  if (type.includes("booking") || type.includes("reservation")) return "✓";
-  return "•";
+  const common = { size: 17, strokeWidth: 1.8, "aria-hidden": true } as const;
+  if (type === "announcement") return <Megaphone {...common} />;
+  if (/resource_invitation|invitation/.test(type)) return <UserCheck {...common} />;
+  if (type === "saved_search_match" || type === "followed_search_match") return <Search {...common} />;
+  if (type.includes("payment")) return <Banknote {...common} />;
+  if (type.includes("roommate")) return <Users {...common} />;
+  if (type.includes("security")) return <ShieldCheck {...common} />;
+  if (type.includes("booking") || type.includes("reservation")) return <CalendarCheck {...common} />;
+  return <Bell {...common} />;
 }
 function ActivityLoading() {
   return (

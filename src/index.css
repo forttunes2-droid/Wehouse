@@ -600,3 +600,6 @@ input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .wh-media-viewer, .wh-media-stage > * { animation: none !important; }
 }
+
+/* One readable floor for small text: nothing in the app renders below 11px. */
+.text-\[7px\], .text-\[8px\], .text-\[9px\], .text-\[10px\] { font-size: 11px; }
