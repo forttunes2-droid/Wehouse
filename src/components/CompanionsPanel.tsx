@@ -1,3 +1,4 @@
+import { runSafeAction } from "@/lib/safeAction";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import CompanionChat from "@/components/CompanionChat";
@@ -25,7 +26,7 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
   async function run(action: () => Promise<{ error: { message?: string } | null }>, done: string) {
     setBusy(true);
     try {
-      const { error } = await action();
+      const { error } = await runSafeAction(`friend-panel:${done}`, action);
       if (error) {
         toast.error(friendlyConnectionMessage(error.message) || "That did not work");
         return;

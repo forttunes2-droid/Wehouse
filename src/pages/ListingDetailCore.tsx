@@ -1,3 +1,4 @@
+import { runSafeAction } from "@/lib/safeAction";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
@@ -317,7 +318,7 @@ function support(
     const request = loadGeneration.current;
     try {
       const created = await withTimeout(
-        createShortStayReservation(listingId, shortCheckIn, shortCheckOut, shortGuests),
+        runSafeAction(`reserve:${listingId}:${shortCheckIn}:${shortCheckOut}:${shortGuests}`, () => createShortStayReservation(listingId, shortCheckIn, shortCheckOut, shortGuests)),
         20000,
         "Reservation could not be confirmed. Check your bookings before trying again.",
       );
@@ -363,7 +364,7 @@ function support(
     }
     setBusy(true);
     try {
-      const { result, error } = await initializeReservationPayment(String(reservation.payment_reference));
+      const { result, error } = await runSafeAction(`pay:${reservation.payment_reference}`, () => initializeReservationPayment(String(reservation.payment_reference)));
       if (error) throw error;
       if (result?.already_paid) {
         toast.success("Reservation payment is already confirmed");
@@ -384,7 +385,7 @@ function support(
     if (!reservation?.id || busy) return;
     setBusy(true);
     try {
-      const { reservation: cancelled, error } = await cancelReservation(String(reservation.id));
+      const { reservation: cancelled, error } = await runSafeAction(`cancel:${reservation.id}`, () => cancelReservation(String(reservation.id)));
       if (error || !cancelled) throw new Error(error?.message || "The unpaid reservation hold could not be released");
       setReservation(null);
       setPaymentReview(null);
@@ -497,7 +498,7 @@ function support(
     }
     setBusy(true);
     try {
-      const { result, error } = await initializeReservationPayment(String(reservation.payment_reference));
+      const { result, error } = await runSafeAction(`pay:${reservation.payment_reference}`, () => initializeReservationPayment(String(reservation.payment_reference)));
       if (error) throw error;
       if (result?.already_paid) {
         toast.success(listing?.sub_type === "short_let" ? "Reserve date payment is already confirmed" : "Payment is already confirmed");

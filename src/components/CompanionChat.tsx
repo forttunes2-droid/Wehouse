@@ -1,3 +1,4 @@
+import { runSafeAction } from "@/lib/safeAction";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
@@ -38,9 +39,11 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
     if (!text || busy) return;
     setBusy(true);
     try {
-      const { ciphertext, iv } = await encryptPrivateMessage("companion", companion.companion_id, companion.user_id, text);
-      const { error } = await sendCompanionEncryptedMessage(companion.companion_id, ciphertext, iv);
-      if (error) throw error;
+      await runSafeAction(`friend-chat:${companion.companion_id}:${text}`, async () => {
+        const { ciphertext, iv } = await encryptPrivateMessage("companion", companion.companion_id, companion.user_id, text);
+        const { error } = await sendCompanionEncryptedMessage(companion.companion_id, ciphertext, iv);
+        if (error) throw error;
+      });
       setDraft("");
       await load();
     } catch (error) {
