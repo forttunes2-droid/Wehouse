@@ -180,7 +180,7 @@ create or replace function public.creator_list_wehouse_hotel_discounts()
 returns table(id uuid, hotel_id integer, hotel_name text, room_id integer, rate_plan_id integer, percent numeric, ends_on date)
 language plpgsql stable security definer set search_path to 'pg_catalog','public' as $$
 begin
-  if public._admin_dashboard_actor().role <> 'creator' then raise exception 'Only the Creator can view this'; end if;
+  if (public._admin_dashboard_actor()).role <> 'creator' then raise exception 'Only the Creator can view this'; end if;
   return query select d.id, d.hotel_id, h.name::text, d.room_id, d.rate_plan_id, d.percent, d.ends_on
   from public.hotel_discounts d left join public.hotels h on h.hotel_id = d.hotel_id
   where d.funded_by = 'wehouse' and d.active order by d.created_at desc;
@@ -189,7 +189,7 @@ end $$;
 create or replace function public.creator_stop_wehouse_hotel_discount(p_id uuid)
 returns void language plpgsql security definer set search_path to 'pg_catalog','public' as $$
 begin
-  if public._admin_dashboard_actor().role <> 'creator' then raise exception 'Only the Creator can stop this'; end if;
+  if (public._admin_dashboard_actor()).role <> 'creator' then raise exception 'Only the Creator can stop this'; end if;
   update public.hotel_discounts set active = false where id = p_id and funded_by = 'wehouse';
 end $$;
 
