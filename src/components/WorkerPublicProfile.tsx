@@ -38,6 +38,7 @@ type PublicReview = {
   service_name: string;
 };
 type PublicPackage = { id: string; title: string; description: string; price_ngn: number };
+type PublicServiceOffer = { service_name: string; price: number | null; price_type: string | null };
 type PostReaction = {
   post_id: string;
   emoji: string;
@@ -79,6 +80,8 @@ function WorkerProfileContent({
   const [viewer, setViewer] = useState<Post | null>(null), [mediaFailed, setMediaFailed] = useState(false), [section, setSection] = useState<"work" | "reviews">("work");
   const [trust, setTrust] = useState<Trust | null>(null), [reviews, setReviews] = useState<PublicReview[]>([]);
   const [packages, setPackages] = useState<PublicPackage[]>([]);
+  const [serviceOffers, setServiceOffers] = useState<PublicServiceOffer[]>([]);
+  const [serviceOffersLoading, setServiceOffersLoading] = useState(true);
   const [featuredPosts, setFeaturedPosts] = useState<Post[]>([]);
   const [reviewLoading, setReviewLoading] = useState(true), [reviewError, setReviewError] = useState(""), [trustError, setTrustError] = useState("");
   const [attempt, setAttempt] = useState(0), [postReactions, setPostReactions] = useState<Record<string, { counts: Record<string, number>; mine: string | null }>>({});
@@ -94,8 +97,21 @@ function WorkerProfileContent({
   useEffect(() => { setViewer(null); setSection("work"); openSequence.current++; }, [worker.user_id, privateConversationMode]);
   useEffect(() => {
     let active = true;
-    setTrust(null); setReviews([]); setPackages([]); setFeaturedPosts([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
+    setTrust(null); setReviews([]); setPackages([]); setServiceOffers([]); setServiceOffersLoading(!privateConversationMode); setFeaturedPosts([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
     if (privateConversationMode) return;
+    void withTimeout(
+      supabase.from("worker_services")
+        .select("service_name,price,price_type")
+        .eq("worker_id", worker.user_id)
+        .order("service_name"),
+      15000,
+      "Services took too long.",
+    ).then(({ data, error }) => {
+      if (active && !error && Array.isArray(data))
+        setServiceOffers(data as PublicServiceOffer[]);
+    }).catch(() => undefined).finally(() => {
+      if (active) setServiceOffersLoading(false);
+    });
     void withTimeout(supabase.rpc("get_worker_marketplace_trust", { p_worker_id: worker.user_id }), 15000, "Profile totals took too long.").then(result => {
       if (!active) return;
       if (result.error || !result.data) setTrustError("Profile totals are unavailable."); else setTrust(result.data as Trust);
@@ -164,7 +180,7 @@ function WorkerProfileContent({
       maxWidth="4xl"
       reportUserId={previewMode ? null : worker.user_id}
       actions={communicationActions}
-      badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}{worker.worker_price ? <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">From {formatMoney(Number(worker.worker_price))}</span> : null}</>}
+      badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}</>}
       bottomAction={previewMode ? <button type="button" disabled className="h-12 w-full rounded-2xl bg-violet-500/40 text-sm font-semibold text-white/70">Request service · preview only</button> : showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
       {fullProfile && safetyAction ? <section>{safetyAction}</section> : null}
@@ -172,7 +188,31 @@ function WorkerProfileContent({
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-[var(--wh-border-subtle)] py-4 text-sm text-[var(--wh-text-secondary)]">
         {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
       </section> : trustError ? <p className="text-sm text-[var(--wh-text-secondary)]">{trustError} <button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></p> : null}
-      {skills.length > 1 ? <section><h2 className="text-sm font-semibold text-[#D6DBE5]">Services</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{skills.join(" · ")}</p></section> : null}
+      {serviceOffersLoading ? (
+        <section aria-label="Services and starting prices">
+          <WeHouseLoadingState compact label="Loading services" />
+        </section>
+      ) : serviceOffers.length > 0 ? (
+        <section aria-label="Services and starting prices" className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">Services</h2>
+            <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Each service has its own price guide.</p>
+          </div>
+          <ul className="divide-y divide-[var(--wh-border-subtle)] rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4">
+            {serviceOffers.map((offer) => (
+              <li key={offer.service_name} className="flex items-center justify-between gap-4 py-3">
+                <span className="min-w-0 text-sm font-medium">{offer.service_name}</span>
+                <span className="shrink-0 text-sm text-[var(--wh-text-secondary)]">{servicePriceLabel(offer)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs leading-5 text-[var(--wh-text-muted)]">
+            Final scope, date and total are reviewed with you before payment.
+          </p>
+        </section>
+      ) : skills.length > 1 ? (
+        <section><h2 className="text-sm font-semibold">Services</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{skills.join(" · ")}</p></section>
+      ) : null}
       {featuredPosts.length>0 && <section aria-label="Featured work" className="space-y-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-violet-600 dark:text-violet-300">Worker Pro portfolio</p><h2 className="mt-1 text-lg font-semibold">Featured work</h2></div><WorkerShowcaseGrid posts={featuredPosts} loading={false} onOpen={post=>void openPost(post)} onRetry={()=>setAttempt(n=>n+1)}/></section>}
       {packages.length > 0 && <section aria-label="Service packages" className="space-y-3"><h2 className="text-base font-semibold">Service packages</h2><p className="text-xs text-[var(--wh-text-secondary)]">Example starting prices from this Worker. Request and payment still go through the normal WeHouse booking flow.</p><div className="grid gap-2 sm:grid-cols-2">{packages.map(pkg => <article key={pkg.id} className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4"><div className="flex justify-between gap-2"><h3 className="text-sm font-semibold">{pkg.title}</h3><strong className="text-sm">From {formatMoney(Number(pkg.price_ngn))}</strong></div><p className="mt-2 whitespace-pre-wrap text-sm text-[var(--wh-text-secondary)]">{pkg.description}</p></article>)}</div></section>}
       <div role="tablist" aria-label="Worker profile content" className="flex border-b border-[var(--wh-border-subtle)]">{([['work', 'Work posts'], ['reviews', 'Reviews']] as const).map(([key, label]) => <button key={key} type="button" role="tab" id={`worker-${key}-tab`} aria-controls={`worker-${key}-panel`} aria-selected={section === key} tabIndex={section === key ? 0 : -1} onClick={() => setSection(key)} onKeyDown={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const next = event.key === 'Home' ? 'work' : event.key === 'End' ? 'reviews' : section === 'work' ? 'reviews' : 'work'; setSection(next); document.getElementById(`worker-${next}-tab`)?.focus(); } }} className={`min-h-12 flex-1 border-b-2 px-4 text-sm font-medium ${section === key ? "border-violet-400 text-violet-200" : "border-transparent text-[var(--wh-text-secondary)]"}`}>{label}</button>)}</div>
@@ -212,6 +252,17 @@ function WorkerProfileContent({
     </PublicProfileSurface>
   );
 }
+function servicePriceLabel(offer: PublicServiceOffer) {
+  const price = Number(offer.price || 0);
+  const type = String(offer.price_type || "").toLowerCase();
+  if (!(price > 0) || type === "negotiable") return "Price agreed before payment";
+  const amount = formatMoney(price);
+  if (type === "hourly" || type === "per_hour") return `${amount} / hour`;
+  if (type === "daily" || type === "per_day") return `${amount} / day`;
+  if (type === "fixed") return amount;
+  return `From ${amount}`;
+}
+
 function reactionTotal(counts?: Record<string, number>) {
   return Object.values(counts || {}).reduce((total, value) => total + Number(value || 0), 0);
 }
