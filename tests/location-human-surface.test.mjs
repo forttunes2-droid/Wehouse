@@ -35,7 +35,7 @@ test("human location surfaces never expose pin or accuracy controls", async () =
   for (const path of files) {
     const text = await readFile(path, "utf8");
     for (const pattern of forbidden) {
-      if (humanFacingExceptions.has(path) && /latitude|longitude/.test(String(pattern))) continue;
+      if (humanFacingExceptions.has(path.replaceAll("\\", "/")) && /latitude|longitude/.test(String(pattern))) continue;
       if (pattern.test(text)) failures.push(`${path}: ${pattern}`);
     }
   }
