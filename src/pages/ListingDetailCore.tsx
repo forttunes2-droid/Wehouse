@@ -997,7 +997,8 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 />
               ) : canStartReservation ? (
                 shortStay ? (
-                  <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">                    <div className="flex items-end justify-between gap-4">
+                  <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
+                    <div className="flex items-end justify-between gap-4">
                       <div>
                         <p className="text-sm font-bold uppercase tracking-[.15em] text-violet-300">
                           Short Let
