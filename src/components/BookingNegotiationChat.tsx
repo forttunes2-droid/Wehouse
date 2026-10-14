@@ -347,7 +347,7 @@ export default function BookingNegotiationChat({
   }
   function openReport() {
     setProfileOpen(false);
-    openSupport();
+    setReportOpen(true);
   }
   function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
