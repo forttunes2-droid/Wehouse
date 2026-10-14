@@ -329,6 +329,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [bookingContextId, setBookingContextId] = useState<string | null>(() => ["my_reservations", "my_bookings"].includes(initialRoute?.page || "") ? initialParams.bookingId || initialParams.id || null : null),
     [roommateContextId, setRoommateContextId] = useState<string | null>(() => initialRoute?.page === "roommate" ? initialParams.roommateId || initialParams.id || null : null),
     [workerCategory, setWorkerCategory] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.category || null : null),
+    [workerProfileId, setWorkerProfileId] = useState<string | null>(null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
     [supportUnreadCount, setSupportUnreadCount] = useState(0),
@@ -1253,6 +1254,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         setRoommateContextId(id || null);
         return goTo("roommate", undefined, { roommateId: id });
       }
+      if (route === "worker_discovery" && id) setWorkerProfileId(id);
       if (route === "security" && id) return goTo("devices");
       goTo(route as NavPage);
     },
@@ -1614,7 +1616,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             userCity={profile.city}
             profile={profile}
             preSelectedCategory={workerCategory}
-            onNavigate={(p) => goTo(p as NavPage)}
+            initialWorkerId={workerProfileId}
+            onInitialWorkerOpened={() => setWorkerProfileId(null)}
+            onNavigate={(p, id) => openUserDestination(p, id)}
           />
         ) : (
           renderRoleRoot()

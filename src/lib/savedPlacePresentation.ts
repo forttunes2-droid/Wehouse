@@ -1,6 +1,6 @@
 import { formatMoney } from "@/lib/regional";
 /** Shared presentation without sharing booking/payment rules between products. */
-export type SavedPlaceType = 'home' | 'long_let' | 'short_let' | 'hotel';
+export type SavedPlaceType = 'home' | 'long_let' | 'short_let' | 'hotel' | 'service_provider';
 export type SavedPlace = {
   key: string;
   type: SavedPlaceType;
@@ -12,7 +12,7 @@ export type SavedPlace = {
   unavailable: boolean;
 };
 export const SAVED_TYPE_LABELS: Record<SavedPlaceType, string> = {
-  home: 'Home', long_let: 'Long Let', short_let: 'Short Let', hotel: 'Hotel',
+  home: 'Home', long_let: 'Long Let', short_let: 'Short Let', hotel: 'Hotel', service_provider: 'Service provider',
 };
 export function savedHomePrice(price: unknown, shortLet: boolean): string {
   if (price === null || price === undefined || price === '') return 'View price and details';

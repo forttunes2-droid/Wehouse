@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getListing } from '@/lib/supabase/listings';
 import { getHotelById } from '@/lib/supabase/hotels';
 import { getMySavedHotelIds, unsaveHotel } from '@/lib/supabase/saved-hotels';
+import { getMySavedServiceProviderIds, getSavedServiceProviders, unsaveServiceProvider } from '@/lib/supabase/saved-service-providers';
 import { listingDisplayTitle } from '@/lib/listingPresentation';
 import { locationLabel } from '@/lib/locationPresentation';
 import { withTimeout } from '@/lib/withTimeout';
@@ -36,9 +37,15 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
     setSnapshot({ key: loadKey, places: [], loading: true, error: '' });
     void (async () => {
       try {
-        const savedHotels = await withTimeout(getMySavedHotelIds(), 15000, 'Saved places took too long to load.');
+        const [savedHotels, savedProviders] = await Promise.all([
+          withTimeout(getMySavedHotelIds(), 15000, 'Saved places took too long to load.'),
+          withTimeout(getMySavedServiceProviderIds(), 15000, 'Saved service providers took too long to load.'),
+        ]);
         if (!active) return;
         if (savedHotels.error) throw savedHotels.error;
+        if (savedProviders.error) throw savedProviders.error;
+        const providersResult = await withTimeout(getSavedServiceProviders(savedProviders.workerIds), 15000, 'Saved service providers took too long to load.');
+        if (providersResult.error) throw providersResult.error;
         const refs: SavedRef[] = (JSON.parse(idsKey) as string[]).map(id => ({ kind: 'listing', id }));
         for (const hotelId of new Set(savedHotels.hotelIds)) {
           const value = Number(hotelId);
@@ -74,7 +81,24 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
             image: hotel.images?.[0] || null, detail: 'View rooms and dates', unavailable: false,
           };
         }, () => active);
-        if (active) setSnapshot({ key: loadKey, places, loading: false, error: '' });
+        if (active) {
+          const providersById = new Map(providersResult.workers.map(worker => [worker.user_id, worker]));
+          const providerPlaces: SavedPlace[] = savedProviders.workerIds.map((id: string) => {
+            const worker = providersById.get(id);
+            return worker ? {
+              key: 'service_provider:' + id, id, type: 'service_provider',
+              title: worker.full_name || worker.username || 'Service provider',
+              location: [worker.city || worker.local_government, worker.state].filter(Boolean).join(', '),
+              image: worker.avatar_url || null,
+              detail: worker.worker_occupation || 'View services and request a quote', unavailable: false,
+            } : {
+              key: 'service_provider:' + id, id, type: 'service_provider',
+              title: 'Service provider unavailable', location: '', image: null,
+              detail: 'This profile is no longer public.', unavailable: true,
+            };
+          });
+          setSnapshot({ key: loadKey, places: [...places, ...providerPlaces], loading: false, error: '' });
+        }
       } catch {
         // Failure is not an empty Saved list. Do not show another account's cache.
         if (active) setSnapshot({ key: loadKey, places: [], loading: false,
@@ -87,7 +111,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
   const loading = snapshot.key !== loadKey || snapshot.loading;
   const places = snapshot.key === loadKey ? snapshot.places : [];
   const visible = useMemo(() => visibleSavedPlaces(places, filter), [places, filter]);
-  const availableTypes = useMemo(() => (['home', 'long_let', 'short_let', 'hotel'] as const)
+  const availableTypes = useMemo(() => (['home', 'long_let', 'short_let', 'hotel', 'service_provider'] as const)
     .filter(type => places.some(place => place.type === type)), [places]);
 
   async function removeHotel(id: number) {
@@ -109,7 +133,7 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
     <header className="sticky top-0 z-30 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl sm:px-6">
       <div className="mx-auto flex max-w-3xl items-center gap-3">
         <BackButton onClick={onBack} />
-        <div><h1 className="text-xl font-semibold">Saved</h1><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Places you want to come back to.</p></div>
+        <div><h1 className="text-xl font-semibold">Saved</h1><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Homes, hotels and service providers you want to come back to.</p></div>
       </div>
     </header>
     <main className="mx-auto max-w-3xl px-4 py-4 sm:px-6">
@@ -128,11 +152,14 @@ export default function Saved({ profile, onNavigate, savedIds, onToggleSave, onB
           {visible.length ? <ul className="divide-y divide-[var(--wh-border-subtle)]">
             {visible.map(place => <SavedPlaceRow key={place.key} place={place}
               busy={place.type === 'hotel' && busyHotel !== null}
-              onOpen={() => onNavigate(place.type === 'hotel' ? 'hotel_detail' : 'detail', place.id)}
-              onRemove={() => place.type === 'hotel' ? void removeHotel(Number(place.id)) : onToggleSave(place.id)} />)}
+              onOpen={() => place.type === 'hotel' ? onNavigate('hotel_detail', place.id) : place.type === 'service_provider' ? onNavigate('worker_discovery', place.id) : onNavigate('detail', place.id)}
+              onRemove={() => place.type === 'hotel' ? void removeHotel(Number(place.id)) : place.type === 'service_provider' ? void unsaveServiceProvider(place.id).then(({ error }) => {
+                if (error) toast.error('The provider could not be removed. Try again.');
+                else { setSnapshot(current => ({ ...current, places: current.places.filter(item => item.key !== place.key) })); toast.success('Service provider removed from Saved'); }
+              }) : onToggleSave(place.id)} />)}
           </ul> : <div className="py-12 text-center">
             <h2 className="text-base font-semibold">{places.length ? 'No saved places of this type' : 'No saved places yet'}</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{places.length ? 'Choose All places to see the rest.' : 'Tap the heart on a home or hotel to keep it here.'}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{places.length ? 'Choose All places to see the rest.' : 'Save a home, hotel or service provider to keep it here.'}</p>
             <button type="button" onClick={() => places.length ? setFilter('all') : onNavigate('search')}
               className="mt-4 min-h-11 rounded-xl border border-violet-400/30 px-4 text-sm text-violet-300">{places.length ? 'Show all places' : 'Explore places'}</button>
           </div>}

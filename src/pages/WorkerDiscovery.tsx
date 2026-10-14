@@ -33,8 +33,10 @@ type WorkStatusRow = Omit<WorkStatus, "url">;
 type Props = {
   userCity?: string | null;
   profile?: Profile | null;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
   preSelectedCategory?: string | null;
+  initialWorkerId?: string | null;
+  onInitialWorkerOpened?: () => void;
 };
 type WorkStatus = {
   id: string;
@@ -83,6 +85,8 @@ export default function WorkerDiscovery({
   profile,
   onNavigate = () => {},
   preSelectedCategory,
+  initialWorkerId,
+  onInitialWorkerOpened,
 }: Props) {
   const { getBoolean, loading: settingsLoading } = usePlatformSettings();
   const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
@@ -199,6 +203,12 @@ export default function WorkerDiscovery({
       current = false;
     };
   }, [active, viewWorker]);
+  useEffect(() => {
+    if (!initialWorkerId || loading) return;
+    const found = workers.find(worker => worker.user_id === initialWorkerId);
+    if (found) setViewWorker(found);
+    onInitialWorkerOpened?.();
+  }, [initialWorkerId, loading, workers, onInitialWorkerOpened]);
   useEffect(() => {
     if (!preSelectedCategory || !categories.length) return;
     const direct = categories.find((item) => item.name === preSelectedCategory);
@@ -367,6 +377,7 @@ export default function WorkerDiscovery({
       <>
         <WorkerPublicProfile
           worker={viewWorker}
+          viewerUserId={profile?.user_id}
           onBack={() => setViewWorker(null)}
           bookingActive={active.has(viewWorker.user_id)}
           showBookingAction={!viewingOwnWorker}

@@ -16,6 +16,7 @@ import { withTimeout } from "@/lib/withTimeout";
 import WorkerShowcasePostViewer from "@/components/WorkerShowcasePostViewer";
 import PublicProfileSurface from "@/components/PublicProfileSurface";
 import { formatMoney } from "@/lib/regional";
+import { saveServiceProvider, unsaveServiceProvider } from '@/lib/supabase/saved-service-providers';
 
 type Post = ShowcasePost;
 type Trust = {
@@ -47,6 +48,7 @@ type PostReaction = {
 };
 type Props = {
   worker: Profile;
+  viewerUserId?: string | null;
   onBack: () => void;
   onBook: () => void;
   bookingActive?: boolean;
@@ -65,6 +67,7 @@ export default function WorkerPublicProfileV2(props: Props) {
 }
 function WorkerProfileContent({
   worker,
+  viewerUserId,
   onBack,
   onBook,
   bookingActive = false,
@@ -82,6 +85,8 @@ function WorkerProfileContent({
   const [packages, setPackages] = useState<PublicPackage[]>([]);
   const [serviceOffers, setServiceOffers] = useState<PublicServiceOffer[]>([]);
   const [serviceOffersLoading, setServiceOffersLoading] = useState(true);
+  const [providerSaved, setProviderSaved] = useState(false);
+  const [savingProvider, setSavingProvider] = useState(false);
   const [featuredPosts, setFeaturedPosts] = useState<Post[]>([]);
   const [reviewLoading, setReviewLoading] = useState(true), [reviewError, setReviewError] = useState(""), [trustError, setTrustError] = useState("");
   const [attempt, setAttempt] = useState(0), [postReactions, setPostReactions] = useState<Record<string, { counts: Record<string, number>; mine: string | null }>>({});
@@ -95,6 +100,21 @@ function WorkerProfileContent({
     catch { if (request === openSequence.current && activeWorker.current === identity) setMediaFailed(true); }
   }
   useEffect(() => { setViewer(null); setSection("work"); openSequence.current++; }, [worker.user_id, privateConversationMode]);
+  useEffect(() => {
+    let live = true;
+    setProviderSaved(false);
+    if (!viewerUserId || viewerUserId === worker.user_id || previewMode || privateConversationMode) return;
+    void Promise.resolve(supabase.from('saved_service_providers').select('worker_id').eq('worker_id', worker.user_id).maybeSingle())
+      .then(({ data }) => { if (live) setProviderSaved(Boolean(data)); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [viewerUserId, worker.user_id, previewMode, privateConversationMode]);
+  async function toggleProviderSave() {
+    if (!viewerUserId || savingProvider) return;
+    setSavingProvider(true);
+    const result = providerSaved ? await unsaveServiceProvider(worker.user_id) : await saveServiceProvider(worker.user_id);
+    setSavingProvider(false);
+    if (!result.error) setProviderSaved(!providerSaved);
+  }
   useEffect(() => {
     let active = true;
     setTrust(null); setReviews([]); setPackages([]); setServiceOffers([]); setServiceOffersLoading(!privateConversationMode); setFeaturedPosts([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
@@ -184,6 +204,7 @@ function WorkerProfileContent({
       bottomAction={previewMode ? <button type="button" disabled className="h-12 w-full rounded-2xl bg-violet-500/40 text-sm font-semibold text-white/70">Request service · preview only</button> : showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
     >
       {fullProfile && safetyAction ? <section>{safetyAction}</section> : null}
+      {viewerUserId && viewerUserId !== worker.user_id && !previewMode && showBookingAction ? <section><button type="button" disabled={savingProvider} aria-pressed={providerSaved} onClick={() => void toggleProviderSave()} className="min-h-11 rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-4 text-sm font-semibold text-[var(--wh-text)] disabled:opacity-50">{savingProvider ? 'Saving…' : providerSaved ? 'Saved service provider' : 'Save service provider'}</button></section> : null}
       {previewMode && <p className="rounded-xl border border-violet-400/20 bg-violet-400/[.08] px-4 py-3 text-sm leading-5 text-violet-100">Creator preview · customer actions are disabled. Public availability is controlled separately.</p>}
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-[var(--wh-border-subtle)] py-4 text-sm text-[var(--wh-text-secondary)]">
         {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
