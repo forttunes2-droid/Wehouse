@@ -37,7 +37,7 @@ test('country, zone and currency literals live only in the regional layer', () =
 });
 
 test('home and Worker discovery accept locations without a Nigeria-only catalogue', () => {
-  for (const file of ['src/pages/Search.tsx', 'src/pages/WorkerDiscovery.tsx']) {
+  for (const file of ['src/pages/Search.tsx', 'src/pages/HotelsHome.tsx', 'src/pages/WorkerDiscovery.tsx']) {
     const source = fs.readFileSync(file, 'utf8');
     assert.match(source, /LocationFilterFields/);
     assert.doesNotMatch(source, /nigeria-locations|NIGERIA_STATES|getCitiesForState|label="LGA"/);
