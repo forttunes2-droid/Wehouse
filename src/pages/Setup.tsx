@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { updateProfile, isUsernameTaken, supabase } from '@/lib/supabase';
 import { Input } from '@/components/ui/input';
-import SearchableSelect from '@/components/SearchableSelect';
-import { NIGERIA_STATES } from '@/data/nigeria-locations';
 import type { Profile } from '@/types';
 import { acceptReviewedLegalDocument, getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supabase/legal';
 import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
@@ -13,8 +11,6 @@ interface Props { profile: Profile; onSetupComplete: (profile: Profile) => void 
 
 export default function Setup({ profile, onSetupComplete }: Props) {
   const [username, setUsername] = useState('');
-  const [state, setState] = useState('');
-  const [city, setCity] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
@@ -26,16 +22,14 @@ export default function Setup({ profile, onSetupComplete }: Props) {
 
   const role = profile.role;
   const content = ({
-    user: { title: 'Complete your profile', subtitle: 'A few details and you are ready', info: 'Your location helps WeHouse show relevant homes, roommates and services.' },
-    worker: { title: 'Worker account setup', subtitle: 'Set up your account first', info: 'Your personal location is separate from your professional service coverage.' },
+    user: { title: 'Complete your profile', subtitle: 'A few details and you are ready', info: 'Choose any destination when you search. You can add a personal region later in your profile.' },
+    worker: { title: 'Worker account setup', subtitle: 'Set up your account first', info: 'Your search destination is separate from your professional service coverage.' },
     property_partner: { title: 'Property Partner setup', subtitle: 'Set up your account', info: 'Complete your account before managing properties.' },
     staff: { title: 'Team account setup', subtitle: 'Complete your account', info: 'Your personal location is separate from your work assignment.' },
     admin: { title: 'Admin account setup', subtitle: 'Complete your account', info: 'Your personal location is separate from your branch assignment.' },
     creator: { title: 'Creator account setup', subtitle: 'Complete your account', info: 'Complete your account profile to continue.' },
-  } as any)[role] || { title: 'Complete your profile', subtitle: 'A few details and you are ready', info: 'Your location helps WeHouse show relevant results.' };
+  } as any)[role] || { title: 'Complete your profile', subtitle: 'A few details and you are ready', info: 'Choose a destination when you search. You can add a personal region later.' };
 
-  const stateOptions = useMemo(() => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })), []);
-  const cityOptions = useMemo(() => (NIGERIA_STATES.find((item) => item.state === state)?.cities || []).map((name) => ({ value: name, label: name })), [state]);
   const legalReady = !legalLoading && !legalError && hasLegalConsent(documents, choices);
 
   useEffect(() => {
@@ -60,8 +54,6 @@ export default function Setup({ profile, onSetupComplete }: Props) {
     const trimmed = username.trim().toLowerCase();
     if (trimmed.length < 3) return setError('Username must be at least 3 characters');
     if (!/^[a-z0-9_]+$/.test(trimmed)) return setError('Only letters, numbers, and underscores');
-    if (!state) return setError('Choose your current State');
-    if (!city) return setError('Choose your Local Government');
     if (!dateOfBirth) return setError('Enter your date of birth');
     if (dateOfBirth > adultCutoff()) return setError('You must be 18 or older to use WeHouse');
     if (!legalReady) return setError('Read and accept each published WeHouse legal document to continue');
@@ -94,9 +86,6 @@ export default function Setup({ profile, onSetupComplete }: Props) {
       if (ageResult.error) { setError(ageResult.error.message); setWorking(false); return; }
       const { profile: updated, error: saveError } = await updateProfile(profile.user_id, {
         username: trimmed,
-        state,
-        city,
-        local_government: city,
         profile_complete: true,
       });
       if (saveError || !updated) {
@@ -126,9 +115,6 @@ export default function Setup({ profile, onSetupComplete }: Props) {
           <FieldLabel label="Username">
             <Input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} className="h-11 rounded-xl border-[#2A2A3A] bg-[var(--wh-elevated)] text-sm text-[var(--wh-text)]" placeholder="e.g. johnsmith" autoFocus />
           </FieldLabel>
-
-          <SearchableSelect label="State *" value={state} onChange={(next) => { setState(next); setCity(''); }} options={stateOptions} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
-          <SearchableSelect label="Local Government *" value={city} onChange={setCity} options={cityOptions} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
 
           <div>
             <BookingDateField label="Date of birth" value={dateOfBirth} max={adultCutoff()} onChange={setDateOfBirth} context="Profile" />
