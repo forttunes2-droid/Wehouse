@@ -8,7 +8,7 @@ import {
 } from "@/lib/supabase";
 import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
@@ -227,7 +227,6 @@ export default function WorkerDiscovery({
     () => categories.find((item) => item.name === category) || null,
     [categories, category],
   );
-  const cities = useMemo(() => getCitiesForState(state), [state]);
   const categoryOptions = useMemo(
     () => categories.map((item) => ({ value: item.name, label: item.name })),
     [categories],
@@ -239,15 +238,6 @@ export default function WorkerDiscovery({
         label: sub.name,
       })),
     [selected],
-  );
-  const stateOptions = useMemo(
-    () =>
-      NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => cities.map((item) => ({ value: item, label: item })),
-    [cities],
   );
   const liveWorkers = useMemo(
     () =>
@@ -594,28 +584,7 @@ export default function WorkerDiscovery({
               disabled={!category}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={state}
-              onChange={(value) => {
-                setState(value);
-                setCity("");
-              }}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={city}
-              onChange={setCity}
-              options={cityOptions}
-              placeholder={state ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!state}
-            />
-          </div>
+          <LocationFilterFields region={state} locality={city} onRegionChange={(value) => { setState(value); setCity(""); }} onLocalityChange={setCity} />
           {(savedState || savedCity) && (
             <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5 text-[9px] text-[var(--wh-text-muted)]">
               Your saved area is the default:{" "}
