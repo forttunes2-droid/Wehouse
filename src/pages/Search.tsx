@@ -2,10 +2,9 @@ import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import ListingCard from "@/components/ListingCard";
-import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryPriceRangeSlider from "@/components/DiscoveryPriceRangeSlider";
 import DiscoveryShell, {
   DiscoveryEmpty,
@@ -240,15 +239,6 @@ export default function Search({
     return () => { live = false; };
   }, [sponsoredResults]);
 
-  const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
-  const stateOptions = useMemo(
-    () => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => citiesForState.map((city) => ({ value: city, label: city })),
-    [citiesForState],
-  );
   const priceScale = useMemo(
     () =>
       stayType === "short_let"
@@ -544,25 +534,7 @@ export default function Search({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={filterState}
-              onChange={chooseState}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={filterCity}
-              onChange={setFilterCity}
-              options={cityOptions}
-              placeholder={filterState ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!filterState}
-            />
-          </div>
+          <LocationFilterFields region={filterState} locality={filterCity} onRegionChange={chooseState} onLocalityChange={setFilterCity} />
 
           {stayType !== "all" ? (
             <DiscoveryPriceRangeSlider
