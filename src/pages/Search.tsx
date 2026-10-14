@@ -400,7 +400,7 @@ export default function Search({
           locationBusy={locating}
           onLocation={requestLocation}
           onClearLocation={clearLocation}
-          locationDetail={locationError || undefined}
+          locationDetail={locationError || "Optional: WeHouse uses your location to estimate distances and show nearby homes first. It is not saved to your profile. You can clear it or search any destination instead."}
         />
         {sponsoredHomes.length > 0 && <section aria-label="Sponsored homes" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
           <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored homes</p>
