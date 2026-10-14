@@ -69,6 +69,18 @@ type Plan = {
   year1Upfront: number;
   monthlyInstallment: number;
 };
+type ListingReviewSummary = {
+  rating: number | null;
+  review_count: number;
+  reviews: Array<{
+    review_id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    profiles?: { username?: string | null; avatar_url?: string | null } | null;
+  }>;
+  eligible: boolean;
+};
 type ListingState =
   | "pending_approval"
   | "available"
@@ -136,6 +148,14 @@ export default function ListingDetail({
   onRequireAuth,
 }: Props) {
   const [listing, setListing] = useState<Listing | null>(null);
+  const [listingReviewSummary, setListingReviewSummary] = useState<ListingReviewSummary | null>(null);
+  const [listingReviewLoading, setListingReviewLoading] = useState(false);
+  const [listingReviewError, setListingReviewError] = useState("");
+  const [listingReviewAttempt, setListingReviewAttempt] = useState(0);
+  const [listingReviewFormOpen, setListingReviewFormOpen] = useState(false);
+  const [listingReviewRating, setListingReviewRating] = useState(5);
+  const [listingReviewComment, setListingReviewComment] = useState("");
+  const [listingReviewSaving, setListingReviewSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountSplit, setDiscountSplit] = useState({ host: 0, wehouse: 0, endsOn: null as string | null });
@@ -223,6 +243,31 @@ export default function ListingDetail({
       if (request === loadGeneration.current) { setLoading(false); setAccountLoading(false); }
     }
   }
+
+  useEffect(() => {
+    let active = true;
+    setListingReviewSummary(null);
+    setListingReviewError("");
+    if (!listing?.id) {
+      setListingReviewLoading(false);
+      return () => { active = false; };
+    }
+    setListingReviewLoading(true);
+    void withTimeout(
+      supabase.rpc("get_listing_review_summary", { p_listing_id: String(listing.id) }),
+      15000,
+      "Guest reviews took too long.",
+    ).then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data) setListingReviewError("Guest reviews could not be loaded.");
+      else setListingReviewSummary(data as ListingReviewSummary);
+    }).catch(() => {
+      if (active) setListingReviewError("Guest reviews could not be loaded.");
+    }).finally(() => {
+      if (active) setListingReviewLoading(false);
+    });
+    return () => { active = false; };
+  }, [listing?.id, profile?.user_id, listingReviewAttempt]);
 
   useEffect(() => {
     if (!listing?.id || !["short_let", "long_stay"].includes(String(listing.sub_type))) {
@@ -322,6 +367,36 @@ function support(
         },
       }),
     );
+  }
+
+  async function submitListingReview() {
+    if (!listing?.id || !listingReviewSummary?.eligible || listingReviewSaving) return;
+    setListingReviewSaving(true);
+    try {
+      const { error } = await withTimeout(
+        supabase.rpc("create_my_verified_listing_review", {
+          p_listing_id: String(listing.id),
+          p_rating: listingReviewRating,
+          p_comment: listingReviewComment.trim() || null,
+        }),
+        15000,
+        "Your review took too long to submit.",
+      );
+      if (error) throw error;
+      const refreshed = await withTimeout(
+        supabase.rpc("get_listing_review_summary", { p_listing_id: String(listing.id) }),
+        15000,
+        "Your review was saved, but the updated list took too long to load.",
+      );
+      if (!refreshed.error && refreshed.data) setListingReviewSummary(refreshed.data as ListingReviewSummary);
+      setListingReviewFormOpen(false);
+      setListingReviewComment("");
+      toast.success("Your verified stay review was saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Your review could not be submitted");
+    } finally {
+      setListingReviewSaving(false);
+    }
   }
 
   async function reserveShortLet() {
@@ -780,6 +855,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                   </p>
                 </section>
               )}
+              {Array.isArray(listing.amenities) && listing.amenities.length > 0 && (
+                <section aria-label="Property amenities" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
+                  <h2 className="text-sm font-semibold">What this place offers</h2>
+                  <ul className="mt-3 grid gap-2 text-sm text-[var(--wh-text-secondary)] sm:grid-cols-2">
+                    {listing.amenities.map((amenity) => <li key={amenity} className="rounded-xl bg-[var(--wh-interactive)] px-3 py-2.5">{amenity}</li>)}
+                  </ul>
+                </section>
+              )}
               <section className="border-y border-[var(--wh-border-subtle)] py-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -807,6 +890,55 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     </a>
                   )}
                 </div>
+              </section>
+              <section aria-label="Guest reviews" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold">Guest reviews</h2>
+                    {Number(listingReviewSummary?.review_count || 0) > 0 && (
+                      <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">
+                        <span aria-label={`${Number(listingReviewSummary?.rating || 0).toFixed(1)} out of 5`}>★ {Number(listingReviewSummary?.rating || 0).toFixed(1)}</span>
+                        {` · ${listingReviewSummary?.review_count} verified ${listingReviewSummary?.review_count === 1 ? "stay" : "stays"}`}
+                      </p>
+                    )}
+                  </div>
+                  {listingReviewSummary?.eligible && (
+                    <button type="button" onClick={() => setListingReviewFormOpen((open) => !open)} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-sm font-semibold text-violet-600 dark:text-violet-300">
+                      {listingReviewFormOpen ? "Close review" : "Write a review"}
+                    </button>
+                  )}
+                </div>
+                {listingReviewLoading ? <WeHouseLoadingState compact label="Loading guest reviews" />
+                  : listingReviewError ? <div role="status" className="mt-3 text-sm text-[var(--wh-text-secondary)]"><p>{listingReviewError}</p><button type="button" onClick={() => setListingReviewAttempt((attempt) => attempt + 1)} className="mt-2 min-h-11 font-semibold text-violet-600 dark:text-violet-300">Try again</button></div>
+                  : listingReviewSummary?.reviews.length ? (
+                    <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
+                      {listingReviewSummary.reviews.map((review) => (
+                        <article key={review.review_id} className="py-3 first:pt-0 last:pb-0">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium">{review.profiles?.username || "Guest"}</p>
+                              <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{formatBookingDate(review.created_at)}</p>
+                            </div>
+                            <span aria-label={`${review.rating} out of 5`} className="shrink-0 text-sm text-amber-500 dark:text-amber-300">{"★".repeat(Math.max(0, Math.min(5, Number(review.rating))))}</span>
+                          </div>
+                          {review.comment && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{review.comment}</p>}
+                        </article>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">No verified guest reviews yet.</p>}
+                {listingReviewFormOpen && listingReviewSummary?.eligible && (
+                  <form className="mt-4 space-y-3 border-t border-[var(--wh-border-subtle)] pt-4" onSubmit={(event) => { event.preventDefault(); void submitListingReview(); }}>
+                    <label className="block text-sm font-medium">Your rating
+                      <select value={listingReviewRating} onChange={(event) => setListingReviewRating(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)]">
+                        {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} out of 5</option>)}
+                      </select>
+                    </label>
+                    <label className="block text-sm font-medium">Your review
+                      <textarea maxLength={2000} rows={3} value={listingReviewComment} onChange={(event) => setListingReviewComment(event.target.value)} className="mt-2 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm text-[var(--wh-text)]" placeholder="Share what future guests should know" />
+                    </label>
+                    <button type="submit" disabled={listingReviewSaving} className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-60">{listingReviewSaving ? "Saving review…" : "Submit review"}</button>
+                  </form>
+                )}
               </section>
               {!hasOwnActiveReservation && !sharedGroup && (
                 <section className="border-y border-[var(--wh-border-subtle)] py-4">
@@ -865,8 +997,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 />
               ) : canStartReservation ? (
                 shortStay ? (
-                  <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
-                    <div className="flex items-end justify-between gap-4">
+                  <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">                    <div className="flex items-end justify-between gap-4">
                       <div>
                         <p className="text-sm font-bold uppercase tracking-[.15em] text-violet-300">
                           Short Let
