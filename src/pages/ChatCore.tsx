@@ -1,4 +1,1776 @@
-YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíßMwé:-jZ.¶›­–)Þ³V–×÷'BvT†÷W6TÆöF–æu7FFRg&öÒ$ö6ö×öæVçG2õvT†÷W6TÆöF–æu7FFR#°Ð¦–×÷'B²W6TÖW76vU–ç2Òg&öÒ$ö†öö·2÷W6TÖW76vU–ç2#°Ð¦–×÷'B–ææVDÖW76vW4&"Â²67&öÆÅFôÖW76vRÒg&öÒ$ö6ö×öæVçG2õ–ææVDÖW76vW4&"#°Ð¦–×÷'B²—56VÆV7F&ÆT6†DGF6†ÖVçBÂfÆ–FFT6†EWÆöBÂ4„EôÔTD”ôôäÅ•ôÔU54tRÂG—R6†DGF6†ÖVçE6÷W&6RÒg&öÒ$öÆ–"ö6†DÖVF–öÆ–7’#°Ð¦–×÷'B²7&VFU÷'FÂÒg&öÒ'&V7BÖFöÒ#°Ð¦–×÷'B²W6TÖW76vTö&¦V7EW&Ç2Òg&öÒ$ö†öö·2÷W6TÖW76vTö&¦V7EW&Ç2#°Ð¦–×÷'B²6¶æ÷vÆVFvT6†DÖW76vRÂ&V6öæ6–ÆT6†DÖW76vW2ÂG—RÖW76vU7–æ57FFRÒg&öÒ$öÆ–"ö6†DÖW76vU&V6öæ6–Æ–F–öâ#°Ð¦–×÷'B²&÷W'G”G&gDGF6†ÖVçBÒg&öÒ$ö6ö×öæVçG2õ6†&VE&÷W'G”6&B#°Ð¦–×÷'B²v÷&¶W$G&gDGF6†ÖVçBÒg&öÒ$ö6ö×öæVçG2õv÷&¶W%6†&T6&B#°Ð¦–×÷'B&ööÖÖFT'V&&ÆRg&öÒ$ö6ö×öæVçG2õ&ööÖÖFTÖW76vT'V&&ÆR#°Ð¦–×÷'B²VæF–ætÖW76vTÖVF–Òg&öÒ$ö6ö×öæVçG2ôÖW76vTÖVF–#°Ð¦–×÷'B²VæF–æu&÷W'G•6†&RÂ6ÆV%&÷W'G•6†&RÂ&÷W'G•6†&TÖW76vRÂ&÷W'G”ÖW76vU&Wf–WrÂG—R6†&VE&÷W'G’Òg&öÒ$öÆ–"÷&÷W'G•6†&R#°Ð¦–×÷'B²VæF–æuv÷&¶W%6†&RÂ6ÆV%v÷&¶W%6†&RÂv÷&¶W%6†&TÖW76vRÂG—R6†&VEv÷&¶W"Òg&öÒ$öÆ–"÷v÷&¶W%6†&R#°Ð¦–×÷'B²W6T6ÆÆ&6²ÂW6TVffV7BÂW6TÖVÖòÂW6U&VbÂW6U7FFRÒg&öÒ'&V7B#°Ð¦–×÷'B²v—F…F–ÖV÷WBÒg&öÒ$öÆ–"÷v—F…F–ÖV÷WB#°Ð¦–×÷'B²7W&6RÒg&öÒ$öÆ–"÷7W&6R#°Ð¦–×÷'B°Ð¢FVÆWFU&ööÖÖFT6†DGF6†ÖVçBÀÐ¢vWD6öçfW'6F–öä'”–BÀÐ¢vWD6öçfW'6F–öç2ÀÐ¢vWDÖW76vW2ÀÐ¢vWE&ööÖÖFT6öçfW'6F–öåV÷ÆRÀÐ¢†–FU&ööÖÖFT6öçfW'6F–öâÀÐ¢Ö&´ÖW76vW56VVâÀÐ¢&V7EFôÖW76vRÀÐ¢6VæDÖW76vRÀÐ¢6WE&ööÖÖFT&Æö6²ÀÐ¢WÆöE&ööÖÖFT6†DGF6†ÖVçBÀÐ§Òg&öÒ$öÆ–"÷7W&6Rö6†B#°Ð¦–×÷'B&W÷'DF–Æörg&öÒ$ö6ö×öæVçG2õ&W÷'DF–Æör#°Ð¦–×÷'BG—R²&ööÖÖFUVW"Òg&öÒ$öÆ–"÷7W&6Rö6†B#°Ð¦–×÷'B°Ð¢$ôô´”äuõ5DEU5ôÄ$TÅ2ÀÐ¢vWD6öÖ×Væ–6F–öä&öö¶–æt6öçfW'6F–öç2ÀÐ¢†–FT&öö¶–æt6öçfW'6F–öâÀÐ§Òg&öÒ$öÆ–"÷7W&6R÷v÷&¶W"Ö&öö¶–æw2#°Ð¦–×÷'B°Ð¢vWD6ÆÄ6&–Æ—F–W2ÀÐ¢ÆVæ6…&—fFT6ÆÂÀÐ¢G—R&—fFT6ÆÂÀÐ§Òg&öÒ$öÆ–"÷&—fFRÖ6ÆÇ2#°Ð¦–×÷'B²6†E&W6Væ6TÆ&VÂÒg&öÒ$öÆ–"÷7W&6R÷&W6Væ6R#°Ð¦–×÷'BW6T6†E&W6Væ6Rg&öÒ$ö†öö·2÷W6T6†E&W6Væ6R#°Ð¦–×÷'B&öö¶–ætæVv÷F–F–öä6†Bg&öÒ$ö6ö×öæVçG2ô&öö¶–ætæVv÷F–F–öä6†B#°Ð¦–×÷'B°Ð¢6öçfW'6F–öå&W6VçFF–öâÀÐ¢vWD×•7W÷'D6öçfW'6F–öç2ÀÐ¢G—R7W÷'EF‡&VBÀÐ§Òg&öÒ$öÆ–"÷7W&6R÷7W÷'B#°Ð¦–×÷'B²Fö7BÒg&öÒ'6öææW"#°Ð¦–×÷'BG—R²6öçfW'6F–öâÂÖW76vRÂ&öf–ÆRÒg&öÒ$÷G—W2#°Ð¦–×÷'Bæ÷F–f–6F–öç2g&öÒ$÷vW2ôæ÷F–f–6F–öç2#°Ð¦–×÷'Bfö–6U&V6÷&FW%æVÂg&öÒ$ö6ö×öæVçG2õfö–6U&V6÷&FW%æVÂ#°Ð¦–×÷'BW6Ufö–6U&V6÷&FW"g&öÒ$ö†öö·2÷W6Ufö–6U&V6÷&FW"#°Ð¦–×÷'B°Ð¢Æö6´Væ7'—F–öä–FVçF—G’ÀÐ¢&—fFT6öçfW'6F–öå&VF–æW72ÀÐ¢&VÖVÖ&W%&—fFTÖW76v–æu&öf–ÆRÀÐ¢G—R&—fFT6öçfW'6F–öå&VF–æW72ÀÐ§Òg&öÒ$öÆ–"öS&VR#°Ð¦–×÷'B&ööÖÖFUV&Æ–5&öf–ÆRg&öÒ$ö6ö×öæVçG2õ&ööÖÖFUV&Æ–5&öf–ÆR#°Ð¦–×÷'B²V&Æ–5&öf–ÆT7F–öâÒg&öÒ$ö6ö×öæVçG2õV&Æ–5&öf–ÆU7W&f6R#°Ð¦–×÷'B6V7W&T6†Döæ&ö&F–ærg&öÒ$ö6ö×öæVçG2õ6V7W&T6†Döæ&ö&F–ær#°Ð¦–×÷'B†÷FVÄ&öö¶–æt6†Bg&öÒ$ö6ö×öæVçG2ô†÷FVÄ&öö¶–æt6†B#°Ð¦–×÷'BG—R²ÖW76vTÖVçTæ6†÷"Òg&öÒ$öÆ–"öÖW76vTÖVçU÷6—F–öâ#°Ð¦–×÷'BÖW76vT7F–öå6†VWBg&öÒ$ö6ö×öæVçG2ôÖW76vT7F–öå6†VWB#°Ð¦–×÷'B6öæf—&ÔF–Æörg&öÒ$ö6ö×öæVçG2ô6öæf—&ÔF–Æör#°Ð¦–×÷'B6†DGF6†ÖVçE–6¶W"g&öÒ$ö6ö×öæVçG2ô6†DGF6†ÖVçE–6¶W"#°Ð¦–×÷'B°Ð¢vWD×”†÷FVÄ6öçfW'6F–öç2ÀÐ¢G—R†÷FVÄ6öçfW'6F–öâÀÐ§Òg&öÒ$öÆ–"÷7W&6Rö†÷FVÂÖ6†B#°Ð¦–×÷'B&6´'WGFöâg&öÒ$ö6ö×öæVçG2ô&6´'WGFöâ#°Ð¦–×÷'B6V7W&T–æ&÷„Æö6²g&öÒ$ö6ö×öæVçG2õ6V7W&T–æ&÷„Æö6²#°Ð¦–×÷'BW6U6V7W&T–æ&÷„66W72g&öÒ$ö†öö·2÷W6U6V7W&T–æ&÷„66W72#°Ð¦–×÷'B6V7W&TÖW76vW5æVÂg&öÒ$ö6ö×öæVçG2õ6V7W&TÖW76vW5æVÂ#°Ð¦–×÷'B²7&VFU&Vg&W6…66†VGVÆW"Òg&öÒ$öÆ–"÷&Vg&W6…66†VGVÆW"#°Ð Ð§G—R&÷2Ò°Ð¢&öf–ÆS¢&öf–ÆS°Ð¢öäæf–vFS¢‡vS¢7G&–ærÂ–Có¢7G&–ær’Óâfö–C°Ð¢6öçfW'6F–öä–Có¢7G&–ærÂçVÆÃ°Ð¢VW%W6W$–Có¢7G&–ærÂçVÆÃ°Ð¢–æ—F–Ä¶–æCó¢'&ööÖÖFR"Â'v÷&¶W""Â&†÷FVÂ#°Ð¢–æ—F–Ä&öö¶–æt–Có¢7G&–æs°Ð¢–æ—F–Ä†÷FVÄ6öçfW'6F–öãó¢†÷FVÄ6öçfW'6F–öã°Ð¢öä6öçfW'6F–öä6Æ÷6Só¢‚’Óâfö–C°Ð¢6†EVç&VD6÷VçCó¢çVÖ&W#°Ð¢7F—f—G•Vç&VD6÷VçCó¢çVÖ&W#°Ð¢öä7F—f—G•Vç&VD6†ævSó¢†6÷VçC¢çVÖ&W"’Óâfö–C°Ð§Ó°Ð§G—RW'6öâÒ–6³Å&ööÖÖFUVW"Â&æÖR"Â&fF"#â`Ð¢'F–ÃÅ&ööÖÖFUVW#âb²W6W&æÖSó¢7G&–ærÂçVÆÃ²Ævó¢7G&–ærÂçVÆÂÓ°Ð§G—R&ööÖÖFTÖW76vRÒÖW76vRbÖW76vU7–æ57FFRb°Ð¢GF6†ÖVçG3ó¢7G&–æuµÓ°Ð¢GF6†ÖVçE÷G—W3ó¢7G&–æuµÓ°Ð¢&WÇ•÷Fõö–Có¢7G&–ærÂçVÆÃ°Ð¢&V7F–öç3ó¢&V6÷&CÇ7G&–ærÂ7G&–æsã°Ð¢FVÆ—fW'•÷7FFSó¢'6VæF–ær"Â&f–ÆVB#°Ð§Ó°Ð§G—R&öö¶–æt6öçfW'6F–öâÒ°Ð¢6öçfW'6F–öåö–C¢7G&–æs°Ð¢&öö¶–æuö–C¢7G&–æs°Ð¢&öö¶–æuö6öFS¢7G&–æs°Ð¢&öö¶–æu÷7FGW3¢7G&–æs°Ð¢6W'f–6U÷G—S¢7G&–æs°Ð¢æVv÷F–FVEöÖ÷VçC¢çVÖ&W#°Ð¢÷F†W%÷W'6öåö–C¢7G&–ærÂçVÆÃ°Ð¢÷F†W%÷W'6öåöæÖS¢7G&–æs°Ð¢÷F†W%÷W'6öåöfF#¢7G&–ærÂçVÆÃ°Ð¢Æ7EöÖW76vS¢7G&–ærÂçVÆÃ°Ð¢Æ7EöÖW76vU÷F–ÖS¢7G&–ærÂçVÆÃ°Ð¢Vç&VEö6÷VçC¢çVÖ&W#°Ð¢WFFVEöC¢7G&–æs°Ð§Ó°Ð§G—R7F—fT&öö¶–ærÒ²6öçfW'6F–öä–C¢7G&–æs²&öö¶–æt–C¢7G&–ærÒÂçVÆÃ°Ð§G—R7F—fT†÷FVÂÒ²6öçfW'6F–öã¢†÷FVÄ6öçfW'6F–öâÒÂçVÆÃ°Ð§G—R–æ&÷„—FVÒÐÐ¢Â²¶–æC¢'&ööÖÖFR#²–C¢7G&–æs²F–ÖS¢7G&–æs²&ööÖÖFS¢6öçfW'6F–öâÐÐ¢Â²¶–æC¢'v÷&¶W"#²–C¢7G&–æs²F–ÖS¢7G&–æs²&öö¶–æs¢&öö¶–æt6öçfW'6F–öâÐÐ¢Â²¶–æC¢&†÷FVÂ#²–C¢7G&–æs²F–ÖS¢7G&–æs²†÷FVÃ¢†÷FVÄ6öçfW'6F–öâÐÐ¢Â²¶–æC¢'7W÷'B#²–C¢7G&–æs²F–ÖS¢7G&–æs²7W÷'C¢7W÷'EF‡&VBÓ°Ð§G—R–æ&÷…6æ6†÷BÒ°Ð¢6öçfW'6F–öç3¢6öçfW'6F–öåµÓ°Ð¢&öö¶–æt6öçfW'6F–öç3¢&öö¶–æt6öçfW'6F–öåµÓ°Ð¢7W÷'EF‡&VG3¢7W÷'EF‡&VEµÓ°Ð¢†÷FVÄ6öçfW'6F–öç3¢†÷FVÄ6öçfW'6F–öåµÓ°Ð¢V÷ÆS¢&V6÷&CÇ7G&–ærÂW'6öãã°Ð¢&V6VçE&ööÖÖFT6ÆÇ3¢&V6÷&CÇ7G&–ærÂ&—fFT6ÆÃã°Ð§Ó°Ð¦6öç7B–æ&÷„66†RÒæWrÖÇ7G&–ærÂ–æ&÷…6æ6†÷Câ‚“°Ð¦6öç7BÔ…ôd”ÄU2ÒbÀÐ¢Ô…ôd”ÄUõ4•¤RÒ#R¢#B¢#C°Ð Ð¦gVæ7F–öâÆFW7EF–ÖR‚ââçfÇVW3¢‡7G&–ærÂçVÆÂÂVæFVf–æVB•µÒ’°Ð¢&WGW&â€Ð¢fÇVW0Ð¢æf–ÇFW"„&ööÆVâÐ¢ç6÷'B‚†Â"’ÓâæWrFFR†"’ævWEF–ÖR‚’ÒæWrFFR†’ævWEF–ÖR‚’•³ÒÇÂ" Ð¢“°Ð§ÐÐ Ð¦gVæ7F–öâ6V&6„–6öâ‚’°Ð¢&WGW&â€Ð¢Ç7fpÐ¢v–GFƒÒ#b Ð¢†V–v‡CÒ#b Ð¢f–Wt&÷ƒÒ##B#B Ð¢f–ÆÃÒ&æöæR Ð¢7G&ö¶SÒ&7W'&VçD6öÆ÷" Ð¢7G&ö¶Uv–GFƒÒ#ã‚ Ð¢6Æ74æÖSÒ'6‡&–æ²ÓFW‡BÕ·f"‚Ò×v‚×FW‡BÖ×WFVB•Ò Ð¢àÐ¢Æ6—&6ÆR7ƒÒ#"7“Ò#"#Ò#r"óàÐ¢ÇF‚CÒ&Ó##Ó2ãRÓ2ãR"óàÐ¢Â÷7fsàÐ¢“°Ð§ÐÐ Ð¦W‡÷'BFVfVÇBgVæ7F–öâ6†B‡°Ð¢&öf–ÆRÀÐ¢6öçfW'6F–öä–BÀÐ¢VW%W6W$–BÀÐ¢–æ—F–Ä¶–æBÀÐ¢–æ—F–Ä&öö¶–æt–BÀÐ¢–æ—F–Ä†÷FVÄ6öçfW'6F–öâÀÐ¢öä6öçfW'6F–öä6Æ÷6RÀÐ¢öäæf–vFRÀÐ¢7F—f—G•Vç&VD6÷VçBÒÀÐ¢öä7F—f—G•Vç&VD6†ævRÀÐ§Ó¢&÷2’°Ð¢6öç7B·&÷W'G”G&gBÂ6WE&÷W'G”G&gEÒÒW6U7FFSÅ6†&VE&÷W'G’ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·v÷&¶W$G&gBÂ6WEv÷&¶W$G&gEÒÒW6U7FFSÅ6†&VEv÷&¶W"ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶ÖW76vTÖVçTæ6†÷"Â6WDÖW76vTÖVçTæ6†÷%ÒÒW6U7FFSÄÖW76vTÖVçTæ6†÷"ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B66†VD–æ&÷‚Ò–æ&÷„66†RævWB‡&öf–ÆRçW6W%ö–B“°Ð¢6öç7B¶÷Væ–æt6öçfW'6F–öâÂ6WD÷Væ–æt6öçfW'6F–öåÒÒW6U7FFR„&ööÆVâ†6öçfW'6F–öä–B’“°Ð¢6öç7B¶6öçfW'6F–öç2Â6WD6öçfW'6F–öç5ÒÒW6U7FFSÄ6öçfW'6F–öåµÓâ‚‚’Óâ66†VD–æ&÷ƒòæ6öçfW'6F–öç2ÇÂµÒ’ÀÐ¢¶&öö¶–æt6öçfW'6F–öç2Â6WD&öö¶–æt6öçfW'6F–öç5ÒÒW6U7FFSÀÐ¢&öö¶–æt6öçfW'6F–öåµÐÐ¢â‚‚’Óâ66†VD–æ&÷ƒòæ&öö¶–æt6öçfW'6F–öç2ÇÂµÒ’ÀÐ¢·7W÷'EF‡&VG2Â6WE7W÷'EF‡&VG5ÒÒW6U7FFSÅ7W÷'EF‡&VEµÓâ‚‚’Óâ66†VD–æ&÷ƒòç7W÷'EF‡&VG2ÇÂµÒ’ÀÐ¢¶†÷FVÄ6öçfW'6F–öç2Â6WD†÷FVÄ6öçfW'6F–öç5ÒÒW6U7FFSÄ†÷FVÄ6öçfW'6F–öåµÓâ€Ð¢‚’Óâ66†VD–æ&÷ƒòæ†÷FVÄ6öçfW'6F–öç2ÇÂµÒÀÐ¢’ÀÐ¢¶7F—fRÂ6WD7F—fUÒÒW6U7FFSÄ6öçfW'6F–öâÂçVÆÃâ†çVÆÂ’ÀÐ¢¶7F—fT&öö¶–ærÂ6WD7F—fT&öö¶–æuÒÒW6U7FFSÄ7F—fT&öö¶–æsâ†çVÆÂ’ÀÐ¢¶7F—fT†÷FVÂÂ6WD7F—fT†÷FVÅÒÒW6U7FFSÄ7F—fT†÷FVÃâ†çVÆÂ’ÀÐ¢¶ÖW76vW2Â6WDÖW76vW5ÒÒW6U7FFSÅ&ööÖÖFTÖW76vUµÓâ…µÒ’ÀÐ¢·V÷ÆRÂ6WEV÷ÆUÒÒW6U7FFSÅ&V6÷&CÇ7G&–ærÂW'6öããâ‚‚’Óâ66†VD–æ&÷ƒòçV÷ÆRÇÂ·Ò’ÀÐ¢¶–çWBÂ6WD–çWEÒÒW6U7FFR‚""’ÀÐ¢¶ÆöF–ærÂ6WDÆöF–æuÒÒW6U7FFR‚‚’Óâ66†VD–æ&÷‚’ÀÐ¢¶ÆöF–ætÖW76vW2Â6WDÆöF–ætÖW76vW5ÒÒW6U7FFR†fÇ6R’ÀÐ¢·6VæF–ærÂ6WE6VæF–æuÒÒW6U7FFR†fÇ6R’ÀÐ¢¶f–ÆW2Â6WDf–ÆW5ÒÒW6U7FFSÄf–ÆUµÓâ…µÒ’ÀÐ¢¶ÖVçT÷VâÂ6WDÖVçT÷VåÒÒW6U7FFR†fÇ6R’ÀÐ¢¶6öæf—&ÔFVÆWFRÂ6WD6öæf—&ÔFVÆWFUÒÒW6U7FFR†fÇ6R’ÀÐ¢·&öf–ÆT÷VâÂ6WE&öf–ÆT÷VåÒÒW6U7FFR†fÇ6R’ÀÐ¢·&öf–ÆUW'6öâÂ6WE&öf–ÆUW'6öåÒÒW6U7FFSÅW'6öâÂçVÆÃâ†çVÆÂ’ÀÐ¢¶&Æö6´'W7’Â6WD&Æö6´'W7•ÒÒW6U7FFR†fÇ6R’ÀÐ¢¶&Æö6µ&ö×BÂ6WD&Æö6µ&ö×EÒÒW6U7FFR†fÇ6R’ÀÐ¢·&W÷'D÷VâÂ6WE&W÷'D÷VåÒÒW6U7FFR†fÇ6R’ÀÐ¢¶&Æö6µ&V6öâÂ6WD&Æö6µ&V6öåÒÒW6U7FFR‚""’ÀÐ¢·6VÆV7FVBÂ6WE6VÆV7FVEÒÒW6U7FFSÅ6WCÇ7G&–æsãâ†æWr6WB‚’’ÀÐ¢¶'VÆ´FVÆWFRÂ6WD'VÆ´FVÆWFUÒÒW6U7FFR†fÇ6R’ÀÐ¢¶–æ&÷…VW'’Â6WD–æ&÷…VW'•ÒÒW6U7FFR‚""“°Ð¢6öç7B·6V7W&T6†BÂ6WE6V7W&T6†EÒÐÐ¢W6U7FFSÅ&—fFT6öçfW'6F–öå&VF–æW72ÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B·&V6VçE&ööÖÖFT6ÆÇ2Â6WE&V6VçE&ööÖÖFT6ÆÇ5ÒÒW6U7FFSÀÐ¢&V6÷&CÇ7G&–ærÂ&—fFT6ÆÃàÐ¢â‚‚’Óâ66†VD–æ&÷ƒòç&V6VçE&ööÖÖFT6ÆÇ2ÇÂ·Ò“°Ð¢6öç7B¶7F—fT6ÆÇ2Â6WD7F—fT6ÆÇ5ÒÒW6U7FFSÅ&—fFT6ÆÅµÓâ…µÒ“°Ð¢6öç7B÷väÖW76vUW&Ç2ÒW6TÖW76vTö&¦V7EW&Ç2†ÖW76vW2“°Ð¢6öç7B·&WÇ––æuFòÂ6WE&WÇ––æuFõÒÒW6U7FFSÅ&ööÖÖFTÖW76vRÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶ÖW76vT7F–öç2Â6WDÖW76vT7F–öç5ÒÒW6U7FFSÅ&ööÖÖFTÖW76vRÂçVÆÃâ€Ð¢çVÆÂÀÐ¢“°Ð¢6öç7B¶ÖW76vT7F–öäÖöFRÂ6WDÖW76vT7F–öäÖöFUÒÒW6U7FFSÂ'&V7F–öç2"Â&7F–öç2#â‚'&V7F–öç2"“°Ð¢6öç7B¶ÖW76vUFõ&VÖ÷fRÂ6WDÖW76vUFõ&VÖ÷fUÒÐÐ¢W6U7FFSÅ&ööÖÖFTÖW76vRÂçVÆÃâ†çVÆÂ“°Ð¢6öç7B¶7F—f—G”W‡æFVBÂ6WD7F—f—G”W‡æFVEÒÒW6U7FFR†fÇ6R“°Ð¢6öç7B·–å6WGF–æw4÷VâÂ6WE–å6WGF–æw4÷VåÒÒW6U7FFR†fÇ6R“°Ð¢6öç7BÖW76vU–ç2ÒW6TÖW76vU–ç2†7F—fRò'&ööÖÖFR"¢çVÆÂÂ7F—fSòæ–BÂÖW76vW2æÆVæwF‚“°Ð¢6öç7B°Ð¢7FGW3¢–æ&÷…6V7W&—G•7FGW2ÀÐ¢&Vg&W6ƒ¢&Vg&W6„–æ&÷…6V7W&—G’ÀÐ¢ÒÒW6U6V7W&T–æ&÷„66W72‡&öf–ÆRçW6W%ö–BÂ&ööÆVâ†7F—fR’“°Ð¢6öç7B7F—fU&VbÒW6U&VcÄ6öçfW'6F–öâÂçVÆÃâ†çVÆÂ“°Ð¢6öç7BÖW76vTÆöDvVæW&F–öâÒW6U&Vbƒ“°Ð¢6öç7B6VæF–æu&VbÒW6U&Vb†fÇ6R“°Ð¢6öç7BÖ÷VçFVE&VbÒW6U&Vb‡G'VR“°Ð¢6öç7B7W'&VçD–FVçF—G•&VbÒW6U&Vb‡&öf–ÆRçW6W%ö–B“°Ð¢6öç7B6ö×÷6W%&VbÒW6U&Vb‡²–çWBÂf–ÆW2Â&÷W'G”G&gBÂv÷&¶W$G&gBÒ“°Ð¢W6TVffV7B‚‚’Óâ²6ö×÷6W%&Vbæ7W'&VçBÒ²–çWBÂf–ÆW2Â&÷W'G”G&gBÂv÷&¶W$G&gBÓ²ÒÂ¶–çWBÂf–ÆW2Â&÷W'G”G&gBÂv÷&¶W$G&gEÒ“°Ð¢W6TVffV7B‚‚’Óâ°Ð¢Ö÷VçFVE&Vbæ7W'&VçBÒG'VS²7W'&VçD–FVçF—G•&Vbæ7W'&VçBÒ&öf–ÆRçW6W%ö–C°Ð¢&WGW&â‚’Óâ²Ö÷VçFVE&Vbæ7W'&VçBÒfÇ6S²ÖW76vTÆöDvVæW&F–öâæ7W'&VçB²³²7F—fU&Vbæ7W'&VçBÒçVÆÃ²Ó°Ð¢ÒÂ·&öf–ÆRçW6W%ö–EÒ“°Ð¢6öç7B6öçfW'6F–öç5&VbÒW6U&VcÄ6öçfW'6F–öåµÓâ…µÒ“°Ð¢6öç7B&÷GFöÕ&VbÒW6U&VcÄ…DÔÄF—dVÆVÖVçCâ†çVÆÂ“°Ð¢6öç7Bfö–6RÒW6Ufö–6U&V6÷&FW"‚“°Ð¢6öç7BÖW76vT'”–BÒW6TÖVÖò€Ð¢‚’ÓâæWrÖ†ÖW76vW2æÖ‚†ÖW76vR’Óâ¶ÖW76vRæ–BÂÖW76vUÒ’’ÀÐ¢¶ÖW76vW5ÒÀÐ¢“°Ð¢6öç7B÷F†W$–BÒW6T6ÆÆ&6²€Ð¢†6öçc¢6öçfW'6F–öâ’ÓàÐ¢6öçbç'F–6—çEöÓÓÒ&öf–ÆRçW6W%ö–@Ð¢ò6öçbç'F–6—çEö Ð¢¢6öçbç'F–6—çEöÀÐ¢·&öf–ÆRçW6W%ö–EÒÀÐ¢“°Ð¢6öç7BVç&VBÒW6T6ÆÆ&6²€Ð¢†6öçc¢6öçfW'6F–öâ’ÓàÐ¢çVÖ&W"€Ð¢6öçbç'F–6—çEöÓÓÒ&öf–ÆRçW6W%ö–Bò6öçbçVç&VEö¢6öçbçVç&VEö"ÀÐ¢’ÇÂÀÐ¢·&öf–ÆRçW6W%ö–EÒÀÐ¢“°Ð¢6öç7BVW$–BÒ7F—fRò÷F†W$–B†7F—fR’¢çVÆÃ°Ð¢6öç7B&W6Væ6RÒW6T6†E&W6Væ6R‡VW$–B“°Ð¢6öç7B&W6Væ6UFW‡BÒ6†E&W6Væ6TÆ&VÂ‡&W6Væ6R“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢&VÖVÖ&W%&—fFTÖW76v–æu&öf–ÆR‡&öf–ÆRçW6W%ö–B“°Ð¢ÒÂ·&öf–ÆRçW6W%ö–EÒ“°Ð¢W6TVffV7B‚‚’Óâ°Ð¢7F—fU&Vbæ7W'&VçBÒ7F—fS°Ð¢ÒÂ¶7F—fUÒ“°Ð¢W6TVffV7B‚‚’Óâ°Ð¢6öçfW'6F–öç5&Vbæ7W'&VçBÒ6öçfW'6F–öç3°Ð¢ÒÂ¶6öçfW'6F–öç5Ò“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢6öç7B÷VâÒ&ööÆVâ†7F—fRÇÂ7F—fT&öö¶–ærÇÂ7F—fT†÷FVÂ“°Ð¢v–æF÷ræF—7F6„WfVçB€Ð¢æWr7W7FöÔWfVçB‚'vV†÷W6S¦æW7FVB×67&VVâ"Â²FWF–Ã¢²÷VâÒÒ’ÀÐ¢“°Ð¢&WGW&â‚’Óâ°Ð¢v–æF÷ræF—7F6„WfVçB€Ð¢æWr7W7FöÔWfVçB‚'vV†÷W6S¦æW7FVB×67&VVâ"Â²FWF–Ã¢²÷Vã¢fÇ6RÒÒ’ÀÐ¢“°Ð¢Ó°Ð¢ÒÂ¶7F—fRÂ7F—fT&öö¶–ærÂ7F—fT†÷FVÅÒ“°Ð Ð¢6öç7B–æ&÷„vVæW&F–öâÒW6U&Vbƒ“°Ð¢W6TVffV7B‚‚’Óâ‚’Óâ²–æ&÷„vVæW&F–öâæ7W'&VçB³Ò²ÒÂ·&öf–ÆRçW6W%ö–EÒ“°Ð¢6öç7BÆöD–æ&÷‚ÒW6T6ÆÆ&6²€Ð¢7–æ2‡V–WBÒfÇ6R’Óâ°Ð¢6öç7B&WVW7BÒ²¶–æ&÷„vVæW&F–öâæ7W'&VçC°Ð¢–b‚V–WB’6WDÆöF–ær‡G'VR“°Ð¢G'’°Ð¢6öç7B6öçfW'6F–öç5&WVW7BÒvWD6öçfW'6F–öç2‡&öf–ÆRçW6W%ö–B’ÀÐ¢V÷ÆU&WVW7BÒvWE&ööÖÖFT6öçfW'6F–öåV÷ÆR‚“°Ð¢6öç7B&öö¶–æu&WVW7BÒvWD6öÖ×Væ–6F–öä&öö¶–æt6öçfW'6F–öç2€Ð¢&öf–ÆRçW6W%ö–BÂ'W'6öæÂ"ÀÐ¢’ÀÐ¢7W÷'E&WVW7BÒvWD×•7W÷'D6öçfW'6F–öç2‚’ÀÐ¢†÷FVÅ&WVW7BÒvWD×”†÷FVÄ6öçfW'6F–öç2‚“°Ð¢6öç7B6ÆÇ5&WVW7BÒ7W&6PÐ¢æg&öÒ‚'&—fFUö6ÆÇ2"Ð¢ç6VÆV7B‚"¢"Ð¢æW‚&6öçFW‡E÷G—R"Â'&ööÖÖFR"Ð¢æ÷"†6ÆÆW%ö–BæWâG·&öf–ÆRçW6W%ö–GÒÆ6ÆÆVUö–BæWâG·&öf–ÆRçW6W%ö–GÖÐ¢æ÷&FW"‚&7&VFVEöB"Â²66VæF–æs¢fÇ6RÒÐ¢æÆ–Ö—BƒS“°Ð¢6öç7B°Ð¢6öçe&W7VÇBÀÐ¢VW%&W7VÇBÀÐ¢&öö¶–æu&W7VÇBÀÐ¢7W÷'E&W7VÇBÀÐ¢†÷FVÅ&W7VÇBÀÐ¢6ÆÅ&W7VÇBÀÐ¢ÒÒv—Bv—F…F–ÖV÷WB…&öÖ—6RæÆÂ…°Ð¢6öçfW'6F–öç5&WVW7BÀÐ¢V÷ÆU&WVW7BÀÐ¢&öö¶–æu&WVW7BÀÐ¢7W÷'E&WVW7BÀÐ¢†÷FVÅ&WVW7BÀÐ¢6ÆÇ5&WVW7BÀÐ¢Ò’ÂSÂ$ÖW76vW26÷VÆBæ÷B&RÆöFVBâ"“°Ð¢–b‡&WVW7BÓÒ–æ&÷„vVæW&F–öâæ7W'&VçB’&WGW&âµÓ°Ð¢–b†6öçe&W7VÇBæW'&÷"bbV–WBÐ¢Fö7BæW'&÷"€Ð¢6öçe&W7VÇBæW'&÷"æÖW76vRÇÂ%Væ&ÆRFòÆöB&ööÖÖFR6öçfW'6F–öç2"ÀÐ¢“°Ð¢–b‡VW%&W7VÇBæW'&÷"bbV–WBÐ¢Fö7BæW'&÷"€Ð¢VW%&W7VÇBæW'&÷"æÖW76vRÇÂ%Væ&ÆRFòÆöB&ööÖÖFRæÖW2"ÀÐ¢“°Ð¢6öç7BÆÅ&ööÖÖFU&÷w2Ò†6öçe&W7VÇBæ6öçfW'6F–öç2ÇÂµÒ’æf–ÇFW"€Ð¢‡&÷r’Óâ&÷ræ6öçfW'6F–öå÷G—RÓÓÒ'&ööÖÖFR"ÀÐ¢“°Ð¢òòF†RFF&6R&WGW&ç2öæÇ’F‡&VG2v—F‚BÆV7BöæR6VçBÖW76vRàÐ¢òòÖF6‚Ö’÷VââV×G’6ö×÷6W"g&öÒ&ööÖÖFW2Â'WBâVçF÷V6†V@Ð¢òò6ö×÷6W"×W7BæWfW"&V6öÖRâ–æ&÷‚&÷ràÐ¢6WD6öçfW'6F–öç2†ÆÅ&ööÖÖFU&÷w2“°Ð¢6WEV÷ÆR‡VW%&W7VÇBçV÷ÆRÇÂ·Ò“°Ð¢–b†&öö¶–æu&W7VÇBæW'&÷"bbV–WBÐ¢Fö7BæW'&÷"€Ð¢&öö¶–æu&W7VÇBæW'&÷"æÖW76vRÇÂ%Væ&ÆRFòÆöBv÷&¶W"6öçfW'6F–öç2"ÀÐ¢“°Ð¢6öç7B6ÆÇ3¢&V6÷&CÇ7G&–ærÂ&—fFT6ÆÃâÒ·Ó°Ð¢f÷"†6öç7B&÷röb6ÆÅ&W7VÇBæFFÇÂµÒÐ¢–b‚6ÆÇ5·&÷ræ6öçFW‡Eö–EÒ’6ÆÇ5·&÷ræ6öçFW‡Eö–EÒÒ&÷r2&—fFT6ÆÃ°Ð¢6WE&V6VçE&ööÖÖFT6ÆÇ2†6ÆÇ2“°Ð¢6öç7BæW‡D&öö¶–æt6öçfW'6F–öç2Ò†&öö¶–æu&W7VÇBæ6öçfW'6F–öç2ÇÂµÒ’2&öö¶–æt6öçfW'6F–öåµÓ°Ð¢6öç7BæW‡E7W÷'EF‡&VG2Ò7W÷'E&W7VÇBæ6öçfW'6F–öç2ÇÂµÓ°Ð¢6öç7BæW‡D†÷FVÄ6öçfW'6F–öç2Ò†÷FVÅ&W7VÇBæ6öçfW'6F–öç2ÇÂµÓ°Ð¢6WD&öö¶–æt6öçfW'6F–öç2†æW‡D&öö¶–æt6öçfW'6F–öç2“°Ð¢6WE7W÷'EF‡&VG2†æW‡E7W÷'EF‡&VG2“°Ð¢6WD†÷FVÄ6öçfW'6F–öç2†æW‡D†÷FVÄ6öçfW'6F–öç2“°Ð¢–æ&÷„66†Rç6WB‡&öf–ÆRçW6W%ö–BÂ°Ð¢6öçfW'6F–öç3¢ÆÅ&ööÖÖFU&÷w2ÀÐ¢&öö¶–æt6öçfW'6F–öç3¢æW‡D&öö¶–æt6öçfW'6F–öç2ÀÐ¢7W÷'EF‡&VG3¢æW‡E7W÷'EF‡&VG2ÀÐ¢†÷FVÄ6öçfW'6F–öç3¢æW‡D†÷FVÄ6öçfW'6F–öç2ÀÐ¢V÷ÆS¢VW%&W7VÇBçV÷ÆRÇÂ·ÒÀÐ¢&V6VçE&ööÖÖFT6ÆÇ3¢6ÆÇ2ÀÐ¢Ò“°Ð¢6WDÆöF–ær†fÇ6R“°Ð¢&WGW&âÆÅ&ööÖÖFU&÷w3°Ð¢Ò6F6‚°Ð¢–b‡&WVW7BÓÓÒ–æ&÷„vVæW&F–öâæ7W'&VçB’²6WDÆöF–ær†fÇ6R“²–b‚V–WB’Fö7BæW'&÷"‚$ÖW76vW26÷VÆBæ÷B&RÆöFVBâÆV6RG'’v–ââ"“²ÐÐ¢&WGW&âµÓ°Ð¢ÐÐ¢ÒÀÐ¢·&öf–ÆRçW6W%ö–EÒÀÐ¢“°Ð Ð¢6öç7BÆöE&ööÖÖFTÖW76vW2ÒW6T6ÆÆ&6²€Ð¢7–æ2†–C¢7G&–ærÂV–WBÒfÇ6R’Óâ°Ð¢6öç7B7W'&VçD7F—fRÒ7F—fU&Vbæ7W'&VçC°Ð¢–b‚7W'&VçD7F—fRÇÂ7W'&VçD7F—fRæ–BÓÒ–B’&WGW&ã°Ð¢6öç7B&WVW7BÒ²¶ÖW76vTÆöDvVæW&F–öâæ7W'&VçC°Ð¢6öç7B7W'&VçBÒ‚’ÓâÖ÷VçFVE&Vbæ7W'&VçBbb7W'&VçD–FVçF—G•&Vbæ7W'&VçBÓÓÒ&öf–ÆRçW6W%ö–Bbb&WVW7BÓÓÒÖW76vTÆöDvVæW&F–öâæ7W'&VçBbb7F—fU&Vbæ7W'&VçCòæ–BÓÓÒ–C°Ð¢–b‚V–WB’6WDÆöF–ætÖW76vW2‡G'VR“°Ð¢6öç7B7F'FVDBÒFFRææ÷r‚“°Ð¢òò6ÆÇ2&R7WÆVÖVçF'’æB×W7Bæ÷B†öÆBW&VF&ÆR6†BàÐ¢fö–Bv—F…F–ÖV÷WB‡7W&6Ræg&öÒ‚'&—fFUö6ÆÇ2"’ç6VÆV7B‚"¢"’æW‚&6öçFW‡E÷G—R"Â'&ööÖÖFR"’æW‚&6öçFW‡Eö–B"Â–B’æ÷&FW"‚&7&VFVEöB"Â²66VæF–æs¢G'VRÒ’æÆ–Ö—Bƒ’Â#Â$6ÆÇ2Föö²FöòÆöær"Ð¢çF†Vâ‡&W7VÇBÓâ²–b†7W'&VçB‚’bb&W7VÇBæW'&÷"’6WD7F—fT6ÆÇ2‚‡&W7VÇBæFFÇÂµÒ’2&—fFT6ÆÅµÒ“²Ò’æ6F6‚‚‚’ÓâVæFVf–æVB“°Ð¢G'’°Ð¢6öç7B&W7VÇBÒv—Bv—F…F–ÖV÷WB†vWDÖW76vW2†–BÂ÷F†W$–B†7W'&VçD7F—fR’Â&÷w2Óâ°Ð¢–b‚7W'&VçB‚’’&WGW&ã°Ð¢6WDÖW76vW2†öÆBÓâ&V6öæ6–ÆT6†DÖW76vW2†öÆBÂ&÷w22&ööÖÖFTÖW76vUµÒÂ7F'FVDB’“°Ð¢6WDÆöF–ætÖW76vW2†fÇ6R“°Ð¢Ò’ÂƒÂ$ÖW76vW2Föö²FöòÆöærFòÆöBâÆV6RG'’v–ââ"“°Ð¢–b‚7W'&VçB‚’’²f÷"†6öç7B&÷röb‡&W7VÇBæÖW76vW2ÇÂµÒ’2&ööÖÖFTÖW76vUµÒ’f÷"†6öç7BW&Âöb&÷ræGF6†ÖVçG2ÇÂµÒ’–b‡W&Âç7F'G5v—F‚‚v&Æö#¢r’’U$Âç&Wfö¶Tö&¦V7EU$Â‡W&Â“²&WGW&ã²ÐÐ¢–b‡&W7VÇBæW'&÷"’F‡&÷r&W7VÇBæW'&÷#°Ð¢6WDÖW76vW2†öÆBÓâ&V6öæ6–ÆT6†DÖW76vW2†öÆBÂ&W7VÇBæÖW76vW22&ööÖÖFTÖW76vUµÒÂ7F'FVDB’“°Ð¢fö–B&öÖ—6RæÆÅ6WGFÆVB…°Ð¢Ö&´ÖW76vW56VVâ†–B’ÀÐ¢&öÖ—6Rç&W6öÇfR‡7W&6Ræg&öÒ‚&æ÷F–f–6F–öç2"’çWFFR‡²&VC¢G'VRÒ’æW‚'&V6—–VçEö–B"Â&öf–ÆRçW6W%ö–B’æW‚'&VÆFVEö–B"Â–B’’ÀÐ¢Ò“°Ð Ð¢Ò6F6‚†W'&÷"’°Ð¢–b†7W'&VçB‚’bb÷W&Ö—76–öçÆæ÷BWF†÷&•·7¥ÖVGÆ66W72FVæ–VGÆæ÷B'F–6—çGÆWF†VçF–6F–öâ&WV—&VBö’çFW7B…7G&–ær‚†W'&÷"2²ÖW76vSó¢7G&–ærÒ“òæÖW76vRÇÂW'&÷"’’’6WDÖW76vW2…µÒ“°Ð¢–b†7W'&VçB‚’bbV–WB’Fö7BæW'&÷"†W'&÷"–ç7Fæ6VöbW'&÷"òW'&÷"æÖW76vR¢%Væ&ÆRFò÷Vâ6öçfW'6F–öââÆV6RG'’v–ââ"“°Ð¢Òf–æÆÇ’²–b†7W'&VçB‚’’6WDÆöF–ætÖW76vW2†fÇ6R“²ÐÐ¢ÒÀÐ¢·&öf–ÆRçW6W%ö–BÂ÷F†W$–EÒÀÐ¢“°Ð Ð¢W6TVffV7B‚‚’Óâ°Ð¢–b‚6öçfW'6F–öä–B’fö–BÆöD–æ&÷‚„&ööÆVâ†–æ&÷„66†RævWB‡&öf–ÆRçW6W%ö–B’’“°Ð¢ÒÂ¶6öçfW'6F–öä–BÂÆöD–æ&÷‚Â&öf–ÆRçW6W%ö–EÒ“°Ð¢W6TVffV7B‚‚’Óâ°Ð¢–b‚6öçfW'6F–öí|×~­¢G§²ÚîÆ­yÔionMode}
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
+import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import { createPortal } from "react-dom";
+import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
+import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
+import { PropertyDraftAttachment } from "@/components/SharedPropertyCard";
+import { WorkerDraftAttachment } from "@/components/WorkerShareCard";
+import RoommateBubble from "@/components/RoommateMessageBubble";
+import { PendingMessageMedia } from "@/components/MessageMedia";
+import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
+import { pendingWorkerShare, clearWorkerShare, workerShareMessage, type SharedWorker } from "@/lib/workerShare";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
+import { supabase } from "@/lib/supabase";
+import {
+  deleteRoommateChatAttachment,
+  getConversationById,
+  getConversations,
+  getMessages,
+  getRoommateConversationPeople,
+  hideRoommateConversation,
+  markMessagesSeen,
+  reactToMessage,
+  sendMessage,
+  setRoommateBlock,
+  uploadRoommateChatAttachment,
+} from "@/lib/supabase/chat";
+import ReportDialog from "@/components/ReportDialog";
+import type { RoommatePeer } from "@/lib/supabase/chat";
+import {
+  BOOKING_STATUS_LABELS,
+  getCommunicationBookingConversations,
+  hideBookingConversation,
+} from "@/lib/supabase/worker-bookings";
+import {
+  getCallCapabilities,
+  launchPrivateCall,
+  type PrivateCall,
+} from "@/lib/private-calls";
+import { chatPresenceLabel } from "@/lib/supabase/presence";
+import useChatPresence from "@/hooks/useChatPresence";
+import BookingNegotiationChat from "@/components/BookingNegotiationChat";
+import {
+  conversationPresentation,
+  getMySupportConversations,
+  type SupportThread,
+} from "@/lib/supabase/support";
+import { toast } from "sonner";
+import type { Conversation, Message, Profile } from "@/types";
+import Notifications from "@/pages/Notifications";
+import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
+import useVoiceRecorder from "@/hooks/useVoiceRecorder";
+import {
+  lockEncryptionIdentity,
+  privateConversationReadiness,
+  rememberPrivateMessagingProfile,
+  type PrivateConversationReadiness,
+} from "@/lib/e2ee";
+import RoommatePublicProfile from "@/components/RoommatePublicProfile";
+import { PublicProfileAction } from "@/components/PublicProfileSurface";
+import SecureChatOnboarding from "@/components/SecureChatOnboarding";
+import HotelBookingChat from "@/components/HotelBookingChat";
+import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
+import MessageActionSheet from "@/components/MessageActionSheet";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
+import {
+  getMyHotelConversations,
+  type HotelConversation,
+} from "@/lib/supabase/hotel-chat";
+import BackButton from "@/components/BackButton";
+import SecureInboxLock from "@/components/SecureInboxLock";
+import useSecureInboxAccess from "@/hooks/useSecureInboxAccess";
+import SecureMessagesPanel from "@/components/SecureMessagesPanel";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
+
+type Props = {
+  profile: Profile;
+  onNavigate: (page: string, id?: string) => void;
+  conversationId?: string | null;
+  peerUserId?: string | null;
+  initialKind?: "roommate" | "worker" | "hotel";
+  initialBookingId?: string;
+  initialHotelConversation?: HotelConversation;
+  onConversationClose?: () => void;
+  chatUnreadCount?: number;
+  activityUnreadCount?: number;
+  onActivityUnreadChange?: (count: number) => void;
+};
+type Person = Pick<RoommatePeer, "name" | "avatar"> &
+  Partial<RoommatePeer> & { username?: string | null; lga?: string | null };
+type RoommateMessage = Message & MessageSyncState & {
+  attachments?: string[];
+  attachment_types?: string[];
+  reply_to_id?: string | null;
+  reactions?: Record<string, string>;
+  delivery_state?: "sending" | "failed";
+};
+type BookingConversation = {
+  conversation_id: string;
+  booking_id: string;
+  booking_code: string;
+  booking_status: string;
+  service_type: string;
+  negotiated_amount: number;
+  other_person_id: string | null;
+  other_person_name: string;
+  other_person_avatar: string | null;
+  last_message: string | null;
+  last_message_time: string | null;
+  unread_count: number;
+  updated_at: string;
+};
+type ActiveBooking = { conversationId: string; bookingId: string } | null;
+type ActiveHotel = { conversation: HotelConversation } | null;
+type InboxItem =
+  | { kind: "roommate"; id: string; time: string; roommate: Conversation }
+  | { kind: "worker"; id: string; time: string; booking: BookingConversation }
+  | { kind: "hotel"; id: string; time: string; hotel: HotelConversation }
+  | { kind: "support"; id: string; time: string; support: SupportThread };
+type InboxSnapshot = {
+  conversations: Conversation[];
+  bookingConversations: BookingConversation[];
+  supportThreads: SupportThread[];
+  hotelConversations: HotelConversation[];
+  people: Record<string, Person>;
+  recentRoommateCalls: Record<string, PrivateCall>;
+};
+const inboxCache = new Map<string, InboxSnapshot>();
+const MAX_FILES = 6,
+  MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+function latestTime(...values: (string | null | undefined)[]) {
+  return (
+    values
+      .filter(Boolean)
+      .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0] || ""
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="shrink-0 text-[var(--wh-text-muted)]"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+export default function Chat({
+  profile,
+  conversationId,
+  peerUserId,
+  initialKind,
+  initialBookingId,
+  initialHotelConversation,
+  onConversationClose,
+  onNavigate,
+  activityUnreadCount = 0,
+  onActivityUnreadChange,
+}: Props) {
+  const [propertyDraft, setPropertyDraft] = useState<SharedProperty | null>(null);
+  const [workerDraft, setWorkerDraft] = useState<SharedWorker | null>(null);
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
+  const cachedInbox = inboxCache.get(profile.user_id);
+  const [openingConversation, setOpeningConversation] = useState(Boolean(conversationId));
+  const [conversations, setConversations] = useState<Conversation[]>(() => cachedInbox?.conversations || []),
+    [bookingConversations, setBookingConversations] = useState<
+      BookingConversation[]
+    >(() => cachedInbox?.bookingConversations || []),
+    [supportThreads, setSupportThreads] = useState<SupportThread[]>(() => cachedInbox?.supportThreads || []),
+    [hotelConversations, setHotelConversations] = useState<HotelConversation[]>(
+      () => cachedInbox?.hotelConversations || [],
+    ),
+    [active, setActive] = useState<Conversation | null>(null),
+    [activeBooking, setActiveBooking] = useState<ActiveBooking>(null),
+    [activeHotel, setActiveHotel] = useState<ActiveHotel>(null),
+    [messages, setMessages] = useState<RoommateMessage[]>([]),
+    [people, setPeople] = useState<Record<string, Person>>(() => cachedInbox?.people || {}),
+    [input, setInput] = useState(""),
+    [loading, setLoading] = useState(() => !cachedInbox),
+    [loadingMessages, setLoadingMessages] = useState(false),
+    [sending, setSending] = useState(false),
+    [files, setFiles] = useState<File[]>([]),
+    [menuOpen, setMenuOpen] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(false),
+    [profileOpen, setProfileOpen] = useState(false),
+    [profilePerson, setProfilePerson] = useState<Person | null>(null),
+    [blockBusy, setBlockBusy] = useState(false),
+    [blockPrompt, setBlockPrompt] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
+    [blockReason, setBlockReason] = useState(""),
+    [selected, setSelected] = useState<Set<string>>(new Set()),
+    [bulkDelete, setBulkDelete] = useState(false),
+    [inboxQuery, setInboxQuery] = useState("");
+  const [secureChat, setSecureChat] =
+    useState<PrivateConversationReadiness | null>(null);
+  const [recentRoommateCalls, setRecentRoommateCalls] = useState<
+    Record<string, PrivateCall>
+  >(() => cachedInbox?.recentRoommateCalls || {});
+  const [activeCalls, setActiveCalls] = useState<PrivateCall[]>([]);
+  const ownMessageUrls = useMessageObjectUrls(messages);
+  const [replyingTo, setReplyingTo] = useState<RoommateMessage | null>(null);
+  const [messageActions, setMessageActions] = useState<RoommateMessage | null>(
+    null,
+  );
+  const [messageActionMode, setMessageActionMode] = useState<"reactions" | "actions">("reactions");
+  const [messageToRemove, setMessageToRemove] =
+    useState<RoommateMessage | null>(null);
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
+  const messagePins = useMessagePins(active ? "roommate" : null, active?.id, messages.length);
+  const {
+    status: inboxSecurityStatus,
+    refresh: refreshInboxSecurity,
+  } = useSecureInboxAccess(profile.user_id, Boolean(active));
+  const activeRef = useRef<Conversation | null>(null);
+  const messageLoadGeneration = useRef(0);
+  const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const currentIdentityRef = useRef(profile.user_id);
+  const composerRef = useRef({ input, files, propertyDraft, workerDraft });
+  useEffect(() => { composerRef.current = { input, files, propertyDraft, workerDraft }; }, [input, files, propertyDraft, workerDraft]);
+  useEffect(() => {
+    mountedRef.current = true; currentIdentityRef.current = profile.user_id;
+    return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; };
+  }, [profile.user_id]);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const voice = useVoiceRecorder();
+  const messageById = useMemo(
+    () => new Map(messages.map((message) => [message.id, message])),
+    [messages],
+  );
+  const otherId = useCallback(
+    (conv: Conversation) =>
+      conv.participant_a === profile.user_id
+        ? conv.participant_b
+        : conv.participant_a,
+    [profile.user_id],
+  );
+  const unread = useCallback(
+    (conv: Conversation) =>
+      Number(
+        conv.participant_a === profile.user_id ? conv.unread_a : conv.unread_b,
+      ) || 0,
+    [profile.user_id],
+  );
+  const peerId = active ? otherId(active) : null;
+  const presence = useChatPresence(peerId);
+  const presenceText = chatPresenceLabel(presence);
+
+  useEffect(() => {
+    rememberPrivateMessagingProfile(profile.user_id);
+  }, [profile.user_id]);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
+    const open = Boolean(active || activeBooking || activeHotel);
+    window.dispatchEvent(
+      new CustomEvent("wehouse:nested-screen", { detail: { open } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("wehouse:nested-screen", { detail: { open: false } }),
+      );
+    };
+  }, [active, activeBooking, activeHotel]);
+
+  const inboxGeneration = useRef(0);
+  useEffect(() => () => { inboxGeneration.current += 1; }, [profile.user_id]);
+  const loadInbox = useCallback(
+    async (quiet = false) => {
+      const request = ++inboxGeneration.current;
+      if (!quiet) setLoading(true);
+      try {
+      const conversationsRequest = getConversations(profile.user_id),
+        peopleRequest = getRoommateConversationPeople();
+      const bookingRequest = getCommunicationBookingConversations(
+          profile.user_id, "personal",
+        ),
+        supportRequest = getMySupportConversations(),
+        hotelRequest = getMyHotelConversations();
+      const callsRequest = supabase
+        .from("private_calls")
+        .select("*")
+        .eq("context_type", "roommate")
+        .or(`caller_id.eq.${profile.user_id},callee_id.eq.${profile.user_id}`)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      const [
+        convResult,
+        peerResult,
+        bookingResult,
+        supportResult,
+        hotelResult,
+        callResult,
+      ] = await withTimeout(Promise.all([
+        conversationsRequest,
+        peopleRequest,
+        bookingRequest,
+        supportRequest,
+        hotelRequest,
+        callsRequest,
+      ]), 15000, "Messages could not be loaded.");
+      if (request !== inboxGeneration.current) return [];
+      if (convResult.error && !quiet)
+        toast.error(
+          convResult.error.message || "Unable to load roommate conversations",
+        );
+      if (peerResult.error && !quiet)
+        toast.error(
+          peerResult.error.message || "Unable to load roommate names",
+        );
+      const allRoommateRows = (convResult.conversations || []).filter(
+        (row) => row.conversation_type === "roommate",
+      );
+      // The database returns only threads with at least one sent message.
+      // A match may open an empty composer from Roommates, but an untouched
+      // composer must never become an Inbox row.
+      setConversations(allRoommateRows);
+      setPeople(peerResult.people || {});
+      if (bookingResult.error && !quiet)
+        toast.error(
+          bookingResult.error.message || "Unable to load Worker conversations",
+        );
+      const calls: Record<string, PrivateCall> = {};
+      for (const row of callResult.data || [])
+        if (!calls[row.context_id]) calls[row.context_id] = row as PrivateCall;
+      setRecentRoommateCalls(calls);
+      const nextBookingConversations = (bookingResult.conversations || []) as BookingConversation[];
+      const nextSupportThreads = supportResult.conversations || [];
+      const nextHotelConversations = hotelResult.conversations || [];
+      setBookingConversations(nextBookingConversations);
+      setSupportThreads(nextSupportThreads);
+      setHotelConversations(nextHotelConversations);
+      inboxCache.set(profile.user_id, {
+        conversations: allRoommateRows,
+        bookingConversations: nextBookingConversations,
+        supportThreads: nextSupportThreads,
+        hotelConversations: nextHotelConversations,
+        people: peerResult.people || {},
+        recentRoommateCalls: calls,
+      });
+      setLoading(false);
+      return allRoommateRows;
+      } catch {
+        if (request === inboxGeneration.current) { setLoading(false); if (!quiet) toast.error("Messages could not be loaded. Please try again."); }
+        return [];
+      }
+    },
+    [profile.user_id],
+  );
+
+  const loadRoommateMessages = useCallback(
+    async (id: string, quiet = false) => {
+      const currentActive = activeRef.current;
+      if (!currentActive || currentActive.id !== id) return;
+      const request = ++messageLoadGeneration.current;
+      const current = () => mountedRef.current && currentIdentityRef.current === profile.user_id && request === messageLoadGeneration.current && activeRef.current?.id === id;
+      if (!quiet) setLoadingMessages(true);
+      const startedAt = Date.now();
+      // Calls are supplementary and must not hold up readable chat.
+      void withTimeout(supabase.from("private_calls").select("*").eq("context_type", "roommate").eq("context_id", id).order("created_at", { ascending: true }).limit(100), 12000, "Calls took too long")
+        .then(result => { if (current() && !result.error) setActiveCalls((result.data || []) as PrivateCall[]); }).catch(() => undefined);
+      try {
+        const result = await withTimeout(getMessages(id, otherId(currentActive), rows => {
+          if (!current()) return;
+          setMessages(old => reconcileChatMessages(old, rows as RoommateMessage[], startedAt));
+          setLoadingMessages(false);
+        }), 18000, "Messages took too long to load. Please try again.");
+        if (!current()) { for (const row of (result.messages || []) as RoommateMessage[]) for (const url of row.attachments || []) if (url.startsWith('blob:')) URL.revokeObjectURL(url); return; }
+        if (result.error) throw result.error;
+        setMessages(old => reconcileChatMessages(old, result.messages as RoommateMessage[], startedAt));
+        void Promise.allSettled([
+          markMessagesSeen(id),
+          Promise.resolve(supabase.from("notifications").update({ read: true }).eq("recipient_id", profile.user_id).eq("related_id", id)),
+        ]);
+
+      } catch (error) {
+        if (current() && /permission|not authori[sz]ed|access denied|not a participant|authentication required/i.test(String((error as { message?: string })?.message || error))) setMessages([]);
+        if (current() && !quiet) toast.error(error instanceof Error ? error.message : "Unable to open conversation. Please try again.");
+      } finally { if (current()) setLoadingMessages(false); }
+    },
+    [profile.user_id, otherId],
+  );
+
+  useEffect(() => {
+    if (!conversationId) void loadInbox(Boolean(inboxCache.get(profile.user_id)));
+  }, [conversationId, loadInbox, profile.user_id]);
+  useEffect(() => {
+    if (!conversationId) return;
+    let cancelled = false;
+
+    if (initialKind === "worker" && initialBookingId) {
+      setActive(null);
+      setActiveHotel(null);
+      setActiveBooking({
+        conversationId,
+        bookingId: initialBookingId,
+      });
+      setOpeningConversation(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (initialKind === "hotel" && initialHotelConversation) {
+      setActive(null);
+      setActiveBooking(null);
+      setActiveHotel({ conversation: initialHotelConversation });
+      setOpeningConversation(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setOpeningConversation(true);
+    void (async () => {
+      try {
+      if (peerUserId) {
+        const now = new Date().toISOString();
+        setActive({
+          id: conversationId,
+          participant_a: profile.user_id,
+          participant_b: peerUserId,
+          listing_id: null,
+          status: "active",
+          last_message: null,
+          last_message_at: now,
+          unread_a: 0,
+          unread_b: 0,
+          created_at: now,
+          conversation_type: "roommate",
+          subject: "Roommate Match",
+        });
+      }
+      const direct = await withTimeout(getConversationById(conversationId), 15000, "Conversation could not be loaded.");
+      if (cancelled) return;
+      if (
+        !direct.error &&
+        direct.conversation?.conversation_type === "roommate"
+      ) {
+        setActive(direct.conversation);
+        void loadInbox(true);
+        return;
+      }
+      if (peerUserId) {
+        void loadInbox(true);
+        return;
+      }
+      const rows = await loadInbox(true);
+      if (cancelled) return;
+      const found = rows.find((row) => row.id === conversationId);
+      if (found) {
+        setActive(found);
+        return;
+      }
+      const bookingResult = await withTimeout(getCommunicationBookingConversations(
+        profile.user_id, "personal",
+      ), 15000, "Conversation could not be loaded.");
+      if (cancelled) return;
+      const booking = (
+        (bookingResult.conversations || []) as BookingConversation[]
+      ).find((row) => row.conversation_id === conversationId);
+      if (booking)
+        setActiveBooking({
+          conversationId: booking.conversation_id,
+          bookingId: booking.booking_id,
+        });
+      else {
+        const hotelResult = await withTimeout(getMyHotelConversations(), 15000, "Conversation could not be loaded.");
+        if (cancelled) return;
+        const hotel = hotelResult.conversations.find(
+          (row) => row.conversation_id === conversationId,
+        );
+        if (hotel) {
+          setActiveHotel({ conversation: hotel });
+          return;
+        }
+        toast.error(
+          "This conversation is not available in your Personal inbox.",
+        );
+      }
+      } catch { if (!cancelled) toast.error("Conversation could not be loaded. Please try again."); }
+      finally { if (!cancelled) setOpeningConversation(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [
+    conversationId,
+    initialBookingId,
+    initialHotelConversation,
+    initialKind,
+    loadInbox,
+    peerUserId,
+    profile.user_id,
+  ]);
+  useEffect(() => {
+    if (!active || inboxSecurityStatus?.state !== "ready") {
+      setMessages([]);
+      setFiles([]);
+      setMenuOpen(false);
+      setConfirmDelete(false);
+      setReplyingTo(null);
+      setMessageActions(null);
+      setActiveCalls([]);
+      return;
+    }
+    void loadRoommateMessages(active.id);
+    const channel = supabase
+      .channel(`roommate-chat-${active.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${active.id}`,
+        },
+        () => {
+          void loadRoommateMessages(active.id, true);
+          void loadInbox(true);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${active.id}`,
+        },
+        () => void loadRoommateMessages(active.id, true),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [active, inboxSecurityStatus?.state, loadRoommateMessages, loadInbox]);
+  useEffect(() => {
+    if (!active) {
+      setSecureChat(null);
+      return;
+    }
+    let cancelled = false;
+    const peer = otherId(active);
+    const refresh = () =>
+      void privateConversationReadiness("roommate", active.id, peer).then(
+        (result) => {
+          if (!cancelled) setSecureChat(result);
+        },
+      );
+    setSecureChat(null);
+    refresh();
+    const identityChannel = supabase
+      .channel(`roommate-security-${active.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "user_encryption_identities",
+          filter: `user_id=eq.${peer}`,
+        },
+        refresh,
+      )
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(identityChannel);
+    };
+  }, [active, otherId]);
+  useEffect(() => {
+    if (
+      active ||
+      activeBooking ||
+      activeHotel
+    )
+      return;
+    const scheduler = createRefreshScheduler(
+      async () => { await loadInbox(true); },
+      () => document.visibilityState === "visible",
+      180,
+    );
+    const channel = supabase
+      .channel(`message-inbox:${profile.user_id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        scheduler.request,
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "booking_messages" },
+        scheduler.request,
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "hotel_booking_messages" },
+        scheduler.request,
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "partner_support_messages" },
+        scheduler.request,
+      )
+      .subscribe();
+    const resume = () => scheduler.request();
+    window.addEventListener("focus", resume);
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      scheduler.dispose();
+      window.removeEventListener("focus", resume);
+      window.removeEventListener("online", resume);
+      document.removeEventListener("visibilitychange", resume);
+      void supabase.removeChannel(channel);
+    };
+  }, [active, activeBooking, activeHotel, profile.user_id, loadInbox]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, files.length]);
+
+  async function openConversation(conv: Conversation) {
+    setActive(conv);
+    setInput("");
+    setPropertyDraft(null);
+    setFiles([]);
+    setMenuOpen(false);
+  }
+  async function choosePhotos(list: FileList | null, source: ChatAttachmentSource = "media") {
+    if (!list) return;
+    const incoming: File[] = [];
+    for (const file of Array.from(list)) {
+      if (!isSelectableChatAttachment(file, source)) {
+        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE}`);
+        continue;
+      }
+      try {
+        await validateChatUpload(file, false);
+        incoming.push(file);
+      } catch (error) {
+        toast.error(`An attachment could not be added: ${error instanceof Error ? error.message : CHAT_MEDIA_ONLY_MESSAGE}`);
+      }
+    }
+    setFiles((current) => {
+      const next = [...current, ...incoming].slice(0, MAX_FILES);
+      if (current.length + incoming.length > MAX_FILES)
+        toast.error("You can send up to 6 items at once");
+      return next;
+    });
+  }
+  async function toggleVoice() {
+    if (voice.recording) return voice.finish();
+    if (files.length >= MAX_FILES)
+      return toast.error("Remove an attachment before recording a voice note");
+    try {
+      await voice.start();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Microphone permission is required for voice notes",
+      );
+    }
+  }
+  useEffect(() => {
+    const pendingWorker = active ? pendingWorkerShare(profile.user_id, active.id) : null;
+    setWorkerDraft(pendingWorker);
+    setPropertyDraft(active && !pendingWorker ? pendingPropertyShare(profile.user_id, active.id) : null);
+  }, [profile.user_id, active?.id]);
+
+  async function submit() {
+    if (!active || sendingRef.current || sending || (!input.trim() && !files.length && !propertyDraft && !workerDraft)) return;
+    if (secureChat?.state !== "ready")
+      return toast.error("Secure conversation must be ready before sending");
+    const target = active;
+    const stillHere = () => mountedRef.current && currentIdentityRef.current === profile.user_id && activeRef.current?.id === target.id;
+    sendingRef.current = true;
+    const note = input.trim();
+    const shared = propertyDraft;
+    const sharedWorker = workerDraft;
+    const content = sharedWorker ? workerShareMessage(sharedWorker, note) : shared ? propertyShareMessage(shared, note) : note;
+    const queuedFiles = [...files];
+    const replyTarget = replyingTo;
+    const optimisticId = `pending-${crypto.randomUUID()}`;
+    const optimisticUrls = queuedFiles.map((file) => URL.createObjectURL(file));
+    ownMessageUrls(optimisticUrls);
+    setSending(true);
+    setInput("");
+    setPropertyDraft(null);
+    setWorkerDraft(null);
+    setFiles([]);
+    setReplyingTo(null);
+    setMessages((current) => [
+      ...current,
+      {
+        id: optimisticId,
+        conversation_id: active.id,
+        sender_id: profile.user_id,
+        content,
+        seen: false,
+        created_at: new Date().toISOString(),
+        attachments: optimisticUrls,
+        attachment_types: queuedFiles.map((file) => file.type),
+        reply_to_id: replyTarget?.id || null,
+        delivery_state: "sending",
+      },
+    ]);
+    const paths: string[] = [],
+      attachments: Array<{
+        path: string;
+        file_iv: string;
+        metadata_ciphertext: string;
+        metadata_iv: string;
+      }> = [];
+    let accepted = false;
+    try {
+      const uploadedFiles = await Promise.all(
+        queuedFiles.map((file) => uploadRoommateChatAttachment(file, active.id, otherId(active))),
+      );
+      for (let index = 0; index < uploadedFiles.length; index++) {
+        const uploaded = uploadedFiles[index];
+        const file = queuedFiles[index];
+        if (uploaded.error || !uploaded.path || !uploaded.attachment)
+          throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
+        paths.push(uploaded.path);
+        attachments.push(uploaded.attachment);
+      }
+      const result = await sendMessage(
+        active.id,
+        otherId(active),
+        content,
+        attachments,
+        replyTarget?.id || null,
+      );
+      if (result.error || !result.message)
+        throw new Error(result.error?.message || "Message could not be sent");
+      accepted = true;
+      if (shared) clearPropertyShare(profile.user_id, active.id);
+      if (sharedWorker) clearWorkerShare(profile.user_id, active.id);
+      if (stillHere()) {
+        setMessages(old => acknowledgeChatMessage(old, optimisticId, String(result.message!.id)));
+        setSending(false);
+        void loadRoommateMessages(target.id, true);
+      }
+      if (mountedRef.current) void loadInbox(true);
+    } catch (error: unknown) {
+      if (accepted) return;
+      if (stillHere()) {
+        const hasNewDraft = Boolean(composerRef.current.input.trim() || composerRef.current.files.length || composerRef.current.propertyDraft || composerRef.current.workerDraft);
+        setMessages(current => hasNewDraft ? current.map(message => message.id === optimisticId ? { ...message, delivery_state: "failed" } : message) : current.filter(message => message.id !== optimisticId));
+        if (!hasNewDraft) { setInput(note); setPropertyDraft(shared); setWorkerDraft(sharedWorker); setFiles(queuedFiles); setReplyingTo(replyTarget); }
+      }
+      for (const path of paths) await deleteRoommateChatAttachment(path);
+      const message =
+        error instanceof Error ? error.message : "Message could not be sent";
+      if (!stillHere()) return;
+      if (/encrypted chat is ready/i.test(message)) {
+        setSecureChat(null);
+        void privateConversationReadiness(
+          "roommate",
+          active.id,
+          otherId(active),
+        ).then(value => { if (stillHere()) setSecureChat(value); });
+        toast.error(
+          "Secure conversation is ready now. Send again to protect this message.",
+        );
+      } else toast.error(message);
+    } finally {
+      if (!stillHere()) optimisticUrls.forEach((url) => URL.revokeObjectURL(url));
+      sendingRef.current = false;
+      if (mountedRef.current) setSending(false);
+    }
+  }
+  async function deleteFromMessages() {
+    if (!active) return;
+    const { hidden, error } = await hideRoommateConversation(active.id);
+    if (error || !hidden)
+      return toast.error(error?.message || "Could not remove conversation");
+    toast.success("Conversation removed from your Inbox");
+    setConfirmDelete(false);
+    setMenuOpen(false);
+    setActive(null);
+    await loadInbox(true);
+  }
+  async function removeMessageForMe() {
+    if (!active || !messageToRemove) return;
+    const { error } = await supabase.rpc("delete_conversation_message_for_me", {
+      p_kind: "roommate",
+      p_message_id: messageToRemove.id,
+    });
+    if (error)
+      return toast.error(error.message || "Message could not be removed");
+    setMessageToRemove(null);
+    await loadRoommateMessages(active.id);
+  }
+  async function toggleBlock(reason?: string) {
+    if (!peerId || blockBusy) return;
+    const person = people[peerId];
+    setBlockBusy(true);
+    const nextBlocked = !person?.isBlocked;
+    const { error, cancellationState } = await setRoommateBlock(
+      peerId,
+      nextBlocked,
+      reason,
+    );
+    setBlockBusy(false);
+    if (error)
+      return toast.error(error.message || "Could not update this connection");
+    setPeople((current) => ({
+      ...current,
+      [peerId]: { ...current[peerId], isBlocked: nextBlocked },
+    }));
+    setProfilePerson((current) =>
+      current ? { ...current, isBlocked: nextBlocked } : current,
+    );
+    setMenuOpen(false);
+    setBlockPrompt(false);
+    setBlockReason("");
+    toast.success(
+      nextBlocked
+        ? cancellationState === "review"
+          ? "Connection cancelled. The linked paid booking was sent to WeHouse for cancellation."
+          : cancellationState === "cancelled"
+            ? "Connection cancelled and the linked shared booking was cancelled."
+            : "Connection cancelled and removed from discovery."
+        : "Connection restored",
+    );
+  }
+  async function openActiveProfile() {
+    if (!active) return;
+    const id = otherId(active);
+    const known = people[id];
+    setProfilePerson(known || null);
+    setProfileOpen(true);
+    const { data, error } = await supabase.rpc(
+      "get_allowed_conversation_profile",
+      { p_context_type: "roommate", p_context_id: active.id },
+    );
+    if (error || !data) return;
+    setProfilePerson({
+      user_id: String(data.user_id || id),
+      name: data.full_name || data.username || known?.name || "WeHouse member",
+      username: data.username || null,
+      avatar: data.avatar_url || known?.avatar || null,
+      bio: data.bio || "",
+      city: data.city || data.lga || "",
+      lga: data.lga || null,
+      state: data.state || "",
+      school: data.school || "",
+      occupation: data.occupation || "",
+      isStudent: Boolean(known?.isStudent),
+      isBlocked: Boolean(known?.isBlocked),
+    });
+  }
+  async function startCall(kind: "audio" | "video") {
+    if (!active) return;
+    const { capabilities, error } = await getCallCapabilities(
+      "roommate",
+      active.id,
+    );
+    if (error || !capabilities)
+      return toast.error(error?.message || "Call is not available");
+    const allowed =
+      kind === "video"
+        ? capabilities.allow_video_calls
+        : capabilities.allow_audio_calls;
+    if (!allowed)
+      return toast.error(
+        `This person is not accepting ${kind === "video" ? "video" : "audio"} calls`,
+      );
+    launchPrivateCall("roommate", active.id, kind);
+  }
+  function toggleSelected(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  async function deleteSelected() {
+    if (!selected.size) return;
+    setBulkDelete(true);
+    let failed = 0;
+    for (const id of selected) {
+      const [kind, value] = id.split(":");
+      const result =
+        kind === "roommate"
+          ? await hideRoommateConversation(value)
+          : await hideBookingConversation(value);
+      if (result.error || !result.hidden) failed++;
+    }
+    setBulkDelete(false);
+    setSelected(new Set());
+    await loadInbox(true);
+    if (failed)
+      toast.error(
+        `${failed} conversation${failed === 1 ? "" : "s"} could not be removed`,
+      );
+    else toast.success("Selected conversations removed from Inbox");
+  }
+
+  const inboxItems = useMemo<InboxItem[]>(
+    () =>
+      [
+        ...conversations.map((conv) => ({
+          kind: "roommate" as const,
+          id: `roommate:${conv.id}`,
+          time: latestTime(
+            recentRoommateCalls[conv.id]?.created_at,
+            conv.last_message_at,
+            conv.created_at,
+          ),
+          roommate: conv,
+        })),
+        ...bookingConversations.map((booking) => ({
+          kind: "worker" as const,
+          id: `worker:${booking.conversation_id}`,
+          time: booking.last_message_time || booking.updated_at,
+          booking,
+        })),
+        ...hotelConversations.map((hotel) => ({
+          kind: "hotel" as const,
+          id: `hotel:${hotel.conversation_id}`,
+          time: hotel.last_message_time || hotel.updated_at,
+          hotel,
+        })),
+        ...supportThreads.map((support) => ({
+          kind: "support" as const,
+          id: `support:${support.conversation_id}`,
+          time: support.last_message_time || support.created_at,
+          support,
+        })),
+      ].sort(
+        (a, b) =>
+          new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
+      ),
+    [
+      conversations,
+      bookingConversations,
+      hotelConversations,
+      supportThreads,
+      recentRoommateCalls,
+    ],
+  );
+  const visibleInboxItems = useMemo(() => {
+    const query = inboxQuery.trim().toLowerCase();
+    return inboxItems.filter((item) => {
+      if (!query) return true;
+      const searchable =
+        item.kind === "roommate"
+          ? [people[otherId(item.roommate)]?.name, item.roommate.last_message]
+          : item.kind === "worker"
+            ? [
+                item.booking.other_person_name,
+                item.booking.service_type,
+                item.booking.last_message,
+                item.booking.booking_code,
+              ]
+            : item.kind === "hotel"
+              ? [
+                  item.hotel.hotel_name,
+                  item.hotel.room_name,
+                  item.hotel.booking_code,
+                  item.hotel.last_message,
+                ]
+              : (() => {
+                  const view = conversationPresentation(item.support);
+                  return [
+                    view.title,
+                    view.operator,
+                    view.meta,
+                    item.support.subject,
+                    item.support.last_message,
+                  ];
+                })();
+      return searchable.filter(Boolean).join(" ").toLowerCase().includes(query);
+    });
+  }, [inboxItems, inboxQuery, otherId, people]);
+
+  const finishInboxUnlock = useCallback(async () => {
+    const result = await refreshInboxSecurity();
+    const current = activeRef.current;
+    if (result.state === "ready" && current) {
+      await loadRoommateMessages(current.id, true);
+    }
+  }, [loadRoommateMessages, refreshInboxSecurity]);
+
+  if (active && inboxSecurityStatus?.state !== "ready") {
+    return (
+      <SecureInboxLock
+        status={inboxSecurityStatus}
+        onReady={() => void finishInboxUnlock()}
+        onBack={() => { setActive(null); onConversationClose?.(); }}
+      />
+    );
+  }
+
+  if (activeBooking)
+    return (
+      <BookingNegotiationChat
+        conversationId={activeBooking.conversationId}
+        bookingId={activeBooking.bookingId}
+        profile={profile}
+        isWorker={profile.role === "worker"}
+        onClose={() => {
+          setActiveBooking(null);
+          onConversationClose?.();
+          void loadInbox(true);
+        }}
+      />
+    );
+  if (activeHotel)
+    return (
+      <HotelBookingChat
+        bookingId={activeHotel.conversation.booking_id}
+        conversationId={activeHotel.conversation.conversation_id}
+        profile={profile}
+        title={
+          activeHotel.conversation.other_party_label ||
+          activeHotel.conversation.hotel_name
+        }
+        subtitle={`${activeHotel.conversation.room_name} Â· Paid stay`}
+        readOnly={!['confirmed','checked_in'].includes(activeHotel.conversation.booking_status)}
+        onClose={() => {
+          setActiveHotel(null);
+          onConversationClose?.();
+          void loadInbox(true);
+        }}
+      />
+    );
+  if (active) {
+    const person = people[otherId(active)];
+    const canCompose = secureChat?.state === "ready";
+    const lockedMessages = messages.some(
+      (message) => message.decryption_failed === true,
+    );
+    const refreshSecurity = () => {
+      setSecureChat(null);
+      void privateConversationReadiness(
+        "roommate",
+        active.id,
+        otherId(active),
+      ).then((result) => {
+        setSecureChat(result);
+        if (result.state === "ready" || result.state === "peer_setup_required")
+          void loadRoommateMessages(active.id, true);
+      });
+    };
+    const retryLockedMessages = async () => {
+      setSecureChat(null);
+      await lockEncryptionIdentity();
+      await refreshInboxSecurity();
+    };
+    const timeline = [
+      ...messages.map((message) => ({
+        kind: "message" as const,
+        time: message.created_at,
+        id: `message:${message.id}`,
+        message,
+      })),
+      ...activeCalls.map((call) => ({
+        kind: "call" as const,
+        time: call.created_at,
+        id: `call:${call.id}`,
+        call,
+      })),
+    ].sort(
+      (a, b) =>
+        new Date(a.time).getTime() - new Date(b.time).getTime() ||
+        a.id.localeCompare(b.id),
+    );
+    return createPortal(
+      <div className="fixed inset-0 z-[70] flex h-[100dvh] flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
+        <header className="relative shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/97 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+          <div className="mx-auto flex max-w-3xl items-center gap-1">
+            <BackButton
+              onClick={() => {
+                setActive(null);
+                onConversationClose?.();
+                void loadInbox(true);
+              }}
+              className="!ml-0 !w-10 rounded-full hover:bg-[var(--wh-interactive)]"
+              ariaLabel="Back to Inbox"
+            />
+            <button
+              type="button"
+              onClick={() => void openActiveProfile()}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              aria-label="Contact info"
+            >
+              <Avatar person={person} />
+              <span className="min-w-0">
+                <span className="block truncate text-[14px] font-semibold">
+                  {person?.name || "Roommate"}
+                </span>
+                {presenceText ? (
+                  <span
+                    className={`mt-0.5 block truncate text-xs ${presence?.online ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
+                  >
+                    {presenceText}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+            <HeaderAction label="Audio call" onClick={() => void startCall("audio")}>
+              <PhoneIcon />
+            </HeaderAction>
+            <HeaderAction label="Video call" onClick={() => void startCall("video")}>
+              <VideoCallIcon />
+            </HeaderAction>
+            <button
+              onClick={() => setMenuOpen((value) => !value)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)] hover:bg-[var(--wh-interactive)]"
+              aria-label="Conversation options"
+            >
+              â‹¯
+            </button>
+          </div>
+          {menuOpen && (
+            <div className="absolute right-3 top-[3.65rem] z-20 w-56 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5 shadow-2xl">
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  void openActiveProfile();
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm hover:bg-[var(--wh-interactive)]"
+              >
+                <span>â—‰</span>
+                <span>Contact info</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReportOpen(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm"
+              >
+                <span>âš‘</span>
+                <span>Report</span>
+              </button>
+              <button
+                disabled={blockBusy}
+                onClick={() => {
+                  if (person?.isBlocked) void toggleBlock();
+                  else {
+                    setMenuOpen(false);
+                    setBlockPrompt(true);
+                  }
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-amber-200"
+              >
+                <span>âŠ˜</span>
+                <span>
+                  {person?.isBlocked ? "Restore connection" : "Cancel connection"}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setConfirmDelete(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-red-300 hover:bg-red-500/[.07]"
+              >
+                <TrashIcon />
+                <span>Remove from Inbox</span>
+              </button>
+            </div>
+          )}
+        </header>
+        <PinnedMessagesBar
+          items={messagePins.pinned.map((id) => messageById.get(id)).filter((m): m is RoommateMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || "Attachment" }))}
+          onJump={scrollToMessage}
+          onUnpin={(id) => void messagePins.toggle(id)}
+        />
+        <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
+          <div className="mx-auto max-w-3xl space-y-2.5">
+            {lockedMessages ? (
+              <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
+                <div>
+                  <p className="text-xs font-semibold text-violet-100">
+                    Some messages are still locked
+                  </p>
+                  <p className="mt-1 text-xs leading-4 text-[var(--wh-text-secondary)]">
+                    Re-enter your Inbox PIN to unlock this conversation on this device.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void retryLockedMessages()}
+                  className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-xs font-semibold text-violet-200"
+                >
+                  Enter PIN
+                </button>
+              </section>
+            ) : null}
+            {loadingMessages && messages.length === 0 ? (
+              <MessageSkeleton />
+            ) : messages.length === 0 ? (
+              <Empty
+                title="Start your conversation"
+                text="You both accepted the roommate match. Share photos, voice notes or a message while you discuss living plans."
+              />
+            ) : null}
+            {timeline.map((event, index) => (
+              <div key={event.id}>
+                {index === 0 ||
+                dayKey(timeline[index - 1].time) !== dayKey(event.time) ? (
+                  <DateDivider value={event.time} />
+                ) : null}
+                {event.kind === "call" ? (
+                  <CallTimelineEvent call={event.call} me={profile.user_id} />
+                ) : (
+                  <RoommateBubble
+                    msg={event.message}
+                    onOpenProperty={onNavigate}
+                    onOpenWorker={(id) => onNavigate("worker_discovery", id)}
+                    mine={event.message.sender_id === profile.user_id}
+                    quoted={
+                      event.message.reply_to_id
+                        ? messageById.get(event.message.reply_to_id)
+                        : undefined
+                    }
+                    onOpenActions={(anchor) => {
+                      setMessageMenuAnchor(anchor);
+                      if (event.message.delivery_state) return;
+                      setMessageActionMode("actions");
+                      setMessageActions(event.message);
+                    }}
+                    onTapReaction={(anchor) => {
+                      setMessageMenuAnchor(anchor);
+                      if (event.message.delivery_state) return;
+                      setMessageActionMode("reactions");
+                      setMessageActions(event.message);
+                    }}
+                    onReply={() => setReplyingTo(event.message)}
+                  />
+                )}
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+        </main>
+        <footer className="shrink-0 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/98 px-2.5 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-4">
+          <div className="mx-auto max-w-3xl">
+            {person?.isBlocked ? (
+              <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
+                <p className="text-xs text-amber-100">
+                  This connection is cancelled. Matching, messages and calls are off.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void toggleBlock()}
+                  className="shrink-0 text-xs font-semibold text-violet-300"
+                >
+                  Restore
+                </button>
+              </div>
+            ) : !secureChat ? (
+              <div
+                className="flex items-end gap-2"
+                aria-label="Opening secure conversation"
+              >
+                <div className="flex min-h-11 flex-1 items-center rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm text-[var(--wh-text-muted)]">
+                  Opening conversationâ€¦
+                </div>
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--wh-interactive)]">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+                </span>
+              </div>
+            ) : !canCompose ? (
+              <SecureChatOnboarding
+                status={secureChat}
+                personName={person?.name || "This person"}
+                onReady={refreshSecurity}
+              />
+            ) : (
+              <>
+                {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }} />}
+                {workerDraft && <WorkerDraftAttachment onRemove={() => { if (active) clearWorkerShare(profile.user_id, active.id); setWorkerDraft(null); }} />}
+                <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
+                <VoiceRecorderPanel
+                  recording={voice.recording}
+                  seconds={voice.seconds}
+                  level={voice.level}
+                  draft={voice.draft}
+                  onCancel={voice.cancel}
+                  onFinish={voice.finish}
+                  onDiscard={voice.discard}
+                  onUse={(file) => {
+                    setFiles((current) =>
+                      [...current, file].slice(0, MAX_FILES),
+                    );
+                    voice.discard();
+                  }}
+                />
+                {replyingTo && (
+                  <div className="mb-2 flex items-center gap-3 rounded-2xl border-l-2 border-violet-400 bg-[var(--wh-interactive)] px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-violet-300">
+                        Replying to{" "}
+                        {replyingTo.sender_id === profile.user_id
+                          ? "yourself"
+                          : person?.name || "message"}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-[var(--wh-text-secondary)]">
+                        {propertyMessagePreview(replyingTo.content || "") ||
+                          ((replyingTo.attachments || []).length
+                            ? "Attachment"
+                            : "Message")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="grid h-8 w-8 place-items-center text-[var(--wh-text-secondary)]"
+                      aria-label="Cancel reply"
+                    >
+                      Ã—
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <ChatAttachmentPicker onFiles={choosePhotos} />
+                  <button
+                    onClick={() => void toggleVoice()}
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500" : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"} text-white`}
+                    aria-label={
+                      voice.recording
+                        ? "Finish voice recording"
+                        : "Record voice note"
+                    }
+                  >
+                    <MicIcon />
+                  </button>
+                  <div className="flex min-h-11 flex-1 items-end rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-1.5 focus-within:border-violet-500/40">
+                    <textarea
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void submit();
+                        }
+                      }}
+                      rows={1}
+                      placeholder="Message"
+                      className="max-h-28 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[13px] outline-none placeholder:text-[var(--wh-text-muted)]"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void submit()}
+                    disabled={sending || (!input.trim() && !files.length && !propertyDraft && !workerDraft)}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
+                    aria-label="Send"
+                  >
+                    {sending ? "â€¦" : "âž¤"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </footer>
+        {messageActions && active && (
+          <MessageActionSheet
+            anchor={messageMenuAnchor}
+            mode={messageActionMode}
+            currentReaction={
+              messageActions.reactions?.[profile.user_id] || null
+            }
+            onClose={() => setMessageActions(null)}
+            pinned={messagePins.pinned.includes(messageActions.id)}
+            onPin={() => { const id = messageActions.id; setMessageActions(null); void messagePins.toggle(id); }}
+            onReply={() => {
+              setReplyingTo(messageActions);
+              setMessageActions(null);
+            }}
+            onRemove={() => {
+              setMessageToRemove(messageActions);
+              setMessageActions(null);
+            }}
+            onCopy={messageActions.content ? () => {
+              void navigator.clipboard.writeText(messageActions.content || "");
+              toast.success("Message copied");
+              setMessageActions(null);
+            } : undefined}
+            onReact={async (emoji) => {
+              const current = messageActions.reactions?.[profile.user_id];
+              const result = await reactToMessage(
+                active.id,
+                messageActions.id,
+                current === emoji ? null : emoji,
+              );
+              if (result.error) return toast.error(result.error.message);
+              setMessages((rows) =>
+                rows.map((row) =>
+                  row.id === messageActions.id
+                    ? { ...row, reactions: result.reactions }
+                    : row,
+                ),
+              );
+              setMessageActions(null);
+            }}
+          />
+        )}
+        <ConfirmDialog
+          isOpen={Boolean(messageToRemove)}
+          title="Remove this message?"
+          description="This removes the message only from your chat. The other person keeps their copy."
+          confirmLabel="Remove for me"
+          onCancel={() => setMessageToRemove(null)}
+          onConfirm={() => void removeMessageForMe()}
+        />
+        {confirmDelete && (
+          <DeleteSheet
+            title="Remove this conversation?"
+            text="This only removes it from your list. It does not erase the other person's copy. A new message can make it appear again."
+            onCancel={() => setConfirmDelete(false)}
+            onDelete={() => void deleteFromMessages()}
+          />
+        )}
+        {profileOpen && (
+          <PeerProfileSheet
+            person={profilePerson || person}
+            presenceText={presenceText || ""}
+            onClose={() => {
+              setProfileOpen(false);
+              setProfilePerson(null);
+            }}
+            onToggleBlock={() => {
+              if (person?.isBlocked) void toggleBlock();
+              else {
+                setProfileOpen(false);
+                setBlockPrompt(true);
+              }
+            }}
+            onAudioCall={() => {
+              setProfileOpen(false);
+              void startCall("audio");
+            }}
+            onVideoCall={() => {
+              setProfileOpen(false);
+              void startCall("video");
+            }}
+            busy={blockBusy}
+          />
+        )}
+        {reportOpen && peerId && (
+          <ReportDialog
+            subjectType="roommate_chat"
+            subjectUserId={peerId}
+            subjectName={person?.name || "this person"}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
+        {blockPrompt && (
+          <div
+            className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm"
+            onClick={() => setBlockPrompt(false)}
+          >
+            <section
+              className="w-full max-w-md rounded-[26px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold">
+                    Cancel connection with {person?.name || "this person"}?
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">
+                    They will leave your discovery results. A linked shared
+                    booking will be cancelled, or sent to WeHouse first if
+                    payment must be reviewed.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBlockPrompt(false)}
+                  className="grid h-9 w-9 place-items-center text-xl text-[var(--wh-text-secondary)]"
+                >
+                  Ã—
+                </button>
+              </div>
+              <textarea
+                value={blockReason}
+                onChange={(event) =>
+                  setBlockReason(event.target.value.slice(0, 500))
+                }
+                rows={3}
+                placeholder="Reason (optional)"
+                className="mt-4 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-xs outline-none focus:border-violet-500/40"
+              />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setBlockReason("");
+                    void toggleBlock();
+                  }}
+                  disabled={blockBusy}
+                  className="h-11 rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40"
+                >
+                  Skip reason
+                </button>
+                <button
+                  onClick={() => void toggleBlock(blockReason)}
+                  disabled={blockBusy}
+                  className="h-11 rounded-xl bg-red-500 text-xs font-semibold disabled:opacity-40"
+                >
+                  {blockBusy ? "Cancellingâ€¦" : "Cancel connection"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+      </div>, document.body
+    );
+  }
+
+  if (conversationId && !active) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] px-6 text-center text-[var(--wh-text)]">
+        <div>
+          {openingConversation ? (
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+          ) : (
+            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]">!</div>
+          )}
+          <p className="mt-4 text-sm font-semibold">
+            {openingConversation ? "Opening conversationâ€¦" : "Conversation unavailable"}
+          </p>
+          {!openingConversation ? (
+            <button type="button" onClick={() => {
+              onConversationClose?.();
+              onNavigate("conversation");
+            }} className="mt-4 rounded-full border border-[var(--wh-border-subtle)] px-4 py-2 text-[10px] font-semibold text-violet-300">
+              Go to Inbox
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)]">
+      <header className="sticky top-0 z-30 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-2.5 backdrop-blur-xl sm:py-4">
+        <div className="mx-auto flex max-w-5xl items-start gap-3">
+          {selected.size ? (
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] text-lg"
+              aria-label="Cancel selection"
+            >
+              Ã—
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-expanded={pinSettingsOpen}
+              onClick={() => setPinSettingsOpen((value) => !value)}
+              className="mt-0.5 min-h-9 rounded-full border border-[var(--wh-border-subtle)] px-3 text-[9px] font-semibold text-violet-200"
+            >
+              Inbox PIN
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold sm:text-xl">
+              {selected.size
+                ? `${selected.size} selected`
+                : "Inbox"}
+            </h1>
+          </div>
+          {selected.size ? (
+            <button
+              disabled={bulkDelete}
+              onClick={() => void deleteSelected()}
+              className="mt-1 h-10 rounded-full bg-red-500/12 px-4 text-[10px] font-semibold text-red-300 disabled:opacity-50"
+            >
+              {bulkDelete ? "Removingâ€¦" : "Remove"}
+            </button>
+          ) : null}
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
+        {pinSettingsOpen ? (
+          <div className="mb-4">
+            <SecureMessagesPanel />
+          </div>
+        ) : null}
+        <section className="border-b border-[var(--wh-border-subtle)] pb-4">
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-semibold">Activity</h2>
+                {activityUnreadCount > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">
+                    {activityUnreadCount > 99 ? "99+" : activityUnreadCount}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                Updates and actions that affect you
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActivityExpanded((value) => !value)}
+              className="shrink-0 px-1 py-2 text-[9px] font-semibold text-violet-300"
+            >
+              {activityExpanded ? "Show less" : "See all"}
+            </button>
+          </div>
+          <Notifications
+            profile={profile}
+            scope="personal"
+            embedded
+            compact={!activityExpanded}
+            previewLimit={activityExpanded ? undefined : 3}
+            onNavigate={onNavigate}
+            onUnreadChange={onActivityUnreadChange}
+          />
+        </section>
+        <section className="pt-4">
+            <div className="mb-3">
+              <h2 className="text-xs font-semibold">Messages</h2>
+              <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                Roommates, stays, services and WeHouse help
+              </p>
+            </div>
+            <label className="flex h-11 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 focus-within:border-violet-500/35">
+              <SearchIcon />
+              <input
+                value={inboxQuery}
+                onChange={(event) => setInboxQuery(event.target.value)}
+                placeholder="Search conversations"
+                className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-[var(--wh-text-muted)]"
+              />
+            </label>
+            <div className="mt-3 flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
+                  All messages
+                </p>
+                <p className="mt-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
+                  Most recent first
+                </p>
+              </div>
+            </div>
+            {loading ? (
+              <div className="mt-3 rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
+                <Loading />
+              </div>
+            ) : visibleInboxItems.length === 0 ? (
+              <div className="mt-3 border-y border-dashed border-[var(--wh-border-subtle)] px-5 py-10 text-center">
+                <p className="text-sm font-semibold">
+                  {inboxQuery.trim()
+                    ? "No matching conversations"
+                    : "No messages yet"}
+                </p>
+                <p className="mx-auto mt-2 max-w-sm text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
+                  {inboxQuery.trim()
+                    ? "Try a person, service, property or reservation name."
+                    : "Messages appear here after a roommate match, service booking, paid hotel stay or WeHouse help request."}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 overflow-hidden border-y border-[var(--wh-border-subtle)]">
+                {visibleInboxItems.map((item, index) => (
+                  <div key={item.id}>
+                    {index > 0 && <Divider />}
+                    {item.kind === "roommate" ? (
+                      <RoommateInboxRow
+                        conv={item.roommate}
+                        person={people[otherId(item.roommate)]}
+                        count={unread(item.roommate) > 0 ? 1 : 0}
+                        recentCall={recentRoommateCalls[item.roommate.id]}
+                        selected={selected.has(item.id)}
+                        selectionMode={selected.size > 0}
+                        onSelect={() => toggleSelected(item.id)}
+                        onOpen={() => void openConversation(item.roommate)}
+                      />
+                    ) : item.kind === "worker" ? (
+                      <WorkerInboxRow
+                        row={item.booking}
+                        selected={selected.has(item.id)}
+                        selectionMode={selected.size > 0}
+                        onSelect={() => toggleSelected(item.id)}
+                        onOpen={() =>
+                          setActiveBooking({
+                            conversationId: item.booking.conversation_id,
+                            bookingId: item.booking.booking_id,
+                          })
+                        }
+                      />
+                    ) : item.kind === "hotel" ? (
+                      <HotelInboxRow
+                        row={item.hotel}
+                        onOpen={() =>
+                          setActiveHotel({ conversation: item.hotel })
+                        }
+                      />
+                    ) : item.kind === "support" ? (
+                      <SupportInboxRow
+                        thread={item.support}
+                        onOpen={() =>
+                          window.dispatchEvent(
+                            new CustomEvent("openSupportChat", {
+                              detail: {
+                                conversationId: item.support.conversation_id,
+                                contextType: item.support.context_type,
+                                contextId: item.support.context_id,
+                              },
+                            }),
+                          )
+                        }
+                      />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function RoommateInboxRow({
+  conv,
+  person,
+  count,
+  recentCall,
+  onOpen,
+  onSelect,
+  selected,
+  selectionMode,
+}: {
+  conv: Conversation;
+  person?: Person;
+  count: number;
+  recentCall?: PrivateCall;
+  onOpen: () => void;
+  onSelect: () => void;
+  selected: boolean;
+  selectionMode: boolean;
+}) {
+  return (
+    <SelectableRow
+      onOpen={onOpen}
+      onSelect={onSelect}
+      selectionMode={selectionMode}
       selected={selected}
     >
       <Avatar person={person} />
