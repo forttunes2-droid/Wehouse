@@ -121,7 +121,6 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     if (!hasChanges) return;
     if (usernameState === 'taken' || usernameState === 'invalid') return toast.error('Fix the username before saving');
     if (isUser && !gender) return toast.error('Gender is required for roommate matching');
-    if (isUser && (!state || !lga)) return toast.error('State and Local Government are required');
     setSaving(true);
     const updates: any = { full_name: fullName.trim() || null, username: username.trim().toLowerCase(), phone: phone.trim() || null };
     updates.state=state;updates.local_government=lga;updates.city=lga;updates.precise_latitude=preciseLocation?.latitude??null;updates.precise_longitude=preciseLocation?.longitude??null;updates.precise_address=preciseLocation?.address.trim()||null;updates.precise_location_accuracy_m=preciseLocation?.accuracy??null;
@@ -130,9 +129,9 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       updates.gender = gender;
       updates.is_student = isStudent;
       updates.school = isStudent ? (school.trim() || null) : null;
-      updates.state = state;
-      updates.local_government = lga;
-      updates.city = lga;
+      updates.state = state.trim() || null;
+      updates.local_government = lga.trim() || null;
+      updates.city = lga.trim() || null;
       updates.profile_complete = true;
     }
     try {
