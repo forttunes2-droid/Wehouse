@@ -59,6 +59,9 @@ export const supabase:any={
  },
  storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});const result=()=>state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});const result=()=>state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
 };
+// The isolated browser fixture never exercises passkeys. Keep the optional
+// production feature explicitly disabled while bundling account help screens.
+export const isWebPasskeyEnabled = false;
 export const getWorkers=async()=>{state.calls.push({name:'get_public_workers'});return {workers:[{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',worker_bio:'Furniture fitting and repairs.',worker_skills:['Carpentry'],worker_price:15000,city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,role:'worker'}],error:null};};
 export const compressImageFile=async(file:File)=>file;
 export const uploadStorageObjectWithProgress=async(...args:any[])=>{state.calls.push({name:'upload-media',path:args[1]});args.at(-1)?.(100);};
