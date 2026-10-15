@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Moon, Sun } from "lucide-react";
+import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setNotificationSoundEnabled } from "@/lib/notificationSound";
-import { setAppearance, useAppearance } from "@/lib/appearance";
+import { resolvedAppearance, setAppearance, useAppearance } from "@/lib/appearance";
 import AccountShell, {
   AccountRow,
   AccountSection,
@@ -457,26 +457,29 @@ export default function AccountCenter({
   }
 
   if (panel === "appearance") {
+    const systemResolvedAppearance = resolvedAppearance("system");
     const choices = [
+      { value: "system" as const, label: "System", detail: "Follows this device", icon: Monitor },
       { value: "light" as const, label: "Light", detail: "Bright and clean", icon: Sun },
       { value: "dark" as const, label: "Dark", detail: "Low-light friendly", icon: Moon },
     ];
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
       description="Choose how WeHouse looks on this device." onBack={() => setPanel(null)}>
       <section className="mx-auto max-w-2xl">
-        <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Appearance">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Appearance">
           {choices.map(({ value, label, detail, icon: Icon }) => {
             const selected = appearance === value;
+            const sampleDark = value === "dark" || (value === "system" && systemResolvedAppearance === "dark");
             return (
               <button key={value} type="button" role="radio" aria-checked={selected}
                 onClick={() => setAppearance(value)}
                 className={`relative overflow-hidden rounded-2xl border p-3 text-left transition-all active:scale-[.99] ${selected ? "border-violet-400/60 ring-1 ring-violet-400/25" : "border-[var(--wh-border-subtle)]"} bg-[var(--wh-surface)]`}>
-                <div className={`h-20 rounded-xl border p-2 ${value === "dark" ? "border-white/10 bg-[#090B10]" : "border-black/10 bg-[#F7F8FB]"}`}>
-                  <div className={`h-2.5 w-1/2 rounded-full ${value === "dark" ? "bg-white/15" : "bg-black/10"}`} />
+                <div className={`h-20 rounded-xl border p-2 ${sampleDark ? "border-white/10 bg-[#090B10]" : "border-black/10 bg-[#F7F8FB]"}`}>
+                  <div className={`h-2.5 w-1/2 rounded-full ${sampleDark ? "bg-white/15" : "bg-black/10"}`} />
                   <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-white/10" : "bg-black/5"}`} />
-                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-violet-500/30" : "bg-violet-500/15"}`} />
-                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-white/10" : "bg-black/5"}`} />
+                    <span className={`h-10 rounded-lg ${sampleDark ? "bg-white/10" : "bg-black/5"}`} />
+                    <span className={`h-10 rounded-lg ${sampleDark ? "bg-violet-500/30" : "bg-violet-500/15"}`} />
+                    <span className={`h-10 rounded-lg ${sampleDark ? "bg-white/10" : "bg-black/5"}`} />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">

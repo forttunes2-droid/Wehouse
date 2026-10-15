@@ -2,7 +2,14 @@
 (() => {
 // Run small, trusted startup repairs from an independent same-origin script so the deployed
 // Content Security Policy does not need to allow inline scripts.
-function applyStartupTheme(light) {
+function applyStartupTheme() {
+    let choice = 'system';
+    try {
+        const saved = localStorage.getItem('wehouse:appearance');
+        if (saved === 'light' || saved === 'dark') choice = saved;
+    } catch (_) { }
+    const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
+    const light = choice === 'light' || (choice === 'system' && !systemDark);
     document.documentElement.dataset.whTheme = light ? 'light' : 'dark';
     document.documentElement.classList.toggle('dark', !light);
     document.documentElement.style.colorScheme = light ? 'light' : 'dark';
@@ -10,11 +17,17 @@ function applyStartupTheme(light) {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
     document.querySelector('meta[name="background-color"]')?.setAttribute('content', color);
 }
-try {
-    applyStartupTheme(localStorage.getItem('wehouse:appearance') === 'light');
-} catch (_) {
-    applyStartupTheme(false);
-}
+applyStartupTheme();
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', () => {
+    try {
+        const choice = localStorage.getItem('wehouse:appearance');
+        if (choice === 'light' || choice === 'dark') return;
+    } catch (_) { }
+    applyStartupTheme();
+});
+window.addEventListener('storage', (event) => {
+    if (event.key === 'wehouse:appearance') applyStartupTheme();
+});
 
 function renderStartupFailure(reason) {
     if (document.documentElement.dataset.whReactMounted === "true")

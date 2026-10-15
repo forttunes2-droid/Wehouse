@@ -4,7 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import vm from "node:vm";
 
-function loadAppearance() {
+function loadAppearance(systemDark = true) {
   const values = new Map();
   const listeners = new Map();
   const meta = new Map(
@@ -29,6 +29,7 @@ function loadAppearance() {
       getItem(key) { return values.get(key) || null; },
       setItem(key, value) { values.set(key, value); },
     },
+    matchMedia() { return { matches: systemDark, addEventListener() {}, removeEventListener() {} }; },
     addEventListener(name, listener) {
       const group = listeners.get(name) || new Set();
       group.add(listener);
@@ -75,6 +76,27 @@ test("appearance changes update the root theme, native color scheme, and browser
   assert.equal(classes.has("dark"), true);
   assert.equal(meta.get("theme-color").content, "#090B10");
   assert.equal(meta.get("background-color").content, "#090B10");
+});
+
+test("system appearance follows the device until an explicit preference is saved", () => {
+  const { exports, values, document } = loadAppearance(false);
+
+  assert.equal(exports.getAppearance(), "system");
+  exports.startAppearanceSync();
+  assert.equal(document.documentElement.dataset.whTheme, "light");
+
+  exports.setAppearance("dark");
+  assert.equal(values.get("wehouse:appearance"), "dark");
+  assert.equal(document.documentElement.dataset.whTheme, "dark");
+});
+
+test("the sign-in surface keeps the selected app theme", () => {
+  const loginStyles = readFileSync("src/pages/login.css", "utf8");
+  const loginComponent = readFileSync("src/pages/Login.tsx", "utf8");
+
+  assert.match(loginStyles, /:root\[data-wh-theme="light"\] body\.wh-auth-open/);
+  assert.match(loginStyles, /--auth-surface: #f7f8fb/);
+  assert.doesNotMatch(loginComponent, /theme\.content = "#090B10"/);
 });
 
 test("appearance synchronization applies a saved preference before rendering", () => {

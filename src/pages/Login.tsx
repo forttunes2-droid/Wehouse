@@ -1060,15 +1060,11 @@ export default function Login({
 
 function AuthSurface({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const theme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#090B10";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");
-      if (theme && previousTheme !== undefined) theme.content = previousTheme;
     };
   }, []);
   return <div className="wh-auth-screen">{children}</div>;
