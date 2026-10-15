@@ -25,6 +25,12 @@ const SUPABASE_STORAGE_URL = SUPABASE_URL.replace(
 );
 
 export const isTestEnvironment = environment.isTestEnvironment;
+// Passkeys remain opt-in until the hosted Auth project's WebAuthn RP ID and
+// origins are fixed. Supabase currently marks this API experimental.
+export const isWebPasskeyEnabled = import.meta.env.VITE_PASSKEYS_ENABLED === 'true'
+  && !Capacitor.isNativePlatform()
+  && typeof window !== 'undefined'
+  && typeof window.PublicKeyCredential === 'function';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -32,6 +38,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
+    experimental: { passkey: isWebPasskeyEnabled },
   },
 });
 

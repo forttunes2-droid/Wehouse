@@ -14,17 +14,19 @@ function load(name, mocks = {}, extra = {}) {
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(compiled, { exports, require: requested => {
     if (requested === '@/lib/chatMediaPolicy') return chatMediaPolicy;
+    if (requested === '@/lib/navigationRoute') return load('src/lib/navigationRoute.ts');
     if (requested in mocks) return mocks[requested];
     if (requested === '@/lib/regional') return load('src/lib/regional.ts');
     if (!requested.startsWith('.')) throw Error(`Unexpected dependency ${requested}`);
     return load(path.resolve(path.dirname(filename), `${requested}.ts`));
-  }, Blob, File, URL, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
+  }, Blob, File, URL, URLSearchParams, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
   if (!Object.keys(mocks).length && !Object.keys(extra).length) cache.set(filename, exports);
   return exports;
 }
 const plain = data => JSON.parse(JSON.stringify(data));
 const quote = load('src/lib/shortLetQuote.ts');
 const sharing = load('src/lib/propertyShare.ts');
+const workerSharing = load('src/lib/workerShare.ts');
 const defaultStay = { checkIn: '2026-09-24', checkOut: '2026-09-26', today: '2026-09-23', lastDate: '2027-09-23', guests: 2, maxGuests: 2, minNights: 1, maxNights: 90, nightlyRate: 120000, refundableDeposit: 50000 };
 
 test('Short Let has no deposit-only or fabricated total before complete valid dates', () => {
@@ -39,6 +41,14 @@ test('Short Let capacity, stay rules and non-finite commercial values fail close
   assert.equal(quote.platformCalendarDate(new Date('2026-09-23T23:30:00Z'), 'Africa/Lagos'), '2026-09-24');
   assert.equal(quote.calendarDay('2026-02-30'), null);
   assert.equal(quote.addCalendarDays('2026-09-30', 1), '2026-10-01');
+});
+test('Worker recommendations share only validated WeHouse profile routes', () => {
+  const worker = { id: '123e4567-e89b-42d3-a456-426614174000' };
+  const content = workerSharing.workerShareMessage(worker, 'I think this Worker could help you');
+  assert.deepEqual(plain(workerSharing.parseWorkerShareMessage(content)), { worker, text: 'I think this Worker could help you' });
+  assert.equal(workerSharing.workerMessagePreview(workerSharing.workerShareMessage(worker)), 'Recommended a Worker profile');
+  assert.equal(workerSharing.parseWorkerShareMessage('https://evil.example/#worker_discovery?id=123e4567-e89b-42d3-a456-426614174000'), null);
+  assert.equal(workerSharing.parseWorkerShareMessage('https://wehouse.com.ng/#worker_discovery?id=not-a-uuid'), null);
 });
 test('Short Let creates a dated hold, reviews it, and only opens checkout after confirmation', () => {
   const text = fs.readFileSync('src/pages/ListingDetailCore.tsx', 'utf8');

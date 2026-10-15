@@ -28,7 +28,7 @@ Accepted decisions with their own record: [D-002 hotel capability](./DECISION_D0
 
 ## 3. Operating, legal and release procedures
 
-- Database and deploy: [MAIN_PROTECTION_ROLLOUT.md](./MAIN_PROTECTION_ROLLOUT.md), [main-protection-and-emergency-path.md](./main-protection-and-emergency-path.md), [payment-environment-configuration.md](./payment-environment-configuration.md), [provider-setup-and-costs.md](./provider-setup-and-costs.md), [IDENTITY_PROVIDER_PASSWORD_RECOVERY.md](./IDENTITY_PROVIDER_PASSWORD_RECOVERY.md)
+- Database and deploy: [MAIN_PROTECTION_ROLLOUT.md](./MAIN_PROTECTION_ROLLOUT.md), [main-protection-and-emergency-path.md](./main-protection-and-emergency-path.md), [payment-environment-configuration.md](./payment-environment-configuration.md), [provider-setup-and-costs.md](./provider-setup-and-costs.md), [IDENTITY_PROVIDER_PASSWORD_RECOVERY.md](./IDENTITY_PROVIDER_PASSWORD_RECOVERY.md), [PASSKEY_ROLLOUT.md](./PASSKEY_ROLLOUT.md)
 - Capacity: [LAUNCH_CAPACITY_ACCEPTANCE_2026-09-27.md](./LAUNCH_CAPACITY_ACCEPTANCE_2026-09-27.md), [capacity-validation.md](./capacity-validation.md)
 - Hotel PMS: [HOTEL_PMS_CERTIFICATION_AND_LAUNCH.md](./HOTEL_PMS_CERTIFICATION_AND_LAUNCH.md)
 - Native apps: [native-release.md](./native-release.md), [native-store-release.md](./native-store-release.md)

@@ -7,9 +7,9 @@ import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/lega
 import LegalReview from '@/components/LegalReview';
 import BookingDateField from '@/components/BookingDateField';
 
-interface Props { profile: Profile; onSetupComplete: (profile: Profile) => void }
+interface Props { profile: Profile; onSetupComplete: (profile: Profile) => void; onLogout: () => Promise<unknown> }
 
-export default function Setup({ profile, onSetupComplete }: Props) {
+export default function Setup({ profile, onSetupComplete, onLogout }: Props) {
   const [username, setUsername] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [working, setWorking] = useState(false);
@@ -128,7 +128,7 @@ export default function Setup({ profile, onSetupComplete }: Props) {
             : <LegalReview key={legalDocumentKey(documents)} documents={documents} choices={choices} onChange={setChoices} />}
 
           <button type="submit" disabled={working || !legalReady} className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white disabled:opacity-40">{working ? 'Saving…' : 'Continue'}</button>
-          <button type="button" onClick={() => void supabase.auth.signOut({ scope: 'local' })} className="min-h-11 w-full text-sm font-semibold text-violet-300">Sign out</button>
+          <button type="button" onClick={() => void onLogout()} className="min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">Sign out</button>
         </form>
       </div>
 

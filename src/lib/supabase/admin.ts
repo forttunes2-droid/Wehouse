@@ -4,9 +4,11 @@ import type { AdminAuditLog, Listing, ListingReport, Profile, RoleChangeHistory,
 type ErrorLike = { message: string };
 type UserCountRow = { total?: number | string | null; today?: number | string | null };
 
-export async function getAllUsers() {
+export async function getAllUsers(offset = 0, pageSize?: number) {
   // Server RPC is the authority. Never fall back to an unrestricted profile query.
-  const { data, error } = await supabase.rpc('admin_get_all_users');
+  let request = supabase.rpc('admin_get_all_users');
+  if (pageSize && Number.isInteger(pageSize) && pageSize > 0) request = request.range(Math.max(0, offset), Math.max(0, offset) + pageSize - 1) as typeof request;
+  const { data, error } = await request;
   return { users: error ? null : (data as Profile[] | null), error };
 }
 

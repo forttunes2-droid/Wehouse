@@ -7,7 +7,7 @@ import ReportDialog from "@/components/ReportDialog";
 import { blockFriend, unblockFriend, listMyCompanions, removeCompanion, respondToCompanionRequest, sendCompanionRequestByUsername, friendlyFriendMessage, type Companion } from "@/lib/supabase/companions";
 
 // Friends: people you already know, used for chatting and paying together. Not Roommates.
-export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
+export default function CompanionsPanel({ myUserId, initialChatId, onInitialChatOpened, onNavigate }: { myUserId: string; initialChatId?: string | null; onInitialChatOpened?: () => void; onNavigate?: (page: string, id?: string) => void }) {
   const [people, setPeople] = useState<Companion[]>([]);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState("");
@@ -22,6 +22,11 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
     setLoading(false);
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (loading || !initialChatId) return;
+    const target = people.find(person => person.companion_id === initialChatId && person.status === "accepted");
+    if (target) { setChat(target); onInitialChatOpened?.(); }
+  }, [initialChatId, loading, onInitialChatOpened, people]);
 
   const nameOf = (p: Companion) => p.full_name || p.username || "WeHouse member";
   async function run(action: () => Promise<{ error: { message?: string } | null }>, done: string) {
@@ -85,7 +90,7 @@ export default function CompanionsPanel({ myUserId }: { myUserId: string }) {
         <input value={username} onChange={(e) => setUsername(e.target.value)} aria-label="Friend username" placeholder="Their WeHouse username" maxLength={40} className="min-h-12 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-transparent px-3 text-sm" />
         <button type="button" disabled={busy || !username.trim()} onClick={() => void run(async () => { const r = await sendCompanionRequestByUsername(username.trim()); if (!r.error) setUsername(""); return r; }, "Request sent")} className="min-h-12 shrink-0 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Add</button>
       </div>
-      {chat && <CompanionChat companion={chat} myUserId={myUserId} onClose={() => setChat(null)} />}
+      {chat && <CompanionChat companion={chat} myUserId={myUserId} onClose={() => setChat(null)} onNavigate={onNavigate} />}
       {report && <ReportDialog subjectType="companion_chat" subjectUserId={report.user_id} subjectName={nameOf(report)} onClose={() => setReport(null)} />}
     </section>
   );

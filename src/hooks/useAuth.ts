@@ -427,7 +427,7 @@ export function useAuth() {
             clearGoogleVerification();
           const registration=await withTimeout(registerUserSession(profile.user_id,authId), 20000, "We could not confirm this device. Please try signing in again.");
           if (!isCurrentIdentity()) return;
-          if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
+          if(['password','passkey'].includes(sessionStorage.getItem('wh_login_method')||'')&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:profile.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;
@@ -645,7 +645,7 @@ export function useAuth() {
         }
         if (await allowEntry(p, maintenanceEnabled)) {
           const registration=await withTimeout(registerUserSession(p.user_id,authId), 20000, "We could not confirm this device. Please try again.");
-          if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
+          if(['password','passkey'].includes(sessionStorage.getItem('wh_login_method')||'')&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:p.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;

@@ -124,10 +124,20 @@ test('Google callback initialization completes before the session is read', asyn
 });
 test('Sent updates load without an invented sender foreign-key relationship', async () => {
   const selected=[];const filters=[];
-  const query={select(fields){selected.push(fields);return this;},eq(...args){filters.push(args);return this;},async order(){return{data:[{id:1,title:'A published update'}],error:null};}};
-  const api=moduleAt('src/lib/supabase/announcements.ts',{'./client':{supabase:{from:()=>query}}});
+  const query={select(fields){selected.push(fields);return this;},eq(...args){filters.push(args);return this;},order(){return this;},async range(){return{data:[{id:1,title:'A published update'}],error:null};}};
+  const delivered=[{id:8,announcement_id:3,read_status:false,delivered_at:'2026-10-15T09:00:00.000Z',announcement:{id:3,title:'Team update',content:'A scoped update'}}];
+  const rpcCalls=[];
+  const api=moduleAt('src/lib/supabase/announcements.ts',{'./client':{supabase:{from:()=>query,rpc:async(name,args)=>{rpcCalls.push([name,args]);return{data:name==='creator_count_announcement_recipients'?2:delivered,error:null};}}}});
   assert.equal((await api.getAllAnnouncements()).messages[0].title,'A published update');
   assert.equal((await api.getAnnouncementsSentBy('sender')).messages.length,1);
+  const inbox=await api.getAnnouncementsForUser('recipient','worker');
+  assert.equal(inbox.messages[0].message.title,'Team update');
+  const preview=await api.getFilteredRecipientCount(true,true,false,false,'Lagos','Ikeja','creator');
+  assert.equal(preview.count,2);
+  assert.deepEqual(rpcCalls.map(([name])=>name),['get_my_announcement_inbox','creator_count_announcement_recipients']);
+  assert.equal(rpcCalls[1][1].p_scope_state,'Lagos');
+  assert.equal(rpcCalls[1][1].p_scope_lga,'Ikeja');
+  assert.equal(rpcCalls[1][1].p_target_roles.join(','),'user,worker');
   assert.deepEqual(filters,[['sender_id','sender']]);
   for(const fields of selected){assert.ok(fields.includes('sender_id'));assert.doesNotMatch(fields,/[():]/);}
 });

@@ -12,6 +12,8 @@ type Scope='all'|{state:string;lga?:string};
 type View='compose'|'history';
 type Mode='roles'|'people';
 const isCreator=(profile:Profile)=>profile.role==='creator';
+const HISTORY_PAGE_SIZE=50;
+const PEOPLE_PAGE_SIZE=50;
 
 export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   const canSend=canSendAnnouncements(profile.role);
@@ -22,9 +24,15 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
   const[message,setMessage]=useState('');
   const[history,setHistory]=useState<any[]>([]);
   const[historyLoading,setHistoryLoading]=useState(true);
+  const[historyLoadingMore,setHistoryLoadingMore]=useState(false);
+  const[historyHasMore,setHistoryHasMore]=useState(false);
   const historyRequest=useRef(0);
+  const peopleRequest=useRef(0);
   const[historyError,setHistoryError]=useState<string|null>(null);
   const[people,setPeople]=useState<any[]>([]);
+  const[peopleLoading,setPeopleLoading]=useState(false);
+  const[peopleHasMore,setPeopleHasMore]=useState(false);
+  const[peopleLoadingMore,setPeopleLoadingMore]=useState(false);
   const[peopleError,setPeopleError]=useState<string|null>(null);
   const[search,setSearch]=useState('');
   const[selectedPeople,setSelectedPeople]=useState<string[]>([]);
@@ -46,28 +54,40 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
     return()=>{cancelled=true};
   },[roles.user,roles.worker,roles.staff,roles.property_partner,mode,canSend,branchScope,profile.role]);
 
-  async function loadHistory(){
+  async function loadHistory(reset=true){
     const request=++historyRequest.current;
-    setHistoryError(null);setHistoryLoading(true);setHistory([]);
+    const offset=reset?0:history.length;
+    setHistoryError(null);if(reset){setHistoryLoading(true);setHistory([]);setHistoryHasMore(false)}else setHistoryLoadingMore(true);
     try {
-      const result=await withTimeout(isCreator(profile)?getAllAnnouncements():getAnnouncementsSentBy(profile.user_id),15000,'History could not be loaded.');
+      const result=await withTimeout(isCreator(profile)?getAllAnnouncements(offset):getAnnouncementsSentBy(profile.user_id,offset),15000,'History could not be loaded.');
       if(result.error)throw result.error;
-      if(request===historyRequest.current)setHistory(result.messages||[]);
-    }catch{if(request===historyRequest.current)setHistoryError('Announcement history could not be loaded.');}
-    finally{if(request===historyRequest.current)setHistoryLoading(false);}
+      if(request===historyRequest.current){const page=result.messages||[];setHistory(current=>reset?page:[...current,...page]);setHistoryHasMore(page.length===HISTORY_PAGE_SIZE)}
+    }catch{if(request===historyRequest.current)setHistoryError(reset?'Announcement history could not be loaded.':'Older announcements could not be loaded.');}
+    finally{if(request===historyRequest.current){setHistoryLoading(false);setHistoryLoadingMore(false)}}
   }
 
-  async function loadPeople(){
+  async function loadPeople(reset=true){
+    const request=++peopleRequest.current;
     setPeopleError(null);
-    const{users,error}=await getAllUsers();
-    if(error||!users){setPeople([]);setPeopleError(error?.message||'Could not load recipients');return}
-    let list=users.filter((u:any)=>u.user_id!==profile.user_id&&!u.deleted&&!u.deleted_at&&['user','worker','staff','property_partner'].includes(u.role));
-    if(branchScope)list=list.filter((u:any)=>{
-      const state=u.role==='staff'?u.assigned_state:u.state;
-      const lga=u.role==='staff'?u.assigned_lga:(u.local_government||u.city);
-      return state===scope.state&&(!scope.lga||lga===scope.lga);
-    });
-    setPeople(list);
+    const offset=reset?0:people.length;
+    if(reset)setPeopleLoading(true);else setPeopleLoadingMore(true);
+    try{
+      const{users,error}=await getAllUsers(offset,PEOPLE_PAGE_SIZE);
+      if(request!==peopleRequest.current)return;
+      if(error||!users){if(reset)setPeople([]);setPeopleError(error?.message||'Could not load recipients');return}
+      let list=users.filter((u:any)=>u.user_id!==profile.user_id&&!u.deleted&&!u.deleted_at&&['user','worker','staff','property_partner'].includes(u.role));
+      if(branchScope)list=list.filter((u:any)=>{
+        const state=u.role==='staff'?u.assigned_state:u.state;
+        const lga=u.role==='staff'?u.assigned_lga:(u.local_government||u.city);
+        return state===scope.state&&(!scope.lga||lga===scope.lga);
+      });
+      setPeople(current=>reset?list:[...current,...list.filter((person:any)=>!current.some(existing=>existing.user_id===person.user_id))]);
+      setPeopleHasMore(users.length===PEOPLE_PAGE_SIZE);
+    }catch{
+      if(request===peopleRequest.current){if(reset)setPeople([]);setPeopleError('Recipients could not be loaded. Check your connection and try again.')}
+    }finally{
+      if(request===peopleRequest.current){setPeopleLoading(false);setPeopleLoadingMore(false)}
+    }
   }
 
   const shownPeople=useMemo(()=>{
@@ -116,10 +136,11 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
 
   return <div className="min-w-0 space-y-4">
     <ConfirmDialog {...dialogProps}/>
-    {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-violet-300">Delivery is restricted by the server to {scope.lga?scope.lga+', '+scope.state:scope.state+' State'}.</div>}
+    {branchScope&&<div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.05] p-3 text-[10px] leading-relaxed text-[var(--wh-accent-text)]">Delivery is restricted by the server to {scope.lga?scope.lga+', '+scope.state:scope.state+' State'}.</div>}
+    <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Official announcements are broadcasts and do not create a reply thread in this list.</p>
     <div className="flex gap-6 border-b border-[var(--wh-border-subtle)]">
-      <button onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-white':'border-transparent text-[var(--wh-text-muted)]'}`}>Compose</button>
-      <button onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-white':'border-transparent text-[var(--wh-text-muted)]'}`}>Sent{!historyLoading&&!historyError?` · ${history.length}`:''}</button>
+      <button type="button" aria-pressed={view==='compose'} onClick={()=>setView('compose')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='compose'?'border-violet-400 text-[var(--wh-text)]':'border-transparent text-[var(--wh-text-muted)]'}`}>Compose</button>
+      <button type="button" aria-pressed={view==='history'} onClick={()=>setView('history')} className={`border-b-2 pb-3 text-xs font-semibold ${view==='history'?'border-violet-400 text-[var(--wh-text)]':'border-transparent text-[var(--wh-text-muted)]'}`}>Sent{!historyLoading&&!historyError?` · ${history.length}${historyHasMore?'+':''}`:''}</button>
     </div>
 
     {view==='compose'&&canSend&&<section className="overflow-hidden">
@@ -133,8 +154,8 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
         <div>
           <p className="mb-2 text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">Recipients</p>
           <div className="grid grid-cols-2 gap-2 sm:w-fit">
-            <button onClick={()=>setMode('roles')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='roles'?'bg-violet-500 text-white':'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>By account type</button>
-            <button onClick={()=>setMode('people')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='people'?'bg-violet-500 text-white':'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>Specific people</button>
+            <button type="button" aria-pressed={mode==='roles'} onClick={()=>setMode('roles')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='roles'?'bg-violet-500 text-white':'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>By account type</button>
+            <button type="button" aria-pressed={mode==='people'} onClick={()=>setMode('people')} className={`min-h-10 rounded-xl px-4 text-xs font-semibold ${mode==='people'?'bg-violet-500 text-white':'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>Specific people</button>
           </div>
         </div>
 
@@ -143,13 +164,17 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
           <RoleChoice label="Workers" selected={roles.worker} onChange={value=>setRoles(current=>({...current,worker:value}))}/>
           <RoleChoice label="Operations team" selected={roles.staff} onChange={value=>setRoles(current=>({...current,staff:value}))}/>
           <RoleChoice label="Property Partners" selected={roles.property_partner} onChange={value=>setRoles(current=>({...current,property_partner:value}))}/>
-          <div className="sm:col-span-2 lg:col-span-4 rounded-xl border border-violet-500/10 bg-violet-500/[.04] px-3 py-2 text-[10px] text-violet-300">{counting?'Counting recipients…':`${recipientCount} recipient${recipientCount===1?'':'s'} selected`}</div>
+          <div role="status" className="sm:col-span-2 lg:col-span-4 rounded-xl border border-violet-500/10 bg-violet-500/[.04] px-3 py-2 text-[10px] text-[var(--wh-accent-text)]">{counting?'Counting recipients…':`${recipientCount} recipient${recipientCount===1?'':'s'} selected`}</div>
         </div>:<div className="space-y-2">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email, role or location" className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search loaded recipients" className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"/>
+          {peopleHasMore&&<p className="text-[10px] leading-4 text-[var(--wh-text-muted)]">Search covers the loaded recipients. Load more to include the next page.</p>}
           {peopleError&&<p className="text-xs text-red-300">{peopleError}</p>}
+          {peopleLoading&&<WeHouseLoadingState compact label="Loading recipients" />}
           <div className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-[var(--wh-border-subtle)] p-1">
             {shownPeople.map((person:any)=>{const checked=selectedPeople.includes(person.user_id);return <button key={person.user_id} onClick={()=>setSelectedPeople(current=>checked?current.filter(id=>id!==person.user_id):[...current,person.user_id])} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-[var(--wh-interactive)]"><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${checked?'border-violet-500 bg-violet-500':'border-white/[.14]'}`}>{checked?'✓':''}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{person.full_name||person.username||person.email}</p><p className="mt-0.5 truncate text-[9px] capitalize text-[var(--wh-text-muted)]">{String(person.role).replace(/_/g,' ')} · {person.local_government||person.city||person.assigned_lga||'Location not set'}</p></div></button>})}
           </div>
+          {peopleHasMore&&<button type="button" disabled={peopleLoadingMore} onClick={()=>void loadPeople(false)} className="min-h-11 w-full text-xs font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">{peopleLoadingMore?'Loading more people…':'Load more people'}</button>}
+          {!peopleHasMore&&people.length>0&&<p className="text-[10px] text-[var(--wh-text-muted)]">All available recipient pages are loaded.</p>}
           <p className="text-[10px] text-[var(--wh-text-muted)]">{selectedPeople.length} selected</p>
         </div>}
 
@@ -164,9 +189,10 @@ export function AnnouncementsTab({profile,scope}:{profile:Profile;scope:Scope}){
       {historyLoading&&<WeHouseLoadingState compact label="Loading sent updates" />}
       {!historyLoading&&!historyError&&!history.length&&<div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] p-10 text-center text-sm text-[var(--wh-text-muted)]">No announcements sent yet.</div>}
       {history.map(row=><AnnouncementCard key={row.id} row={row} canDelete={canSend} onDelete={()=>void remove(Number(row.id))}/>) }
+      {historyHasMore&&<button type="button" disabled={historyLoadingMore} onClick={()=>void loadHistory(false)} className="min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">{historyLoadingMore?'Loading older updates…':'Load older updates'}</button>}
     </div>}
   </div>;
 }
 
-function RoleChoice({label,selected,onChange}:{label:string;selected:boolean;onChange:(value:boolean)=>void}){return <button onClick={()=>onChange(!selected)} className={`flex min-h-12 items-center gap-3 rounded-2xl border px-3 text-left text-xs ${selected?'border-violet-500/25 bg-violet-500/[.08] text-violet-100':'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}><span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${selected?'border-violet-500 bg-violet-500':'border-white/[.14]'}`}>{selected?'✓':''}</span>{label}</button>}
-function AnnouncementCard({row,canDelete,onDelete}:{row:any;canDelete:boolean;onDelete:()=>void}){const[expanded,setExpanded]=useState(false);const body=String(row.content||'');const long=body.length>260;const audience=[row.target_lga,row.target_state].filter(Boolean).join(', ')||'Platform-wide';return <article className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 font-bold text-violet-300">W</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold">{row.title||'WeHouse update'}</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{new Date(row.created_at).toLocaleString()}</p></div>{canDelete&&<button onClick={onDelete} className="text-[10px] text-red-300">Delete</button>}</div><p className="mt-3 whitespace-pre-wrap text-[11px] leading-6 text-[#D0D2DB]">{expanded||!long?body:body.slice(0,260)+'…'}</p>{long&&<button onClick={()=>setExpanded(value=>!value)} className="mt-2 text-[10px] font-semibold text-violet-300">{expanded?'Show less':'Read more'}</button>}<div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--wh-border-subtle)] pt-3 text-[9px] text-[var(--wh-text-muted)]"><span>{audience}</span><span>·</span><span>{Number(row.recipient_count||0)} recipients</span><span>·</span><span>{Number(row.read_count||0)} read</span></div></div></div></article>}
+function RoleChoice({label,selected,onChange}:{label:string;selected:boolean;onChange:(value:boolean)=>void}){return <button type="button" aria-pressed={selected} onClick={()=>onChange(!selected)} className={`flex min-h-12 items-center gap-3 rounded-2xl border px-3 text-left text-xs ${selected?'border-violet-500/25 bg-violet-500/[.08] text-[var(--wh-accent-text)]':'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}><span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[10px] ${selected?'border-violet-500 bg-violet-500 text-white':'border-[var(--wh-border)]'}`}>{selected?'✓':''}</span>{label}</button>}
+function AnnouncementCard({row,canDelete,onDelete}:{row:any;canDelete:boolean;onDelete:()=>void}){const[expanded,setExpanded]=useState(false);const body=String(row.content||'');const long=body.length>260;const audience=[row.target_lga,row.target_state].filter(Boolean).join(', ')||'Platform-wide';return <article className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex items-start gap-3"><div aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 font-bold text-[var(--wh-accent-text)]">W</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold">{row.title||'WeHouse update'}</p><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{new Date(row.created_at).toLocaleString()}</p></div>{canDelete&&<button type="button" onClick={onDelete} className="min-h-11 px-2 text-[10px] text-[var(--wh-danger-text)]">Delete</button>}</div><p className="mt-3 whitespace-pre-wrap text-[11px] leading-6 text-[var(--wh-text-secondary)]">{expanded||!long?body:body.slice(0,260)+'…'}</p>{long&&<button type="button" onClick={()=>setExpanded(value=>!value)} className="mt-2 min-h-11 text-[10px] font-semibold text-[var(--wh-accent-text)]">{expanded?'Show less':'Read more'}</button>}<div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--wh-border-subtle)] pt-3 text-[9px] text-[var(--wh-text-muted)]"><span>{audience}</span><span>·</span><span>{Number(row.recipient_count||0)} recipients</span><span>·</span><span>{Number(row.read_count||0)} read</span></div></div></div></article>}

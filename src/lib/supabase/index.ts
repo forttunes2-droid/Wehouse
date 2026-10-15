@@ -2,7 +2,7 @@
 // Modularized from the original 2160-line monolith.
 
 // Client
-export { supabase, uploadStorageObjectWithProgress } from "./client";
+export { supabase, uploadStorageObjectWithProgress, isWebPasskeyEnabled } from "./client";
 export type { DiagnosticsResult } from "./client";
 export { runDiagnostics } from "./client";
 

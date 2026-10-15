@@ -12,6 +12,7 @@ export type NavigationRouteParams = {
   bookingId?: string;
   roommateId?: string;
   category?: string;
+  companionId?: string;
 };
 
 export type ParsedNavigationRoute = {
@@ -70,6 +71,7 @@ const PARAM_LIMITS: Record<keyof NavigationRouteParams, number> = {
   bookingId: 512,
   roommateId: 512,
   category: 100,
+  companionId: 512,
 };
 
 function cleanParams(value: unknown): NavigationRouteParams {

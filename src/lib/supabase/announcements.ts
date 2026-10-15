@@ -56,8 +56,10 @@ export async function sendAnnouncement(
 }
 
 export async function getAnnouncementsForUser(userId:string,workspace="personal"){
-  if(workspace!=="personal")return{messages:[] as Array<AnnouncementInboxRow & {announcements:Announcement[];message:Announcement|null}>,error:null};
+  // Delivery belongs to the signed-in account, not whichever workspace shell
+  // happens to be open. The RPC authorizes and scopes the recipient server-side.
   void userId;
+  void workspace;
   const{data,error}=await supabase.rpc('get_my_announcement_inbox');
   if(error)return{messages:[],error};
   const rows=(data||[]) as AnnouncementInboxRow[];
@@ -66,8 +68,9 @@ export async function getAnnouncementsForUser(userId:string,workspace="personal"
 export async function markAnnouncementRead(announcementId:number,userId:string){void userId;const{error}=await supabase.rpc('mark_my_announcement_read',{p_announcement_id:announcementId});return{error}}
 export async function deleteAnnouncement(announcementId:number){const{error}=await supabase.from('announcements').delete().eq('id',announcementId);return{error}}
 const HISTORY_FIELDS='id,title,content,sender_id,sender_role,target_type,target_state,target_lga,recipient_count,read_count,created_at';
-export async function getAnnouncementsSentBy(senderId:string){const{data,error}=await supabase.from('announcements').select(HISTORY_FIELDS).eq('sender_id',senderId).order('created_at',{ascending:false});return{messages:data as AnnouncementListRow[]|null,error}}
-export async function getAllAnnouncements(){const{data,error}=await supabase.from('announcements').select(HISTORY_FIELDS).order('created_at',{ascending:false});return{messages:data as AnnouncementListRow[]|null,error}}
+const ANNOUNCEMENT_HISTORY_PAGE_SIZE=50;
+export async function getAnnouncementsSentBy(senderId:string,offset=0){const{data,error}=await supabase.from('announcements').select(HISTORY_FIELDS).eq('sender_id',senderId).order('created_at',{ascending:false}).range(offset,offset+ANNOUNCEMENT_HISTORY_PAGE_SIZE-1);return{messages:data as AnnouncementListRow[]|null,error}}
+export async function getAllAnnouncements(offset=0){const{data,error}=await supabase.from('announcements').select(HISTORY_FIELDS).order('created_at',{ascending:false}).range(offset,offset+ANNOUNCEMENT_HISTORY_PAGE_SIZE-1);return{messages:data as AnnouncementListRow[]|null,error}}
 export async function getUnreadAnnouncementCount(userId:string){const{count,error}=await supabase.from('announcement_recipients').select('*',{count:'exact',head:true}).eq('user_id',userId).eq('read_status',false);return{count:count||0,error}}
 export async function getAnnouncementStats(announcementId:number){const{data,error}=await supabase.from('announcements').select('recipient_count,read_count').eq('id',announcementId).maybeSingle();return{stats:data||{recipient_count:0,read_count:0},error}}
 export const getOfficialMessagesForUser=getAnnouncementsForUser;
@@ -81,5 +84,6 @@ export const getMessageRecipientCount=async(id:string|number)=>{const{stats}=awa
 export const getFilteredRecipientCount=async(includeUsers:boolean,includeWorkers:boolean,includeStaff:boolean,includePartners:boolean,scopeState?:string,scopeLga?:string,senderRole?:string)=>{
   const roles:string[]=[];if(includeUsers)roles.push('user');if(includeWorkers)roles.push('worker');if(includeStaff)roles.push('staff');if(includePartners)roles.push('property_partner');if(!roles.length)return{count:0,error:null};
   if(senderRole==='admin'){const{data,error}=await supabase.rpc('admin_count_branch_announcement_recipients',{p_target_roles:roles});return{count:Number(data||0),error}}
+  if(senderRole==='creator'){const{data,error}=await supabase.rpc('creator_count_announcement_recipients',{p_target_roles:roles,p_scope_state:scopeState||null,p_scope_lga:scopeLga||null});return{count:Number(data||0),error}}
   let q=supabase.from('profiles').select('*',{count:'exact',head:true}).is('deleted_at',null).in('role',roles);if(scopeState)q=q.eq('state',scopeState);if(scopeLga)q=q.or(`local_government.eq.${scopeLga},city.eq.${scopeLga},assigned_lga.eq.${scopeLga}`);const{count,error}=await q;return{count:count||0,error};
 };

@@ -379,6 +379,8 @@ export default function WorkerDiscovery({
           worker={viewWorker}
           viewerUserId={profile?.user_id}
           onBack={() => setViewWorker(null)}
+          onGoToChat={(id) => onNavigate("chat", id)}
+          onGoToFriendChat={(id) => onNavigate("activity", id)}
           bookingActive={active.has(viewWorker.user_id)}
           showBookingAction={!viewingOwnWorker}
           onOpenBooking={() => onNavigate("my_reservations")}

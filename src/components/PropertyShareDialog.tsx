@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { getRoommateConversationPeople } from '@/lib/supabase/chat';
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from '@/lib/roommateRecipients';
 import { propertyShareUrl, queuePropertyShare, sharePropertyExternally, type SharedProperty } from '@/lib/propertyShare';
+import { clearWorkerShare } from '@/lib/workerShare';
 import { withTimeout } from '@/lib/withTimeout';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import BackButton from '@/components/BackButton';
@@ -66,6 +67,7 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
         {error && <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-violet-300">Refresh connections</button></div>}
         <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{visible.map(person => <button key={person.userId} type="button" onClick={() => {
           queuePropertyShare(userId, person.conversationId, property);
+          clearWorkerShare(userId, person.conversationId);
           // The normal conversation (and its existing PIN gate) owns Send.
           onClose(); onConversation(person.conversationId);
         }} className="flex min-h-16 w-full items-center gap-3 py-3 text-left">

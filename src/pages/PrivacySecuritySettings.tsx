@@ -5,9 +5,9 @@ import SecuritySettings from '@/pages/SecuritySettings';
 import type { Profile } from '@/types';
 
 type Section='privacy'|'access'|'devices'|'close';
-type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;initialSection?:Section};
+type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;onLogout?:()=>Promise<unknown>;initialSection?:Section};
 
-export default function PrivacySecuritySettings({profile,onUpdate,onBack,initialSection}:Props){
+export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogout,initialSection}:Props){
   const [section,setSection]=useState<Section|null>(initialSection||null);
   const hasPrivacyControls=profile.role==='user';
   const canClose=['user','worker','property_partner'].includes(profile.role);
@@ -17,9 +17,9 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,initial
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
 
     {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
-    section==='access'?<><SecuritySettings profile={profile} embedded focus="password"/><SecuritySettings profile={profile} embedded focus="sessions"/></>:
-    section==='devices'?<SecuritySettings profile={profile} embedded focus="sessions"/>:
-    section==='close'?<SecuritySettings profile={profile} embedded focus="close"/>:
+    section==='access'?<><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="password"/><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/></>:
+    section==='devices'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/>:
+    section==='close'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="close"/>:
     <>
       {hasPrivacyControls&&<AccountSection title="Privacy">
         <AccountRow title="Roommate visibility" detail="Control profile visibility and participation in roommate discovery" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>

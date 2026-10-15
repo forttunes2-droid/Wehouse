@@ -7,6 +7,8 @@ import { Mic } from "lucide-react";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
 import ReportDialog from "@/components/ReportDialog";
 import RoommateBubble from "@/components/RoommateMessageBubble";
+import { WorkerDraftAttachment } from "@/components/WorkerShareCard";
+import { pendingWorkerShare, clearWorkerShare, workerShareMessage, type SharedWorker } from "@/lib/workerShare";
 import MessageActionSheet from "@/components/MessageActionSheet";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
@@ -28,11 +30,12 @@ type Line = {
   reactions: Record<string, string>; media_error?: boolean;
 };
 
-export default function CompanionChat({ companion, myUserId, onClose }: { companion: Companion; myUserId: string; onClose: () => void }) {
+export default function CompanionChat({ companion, myUserId, onClose, onNavigate }: { companion: Companion; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
   const name = companion.full_name || companion.username || "Friend";
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState("");
+  const [workerDraft, setWorkerDraft] = useState<SharedWorker | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [replyingTo, setReplyingTo] = useState<Line | null>(null);
   const [actions, setActions] = useState<{ line: Line; mode: "reactions" | "actions"; anchor: MessageMenuAnchor } | null>(null);
@@ -44,6 +47,8 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
   const voice = useVoiceRecorder();
   const media = useRef(new Map<string, { url: string; type: string }>());
   const blocked = companion.status === "blocked";
+
+  useEffect(() => { setWorkerDraft(pendingWorkerShare(myUserId, companion.companion_id)); }, [myUserId, companion.companion_id]);
 
   useEffect(() => { const cache = media.current; return () => { for (const item of cache.values()) URL.revokeObjectURL(item.url); cache.clear(); }; }, []);
 
@@ -92,22 +97,24 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
 
   async function send() {
     const text = draft.trim();
-    if ((!text && !files.length) || busy || blocked) return;
+    if ((!text && !files.length && !workerDraft) || busy || blocked) return;
     setBusy(true);
     const queued = [...files];
     const replyId = replyingTo?.id || null;
     try {
-      const signature = `friend-chat:${companion.companion_id}:${text}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
+      const content = workerDraft ? workerShareMessage(workerDraft, text) : text;
+      const signature = `friend-chat:${companion.companion_id}:${content}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
       await runSafeAction(signature, async () => {
         const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, companion.companion_id, companion.user_id)));
         const failed = uploaded.find((u) => u.error || !u.attachment);
         if (failed) throw failed.error || new Error("Could not upload the attachment");
-        const { ciphertext, iv } = await encryptPrivateMessage("companion", companion.companion_id, companion.user_id, text);
+        const { ciphertext, iv } = await encryptPrivateMessage("companion", companion.companion_id, companion.user_id, content);
         const { error } = await sendCompanionEncryptedMessage(companion.companion_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
         if (error) throw error;
         releaseRequestKey(signature);
       });
-      setDraft(""); setFiles([]); setReplyingTo(null);
+      if (workerDraft) clearWorkerShare(myUserId, companion.companion_id);
+      setWorkerDraft(null); setDraft(""); setFiles([]); setReplyingTo(null);
       await load();
     } catch (error) {
       toast.error(friendlyFriendMessage(error instanceof Error ? error.message : "Message was not sent"));
@@ -155,6 +162,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
                 onTapReaction={(anchor) => setActions({ line, mode: "reactions", anchor })}
                 onReply={() => setReplyingTo(line)}
                 onOpenProperty={() => undefined}
+                onOpenWorker={(id) => onNavigate?.("worker_discovery", id)}
               />
             ))}
             <div ref={bottom} />
@@ -164,6 +172,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
               <p className="py-2 text-center text-xs text-[var(--wh-text-secondary)]">You blocked {name}. Unblock them from your Friends list to chat again.</p>
             ) : (
               <>
+                {workerDraft && <WorkerDraftAttachment onRemove={() => { clearWorkerShare(myUserId, companion.companion_id); setWorkerDraft(null); }} />}
                 <PendingMessageMedia files={files} onRemove={(index) => setFiles((current) => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel recording={voice.recording} seconds={voice.seconds} level={voice.level} draft={voice.draft} onCancel={voice.cancel} onFinish={voice.finish} onDiscard={voice.discard}
                   onUse={(file) => { setFiles((current) => [...current, file].slice(0, MAX_FILES)); voice.discard(); }} />
@@ -181,7 +190,7 @@ export default function CompanionChat({ companion, myUserId, onClose }: { compan
                   <button type="button" onClick={() => void toggleVoice()} aria-label={voice.recording ? "Finish voice recording" : "Record voice note"}
                     className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}><Mic size={18} aria-hidden="true" /></button>
                   <input value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 4000))} onKeyDown={(e) => { if (e.key === "Enter") void send(); }} aria-label="Message" placeholder="Message" className="min-h-11 min-w-0 flex-1 rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm outline-none focus:border-violet-500/40" />
-                  <button type="button" onClick={() => void send()} disabled={busy || (!draft.trim() && !files.length)} aria-label="Send" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-600 text-white disabled:opacity-40">{busy ? "…" : "➤"}</button>
+                  <button type="button" onClick={() => void send()} disabled={busy || (!draft.trim() && !files.length && !workerDraft)} aria-label="Send" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-600 text-white disabled:opacity-40">{busy ? "…" : "➤"}</button>
                 </div>
               </>
             )}

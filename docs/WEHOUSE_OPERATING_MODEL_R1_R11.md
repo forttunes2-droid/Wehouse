@@ -65,6 +65,15 @@ Each service category has an explicit fulfillment mode: customer location (home/
 
 Each provider offer/package states what is delivered, duration or unit, included/excluded work, materials, service area, availability, qualification/verification, price or “starting from” estimate, cancellation/refund terms, and required photos or measurements. “Starting price” must not be presented as a fixed quote. A selected package and its terms are saved into the booking snapshot; a custom quote is a separate named path.
 
+### Quote, commission and settlement
+
+- A package price is an entry point, not a charge. If scope changes, the Worker sends a new quote and the customer accepts that exact amount and scope in the booking chat.
+- The agreed quote is the Worker’s service price. When enabled, WeHouse adds a separate customer service charge on top. The customer charge and Worker commission are different policies, with different payers and bases: the customer service charge is added to the checkout total; the Worker commission is deducted from the Worker’s share of the agreed work price.
+- Before the Worker confirms a quote, show the estimated Worker commission and net. Before the customer pays, show the agreed work price, the separate WeHouse service charge (or clearly that it is off), and total due. Never label the customer service charge as a reservation fee or hide either WeHouse earning inside the Worker’s agreed price.
+- At accepted quote, the server records scope, amount, currency, both applicable fee amounts/rates, enabled state and policy versions. Payment, cancellation, refund and payout use those snapshots; later Creator policy changes apply only to new agreements. Refund allocation must reconcile to the amount the customer actually paid.
+- Creator must be able to turn the customer service charge on or off through an audited, versioned policy. The exact formula and allowed range must be selected before implementation; do not reuse `fixed_fee_worker` or assume that the existing fixed-fee calculator implements this customer charge.
+- The customer’s final review shows agreed scope, date, fulfillment location, cancellation/refund terms, itemized amounts and exact total due. It must not proceed if approved terms or valid quote/fee snapshots are missing. Both parties can see the accepted agreement in the job timeline.
+
 The booking form asks for an address only when the selected fulfillment mode requires one. Private location details are shared only with the assigned provider and staff who need them.
 
 ### Request states and clocks
@@ -81,7 +90,31 @@ Cancellation, refund and dispute are linked outcomes, not hidden text fields. Ev
 - Never automatically penalize a worker for a single unanswered request. Track response reliability over sufficient eligible requests, exclude platform/network failures and customer cancellations, and use graduated coaching/restriction with appeal.
 - Workers need capacity and schedule controls, booking inbox, one-tap accept/decline/quote, customer location/fulfillment details after acceptance, work evidence, completion confirmation, payout/refund/dispute status and support. A customer uses the same app with a customer journey; the role workspace changes the navigation context.
 
+### Worker Showcase and moderation
+
+Showcase is a work portfolio attached to the Service Worker profile, not a general social feed. A post should identify the service and show a relevant example; “completed through WeHouse” is reserved for a linked job the customer confirmed. A worker-uploaded sample must never look like WeHouse has verified its truth or ownership.
+
+Workers can edit, hide or delete their own examples. Public likes/reactions and comments are removed so the portfolio stays focused on work. Customers can report a post from its context. Creator and properly scoped moderation staff can review the media and report reason, temporarily hide it where there is a credible privacy, safety, rights or false-claim concern, then restore it or remove it with a recorded reason and an appeal route. Weak or irrelevant presentation alone should lead to worker guidance or the worker hiding it, not arbitrary punishment. AI may help flag or queue content but does not make final removal decisions.
+
+### Future scheduled Experiences
+
+Experiences are not a separate app, worker identity or second marketplace. If WeHouse validates demand, add a distinct **scheduled offer type** inside Service discovery and the same Worker workspace. It shares accounts, saved items, profiles, support, reviews, payments and moderation, but has an experience-specific booking record: fixed activity and inclusions, duration, dates/times, capacity, meeting or venue details, accessibility/age requirements where relevant, per-person or group price, and cancellation rules. The search result and checkout must label it as a scheduled Experience so users do not confuse it with a custom home-service request. A booked place is capacity-controlled; it is not negotiated as an open-ended job after the user books.
+
+Food/restaurant ordering is a different future product flow (seller, menu, item availability, cart, pickup/delivery and fulfillment). Do not hide it inside Experiences or make ordinary Service Workers pretend to be restaurants. Add it only after WeHouse chooses and can operate that order lifecycle.
+
 ## 4. Report, moderation and active-booking incident process
+
+### WeHouse Community Rules — product baseline for legal review
+
+These rules are operational product behavior; counsel can revise the wording by market without redesigning the moderation system. The published version must be shown before a Worker first posts and whenever the rules materially change.
+
+- Post work you made or have permission to show. Do not claim a sample is a completed WeHouse job unless the linked customer confirms it.
+- Do not post fake results, copied work, false qualifications, misleading prices, spam, or offers WeHouse does not allow.
+- Do not expose a customer’s face, name, address, messages, access code, document or other private information without clear permission. Do not feature children in public work media.
+- No threats, harassment, hate or discriminatory service; no dangerous instructions or content that encourages harm.
+- Keep the portfolio relevant to the service. A low-quality sample can be edited or hidden by its owner; it is not by itself a safety violation.
+
+Moderation outcomes are based on the published rules and evidence, not popularity or viewpoint. A credible safety, fraud, privacy, rights or false-claim report can trigger a temporary hide while a human reviews it. The subject receives the action and a review route when it is safe and appropriate to do so. Keep moderator identity, evidence access, reason, timestamps, decision, notice and appeal in an audit trail. Final legal wording, country-specific prohibited categories and statutory notice/appeal periods remain for counsel and operations to approve.
 
 ### Report intake
 
@@ -103,6 +136,8 @@ received → triage → investigating → action needed or no violation or restr
 **Current gap:** report storage and a scoped operations queue exist. A Report Listing UI has recently been added on the PR branch as a draft. It must be checked against these reason categories, accessible confirmation/reference, booking-issue routing, hotel/provider coverage, abuse controls and queue response states before it is called complete.
 
 ## 5. Money, cancellation and service recovery
+
+For a Worker job, store four separate values: agreed work price, optional customer-paid WeHouse service charge, Worker commission deducted from the agreed work price, and Worker net. The customer’s checkout and Paystack amount equal agreed work price plus customer service charge. Snapshot both fee policies, amounts, rates/formula and currency at quote acceptance, then use those same values through payment, cancellation, refund and payout. Refunds must never exceed the amount actually collected. Hotel partner commission is a separate settlement calculation and must not appear as a WeHouse guest reservation fee.
 
 ### Required checkout review before payment
 
@@ -168,7 +203,17 @@ Verification must cover guest, owner/host, hotel operator, provider, support, mo
 
 ## 9. R1–R11 delivery sequence
 
-These are gates, not eleven disconnected feature batches. A later gate must not change a canonical rule without updating this contract and its verification evidence.
+These are gates for one release, not eleven unrelated feature batches. A later gate must not change a canonical rule without updating this contract and its verification evidence.
+
+### Creator controls and scale
+
+Creator controls configure capabilities WeHouse has already built; they do not manufacture new product flows. Keep each control typed, allowlisted, permission-checked, versioned, audited, previewable and reversible. A market can be opened only when its destination data, currency/time zone, languages, supported payments and payouts, active terms, service categories, moderation and support coverage are ready. Until then, users may search enabled destinations without their account country or optional device location being changed.
+
+When a new service, Experience or country is added, build the data model and full journey once, then expose its validated market settings in Creator. Do not use arbitrary key/value flags to bypass server validation, eligibility, permissions, policy snapshots or migration requirements.
+
+### Pro value test
+
+Core provider discovery, profile, requests, negotiation, safety, booking, customer support and earnings access stay available without a subscription. Pro may charge only for optional business tools that save repeat work or improve a provider’s own operation, such as reliable schedule/capacity management, quote-to-booking/package conversion, usable invoices and receipts, job costs and net earnings, permitted repeat-customer records, portfolio controls, and useful performance reports. Partner Pro can focus on multi-listing operations, shared team work, turnover/maintenance, availability and reconciled portfolio reporting. Do not sell a long checklist of small features; validate that each paid tier solves a recurring problem and demonstrate it before opening sales. Pro never buys marketplace trust, ranking, verification or safety priority.
 
 1. **R1 — Product boundaries:** approve domain ownership, role map, business terms and supported markets; assign a product/operations owner per queue.
 2. **R2 — Contracts:** decide short-let whole-home versus future units, exact cancellation/refund rules, provider response deadlines, evidence/retention and safety actions.

@@ -349,6 +349,7 @@ export default function AccountCenter({
         profile={profile}
         onUpdate={() => window.location.reload()}
         onBack={() => setPanel(null)}
+        onLogout={onLogout ? async () => onLogout() : undefined}
       />
     );
 

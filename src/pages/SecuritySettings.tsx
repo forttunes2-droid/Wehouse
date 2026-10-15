@@ -1,16 +1,19 @@
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { startEmailChangeWithGoogle,requestEmailChange,changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { withTimeout } from '@/lib/withTimeout';
 import AccountShell, { AccountInfo } from '@/components/AccountShell';
+import AccountPasskeySettings from '@/components/AccountPasskeySettings';
 import type { Profile } from '@/types';
 
-type Props={profile:Profile;onBack?:()=>void;embedded?:boolean;focus?:'all'|'password'|'sessions'|'close'};
+type Props={profile:Profile;onBack?:()=>void;onLogout?:()=>Promise<unknown>;embedded?:boolean;focus?:'all'|'password'|'sessions'|'close'};
 type DeviceSession={id:string;device:string|null;browser:string|null;os:string|null;ip_address:string|null;is_current:boolean;login_time:string;last_seen:string|null;trust_status:'trusted'};
-export default function SecuritySettings({profile,onBack,embedded=false,focus='all'}:Props){
+export default function SecuritySettings({profile,onBack,onLogout,embedded=false,focus='all'}:Props){
   const [emailVerified,setEmailVerified]=useState<boolean|null>(null);
   const [sessions,setSessions]=useState<DeviceSession[]>([]);
   const [loading,setLoading]=useState(true);
   const [sessionBusy,setSessionBusy]=useState<string|null>(null);
+  const [signingOut,setSigningOut]=useState(false);
   const [showPassword,setShowPassword]=useState(false);
   const [currentPassword,setCurrentPassword]=useState('');
   const [newPassword,setNewPassword]=useState('');
@@ -124,11 +127,21 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   async function saveEmailWithGoogle(){if(!emailPassword||!newEmail)return toast.error('Enter the new email and your password');setEmailBusy(true);const {error}=await startEmailChangeWithGoogle(emailPassword,profile.email,newEmail);setEmailBusy(false);if(error)toast.error(error.message)}
   async function saveEmail(){if(!emailPassword||!newEmail)return toast.error('Enter the new email and your password');setEmailBusy(true);const {error}=await requestEmailChange(emailPassword,profile.email,newEmail);setEmailBusy(false);if(error)return toast.error(error.message);setEmailSent(newEmail.trim().toLowerCase());setEmailPassword('');setNewEmail('');setPasswordChecked(false);setShowEmail(false)}
   async function startPasswordRecovery(){setChanging(true);await supabase.auth.signOut({scope:'local'}).catch(()=>{});window.location.assign('/?auth=recovery')}
-  async function logoutAll(){await supabase.auth.signOut({scope:'global'})}
+  async function logoutAll(){
+    if(signingOut)return;
+    setSigningOut(true);
+    try{
+      const {error}=await withTimeout(supabase.auth.signOut({scope:'global'}),15000,'Signing out everywhere took too long. Check your connection and try again.');
+      if(error)throw error;
+      await onLogout?.();
+    }catch(error){toast.error(error instanceof Error?error.message:'Devices could not be signed out. Check your connection and try again.')}finally{setSigningOut(false)}
+  }
   async function signOutDevice(sessionId:string):Promise<void>{setSessionBusy(sessionId);const{error}=await supabase.rpc('terminate_my_device_session',{p_session_id:sessionId});setSessionBusy(null);if(error){toast.error(error.message||'Device could not be signed out');return}toast.success('Device signed out');await load()}
   async function closeAccount(){if(deleteText!=='DELETE')return;setDeleting(true);const {error}=await supabase.rpc('delete_user_account',{p_user_id:profile.user_id});setDeleting(false);if(error)return toast.error(error.message||'Account could not be closed');await supabase.auth.signOut({scope:'global'})}
 
   const content=<>
+
+    {(focus==='all'||focus==='password')&&<AccountPasskeySettings/>}
 
     {(focus==='all'||focus==='sessions')&&<section className="grid gap-3 sm:grid-cols-3"><AccountInfo label="Email" value={emailVerified===null?'Checking…':emailVerified?'Verified':'Verification required'}/><AccountInfo label="Current device" value={`${device.device} · ${device.browser}`}/><AccountInfo label="Active sessions" value={loading?'Checking…':String(sessions.length)}/></section>}
 
@@ -198,7 +211,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       </div>
     </section>}
 
-    {(focus==='all'||focus==='sessions')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold">Active sessions</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Only devices currently signed in to your account appear here.</p></div><button onClick={()=>void logoutAll()} className="rounded-xl border border-red-500/15 bg-red-500/[.05] px-3 py-2 text-[10px] font-semibold text-red-300">Sign out everywhere</button></div><div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">{loading?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">Loading active sessions…</p>:sessions.length===0?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">No active sessions found.</p>:sessions.map(session=>{const current=session.is_current||session.id===currentSessionId;return <DeviceRow key={session.id} session={session} current={current} busy={sessionBusy===session.id} onSignOut={signOutDevice}/>})}</div></section>}
+    {(focus==='all'||focus==='sessions')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold">Active sessions</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Only devices currently signed in to your account appear here.</p></div><button type="button" disabled={signingOut} onClick={()=>void logoutAll()} className="rounded-xl border border-red-500/15 bg-red-500/[.05] px-3 py-2 text-[10px] font-semibold text-red-300 disabled:opacity-50">{signingOut?'Signing out…':'Sign out everywhere'}</button></div><div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">{loading?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">Loading active sessions…</p>:sessions.length===0?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">No active sessions found.</p>:sessions.map(session=>{const current=session.is_current||session.id===currentSessionId;return <DeviceRow key={session.id} session={session} current={current} busy={sessionBusy===session.id} onSignOut={signOutDevice}/>})}</div></section>}
 
     {canDelete&&(focus==='all'||focus==='close')&&<section className="rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 sm:p-5"><h2 className="text-sm font-semibold text-red-300">Close account</h2><p className="mt-1 text-[10px] leading-relaxed text-[#8C7077]">The server checks active bookings, balances and other obligations before allowing account closure.</p><div className="mt-4 space-y-3"><input value={deleteText} onChange={e=>setDeleteText(e.target.value)} placeholder="Type DELETE" className="h-11 w-full rounded-xl border border-red-500/15 bg-[var(--wh-surface)] px-3 text-xs outline-none"/><button onClick={()=>void closeAccount()} disabled={deleteText!=='DELETE'||deleting} className="w-full rounded-xl bg-red-500 px-4 py-3 text-xs font-semibold disabled:opacity-40">{deleting?'Closing…':'Close account'}</button></div></section>}
   </>;
