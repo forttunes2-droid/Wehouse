@@ -119,6 +119,7 @@ async def main():
      await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
      assert await page.evaluate("document.body.style.overflow !== 'hidden'"), 'Calendar must restore page scrolling'
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
+     await expect(page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=15000)
      reserve=page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+$'))
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
      await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
