@@ -4,7 +4,8 @@ import { ChevronDown } from "lucide-react";
 import RoommateSchoolFilter from "./RoommateSchoolFilter";
 import RoommateBudgetField from "./RoommateBudgetField";
 import { RoommateChoice } from "./RoommateChoices";
-import { getAllStates, getCitiesForState } from "@/data/nigeria-locations";
+import { regionDataset } from "@/data/locations";
+import { getRegionalDefaults } from "@/lib/regional";
 import { platformCalendarDate } from "@/lib/shortLetQuote";
 import { roommateHousingError, roommatePreferenceError, type RoommatePreferenceForm } from "@/lib/roommatePreferences";
 import BookingDateField from "@/components/BookingDateField";
@@ -36,6 +37,7 @@ function displayDate(value: string) {
 /** One editor and one save. Expanding a row changes no route or saved data. */
 export default function RoommatePreferencesPanel({ form, setForm, profileSchool, busy, onSave, onCancel }: Props) {
   const [open, setOpen] = useState<Section | null>(null), [error, setError] = useState("");
+  const regionRows = regionDataset(getRegionalDefaults().countryCode);
   const root = useRef<HTMLElement>(null);
   const openedWith = useRef(form);
   const set = (key: keyof RoommatePreferenceForm, value: string | number | boolean) => setForm(current => ({ ...current, [key]: value }));
@@ -65,11 +67,14 @@ export default function RoommatePreferencesPanel({ form, setForm, profileSchool,
     <h2 className="mb-5 text-xl font-semibold tracking-tight">Roommate preferences</h2>
     <fieldset disabled={busy} className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)] disabled:opacity-60">
       {row("location","Where you want to live",[form.preferred_area,form.preferred_lga,form.preferred_state].filter(Boolean).join(", ") || "Choose your location",<>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="text-sm">State<RoommateLocationChoice label="Preferred State" value={form.preferred_state} options={getAllStates()} onChange={value => setForm(current => ({...current,preferred_state:value,preferred_lga:"",preferred_area:""}))} /></div>
-          <div className="text-sm">LGA<RoommateLocationChoice label="Preferred LGA" value={form.preferred_lga} options={getCitiesForState(form.preferred_state)} disabled={!form.preferred_state} onChange={value => setForm(current => ({...current,preferred_lga:value,preferred_area:""}))} /></div>
-        </div>
-        <label className="block text-sm">Area (optional)<input aria-label="Preferred area" className={input} maxLength={120} value={form.preferred_area} onChange={e => set("preferred_area",e.target.value)} placeholder="Anywhere in this LGA" /></label>
+        {regionRows?<div className="grid grid-cols-2 gap-3">
+          <div className="text-sm">State / region<RoommateLocationChoice label="Preferred state or region" value={form.preferred_state} options={regionRows.map(r => r.state)} onChange={value => setForm(current => ({...current,preferred_state:value,preferred_lga:"",preferred_area:""}))} /></div>
+          <div className="text-sm">City / area<RoommateLocationChoice label="Preferred city or area" value={form.preferred_lga} options={regionRows.find(r => r.state === form.preferred_state)?.cities ?? []} disabled={!form.preferred_state} onChange={value => setForm(current => ({...current,preferred_lga:value,preferred_area:""}))} /></div>
+        </div>:<div className="grid grid-cols-2 gap-3">
+          <label className="block text-sm">State / region<input aria-label="Preferred state or region" className={input} maxLength={120} value={form.preferred_state} onChange={e => setForm(current => ({...current,preferred_state:e.target.value}))} /></label>
+          <label className="block text-sm">City / area<input aria-label="Preferred city or area" className={input} maxLength={120} value={form.preferred_lga} onChange={e => setForm(current => ({...current,preferred_lga:e.target.value}))} /></label>
+        </div>}
+        <label className="block text-sm">Neighbourhood (optional)<input aria-label="Preferred area" className={input} maxLength={120} value={form.preferred_area} onChange={e => set("preferred_area",e.target.value)} placeholder="Anywhere in this area" /></label>
       </>)}
       {row("rent","Your yearly rent share",form.budget_min && form.budget_max ? `${formatMoney(form.budget_min)}–${formatMoney(form.budget_max)} · bills excluded` : "Choose your range · bills excluded",<RoommateBudgetField minimum={form.budget_min} maximum={form.budget_max} onChange={(minimum,maximum) => setForm(current => ({...current,budget_min:minimum,budget_max:maximum}))} />)}
       {row("timing","Move-in",timing,<>

@@ -3,7 +3,8 @@ import { currencySymbol } from "@/lib/regional";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import { regionDataset } from "@/data/locations";
+import { getRegionalDefaults } from "@/lib/regional";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 import { formatMoney } from "@/lib/regional";
@@ -52,7 +53,8 @@ export default function SponsoredMarketRules(){
   const[price,setPrice]=useState("");
   const[durations,setDurations]=useState("7,14,30");
 
-  const lgas=useMemo(()=>state?getCitiesForState(state):[],[state]);
+  const dataset=regionDataset(getRegionalDefaults().countryCode);
+  const lgas=useMemo(()=>dataset?.find(row=>row.state===state)?.cities??[],[dataset,state]);
 
   async function load(){
     setLoading(true);
@@ -103,7 +105,7 @@ export default function SponsoredMarketRules(){
   }
 
   function save(){
-    if(scopeType==="lga"&&(!state||!lga))return toast.error("Choose State and LGA");
+    if(scopeType==="lga"&&(!state||!lga))return toast.error("Choose state/region and city/area");
     const slotCount=Number(slots);
     const dailyPrice=Number(price);
     const durationValues=[...new Set(durations.split(",").map(value=>Number(value.trim())).filter(value=>Number.isInteger(value)&&value>=1&&value<=90))].sort((a,b)=>a-b);
@@ -148,8 +150,13 @@ export default function SponsoredMarketRules(){
       <Field label="What can be promoted"><WeHouseChoice aria-label="What can be promoted" value={resourceType} onChange={e=>setResourceType(e.target.value as ResourceType)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground">{(Object.keys(resourceLabels) as ResourceType[]).map(value=><option key={value} value={value}>{resourceLabels[value]}</option>)}</WeHouseChoice></Field>
       <Field label="Market scope"><WeHouseChoice aria-label="Market scope" value={scopeType} onChange={e=>{setScopeType(e.target.value as ScopeType);setState("");setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="global">Global default</option><option value="lga">Specific LGA</option></WeHouseChoice></Field>
       {scopeType==="lga"?<>
-        <Field label="State"><WeHouseChoice aria-label="State" value={state} onChange={e=>{setState(e.target.value);setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose State</option>{NIGERIA_STATES.map(row=><option key={row.state} value={row.state}>{row.state}</option>)}</WeHouseChoice></Field>
-        <Field label="LGA"><WeHouseChoice aria-label="LGA" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose LGA</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
+        {dataset?<>
+        <Field label="State / region"><WeHouseChoice aria-label="State or region" value={state} onChange={e=>{setState(e.target.value);setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose state or region</option>{dataset.map(row=><option key={row.state} value={row.state}>{row.state}</option>)}</WeHouseChoice></Field>
+        <Field label="City / area"><WeHouseChoice aria-label="City or area" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose city or area</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
+        </>:<>
+        <Field label="State / region"><input aria-label="State or region" value={state} onChange={e=>setState(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+        <Field label="City / area"><input aria-label="City or area" value={lga} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+        </>}
       </>:null}
       <Field label="Sponsored slots"><input inputMode="numeric" value={slots} onChange={e=>setSlots(e.target.value.replace(/\D/g,""))} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
       <Field label={`Daily price (${currencySymbol()})`}><input inputMode="decimal" value={price} onChange={e=>setPrice(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
