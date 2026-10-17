@@ -274,8 +274,11 @@ export async function getSavedListings(userId: string) {
   return { saved: data || [], savedIds: (data || []).map((row) => row.listing_id) as string[], error };
 }
 
-export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase.rpc('create_internal_listing', { p_data: listing });
+export async function createListing(
+  listing: Omit<Listing, 'id' | 'listing_id' | 'created_at' | 'updated_at'>,
+  idempotencyKey: string = crypto.randomUUID(),
+) {
+  const { data, error } = await supabase.rpc('create_internal_listing_idem', { p_idempotency_key: idempotencyKey, p_data: listing });
   return { listing: data as Listing | null, error };
 }
 

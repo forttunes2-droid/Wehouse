@@ -31,7 +31,7 @@ function DocumentReview({ document, kind, checked, onChange }: {
       {legalTitles[kind]} <span className="font-normal text-[var(--wh-text-secondary)]">· v{document.version}{checked ? ' · Reviewed' : ''}</span>
     </summary>
     <LegalDocumentBody body={document.body} onReachedEnd={markEnd} />
-    <label className="mt-4 flex min-h-12 items-start gap-3 py-3 text-sm leading-6 text-[#F6F2FC]">
+    <label className="mt-4 flex min-h-12 items-start gap-3 py-3 text-sm leading-6 text-[var(--wh-text)]">
       <input type="checkbox" checked={checked} disabled={!reachedEnd}
         onChange={event => onChange(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-violet-500" />
       <span>{kind === 'privacy' ? 'I have read and acknowledge this Privacy Policy.' : 'I have read and agree to these Terms of Service.'}</span>

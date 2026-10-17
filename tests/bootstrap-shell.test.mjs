@@ -30,6 +30,21 @@ test("startup HTML does not preload retired map UI dependencies", async () => {
   assert.doesNotMatch(html, /leaflet-container|wehouse-map-pin/i);
 });
 
+test("startup theme initialization stays in the CSP-safe bootstrap script", async () => {
+  const [html, bootstrap] = await Promise.all([
+    readFile("index.html", "utf8"),
+    readFile("public/bootstrap.js", "utf8"),
+  ]);
+
+  assert.doesNotMatch(html, /<script>\s*try\s*\{\s*var choice/i);
+  assert.match(bootstrap, /localStorage\.getItem\(['"]wehouse:appearance['"]\)/);
+  assert.match(bootstrap, /document\.documentElement\.dataset\.whTheme/);
+  assert.match(bootstrap, /classList\.toggle\(['"]dark['"],\s*!light\)/);
+  assert.match(bootstrap, /meta\[name="background-color"\]/);
+  assert.match(html, /--wh-startup-bg:\s*#F7F8FB/);
+  assert.match(html, /--wh-startup-text:\s*#202433/);
+});
+
 // Module imports evaluate before their entry body. This guard MUST stay outside
 // the bundled app, otherwise an environment import failure also prevents its guard.
 test("startup guard is independent of the application module graph", async () => {

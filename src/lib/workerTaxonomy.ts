@@ -14,13 +14,13 @@ const OCCUPATION_RULES: Array<[RegExp, string]> = [
   [/moving|delivery|logistic/i, "Mover"],
   [/security|guard/i, "Security Professional"],
   [/water\s*supply/i, "Water Supplier"],
-  [/handyman|repairs?/i, "Handyperson"],
   [/auto|mechanic|vehicle/i, "Auto Technician"],
   [/garden|landscap/i, "Gardener"],
   [/health|caregiv/i, "Caregiver"],
   [/education|tutor|lesson/i, "Tutor"],
   [/event|decorat/i, "Event Professional"],
-  [/tech|computer|phone/i, "IT Technician"],
+  [/technolog|computer|laptop|phone|\bit\b|software|cctv/i, "IT Technician"],
+  [/handyman|repairs?/i, "Handyperson"],
   [/agric|farm/i, "Agricultural Professional"],
 ];
 

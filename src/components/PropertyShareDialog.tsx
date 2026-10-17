@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import SharedPropertyCard from "@/components/SharedPropertyCard";
 import { ChevronRight, Copy, Search, Share2, Users } from "lucide-react";
 import { useEffect, useState } from 'react';
@@ -5,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { getRoommateConversationPeople } from '@/lib/supabase/chat';
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from '@/lib/roommateRecipients';
 import { propertyShareUrl, queuePropertyShare, sharePropertyExternally, type SharedProperty } from '@/lib/propertyShare';
+import { clearWorkerShare } from '@/lib/workerShare';
 import { withTimeout } from '@/lib/withTimeout';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import BackButton from '@/components/BackButton';
@@ -61,10 +63,11 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
       <h3 className="flex items-center gap-2 text-sm font-semibold"><Users size={17} aria-hidden="true" className="text-violet-300" />Send in WeHouse</h3>
       <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a WeHouse connection. You can add a message before sending.</p>
       <label className="mt-3 block"><span className="sr-only">Search your connections</span><span className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[var(--wh-text-secondary)]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search connections" className="min-w-0 flex-1 bg-transparent py-3 text-base text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)]" /></span></label>
-      {loading ? <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading your connections…</p> : <>
+      {loading ? <WeHouseLoadingState compact label="Loading your connections" /> : <>
         {error && <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-violet-300">Refresh connections</button></div>}
         <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{visible.map(person => <button key={person.userId} type="button" onClick={() => {
           queuePropertyShare(userId, person.conversationId, property);
+          clearWorkerShare(userId, person.conversationId);
           // The normal conversation (and its existing PIN gate) owns Send.
           onClose(); onConversation(person.conversationId);
         }} className="flex min-h-16 w-full items-center gap-3 py-3 text-left">

@@ -1,3 +1,5 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -317,9 +319,7 @@ export default function CreatorBookingMoneyRules() {
 
   if (loading)
     return (
-      <div className="grid min-h-44 place-items-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (loadError || !policy) return (
@@ -386,7 +386,7 @@ export default function CreatorBookingMoneyRules() {
         title="Long Let"
         note="Reservation starts the housing process. Long Let does not use Short Let no-show or damage-deposit rules."
       >
-        <NumberRule label="Reservation payment" prefix="₦" value={rules.long_let.reservation_amount} min={1} max={10000000} step={1000} onChange={(value) => setLong("reservation_amount", value)} />
+        <NumberRule label="Reservation payment" prefix={currencySymbol()} value={rules.long_let.reservation_amount} min={1} max={10000000} step={1000} onChange={(value) => setLong("reservation_amount", value)} />
         <NumberRule label="Payment checkout hold" suffix="minutes" value={rules.long_let.payment_hold_minutes} min={5} max={120} onChange={(value) => setLong("payment_hold_minutes", value)} />
         <NumberRule label="Housing process hold" suffix="hours" value={rules.long_let.hold_hours} min={1} max={168} onChange={(value) => setLong("hold_hours", value)} />
         <NumberRule label="Early full-refund window" suffix="hours, if material process has not begun" value={rules.long_let.full_refund_hours} min={0} max={168} onChange={(value) => setLong("full_refund_hours", value)} />
@@ -507,7 +507,7 @@ function ShortLetReserveDateRule() {
   return <section className="border-y border-violet-500/15 py-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Short Let money</p><h4 className="mt-1 text-sm font-semibold">Reserve date</h4><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[var(--wh-text-secondary)]">This payment reserves the selected dates. Stay charge and any refundable security deposit are paid later and remain separate.</p></div><span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[9px] text-[var(--wh-text-secondary)]">v{rule.version}</span></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
-      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee (₦)<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee ({currencySymbol()})<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
       <label className="text-[10px] text-[var(--wh-text-secondary)]">Checkout time (minutes)<input type="number" min={5} max={120} value={draft.payment_hold_minutes} onChange={e=>setDraft({...draft,payment_hold_minutes:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
       <label className="text-[10px] text-[var(--wh-text-secondary)]">Stay balance due (hours)<input type="number" min={1} max={168} value={draft.balance_due_hours} onChange={e=>setDraft({...draft,balance_due_hours:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
     </div>

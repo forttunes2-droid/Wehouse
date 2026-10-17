@@ -315,3 +315,40 @@ export async function getMyHotelBookingTarget(bookingId: string) {
   if (error || !data?.hotel_id || !data?.booking_id) throw error || new Error("Hotel stay unavailable");
   return data as { hotel_id: number; booking_id: number };
 }
+
+export type HotelDiscountRow = {
+  id: string;
+  room_id: number | null;
+  rate_plan_id: number | null;
+  percent: number;
+  starts_on: string;
+  ends_on: string | null;
+  funded_by: 'host' | 'wehouse';
+};
+
+export async function partnerListHotelDiscounts(hotelId: number) {
+  const { data, error } = await supabase.rpc('partner_list_hotel_discounts', { p_hotel_id: hotelId });
+  return { discounts: (data || []) as HotelDiscountRow[], error };
+}
+
+export async function partnerSetHotelDiscount(input: {
+  hotelId: number;
+  roomId: number | null;
+  ratePlanId: number | null;
+  percent: number;
+  endsOn: string | null;
+}) {
+  const { data, error } = await supabase.rpc('partner_set_hotel_discount', {
+    p_hotel_id: input.hotelId,
+    p_room_id: input.roomId,
+    p_rate_plan_id: input.ratePlanId,
+    p_percent: input.percent,
+    p_ends_on: input.endsOn,
+  });
+  return { id: data as string | null, error };
+}
+
+export async function partnerClearHotelDiscount(discountId: string) {
+  const { error } = await supabase.rpc('partner_clear_hotel_discount', { p_discount_id: discountId });
+  return { error };
+}

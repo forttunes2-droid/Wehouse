@@ -15,7 +15,8 @@ function moduleAt(path, dependencies = {}, globals = {}) {
   vm.runInNewContext(code, { exports, require: name => dependencies[name] ?? require(name), setTimeout, clearTimeout, URLSearchParams, console, ...globals });
   return exports;
 }
-const dates = moduleAt('src/lib/displayDate.ts');
+const regional = moduleAt('src/lib/regional.ts');
+const dates = moduleAt('src/lib/displayDate.ts', {'./regional':regional});
 const lifecycle = moduleAt('src/lib/propertyBookingLifecycle.ts', {'./displayDate':dates});
 test('Short Let starts with the stay payment and never asks for a reservation fee', () => {
   const row = { stay_type:'short_let', status:'payment_pending', rent_payment_status:'not_started', security_deposit_snapshot:50000 };
@@ -33,7 +34,7 @@ test('Booking dates name the month and do not expose invalid dates', () => {
 });
 test('A hotel receipt renders the verified merchant, stay, amount and reference with a Test label', () => {
   const {ReceiptDocument}=moduleAt('src/components/PaymentReceipt.tsx', {
-    '@/lib/displayDate':dates, '@/lib/supabase/receipts':{}, '@/components/ui/dialog':{}, '@/components/BackButton':moduleAt('src/components/BackButton.tsx'),
+    '@/lib/displayDate':dates, '@/lib/regional':regional, '@/lib/supabase/receipts':{}, '@/components/ui/dialog':{}, '@/components/BackButton':moduleAt('src/components/BackButton.tsx'),
   });
   const html=renderToStaticMarkup(React.createElement(ReceiptDocument,{receipt:{id:'test',reference:'TEST-REFERENCE',purpose:'hotel_booking',amount:180000,currency:'NGN',paid_at:'2026-09-20T03:00:00Z',status:'paid',environment:'test',payer_name:'Test Guest',merchant_name:'Example Hotel',description:'Deluxe',package_name:'Room only',check_in:'2026-09-24',check_out:'2026-09-30',nights:6,guests:2}}));
   for (const text of ['Example Hotel','Test Guest','Deluxe','Room only','TEST-REFERENCE','180,000.00','24 Sept 2026','No real money was charged']) assert.ok(html.includes(text),text);
@@ -59,7 +60,7 @@ function authHarness({getSession, getProfile, initialize=async()=>({error:null})
   const storage={getItem:()=>null,setItem(){},removeItem(){},clear(){},length:0};
   const setting={select(){return this;},eq(){return this;},maybeSingle:async()=>({data:null})};
   const supabase={auth:{initialize,getSession,onAuthStateChange:fn=>{listener=fn;return{data:{listener,subscription:{unsubscribe(){}}}};}},from:()=>setting};
-  const hook=moduleAt('src/hooks/useAuth.ts', {react,'@/lib/supabase':{supabase,getProfileByAuthId:getProfile},'@/lib/googleVerification':{readGoogleVerification:()=>null},'@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts')},{localStorage:storage,sessionStorage:storage,window:{location:{search:'',hash:''},setTimeout,clearTimeout,addEventListener(){},removeEventListener(){}},document:{addEventListener(){},removeEventListener(){},visibilityState:'visible'},navigator:{onLine:true}}).useAuth;
+  const hook=moduleAt('src/hooks/useAuth.ts', {react,'@/lib/supabase':{supabase,getProfileByAuthId:getProfile},'@/lib/googleVerification':{readGoogleVerification:()=>null},'@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts'),'@/lib/navigationRoute':moduleAt('src/lib/navigationRoute.ts')},{localStorage:storage,sessionStorage:storage,window:{location:{search:'',hash:''},setTimeout,clearTimeout,addEventListener(){},removeEventListener(){}},document:{addEventListener(){},removeEventListener(){},visibilityState:'visible'},navigator:{onLine:true}}).useAuth;
   return {render(){cursor=0;return hook();},effects(){effects.splice(0).forEach(fn=>fn());},event(...args){listener(...args);},close(){for(const slot of slots)slot?.cleanup?.();}};
 }
 test('A failed SIGNED_IN profile refresh without a snapshot leaves loading and offers sign-in recovery', async () => {
@@ -98,11 +99,11 @@ test('People, Bookings and WeHouse filters keep hotel and service chats out of p
     assert.equal(inboxCategories.matchesInboxCategory(kind,'wehouse'),kind==='support');
   }
 });
-test('Move-in dates stay in Nigeria time even before midnight UTC', () => {
+test('Move-in dates stay in the property time zone even before midnight UTC', () => {
   const instant = new Date('2026-09-23T23:30:00Z');
-  assert.equal(dates.nigeriaDate(instant),'2026-09-24');
-  assert.equal(dates.nigeriaDateTimeInput(instant),'2026-09-24T00:30');
-  assert.equal(dates.nigeriaInputToISO('2026-09-24T00:30'),instant.toISOString());
+  assert.equal(dates.propertyDate(instant),'2026-09-24');
+  assert.equal(dates.propertyDateTimeInput(instant),'2026-09-24T00:30');
+  assert.equal(dates.propertyInputToISO('2026-09-24T00:30'),instant.toISOString());
 });
 
 test('Google callback exchange errors end loading and explain how to restart verification', async () => {
@@ -123,10 +124,20 @@ test('Google callback initialization completes before the session is read', asyn
 });
 test('Sent updates load without an invented sender foreign-key relationship', async () => {
   const selected=[];const filters=[];
-  const query={select(fields){selected.push(fields);return this;},eq(...args){filters.push(args);return this;},async order(){return{data:[{id:1,title:'A published update'}],error:null};}};
-  const api=moduleAt('src/lib/supabase/announcements.ts',{'./client':{supabase:{from:()=>query}}});
+  const query={select(fields){selected.push(fields);return this;},eq(...args){filters.push(args);return this;},order(){return this;},async range(){return{data:[{id:1,title:'A published update'}],error:null};}};
+  const delivered=[{id:8,announcement_id:3,read_status:false,delivered_at:'2026-10-15T09:00:00.000Z',announcement:{id:3,title:'Team update',content:'A scoped update'}}];
+  const rpcCalls=[];
+  const api=moduleAt('src/lib/supabase/announcements.ts',{'./client':{supabase:{from:()=>query,rpc:async(name,args)=>{rpcCalls.push([name,args]);return{data:name==='creator_count_announcement_recipients'?2:delivered,error:null};}}}});
   assert.equal((await api.getAllAnnouncements()).messages[0].title,'A published update');
   assert.equal((await api.getAnnouncementsSentBy('sender')).messages.length,1);
+  const inbox=await api.getAnnouncementsForUser('recipient','worker');
+  assert.equal(inbox.messages[0].message.title,'Team update');
+  const preview=await api.getFilteredRecipientCount(true,true,false,false,'Lagos','Ikeja','creator');
+  assert.equal(preview.count,2);
+  assert.deepEqual(rpcCalls.map(([name])=>name),['get_my_announcement_inbox','creator_count_announcement_recipients']);
+  assert.equal(rpcCalls[1][1].p_scope_state,'Lagos');
+  assert.equal(rpcCalls[1][1].p_scope_lga,'Ikeja');
+  assert.equal(rpcCalls[1][1].p_target_roles.join(','),'user,worker');
   assert.deepEqual(filters,[['sender_id','sender']]);
   for(const fields of selected){assert.ok(fields.includes('sender_id'));assert.doesNotMatch(fields,/[():]/);}
 });

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -35,9 +36,7 @@ export default function ServiceProviderVerification(props: Props) {
 
   if (loading)
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] text-[var(--wh-text)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (error || !activation)

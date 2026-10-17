@@ -41,6 +41,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Reject duplicate migration versions
         shell: bash
         run: |
@@ -52,9 +57,9 @@ jobs:
           fi
       - name: Start local Supabase and apply migrations
         # Consolidation replay does not use Inbucket; avoid a shared runner port collision.
-        run: npx --yes supabase@2.114.0 start --exclude inbucket
+        run: supabase start --exclude inbucket
       - name: Replay migrations from an empty database
-        run: npx --yes supabase@2.114.0 db reset --local
+        run: supabase db reset --local
       - name: Verify canonical schema exists
         shell: bash
         run: |
@@ -110,6 +115,38 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_showcase_comment_pages_contract.sql
       - name: Hotel conversation context and recipient receipts
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
+      - name: Hotel base tables are not directly readable or writable by browser roles
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_base_table_exposure_contract.sql
+      - name: Companion relationship and payer cap
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_relationship_contract.sql
+      - name: Companion bucket and encrypted chat
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_bucket_and_chat_contract.sql
+      - name: Friend request expiry and daily cap
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_request_limits_contract.sql
+      - name: Companion chat key exchange
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/companion_chat_key_exchange_contract.sql
+      - name: Long Let split with Roommate or Companion
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_companion_contract.sql
+      - name: Shared content reports and scoped moderation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_content_reports_contract.sql
+      - name: Roommate cancel connection wait
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/roommate_cancel_wait_contract.sql
+      - name: Roommate cancel connection notice
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/roommate_cancel_notice_contract.sql
+      - name: Listing discount rules
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/listing_discounts_contract.sql
+      - name: Pinned messages and discount breakdown
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/message_pins_contract.sql
+      - name: Fixed fee and withdrawal controls
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fixed_fee_and_withdrawal_controls_contract.sql
+      - name: Service Worker refund rules
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_refund_rules_contract.sql
+      - name: Hotel discounts
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_discounts_contract.sql
+      - name: Short Let cancel and email change
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cancel_and_email_change_contract.sql
+      - name: Country settings
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/country_settings_contract.sql
       - name: Practical reciprocal roommate rules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
       - name: Fresh linked-provider recovery
@@ -142,7 +179,7 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   existing-account-upgrade:
     name: Existing Account Upgrade
@@ -159,10 +196,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Start disposable local Supabase
-        run: npx --yes supabase@2.114.0 start
+        run: supabase start
       - name: Load the current production baseline
-        run: npx --yes supabase@2.114.0 db reset --local --version 20260913181317
+        run: supabase db reset --local --version 20260913181317
       - name: Seed existing approvals, reviews, private evidence and a wallet
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
       - name: Verify the full upgrade rolls back without changing records or history
@@ -175,7 +217,7 @@ jobs:
         run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   consolidation-gate:
     name: Consolidation Validation

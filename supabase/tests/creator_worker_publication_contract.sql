@@ -2,6 +2,7 @@
 begin;
 create function pg_temp.expect(value boolean, description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description; end if;end$$;
 grant execute on function pg_temp.expect(boolean,text) to authenticated,anon,service_role;
+select pg_temp.expect((select value='false' and coalesce(is_active,false) and data_type='boolean' and editable=false from public.platform_settings where key='worker_marketplace_launch_enabled'),'Migrations seed Creator publication control closed and protected from generic edits');
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_kind,full_name,state,city,local_government,worker_occupation,worker_skills,worker_status,worker_verified,available) values
 ('93000000-0000-4000-8000-000000000001','pub-creator@example.invalid','pub-creator','creator',true,'consumer','Creator','Nasarawa','Lafia','Lafia',null,null,null,false,false),
@@ -12,7 +13,6 @@ insert into public.worker_service_coverage(worker_id,state,lga,areas) values('pu
 insert into public.creator_elevation_grants(creator_elevation_id,creator_user_id,auth_user_id,auth_session_id,action_classes,issued_at,expires_at,verification_method)
 values('93000000-0000-4000-8000-000000000099','pub-creator','93000000-0000-4000-8000-000000000001','publication-session',array['all_sensitive'],now(),now()+interval '10 minutes','password');
 insert into public.platform_settings(key,value,category,label,data_type,is_active) values
-('worker_marketplace_launch_enabled','false','marketplace','Worker marketplace','boolean',true),
 ('worker_identity_checks_enabled','false','security','Identity requirement','boolean',true)
 on conflict(key) do update set value=excluded.value,is_active=true;
 -- Identity disabled explicitly is a policy exemption, not a synthetic face pass.

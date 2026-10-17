@@ -1,4 +1,5 @@
 import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
+import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -107,6 +108,7 @@ serve(async req=>{
     const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
     const token=authHeader.replace(/^Bearer\s+/i,'');const{data:{user},error:authError}=await admin.auth.getUser(token);if(authError||!user)return json({success:false,error:'Invalid or expired session'},401);
     if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+    const limit=await consumeUserAction(admin,user.id,'payout_account',20,600);if(!limit.allowed)return json({success:false,error:'Too many requests. Please wait and try again.',retry_after_seconds:limit.retryAfterSeconds},429);
     const{data:profile,error:profileError}=await admin.from('profiles').select('user_id,role,full_name,deleted,suspended,banned').eq('auth_id',user.id).maybeSingle();
     if(profileError)return json({success:false,error:'Could not load your payout profile',stage:'profile'},500);
     if(!profile || !(await hasActiveWorkspace(admin,profile.user_id,'worker') || await hasActiveWorkspace(admin,profile.user_id,'property_partner')))return json({success:false,error:'Worker or Property Partner account required'},403);

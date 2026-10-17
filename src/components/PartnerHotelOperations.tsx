@@ -1,7 +1,9 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
+import PartnerHotelDiscounts from "@/components/PartnerHotelDiscounts";
 import { hotelTodayMetrics, matchesHotelReservationFilter } from "@/lib/hotelDailyWork";
 import { hotelPaymentLabel, hotelRoomAvailability } from "@/lib/propertyNavigation";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { formatMoney, propertyTimeZone } from "@/lib/regional";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -124,9 +126,9 @@ const HOTEL_CAPABILITY_LABELS: Record<HotelCapability, string> = {
   "hotel.policy.manage": "Manage operating policy",
   "hotel.team.manage": "Manage hotel team",
 };
-const today = (timeZone = "Africa/Lagos") => {
+const today = (timeZone?: string | null) => {
   const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
+    timeZone: propertyTimeZone(timeZone),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -134,8 +136,7 @@ const today = (timeZone = "Africa/Lagos") => {
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${value.year}-${value.month}-${value.day}`;
 };
-const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG")}`;
+const money = (value: number) => formatMoney(value);
 const words = (value: string) =>
   value
     .split(",")
@@ -293,7 +294,7 @@ export default function PartnerHotelOperations({
     };
   }, [hotel.hotel_id, load]);
 
-  const date = today(hotel.timezone || "Africa/Lagos");
+  const date = today(propertyTimeZone(hotel.timezone));
   const metrics = useMemo(() => hotelTodayMetrics(bookings, date), [bookings, date]);
   function openDailyWork(filter: string) {
     setFocusedBooking(undefined); setReservationQuery("");
@@ -455,6 +456,7 @@ export default function PartnerHotelOperations({
                 ))}
                 {rooms.length === 0 ? <Empty text="No room types yet. Add the first sellable room type here." /> : null}
               </div>
+              {canManageRates && rooms.length > 0 ? <PartnerHotelDiscounts hotelId={hotel.hotel_id} rooms={rooms} /> : null}
             </section>
           ) : null}
 
@@ -706,7 +708,7 @@ function VenueEditor({ hotelId, venue, factsLocked, close, saved }: { hotelId: n
 function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat, canMessage, canCheckIn: hasCheckInCapability, canCheckOut: hasCheckOutCapability, onChat, transition }: { hotelName: string; hotel: any; row: Booking; busy: boolean; readyRoomAvailable: boolean; chat?: HotelConversation; canMessage: boolean; canCheckIn: boolean; canCheckOut: boolean; onChat: (chat: ActiveHotelChat) => void; transition: (row: Booking, status: "checked_in" | "checked_out") => void }) {
   const holdExpired = row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() <= Date.now();
   const effectiveStatus = holdExpired ? "expired" : row.status;
-  const timeZone = hotel.timezone || "Africa/Lagos";
+  const timeZone = propertyTimeZone(hotel.timezone);
   const arrivalTime = hotelMoment(row.check_in, hotel.check_in_time || "14:00", timeZone);
   const departureTime = hotelMoment(row.check_out, hotel.check_out_time || "12:00", timeZone);
   const canCheckIn = hasCheckInCapability && effectiveStatus === "confirmed" && row.payment_status === "paid" && Date.now() >= arrivalTime && Date.now() < departureTime && readyRoomAvailable;

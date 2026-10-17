@@ -1,5 +1,6 @@
 import { shortLetPayment } from '@/lib/shortLetPayment';
-const money = (value: number) => `₦${value.toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+import { formatMoney } from "@/lib/regional";
+const money = (value: number) => `${formatMoney(value)}`;
 export default function ShortLetPaymentReview({ row }: { row: any }) {
   if (row.stay_type !== 'short_let') return null;
   const feePaid = row.reservation_fee_status === 'paid' || ['paid','completed'].includes(String(row.manual_payment_status || ''));

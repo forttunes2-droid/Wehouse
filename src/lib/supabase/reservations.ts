@@ -73,8 +73,10 @@ export async function createShortStayReservation(
   checkIn: string,
   checkOut: string,
   guestCount: number,
+  idempotencyKey: string = crypto.randomUUID(),
 ) {
-  const { data, error } = await supabase.rpc("create_short_stay_reservation", {
+  const { data, error } = await supabase.rpc("create_short_stay_reservation_idem", {
+    p_idempotency_key: idempotencyKey,
     p_listing_id: listingId,
     p_check_in: checkIn,
     p_check_out: checkOut,
@@ -208,6 +210,11 @@ export async function cancelReservation(reservationId: string) {
     },
   );
   return { reservation: (data as ReservationRecord) || null, error };
+}
+
+export async function cancelPaidShortLetStay(reservationId: string) {
+  const { data, error } = await supabase.rpc("cancel_my_paid_short_let", { p_reservation_id: reservationId });
+  return { refundAmount: Number((data as { refund_amount?: number } | null)?.refund_amount ?? 0), error };
 }
 
 export async function updateReservationPlan(

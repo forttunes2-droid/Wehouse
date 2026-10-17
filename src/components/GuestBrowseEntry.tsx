@@ -109,57 +109,76 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   </DiscoveryAccessContext.Provider>;
 }
 
-function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
-  const content = {
-    bookings: { title: 'Sign in to see your bookings' },
-    inbox: { title: 'Sign in to open your inbox' },
-  }[section];
-  return <main className="wh-public-gate" aria-labelledby={`guest-${section}-title`}>
-    <div>
-      <h1 id={`guest-${section}-title`}>{content.title}</h1>
-      <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+export function guestAccessCopy(section: 'bookings' | 'inbox') {
+  return section === 'bookings'
+    ? {
+        title: 'Sign in to view your bookings',
+        body: 'Track your stay, review confirmed details and keep your upcoming plans in one place.',
+      }
+    : {
+        title: 'Sign in to open your inbox',
+        body: 'View messages, updates and service conversations without losing context from the last screen you left.',
+      };
+}
+
+export function guestProductCopy(product: 'roommate' | 'services') {
+  return product === 'roommate'
+    ? {
+        eyebrow: 'ROOMMATE MATCHING',
+        title: 'Find a roommate who fits your plans.',
+        body: 'Sign in to set your location, budget and living preferences.',
+        steps: ['Tell us your area, budget and living habits.', 'See people whose plans fit yours, with how well you match.', 'When you both show interest, chat privately and plan a Long Let together.'],
+      }
+    : {
+        eyebrow: 'HOME SERVICES',
+        title: 'Find a professional for your home.',
+        body: 'Sign in to browse local providers, review their work and request a job.',
+        steps: ['Browse service workers near you and see their past work and reviews.', 'Send a request and agree the price in a private chat.', 'Review the agreed scope, price and cancellation terms before checkout. Payment stays paused until approved terms are saved for the job.'],
+      };
+}
+
+function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: 'bookings' | 'inbox'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
+  const content = guestAccessCopy(section);
+  return <main className="mx-auto max-w-lg px-4 pb-28 pt-6 sm:px-6" aria-labelledby={`guest-${section}-title`}>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-xs font-bold text-violet-300">WH</div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p>
+          <p className="text-sm font-semibold text-[var(--wh-text)]">Explore</p>
+        </div>
+      </div>
+      <section className="rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-[0_18px_50px_rgba(17,24,39,0.12)]">
+        <h1 id={`guest-${section}-title`} className="text-2xl font-semibold tracking-tight text-[var(--wh-text)]">{content.title}</h1>
+        <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
+        <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
+        <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[var(--wh-text-secondary)]">
+          <button type="button" onClick={() => onOpenLegal('privacy_policy')} className="min-h-10 rounded-lg px-2 font-medium text-violet-300 hover:text-violet-200">Privacy Policy</button>
+          <span aria-hidden="true">•</span>
+          <button type="button" onClick={() => onOpenLegal('terms_of_service')} className="min-h-10 rounded-lg px-2 font-medium text-violet-300 hover:text-violet-200">Terms of Service</button>
+        </div>
+      </section>
     </div>
   </main>;
 }
 
 function GuestProductPreview({ product, busy, onBack, onSignIn }: { product: 'roommate' | 'services'; busy: boolean; onBack: () => void; onSignIn: () => void }) {
-  const roommate = product === 'roommate';
-  const content = roommate
-    ? {
-        eyebrow: 'ROOMMATE CONNECTIONS',
-        title: 'Find a shared home that fits the way you live.',
-        body: 'Tell WeHouse where you want to live, what you can spend and the everyday things that matter at home. We show practical compatibility first, then you decide who to connect with.',
-        points: ['Choose your State, LGA and preferred area', 'Set budget, move-in timing and living preferences', 'Review a person’s profile and connect privately'],
-        note: 'Your matching preferences stay private. A match is a starting point for conversation, not a promise that living together will work.',
-        action: 'Sign in to find a roommate',
-      }
-    : {
-        eyebrow: 'WEHOUSE SERVICES',
-        title: 'Find the right professional for the job.',
-        body: 'Discover independent service professionals, see what they do and review real work evidence before you decide who to contact.',
-        points: ['Choose the service and where you need it', 'Review skills, profile details and work showcase', 'Connect and keep the service job protected through WeHouse'],
-        note: 'Service professionals are independent providers, not WeHouse employees. WeHouse helps organise the connection and supported payment flow.',
-        action: 'Sign in to find a professional',
-      };
+  const content = guestProductCopy(product);
   return <main className="mx-auto max-w-2xl px-4 py-4 pb-28 sm:px-6" aria-labelledby="guest-product-title">
     <div className="flex items-center gap-3">
       <BackButton onClick={onBack} ariaLabel="Back to Explore" />
       <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p><p className="text-sm font-semibold">Explore</p></div>
     </div>
-    <section className="mt-5" aria-describedby="guest-product-body">
+    <section className="mt-5 rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-[0_18px_50px_rgba(17,24,39,0.12)]" aria-describedby="guest-product-body">
       <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">{content.eyebrow}</p>
-      <h1 id="guest-product-title" className="mt-2 max-w-xl text-2xl font-bold tracking-tight sm:text-3xl">{content.title}</h1>
+      <h1 id="guest-product-title" className="mt-2 max-w-xl text-2xl font-bold tracking-tight text-[var(--wh-text)] sm:text-3xl">{content.title}</h1>
       <p id="guest-product-body" className="mt-3 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
-      <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
-        {content.points.map((point, index) => (
-          <div key={point} className="flex items-center gap-3 px-4 py-4">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-semibold text-violet-300">{index + 1}</span>
-            <span className="text-sm font-medium">{point}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-4 text-xs leading-5 text-[var(--wh-text-muted)]">{content.note}</p>
-      <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : content.action}</button>
+      <ol className="mt-5 space-y-3">
+        {content.steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
+          <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-300">{index + 1}</span>{step}
+        </li>)}
+      </ol>
+      <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
     </section>
   </main>;
 }

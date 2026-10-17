@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { hotelInventorySummary, matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
 import type { ActivityDestination } from "@/lib/activityFeed";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -24,6 +25,7 @@ import PropertyManagementPanel, { HostArrivalAction } from "@/components/Propert
 import PropertyHostControls from "@/components/PropertyHostControls";
 import BackButton from "@/components/BackButton";
 import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
+import { formatMoney } from "@/lib/regional";
 
 type PartnerTab = "properties" | "finance" | "communication" | "tools";
 const PROPERTY_PAGE_SIZE = 40;
@@ -37,7 +39,7 @@ type Props = {
   delegatedOnly?: boolean;
 };
 const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `${formatMoney(Number(value || 0))}`;
 
 const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {
@@ -836,11 +838,7 @@ function Empty({ title, text }: { title: string; text: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-40 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function partnerDate(value?: string | null) {
   return value

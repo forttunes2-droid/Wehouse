@@ -2,9 +2,10 @@ import { useId } from 'react';
 import type { HotelRatePlan, HotelRoom } from '@/types';
 import PropertyMediaCarousel from '@/components/PropertyMediaCarousel';
 import ShowcaseMediaThumbnail from '@/components/ShowcaseMediaThumbnail';
+import { formatMoney } from "@/lib/regional";
 
 type Props = { rooms: HotelRoom[]; roomId?: number; rateId?: number; nights: number; onRoom: (room: HotelRoom) => void; onRate: (rate: HotelRatePlan) => void };
-const money = (value: number) => `₦${value.toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+const money = (value: number) => `${formatMoney(value)}`;
 const meals = { room_only: 'Room only', breakfast: 'Breakfast included', half_board: 'Breakfast + one meal', full_board: 'All daily meals', all_inclusive: 'All inclusive' };
 const timing = { pay_now: 'Pay now', before_arrival: 'Pay before arrival', at_property: 'Pay at property' };
 

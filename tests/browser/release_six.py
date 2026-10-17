@@ -28,7 +28,7 @@ async def main():
       await expect(page.get_by_role('button',name='Pause bookings',exact=True)).to_be_visible()
       await expect(page.get_by_label('Nightly price',exact=True)).to_have_value('25000')
       await page.get_by_label('Nightly price',exact=True).fill('30000')
-      await page.get_by_role('button',name='Save',exact=True).click()
+      await page.get_by_label('Nightly price',exact=True).locator('xpath=../..').get_by_role('button',name='Save',exact=True).click()
       await expect(page.get_by_text('₦30,000 per night',exact=True)).to_be_visible()
       await page.get_by_role('button',name='Pause bookings',exact=True).click()
       await expect(page.get_by_text('Bookings paused',exact=True)).to_be_visible()

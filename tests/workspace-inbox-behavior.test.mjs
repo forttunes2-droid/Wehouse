@@ -97,7 +97,7 @@ const accountShell = {
 };
 test('Help menus follow the selected profile, including Hotel Team',()=>{
   const Help=moduleAt('src/components/AccountHelpCenter.tsx',{
-    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,'@/components/HelpRecordPicker':()=>null,
+    '@/components/AccountShell':accountShell,'@/components/WorkspaceMark':{ActivityKindIcon:()=>null,AccountIcon:()=>null,WorkspaceIcon:()=>null,__esModule:true},'@/components/WeHouseLoadingState':{default:()=>null,__esModule:true},'@/components/WeHouseSelect':()=>null,'@/components/HelpRecordPicker':()=>null,
     '@/hooks/useRecordScreenBack':{useRecordScreenBack:fn=>fn},
     '@/lib/helpTargets':moduleAt('src/lib/helpTargets.ts'),
     '@/lib/supabase':{},'@/lib/withTimeout':{},sonner:{toast:{}},
@@ -115,7 +115,7 @@ test('Existing professional profiles remain visible before public approval and d
   let selectedPanel='workspaces';
   const Account=moduleAt('src/pages/AccountCenter.tsx',{
     react:{...React,useState:initial=>[stateIndex++===0?selectedPanel:initial,()=>{}],useEffect(){},useMemo:fn=>fn()},
-    '@/components/AccountShell':accountShell,'@/components/AccountHelpCenter':()=>null,
+    '@/components/AccountShell':accountShell,'@/components/WorkspaceMark':{ActivityKindIcon:()=>null,AccountIcon:()=>null,WorkspaceIcon:()=>null,__esModule:true},'@/components/AccountHelpCenter':()=>null,
     '@/pages/PrivacySecuritySettings':()=>null,'@/components/MediaViewer':()=>null,
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
     '@/lib/notificationSound':{notificationSoundEnabled:()=>false,setNotificationSoundEnabled(){}},

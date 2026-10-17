@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { matchesPropertyRecord, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { withTimeout } from "@/lib/withTimeout";
@@ -22,6 +23,7 @@ import {
 } from "@/lib/supabase/listings";
 import { propertyLifecycleLabel } from "@/lib/status";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
+import { formatMoney } from "@/lib/regional";
 type Stage =
   | "all"
   | "access_required"
@@ -150,7 +152,7 @@ export default function PropertyPipelineWorkspace({
       <main className="absolute inset-0 overflow-y-auto p-5">
         <button type="button" onClick={onExitRecord} aria-label="Close property" className="min-h-11 text-sm font-semibold text-violet-300">← Back</button>
         <h2 className="mt-4 text-xl font-semibold">Property record</h2>
-        {loading ? <p role="status" className="mt-5 text-sm text-[var(--wh-text-secondary)]">Loading property record…</p> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
+        {loading ? <WeHouseLoadingState compact label="Loading property record" /> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
           <p>{loadError ? "The property record could not be loaded. Please try again." : "This property is no longer available in your work coverage."}</p>
           <button type="button" onClick={() => { openedTarget.current = null; void load(); }} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
         </div>}
@@ -429,7 +431,7 @@ function CreatorHotelRecord({
     })();
     return () => { active = false; };
   }, [hotelId, reloadKey]);
-  if (loading) return <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading hotel details…</p>;
+  if (loading) return <WeHouseLoadingState compact label="Loading hotel details" />;
   if (!hotel) return <div role="alert" className="space-y-3 py-8 text-sm leading-6 text-[var(--wh-text-secondary)]">
     <p>The hotel record is unavailable or outside your work coverage.</p>
     <button type="button" onClick={() => setReloadKey(value => value + 1)} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
@@ -2052,7 +2054,7 @@ function SubmittedMedia({ row }: { row: any }) {
       )}
       {active && (
         <div
-          className="fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
+          className="wh-media-immersive fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
           role="dialog"
           aria-modal="true"
           aria-label="Property Partner media preview"
@@ -2385,12 +2387,8 @@ function Empty({ text }: { text: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-32 place-items-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function money(v: any) {
-  return `₦${Number(v || 0).toLocaleString("en-NG")}`;
+  return `${formatMoney(Number(v || 0))}`;
 }

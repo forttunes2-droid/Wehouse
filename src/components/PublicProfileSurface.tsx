@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import BackButton from "@/components/BackButton";
 import { isolateDialog, isTopDialog } from "@/lib/dialogIsolation";
 import MediaViewer from "@/components/MediaViewer";
+import ReportDialog from "@/components/ReportDialog";
 import { bindProfileScreenHistory, isTopProfileScreen } from "@/lib/profileScreenHistory";
 
 type Props = {
@@ -22,14 +23,16 @@ type Props = {
   maxWidth?: "xl" | "4xl";
   conversation?: boolean;
   suspended?: boolean;
+  reportUserId?: string | null;
 };
 
 
 export default function PublicProfileSurface({
   name, username, avatar, subtitle, location, presence, about, badges, actions,
-  children, bottomAction, onClose, ariaLabel, maxWidth = "xl", conversation = false, suspended = false,
+  children, bottomAction, onClose, ariaLabel, maxWidth = "xl", conversation = false, suspended = false, reportUserId,
 }: Props) {
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const width = maxWidth === "4xl" ? "max-w-4xl" : "max-w-xl";
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -101,7 +104,7 @@ export default function PublicProfileSurface({
         <div className={`flex items-center ${conversation ? "flex-col gap-3 text-center" : "gap-4"}`}>
           <button type="button" disabled={!avatar} onClick={() => avatar && setAvatarOpen(true)}
             aria-label={avatar ? `Preview ${name}'s profile photo` : "No profile photo"}
-            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-violet-500/15 text-3xl font-bold text-violet-100 disabled:cursor-default">
+            className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-violet-500/15 text-3xl font-bold text-[var(--wh-accent-text)] disabled:cursor-default">
             {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : name[0]?.toUpperCase() || "W"}
           </button>
           <div className="min-w-0 flex-1">
@@ -121,7 +124,9 @@ export default function PublicProfileSurface({
           <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--wh-text-secondary)]">{about}</p>
         </section> : null}
         {children ? <div className="space-y-5">{children}</div> : null}
+        {reportUserId ? <button type="button" onClick={() => setReportOpen(true)} className="mx-auto block min-h-11 px-4 text-xs font-semibold text-[var(--wh-text-muted)] underline-offset-4 hover:underline">Report {name}</button> : null}
       </main>
+      {reportOpen && reportUserId ? <ReportDialog subjectType="profile" subjectUserId={reportUserId} subjectName={name} onClose={() => setReportOpen(false)} /> : null}
       {bottomAction ? <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] p-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
         <div className={`mx-auto ${width}`}>{bottomAction}</div>
       </div> : null}
@@ -141,7 +146,7 @@ export function PublicProfileAction({ label, onClick, children }: {
   label: string; onClick: () => void; children: ReactNode;
 }) {
   return <button type="button" onClick={onClick} className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-[var(--wh-text-secondary)]">
-    <span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[#D8DAE1]">{children}</span>
+    <span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text)]">{children}</span>
     {label}
   </button>;
 }

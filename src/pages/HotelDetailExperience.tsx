@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
@@ -32,6 +33,7 @@ import {
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
 import { locationLabel } from "@/lib/locationPresentation";
+import { formatMoney } from "@/lib/regional";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -179,7 +181,13 @@ export default function HotelDetailExperience({
   }
 
   function selectRoom(room: HotelRoom) {
-    if (selectedRoom?.room_id === room.room_id) return;
+    if (selectedRoom?.room_id === room.room_id) {
+      // Room choices are toggles: tapping the current choice must let a guest
+      // clear it without selecting a different room first.
+      setSelectedRoom(null);
+      setSelectedRate(null);
+      return;
+    }
     setSelectedRoom(room);
     setSelectedRate(null);
     // Dates and guest intent belong to the search, not to a particular room.
@@ -187,7 +195,10 @@ export default function HotelDetailExperience({
   }
 
   function selectRate(plan: HotelRatePlan) {
-    if (selectedRate?.rate_plan_id === plan.rate_plan_id) return;
+    if (selectedRate?.rate_plan_id === plan.rate_plan_id) {
+      setSelectedRate(null);
+      return;
+    }
     setSelectedRate(plan);
     // Keep the selected dates while comparing packages.
   }
@@ -251,9 +262,7 @@ export default function HotelDetailExperience({
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (!hotel)
@@ -401,7 +410,7 @@ export default function HotelDetailExperience({
                     Availability is rechecked before payment.
                   </p>
                 </div>
-                <p className="text-lg font-bold">₦{total.toLocaleString()}</p>
+                <p className="text-lg font-bold">{formatMoney(total)}</p>
               </div>
             ) : null}
           </section>

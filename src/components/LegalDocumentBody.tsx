@@ -17,7 +17,7 @@ export default function LegalDocumentBody({ body, onReachedEnd }: { body: string
       const text = line.trim();
       if (!text) return null;
       if (/^#{1,6}\s/.test(text) || /^\*\*.+\*\*$/.test(text)) {
-        return <h2 key={index} className="pt-5 text-lg font-semibold text-[#F6F2FC] first:pt-0">{text.replace(/^#{1,6}\s+/, '').replace(/^\*\*|\*\*$/g, '')}</h2>;
+        return <h2 key={index} className="pt-5 text-lg font-semibold text-[var(--wh-text)] first:pt-0">{text.replace(/^#{1,6}\s+/, '').replace(/^\*\*|\*\*$/g, '')}</h2>;
       }
       return <p key={index} className="whitespace-pre-wrap">{line}</p>;
     })}

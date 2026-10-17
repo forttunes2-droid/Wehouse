@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -38,7 +39,7 @@ export default function AccountIdentityReviewQueue({ accountRole }: { accountRol
     <p className="mt-4 text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">PRIVATE {label.toUpperCase()} IDENTITY REVIEW</p>
     <h3 className="mt-2 text-lg font-bold">{selected.full_name||selected.username||label}</h3>
     <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">{[selected.local_government||selected.city,selected.state].filter(Boolean).join(", ")||"Location not supplied"}</p>
-    {opening&&<p role="status" className="mt-4 text-xs text-[var(--wh-text-secondary)]">Opening private reference…</p>}
+    {opening&&<WeHouseLoadingState compact label="Opening private reference" />}
     {openError&&<div role="alert" className="mt-4 text-xs text-amber-200"><p>{openError}</p><button onClick={()=>void open(selected)} className="min-h-11 text-violet-300">Try again</button></div>}
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 p-4"><p className="text-xs font-semibold">Private face reference</p>{url?<button type="button" onClick={()=>setViewer(true)} className="mt-3 block overflow-hidden rounded-xl"><img src={url} alt="Private identity reference" className="aspect-square w-36 object-cover"/></button>:<p className="mt-3 text-[10px] text-[var(--wh-text-muted)]">Reference unavailable</p>}</div>
@@ -49,7 +50,7 @@ export default function AccountIdentityReviewQueue({ accountRole }: { accountRol
     <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={saving||opening||!url||evidence?.status!=="pending_review"} onClick={()=>void decide("approved")} className="min-h-11 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-35">Approve identity</button><button type="button" disabled={saving||opening||!evidence} onClick={()=>void decide("rejected")} className="min-h-11 rounded-xl bg-red-500/15 text-[10px] font-semibold text-red-300 disabled:opacity-35">Reject with reason</button></div>
     {viewer&&url?<MediaViewer src={url} kind="image" title="Private identity reference" onClose={()=>setViewer(false)}/>:null}
   </section>;
-  if (loading) return <p role="status" className="py-3 text-xs text-[var(--wh-text-secondary)]">Checking pending reviews…</p>;
+  if (loading) return <WeHouseLoadingState compact label="Checking pending reviews" />;
   if (error) return <section role="alert" className="rounded-xl border border-amber-500/20 p-4"><p className="text-sm text-amber-100">Identity review queue could not be loaded.</p><button type="button" onClick={() => void load()} className="min-h-11 text-sm text-violet-300">Try again</button></section>;
   if (rows.length === 0) return null;
   return <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div><h3 className="text-sm font-semibold">{label} identity reviews</h3><p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-muted)]">A different authorised person must review each private live-check submission.</p></div>{loading?<p className="py-6 text-center text-[10px] text-[var(--wh-text-muted)]">Loading…</p>:rows.length===0?<p className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4 text-[10px] text-[var(--wh-text-muted)]">No {label.toLowerCase()} identity check is waiting.</p>:<div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{rows.map(row=><button type="button" key={row.user_id} onClick={()=>void open(row)} className="flex w-full items-center justify-between gap-3 py-3 text-left"><span className="min-w-0"><strong className="block truncate text-xs">{row.full_name||row.username||label}</strong><span className="mt-1 block truncate text-[9px] text-[var(--wh-text-muted)]">{[row.local_government||row.city,row.state].filter(Boolean).join(", ")||"Location not supplied"}</span></span><span className="text-[9px] font-semibold text-violet-300">Review →</span></button>)}</div>}</section>;

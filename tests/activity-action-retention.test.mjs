@@ -124,7 +124,7 @@ test('retaining an action does not change the caller array or its typed destinat
 });
 
 
-test('hotel team invitation responses route to the inviter hotel with a canonical destination', () => {
+test('hotel team invitation responses route to the inviter workspace', () => {
   assert.deepEqual(
     JSON.parse(JSON.stringify(resolveActivityDestination({
       type: 'hotel_team_invitation_response',
@@ -133,6 +133,6 @@ test('hotel team invitation responses route to the inviter hotel with a canonica
       destination_route: 'property-owner',
       destination_params: { hotel_id: 42 },
     }))),
-    { route: 'hotel_detail', id: '42' },
+    { route: 'property_partner' },
   );
 });

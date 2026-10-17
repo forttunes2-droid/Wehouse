@@ -1,4 +1,5 @@
 import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
+import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 
@@ -31,6 +32,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user?.email) return json({ success: false, error: 'Invalid or expired session' }, 401);
     if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+    const limit = await consumeUserAction(admin, user.id, 'worker_pro_payment', 10, 600);
+    if (!limit.allowed) return json({ success: false, error: 'Too many payment attempts. Please wait and try again.', retry_after_seconds: limit.retryAfterSeconds }, 429);
     const { data: profile } = await admin.from('profiles').select('user_id,role,worker_status,worker_verified,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
     if (!profile || !await hasActiveWorkspace(admin,profile.user_id,'worker') || profile.worker_status !== 'verified' || profile.worker_verified !== true) return json({ success: false, error: 'A WeHouse Reviewed Worker account is required' }, 403);
     if (profile.deleted || profile.suspended || profile.banned) return json({ success: false, error: 'Worker account is not active' }, 403);

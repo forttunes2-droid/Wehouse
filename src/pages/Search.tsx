@@ -1,10 +1,10 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import ListingCard from "@/components/ListingCard";
-import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryPriceRangeSlider from "@/components/DiscoveryPriceRangeSlider";
 import DiscoveryShell, {
   DiscoveryEmpty,
@@ -239,15 +239,6 @@ export default function Search({
     return () => { live = false; };
   }, [sponsoredResults]);
 
-  const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
-  const stateOptions = useMemo(
-    () => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => citiesForState.map((city) => ({ value: city, label: city })),
-    [citiesForState],
-  );
   const priceScale = useMemo(
     () =>
       stayType === "short_let"
@@ -409,7 +400,7 @@ export default function Search({
           locationBusy={locating}
           onLocation={requestLocation}
           onClearLocation={clearLocation}
-          locationDetail={locationError || undefined}
+          locationDetail={locationError || "Optional: WeHouse uses your location to estimate distances and show nearby homes first. It is not saved to your profile. You can clear it or search by place without sharing device location."}
         />
         {sponsoredHomes.length > 0 && <section aria-label="Sponsored homes" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
           <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored homes</p>
@@ -480,9 +471,7 @@ export default function Search({
             </button>
           </section>
         ) : loading && !listings.length ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
         ) : filtered.length === 0 ? (
           <DiscoveryEmpty
             title={emptyTitle}
@@ -545,25 +534,7 @@ export default function Search({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={filterState}
-              onChange={chooseState}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={filterCity}
-              onChange={setFilterCity}
-              options={cityOptions}
-              placeholder={filterState ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!filterState}
-            />
-          </div>
+          <LocationFilterFields region={filterState} locality={filterCity} onRegionChange={chooseState} onLocalityChange={setFilterCity} />
 
           {stayType !== "all" ? (
             <DiscoveryPriceRangeSlider

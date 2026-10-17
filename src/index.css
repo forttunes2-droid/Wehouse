@@ -203,6 +203,12 @@
 .wh-auth-to-app-shell > *:nth-child(2) { animation-delay: 20ms; }
 .wh-auth-to-app-shell > *:nth-child(3) { animation-delay: 40ms; }
 .wh-auth-to-app-shell > *:nth-child(n+4) { animation-delay: 60ms; }
+@keyframes whLoadingProgress { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+.wh-loading-progress { animation: whLoadingProgress 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .wh-loading-progress { animation: none; transform: translateX(50%); }
+  .wh-loading-state .animate-spin { animation: none; }
+}
 @keyframes whAuthToAppBrand { from { opacity: .65; } to { opacity: 1; } }
 @keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
 
@@ -289,6 +295,12 @@
 
 /* Existing accent utilities keep contrast when a workspace changes to light.
    Solid primary buttons retain white labels; tinted labels become dark violet. */
+/* Solid violet buttons always carry a white label that meets 4.5:1 (also when
+   a call site omits text-white and would inherit the page text colour). */
+:root .bg-violet-500,
+:root .bg-violet-600 { color: #fff; }
+:root:not([data-wh-theme="light"]) .bg-violet-500:not(:hover),
+:root:not([data-wh-theme="light"]) .bg-violet-600:not(:hover) { background-color: #7A4FF0; }
 :root[data-wh-theme="light"] .text-violet-200,
 :root[data-wh-theme="light"] .text-violet-300,
 :root[data-wh-theme="light"] .text-violet-400 { color: var(--wh-accent-text); }
@@ -298,9 +310,52 @@
 :root[data-wh-theme="light"] .bg-violet-600.text-white,
 :root[data-wh-theme="light"] .bg-violet-500 .text-white,
 :root[data-wh-theme="light"] .bg-violet-600 .text-white { color: #fff; }
+/* Dark-theme literal text greys have no light counterpart; map them to the
+   theme text token so they stay readable (media viewers keep their dark chrome). */
+:root[data-wh-theme="light"] .text-\[\#C4BCD8\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#C7CDD9\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#C8C1B3\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#CBD0DB\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#CDD0D8\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#CFD2DA\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D0D2DB\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D0D5DF\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D1D4DC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D2D5DC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D3D4DC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D3D6DF\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D4D7DE\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D4D7E0\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D5D7DF\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D5D7E1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D5D8E0\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D6D9E1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D6DBE5\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D7D8E2\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D7DAE1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D8DAE1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D8DAE2\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D8DAE3\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D9DCE4\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#DDE0E7\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#DDE0E8\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E2E4EA\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E3E5EB\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E4E6EC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E6E8ED\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#EAEBF0\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#ECEEF2\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#F2F3F6\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#F6F2FC\]:not(.wh-media-immersive *) { color: var(--wh-text); }
+:root[data-wh-theme="light"] .text-violet-100:not(.bg-violet-500):not(.bg-violet-600):not(.bg-violet-500 *):not(.bg-violet-600 *):not(.wh-media-immersive *) { color: var(--wh-accent-text); }
 :root[data-wh-theme="light"] .text-emerald-300 { color: #087443; }
 :root[data-wh-theme="light"] .text-amber-200,
 :root[data-wh-theme="light"] .text-amber-300 { color: #875300; }
+:root[data-wh-theme="light"] .text-red-100,
+:root[data-wh-theme="light"] .text-red-200,
+:root[data-wh-theme="light"] .text-rose-200 { color: #9f1f36; }
+:root[data-wh-theme="light"] .text-amber-100 { color: #875300; }
+:root[data-wh-theme="light"] .text-emerald-200 { color: #046c4e; }
 :root[data-wh-theme="light"] .text-red-300 { color: #af2d43; }
 .wh-media-immersive {
   --wh-bg: #090B10;
@@ -545,3 +600,6 @@ input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .wh-media-viewer, .wh-media-stage > * { animation: none !important; }
 }
+
+/* One readable floor for small text: nothing in the app renders below 11px. */
+.text-\[7px\], .text-\[8px\], .text-\[9px\], .text-\[10px\] { font-size: 11px; }

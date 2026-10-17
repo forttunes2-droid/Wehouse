@@ -123,8 +123,26 @@ test('Validation workflow runs regression tests before build',()=>{
   assert.match(workflow,/npm test/);
   assert.match(workflow,/npx tsc --noEmit/);
   assert.match(workflow,/npm run build/);
-  assert.match(workflow,/supabase@2\.114\.0 db reset --local/);
+  assert.match(workflow,/uses: supabase\/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244/);
+  assert.equal((workflow.match(/version: 2\.114\.0/g)||[]).length,2);
+  assert.match(workflow,/supabase db reset --local/);
+  assert.doesNotMatch(workflow,/npx --yes supabase@/);
   assert.match(workflow,/Reject duplicate migration versions/);
+});
+
+test('Disposable Supabase workflows share the pinned CLI release',()=>{
+  const paths=[
+    '.github/workflows/consolidation-validation.yml',
+    '.github/workflows/capacity-medium.yml',
+    '.github/workflows/capacity-stage1.yml',
+    '.github/workflows/mixed-journey-preflight.yml',
+  ];
+  for(const path of paths){
+    const workflow=read(path);
+    assert.match(workflow,/uses: supabase\/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244/);
+    assert.match(workflow,/version: 2\.114\.0/);
+    assert.doesNotMatch(workflow,/npx --yes supabase@/);
+  }
 });
 
 test('Internal lifecycle transition helper closes the execution review queue',()=>{

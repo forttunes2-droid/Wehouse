@@ -1,8 +1,10 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useRef, useState } from 'react';
 import { getMySharedHousingGroups, type SharedHousingGroup } from '@/lib/supabase/shared-housing';
 import { sharedHousingLane } from '@/lib/sharedHousingPresentation';
 import SharedHousingDetails from '@/components/SharedHousingDetails';
 import { withTimeout } from '@/lib/withTimeout';
+import { formatMoney } from "@/lib/regional";
 
 /** Roommates and Bookings open the same member-authorised payment record. */
 export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation, onOpenListing }: {
@@ -24,7 +26,7 @@ export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation
       .finally(() => { if (current === generation.current) setLoading(false); });
     return () => { generation.current += 1; };
   }, [profileId, attempt]);
-  if (loading && !groups.length) return <p role="status" className="py-5 text-sm text-[var(--wh-text-secondary)]">Loading shared payments…</p>;
+  if (loading && !groups.length) return <WeHouseLoadingState compact label="Loading shared payments" />;
   if (!groups.length && !error) return null;
   return <section className="space-y-3">
     <header><h2 className="text-base font-semibold">Shared homes</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Review the people, invitation and individual payment shares together.</p></header>
@@ -38,7 +40,7 @@ export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation
           <span className="min-w-0 flex-1"><span className="block text-sm text-violet-300">{group.product_type === 'short_let' ? 'Short Let' : 'Long Let'} · {lane === 'action' ? 'Needs your action' : lane === 'history' ? 'Payment history' : 'Shared reservation'}</span>
             <span className="mt-1 block break-words text-base font-semibold">{group.listing?.title || 'Shared home'}</span>
             <span className="mt-1 block break-words text-sm leading-6 text-[var(--wh-text-secondary)]">With {group.members.filter(member => member.user_id !== profileId).map(member => member.name).join(', ') || 'your connections'}</span>
-            <span className="mt-2 block text-sm">Your share: ₦{Number(mine?.share_amount || 0).toLocaleString()} · {mine?.payment_status === 'paid' ? 'Paid' : 'View payment details'}</span>
+            <span className="mt-2 block text-sm">Your share: {formatMoney(Number(mine?.share_amount || 0))} · {mine?.payment_status === 'paid' ? 'Paid' : 'View payment details'}</span>
           </span><span aria-hidden="true" className="text-violet-300">›</span>
         </button>
         {group.conversation_id && onOpenConversation && <button type="button" onClick={() => onOpenConversation(group.conversation_id!)} className="mt-2 min-h-11 text-sm font-semibold text-violet-300">Open connected conversation</button>}

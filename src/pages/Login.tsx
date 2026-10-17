@@ -11,6 +11,7 @@ import {
   signInWithApple,
   getProfileByAuthId,
   deactivateUserSession,
+  isWebPasskeyEnabled,
 } from "@/lib/supabase";
 import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
@@ -534,6 +535,27 @@ export default function Login({
     }
   }
 
+  async function handlePasskeySignIn() {
+    if (!isWebPasskeyEnabled || workingRef.current) return;
+    clearMessages();
+    clearGoogleVerification();
+    sessionStorage.removeItem("wh_login_method");
+    setWorking(true);
+    try {
+      const { data, error: passkeyError } = await supabase.auth.signInWithPasskey();
+      if (passkeyError) throw passkeyError;
+      const user = data.user;
+      if (!user?.email) throw new Error("This WeHouse account needs a confirmed email before passkey sign-in.");
+      sessionStorage.setItem("wh_login_method", "passkey");
+      emailHandoff.current = true;
+      setInfo("Signing you in securely…");
+      await onLoginSuccess(user.id, user.email, "user");
+    } catch (cause) {
+      setError(friendlyError(errorMessage(cause, "Passkey sign-in could not complete")));
+      setWorking(false);
+    }
+  }
+
   async function handleGoogle() {
     if (workingRef.current) return;
     clearMessages();
@@ -829,6 +851,9 @@ export default function Login({
             {appleSignInEnabled && <button type="button" onClick={() => void handleApple()} disabled={working} className={`${secondaryAction} mt-3`}>
               {working ? "Opening Apple…" : "Continue with Apple"}
             </button>}
+            {isWebPasskeyEnabled && <button type="button" onClick={() => void handlePasskeySignIn()} disabled={working} className={`${secondaryAction} mt-3`}>
+              {working ? "Checking passkey…" : "Continue with a passkey"}
+            </button>}
             <p className="mt-5 flex flex-wrap items-center justify-center text-sm text-[var(--auth-muted)]">
               New here?
               <button type="button" onClick={() => { setMode("signup"); clearMessages(); }} className={textAction}>Create account</button>
@@ -1060,15 +1085,11 @@ export default function Login({
 
 function AuthSurface({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const theme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#090B10";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");
-      if (theme && previousTheme !== undefined) theme.content = previousTheme;
     };
   }, []);
   return <div className="wh-auth-screen">{children}</div>;

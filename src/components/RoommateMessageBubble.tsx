@@ -2,6 +2,7 @@ import MessagePress from '@/components/MessagePress';
 import SharedPropertyCard from '@/components/SharedPropertyCard';
 import MessageMedia, { AttachmentState } from '@/components/MessageMedia';
 import { parsePropertyShareMessage, propertyMessagePreview } from '@/lib/propertyShare';
+import { parseWorkerShareMessage, workerMessagePreview } from '@/lib/workerShare';
 import type { Message } from '@/types';
 import type { MessageSyncState } from '@/lib/chatMessageReconciliation';
 type RoommateMessage = Message & MessageSyncState & {
@@ -16,8 +17,10 @@ export default function RoommateBubble({
   onTapReaction,
   onReply,
   onOpenProperty,
+  onOpenWorker,
 }: {
   onOpenProperty: (page: string, id: string) => void;
+  onOpenWorker?: (id: string) => void;
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
@@ -26,18 +29,20 @@ export default function RoommateBubble({
   onReply: () => void;
 }) {
   const shared = parsePropertyShareMessage(msg.content || "");
+  const sharedWorker = parseWorkerShareMessage(msg.content || "");
   const reactions = Object.values(msg.reactions || {}).reduce<
     Record<string, number>
   >((all, emoji) => ({ ...all, [emoji]: (all[emoji] || 0) + 1 }), {});
   return (
     <MessagePress
+      messageId={msg.id}
       onOpen={onOpenActions}
       onTap={onTapReaction}
       onReply={onReply}
       className={`group flex items-center gap-1.5 ${mine ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${shared ? `border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] ${mine ? "rounded-br-md" : "rounded-bl-md"}` : mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
+        className={`relative max-w-[86%] cursor-pointer rounded-[20px] px-3.5 py-2.5 sm:max-w-[70%] ${shared||sharedWorker ? `border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] ${mine ? "rounded-br-md" : "rounded-bl-md"}` : mine ? "rounded-br-md bg-violet-500" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
       >
         {quoted && (
           <div
@@ -47,7 +52,7 @@ export default function RoommateBubble({
               {quoted.sender_id === msg.sender_id ? "Earlier message" : "Reply"}
             </p>
             <p className="mt-0.5 line-clamp-2 text-sm opacity-90">
-              {propertyMessagePreview(quoted.content || "") ||
+              {workerMessagePreview(quoted.content || "") !== quoted.content ? workerMessagePreview(quoted.content || "") : propertyMessagePreview(quoted.content || "") ||
                 ((quoted.attachments || []).length ? "Attachment" : "Message")}
             </p>
           </div>
@@ -55,7 +60,13 @@ export default function RoommateBubble({
         {msg.media_loading && <AttachmentState />}
         {msg.media_error && <AttachmentState error />}
         <MessageMedia items={(msg.attachments || []).map((url, index) => ({ url, type: msg.attachment_types?.[index] || "" }))} />
-        {shared ? <>
+        {sharedWorker ? <>
+          {sharedWorker.text && <p className="mb-2 whitespace-pre-wrap break-words text-sm leading-6">{sharedWorker.text}</p>}
+          <button type="button" data-message-swipe-surface="true" onClick={event => { event.stopPropagation(); onOpenWorker?.(sharedWorker.worker.id); }} className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-left" aria-label="Open recommended Worker profile">
+            <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/15 text-lg font-semibold text-[var(--wh-accent-text)]">W</span>
+            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[var(--wh-accent-text)]">Worker recommendation</span><span className="mt-1 block text-sm font-semibold">View Worker profile</span></span>
+          </button>
+        </> : shared ? <>
           {shared.text && <p className="mb-2 whitespace-pre-wrap break-words text-sm leading-6">{shared.text}</p>}
           <SharedPropertyCard property={shared.property} onOpen={onOpenProperty} />
         </> : msg.content && <p className="whitespace-pre-wrap break-words text-sm leading-6">{msg.content}</p>}

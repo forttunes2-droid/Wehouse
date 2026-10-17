@@ -2,6 +2,33 @@
 (() => {
 // Run small, trusted startup repairs from an independent same-origin script so the deployed
 // Content Security Policy does not need to allow inline scripts.
+function applyStartupTheme() {
+    let choice = 'system';
+    try {
+        const saved = localStorage.getItem('wehouse:appearance');
+        if (saved === 'light' || saved === 'dark') choice = saved;
+    } catch (_) { }
+    const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false;
+    const light = choice === 'light' || (choice === 'system' && !systemDark);
+    document.documentElement.dataset.whTheme = light ? 'light' : 'dark';
+    document.documentElement.classList.toggle('dark', !light);
+    document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+    const color = light ? '#F7F8FB' : '#090B10';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+    document.querySelector('meta[name="background-color"]')?.setAttribute('content', color);
+}
+applyStartupTheme();
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', () => {
+    try {
+        const choice = localStorage.getItem('wehouse:appearance');
+        if (choice === 'light' || choice === 'dark') return;
+    } catch (_) { }
+    applyStartupTheme();
+});
+window.addEventListener('storage', (event) => {
+    if (event.key === 'wehouse:appearance') applyStartupTheme();
+});
+
 function renderStartupFailure(reason) {
     if (document.documentElement.dataset.whReactMounted === "true")
         return;
@@ -17,7 +44,7 @@ function renderStartupFailure(reason) {
     root.replaceChildren();
     const shell = document.createElement("main");
     shell.style.cssText =
-        "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#0E0C12;color:#F6F2FC;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+        "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:var(--wh-startup-bg);color:var(--wh-startup-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
     const card = document.createElement("section");
     card.style.cssText =
         "width:min(100%,380px);text-align:center";

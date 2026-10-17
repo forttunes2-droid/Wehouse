@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { withTimeout } from "@/lib/withTimeout";
+import { buildNavigationHash, identityEntryRoute } from "@/lib/navigationRoute";
 import {
   supabase,
   getProfileByAuthId,
@@ -128,6 +129,11 @@ async function wipeOnLogout() {
     keys.forEach((k) => localStorage.removeItem(k));
     sessionStorage.clear();
   } catch {}
+  // Property draft photos/videos live in IndexedDB; leaving them would expose
+  // one user's drafts to the next person on a shared device.
+  try {
+    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("wehouse-property-drafts");
+  } catch {}
 }
 function publicRole(value: unknown): PublicRole | undefined {
   return value === "user" || value === "worker" || value === "property_partner"
@@ -194,10 +200,11 @@ function syncIdentityNavigation(p: Profile) {
     const previous = localStorage.getItem(key);
     localStorage.setItem(key, p.auth_id);
     if (previous === p.auth_id) return;
-    const page = roleRoot(p);
-    localStorage.setItem("wh_navpage", page);
-    window.history.replaceState({ page }, "", `#${page}`);
-    window.dispatchEvent(new PopStateEvent("popstate", { state: { page } }));
+    const route = identityEntryRoute(window.location.hash, roleRoot(p));
+    localStorage.setItem("wh_navpage", route.page);
+    const state = { page: route.page, route: route.params };
+    window.history.replaceState(state, "", buildNavigationHash(route.page, route.params));
+    window.dispatchEvent(new PopStateEvent("popstate", { state }));
   } catch {}
 }
 async function ensurePropertyPartnerRecord() {
@@ -420,7 +427,7 @@ export function useAuth() {
             clearGoogleVerification();
           const registration=await withTimeout(registerUserSession(profile.user_id,authId), 20000, "We could not confirm this device. Please try signing in again.");
           if (!isCurrentIdentity()) return;
-          if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
+          if(['password','passkey'].includes(sessionStorage.getItem('wh_login_method')||'')&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:profile.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;
@@ -638,7 +645,7 @@ export function useAuth() {
         }
         if (await allowEntry(p, maintenanceEnabled)) {
           const registration=await withTimeout(registerUserSession(p.user_id,authId), 20000, "We could not confirm this device. Please try again.");
-          if(sessionStorage.getItem('wh_login_method')==='password'&&registration.trustStatus==='pending'){
+          if(['password','passkey'].includes(sessionStorage.getItem('wh_login_method')||'')&&registration.trustStatus==='pending'){
             if(registration.sessionId)saveGoogleVerification({context:'new_device',email:p.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;

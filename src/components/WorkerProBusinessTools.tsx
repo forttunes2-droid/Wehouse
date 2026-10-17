@@ -1,3 +1,5 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import WorkerProJobCosts from '@/components/WorkerProJobCosts';
@@ -5,6 +7,7 @@ import { downloadCalendar } from '@/lib/proCalendar';
 import WeHouseChoice from '@/components/WeHouseChoice';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import { formatMoney } from "@/lib/regional";
 
 type Job = { id: string; booking_code: string | null; service_type: string | null; scheduled_date: string; status: string; customer_name: string };
 type Customer = { customer_id: string; customer_name: string; completed_jobs: number; last_job_at: string; last_service: string | null; note: string };
@@ -14,8 +17,8 @@ type Receipt = { booking_id: string; booking_code: string | null; service_type: 
 type Book = { schedule: Job[]; customers: Customer[]; packages: Package[]; reminders: Reminder[]; receipts: Receipt[] };
 type Tab = 'schedule' | 'customers' | 'packages' | 'receipts' | 'costs';
 const empty = { schedule: [], customers: [], packages: [], reminders: [], receipts: [] } as Book;
-const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
-const label = (value: string) => new Date(value).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+const money = (value: number) => `${formatMoney(Number(value || 0))}`;
+const label = (value: string) => new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 const card = 'rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4';
 const field = 'min-h-11 w-full rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-3 py-2 text-sm text-[var(--wh-text)]';
 const action = 'min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40';
@@ -100,7 +103,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
       pdf.setDrawColor(225, 219, 232); pdf.line(17, 100, 193, 100);
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15);
       pdf.text('Completed job amount', 17, 116);
-      pdf.text(`NGN ${Number(row.total_ngn).toLocaleString('en-NG')}`, 193, 116, { align: 'right' });
+      pdf.text(`NGN ${Number(row.total_ngn).toLocaleString(undefined)}`, 193, 116, { align: 'right' });
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10);
       const note = row.note.trim();
       if (note) pdf.text(pdf.splitTextToSize(`Worker note: ${note}`, 175), 17, 136);
@@ -115,7 +118,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
       {tabs.map(([id,name]) => <button key={id} type="button" aria-pressed={tab===id} onClick={() => setTab(id)}
         className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${tab===id ? 'bg-violet-500 text-white' : 'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>{name}</button>)}
     </div>
-    {loading ? <p role="status" className="py-6 text-sm">Loading your business tools…</p> : error ?
+    {loading ? <WeHouseLoadingState compact label="Loading your business tools" /> : error ?
       <div role="alert" className={card}>Business tools could not load. <button type="button" onClick={() => void load()} className="ml-2 underline">Try again</button></div> : <>
       {tab==='costs' && <WorkerProJobCosts key={profile.user_id} />}
       {tab==='schedule' && <div className="space-y-4">
@@ -139,7 +142,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
           <h3 className="text-base font-semibold">{editingPackage ? 'Edit service package' : 'New service package'}</h3>
           <label className="block text-sm">Title<input required minLength={3} maxLength={80} value={title} onChange={event=>setTitle(event.target.value)} className={`${field} mt-1`}/></label>
           <label className="block text-sm">What is included<textarea required minLength={10} maxLength={500} rows={3} value={description} onChange={event=>setDescription(event.target.value)} className={`${field} mt-1`}/></label>
-          <label className="block text-sm">Starting price (₦)<input required type="number" min="0" max="10000000" step="0.01" value={price} onChange={event=>setPrice(event.target.value)} className={`${field} mt-1`}/></label>
+          <label className="block text-sm">Starting price ({currencySymbol()})<input required type="number" min="0" max="10000000" step="0.01" value={price} onChange={event=>setPrice(event.target.value)} className={`${field} mt-1`}/></label>
           <div className="flex gap-2"><button type="submit" disabled={busy || !title || !price} className={action}>Save package</button>{editingPackage && <button type="button" onClick={()=>{setEditingPackage(null);setTitle('');setDescription('');setPrice('');}} className="min-h-11 rounded-xl border px-4 text-sm">Cancel</button>}</div>
         </form>
         {book.packages.map(pkg=><article key={pkg.id} className={card}><div className="flex justify-between gap-2"><h3 className="font-semibold">{pkg.title}</h3><strong>{money(pkg.price_ngn)}</strong></div><p className="mt-2 whitespace-pre-wrap text-sm text-[var(--wh-text-secondary)]">{pkg.description}</p><p className="mt-2 text-xs">{pkg.active?'Visible on profile':'Hidden from profile'}</p><div className="mt-2 flex gap-4"><button type="button" onClick={()=>editPackage(pkg)} className="min-h-11 text-sm font-semibold text-violet-600 dark:text-violet-300">Edit</button><button type="button" disabled={busy} onClick={()=>void write('save_my_worker_pro_package',{p_id:pkg.id,p_title:pkg.title,p_description:pkg.description,p_price_ngn:pkg.price_ngn,p_active:!pkg.active},pkg.active?'Package hidden':'Package published')} className="min-h-11 text-sm font-semibold">{pkg.active?'Hide':'Publish'}</button></div></article>)}

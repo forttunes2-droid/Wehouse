@@ -1,4 +1,5 @@
 import { hasLiveSession } from "../_shared/liveSession.ts";
+import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
@@ -27,6 +28,7 @@ serve(async(req)=>{
   const db=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
   const token=authHeader.replace(/^Bearer\s+/i,'');const{data:{user},error:authError}=await db.auth.getUser(token);if(authError||!user?.email)return json({success:false,error:'Invalid or expired session'},401);
     if (!await hasLiveSession(db, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+  const limit=await consumeUserAction(db,user.id,'payment_init',20,300);if(!limit.allowed)return json({success:false,error:'Too many payment attempts. Please wait a moment and try again.',retry_after_seconds:limit.retryAfterSeconds},429);
   const{data:profile,error:profileError}=await db.from('profiles').select('user_id,role,deleted,suspended,banned').eq('auth_id',user.id).maybeSingle();
   if(profileError)return json({success:false,error:profileError.message},500);if(!profile||profile.deleted||profile.suspended||profile.banned)return json({success:false,error:'Account is not active'},403);
   const body=await req.json();const reference=String(body?.reference||'').trim();if(!/^[A-Za-z0-9.=_-]{6,120}$/.test(reference))return json({success:false,error:'Invalid payment reference'},400);

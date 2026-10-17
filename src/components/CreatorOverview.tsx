@@ -8,7 +8,7 @@ type Summary = {
 };
 type Destination = 'people' | 'team' | 'properties' | 'workers' | 'finance' | 'analytics';
 
-const number = (value: unknown) => Number(value || 0).toLocaleString('en-NG');
+const number = (value: unknown) => Number(value || 0).toLocaleString(undefined);
 const countLabel = (value: unknown, singular: string, plural = `${singular}s`) => `${number(value)} ${Number(value || 0) === 1 ? singular : plural}`;
 
 export default function CreatorOverview({ userId, onOpen }: { userId: string; onOpen: (destination: Destination, id?: string) => void }) {
@@ -70,7 +70,7 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-4"><div><p className="wh-section-kicker">OPERATIONS</p><h3 className="mt-1 text-lg font-semibold">Work queues</h3><p className="mt-1 text-xs text-[var(--wh-text-muted)]">Jump directly into the operational workspace.</p></div><span className="text-xs text-[var(--wh-text-muted)]">3 work areas</span></div>
         <div className="divide-y divide-[var(--wh-border-subtle)]">
           {work.map(item => <button key={item.title} type="button" onClick={() => onOpen(item.destination)} className="wh-work-row">
-            <span className={`wh-work-icon wh-work-${item.accent}`} aria-hidden="true">{item.accent === 'violet' ? '✓' : item.accent === 'blue' ? '⌂' : '₦'}</span>
+            <span className={`wh-work-icon wh-work-${item.accent}`} aria-hidden="true">{item.accent === 'violet' ? '✓' : item.accent === 'blue' ? '⌂' : '¤'}</span>
             <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm font-semibold">{item.title}</strong><span className={item.count ? 'wh-status-pill wh-status-attention' : 'wh-status-pill'}>{item.tag}</span></span><span className="mt-1.5 block text-xs leading-5 text-[var(--wh-text-muted)]">{item.description}</span></span>
             <span className="wh-work-count">{number(item.count)}<span aria-hidden="true">→</span></span>
           </button>)}

@@ -1,3 +1,5 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import WorkerProBusinessTools from "@/components/WorkerProBusinessTools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +12,7 @@ import type {
   WorkerWorkDocument,
   WorkerWorkInsights,
 } from "@/types";
+import { formatMoney } from "@/lib/regional";
 
 type JobOption = {
   booking_id: string;
@@ -98,7 +101,7 @@ function WorkInsights() {
     {loading ? <Empty text="Loading real work records…" /> : !data ? <Empty text="Insights are unavailable right now." /> : <>
       <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Metric label="Completed jobs" value={String(data.completed_jobs)} detail={data.definitions.completed_jobs} />
-        <Metric label="Released earnings" value={`₦${Number(data.released_earnings_ngn).toLocaleString("en-NG")}`} detail={data.definitions.released_earnings_ngn} />
+        <Metric label="Released earnings" value={`${formatMoney(Number(data.released_earnings_ngn))}`} detail={data.definitions.released_earnings_ngn} />
         <Metric label="Active jobs" value={String(data.active_jobs)} detail={data.definitions.active_jobs} />
         <Metric label="Verified rating" value={data.review_count ? `${Number(data.rating).toFixed(1)} · ${data.review_count}` : "No reviews yet"} detail={data.definitions.rating} />
         <Metric label="Repeat customers" value={String(data.repeat_customers)} detail={data.definitions.repeat_customers} />
@@ -234,24 +237,24 @@ function WorkDocuments({ profile, canUsePaidTools }: { profile: Profile; canUseP
           <label className="block text-sm">Work or material<input required aria-label={`Line ${index + 1} description`} minLength={2} maxLength={160} value={line.description} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, description: event.target.value } : row))} className={`${input} mt-2`} /></label>
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] items-end gap-2">
             <label className="min-w-0 text-sm">Quantity<input required type="number" min="0.01" max="10000" step="0.01" aria-label={`Line ${index + 1} quantity`} inputMode="decimal" value={line.quantity} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, quantity: event.target.value } : row))} className={`${input} mt-2`} /></label>
-            <label className="min-w-0 text-sm">Unit price (₦)<input required type="number" min="0" max="10000000" step="0.01" aria-label={`Line ${index + 1} unit price`} inputMode="decimal" value={line.unitPrice} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, unitPrice: event.target.value } : row))} className={`${input} mt-2`} /></label>
+            <label className="min-w-0 text-sm">Unit price ({currencySymbol()})<input required type="number" min="0" max="10000000" step="0.01" aria-label={`Line ${index + 1} unit price`} inputMode="decimal" value={line.unitPrice} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, unitPrice: event.target.value } : row))} className={`${input} mt-2`} /></label>
             <button type="button" aria-label={`Remove line ${index + 1}`} disabled={lines.length === 1} onClick={() => setLines(rows => rows.filter((_, i) => i !== index))} className={`${button} w-11 px-0`}>×</button>
           </div>
         </fieldset>)}</div>
-        <div className="flex flex-wrap items-center justify-between gap-3"><button type="button" disabled={lines.length >= 20} onClick={() => setLines(rows => [...rows, { ...EMPTY_LINE }])} className={button}>Add item</button><p className="text-base font-semibold">Total ₦{total.toLocaleString("en-NG")}</p></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><button type="button" disabled={lines.length >= 20} onClick={() => setLines(rows => [...rows, { ...EMPTY_LINE }])} className={button}>Add item</button><p className="text-base font-semibold">Total {formatMoney(total)}</p></div>
         <label className="block text-sm">Note <span className="text-foreground/60">(optional)</span><textarea value={note} maxLength={1200} onChange={event => setNote(event.target.value)} rows={3} className={`${input} mt-2 py-3`} /></label>
         <button type="submit" disabled={Boolean(busyId) || jobsLoading || Boolean(jobError) || !bookingId} className={`${button} w-full bg-primary text-primary-foreground`}>{busyId === "create" ? "Saving…" : "Save draft"}</button>
       </fieldset>
     </form>}
-    {loading ? <p role="status" className="py-6 text-sm text-foreground/70">Loading your records…</p> : loadError ? <div role="alert" className="py-6 text-sm"><p>{loadError}</p><button type="button" onClick={() => void load()} className={`${button} mt-3`}>Retry records</button></div> : documents.length === 0 ? <Empty text="No quotes or invoices yet." /> : <div className="mt-4 divide-y divide-border border-y border-border">{documents.map(document => <DocumentRow key={document.id} document={document} workerName={profile.full_name || profile.username || 'Worker'} canUsePaidTools={canUsePaidTools} busy={Boolean(busyId)} onSend={() => void act(document, "send")} onPaid={() => void act(document, "paid")} />)}</div>}
+    {loading ? <WeHouseLoadingState compact label="Loading your records" /> : loadError ? <div role="alert" className="py-6 text-sm"><p>{loadError}</p><button type="button" onClick={() => void load()} className={`${button} mt-3`}>Retry records</button></div> : documents.length === 0 ? <Empty text="No quotes or invoices yet." /> : <div className="mt-4 divide-y divide-border border-y border-border">{documents.map(document => <DocumentRow key={document.id} document={document} workerName={profile.full_name || profile.username || 'Worker'} canUsePaidTools={canUsePaidTools} busy={Boolean(busyId)} onSend={() => void act(document, "send")} onPaid={() => void act(document, "paid")} />)}</div>}
   </section>;
 }
 
 function DocumentRow({ document, workerName, canUsePaidTools, busy, onSend, onPaid }: { document: WorkerWorkDocument; workerName: string; canUsePaidTools: boolean; busy: boolean; onSend: () => void; onPaid: () => void }) {
   return <article className="py-4">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="break-words text-xs text-foreground/60">{document.document_type === "quote" ? "Quote" : "Invoice"} · {document.document_number}</p><h4 className="mt-1 break-words text-base font-medium">{document.title}</h4><p className="mt-1 text-sm text-foreground/65">#{document.booking_code || "—"} · {document.document_status.replaceAll("_", " ")}</p></div><p className="shrink-0 text-base font-semibold">₦{Number(document.total).toLocaleString("en-NG")}</p></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="break-words text-xs text-foreground/60">{document.document_type === "quote" ? "Quote" : "Invoice"} · {document.document_number}</p><h4 className="mt-1 break-words text-base font-medium">{document.title}</h4><p className="mt-1 text-sm text-foreground/65">#{document.booking_code || "—"} · {document.document_status.replaceAll("_", " ")}</p></div><p className="shrink-0 text-base font-semibold">{formatMoney(Number(document.total))}</p></div>
     {document.document_type === "invoice" && <p className="mt-2 text-sm leading-6 text-foreground/75">{document.payment_label}</p>}
-    <details className="mt-2"><summary className="w-fit cursor-pointer py-3 text-sm text-primary">View details</summary><dl className="divide-y divide-border">{document.items.map((item, i) => <div key={i} className="flex flex-wrap justify-between gap-3 py-3 text-sm"><dt className="min-w-0 flex-1 break-words">{item.description}<span className="mt-1 block text-foreground/65">{item.quantity} × ₦{Number(item.unit_price).toLocaleString("en-NG")}</span></dt><dd>₦{Number(item.line_total).toLocaleString("en-NG")}</dd></div>)}</dl>{document.note && <p className="whitespace-pre-wrap break-words py-3 text-sm leading-6 text-foreground/75">{document.note}</p>}</details>
+    <details className="mt-2"><summary className="w-fit cursor-pointer py-3 text-sm text-primary">View details</summary><dl className="divide-y divide-border">{document.items.map((item, i) => <div key={i} className="flex flex-wrap justify-between gap-3 py-3 text-sm"><dt className="min-w-0 flex-1 break-words">{item.description}<span className="mt-1 block text-foreground/65">{item.quantity} × {formatMoney(Number(item.unit_price))}</span></dt><dd>{formatMoney(Number(item.line_total))}</dd></div>)}</dl>{document.note && <p className="whitespace-pre-wrap break-words py-3 text-sm leading-6 text-foreground/75">{document.note}</p>}</details>
     <div className="mt-2 flex flex-wrap gap-2">
       <button type="button" onClick={() => void downloadDocument(document, workerName)} className="min-h-11 rounded-xl border border-border px-3 text-sm">Download PDF</button>
       {canUsePaidTools && document.document_status === "draft" && <button type="button" disabled={busy} onClick={onSend} className="min-h-11 rounded-xl bg-primary px-3 text-sm text-primary-foreground disabled:opacity-40">Send to customer</button>}
@@ -265,7 +268,7 @@ async function downloadDocument(document: WorkerWorkDocument, workerName: string
     const { jsPDF } = await import('jspdf');
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
     const label = document.document_type === 'quote' ? 'QUOTE' : 'INVOICE';
-    const money = (value: number) => `NGN ${Number(value || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+    const money = (value: number) => `NGN ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     pdf.setFillColor(27, 22, 38); pdf.rect(0, 0, 210, 42, 'F');
     pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(13);
     pdf.text('WEHOUSE  /  WORKS', 17, 19);
@@ -273,7 +276,7 @@ async function downloadDocument(document: WorkerWorkDocument, workerName: string
     pdf.setTextColor(38, 32, 45); pdf.setFontSize(11); pdf.text(workerName, 17, 57);
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(107, 99, 113);
     pdf.text(`${document.document_number}  |  Job #${document.booking_code || '—'}`, 17, 65);
-    pdf.text(new Date(document.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }), 193, 57, { align: 'right' });
+    pdf.text(new Date(document.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }), 193, 57, { align: 'right' });
     pdf.setDrawColor(225, 219, 232); pdf.line(17, 72, 193, 72);
     pdf.setTextColor(38, 32, 45); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15);
     const title = pdf.splitTextToSize(document.title, 176) as string[]; pdf.text(title, 17, 84);

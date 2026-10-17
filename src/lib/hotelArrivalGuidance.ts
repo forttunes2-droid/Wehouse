@@ -16,13 +16,13 @@ export function hotelArrivalGuidance(
   checkIn: string | null | undefined,
   checkOut: string | null | undefined,
   checkInTime: string,
-  timeZone = 'Africa/Lagos',
+  timeZone: string,
   now = new Date(),
 ): string | null {
   if (!checkIn || !checkOut) return null;
   let today: string;
   try { today = localDate(now, timeZone); }
-  catch { today = localDate(now, 'Africa/Lagos'); }
+  catch { today = localDate(now, 'UTC'); }
   const until = dayNumber(checkIn.slice(0, 10)) - dayNumber(today);
   const checkout = dayNumber(checkOut.slice(0, 10)) - dayNumber(today);
   if (!Number.isFinite(until) || !Number.isFinite(checkout)) return null;

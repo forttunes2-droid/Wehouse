@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import AccountShell, { AccountRow, AccountSection } from "@/components/AccountShell";
@@ -214,7 +215,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
         <AccountRow title="Account security" onClick={() => startSecurity("", "account_compromise")} disabled={!ready} />
         <AccountRow title="Report a safety concern" onClick={() => {resetTopic("security");setSecurityReason("safety_threat");}} />
       </AccountSection>
-      {loading && <p role="status" className="text-sm text-[var(--wh-text-secondary)]">Loading your help options…</p>}
+      {loading && <WeHouseLoadingState compact label="Loading your help options" />}
     </div> : <>
       {loading || !ready ? <div role="status" className="py-5 text-sm text-[var(--wh-text-secondary)]">Loading your help options…</div> : <>
         {topic === "property" && <HelpRecordPicker key={`${scope}:property`} title="Which property or stay?" targets={propertyTargets} onChoose={target => startProperty(helpTargetKey(target))} />}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { toast } from "sonner";
 import WorkerIdentityCheck from "@/components/WorkerIdentityCheck";
 import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklist";
@@ -460,9 +461,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 function Spinner() {
-  return (
-    <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-  );
+  return <WeHouseLoadingState compact />;
 }
 function Card({
   eyebrow,

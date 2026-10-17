@@ -1,3 +1,6 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
+import AdminReports from "@/components/AdminReports";
 import { internalActivityDestination } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import CreatorOverview from "@/components/CreatorOverview";
@@ -27,6 +30,12 @@ import CreatorAnalyticsV2 from "./CreatorAnalyticsV2";
 import CreatorSettingsTabV2 from "./CreatorSettingsTabV2";
 import CreatorLegalDocuments from "@/components/CreatorLegalDocuments";
 import CreatorBookingMoneyRules from "@/components/CreatorBookingMoneyRules";
+import CreatorFixedFees from "@/components/CreatorFixedFees";
+import CreatorWithdrawalControls from "@/components/CreatorWithdrawalControls";
+import CreatorWorkerRefundRules from "@/components/CreatorWorkerRefundRules";
+import AdminRefundReviews from "@/components/AdminRefundReviews";
+import CreatorWeHouseDiscounts from "@/components/CreatorWeHouseDiscounts";
+import CreatorHotelDiscounts from "@/components/CreatorHotelDiscounts";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
 import Notifications from "./Notifications";
 import { supabase } from "@/lib/supabase";
@@ -34,6 +43,7 @@ import { useCreatorInboxSummary } from "@/hooks/useCreatorInboxSummary";
 import type { Profile } from "@/types";
 import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
+import { formatMoney } from "@/lib/regional";
 
 type Tab = "overview" | "operations" | "inbox";
 type Operation =
@@ -45,6 +55,8 @@ type Operation =
   | "finance"
   | "analytics"
   | "audit"
+  | "reports"
+  | "refunds"
   | "platform";
 type PersonRole = "all" | "property_partner";
 type Props = {
@@ -111,6 +123,18 @@ const OPS: Array<{
     id: "analytics",
     label: "Analytics",
     note: "Platform trends and lifecycle movement.",
+    group: "Platform",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    note: "User reports from chats and profiles, across all regions.",
+    group: "Platform",
+  },
+  {
+    id: "refunds",
+    label: "Service Worker refunds",
+    note: "Review protected Service Worker refunds and decisions.",
     group: "Platform",
   },
   {
@@ -321,6 +345,8 @@ function Operations({
     <div className="space-y-5">
       {active === "people" && <People userId={profile.user_id} initialRole={target?.operation === 'people' && target.id === 'property_partner' ? 'property_partner' : 'all'} onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
+      {active === "reports" && <AdminReports />}
+      {active === "refunds" && <AdminRefundReviews />}
       {active === "properties" && (
         <div className="space-y-5">
           <AccountIdentityReviewQueue accountRole="property_partner" />
@@ -697,13 +723,13 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
                         row.amount ||
                         row.reservation_fee_amount) != null && (
                         <p className="mb-1 text-xs font-bold">
-                          ₦
+                          {currencySymbol()}
                           {Number(
                             row.total_price ||
                               row.amount ||
                               row.reservation_fee_amount ||
                               0,
-                          ).toLocaleString("en-NG")}
+                          ).toLocaleString(undefined)}
                         </p>
                       )}
                       <span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px] capitalize text-[var(--wh-text-secondary)]">
@@ -754,7 +780,7 @@ function BookingRecord({
         ? new Date(row.created_at).toLocaleString()
         : "Unavailable",
     ],
-    ["Amount", amount ? `₦${amount.toLocaleString("en-NG")}` : "Not recorded"],
+    ["Amount", amount ? `${formatMoney(amount)}` : "Not recorded"],
   ];
   return (
     <section className="space-y-5">
@@ -970,7 +996,16 @@ function PlatformControl({ profile, section, setSection }: { profile: Profile; s
           description="Platform-wide availability and account creation controls."
         />
       )}
-      {section === "booking_money" && <CreatorBookingMoneyRules />}
+      {section === "booking_money" && (
+        <>
+          <CreatorBookingMoneyRules />
+          <CreatorFixedFees />
+          <CreatorWorkerRefundRules />
+          <CreatorWithdrawalControls />
+          <CreatorWeHouseDiscounts />
+          <CreatorHotelDiscounts />
+        </>
+      )}
       {section === "workers" && (
         <div className="space-y-5">
           <WorkerPublicationControls userId={profile.user_id} />
@@ -1057,7 +1092,7 @@ function Top({
       <div className="shrink-0 text-right">
         {amount != null && (
           <p className="mb-1 text-sm font-bold">
-            ₦{Number(amount || 0).toLocaleString("en-NG")}
+            {formatMoney(Number(amount || 0))}
           </p>
         )}
         <span className="rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px] capitalize text-[var(--wh-text-secondary)]">
@@ -1068,11 +1103,7 @@ function Top({
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-44 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function Empty({ text }: { text: string }) {
   return (

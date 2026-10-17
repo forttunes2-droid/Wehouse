@@ -4,9 +4,11 @@ import type { AdminAuditLog, Listing, ListingReport, Profile, RoleChangeHistory,
 type ErrorLike = { message: string };
 type UserCountRow = { total?: number | string | null; today?: number | string | null };
 
-export async function getAllUsers() {
+export async function getAllUsers(offset = 0, pageSize?: number) {
   // Server RPC is the authority. Never fall back to an unrestricted profile query.
-  const { data, error } = await supabase.rpc('admin_get_all_users');
+  let request = supabase.rpc('admin_get_all_users');
+  if (pageSize && Number.isInteger(pageSize) && pageSize > 0) request = request.range(Math.max(0, offset), Math.max(0, offset) + pageSize - 1) as typeof request;
+  const { data, error } = await request;
   return { users: error ? null : (data as Profile[] | null), error };
 }
 
@@ -185,14 +187,15 @@ export async function getReports() {
   return { reports: data as ListingReport[] | null, error };
 }
 
-export async function createReport(reporterId: string, reason: string, listingId?: string, reportedUserId?: string) {
+export async function createReport(reporterId: string, reason: string, listingId?: string) {
+  // listing_reports intentionally stores the reported record, not a profile
+  // identifier. Keep inserts aligned with the live canonical schema.
   const { data, error } = await supabase.from('listing_reports').insert({
     reporter_id: reporterId,
     listing_id: listingId || null,
-    reported_user_id: reportedUserId || null,
     reason,
     status: 'active',
-  }).select();
+  }).select('id,listing_id,reason,status,created_at');
   return { report: data?.[0] || null, error };
 }
 

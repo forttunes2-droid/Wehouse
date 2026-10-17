@@ -3,6 +3,7 @@ import { UserRound } from "lucide-react";
 import PublicProfileSurface, { PublicProfileAction } from "@/components/PublicProfileSurface";
 
 export type RoommatePublicProfileData = {
+  userId?: string | null;
   name: string;
   username?: string | null;
   avatar?: string | null;
@@ -47,6 +48,7 @@ export default function RoommatePublicProfile({
       presence={presence}
       about={conversationMode ? undefined : person.bio}
       onClose={onClose}
+      reportUserId={person.userId}
       ariaLabel={`${person.name} ${conversationMode ? "conversation info" : "profile"}`}
       actions={conversationMode ? <>{actions}<PublicProfileAction label="Profile" onClick={onViewProfile || (() => setFullProfile(true))}><UserRound size={18} /></PublicProfileAction></> : actions}
 

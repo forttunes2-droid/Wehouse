@@ -3,7 +3,8 @@ import { checkUsernameAvailable, removeAvatar, updateProfile, validateUsername }
 import { getRegisteredInstitutions, type RegisteredInstitution } from '@/lib/supabase/institutions';
 import SearchableSelect from '@/components/SearchableSelect';
 import AccountShell from '@/components/AccountShell';
-import { NIGERIA_STATES } from '@/data/nigeria-locations';
+import { regionDataset } from '@/data/locations';
+import { getRegionalDefaults } from '@/lib/regional';
 import { toast } from 'sonner';
 import type { Profile } from '@/types';
 import ProfilePhotoEditor from '@/components/ProfilePhotoEditor';
@@ -37,8 +38,9 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [institutionsLoading, setInstitutionsLoading] = useState(false);
   const [institutionsError, setInstitutionsError] = useState<string | null>(null);
   const isUser = profile.role === 'user';
-  const states = useMemo(() => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })), []);
-  const lgas = useMemo(() => (NIGERIA_STATES.find((item) => item.state === state)?.cities || []).map((name) => ({ value: name, label: name })), [state]);
+  const regionRows = regionDataset(getRegionalDefaults().countryCode);
+  const states = useMemo(() => (regionRows || []).map((item) => ({ value: item.state, label: item.state })), [regionRows]);
+  const lgas = useMemo(() => (regionRows?.find((item) => item.state === state)?.cities || []).map((name) => ({ value: name, label: name })), [regionRows, state]);
   const institutionOptions = useMemo(() => {
     const typeLabel: Record<RegisteredInstitution['institution_type'], string> = { university: 'University', polytechnic: 'Polytechnic', college: 'College' };
     const ordered = [...institutions].sort((a, b) => {
@@ -121,7 +123,6 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     if (!hasChanges) return;
     if (usernameState === 'taken' || usernameState === 'invalid') return toast.error('Fix the username before saving');
     if (isUser && !gender) return toast.error('Gender is required for roommate matching');
-    if (isUser && (!state || !lga)) return toast.error('State and Local Government are required');
     setSaving(true);
     const updates: any = { full_name: fullName.trim() || null, username: username.trim().toLowerCase(), phone: phone.trim() || null };
     updates.state=state;updates.local_government=lga;updates.city=lga;updates.precise_latitude=preciseLocation?.latitude??null;updates.precise_longitude=preciseLocation?.longitude??null;updates.precise_address=preciseLocation?.address.trim()||null;updates.precise_location_accuracy_m=preciseLocation?.accuracy??null;
@@ -130,9 +131,9 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
       updates.gender = gender;
       updates.is_student = isStudent;
       updates.school = isStudent ? (school.trim() || null) : null;
-      updates.state = state;
-      updates.local_government = lga;
-      updates.city = lga;
+      updates.state = state.trim() || null;
+      updates.local_government = lga.trim() || null;
+      updates.city = lga.trim() || null;
       updates.profile_complete = true;
     }
     try {
@@ -152,7 +153,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     setPreciseLocation(next);
     if (!next?.state) { setLocationNotice(''); return; }
     const clean = (value:string) => value.toLowerCase().replace(/\b(state|local government area|lga|municipality)\b/g, '').replace(/[^a-z]/g, '');
-    const detectedState = NIGERIA_STATES.find((item) => clean(item.state) === clean(next.state || ''));
+    const detectedState = regionRows?.find((item) => clean(item.state) === clean(next.state || ''));
     if (!detectedState) {
       setLocationNotice('Street address found. Check that the selected State and LGA match this address.');
       return;
@@ -210,11 +211,14 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </>}
           <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Choose your State and Local Government, then add your street address.</p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SearchableSelect label="State" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street address cleared because the region changed. Type the correct address for the new region.':''); }} options={states} placeholder="Choose State" searchPlaceholder="Search State, e.g. Nasarawa" />
-              <SearchableSelect label="Local Government" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street address cleared because the LGA changed. Type the correct address for the new LGA.':'')}} options={lgas} placeholder={state ? 'Choose LGA' : 'Choose State first'} searchPlaceholder="Search Local Government" disabled={!state} />
-            </div>
+            <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Choose your state or region and city or area, then add your street address.</p>
+            {regionRows ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <SearchableSelect label="State / region" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street address cleared because the region changed. Type the correct address for the new region.':''); }} options={states} placeholder="Choose state or region" searchPlaceholder="Search state or region" />
+              <SearchableSelect label="City / area" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street address cleared because the area changed. Type the correct address for the new area.':'')}} options={lgas} placeholder={state ? 'Choose city or area' : 'Choose state or region first'} searchPlaceholder="Search city or area" disabled={!state} />
+            </div> : <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="State / region" value={state} onChange={setState} />
+              <Field label="City / area" value={lga} onChange={setLga} />
+            </div>}
             <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={resolveLocation}/>{locationNotice&&<p className="mt-2 rounded-xl bg-violet-500/[.07] px-3 py-2 text-[9px] leading-5 text-violet-200" role="status">{locationNotice}</p>}</div>
           </section>
 

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { isAndroid, isIOS, isNative } from '@/lib/native';
 import { getNativeStorePlan, purchaseNativeStoreProduct, restoreNativeStoreSubscriptions, type NativeStorePlan } from '@/lib/nativePurchases';
 import type { Profile, WorkerProBillingPeriod, WorkerProEntitlement } from '@/types';
+import { formatMoney } from "@/lib/regional";
 
 type Props = {
   pro: WorkerProEntitlement | null;
@@ -149,7 +150,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${pro.active ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-700 dark:text-emerald-200' : checkoutAvailable ? 'border-violet-400/25 bg-violet-400/10 text-violet-700 dark:text-violet-100' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Sales closed'}</span>
         </div>
         <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">Business tools for Service Workers: track completed jobs, make quotes and issue invoices. Membership does not change professional review or customer ranking.</p>
-        {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[var(--wh-text-secondary)]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
+        {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `${formatMoney(Number(selectedPlan.price_ngn))}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[var(--wh-text-secondary)]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
       </section>
 
       <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
@@ -175,9 +176,9 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
                   className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedBillingPeriod === plan.billing_period ? 'border-amber-300/35 bg-amber-300/10' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]'}`}
                 >
                   <span className="block text-sm font-semibold">{plan.label}</span>
-                  <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `₦${Number(plan.price_ngn).toLocaleString()}`}</span>
+                  <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `${formatMoney(Number(plan.price_ngn))}`}</span>
                   {!native && plan.billing_period === 'yearly' && plan.saving_ngn > 0 && (
-                    <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
+                    <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-200">Save {formatMoney(Number(plan.saving_ngn))} ({Number(plan.discount_percent).toLocaleString()}%)</span>
                   )}
                 </button>
               ))}

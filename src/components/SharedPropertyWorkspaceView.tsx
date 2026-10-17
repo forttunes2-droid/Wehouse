@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import type { SharedProperty } from '@/lib/propertyShare';
@@ -20,7 +21,7 @@ export default function SharedPropertyWorkspaceView({ property, onClose, onPerso
         Open in Personal to save, message or book
       </button>
     </div>
-    <Suspense fallback={<p role="status" className="p-6 text-sm text-[var(--wh-text-secondary)]">Opening property…</p>}>
+    <Suspense fallback={<WeHouseLoadingState compact label="Opening property" />}>
       {property.kind === 'listing'
         ? <ListingDetail key={property.id} listingId={property.id} profile={null} isSaved={false}
             onNavigate={back} onToggleSave={onPersonal} onRequireAuth={onPersonal}

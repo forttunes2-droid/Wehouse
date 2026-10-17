@@ -6,7 +6,7 @@ import WorkerPublicationControls from '../../src/components/WorkerPublicationCon
 import ShortLetSplitCosts from '../../src/components/ShortLetSplitCosts';
 import SharedHousingDetails from '../../src/components/SharedHousingDetails';
 import {roommatePreferenceForm,roommatePreferenceError} from '../../src/lib/roommatePreferences';
-import {nigeriaCalendarDate} from '../../src/lib/shortLetQuote';
+import {platformCalendarDate} from '../../src/lib/shortLetQuote';
 import './stabilisationClientFixture';
 import '../../src/index.css';
 const w=window as any;
@@ -15,7 +15,7 @@ function Fixture(){
  const [form,setForm]=useState(()=>roommatePreferenceForm(null,'Example Polytechnic'));
  const [error,setError]=useState(''),[saved,setSaved]=useState(false),[open,setOpen]=useState(true),[group,setGroup]=useState('');
  w.__getForm=()=>form;
- const save=()=>{const validation=roommatePreferenceError(form,nigeriaCalendarDate());setError(validation||'');if(!validation){w.__savedForm=form;setSaved(true);}};
+ const save=()=>{const validation=roommatePreferenceError(form,platformCalendarDate());setError(validation||'');if(!validation){w.__savedForm=form;setSaved(true);}};
  return <div className="mx-auto min-h-screen max-w-2xl bg-[#090B10] px-4 py-5 text-white sm:px-6"><h1 className="mb-5 text-xl font-semibold">{mode.includes('publication')?'Creator · Worker Operations':mode==='preferences'?'Find someone to live with':'WeHouse'}</h1>
  {error&&<p role="alert" className="text-sm text-amber-200">{error}</p>}
  {mode==='preferences'&&<>{saved&&<p role="status">Your moving preferences are saved.</p>}<RoommatePreferencesPanel form={form} setForm={setForm} busy={false} onSave={save}/></>}

@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { getRegionalDefaults } from '../regional';
 
 export type DeviceRegistration = {
   sessionId: string | null;
@@ -30,7 +31,7 @@ export function approximateDeviceLocation(){
   try{
     const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
     const locale=typeof navigator!=='undefined'?navigator.language:'';
-    if(timezone==='Africa/Lagos'||/-NG$/i.test(locale))return 'Nigeria';
+    if(timezone===getRegionalDefaults().timeZone)return getRegionalDefaults().countryName;
     const region=locale.match(/-([A-Z]{2})$/i)?.[1]?.toUpperCase();
     if(region){
       const names=new Intl.DisplayNames([locale||'en'],{type:'region'});

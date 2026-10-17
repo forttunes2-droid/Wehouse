@@ -1,4 +1,5 @@
 import { hasLiveSession } from "../_shared/liveSession.ts";
+import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -83,6 +84,8 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user) return json({ success: false, error: "Invalid or expired session" }, 401);
     if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+    const limit = await consumeUserAction(admin, user.id, "payout_withdrawal", 10, 600);
+    if (!limit.allowed) return json({ success: false, error: "Too many withdrawal attempts. Please wait and try again.", retry_after_seconds: limit.retryAfterSeconds }, 429);
     const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("user_id,deleted,suspended,banned")

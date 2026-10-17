@@ -1,11 +1,12 @@
+import { getRegionalDefaults } from "@/lib/regional";
 import BackButton from "@/components/BackButton";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { displayDate, displayDateTime } from "@/lib/displayDate";
+import { displayDate, displayMoment } from "@/lib/displayDate";
 import { getPaymentReceipts, type PaymentReceipt as Receipt } from "@/lib/supabase/receipts";
 
 export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
-  const money = (value: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: r.currency || "NGN" }).format(value);
+  const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency || getRegionalDefaults().currencyCode }).format(value);
   return <article className="wehouse-receipt mx-auto max-w-md overflow-hidden rounded-2xl bg-white text-[#24212B] shadow-xl shadow-black/20">
     <div className="h-1 bg-violet-600" />
     <header className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
@@ -14,7 +15,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
     </header>
     <div className="px-5 pb-5 pt-6 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">{r.booking_type === "hotel" ? "Hotel receipt" : r.booking_type === "housing" ? "Apartment receipt" : r.booking_type === "service" ? "Service receipt" : "Payment receipt"}</p>
-      <p className="mt-2 text-xs text-[var(--wh-text-muted)]">{displayDateTime(r.paid_at, "Africa/Lagos") + " WAT"}</p>
+      <p className="mt-2 text-xs text-[var(--wh-text-muted)]">{displayMoment(r.paid_at)}</p>
       <div className="mt-5 rounded-2xl bg-[#F6F3FC] px-4 py-4">
         <p className="text-xs font-semibold text-[var(--wh-text-muted)]">Amount paid</p>
         <strong className="mt-1 block text-2xl tracking-tight">{money(r.amount)}</strong>
@@ -33,7 +34,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
         {r.nights && <ReceiptLine label="Stay" value={`${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`} />}
         {r.stay_amount != null && <ReceiptLine label="Stay price" value={money(r.stay_amount)} />}
         {Number(r.deposit_amount) > 0 && <ReceiptLine label="Refundable caution" value={money(Number(r.deposit_amount))} />}
-        {r.cancellation_snapshot && <ReceiptLine label="Booked cancellation terms" value={r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})` : 'Non-refundable for ordinary cancellation'} />}
+        {r.cancellation_snapshot && <ReceiptLine label="Booked cancellation terms" value={r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})` : 'Non-refundable for ordinary cancellation'} />}
         <ReceiptLine label="Payment provider" value="Paystack" />
       </dl>
       <div className="mt-6 border-t border-[#E8E5EC] pt-4"><p className="text-xs text-[var(--wh-text-muted)]">Payment reference</p><p className="mt-1 break-all font-mono text-xs font-semibold leading-5">{r.reference}</p></div>
@@ -143,9 +144,9 @@ export default function ReceiptAccess({
                   {receipt.description || receipt.merchant_name}
                 </span>
                 <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">
-                  {new Intl.NumberFormat("en-NG", {
+                  {new Intl.NumberFormat(undefined, {
                     style: "currency",
-                    currency: receipt.currency || "NGN",
+                    currency: receipt.currency || getRegionalDefaults().currencyCode,
                   }).format(receipt.amount)}
                   {" · "}
                   {displayDate(receipt.paid_at)}

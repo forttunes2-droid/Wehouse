@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
@@ -319,9 +320,5 @@ function Step({ n }: { n: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-32 place-items-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }

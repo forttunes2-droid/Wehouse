@@ -3,6 +3,7 @@ import { locationLabel } from "@/lib/locationPresentation";
 import type { Listing, ListingStatus } from "@/types";
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from "@/types";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
+import { formatMoney } from "@/lib/regional";
 
 interface ListingCardProps {
   listing: Listing;
@@ -35,10 +36,10 @@ export default function ListingCard({
   const price = listing.price || 0;
   const priceDisplay =
     price >= 1000000
-      ? `₦${(price / 1000000).toFixed(1)}M`
+      ? `${formatMoney((price / 1000000).toFixed(1))}M`
       : price >= 1000
-        ? `₦${(price / 1000).toFixed(0)}k`
-        : `₦${price}`;
+        ? `${formatMoney((price / 1000).toFixed(0))}k`
+        : `${formatMoney(price)}`;
   const priceUnit = listing.sub_type === "short_let" ? "/night" : "/year";
   const statusBg = statusColor.includes("green")
     ? "bg-green-500/15"
