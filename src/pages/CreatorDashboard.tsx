@@ -1,4 +1,5 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import AdminReports from "@/components/AdminReports";
 import { internalActivityDestination } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -722,7 +723,7 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
                         row.amount ||
                         row.reservation_fee_amount) != null && (
                         <p className="mb-1 text-xs font-bold">
-                          ₦
+                          {currencySymbol()}
                           {Number(
                             row.total_price ||
                               row.amount ||

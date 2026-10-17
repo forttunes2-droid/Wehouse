@@ -1,4 +1,5 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -151,7 +152,7 @@ export default function SponsoredMarketRules(){
         <Field label="LGA"><WeHouseChoice aria-label="LGA" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose LGA</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
       </>:null}
       <Field label="Sponsored slots"><input inputMode="numeric" value={slots} onChange={e=>setSlots(e.target.value.replace(/\D/g,""))} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
-      <Field label="Daily price (₦)"><input inputMode="decimal" value={price} onChange={e=>setPrice(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+      <Field label={`Daily price (${currencySymbol()})`}><input inputMode="decimal" value={price} onChange={e=>setPrice(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
       <Field label="Durations (days)"><input value={durations} onChange={e=>setDurations(e.target.value)} placeholder="7,14,30" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
       <label className="flex min-h-11 items-center justify-between rounded-xl border border-border px-3"><span><span className="block text-xs font-semibold text-foreground">Open Sponsored campaigns</span><span className="mt-0.5 block text-[10px] text-muted-foreground">This rule only opens eligibility; campaigns still require verified payment activation.</span></span><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)} className="h-4 w-4 accent-primary"/></label>
       <button type="button" disabled={busy||(scopeType==="lga"&&(!state||!lga))} onClick={save} className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40 sm:col-span-2">{busy?"Saving…":"Save Sponsored rule"}</button>

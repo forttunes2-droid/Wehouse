@@ -1,4 +1,5 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import WorkerProJobCosts from '@/components/WorkerProJobCosts';
@@ -141,7 +142,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
           <h3 className="text-base font-semibold">{editingPackage ? 'Edit service package' : 'New service package'}</h3>
           <label className="block text-sm">Title<input required minLength={3} maxLength={80} value={title} onChange={event=>setTitle(event.target.value)} className={`${field} mt-1`}/></label>
           <label className="block text-sm">What is included<textarea required minLength={10} maxLength={500} rows={3} value={description} onChange={event=>setDescription(event.target.value)} className={`${field} mt-1`}/></label>
-          <label className="block text-sm">Starting price (₦)<input required type="number" min="0" max="10000000" step="0.01" value={price} onChange={event=>setPrice(event.target.value)} className={`${field} mt-1`}/></label>
+          <label className="block text-sm">Starting price ({currencySymbol()})<input required type="number" min="0" max="10000000" step="0.01" value={price} onChange={event=>setPrice(event.target.value)} className={`${field} mt-1`}/></label>
           <div className="flex gap-2"><button type="submit" disabled={busy || !title || !price} className={action}>Save package</button>{editingPackage && <button type="button" onClick={()=>{setEditingPackage(null);setTitle('');setDescription('');setPrice('');}} className="min-h-11 rounded-xl border px-4 text-sm">Cancel</button>}</div>
         </form>
         {book.packages.map(pkg=><article key={pkg.id} className={card}><div className="flex justify-between gap-2"><h3 className="font-semibold">{pkg.title}</h3><strong>{money(pkg.price_ngn)}</strong></div><p className="mt-2 whitespace-pre-wrap text-sm text-[var(--wh-text-secondary)]">{pkg.description}</p><p className="mt-2 text-xs">{pkg.active?'Visible on profile':'Hidden from profile'}</p><div className="mt-2 flex gap-4"><button type="button" onClick={()=>editPackage(pkg)} className="min-h-11 text-sm font-semibold text-violet-600 dark:text-violet-300">Edit</button><button type="button" disabled={busy} onClick={()=>void write('save_my_worker_pro_package',{p_id:pkg.id,p_title:pkg.title,p_description:pkg.description,p_price_ngn:pkg.price_ngn,p_active:!pkg.active},pkg.active?'Package hidden':'Package published')} className="min-h-11 text-sm font-semibold">{pkg.active?'Hide':'Publish'}</button></div></article>)}

@@ -1,4 +1,5 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import WorkerProBusinessTools from "@/components/WorkerProBusinessTools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -236,7 +237,7 @@ function WorkDocuments({ profile, canUsePaidTools }: { profile: Profile; canUseP
           <label className="block text-sm">Work or material<input required aria-label={`Line ${index + 1} description`} minLength={2} maxLength={160} value={line.description} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, description: event.target.value } : row))} className={`${input} mt-2`} /></label>
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] items-end gap-2">
             <label className="min-w-0 text-sm">Quantity<input required type="number" min="0.01" max="10000" step="0.01" aria-label={`Line ${index + 1} quantity`} inputMode="decimal" value={line.quantity} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, quantity: event.target.value } : row))} className={`${input} mt-2`} /></label>
-            <label className="min-w-0 text-sm">Unit price (₦)<input required type="number" min="0" max="10000000" step="0.01" aria-label={`Line ${index + 1} unit price`} inputMode="decimal" value={line.unitPrice} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, unitPrice: event.target.value } : row))} className={`${input} mt-2`} /></label>
+            <label className="min-w-0 text-sm">Unit price ({currencySymbol()})<input required type="number" min="0" max="10000000" step="0.01" aria-label={`Line ${index + 1} unit price`} inputMode="decimal" value={line.unitPrice} onChange={event => setLines(rows => rows.map((row, i) => i === index ? { ...row, unitPrice: event.target.value } : row))} className={`${input} mt-2`} /></label>
             <button type="button" aria-label={`Remove line ${index + 1}`} disabled={lines.length === 1} onClick={() => setLines(rows => rows.filter((_, i) => i !== index))} className={`${button} w-11 px-0`}>×</button>
           </div>
         </fieldset>)}</div>

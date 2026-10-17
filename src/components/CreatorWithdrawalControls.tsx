@@ -9,7 +9,7 @@ type Controls = { new_account_cooldown_hours: string; daily_max_count: string; d
 const FIELDS: { key: keyof Controls; label: string; hint: string }[] = [
   { key: "new_account_cooldown_hours", label: "Hours before a new payout account can receive money", hint: "0 = no wait" },
   { key: "daily_max_count", label: "Withdrawals per wallet per day", hint: "0 = no limit" },
-  { key: "daily_max_amount", label: "Total withdrawn per wallet per day (₦)", hint: "0 = no limit" },
+  { key: "daily_max_amount", label: "Total withdrawn per wallet per day (platform currency)", hint: "0 = no limit" },
   { key: "require_recent_login_minutes", label: "Minutes a sign-in stays fresh for withdrawing", hint: "Default 10. 0 = never ask the user to sign in again" },
 ];
 

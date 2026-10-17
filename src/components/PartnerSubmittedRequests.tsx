@@ -563,6 +563,32 @@ function RequestDetail({
         <p className="mt-3 text-[9px] leading-5 text-[var(--wh-text-muted)]">
           {journeyNext(stage)}
         </p>
+        <ol aria-label="Publication checklist" className="mt-4 space-y-2">
+          {steps.map((label, index) => {
+            const done = stage === "live" || index + 1 < progress;
+            const current = !done && !stopped && index + 1 === progress;
+            const blocked = stopped && index + 1 === progress;
+            return (
+              <li key={label} className="flex items-center gap-3 text-[11px]">
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${done ? "bg-emerald-500/15 text-emerald-300" : blocked ? "bg-amber-500/15 text-amber-300" : current ? "bg-violet-500/20 text-violet-200" : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]"}`}
+                >
+                  {done ? "✓" : blocked ? "!" : index + 1}
+                </span>
+                <span className={done ? "text-[var(--wh-text-secondary)]" : current || blocked ? "font-semibold" : "text-[var(--wh-text-muted)]"}>
+                  {label}
+                  <span className="sr-only">{done ? " (done)" : blocked ? " (blocked)" : current ? " (in progress)" : " (not started)"}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+        {stopped && (
+          <p role="status" className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-[10px] leading-5 text-amber-200">
+            Not publishable yet: {request.rejection_reason || request.notes || "WeHouse has asked for a correction. Check the latest update below."}
+          </p>
+        )}
       </section>
       {(request.notes || request.rejection_reason) && (
         <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">

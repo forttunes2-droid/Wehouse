@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getRegionalDefaults } from "@/lib/regional";
+import { getRegionalDefaults, currencySymbol } from "@/lib/regional";
 import { toast } from "sonner";
 import {
   getServiceCategories,
@@ -390,7 +390,7 @@ export default function WorkerSetupProfessional({
             </div>
             <div className="mt-3">
               <Field
-                label="Starting price (₦) · optional"
+                label={`Starting price (${currencySymbol()}) · optional`}
                 value={servicePrice}
                 inputMode="numeric"
                 set={(value) => setServicePrice(value.replace(/[^0-9]/g, ""))}

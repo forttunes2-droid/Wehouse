@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { currencySymbol } from "@/lib/regional";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import BookingDateField from "@/components/BookingDateField";
@@ -189,7 +190,7 @@ export default function PropertyHostControls({
       <label className="text-[9px] font-semibold text-[var(--wh-text-secondary)]">{shortLet?"Nightly price":"Rent"}</label>
       <div className="mt-1.5 flex gap-2">
         <div className="flex h-11 min-w-0 flex-1 items-center rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3">
-          <span className="mr-1 text-xs text-[var(--wh-text-muted)]">₦</span>
+          <span className="mr-1 text-xs text-[var(--wh-text-muted)]">{currencySymbol()}</span>
           <input
             inputMode="decimal"
             value={price}
