@@ -397,7 +397,7 @@ export default function MyReservations({
     const { error } = await cancelReservation(row.id);
     setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success("Reservation cancelled");
+    toast.success("Booking cancelled");
     await load();
   }
 
@@ -421,7 +421,7 @@ export default function MyReservations({
     const { error } = await updateBookingStatus(id, "cancelled");
     setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success(row.payment_status === "paid" ? "Stay cancelled. Refund queued for the original payment method." : "Hotel reservation cancelled");
+    toast.success(row.payment_status === "paid" ? "Stay cancelled. Refund queued for the original payment method." : "Hotel booking cancelled");
     await load();
   }
 
@@ -452,7 +452,7 @@ export default function MyReservations({
     const feePaid = row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""));
     if (short && feePaid) return payHousingRent(row);
     if (!row.payment_reference)
-      return toast.error(short ? "Reserve date payment reference is missing." : "This reservation cannot be resumed. Start again from the apartment.");
+      return toast.error(short ? "Reserve date payment reference is missing." : "This booking cannot be resumed. Start again from the apartment.");
     setBusyId(row.id);
     const { result } = await initializeReservationPayment(String(row.payment_reference));
     if (!result?.success) {
@@ -460,7 +460,7 @@ export default function MyReservations({
       return toast.error(result?.error || "Could not reopen payment");
     }
     if (result.already_paid) {
-      toast.success(short ? "Reserve date payment is already confirmed" : "Reservation payment is already confirmed");
+      toast.success(short ? "Reserve date payment is already confirmed" : "Booking payment is already confirmed");
       await load();
       return;
     }
@@ -723,7 +723,7 @@ export default function MyReservations({
 
   if(activeShared) return <SharedHousingDetails groupId={activeShared} userId={profile.user_id} onBack={()=>{setActiveShared(null);void load(true);}} onChanged={()=>void load(true)}
     onOpenListing={onOpenListing ? id=>{setActiveShared(null);onOpenListing(id);} : undefined}
-    onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your reservation.");}} />;
+    onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your booking.");}} />;
 
   if (activeHousing)
     return (
@@ -943,9 +943,9 @@ export default function MyReservations({
 
       <ConfirmDialog
         isOpen={Boolean(pending)}
-        title="Cancel this reservation?"
-        description={pending?.kind === "cancel_short_let_paid" ? "This cancels your stay and queues a refund of everything you paid, discount included, to your original payment method. It is complete only when the provider confirms it. This cannot be undone." : pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the reservation and cannot be undone."}
-        confirmLabel="Cancel reservation"
+        title="Cancel this booking?"
+        description={pending?.kind === "cancel_short_let_paid" ? "This cancels your stay and queues a refund of everything you paid, discount included, to your original payment method. It is complete only when the provider confirms it. This cannot be undone." : pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the booking and cannot be undone."}
+        confirmLabel="Cancel booking"
         variant="danger"
         onCancel={() => setPending(null)}
         onConfirm={() => void runPending()}
@@ -1219,7 +1219,7 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
         ? `Checkout ${date(row.check_out_date)}`
         : `Ends ${date(row.tenancy_end_date)}`
       : row.status === "payment_pending"
-        ? "Finish your reservation"
+        ? "Finish your booking"
         : row.status === "reserved" && !rentPaid
           ? row.rent_payment_status === "payment_pending"
             ? short
@@ -1248,7 +1248,7 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
   return (
     <BookingCard
       eyebrow={short ? "Short Let" : "Long Let"}
-      title={row.listing_title || "Apartment reservation"}
+      title={row.listing_title || "Apartment booking"}
       subtitle={row.listing_location || "WeHouse apartment"}
       image={row.listing_image || null}
       fallback="⌂"
@@ -1279,7 +1279,7 @@ function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => v
     <BookingCard
       eyebrow="Hotel"
       status={HOTEL_STATUS[String(row.status || "")] || "Active"}
-      title={hotel.name || row.hotel_name || "Hotel reservation"}
+      title={hotel.name || row.hotel_name || "Hotel booking"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
       image={image}
       fallback="H"
@@ -1370,7 +1370,7 @@ function ShortLetPaymentSummary({ row, bill }: { row: any; bill: ReturnType<type
       <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]" aria-label="Short Let payment">
         <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Payment</p>
         <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>Reserve date</span><strong>{reservationFee > 0 ? money(reservationFee) : "Payment required"}</strong></div>
-        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The stay charge and caution fee appear after the reservation date is successfully held.</p>
+        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The stay charge and caution fee appear after the booking date is successfully held.</p>
       </section>
     );
   }
@@ -1796,7 +1796,7 @@ function HotelBookingDetail({
 
           {showCode ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-violet-500/[.07] px-3 py-2.5">
-              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your reservation ID; arrival and departure use a separate code.</p></div>
+              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your booking ID; arrival and departure use a separate code.</p></div>
               <p className="font-mono text-xs font-bold tracking-wider text-violet-200">{row.booking_code}</p>
             </div>
           ) : null}
