@@ -226,7 +226,7 @@ export default function WorkerSetupProfessional({
     if (!occupation.trim()) return toast.error("Add your work title");
     if (!experience.trim()) return toast.error("Add your work experience");
     if (!location.state || !location.city)
-      return toast.error("Choose your State and LGA");
+      return toast.error("Choose your state or region and city or area");
 
     setBusy(true);
     const servicePayload = services.map((item) => ({

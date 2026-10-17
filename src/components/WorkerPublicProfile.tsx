@@ -216,6 +216,12 @@ function WorkerProfileContent({
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-[var(--wh-border-subtle)] py-4 text-sm text-[var(--wh-text-secondary)]">
         {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
       </section> : trustError ? <p className="text-sm text-[var(--wh-text-secondary)]">{trustError} <button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></p> : null}
+      {worker.worker_experience?.trim() ? (
+        <section aria-label="Work experience" className="space-y-2">
+          <h2 className="text-sm font-semibold">Experience</h2>
+          <p className="whitespace-pre-line text-sm leading-6 text-[var(--wh-text-secondary)]">{worker.worker_experience.trim()}</p>
+        </section>
+      ) : null}
       {serviceOffersLoading ? (
         <section aria-label="Services and starting prices">
           <WeHouseLoadingState compact label="Loading services" />

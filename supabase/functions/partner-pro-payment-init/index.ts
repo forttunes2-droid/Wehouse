@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import { hasLiveSession, hasActiveWorkspace } from '../_shared/liveSession.ts';
+import { consumeUserAction } from '../_shared/rateLimit.ts';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 
 const headers = {
@@ -26,6 +27,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user?.email || !await hasLiveSession(admin, user.id, token))
       return json({ success: false, error: 'Sign in again to continue' }, 401);
+    const limit = await consumeUserAction(admin, user.id, 'partner_pro_payment', 10, 600);
+    if (!limit.allowed) return json({ success: false, error: 'Too many payment attempts. Please wait and try again.', retry_after_seconds: limit.retryAfterSeconds }, 429);
     const { data: partner } = await admin.from('profiles')
       .select('user_id,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
     if (!partner || partner.deleted || partner.suspended || partner.banned
