@@ -30,6 +30,7 @@ import {
 import DesktopLayout from "@/components/DesktopLayout";
 import PersonalBottomNav from "@/components/PersonalBottomNav";
 import NewLoginAlert from "@/components/NewLoginAlert";
+import LegalGate from "@/components/LegalGate";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
@@ -1780,6 +1781,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         <Suspense fallback={null}>
           <PrivateCallCenter />
         </Suspense>
+        {profile && <LegalGate userId={profile.user_id} onLogout={auth.logout} />}
         {profile && <NewLoginAlert profile={profile} />}
         {profile && <EmailChangeFinisher />}
         <DesktopLayout
