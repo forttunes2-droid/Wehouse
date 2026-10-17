@@ -1,4 +1,4 @@
-import { propertyTimeZone } from "@/lib/regional";
+import { propertyTimeZone, getRegionalDefaults } from "@/lib/regional";
 import { roommatePreferenceForm, roommatePreferenceError, roommateScoreLabel } from "@/lib/roommatePreferences";
 import { platformCalendarDate } from "@/lib/shortLetQuote";
 import { withTimeout } from "@/lib/withTimeout";
@@ -689,7 +689,7 @@ function RoommateProfileSheet({row,schoolFilter,busy,onClose,onChat,onInterest}:
   const p=row.matched_profile,score=row.match_score;
   const connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
   const highlights=p.match_highlights || [];
-  return <RoommatePublicProfile context="discovery" person={{userId:p.user_id,name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score ?? undefined} matchLabel={roommateScoreLabel(score,p.compared_answers)} highlights={highlights} discuss={p.discuss_before_deciding} comparedAnswers={p.compared_answers} primaryAction={connected?<button type="button" disabled={busy} onClick={()=>void onChat?.(row)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busy} onClick={()=>void onInterest(row,"viewed")} className="h-12 w-full rounded-2xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-45">{busy?"Cancelling…":"Cancel request"}</button>:<button type="button" disabled={busy} onClick={()=>void onInterest(row,"accepted")} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Sending…":"Connect"}</button>}/>;
+  return <RoommatePublicProfile context="discovery" person={{userId:p.user_id,name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||getRegionalDefaults().countryName,bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score ?? undefined} matchLabel={roommateScoreLabel(score,p.compared_answers)} highlights={highlights} discuss={p.discuss_before_deciding} comparedAnswers={p.compared_answers} primaryAction={connected?<button type="button" disabled={busy} onClick={()=>void onChat?.(row)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busy} onClick={()=>void onInterest(row,"viewed")} className="h-12 w-full rounded-2xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-45">{busy?"Cancelling…":"Cancel request"}</button>:<button type="button" disabled={busy} onClick={()=>void onInterest(row,"accepted")} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Sending…":"Connect"}</button>}/>;
 }
 
 function ReceivedInterests({
@@ -752,7 +752,7 @@ function ReceivedInterests({
               </p>
               <p className="mt-1 truncate text-sm text-[var(--wh-text-muted)]">
                 {Number.isFinite(row.match_score) ? `${row.match_score}% preference similarity · ` : "Compare your plans · "}
-                {[row.city, row.state].filter(Boolean).join(", ") || "Nigeria"}
+                {[row.city, row.state].filter(Boolean).join(", ") || getRegionalDefaults().countryName}
                 {sameSchool(schoolFilter, row.school) ? ` · ${row.school}` : ""}
               </p>
             </button>

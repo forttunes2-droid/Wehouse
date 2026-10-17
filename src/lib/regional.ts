@@ -63,6 +63,15 @@ export function formatMoney(
   }
 }
 
+/** Symbol of the platform's default currency (or the given one), formatted for the viewer. */
+export function currencySymbol(currency?: string | null): string {
+  const code = currency && /^[A-Za-z]{3}$/.test(currency) ? currency.toUpperCase() : defaults.currencyCode;
+  try {
+    return new Intl.NumberFormat(viewerLocale(), { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' })
+      .formatToParts(0).find(part => part.type === 'currency')?.value || code;
+  } catch { return code; }
+}
+
 /** Short zone name such as WAT, GMT or EST, so a time never needs a country-specific suffix. */
 export function timeZoneLabel(zone?: string | null, at: Date = new Date()): string {
   const timeZone = propertyTimeZone(zone);

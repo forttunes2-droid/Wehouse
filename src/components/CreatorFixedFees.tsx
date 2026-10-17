@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 
 const PRODUCTS = [
   { key: "worker", label: "Service Worker" },
@@ -95,7 +96,7 @@ export default function CreatorFixedFees() {
               {p.label}
             </label>
             <label className="flex items-center gap-2 text-sm text-[var(--wh-text-secondary)]">
-              ₦
+              {currencySymbol()}
               <input
                 type="number"
                 min={0}

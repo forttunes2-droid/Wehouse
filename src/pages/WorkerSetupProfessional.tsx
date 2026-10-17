@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getRegionalDefaults } from "@/lib/regional";
 import { toast } from "sonner";
 import {
   getServiceCategories,
@@ -51,7 +52,7 @@ export default function WorkerSetupProfessional({
   const [phone, setPhone] = useState(profile.phone || "");
   const [avatar, setAvatar] = useState(profile.avatar_url || "");
   const [location, setLocation] = useState({
-    country: profile.country || "Nigeria",
+    country: profile.country || getRegionalDefaults().countryName,
     state: profile.state || "",
     city: profile.local_government || profile.city || "",
     area: profile.area || "",
@@ -168,7 +169,7 @@ export default function WorkerSetupProfessional({
       servicesKey(services) !== initialServicesKey ||
       bio.trim() !== (profile.worker_bio || "") ||
       experience.trim() !== (profile.worker_experience || "") ||
-      location.country !== (profile.country || "Nigeria") ||
+      location.country !== (profile.country || getRegionalDefaults().countryName) ||
       location.state !== (profile.state || "") ||
       location.city !== (profile.local_government || profile.city || "") ||
       location.area !== (profile.area || "")

@@ -55,7 +55,7 @@ import {
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
-import { formatMoney } from "@/lib/regional";
+import { formatMoney, currencySymbol } from "@/lib/regional";
 
 type Props = {
   conversationId: string;
@@ -907,7 +907,7 @@ export default function BookingNegotiationChat({
             {showAcceptForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
                 <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-                  Your price (₦)
+                  Your price ({currencySymbol()})
                   <input
                     inputMode="numeric"
                     value={acceptAmount}

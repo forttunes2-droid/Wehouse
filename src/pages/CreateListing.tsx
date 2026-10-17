@@ -1,4 +1,5 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
+import { getRegionalDefaults } from "@/lib/regional";
 import { useEffect, useRef, useState } from 'react';
 import { releaseRequestKey, requestKeyFor } from '@/lib/safeAction';
 import { createListing, uploadListingImage, uploadListingVideo, checkDuplicateListing, supabase } from '@/lib/supabase';
@@ -51,8 +52,8 @@ export default function CreateListing({ profile, onBack, onSuccess }: CreateList
   const [preparingVideos, setPreparingVideos] = useState(false);
   const [partners, setPartners] = useState<PartnerOption[]>([]);
   const [assignedPartnerId, setAssignedPartnerId] = useState('');
-  const [form, setForm] = useState({ title:'',description:'',price:'',currency:'NGN',address:'',property_type:'apartment' as 'apartment'|'hotel',sub_type:'long_stay' as 'short_let'|'long_stay',bedrooms:'1',bathrooms:'1',max_guests:'',contact_phone:profile.phone||'',security_deposit_amount:'',discount_percent:'',discount_ends_on:'',amenities:[] as string[] });
-  const [location,setLocation]=useState({country:profile.country||'Nigeria',state:profile.state||'',city:profile.city||'',area:profile.area||''});
+  const [form, setForm] = useState({ title:'',description:'',price:'',currency:getRegionalDefaults().currencyCode,address:'',property_type:'apartment' as 'apartment'|'hotel',sub_type:'long_stay' as 'short_let'|'long_stay',bedrooms:'1',bathrooms:'1',max_guests:'',contact_phone:profile.phone||'',security_deposit_amount:'',discount_percent:'',discount_ends_on:'',amenities:[] as string[] });
+  const [location,setLocation]=useState({country:profile.country||getRegionalDefaults().countryName,state:profile.state||'',city:profile.city||'',area:profile.area||''});
 
   useEffect(()=>{ void (async()=>{ const {data}=await supabase.from('profiles').select('user_id,username,full_name').eq('role','property_partner').eq('deleted',false).eq('suspended',false).eq('banned',false).order('username'); setPartners(data||[]); })(); },[]);
   useEffect(()=>{ previewRef.current=[...images,...videos]; },[images,videos]);

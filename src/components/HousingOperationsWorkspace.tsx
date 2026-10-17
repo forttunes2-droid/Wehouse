@@ -20,7 +20,7 @@ import {
   getPropertyBookingJourney,
   propertyBookingStatusLabel,
 } from "@/lib/propertyBookingLifecycle";
-import { formatMoney } from "@/lib/regional";
+import { formatMoney, timeZoneLabel } from "@/lib/regional";
 
 type Filter = "all" | "needs_action" | "upcoming" | "active" | "finished";
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -671,7 +671,7 @@ function ShortStayCase({
             <span className="font-bold text-emerald-200">{bookingCode}</span> is
             verified. Record entry only after the guest receives access today.
           </p>
-          <p className="mt-3 text-sm">Check-in today · {displayDate(checkInDate)} (Nigeria time)</p>
+          <p className="mt-3 text-sm">Check-in today · {displayDate(checkInDate)} ({timeZoneLabel()})</p>
           <button
             disabled={busy}
             onClick={() => void checkIn()}
@@ -880,7 +880,7 @@ function HousingCase({
     if (
       !(await ask({
         title: "Complete move-in handover?",
-        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${displayDate(startDate)} (Nigeria time).`,
+        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${displayDate(startDate)} (${timeZoneLabel()}).`,
         confirmLabel: "Start tenancy",
         variant: "info",
       }))
@@ -1175,7 +1175,7 @@ function HousingCase({
             Code <span className="font-bold text-emerald-200">{verifiedCode}</span>{" "}
             has been matched. Confirm only after the customer receives the keys or access.
           </p>
-          <p className="mt-3 text-sm">Tenancy starts today · {displayDate(startDate)} (Nigeria time)</p>
+          <p className="mt-3 text-sm">Tenancy starts today · {displayDate(startDate)} ({timeZoneLabel()})</p>
           <button
             disabled={busy}
             onClick={() => void activate()}
