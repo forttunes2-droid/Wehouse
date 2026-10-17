@@ -910,7 +910,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 </div>
                 {listingReviewLoading ? <WeHouseLoadingState compact label="Loading guest reviews" />
                   : listingReviewError ? <div role="status" className="mt-3 text-sm text-[var(--wh-text-secondary)]"><p>{listingReviewError}</p><button type="button" onClick={() => setListingReviewAttempt((attempt) => attempt + 1)} className="mt-2 min-h-11 font-semibold text-violet-600 dark:text-violet-300">Try again</button></div>
-                  : listingReviewSummary?.reviews.length ? (
+                  : listingReviewSummary?.reviews?.length ? (
                     <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
                       {listingReviewSummary.reviews.map((review) => (
                         <article key={review.review_id} className="py-3 first:pt-0 last:pb-0">
