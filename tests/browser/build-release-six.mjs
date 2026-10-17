@@ -9,6 +9,7 @@ const out = 'test-results/release-six-offline';
 fs.mkdirSync(out, { recursive: true });
 
 const mock = [
+  "export const isWebPasskeyEnabled=false;",
   "const s=()=>window.__releaseSix;",
   "export const getStoredSessionId=()=> 'current-session';",
   "export const parseDeviceInfo=()=>({device:'Test phone',browser:'Chrome',os:'Android'});",

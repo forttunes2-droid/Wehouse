@@ -181,7 +181,13 @@ export default function HotelDetailExperience({
   }
 
   function selectRoom(room: HotelRoom) {
-    if (selectedRoom?.room_id === room.room_id) return;
+    if (selectedRoom?.room_id === room.room_id) {
+      // Room choices are toggles: tapping the current choice must let a guest
+      // clear it without selecting a different room first.
+      setSelectedRoom(null);
+      setSelectedRate(null);
+      return;
+    }
     setSelectedRoom(room);
     setSelectedRate(null);
     // Dates and guest intent belong to the search, not to a particular room.
@@ -189,7 +195,10 @@ export default function HotelDetailExperience({
   }
 
   function selectRate(plan: HotelRatePlan) {
-    if (selectedRate?.rate_plan_id === plan.rate_plan_id) return;
+    if (selectedRate?.rate_plan_id === plan.rate_plan_id) {
+      setSelectedRate(null);
+      return;
+    }
     setSelectedRate(plan);
     // Keep the selected dates while comparing packages.
   }

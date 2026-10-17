@@ -118,23 +118,26 @@ async def main():
      await page.get_by_role('button',name='Close calendar').click()
      await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
      assert await page.evaluate("document.body.style.overflow !== 'hidden'"), 'Calendar must restore page scrolling'
-     await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
-     await expect(page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=15000)
-     reserve=page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+$'))
+     # Keep the short-let checkout journey isolated from the earlier hotel
+     # calendar and navigation state from the hotel journey.
+     short_page=await context.new_page();short_page.on('pageerror',lambda error:scenario.errors.append(str(error)));await short_page.route('**/*',scenario.route)
+     await short_page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
+     await expect(short_page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=15000)
+     reserve=short_page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+$'))
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
-     await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
-     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
-     await choose_booking_date(page,'Check-in',TOMORROW)
-     await choose_booking_date(page,'Check-out',CHECKOUT)
+     await expect(short_page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
+     await expect(short_page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await choose_booking_date(short_page,'Check-in',TOMORROW)
+     await choose_booking_date(short_page,'Check-out',CHECKOUT)
      await expect(reserve).to_be_enabled()
-     await expect(page.get_by_text('₦290,000',exact=True)).to_have_count(0)
-     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
-     await expect(page.get_by_text('Stay rent',exact=True)).to_have_count(0)
-     await fits(page); await reserve.scroll_into_view_if_needed(); await page.screenshot(path=str(OUT/f'short-let-reserve-date-{width}.png'))
+     await expect(short_page.get_by_text('₦290,000',exact=True)).to_have_count(0)
+     await expect(short_page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await expect(short_page.get_by_text('Stay rent',exact=True)).to_have_count(0)
+     await fits(short_page); await reserve.scroll_into_view_if_needed(); await short_page.screenshot(path=str(OUT/f'short-let-reserve-date-{width}.png'))
      await reserve.click()
-     review=page.get_by_role('dialog',name='Review reservation and payment')
+     review=short_page.get_by_role('dialog',name='Review reservation and payment')
      await expect(review).to_be_visible()
-     await expect(page.get_by_role('heading',name='Review your dates and payment',exact=True)).to_be_visible()
+     await expect(short_page.get_by_role('heading',name='Review your dates and payment',exact=True)).to_be_visible()
      await expect(review.get_by_text(re.compile('Cancel at least 48 hours before check-in'))).to_be_visible()
      await expect(review.get_by_text(re.compile('Only the reserve-date fee is paid now'))).to_be_visible()
      await expect(review.get_by_role('button',name='Edit dates and guests',exact=True)).to_be_visible()
@@ -142,10 +145,11 @@ async def main():
      assert sum(name=='create_short_stay_reservation_idem' for name,_ in scenario.calls)==1
      assert sum(name=='payment-init' for name,_ in scenario.calls)==0, 'Payment must wait for reviewed terms to be accepted'
      await review.get_by_role('button',name='Accept terms and continue',exact=True).click()
-     await expect(page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
-     assert await page.evaluate('window.__booking')=='short-reservation-1'
+     await expect(short_page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
+     assert await short_page.evaluate('window.__booking')=='short-reservation-1'
      assert sum(name=='payment-init' for name,_ in scenario.calls)==1
      assert not any(name in ['initialize_short_stay_payment','create_short_stay_payment','create_shared_housing_group'] for name,_ in scenario.calls)
+     await short_page.close()
      # Public guest reads must not invoke personal, reservation or messaging APIs.
      before_guest=len(scenario.calls)
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
