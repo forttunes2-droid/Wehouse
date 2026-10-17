@@ -16,6 +16,7 @@ function query(table: string) {
   state.calls.push({name:table,conditions:[...conditions],start,end,worker});
   const result=()=>{
    if(table==='worker_bookings')return ok([{id:'job-complete',booking_code:'WH-JOB-123',service_type:'Carpentry'}]);
+   if(table==='worker_services')return ok([{service_name:'Carpentry',price:15000,price_type:'fixed'}]);
    if(state.failPosts)return bad();
    let rows=dataPosts(worker);
    for(const [op,key,value] of conditions)if(op==='eq'||op==='is')rows=rows.filter((row:any)=>row[key]===value);
