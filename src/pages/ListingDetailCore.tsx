@@ -1131,7 +1131,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               termsTitle={paymentReview === "short_let" ? "Cancellation and stay terms" : "What this reservation payment covers"}
               terms={paymentReview === "short_let"
                 ? shortCancellationTerms
-                : "This payment holds the apartment while you begin the inspection and tenancy journey. It is the reservation fee only; it is not rent, an installment, or a security deposit. Paid reservations that need cancellation or a refund are handled through WeHouse support."}
+                : "This payment holds the apartment while you begin the inspection and tenancy journey. It is the reservation fee only; it is not rent or a security deposit. Paid reservations that need cancellation or a refund are handled through WeHouse support."}
               note={paymentReview === "short_let"
                 ? "Only the reserve-date fee is paid now. The stay rent and refundable security deposit are due in a separate checkout before the stay. WeHouse confirms payment only after verified Paystack confirmation."
                 : "Your reservation fee and hold expiry come from the saved booking record. WeHouse confirms payment only after verified Paystack confirmation."}
@@ -1483,12 +1483,6 @@ function ReservationPanel({
             ).toLocaleDateString()}
           />
         )}
-        {Number(reservation.installment_balance || 0) > 0 && (
-          <Row
-            label="Installment balance"
-            value={`${formatMoney(Number(reservation.installment_balance))}`}
-          />
-        )}
         <button
           onClick={onSupport}
           className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
@@ -1521,12 +1515,6 @@ function ReservationPanel({
               label="Required now"
               value={`${formatMoney(Number(reservation.upfront_rent_required || 0))}`}
             />
-            {Number(reservation.installment_balance || 0) > 0 && (
-              <Row
-                label={`${reservation.installment_count || 4} installments later`}
-                value={`${formatMoney(Number(reservation.installment_balance))}`}
-              />
-            )}
           </div>
           <button
             disabled={busy}

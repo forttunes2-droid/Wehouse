@@ -217,17 +217,6 @@ export async function cancelPaidShortLetStay(reservationId: string) {
   return { refundAmount: Number((data as { refund_amount?: number } | null)?.refund_amount ?? 0), error };
 }
 
-export async function updateReservationPlan(
-  reservationId: string,
-  planYears: number,
-) {
-  const { data, error } = await supabase.rpc("update_my_reservation_plan", {
-    p_reservation_id: reservationId,
-    p_plan_years: planYears,
-  });
-  return { reservation: (data as ReservationRecord) || null, error };
-}
-
 export async function markSupportContacted(reservationId: string) {
   const { data, error } = await supabase.rpc(
     "mark_my_reservation_support_contacted",

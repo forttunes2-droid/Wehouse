@@ -23,7 +23,6 @@ type Rules = {
     payment_hold_minutes: number;
     hold_hours: number;
     full_refund_hours: number;
-    installments_enabled: boolean;
     security_deposit_enabled: boolean;
   };
   commissions: {
@@ -55,7 +54,6 @@ const DEFAULTS: Rules = {
     payment_hold_minutes: 30,
     hold_hours: 72,
     full_refund_hours: 24,
-    installments_enabled: false,
     security_deposit_enabled: false,
   },
   commissions: {
@@ -98,7 +96,6 @@ function readRules(response: PolicyResponse | null): Rules {
   const arrival = value("accommodation_arrival_issue_window");
   const longFee = value("long_let_reservation_fee");
   const longHold = value("long_let_reservation_hold");
-  const installments = value("future_long_let_installments");
   const workerRelease = value("worker_completion_release");
 
   return {
@@ -156,10 +153,6 @@ function readRules(response: PolicyResponse | null): Rules {
       full_refund_hours: numberValue(
         longHold.full_refund_hours,
         DEFAULTS.long_let.full_refund_hours,
-      ),
-      installments_enabled: booleanValue(
-        installments.enabled,
-        DEFAULTS.long_let.installments_enabled,
       ),
       security_deposit_enabled: false,
     },
@@ -391,7 +384,6 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Housing process hold" suffix="hours" value={rules.long_let.hold_hours} min={1} max={168} onChange={(value) => setLong("hold_hours", value)} />
         <NumberRule label="Early full-refund window" suffix="hours, if material process has not begun" value={rules.long_let.full_refund_hours} min={0} max={168} onChange={(value) => setLong("full_refund_hours", value)} />
         <LockedRule label="Security deposit" value="Off at launch" />
-        <LockedRule label="Installments" value="Off at launch" />
       </RuleSection>
 
       <RuleSection

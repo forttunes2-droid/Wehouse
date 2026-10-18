@@ -96,7 +96,6 @@ export {
   getReservationsForUser,
   cancelReservation,
   markSupportContacted,
-  updateReservationPlan,
   createInspectionRequest,
   getInspectionRequestForReservation,
   getInspectionRequestsForUser,
