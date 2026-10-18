@@ -320,23 +320,14 @@ export async function getLegacyWorkerSubscription(workerId: string) {
 // ═══════════════════════════════════════════════════════════════
 
 export async function getOrCreateWallet(ownerId: string, ownerType: 'worker' | 'property_partner') {
-  // Try to get existing
-  const { data: existing } = await supabase
+  // Wallets are created by the server when the first earning arrives; the client only reads.
+  const { data: existing, error } = await supabase
     .from('wallets')
     .select('*')
     .eq('owner_id', ownerId)
     .eq('owner_type', ownerType)
     .maybeSingle();
-
-  if (existing) return { wallet: existing as Wallet, error: null };
-
-  // Create new wallet
-  const { data, error } = await supabase
-    .from('wallets')
-    .insert({ owner_id: ownerId, owner_type: ownerType })
-    .select()
-    .single();
-  return { wallet: data as Wallet | null, error };
+  return { wallet: (existing as Wallet | null) ?? null, error };
 }
 
 export async function getWallet(ownerId: string) {
@@ -358,34 +349,8 @@ export async function getWalletTransactions(walletId: string, limit = 50) {
   return { transactions: data as WalletTransaction[] | null, error };
 }
 
-// Credit wallet when Payment Protection is released
-export async function creditWallet(walletId: string, amount: number, description: string, reference?: string) {
-  // Use RPC for atomic operation
-  const { data, error } = await supabase.rpc('credit_wallet', {
-    p_wallet_id: walletId,
-    p_amount: amount,
-    p_description: description,
-    p_reference: reference || null,
-  });
-  return { result: data, error };
-}
-
-// Update bank details
-export async function updateWalletBankDetails(
-  walletId: string,
-  bankDetails: { bank_name: string; bank_account_number: string; bank_account_name: string; paystack_recipient_code?: string }
-) {
-  const { data, error } = await supabase
-    .from('wallets')
-    .update({
-      ...bankDetails,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', walletId)
-    .select()
-    .single();
-  return { wallet: data as Wallet | null, error };
-}
+// Money is credited and bank details are saved only by server code (payout-account function,
+// payment-protection release). The client exposes no wallet writes.
 
 // ═══════════════════════════════════════════════════════════════
 // PAYMENT PROTECTION

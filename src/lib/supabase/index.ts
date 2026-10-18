@@ -169,8 +169,6 @@ export {
   getOrCreateWallet,
   getWallet,
   getWalletTransactions,
-  creditWallet,
-  updateWalletBankDetails,
   getPaymentProtectionForBooking,
   requestWithdrawal,
   getWithdrawals,
