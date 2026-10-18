@@ -19,7 +19,6 @@ import {
   getListing,
   getReservationForListing,
   initializeReservationPayment,
-  updateReservationPlan,
   supabase,
 } from "@/lib/supabase";
 import {
@@ -37,8 +36,7 @@ import { listMyFriends, type Friend } from "@/lib/supabase/friends";
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from "@/lib/roommateRecipients";
 import { withTimeout } from "@/lib/withTimeout";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
-import type { Listing, Profile, RentalDuration } from "@/types";
-import RentalPlanSelector from "@/components/RentalPlanSelector";
+import type { Listing, Profile } from "@/types";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import {
   directionsUrl,
@@ -64,11 +62,6 @@ type Props = {
   onOpenBooking: (reservationId: string) => void;
 };
 
-type Plan = {
-  durationYears: RentalDuration;
-  year1Upfront: number;
-  monthlyInstallment: number;
-};
 type ListingReviewSummary = {
   rating: number | null;
   review_count: number;
@@ -166,9 +159,7 @@ export default function ListingDetail({
   const reservationInFlight = useRef(false);
   const [reservation, setReservation] = useState<any>(null);
   const [inspection, setInspection] = useState<any>(null);
-  const [showPlan, setShowPlan] = useState(false);
   const [reservationOptionsOpen, setReservationOptionsOpen] = useState(false);
-  const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
@@ -208,7 +199,7 @@ export default function ListingDetail({
       }
       // Show the public property immediately; account checks guard only actions.
       setLoading(false);
-      setReservation(null); setInspection(null); setSharedGroup(null); setPlan(null);
+      setReservation(null); setInspection(null); setSharedGroup(null);
       if (!property || !profile) return;
       const [currentResult, shared] = await Promise.all([
         withTimeout(getReservationForListing(listingId, profile.user_id), 15000, "Your reservation could not be loaded."),
@@ -223,11 +214,6 @@ export default function ListingDetail({
       if (request !== loadGeneration.current) return;
       const current = currentResult.reservation;
       setReservation(current);
-      if (current?.rental_plan_years) setPlan({
-        durationYears: current.rental_plan_years as RentalDuration,
-        year1Upfront: Number(current.upfront_rent_required || 0),
-        monthlyInstallment: current.installment_count ? Number(current.installment_balance || 0) / Number(current.installment_count) : 0,
-      });
       if (current?.id) {
         const inspectionResult = await withTimeout(getInspectionRequestForReservation(current.id), 15000, "Your visit details could not be loaded.");
         if (inspectionResult.error) throw inspectionResult.error;
@@ -487,21 +473,6 @@ function support(
     } finally {
       setBusy(false);
     }
-  }
-
-  async function saveRentPlan() {
-    if (!reservation?.id || !plan) return;
-    setBusy(true);
-    const { reservation: updated, error } = await updateReservationPlan(
-      reservation.id,
-      plan.durationYears,
-    );
-    setBusy(false);
-    if (error || !updated)
-      return toast.error(error?.message || "Could not save the rent plan");
-    setReservation(updated);
-    setShowPlan(false);
-    toast.success("Rent plan saved. Your reservation is unchanged.");
   }
 
   async function openShare() {
@@ -1176,60 +1147,6 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
         </div>
       ) : null}
 
-      {!shortStay && showPlan && (
-        <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
-          onClick={() => !busy && setShowPlan(false)}
-        >
-          <section
-            className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 text-[var(--wh-text)] sm:rounded-3xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
-                  Rent plan
-                </p>
-                <h2 className="mt-1 text-lg font-bold">
-                  Choose how you want to pay rent
-                </h2>
-                <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
-                  Review the amounts and schedule before you confirm.
-                </p>
-              </div>
-              <button
-                disabled={busy}
-                onClick={() => setShowPlan(false)}
-                className="text-[var(--wh-text-muted)]"
-              >
-                ×
-              </button>
-            </div>
-            <div className="mt-5">
-              <RentalPlanSelector
-                annualRent={listing.price || 0}
-                subType={listing.sub_type || "long_stay"}
-                securityDepositAmount={listing.security_deposit_amount}
-                onSelectPlan={setPlan}
-              />
-            </div>
-            <button
-              onClick={() => void saveRentPlan()}
-              disabled={!plan || busy}
-              className="mt-5 h-12 w-full rounded-xl bg-emerald-500 text-sm font-semibold text-[#03100B] disabled:opacity-40"
-            >
-              {busy ? "Saving…" : "Save rent plan"}
-            </button>
-            <button
-              onClick={() => setShowPlan(false)}
-              disabled={busy}
-              className="mt-2 h-11 w-full text-xs text-violet-300"
-            >
-              Keep current plan
-            </button>
-          </section>
-        </div>
-      )}
       {!shortStay && reservationOptionsOpen && (
         <div
           className="fixed inset-0 z-[79] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-4"
