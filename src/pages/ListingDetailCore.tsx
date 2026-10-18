@@ -33,7 +33,7 @@ import {
   respondToSharedHousingInvite,
 } from "@/lib/supabase/shared-housing";
 import { getRoommateConversationPeople } from "@/lib/supabase/chat";
-import { listMyCompanions, type Companion } from "@/lib/supabase/companions";
+import { listMyFriends, type Friend } from "@/lib/supabase/friends";
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from "@/lib/roommateRecipients";
 import { withTimeout } from "@/lib/withTimeout";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
@@ -174,7 +174,7 @@ export default function ListingDetail({
   const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [roommateRecipients, setRoommateRecipients] = useState<RoommateRecipient[]>([]);
-  const [companionRecipients, setCompanionRecipients] = useState<Companion[]>([]);
+  const [friendRecipients, setFriendRecipients] = useState<Friend[]>([]);
   const [pickedPeople, setPickedPeople] = useState<string[]>([]);
   const [missingRoommateIdentities, setMissingRoommateIdentities] = useState(0);
   const [sharedGroup, setSharedGroup] = useState<any>(null);
@@ -510,13 +510,13 @@ function support(
     setBusy(true);
     setShareOpen(false);
     setRoommateRecipients([]);
-    setCompanionRecipients([]);
+    setFriendRecipients([]);
     setPickedPeople([]);
     setMissingRoommateIdentities(0);
     try {
-      const companions = await withTimeout(listMyCompanions(), 15000, "Friends took too long to load.");
-      if (companions.error) throw companions.error;
-      setCompanionRecipients(companions.companions.filter((companion) => companion.status === "accepted"));
+      const friends = await withTimeout(listMyFriends(), 15000, "Friends took too long to load.");
+      if (friends.error) throw friends.error;
+      setFriendRecipients(friends.friends.filter((friend) => friend.status === "accepted"));
       const peers = await withTimeout(getRoommateConversationPeople(), 15000, "Connections took too long to load.");
       if (peers.error) throw peers.error;
       setRoommateRecipients(selectRoommateRecipientsFromPeers(profile.user_id, peers.connections));
@@ -527,7 +527,7 @@ function support(
       setBusy(false);
     }
   }
-  // Picked keys are "roommate:<conversationId>" or "companion:<userId>". Up to 2 others, so 3 people pay.
+  // Picked keys are "roommate:<conversationId>" or "friend:<userId>". Up to 2 others, so 3 people pay.
   function togglePicked(key: string) {
     setPickedPeople((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : current.length >= 2 ? current : [...current, key],
@@ -535,10 +535,10 @@ function support(
   }
   async function sendShareInvitation() {
     const roommateIds = pickedPeople.filter((key) => key.startsWith("roommate:")).map((key) => key.slice(9));
-    const companionIds = pickedPeople.filter((key) => key.startsWith("companion:")).map((key) => key.slice(10));
-    if (!roommateIds.length && !companionIds.length) return;
+    const friendIds = pickedPeople.filter((key) => key.startsWith("friend:")).map((key) => key.slice(7));
+    if (!roommateIds.length && !friendIds.length) return;
     setBusy(true);
-    const { group, error } = await createSharedLongLet(String(listing?.id || listingId), roommateIds, companionIds);
+    const { group, error } = await createSharedLongLet(String(listing?.id || listingId), roommateIds, friendIds);
     setBusy(false);
     if (error) return toast.error(error.message);
     setSharedGroup(group);
@@ -1301,7 +1301,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
             <div className="mt-4">
               {[
                 { title: "Roommates", people: roommateRecipients.map((r) => ({ key: `roommate:${r.conversationId}`, id: r.userId, name: r.name, username: r.username, avatar: r.avatar })) },
-                { title: "Friends", people: companionRecipients.map((c) => ({ key: `companion:${c.user_id}`, id: c.user_id, name: c.full_name || c.username || "Friend", username: c.username || "", avatar: null as string | null })) },
+                { title: "Friends", people: friendRecipients.map((c) => ({ key: `friend:${c.user_id}`, id: c.user_id, name: c.full_name || c.username || "Friend", username: c.username || "", avatar: null as string | null })) },
               ].map((group) => (
                 <div key={group.title} className="mb-4">
                   <h3 className="text-sm font-semibold uppercase text-[var(--wh-text-secondary)]">{group.title}</h3>

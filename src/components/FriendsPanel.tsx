@@ -2,33 +2,33 @@ import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { runSafeAction } from "@/lib/safeAction";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import CompanionChat from "@/components/CompanionChat";
+import FriendChat from "@/components/FriendChat";
 import ReportDialog from "@/components/ReportDialog";
-import { blockFriend, unblockFriend, listMyCompanions, removeCompanion, respondToCompanionRequest, sendCompanionRequestByUsername, friendlyFriendMessage, type Companion } from "@/lib/supabase/companions";
+import { blockFriend, unblockFriend, listMyFriends, removeFriend, respondToFriendRequest, sendFriendRequestByUsername, friendlyFriendMessage, type Friend } from "@/lib/supabase/friends";
 
 // Friends: people you already know, used for chatting and paying together. Not Roommates.
-export default function CompanionsPanel({ myUserId, initialChatId, onInitialChatOpened, onNavigate }: { myUserId: string; initialChatId?: string | null; onInitialChatOpened?: () => void; onNavigate?: (page: string, id?: string) => void }) {
-  const [people, setPeople] = useState<Companion[]>([]);
+export default function FriendsPanel({ myUserId, initialChatId, onInitialChatOpened, onNavigate }: { myUserId: string; initialChatId?: string | null; onInitialChatOpened?: () => void; onNavigate?: (page: string, id?: string) => void }) {
+  const [people, setPeople] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
-  const [chat, setChat] = useState<Companion | null>(null);
-  const [report, setReport] = useState<Companion | null>(null);
+  const [chat, setChat] = useState<Friend | null>(null);
+  const [report, setReport] = useState<Friend | null>(null);
 
   const refresh = useCallback(async () => {
-    const { companions, error } = await listMyCompanions();
+    const { friends, error } = await listMyFriends();
     if (error) toast.error("Friends could not be loaded.");
-    else setPeople(companions);
+    else setPeople(friends);
     setLoading(false);
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
     if (loading || !initialChatId) return;
-    const target = people.find(person => person.companion_id === initialChatId && person.status === "accepted");
+    const target = people.find(person => person.friend_id === initialChatId && person.status === "accepted");
     if (target) { setChat(target); onInitialChatOpened?.(); }
   }, [initialChatId, loading, onInitialChatOpened, people]);
 
-  const nameOf = (p: Companion) => p.full_name || p.username || "WeHouse member";
+  const nameOf = (p: Friend) => p.full_name || p.username || "WeHouse member";
   async function run(action: () => Promise<{ error: { message?: string } | null }>, done: string) {
     setBusy(true);
     try {
@@ -58,14 +58,14 @@ export default function CompanionsPanel({ myUserId, initialChatId, onInitialChat
       {loading && <WeHouseLoadingState compact label="Loading" />}
       <ul className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
         {incoming.map((p) => (
-          <li key={p.companion_id} className="flex min-h-14 flex-wrap items-center gap-2 py-2">
+          <li key={p.friend_id} className="flex min-h-14 flex-wrap items-center gap-2 py-2">
             <span className="min-w-0 flex-1 break-words text-sm">{nameOf(p)} wants to be your Friend</span>
-            <button type="button" disabled={busy} onClick={() => void run(() => respondToCompanionRequest(p.companion_id, true), "Friend added")} className="min-h-11 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white">Accept</button>
-            <button type="button" disabled={busy} onClick={() => void run(() => respondToCompanionRequest(p.companion_id, false), "Request declined")} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Decline</button>
+            <button type="button" disabled={busy} onClick={() => void run(() => respondToFriendRequest(p.friend_id, true), "Friend added")} className="min-h-11 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white">Accept</button>
+            <button type="button" disabled={busy} onClick={() => void run(() => respondToFriendRequest(p.friend_id, false), "Request declined")} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Decline</button>
           </li>
         ))}
         {accepted.map((p) => (
-          <li key={p.companion_id} className="flex min-h-14 flex-wrap items-center gap-2 py-2">
+          <li key={p.friend_id} className="flex min-h-14 flex-wrap items-center gap-2 py-2">
             <span className="min-w-0 flex-1"><span className="block break-words text-sm font-medium">{nameOf(p)}</span>{p.username && <span className="block text-xs text-[var(--wh-text-secondary)]">@{p.username}</span>}</span>
             <button type="button" onClick={() => setChat(p)} className="min-h-11 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white">Chat</button>
             <button type="button" onClick={() => setReport(p)} className="min-h-11 px-2 text-xs font-semibold text-amber-200">Report</button>
@@ -73,13 +73,13 @@ export default function CompanionsPanel({ myUserId, initialChatId, onInitialChat
           </li>
         ))}
         {sent.map((p) => (
-          <li key={p.companion_id} className="flex min-h-14 items-center gap-2 py-2 text-sm">
+          <li key={p.friend_id} className="flex min-h-14 items-center gap-2 py-2 text-sm">
             <span className="min-w-0 flex-1 break-words">{nameOf(p)} · request sent</span>
-            <button type="button" disabled={busy} onClick={() => void run(() => removeCompanion(p.user_id), "Request cancelled")} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Cancel</button>
+            <button type="button" disabled={busy} onClick={() => void run(() => removeFriend(p.user_id), "Request cancelled")} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-text-secondary)]">Cancel</button>
           </li>
         ))}
         {blocked.map((p) => (
-          <li key={p.companion_id} className="flex min-h-14 items-center gap-2 py-2 text-sm">
+          <li key={p.friend_id} className="flex min-h-14 items-center gap-2 py-2 text-sm">
             <span className="min-w-0 flex-1 break-words">{nameOf(p)} · blocked</span>
             <button type="button" disabled={busy} onClick={() => void run(() => unblockFriend(p.user_id), "Unblocked")} className="min-h-11 px-2 text-xs font-semibold text-violet-300">Unblock</button>
           </li>
@@ -88,9 +88,9 @@ export default function CompanionsPanel({ myUserId, initialChatId, onInitialChat
       {!loading && !people.length && <p className="mt-2 text-sm text-[var(--wh-text-secondary)]">No Friends yet.</p>}
       <div className="mt-3 flex items-center gap-2">
         <input value={username} onChange={(e) => setUsername(e.target.value)} aria-label="Friend username" placeholder="Their WeHouse username" maxLength={40} className="min-h-12 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-transparent px-3 text-sm" />
-        <button type="button" disabled={busy || !username.trim()} onClick={() => void run(async () => { const r = await sendCompanionRequestByUsername(username.trim()); if (!r.error) setUsername(""); return r; }, "Request sent")} className="min-h-12 shrink-0 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Add</button>
+        <button type="button" disabled={busy || !username.trim()} onClick={() => void run(async () => { const r = await sendFriendRequestByUsername(username.trim()); if (!r.error) setUsername(""); return r; }, "Request sent")} className="min-h-12 shrink-0 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Add</button>
       </div>
-      {chat && <CompanionChat companion={chat} myUserId={myUserId} onClose={() => setChat(null)} onNavigate={onNavigate} />}
+      {chat && <FriendChat friend={chat} myUserId={myUserId} onClose={() => setChat(null)} onNavigate={onNavigate} />}
       {report && <ReportDialog subjectType="companion_chat" subjectUserId={report.user_id} subjectName={nameOf(report)} onClose={() => setReport(null)} />}
     </section>
   );

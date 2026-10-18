@@ -18,9 +18,9 @@ import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE
 import { decryptPrivateMessage, encryptPrivateMessage, privateConversationReadiness, type EncryptedAttachment, type PrivateConversationReadiness } from "@/lib/e2ee";
 import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import {
-  getCompanionEncryptedMessages, blockFriend, friendlyFriendMessage, sendCompanionEncryptedMessage,
-  uploadFriendChatAttachment, openFriendChatAttachment, reactToFriendMessage, deleteFriendMessageForMe, type Companion,
-} from "@/lib/supabase/companions";
+  getFriendEncryptedMessages, blockFriend, friendlyFriendMessage, sendFriendEncryptedMessage,
+  uploadFriendChatAttachment, openFriendChatAttachment, reactToFriendMessage, deleteFriendMessageForMe, type Friend,
+} from "@/lib/supabase/friends";
 
 const MAX_FILES = 6;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -30,8 +30,8 @@ type Line = {
   reactions: Record<string, string>; media_error?: boolean;
 };
 
-export default function CompanionChat({ companion, myUserId, onClose, onNavigate }: { companion: Companion; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
-  const name = companion.full_name || companion.username || "Friend";
+export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
+  const name = friend.full_name || friend.username || "Friend";
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState("");
@@ -40,40 +40,40 @@ export default function CompanionChat({ companion, myUserId, onClose, onNavigate
   const [replyingTo, setReplyingTo] = useState<Line | null>(null);
   const [actions, setActions] = useState<{ line: Line; mode: "reactions" | "actions"; anchor: MessageMenuAnchor } | null>(null);
   const [busy, setBusy] = useState(false);
-  const pins = useMessagePins("friend", companion.companion_id, lines.length);
+  const pins = useMessagePins("friend", friend.friend_id, lines.length);
   const [reporting, setReporting] = useState(false);
   const [info, setInfo] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
   const media = useRef(new Map<string, { url: string; type: string }>());
-  const blocked = companion.status === "blocked";
+  const blocked = friend.status === "blocked";
 
-  useEffect(() => { setWorkerDraft(pendingWorkerShare(myUserId, companion.companion_id)); }, [myUserId, companion.companion_id]);
+  useEffect(() => { setWorkerDraft(pendingWorkerShare(myUserId, friend.friend_id)); }, [myUserId, friend.friend_id]);
 
   useEffect(() => { const cache = media.current; return () => { for (const item of cache.values()) URL.revokeObjectURL(item.url); cache.clear(); }; }, []);
 
   const load = useCallback(async () => {
-    const state = await privateConversationReadiness("companion", companion.companion_id, companion.user_id);
+    const state = await privateConversationReadiness("companion", friend.friend_id, friend.user_id);
     setReadiness(state);
     if (state.state !== "ready") return;
-    const { messages, error } = await getCompanionEncryptedMessages(companion.companion_id);
+    const { messages, error } = await getFriendEncryptedMessages(friend.friend_id);
     if (error) return toast.error(error.message || "Could not load messages");
     const decoded = await Promise.all(messages.map(async (m): Promise<Line> => {
       let content = "Message could not be decrypted on this device.";
-      try { content = await decryptPrivateMessage("companion", companion.companion_id, companion.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
+      try { content = await decryptPrivateMessage("companion", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
       const attachments: string[] = [], types: string[] = [];
       let failed = false;
       for (const item of (m.encrypted_attachments || []) as EncryptedAttachment[]) {
         let hit = media.current.get(item.path);
         if (!hit) {
-          try { const clear = await openFriendChatAttachment(companion.companion_id, companion.user_id, item); hit = { url: clear.url, type: clear.type }; media.current.set(item.path, hit); } catch { failed = true; }
+          try { const clear = await openFriendChatAttachment(friend.friend_id, friend.user_id, item); hit = { url: clear.url, type: clear.type }; media.current.set(item.path, hit); } catch { failed = true; }
         }
         if (hit) { attachments.push(hit.url); types.push(hit.type); }
       }
       return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: failed };
     }));
     setLines(decoded);
-  }, [companion.companion_id, companion.user_id]);
+  }, [friend.friend_id, friend.user_id]);
 
   useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 8000); return () => window.clearInterval(timer); }, [load]);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lines.length]);
@@ -103,17 +103,17 @@ export default function CompanionChat({ companion, myUserId, onClose, onNavigate
     const replyId = replyingTo?.id || null;
     try {
       const content = workerDraft ? workerShareMessage(workerDraft, text) : text;
-      const signature = `friend-chat:${companion.companion_id}:${content}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
+      const signature = `friend-chat:${friend.friend_id}:${content}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
       await runSafeAction(signature, async () => {
-        const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, companion.companion_id, companion.user_id)));
+        const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, friend.friend_id, friend.user_id)));
         const failed = uploaded.find((u) => u.error || !u.attachment);
         if (failed) throw failed.error || new Error("Could not upload the attachment");
-        const { ciphertext, iv } = await encryptPrivateMessage("companion", companion.companion_id, companion.user_id, content);
-        const { error } = await sendCompanionEncryptedMessage(companion.companion_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
+        const { ciphertext, iv } = await encryptPrivateMessage("companion", friend.friend_id, friend.user_id, content);
+        const { error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
         if (error) throw error;
         releaseRequestKey(signature);
       });
-      if (workerDraft) clearWorkerShare(myUserId, companion.companion_id);
+      if (workerDraft) clearWorkerShare(myUserId, friend.friend_id);
       setWorkerDraft(null); setDraft(""); setFiles([]); setReplyingTo(null);
       await load();
     } catch (error) {
@@ -123,13 +123,13 @@ export default function CompanionChat({ companion, myUserId, onClose, onNavigate
 
   async function react(line: Line, emoji: string) {
     const current = line.reactions[myUserId];
-    const result = await reactToFriendMessage(companion.companion_id, line.id, current === emoji ? null : emoji);
+    const result = await reactToFriendMessage(friend.friend_id, line.id, current === emoji ? null : emoji);
     if (result.error) return toast.error(friendlyFriendMessage(result.error.message));
     setLines((all) => all.map((l) => (l.id === line.id ? { ...l, reactions: result.reactions } : l)));
   }
 
   async function removeForMe(line: Line) {
-    const { error } = await deleteFriendMessageForMe(companion.companion_id, line.id);
+    const { error } = await deleteFriendMessageForMe(friend.friend_id, line.id);
     if (error) return toast.error(friendlyFriendMessage(error.message));
     setLines((all) => all.filter((l) => l.id !== line.id));
     toast.success("Deleted for you");
@@ -172,7 +172,7 @@ export default function CompanionChat({ companion, myUserId, onClose, onNavigate
               <p className="py-2 text-center text-xs text-[var(--wh-text-secondary)]">You blocked {name}. Unblock them from your Friends list to chat again.</p>
             ) : (
               <>
-                {workerDraft && <WorkerDraftAttachment onRemove={() => { clearWorkerShare(myUserId, companion.companion_id); setWorkerDraft(null); }} />}
+                {workerDraft && <WorkerDraftAttachment onRemove={() => { clearWorkerShare(myUserId, friend.friend_id); setWorkerDraft(null); }} />}
                 <PendingMessageMedia files={files} onRemove={(index) => setFiles((current) => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel recording={voice.recording} seconds={voice.seconds} level={voice.level} draft={voice.draft} onCancel={voice.cancel} onFinish={voice.finish} onDiscard={voice.discard}
                   onUse={(file) => { setFiles((current) => [...current, file].slice(0, MAX_FILES)); voice.discard(); }} />
@@ -220,13 +220,13 @@ export default function CompanionChat({ companion, myUserId, onClose, onNavigate
           <div className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-5 py-8 text-center">
             <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[var(--wh-interactive)] text-2xl font-semibold">{name.slice(0, 1).toUpperCase()}</div>
             <h2 className="mt-4 text-lg font-semibold">{name}</h2>
-            {companion.username && <p className="text-sm text-[var(--wh-text-secondary)]">@{companion.username}</p>}
+            {friend.username && <p className="text-sm text-[var(--wh-text-secondary)]">@{friend.username}</p>}
             <p className="mt-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Friends can chat privately and split a Short Let payment. Messages are end-to-end encrypted, so WeHouse cannot read them.</p>
             <div className="mt-8 space-y-2">
               <button type="button" onClick={() => { setInfo(false); setReporting(true); }} className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold">Report</button>
               <button type="button" disabled={busy} onClick={() => {
                 if (!window.confirm(`Block ${name}? They will not be able to message you or send you requests. You can unblock them anytime and your chat will still be there.`)) return;
-                void runSafeAction(`friend-block:${companion.user_id}`, () => blockFriend(companion.user_id)).then((result) => {
+                void runSafeAction(`friend-block:${friend.user_id}`, () => blockFriend(friend.user_id)).then((result) => {
                   if (result.error) return toast.error(friendlyFriendMessage(result.error.message));
                   toast.success("Blocked");
                   onClose();
@@ -236,7 +236,7 @@ export default function CompanionChat({ companion, myUserId, onClose, onNavigate
           </div>
         </div>
       )}
-      {reporting && <ReportDialog subjectType="companion_chat" subjectUserId={companion.user_id} subjectName={name} onClose={() => setReporting(false)} />}
+      {reporting && <ReportDialog subjectType="companion_chat" subjectUserId={friend.user_id} subjectName={name} onClose={() => setReporting(false)} />}
     </div>
   );
 }

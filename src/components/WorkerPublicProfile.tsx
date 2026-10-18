@@ -55,7 +55,7 @@ type Props = {
   bookingActive?: boolean;
   onOpenBooking?: () => void;
   onGoToChat?: (conversationId: string) => void;
-  onGoToFriendChat?: (companionId: string) => void;
+  onGoToFriendChat?: (friendId: string) => void;
   showBookingAction?: boolean;
   previewMode?: boolean;
   communicationActions?: ReactNode;

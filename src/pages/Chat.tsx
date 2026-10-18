@@ -23,7 +23,7 @@ import ChatCore from "@/pages/ChatCore";
 import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import ActivityHeader from "@/components/ActivityHeader";
-import CompanionsPanel from "@/components/CompanionsPanel";
+import FriendsPanel from "@/components/FriendsPanel";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 
 type Props = {
@@ -584,7 +584,7 @@ export default function Chat({
         <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
           <ActivityHeader onBack={() => setView("messages")} className="mx-auto max-w-5xl" />
         </div>
-        <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8"><CompanionsPanel myUserId={profile.user_id} initialChatId={initialFriendChatId} onInitialChatOpened={onFriendChatOpened} onNavigate={onNavigate} /></main>
+        <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8"><FriendsPanel myUserId={profile.user_id} initialChatId={initialFriendChatId} onInitialChatOpened={onFriendChatOpened} onNavigate={onNavigate} /></main>
         <Notifications
           profile={profile}
           scope="personal"

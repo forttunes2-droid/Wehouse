@@ -331,7 +331,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [roommateContextId, setRoommateContextId] = useState<string | null>(() => initialRoute?.page === "roommate" ? initialParams.roommateId || initialParams.id || null : null),
     [workerCategory, setWorkerCategory] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.category || null : null),
     [workerProfileId, setWorkerProfileId] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.id || null : null),
-    [friendConversationId, setFriendConversationId] = useState<string | null>(() => initialRoute?.page === "activity" ? initialParams.companionId || null : null),
+    [friendConversationId, setFriendConversationId] = useState<string | null>(() => initialRoute?.page === "activity" ? initialParams.friendId || null : null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
     [supportUnreadCount, setSupportUnreadCount] = useState(0),
@@ -486,7 +486,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "worker_discovery":
         return { id: params.id ?? workerProfileId ?? undefined, category: params.category ?? workerCategory ?? undefined };
       case "activity":
-        return { companionId: params.companionId ?? friendConversationId ?? undefined };
+        return { friendId: params.friendId ?? friendConversationId ?? undefined };
       default:
         return {};
     }
@@ -508,7 +508,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     setBookingContextId(page === "my_reservations" ? params.bookingId || params.id || null : null);
     setRoommateContextId(page === "roommate" ? params.roommateId || params.id || null : null);
     setWorkerProfileId(page === "worker_discovery" ? params.id || null : null);
-    setFriendConversationId(page === "activity" ? params.companionId || null : null);
+    setFriendConversationId(page === "activity" ? params.friendId || null : null);
     setWorkerCategory(page === "worker_discovery" ? params.category || null : null);
   }, []);
   const roleRoot = useCallback(
@@ -1261,7 +1261,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         return goTo("roommate", undefined, { roommateId: id });
       }
       if (route === "worker_discovery" && id) { setWorkerProfileId(id); return goTo("worker_discovery", undefined, { id }); }
-      if (route === "activity" && id) { setFriendConversationId(id); return goTo("activity", undefined, { companionId: id }); }
+      if (route === "activity" && id) { setFriendConversationId(id); return goTo("activity", undefined, { friendId: id }); }
       if (route === "security" && id) return goTo("devices");
       goTo(route as NavPage);
     },
