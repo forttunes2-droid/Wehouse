@@ -928,7 +928,7 @@ const PLATFORM_SECTIONS: Array<{
   },
   {
     id: "partner_plan",
-    label: "Property Partner Pro",
+    label: "WeHouse Pro (Property Partner)",
     note: "Portfolio tools, prepaid prices, terms and sales control.",
   },
   {

@@ -44,7 +44,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   async function subscribe(selectedBillingPeriod: WorkerProBillingPeriod) {
     if (!pro || underReview || (!native && !pro.sales_enabled)) return;
     if (!termsAccepted) {
-      toast.error('Please read and accept the current paid plan subscription terms');
+      toast.error('Please read and accept the current WeHouse Pro terms');
       return;
     }
     setBusy(true);
@@ -113,8 +113,8 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   // Ownership of existing records does not end with the subscription. Unknown
   // entitlement permits read/export only; all writes stay server-authorised.
   const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} />;
-  if (loading) return <div className="space-y-4"><State text="Loading paid Worker plan…" />{tools}</div>;
-  if (error || !pro) return <div className="space-y-4"><State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />{tools}</div>;
+  if (loading) return <div className="space-y-4"><State text="Loading WeHouse Pro…" />{tools}</div>;
+  if (error || !pro) return <div className="space-y-4"><State text={error || 'WeHouse Pro is unavailable'} retry={onRefresh} />{tools}</div>;
   const storeName = isIOS() ? 'App Store' : isAndroid() ? 'Google Play' : 'Paystack';
   const planOptions = Array.isArray(pro.plans) && pro.plans.length > 0 ? pro.plans : [{
     billing_period: 'monthly' as const,
@@ -184,7 +184,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
               ))}
             </div>
             <details>
-              <summary className="cursor-pointer text-sm font-semibold text-[var(--wh-text)]">Read paid plan subscription terms ({pro.terms_version || 'not published'})</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--wh-text)]">Read WeHouse Pro terms ({pro.terms_version || 'not published'})</summary>
               <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{pro.terms_content || 'Subscription terms are not available. Sales must remain off.'}</p>
             </details>
             <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
@@ -203,7 +203,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <p className="mt-4 text-sm leading-6 text-[var(--wh-text-secondary)]">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
-      {underReview && <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your Worker Pro payment is under Finance review after a provider refund or dispute notice. Paid tools and new checkout are paused. Your free Worker profile, bookings and existing work documents remain available.</p>}
+      {underReview && <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your WeHouse Pro payment is under Finance review after a provider refund or dispute notice. Paid tools and new checkout are paused. Your free Worker profile, bookings and existing work documents remain available.</p>}
       {native && <button onClick={() => void restore()} disabled={busy || import.meta.env.VITE_NATIVE_BILLING_ENABLED !== 'true'} className="w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-[10px] font-semibold disabled:opacity-40">Restore store subscription</button>}
       {tools}
     </div>

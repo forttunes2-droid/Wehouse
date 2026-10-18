@@ -172,7 +172,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(partner, /key: "tools"/);
   assert.doesNotMatch(partner, /key: "pro"/);
   assert.doesNotMatch(partner, /key: "sponsored"/);
-  assert.match(tools, /Partner Pro/);
+  assert.match(tools, /WeHouse Pro/);
   assert.match(tools, /Sponsored placement/);
   assert.doesNotMatch(housing, /Bookings and handovers/);
   assert.match(housing, /Verify booking/);

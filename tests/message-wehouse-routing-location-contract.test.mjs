@@ -103,6 +103,6 @@ test("human location UI is address-only and manual address remains authoritative
   assert.match(roommate, /Location not added/);
   assert.match(profile, /label="Street address"/);
   assert.match(profile, /preciseLocation\?\.address\?\.trim\(\) \|\| 'Not added'/);
-  assert.match(profile, /Choose your State and Local Government, then add your street address/);
+  assert.match(profile, /Choose your state or region and city or area, then add your street address/);
   assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
 });

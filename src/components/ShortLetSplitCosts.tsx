@@ -1,6 +1,6 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import {useEffect,useRef,useState} from 'react';
-import {listMyFriends,sendFriendRequestByUsername,respondToFriendRequest,friendlyFriendMessage,type Friend} from '@/lib/supabase/friends';
+import {listMyFriends,friendlyFriendMessage,type Friend} from '@/lib/supabase/friends';
 import {createSharedShortLet,type SharedHousingGroup} from '@/lib/supabase/shared-housing';
 import {shortLetPayment} from '@/lib/shortLetPayment';
 import {sharedAmounts} from '@/lib/sharedHousingPresentation';
@@ -13,32 +13,19 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
   const [open,setOpen]=useState(false),[people,setPeople]=useState<Friend[]>([]),[ids,setIds]=useState<string[]>([]);
   const [loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[attempt,setAttempt]=useState(0);
   const generation=useRef(0), inFlight=useRef(false);
-  const bill=shortLetPayment(row), capacity=Math.min(Number(row.guest_count||0),3),[username,setUsername]=useState(''),[notice,setNotice]=useState('');
+  const bill=shortLetPayment(row), capacity=Math.min(Number(row.guest_count||0),3);
   useEffect(()=>{const current=++generation.current;setPeople([]);setIds([]);setError('');if(!open)return;
     setLoading(true);
-    void withTimeout(    listMyFriends(),15000,'Friends took too long.').then(result=>{
+    void withTimeout(listMyFriends(),15000,'Friends took too long.').then(result=>{
       if(current!==generation.current)return;
       if(result.error)throw result.error;
-          setPeople(result.friends);
+      setPeople(result.friends);
     }).catch(()=>{if(current===generation.current)setError('Friends could not be loaded. Please refresh.');}).finally(()=>{if(current===generation.current)setLoading(false);});
     return()=>{generation.current+=1;};
   },[open,userId,row.id,attempt]);
-  const accepted=people.filter(person=>person.status==='accepted'),waiting=people.filter(person=>person.status==='pending');
-  const chosen=ids.map(id=>accepted.find(person=>person.user_id===id)).filter((person):  person is Friend=>Boolean(person));
-    const nameOf=(person:Friend)=>person.full_name||person.username||'WeHouse member';
-    async function addFriend(){
-    const name=username.trim().replace(/^@/,'');if(!name||busy)return;
-    setError('');setNotice('');
-      const result=await sendFriendRequestByUsername(name);
-    if(result.error){setError('That person cannot receive a friend request.');return;}
-    setUsername('');setNotice('Request sent. They must accept before you can invite them.');setAttempt(n=>n+1);
-  }
-  async function answer(person:Friend,accept:boolean){
-    setError('');const result=await respondToFriendRequest(person.friend_id,accept);
-    if(result.error){setError('That request could not be updated. Refresh and try again.');return;}
-    setAttempt(n=>n+1);
-  }
-  const shares=bill&&chosen.length ? sharedAmounts(bill.rent,bill.deposit,chosen.length+1):null;
+  const accepted=people.filter(person=>person.status==='accepted');
+  const chosen=ids.map(id=>accepted.find(person=>person.user_id===id)).filter((person):person is Friend=>Boolean(person));
+  const nameOf=(person:Friend)=>person.full_name||person.username||'WeHouse member';  const shares=bill&&chosen.length ? sharedAmounts(bill.rent,bill.deposit,chosen.length+1):null;
   async function create(){
     if(!bill||!chosen.length||chosen.length+1>capacity||busy||inFlight.current)return;
     inFlight.current=true;setBusy(true);setError('');const current=generation.current;
@@ -64,10 +51,8 @@ export default function ShortLetSplitCosts({row,userId,onCreated}:{row:Row;userI
       {loading?<WeHouseLoadingState compact label="Loading your friends" />:<div className="divide-y divide-[var(--wh-border-subtle)]">{accepted.map(person=><label key={person.user_id} className="flex min-h-16 items-center gap-3 py-3">
         <input type="checkbox" aria-label={`Invite ${nameOf(person)}`} checked={ids.includes(person.user_id)} disabled={busy||(!ids.includes(person.user_id)&&ids.length>=capacity-1)} onChange={e=>setIds(current=>e.target.checked?[...current,person.user_id]:current.filter(id=>id!==person.user_id))} className="h-5 w-5 shrink-0"/>
         <span className="min-w-0"><span className="block break-words text-base font-medium">{nameOf(person)}</span>{person.username&&<span className="block break-words text-sm text-[var(--wh-text-secondary)]">@{person.username}</span>}</span>
-      </label>)}{waiting.map(person=><div key={person.user_id} className="flex min-h-14 items-center gap-3 py-3 text-sm"><span className="min-w-0 flex-1 break-words">{nameOf(person)}</span>{person.requested_by_me?<span className="text-[var(--wh-text-secondary)]">Waiting for them to accept</span>:<span className="flex gap-2"><button type="button" onClick={()=>void answer(person,true)} className="min-h-11 font-semibold underline">Accept</button><button type="button" onClick={()=>void answer(person,false)} className="min-h-11 underline">Decline</button></span>}</div>)}</div>}
-      {!loading&&!people.length&&!error&&<p className="text-sm leading-6 text-[var(--wh-text-secondary)]">You have no friends yet. Add someone you already know by their WeHouse username. Friends are separate from Roommates.</p>}
-      <div className="flex items-center gap-2"><input value={username} onChange={e=>setUsername(e.target.value)} aria-label="Friend username" placeholder="Their WeHouse username" maxLength={40} className="min-h-12 min-w-0 flex-1 rounded-xl border border-[var(--wh-border-subtle)] bg-transparent px-3 text-sm"/><button type="button" disabled={busy||!username.trim()} onClick={()=>void addFriend()} className="min-h-12 shrink-0 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Add friend</button></div>
-      {notice&&<p role="status" className="text-sm leading-6 text-emerald-300">{notice}</p>}
+      </label>)}</div>}
+      {!loading&&!accepted.length&&!error&&<p className="text-sm leading-6 text-[var(--wh-text-secondary)]">You have no friends to share with yet. Add friends from Inbox → Friends, then come back. Friends are separate from Roommates.</p>}
       {shares&&<div className="space-y-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3"><h4 className="text-xs font-semibold uppercase tracking-wide text-violet-300">Shared reservation</h4>{shares.map((share,index)=><div key={index} className="text-xs leading-5"><div className="flex items-start justify-between gap-3"><strong className="min-w-0 break-words">{index===0?'You':nameOf(chosen[index-1])}</strong><strong className="shrink-0">{money(share.total)}</strong></div><p className="text-[var(--wh-text-secondary)]">Stay {money(share.rent)} · Caution fee {share.deposit?money(share.deposit):'not required'}</p></div>)}<p className="border-t border-[var(--wh-border-subtle)] pt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">These amounts come from the reservation. Each participant sees their assigned amount before completing payment.</p></div>}
       <button type="button" disabled={busy||!shares||loading} onClick={()=>void create()} className="min-h-12 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">{busy?'Preparing invitation…':'Invite people'}</button>
     </div>}

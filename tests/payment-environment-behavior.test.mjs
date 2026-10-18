@@ -90,6 +90,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
     serve: (fn) => { handler = fn; },
     resolvePaymentReturnUrl: resolveReturn,
     hasLiveSession: sessionExports.hasLiveSession,
+    consumeUserAction: async () => ({ allowed: true, retryAfterSeconds: 0 }),
     hasActiveWorkspace: sessionExports.hasActiveWorkspace,
     createClient: () => { clients++; return admin; },
     fetch: async (url, options) => {

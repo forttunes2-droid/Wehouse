@@ -43,7 +43,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
   const [busy, setBusy] = useState(false);
   const loadPlan = useCallback(async () => {
     setPlanLoading(true);
-    const result = await withTimeout(supabase.rpc('get_my_partner_pro'), 8000, 'Partner Pro took too long to load');
+    const result = await withTimeout(supabase.rpc('get_my_partner_pro'), 8000, 'WeHouse Pro took too long to load');
     setPlanLoading(false);
     if (result.error || !result.data || typeof result.data.active !== 'boolean') {
       setPlanError(true); setPlan(null); return;
@@ -52,7 +52,7 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
   }, []);
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await withTimeout(supabase.rpc('get_my_partner_pro_overview'), 10000, 'Partner Pro portfolio took too long to load');
+    const result = await withTimeout(supabase.rpc('get_my_partner_pro_overview'), 10000, 'WeHouse Pro portfolio took too long to load');
     if (result.error || !result.data || !Array.isArray(result.data.assets) || !Array.isArray(result.data.stays)) {
       setError(true); setData(null);
     } else { setData(result.data as Overview); setError(false); }
@@ -178,15 +178,15 @@ export default function PropertyPartnerProWorkspace({ profile }: { profile: Prof
         {([[CalendarDays,'Portfolio schedule','See upcoming stays across owned homes and hotels and export your calendar.'],[TrendingUp,'Income reports','Review released earnings and download a CSV.'],[ClipboardList,'Property tasks','Track maintenance and turnover per place with repeating tasks.'],[BedDouble,'Occupancy and arrivals','See the next 30 days of booked unit nights and save guest arrival instructions.']] as const).map(([Icon,title,detail]) => <article key={title} className="rounded-2xl bg-[var(--wh-elevated)] p-4"><Icon size={20} className="text-violet-500"/><h2 className="mt-3 text-sm font-semibold">{title}</h2><p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{detail}</p></article>)}
       </div>
     </section>
-    {plan.under_review ? <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your Partner Pro payment is under review after a provider refund or dispute notice. Paid tools and new checkout are paused while Finance reconciles it. Your ordinary listings and bookings are still available.</p> : plan.sales_enabled && !isNative() && plan.terms_content ? <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 sm:p-8">
+    {plan.under_review ? <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your WeHouse Pro payment is under review after a provider refund or dispute notice. Paid tools and new checkout are paused while Finance reconciles it. Your ordinary listings and bookings are still available.</p> : plan.sales_enabled && !isNative() && plan.terms_content ? <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 sm:p-8">
       <h2 className="text-lg font-semibold">Choose access</h2><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">One month or one year, paid in advance. It does not renew automatically.</p>
-      <div className="mt-5 grid gap-2 sm:grid-cols-2" role="group" aria-label="Partner Pro access period">
+      <div className="mt-5 grid gap-2 sm:grid-cols-2" role="group" aria-label="WeHouse Pro access period">
         {(['monthly','yearly'] as const).map(value => <button type="button" key={value} disabled={!(value === 'monthly' ? plan.monthly_price_ngn : plan.yearly_price_ngn)} aria-pressed={period === value} onClick={() => setPeriod(value)} className={`min-h-20 rounded-2xl border p-4 text-left disabled:opacity-40 ${period === value ? 'border-violet-500 bg-violet-500/10' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]'}`}><span className="block text-sm font-semibold">{value === 'monthly' ? 'One month' : 'One year'}</span><strong className="mt-1 block text-lg">{money(value === 'monthly' ? plan.monthly_price_ngn : plan.yearly_price_ngn)}</strong></button>)}
       </div>
       <details className="mt-5 text-sm"><summary className="cursor-pointer font-semibold">Read paid access terms ({plan.terms_version})</summary><p className="mt-3 max-h-48 overflow-y-auto whitespace-pre-wrap leading-6 text-[var(--wh-text-secondary)]">{plan.terms_content}</p></details>
       <label className="mt-4 flex items-start gap-3 text-xs leading-5 text-[var(--wh-text-secondary)]"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} className="mt-1 accent-violet-500"/><span>I accept the current terms for this prepaid access period.</span></label>
       <button type="button" disabled={!accepted || purchasing || !(period === 'monthly' ? plan.monthly_price_ngn : plan.yearly_price_ngn)} onClick={() => void purchase()} className="mt-4 min-h-12 w-full rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{purchasing ? 'Opening Paystack…' : 'Continue to secure checkout'}</button>
-    </section> : <p className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 text-sm text-[var(--wh-text-secondary)]">New Partner Pro purchases are not currently open. Your normal Property Partner tools remain available.</p>}
+    </section> : <p className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4 text-sm text-[var(--wh-text-secondary)]">New WeHouse Pro purchases are not currently open. Your normal Property Partner tools remain available.</p>}
   </main>;
 
   return <main className="mx-auto max-w-5xl space-y-5 px-4 pb-10 pt-2 text-[var(--wh-text)] sm:px-6">

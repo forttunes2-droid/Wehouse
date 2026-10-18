@@ -3,6 +3,7 @@ import { ReceiptDocument, ReceiptPrintButton } from "@/components/PaymentReceipt
 import { getPaymentReceipts, type PaymentReceipt } from "@/lib/supabase/receipts";
 import { useEffect, useMemo, useState } from 'react';
 import { verifyPaymentWithRetry } from '@/lib/supabase/payment-verify';
+import { isBookingPurpose, purposeCopy } from '@/lib/paymentPurposes';
 import type { Profile } from '@/types';
 import type { NavPage } from '@/types/nav';
 
@@ -33,7 +34,7 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
   if (purpose === 'worker_verification' && role === 'worker') return 'worker_verification';
   if (purpose === 'sponsored_campaign') return role === 'worker' ? 'worker_dashboard' : 'property_partner';
   if (purpose === 'partner_pro_access') return 'property_partner';
-  if (['worker_booking', 'hotel_booking', 'apartment_reservation', 'apartment_rent', 'housing_reservation', 'reservation_fee', 'shared_housing_share', 'rent_plan_contribution'].includes(purpose || '')) return 'my_reservations';
+  if (isBookingPurpose(purpose)) return 'my_reservations';
   if (role === 'worker') return 'worker_dashboard';
   if (role === 'property_partner') return 'property_partner';
   if (role === 'creator') return 'creator';
@@ -42,33 +43,15 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
   return 'search';
 }
 
-function successActionLabel(purpose?: string) {
-  if (purpose === 'sponsored_campaign') return 'View my campaigns';
-  if (purpose === 'partner_pro_access') return 'Open Property Partner Pro';
-  if (purpose === 'worker_booking') return 'Open service booking';
-  if (purpose === 'hotel_booking') return 'Open hotel booking';
-  if (purpose === 'apartment_reservation') return 'Open apartment booking';
-  if (purpose === 'apartment_rent') return 'Open apartment booking';
-  if (purpose === 'worker_verification') return 'Continue free Worker setup';
-  return 'Continue';
-}
+const successActionLabel = (purpose?: string) => purposeCopy(purpose).action;
 
 function successMessage(purpose?: string) {
-  if (['worker_booking', 'hotel_booking', 'apartment_reservation', 'apartment_rent', 'housing_reservation', 'reservation_fee', 'shared_housing_share', 'rent_plan_contribution'].includes(purpose || ''))
+  if (isBookingPurpose(purpose))
     return 'Your payment is confirmed. WeHouse holds it safely and releases it to the other side only when the release conditions are met.';
   return 'Your payment is confirmed.';
 }
 
-function paymentHeading(purpose?: string) {
-  if (purpose === 'sponsored_campaign') return 'Sponsored campaign active';
-  if (purpose === 'partner_pro_access') return 'Property Partner Pro active';
-  if (purpose === 'worker_booking') return 'Service payment confirmed';
-  if (purpose === 'hotel_booking') return 'Hotel payment confirmed';
-  if (purpose === 'apartment_reservation') return 'Reservation payment confirmed';
-  if (purpose === 'apartment_rent') return 'Rent payment confirmed';
-  if (purpose === 'worker_verification') return 'Legacy payment record confirmed';
-  return 'Payment confirmed';
-}
+const paymentHeading = (purpose?: string) => purposeCopy(purpose).heading;
 
 export default function PaymentReturn({ profile, onNavigate }: Props) {
   const reference = useMemo(paymentReferenceFromLocation, []);
@@ -96,7 +79,7 @@ export default function PaymentReturn({ profile, onNavigate }: Props) {
           receipt = { ...receipt, description: 'Sponsored placement', merchant_name: 'WeHouse' };
         }
         if (receipt && result.purpose === 'partner_pro_access') {
-          receipt = { ...receipt, description: 'Property Partner Pro access', merchant_name: 'WeHouse' };
+          receipt = { ...receipt, description: 'WeHouse Pro (Property Partner)', merchant_name: 'WeHouse' };
         }
       } catch { /* Keep the verified payment visible while receipt retrieval can retry. */ }
       if (result.purpose === 'partner_pro_access') {
