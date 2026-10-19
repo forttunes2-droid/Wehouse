@@ -952,7 +952,6 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                   fee={reservationFee}
                   onResume={() => void resumeCheckout()}
                   onInspect={() => void requestInspection()}
-                  onRentOptions={() => setShowPlan(true)}
                   onRentPay={() => void payContractRent()}
                   onOpenBooking={() => onOpenBooking(String(reservation.id))}
                   onSupport={() =>
@@ -1395,7 +1394,6 @@ function ReservationPanel({
   fee,
   onResume,
   onInspect,
-  onRentOptions,
   onRentPay,
   onOpenBooking,
   onSupport,
@@ -1407,7 +1405,6 @@ function ReservationPanel({
   fee: number;
   onResume: () => void;
   onInspect: () => void;
-  onRentOptions: () => void;
   onRentPay: () => void;
   onOpenBooking: () => void;
   onSupport: () => void;
@@ -1597,7 +1594,7 @@ function ReservationPanel({
           value={`${formatMoney(Number(reservation.amount || fee))}`}
         />
         <Row
-          label="Rent plan"
+          label="Tenancy term"
           value={`${reservation.rental_plan_years || 1} year${Number(reservation.rental_plan_years || 1) === 1 ? "" : "s"}`}
         />
       </div>
@@ -1615,12 +1612,6 @@ function ReservationPanel({
           {busy ? "Requesting…" : "Request apartment inspection"}
         </button>
       )}
-      <button
-        onClick={onRentOptions}
-        className="mt-2 h-10 w-full text-xs font-semibold text-emerald-300"
-      >
-        Rent options
-      </button>
       <button
         onClick={onSupport}
         className="h-10 w-full text-xs text-violet-300"

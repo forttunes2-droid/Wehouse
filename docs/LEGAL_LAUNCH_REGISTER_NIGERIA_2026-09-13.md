@@ -3,7 +3,7 @@
 Status: merge blocker register
 
 Review date: 2026-09-13
-Scope: Nigeria-only v1
+Scope: Nigeria-first launch legal review. This register does not approve launch in any other country; each additional market requires its own legal and operational review.
 
 This is an engineering and operational issue register, not a legal opinion. A
 qualified Nigerian lawyer and the relevant regulator/provider must confirm the

@@ -88,7 +88,7 @@
 .wh-request-conversation-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--attachment-border); }
 .wh-request-conversation-head > span:last-child { display: grid; gap: 2px; min-width: 0; }
 .wh-request-conversation-head strong { font-size: 13px; font-weight: 700; }
-.wh-request-conversation-head small { color: var(--attachment-muted); font-size: 10px; }
+.wh-request-conversation-head small { color: var(--attachment-muted); font-size: 12px; }
 .wh-request-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 11px; background: rgb(139 92 246 / 12%); color: var(--attachment-accent); }
 .wh-request-note-conversation .wh-request-body { margin: 0; padding: 12px 14px 14px; border-top: 0; }
 .wh-request-note-conversation .wh-request-body p { font-size: 14px; line-height: 1.55; font-weight: 520; }

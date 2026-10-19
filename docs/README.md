@@ -11,7 +11,7 @@ found elsewhere (old reports, dated notes), delete it or move it to git history.
 | 1 | [DECISION_LOG.md](./DECISION_LOG.md) | Accepted owner decisions and open questions |
 | 2 | [PRODUCT_RULES.md](./PRODUCT_RULES.md) | Accepted product rules |
 | 3 | [../WEHOUSE_MASTER_PLAN.md](../WEHOUSE_MASTER_PLAN.md) and [../WEHOUSE_ARCHITECTURE_CONTRACT.md](../WEHOUSE_ARCHITECTURE_CONTRACT.md) | Language, ownership and route boundaries |
-| 4 | [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md), [LIFECYCLES.md](./LIFECYCLES.md), [PAYMENTS_AND_MONEY.md](./PAYMENTS_AND_MONEY.md), [NAVIGATION.md](./NAVIGATION.md), [NOTIFICATIONS_AND_ACTIVITY.md](./NOTIFICATIONS_AND_ACTIVITY.md), [CHAT_AND_COMMUNICATION.md](./CHAT_AND_COMMUNICATION.md), [COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md](./COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md), [DATA_MODEL.md](./DATA_MODEL.md), [GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md](./GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md) | Detail per area |
+| 4 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md), [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md), [LIFECYCLES.md](./LIFECYCLES.md), [PAYMENTS_AND_MONEY.md](./PAYMENTS_AND_MONEY.md), [NAVIGATION.md](./NAVIGATION.md), [NOTIFICATIONS_AND_ACTIVITY.md](./NOTIFICATIONS_AND_ACTIVITY.md), [CHAT_AND_COMMUNICATION.md](./CHAT_AND_COMMUNICATION.md), [COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md](./COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md), [DATA_MODEL.md](./DATA_MODEL.md), [GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md](./GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md) | Visual and interaction system plus domain detail |
 | 5 | [PRODUCT_MASTER.md](./PRODUCT_MASTER.md) | Historical implementation audit (11 Sep). Context only |
 
 Accepted decisions with their own record: [D-002 hotel capability](./DECISION_D002_HOTEL_CAPABILITY_AUTHORITY_2026-09-12.md), [D-010 money authority](./DECISION_D010_MONEY_AUTHORITY_2026-09-12.md), [D-014 post-publication edits](./DECISION_D014_POST_PUBLICATION_EDIT_BOUNDARY_2026-09-12.md).
@@ -35,6 +35,24 @@ Accepted decisions with their own record: [D-002 hotel capability](./DECISION_D0
 - Legal: [LEGAL_LAUNCH_REGISTER_NIGERIA_2026-09-13.md](./LEGAL_LAUNCH_REGISTER_NIGERIA_2026-09-13.md), [WEHOUSE_LAWYER_REVIEW_PACK.md](./WEHOUSE_LAWYER_REVIEW_PACK.md), [WEHOUSE_PUBLIC_LEGAL_PACK_DRAFT.md](./WEHOUSE_PUBLIC_LEGAL_PACK_DRAFT.md), [legal-review-and-preview-status.md](./legal-review-and-preview-status.md)
 - Branches: [BRANCH_CLEANUP_AUDIT.md](./BRANCH_CLEANUP_AUDIT.md)
 - Security reporting: [../SECURITY.md](../SECURITY.md)
+
+## Coverage of the Master Engineering Directive
+
+Use these existing records for the directive's required artifacts. The roadmap
+remains the one implementation-status and launch-readiness report; do not make
+parallel copies of these records.
+
+| Required purpose | Existing authoritative record |
+|---|---|
+| `MASTER_PRODUCT_SPEC.md` | [DECISION_LOG.md](./DECISION_LOG.md), [PRODUCT_RULES.md](./PRODUCT_RULES.md), [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md), and the indexed domain contracts above |
+| `MASTER_IMPLEMENTATION_PLAN.md` | [WEHOUSE_RELEASE_ROADMAP.md](./WEHOUSE_RELEASE_ROADMAP.md) |
+| `ARCHITECTURE_AND_DATA_CONTRACT.md` | [../WEHOUSE_ARCHITECTURE_CONTRACT.md](../WEHOUSE_ARCHITECTURE_CONTRACT.md) and [DATA_MODEL.md](./DATA_MODEL.md) |
+| `DESIGN_SYSTEM.md` | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) |
+| `SECURITY_AND_PERMISSIONS_AUDIT.md` | [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md), [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](./WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md), and the indexed security rollout procedures |
+| `DATABASE_SCHEMA_AND_MIGRATION_BASELINE.md` | [DATA_MODEL.md](./DATA_MODEL.md) and the read-only migration/security baseline in [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](./WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) |
+| `END_TO_END_TEST_MATRIX.md` and `FULL_TEST_CHECKLIST.md` | The critical-workflow acceptance register in [WEHOUSE_RELEASE_ROADMAP.md](./WEHOUSE_RELEASE_ROADMAP.md), with executable journeys in `tests/` and `.github/workflows/` |
+| `FULL_AUDIT.md` | [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](./WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) |
+| `LAUNCH_READINESS_REPORT.md` | [WEHOUSE_RELEASE_ROADMAP.md](./WEHOUSE_RELEASE_ROADMAP.md), which currently classifies the product as **NOT READY** |
 
 ## Rules for keeping this true
 

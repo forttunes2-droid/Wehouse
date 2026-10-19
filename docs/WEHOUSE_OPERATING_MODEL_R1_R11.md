@@ -133,7 +133,7 @@ received → triage → investigating → action needed or no violation or restr
 - Owner can see action required, what must be corrected and the review path, except details withheld for user privacy, fraud prevention, staff safety or legal reasons. Do not expose reporter identity unless law/policy requires it.
 - A closed report receives an outcome notice where contact details permit. Reporting does not promise a particular sanction or outcome.
 
-**Current gap:** report storage and a scoped operations queue exist. A Report Listing UI has recently been added on the PR branch as a draft. It must be checked against these reason categories, accessible confirmation/reference, booking-issue routing, hotel/provider coverage, abuse controls and queue response states before it is called complete.
+**Current gap (19 October 2026):** authenticated Report listing exists on apartment/Short Let detail; profile and chat reporting also exist. Public Hotel detail has no matching report action. The listing form confirms by toast but does not show the returned report reference or a durable receipt/status view, and its urgent-safety path still needs to match this triage model. Check all entry points against reason categories, booking-issue routing, abuse controls and queue response states before calling reporting complete.
 
 ## 5. Money, cancellation and service recovery
 
@@ -236,6 +236,6 @@ Core provider discovery, profile, requests, negotiation, safety, booking, custom
 ## 10. Current release notes
 
 - The product coherence audit at docs/WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md is a code/schema/config snapshot.
-- The report UI was added on the PR branch after that baseline snapshot. It remains draft until checked against Section 4 and the R6/R9/R10 gates.
+- The report UI now exists for apartment/Short Let details; Hotel detail coverage and the report receipt/urgent-safety path remain open as described in Section 4.
 - At SHA 904454547a297cfec1f241601524aa70864e0498, Build and Structural Regression passed; Mixed Journey passed; browser matrix was still running at the last snapshot. Consolidation Migration Replay and Tests/Build passed. Existing Account Upgrade failed while starting its disposable Supabase baseline: Docker/container error exit 125 after image-pull rate-limit errors; upgrade assertions were skipped. Treat as environment/bootstrap failure to investigate or rerun, not proof of an application regression and not a green check.
 - This is not production release approval. Vercel preview readiness is tied to exact source SHA, and production Supabase was inspected read-only in the cited audit.

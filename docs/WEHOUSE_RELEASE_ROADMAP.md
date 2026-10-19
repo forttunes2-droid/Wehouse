@@ -1,6 +1,6 @@
 # WeHouse release roadmap
 
-**Status date:** 13 October 2026  
+**Status date:** 19 October 2026
 **Working branch:** `reconcile/readiness-baseline-20261012` (PR #118)  
 **Purpose:** take WeHouse from a substantial codebase to one verified, supportable web product. R1–R11 remain the engineering checklist; this document adds an execution order, owners, evidence, and a realistic release window.
 
@@ -19,10 +19,69 @@ A green build alone is not product completion. Native-store release and a capaci
 
 ## Current baseline
 
-- PR #118 is open and unmerged at `63aa86ad5b6554d8efe38acebefd9eb66a37dd87` (254 changed files). Build, Structural Regression, Consolidation Validation, Isolated mixed journey preflight, Capacity Stage 1 baseline, and Medium disposable catalog passed on that commit. Vercel and Netlify report successful preview deployments for the commit.
-- The Experience browser check failed at the Short Let date-review step: after clicking “Review dates”, the expected accessible review dialog did not appear. The dialog markup and label are present in the current source, so the failure still needs to be reproduced and traced to its booking action/test fixture. Do not mark that journey passed by changing only the selector.
-- The hosted Test catalog passed 10–100 requests/second; at 100 requests/second it completed 3,000/3,000 with 0 errors, 0 retries and 228 ms p95. The 200 requests/second tier failed (3,643 errors, 1,699 dropped, 14,383 ms p95). The 1,000 requests/second test has not run. This is a catalog RPC test, not end-to-end app or payment capacity evidence.
-- GitHub's disposable-stack migration replay, database contracts, existing-account upgrade and build checks passed. Live Supabase histories are behind this PR: WeHouse Test currently ends at `20261012113554`; Production ends at `20261010120000`. The newer PR migrations are not recorded in Test. No database writes were made during this check.
+## Phase execution status — 19 October 2026
+
+This roadmap is the single implementation status report, per the documentation
+index. “Built”, “locally verified”, “CI verified”, “merged”, “migrated” and
+“production verified” are distinct states.
+
+| Directive phase | Status | Evidence and remaining gate |
+|---|---|---|
+| A. Verified baseline | Complete, read-only | [Product coherence audit](WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) covers repository/PR, CI, Vercel, Supabase histories/advisors, product findings and roles. No production or test database writes. |
+| B. Product contract | Reconciled; owner choices open | Product Rules, Decision Log, Roles & Permissions and domain contracts are indexed in [docs README](README.md). Nigeria is the first market, not a permanent boundary. Five unresolved workflow rules remain explicit. |
+| C. Design and interaction | Foundation implemented; route review open | [Design System](DESIGN_SYSTEM.md), theme-aware readable type floor, and the Listing Detail stale Rent options removal. Full route/role/device/theme, navigation and accessibility evidence remains open. |
+| D. Data and business architecture | Read-only findings complete; changes gated | Migration histories diverge across repository/Test/Production. Security advisor rows require function and policy review; no setting or schema was changed. Version dispositions and an ordered Test plan are required before DDL. |
+| E. End-to-end workflows | Incomplete | Payment-provider verification, Short Let review, owner lifecycle, hotel reporting/discounts, worker fulfillment/packages/response clock, and several admin/Creator/invitation journeys remain in the work register. |
+| F. Performance and capacity | Partial; capacity gate failed | Hosted Test catalog passed 1–100 RPS and failed at 200 RPS (1,091 errors of 6,000; 1,457ms p95). 1,000 RPS was not run; this is not end-to-end or payment capacity evidence. |
+| G. Regression and release gates | Local code checks pass; exact-head CI incomplete | TypeScript, lint, production build, targeted design/document tests (5/5), and the complete Node/Python suite (500/500) pass locally. Repository Deno 2.9.6 checks passed. A local Playwright install timed out downloading its 36.6MB wheel from files.pythonhosted.org; the current test uses the installed Edge binary and awaits exact-head CI after this reviewed fix is pushed. |
+| H. Integration and launch readiness | Not complete; no release performed | PR #118 remains open/unmerged; Vercel is disabled and public URLs return 402 `DEPLOYMENT_DISABLED`. No production setting, migration, merge or deployment was changed. Classification: **NOT READY**. |
+
+### Current owner and external blockers
+
+- Vercel project owner: restore the disabled deployment and provide a successful
+  public smoke test; READY metadata does not establish availability.
+- Database/release owner: explain every migration-version difference and approve
+  a Test-specific ordered plan before any DDL. Do not manipulate history or use
+  the Production-only coordinated script against Test.
+- Product/payment owner: approve the Short Let sellable unit, Worker fulfillment
+  modes, marketplace package-versus-quote behavior, owner pause/removal lifecycle
+  and Worker response clock; verify Paystack charges, signed webhooks, retries,
+  refunds and reconciliation before enabling real payment flows.
+- Security/admin owner: complete function-by-function RLS/grant and
+  SECURITY DEFINER review, authorize password breach protection, and implement
+  and verify admin step-up.
+- Engineering: retrieve or reproduce the exact failed browser assertion, fix
+  its cause, then rerun the critical journeys and exact-SHA gates.
+- Local environment: Deno 2.9.6 and Python 3.12.10 are installed. The
+  repository's 15-file Edge Function type check passed; all 500 local tests
+  passed. Supabase CLI 2.114.0 is installed. Playwright 1.57.0 could not be
+  installed because files.pythonhosted.org timed out at 18.9/36.6MB; Edge is
+  present, but local browser replay is unavailable until that dependency can be
+  downloaded. Docker is needed to run the Supabase stack only, not for ordinary
+  Vite/React work; the user is installing Docker.
+
+### Next exact actions
+
+1. Push the reviewed fix to PR #118's existing branch so the exact-SHA
+   Experience Browser workflow reruns the 320px preferences journey. If CI
+   remains unavailable, retry the Playwright wheel download and run the test
+   locally against Edge.
+2. Continue the route-level design review and apply focused, regression-tested
+   fixes for proven visual, navigation and accessibility defects.
+3. Continue read-only database/security review and prepare migration dispositions
+   without applying them.
+4. Continue end-to-end journey review and fix independently actionable defects;
+   keep product-choice-dependent behavior gated.
+5. Review the complete diff and rerun applicable gates. Request exact-SHA CI and
+   preview through the established branch workflow; Production merge, migration
+   and deployment remain separate release-authority steps.
+
+- PR #118 remains open, unmerged and mergeable at `4283d6d1856e5e36665cb6c49048a987ab25c4f7`. The working tree contains uncommitted implementation and documentation changes; review `git status` and the full diff before integration. Exact-head Structural Regression, Build Check and the application-build job in Consolidation Validation failed. The original failure is the removed rent-plan modal leaving a dangling `setShowPlan` callback at `src/pages/ListingDetailCore.tsx:955`. The local correction removes the obsolete “Rent options” action/callback, retains contract-rent payment and labels the stored period “Tenancy term.” Local TypeScript, lint and production build pass; exact-head CI has not yet tested the local fix.
+- The exact-head Experience browser run completed: media compression passed, but `tests/browser/stabilisation_practical.py` failed the 320px preferences case because the test queried a button named `Preferred State`, while the current shared control is labelled `Preferred state or region`. The error was a 30-second locator timeout; page errors were empty. The test also expected the obsolete `Choose preferred state` dialog name. The regression check now follows the current accessible labels while preserving the same location-selection journey. This local test correction still needs a local browser run and exact reviewed-SHA CI. Consolidation migration replay, database contracts and existing-account upgrade passed. Capacity Stage 1, mixed-journey preflight and the disposable medium catalog passed. The hosted Test catalog failed at 200 RPS after passing through 100 RPS. GitHub reports Netlify success and Vercel failure for this SHA. Results are SHA-specific; older successful checks do not close the current gate.
+- The hosted Test catalog completed 30/30 at 1 RPS, 150/150 at 5, 300/300 at 10, 750/750 at 25, 1,500/1,500 at 50, and 3,000/3,000 at 100 with no errors, retries, or drops; 100 RPS p95 was 350 ms. At 200 RPS it completed 6,000 requests with 1,091 errors, 2,182 retries, 0 drops, and 1,457 ms p95. The 1,000 RPS test has not run. This is a hosted Test catalog RPC test, not end-to-end app or payment capacity evidence.
+- Read-only migration inventory on 19 October found 757 executable repository migration files, 736 recorded in WeHouse Test, and 712 in WeHouse Production. The version sets are not simple prefixes; both live histories contain versions absent from the working migration directory, and local versions are absent remotely. Treat this as an unexplained history divergence, not as an instruction to apply every local migration. Produce a version-by-version disposition and Test-specific ordered release plan before any DDL or migration-history action. No database writes were made during this inventory.
+- Vercel metadata lists a READY production deployment on `main` commit `f990fc4a8d6b508badb232de0b071f13109e615b`, but the project currently reports `live: false`; requests to `wehouse.com.ng`, `www.wehouse.com.ng` and the listed deployment URL return HTTP 402 `DEPLOYMENT_DISABLED`. Treat public production as unavailable until the Vercel owner restores it and a smoke test succeeds. No deployment setting was changed. The current PR head has no matching deployment.
+- Supabase Test and Production are `ACTIVE_HEALTHY` on PostgreSQL 17.6.1.166 and 17.6.1.121. Current advisors are inventories, not proven vulnerability counts: Production has 39 RLS/no-policy INFO, 15 anon and 506 authenticated callable SECURITY DEFINER WARN, 16 unindexed foreign keys, 17 multiple-permissive-policy warnings and 198 unused-index INFO; Test has 49, 17, 551, 19, 17 and 274 respectively. Production leaked-password protection is disabled. Review function-by-function, confirm query/policy semantics before changes, and do not drop indexes based only on unused-index warnings.
 - The repository's `scripts/coordinated-database-release.py` is explicitly restricted to the Production database connection; it cannot safely be used as a Test-project check/apply tool. The direct Supabase reads here compared project histories but did not run that coordinated script. Do not apply migrations until a Test-specific ordered release plan preserves exact versions and explains history differences.
 - “Friend” is the approved user-facing name. Older decision-log and roadmap wording contradicted that decision; the decision log has now been aligned. Internal `companion` identifiers remain for database/API/storage compatibility.
 - Product readiness is not complete: live Paystack charge/webhook/refund journeys; the failed Short Let review journey; Owner pause/unlist/removal behavior across all property types; Hotel Friend split and hotel discount rules; service fulfillment modes, package selection and response deadlines; security-password/step-up verification; provider/Creator/Admin/Staff dashboard checks in both themes; and role-by-role phone/tablet/desktop visual checks still need evidence. The 2–4 week release-candidate window below is a planning estimate only and is no longer dependable until these checks close.
@@ -31,8 +90,8 @@ A green build alone is not product completion. Native-store release and a capaci
 
 | Stage | Target window from 12 Oct | Owner | Exit evidence |
 |---|---|---|---|
-| **0. Stabilize PR #118** | 12–16 Oct | Codex: inspect and fix code/docs; user: confirm product rules where authority is unclear | CI is green on `e1cd312`; the browser environment timeout is fixed; Vercel and Netlify previews are available for the reviewed commit. No production change. |
-| **1. Establish live baseline (R1, R4, R8)** | 13–20 Oct | Codex: read-only comparison and evidence; user/admin: provide platform access or approve admin-only settings | One source-of-truth map links product rule → route/component → database/Edge Function enforcement. Production/test migration differences are explained by a read-only plan. Vercel production/preview settings and environment separation are recorded without exposing secrets. |
+| **0. Stabilize PR #118** | Original window 12–16 Oct elapsed; close on a reviewed current head | Codex: inspect and fix code/docs; user: confirm product rules where authority is unclear | Required CI and browser journeys pass on the reviewed SHA; that SHA has a successful preview; known failure causes are fixed rather than waived. No production change. |
+| **1. Establish live baseline (R1, R4, R8)** | Original window 13–20 Oct; in progress | Codex: read-only comparison and evidence; user/admin: provide platform access or approve admin-only settings | One source-of-truth map links product rule → route/component → database/Edge Function enforcement. Every Production/Test/repository migration difference has a read-only disposition. Vercel production/preview settings and environment separation are recorded without exposing secrets. |
 | **2. Close release-blocking product defects (R2, R6, R7, R9)** | 19–30 Oct | Codex + Copilot, one editor/branch at a time; user resolves product decisions | High-severity inconsistencies are fixed or explicitly disabled; each behavior has a regression check. Role/action security review covers RLS, RPC grants, storage, and Edge Functions. No unresolved critical or high defect in the v1 scope. |
 | **3. Complete web journey and quality pass (R10, R11)** | 26 Oct–6 Nov | Codex: test matrix and fixes; user: review the actual product and approve scope | Route/workspace matrix passes at agreed device widths and themes. Loading, empty, validation, error, and success states are verified. Browser console has no uncaught app errors; accessibility and agreed performance budgets are measured and pass. CI remains green. |
 | **4. Web release candidate** | **Estimate: 2–4 weeks from 12 Oct (26 Oct–9 Nov)** | Codex prepares the reviewed release; user owns release approval and operational readiness | Candidate is deployed from an approved SHA; smoke checks pass on the actual Vercel preview; rollback and monitoring are ready; required legal/security/provider gates for the enabled features are signed off. |
@@ -98,6 +157,11 @@ Status: **Done** = built and DB-tested in CI. **Built** = built, not yet verifie
 Codex will keep the release checklist and evidence current, inspect GitHub/Supabase/Vercel state, make focused changes on the PR branch, and follow each CI failure to its source. Copilot can help you edit and review in VS Code. To avoid overwriting work, coordinate on one branch at a time: if you edit locally, tell Codex and push your commit; if Codex commits through GitHub, pull that commit into VS Code before continuing. Product decisions and external approvals stay with you and the responsible human owners.
 
 ## Progress log
+
+- **19 Oct:** Initial baseline checkpoint: local tests were 497/498 because Python was unavailable to launch the existing release-boundaries helper. After Python installation, the complete suite passed 500/500 (see the later Phase C entry). The exact-head test/build gates and browser interaction remain red until verified on a reviewed commit. Production domains returned 402 `DEPLOYMENT_DISABLED` despite READY Vercel metadata; no setting or database was changed. Migration histories remain divergent and untouched.
+- **19 Oct:** Phase B reconciled the accepted regional scope: Nigeria is the first market, not the permanent product boundary; the master plan and legal register no longer call the product Nigeria-only. Product Rules now distinguish confirmed owner decisions from proposed defaults and list the five contracts that need owner/operations approval before implementation: Short Let sellable unit, Worker fulfillment modes, marketplace packages versus custom quotes, owner pause/removal, and provider response clocks. These decisions do not authorize migrations or change live behavior.
+- **19 Oct:** Began Phase C on real application surfaces. Added the shared typography/interaction contract, raised legacy 7–10px Tailwind text and map/message CSS to a 12px minimum, and removed the dead Rent options action left after the rent-plan modal was removed. Added structural regression checks. Targeted design/document checks pass 5/5; lint, TypeScript and production build pass; the full Node/Python suite passes 500/500. The repository's 15-file Deno Edge Function check passed. Local Playwright installation timed out at 18.9/36.6MB; the next verification is the exact-SHA CI run. Route-level visual/device/theme checks remain open.
+- **19 Oct:** Retrieved the full failed browser job log. The 320px roommate-preferences failure was a stale accessible-name expectation (`Preferred State` / `Choose preferred state`) after the component adopted region-aware labels, not a page error. Updated the test to assert the current `Preferred state or region` control and matching dialog while retaining the state/LGA selection and save checks. Local browser verification remains pending.
 
 - **12 Oct:** Confirmed GitHub PR #118 and both Supabase projects and the Vercel project are connected. Fixed the signed-out Bookings assertion and the FFmpeg setup timeout. Browser, build, database-consolidation and preview checks passed on `e1cd312`.
 - **12 Oct:** Added this staged release roadmap. Remaining gates are open until their evidence is recorded; the schedule is an estimate and should be updated after Stage 0 and Stage 1.

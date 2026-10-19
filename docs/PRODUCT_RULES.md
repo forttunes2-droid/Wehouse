@@ -12,7 +12,13 @@ The repository already enforces some of these rules in newer database functions:
 
 Rules currently live in SQL migrations, SECURITY DEFINER functions, RLS policies, Edge Functions, frontend status arrays, button conditions, route aliases, and copy. There is no shared registry or test generator, so the UI can omit a valid database state (`payment_protected`) or display an action whose RPC will reject it.
 
-## PROPOSED CANONICAL MODEL
+## Canonical model and implementation requirements
+
+The invariants below are the shared engineering contract. Their approval
+status comes from `DECISION_LOG.md`: confirmed owner decisions are binding;
+items explicitly called open or proposed remain recommendations until the
+owner records a decision. Do not treat a recommended default in an audit or
+operating model as product-owner approval.
 
 ### Cross-system invariants
 
@@ -101,6 +107,16 @@ The server/read model should return capabilities, or the UI should derive them f
 - Tabs switch peer views of the same scope. Modules navigate. Filters refine a list. Pills label state.
 - Keep mobile continuity: opening a conversation or record preserves the parent list and returns to it.
 - A dashboard Overview summarizes work and next actions; it must not duplicate every navigation destination as a collection of oversized buttons/cards.
+
+### Open contracts that block implementation
+
+| Area | Verified current behavior | Recommended default for owner review | Do not implement until |
+|---|---|---|---|
+| Short Let sellable unit | A reservation and availability calendar attach to one listing; the listing form has occupancy and amenities but no canonical bedroom/sleeping-arrangement model. Hotel rooms have independent inventory. | In the current Short Let product, one listing sells an entire home/apartment. Capture bedrooms and sleeping arrangements on that home; do not sell individual rooms through the Hotel model. Add explicit independent home units only if a later product decision calls for them. | Owner confirms whole-home scope and the fields needed for trustworthy occupancy/display. |
+| Worker service fulfillment | `create_booking_request` requires a customer address; the contract has no authoritative mode for provider venue, agreed public location or remote work. | Configure allowed fulfillment modes per service category and market: customer site, provider venue, agreed public/neutral location, and remote. Request private address/location only when that mode needs it, and disclose it only to authorized participants. | Owner/operations confirms mode availability and safety/response rules for each category. |
+| Worker offers and packages | The marketplace negotiates a custom quote; Worker Pro's service packages are business records and are not selected into a marketplace booking. Public starting-price copy is not an accepted quote. | Keep negotiation as the live path. Label estimates accurately. Treat any later fixed package as an optional, scoped offer with explicit deliverables, exclusions, duration, capacity, currency, cancellation terms and a quote snapshot. Do not imply Worker Pro packages are public checkout packages. | Owner confirms whether fixed-price marketplace packages are in scope and how they coexist with custom quotes. |
+| Owner property lifecycle | Host pause exists in a limited hosting mode; a consistent pause/unlist/removal request across apartment and hotel workflows is not verified. | Owners can stop new discovery/bookings across supported modes while existing bookings remain fulfillable. Permanent removal is a request/retirement path that preserves active bookings, payments, evidence, legal holds and required history. | Owner confirms visibility consequences, who reviews removal, and how affected future bookings are handled. |
+| Provider response clock | Requests can remain pending without one documented response target/expiry rule across service categories. | Set category-specific response targets and reminders; missed targets escalate or expire only before acceptance. A missed response must not cancel an already accepted/paid job without a separately authorized recovery path. | Operations confirms staffed targets, coverage hours and escalation ownership. |
 
 ## Enforcement
 
