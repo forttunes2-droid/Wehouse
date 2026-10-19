@@ -12,7 +12,7 @@ test("Bookings use one compact presentation language", async () => {
   ]);
 
   assert.match(bookings, /divide-y divide-\[var\(--wh-border-subtle\)\]/);
-  assert.match(bookings, /overflow-x-auto/);
+  assert.match(bookings, /flex flex-wrap items-center gap-x-1/);
   assert.match(bookings, /Booking filters/);
   assert.match(bookings, /text-\[13px\]/);
   assert.match(bookings, /font-mono text-xs font-bold/);

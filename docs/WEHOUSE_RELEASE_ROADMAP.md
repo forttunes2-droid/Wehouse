@@ -32,9 +32,9 @@ index. “Built”, “locally verified”, “CI verified”, “merged”, “
 | C. Design and interaction | Foundation implemented; route review open | [Design System](DESIGN_SYSTEM.md), theme-aware readable type floor, and the Listing Detail stale Rent options removal. Full route/role/device/theme, navigation and accessibility evidence remains open. |
 | D. Data and business architecture | Read-only findings complete; changes gated | Migration histories diverge across repository/Test/Production. Security advisor rows require function and policy review; no setting or schema was changed. Version dispositions and an ordered Test plan are required before DDL. |
 | E. End-to-end workflows | Incomplete | Payment-provider verification, Short Let review, owner lifecycle, hotel reporting/discounts, worker fulfillment/packages/response clock, and several admin/Creator/invitation journeys remain in the work register. |
-| F. Performance and capacity | Partial; capacity gate failed | Hosted Test catalog passed 1–100 RPS and failed at 200 RPS (1,091 errors of 6,000; 1,457ms p95). 1,000 RPS was not run; this is not end-to-end or payment capacity evidence. |
-| G. Regression and release gates | Local code checks pass; exact-head CI incomplete | TypeScript, lint, production build, targeted design/document tests (5/5), and the complete Node/Python suite (500/500) pass locally. Repository Deno 2.9.6 checks passed. A local Playwright install timed out downloading its 36.6MB wheel from files.pythonhosted.org; the current test uses the installed Edge binary and awaits exact-head CI after this reviewed fix is pushed. |
-| H. Integration and launch readiness | Not complete; no release performed | PR #118 remains open/unmerged; Vercel is disabled and public URLs return 402 `DEPLOYMENT_DISABLED`. No production setting, migration, merge or deployment was changed. Classification: **NOT READY**. |
+| F. Performance and capacity | Partial; bounded stages green | On exact SHA `449d8ccd`, the hosted Test catalog passed 1–200 RPS: 6,000/6,000 at 200 RPS, 0 errors/retries/drops, 221ms p95. The disposable medium catalog replayed migrations, seeded 50k homes/100k hotels/50k profiles, confirmed indexes and query plans, and completed its read/resource stage. 1,000 RPS was not run; these are catalog/read tests, not end-to-end or payment capacity evidence. |
+| G. Regression and release gates | Local checks pass; browser rerun required | On `449d8ccd`, Structural Regression, Build Check, Consolidation Validation (including replay/contracts/upgrade), Capacity Stage 1, both catalog stages, and isolated mixed-journey preflight passed. Experience Browser media compression, Account motion, Partner Pro captures, and startup-recovery passed. Isolated interactions found stale “Preferred LGA” test labels at all widths and a clipped bookings status filter at 320px. Working tree now uses the current “Preferred city or area” label and wraps the bookings status filters; full local Node/Python suite passes 500/500, focused tests 20/20, lint and production build pass. These working-tree fixes still need exact-SHA CI. |
+| H. Integration and launch readiness | Not complete; no release performed | PR #118 remains open/unmerged. Vercel preview for exact SHA `449d8ccd` is READY and authenticated root/JS/CSS requests returned HTTP 200; this does not establish public production availability. Production domains previously returned 402 `DEPLOYMENT_DISABLED`. No production setting, migration, merge or deployment was changed. Classification: **NOT READY**. |
 
 ### Current owner and external blockers
 
@@ -50,8 +50,10 @@ index. “Built”, “locally verified”, “CI verified”, “merged”, “
 - Security/admin owner: complete function-by-function RLS/grant and
   SECURITY DEFINER review, authorize password breach protection, and implement
   and verify admin step-up.
-- Engineering: retrieve or reproduce the exact failed browser assertion, fix
-  its cause, then rerun the critical journeys and exact-SHA gates.
+- Engineering: the `449d8ccd` browser run found a stale city-field test name
+  and a genuinely clipped 320px bookings status filter. Both are corrected in
+  the working tree; commit and rerun the exact-SHA browser workflow before
+  closing this gate.
 - Local environment: Deno 2.9.6 and Python 3.12.10 are installed. The
   repository's 15-file Edge Function type check passed; all 500 local tests
   passed. Supabase CLI 2.114.0 is installed. Playwright 1.57.0 could not be
@@ -62,10 +64,8 @@ index. “Built”, “locally verified”, “CI verified”, “merged”, “
 
 ### Next exact actions
 
-1. Push the reviewed fix to PR #118's existing branch so the exact-SHA
-   Experience Browser workflow reruns the 320px preferences journey. If CI
-   remains unavailable, retry the Playwright wheel download and run the test
-   locally against Edge.
+1. Commit the current city-label and 320px filter-wrap corrections, then review
+   the exact-SHA Experience Browser rerun and all assertions.
 2. Continue the route-level design review and apply focused, regression-tested
    fixes for proven visual, navigation and accessibility defects.
 3. Continue read-only database/security review and prepare migration dispositions

@@ -870,7 +870,7 @@ export default function MyReservations({
               );
             })}
           </div>
-          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap items-center gap-x-1">
             {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
               className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-violet-300" : "text-[var(--wh-text-secondary)]"}`}>
               {option.value === "all" ? "All status" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}

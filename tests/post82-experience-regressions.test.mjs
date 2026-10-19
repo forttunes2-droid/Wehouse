@@ -186,7 +186,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(reservations, /\{ value: "hotels", label: "Hotel" \}/);
   assert.match(reservations, /status=\{propertyBookingStatusLabel\(row\)\}/);
   assert.match(reservations, /status=\{HOTEL_STATUS\[String\(row\.status \|\| ""\)\] \|\| "Active"\}/);
-  assert.match(reservations, /overflow-x-auto/);
+  assert.match(reservations, /flex flex-wrap items-center gap-x-1/);
   assert.match(pro, /Partner tools could not load/);
   assert.match(security, /Additional protection/);
   assert.match(video, /Video unavailable here/);
