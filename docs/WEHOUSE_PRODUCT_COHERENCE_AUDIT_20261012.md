@@ -123,7 +123,51 @@ This baseline refresh checks branch `reconcile/readiness-baseline-20261012`, loc
 - A fresh read-only comparison on 19 October 2026 records every non-identical version row in [MIGRATION_HISTORY_DIFF_2026-10-19.csv](MIGRATION_HISTORY_DIFF_2026-10-19.csv), tied to repository commit `449d8ccd0435825c7372c7a7ba00d0ce20023a86`. Of 757 repository versions, 670 also appear exactly in Test (87 repository-only; 66 Test-only) and 678 appear exactly in Production (79 repository-only; 34 Production-only). The comparison found 27 same-name candidates on each side of the Test difference and 8 repository / 21 remote same-name candidates in Production. These are leads, not proof that SQL or resulting schema is equivalent; repeated production entries have different recorded versions. All 266 difference rows remain **UNRESOLVED**. Compare source SQL, migration logs and actual schema before assigning a disposition. No migration or history row was changed.
 - Production security advisors currently report 39 INFO tables with RLS enabled and no policies, 15 anonymous-executable and 506 authenticated-executable `SECURITY DEFINER` functions (WARN), plus leaked-password protection disabled (WARN). Test reports 49 RLS/no-policy INFO, 17 anonymous and 551 authenticated callable `SECURITY DEFINER` functions. Advisor counts are review inventories, not counts of proven vulnerabilities. In sampled function definitions, `begin_identity_provider_password_recovery` uses a uniform response and per-account 5-per-15-minute limit; `get_accommodation_rate_terms` returns active public cancellation terms; `accept_current_worker_pro_terms` binds acceptance to the authenticated, active, verified Worker. These are examples only; the full callable-function inventory still needs purpose/grant/body/abuse-control review before findings can be closed.
 - Production performance advisors report 16 unindexed foreign keys, 17 multiple-permissive-policy warnings and 198 unused-index INFO findings. Test reports 19, 17 and 274 respectively. Do not drop indexes or merge policies solely to clear advisor counts: confirm query paths, intentional policy union semantics and query plans first.
-- The latest hosted Test catalog run passed through 100 requests/second and failed at 200 requests/second; it does not prove end-to-end app or payment capacity. The existing roadmap carries the per-tier totals and latency/error evidence. No 1,000 RPS run exists.
+- An earlier hosted Test catalog run failed at 200 requests/second. The newer exact-SHA `449d8ccd` run passed through 200 RPS with 6,000/6,000 requests, 0 errors/retries/drops and 221ms p95. The disposable medium catalog also passed its synthetic-data read/resource stage. These catalog tests do not prove end-to-end app or payment capacity; 1,000 RPS has not been run.
+
+#### 19 October read-only review of anonymous `SECURITY DEFINER` functions
+
+A direct read-only Production catalog query found 15 `public` `SECURITY DEFINER`
+functions executable by `anon`. Every reviewed definition pins `search_path`.
+Fourteen are `STABLE` reads; one is the deliberately `VOLATILE`
+`begin_identity_provider_password_recovery` flow. No confirmed anonymous data
+exposure or authorization bypass was found in this group. This is a bounded
+review; it does not close the separate 506 authenticated-callable function
+inventory or prove protections against every abuse pattern.
+
+- Public discovery reads (`get_discoverable_homes`, `get_discoverable_hotels`,
+  `get_discoverable_listings`, `search_discoverable_homes`,
+  `search_discoverable_hotels`, `get_sponsored_discovery`) filter to approved,
+  active/published resources, use bounded page/slot sizes, suppress exact
+  coordinates in public projections, and require verified, visible, active
+  workspace state for sponsored Workers. The sponsored Worker result is
+  additionally withheld from anonymous callers.
+- Detail and review reads (`get_public_hotel_detail`,
+  `get_public_listing_detail`, `get_hotel_review_summary`,
+  `get_listing_review_summary`) gate public views on publication/approval and
+  give internal detail access only through scoped owner/team/Creator/Admin/Staff
+  checks. Public detail projections hide exact coordinates; review eligibility
+  is derived from the current signed-in profile and qualifying paid/completed
+  booking state.
+- `get_short_let_date_availability` checks publication, approval, pause state,
+  stay limits, host date blocks, and conflicting reservations. Its current
+  “today” boundary is hardcoded to `Africa/Lagos`; keep this as a
+  future-market regionalization item so availability uses the listing/market
+  time zone before enabling Short Lets outside Nigeria. Do not patch Production
+  while history reconciliation is unresolved.
+- `get_accommodation_rate_terms` returns effective global policy versions;
+  `get_current_legal_documents` returns only active, effective, reviewed,
+  public-disclosure legal versions. `preview_resource_invitation` requires a
+  pending, unexpired link token whose hash matches, then returns a constrained
+  invitation preview.
+- `begin_identity_provider_password_recovery` returns an indistinguishable
+  random attempt shape for unknown, unlinked and rate-limited accounts, uses an
+  account-scoped transaction lock, and permits at most five attempts per
+  account per 15 minutes. The recovery Edge Function requires a valid Auth
+  session; claim/finish routines bind the attempt to fresh provider sign-in,
+  the linked identity and that session before changing a password. No per-IP
+  limit was established by this SQL/Edge source review; confirm an edge/WAF
+  limit during the operational abuse-control review.
 
 ### Product, workflow and design findings carried forward
 
