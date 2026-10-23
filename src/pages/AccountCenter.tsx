@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { withTimeout } from '@/lib/withTimeout';
+import PhoneNotificationSettings from '@/components/PhoneNotificationSettings';
+import SettingSwitch from '@/components/SettingSwitch';
+import { saveNotificationPreference as persistNotificationPreference } from '@/lib/supabase/notification-preferences';
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -85,7 +89,10 @@ type ProfilePreferences = {
   pref_push_notif?: boolean | null;
 };
 
-export default function AccountCenter({
+export default function AccountCenter(props:Props) {
+  return <AccountCenterContent key={props.profile.user_id} {...props}/>;
+}
+function AccountCenterContent({
   profile,
   onBack,
   onGoToSaved,
@@ -107,9 +114,6 @@ export default function AccountCenter({
   const p = profile as Profile & ProfilePreferences;
   const [panel, setPanel] = useState<Panel>(null);
   const appearance = useAppearance();
-  const [emailNotifs, setEmailNotifs] = useState(
-    p.pref_email_notif !== false,
-  );
   const [pushNotifs, setPushNotifs] = useState(
     p.pref_push_notif !== false,
   );
@@ -122,6 +126,8 @@ export default function AccountCenter({
     terms: false,
   });
   const [saving, setSaving] = useState(false);
+  const preferenceLock=useRef(false),preferenceAlive=useRef(true);
+  useEffect(()=>{preferenceAlive.current=true;return()=>{preferenceAlive.current=false;};},[]);
   const [signingOut, setSigningOut] = useState(false);
   const [activatingWorkspace, setActivatingWorkspace] = useState<
     "worker" | "property_partner" | null
@@ -270,24 +276,21 @@ export default function AccountCenter({
   }, [panel]);
 
   async function saveNotificationPreference(
-    key: "pref_email_notif" | "pref_push_notif",
     value: boolean,
   ) {
-    setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ [key]: value, updated_at: new Date().toISOString() })
-      .eq("auth_id", profile.auth_id);
-    setSaving(false);
-    if (error) {
-      if (key === "pref_push_notif") setPushNotifs(!value);
-      else setEmailNotifs(!value);
-      return toast.error("This preference could not be saved");
-    }
-    if (key === "pref_push_notif") window.dispatchEvent(new CustomEvent("wehouse:in-app-alerts", {
-      detail: { userId: profile.user_id, enabled: value },
-    }));
-    toast.success("Preference saved");
+    if(preferenceLock.current)return;
+    preferenceLock.current=true;setSaving(true);
+    try {
+      const {error}=await withTimeout(persistNotificationPreference(profile.user_id,profile.auth_id,'pref_push_notif',value),10000,'The save outcome is unknown. Reload Account before retrying.');
+      if(!preferenceAlive.current)return;
+      if(error)throw error;
+      setPushNotifs(value);
+      if(value)setNotificationSoundEnabled(profile.user_id,true);
+      window.dispatchEvent(new CustomEvent('wehouse:in-app-alerts',{detail:{userId:profile.user_id,enabled:value}}));
+      toast.success('Preference saved');
+    } catch(error) {
+      if(preferenceAlive.current)toast.error(error instanceof Error?error.message:(error as {message?:string})?.message||'This preference could not be saved');
+    } finally {preferenceLock.current=false;if(preferenceAlive.current)setSaving(false);}
   }
 
   async function signOut() {
@@ -427,29 +430,22 @@ export default function AccountCenter({
       >
 
         <AccountSection>
-          <Toggle
-            label="Email notifications"
-            detail="Account, booking and service updates by email."
-            value={emailNotifs}
-            disabled={saving}
-            onChange={(value) => {
-              setEmailNotifs(value);
-              void saveNotificationPreference("pref_email_notif", value);
-            }}
-          />
+          <div className="border-b border-[var(--wh-border-subtle)] px-4 py-4 sm:px-5">
+            <p className="text-sm font-semibold">Email updates</p>
+            <p className="mt-1 text-[13px] leading-5 text-[var(--wh-text-secondary)]">Delivery is not active yet. Account verification and recovery emails are separate from optional updates.</p>
+          </div>
           <Toggle
             label="In-app alerts"
             detail="Messages and activity from all your workspaces while WeHouse is open."
             value={pushNotifs}
             disabled={saving}
             onChange={(value) => {
-              setPushNotifs(value);
-              if (value) setNotificationSoundEnabled(profile.user_id, true);
-              void saveNotificationPreference("pref_push_notif", value);
+              void saveNotificationPreference(value);
             }}
           />
+          <PhoneNotificationSettings key={profile.user_id} userId={profile.user_id}/>
         </AccountSection>
-        <p className="px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">WeHouse plays a short sound for new alerts while it is open. Alerts for your other workspaces still show as a number on Switch workspace.</p>
+        <p className="px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">In-app alerts control ordinary pop-ups and sounds while WeHouse is open. Turning them off keeps messages, Activity and unread badges available. Security notices stay available. This does not enable phone notifications when the app is closed.</p>
         <p className="px-1 text-xs text-[var(--wh-text-secondary)]">
           Changes save automatically.
         </p>
@@ -732,19 +728,7 @@ function Toggle({
           {detail}
         </p>
       </div>
-      <button
-        type="button"
-        disabled={disabled}
-        role="switch"
-        aria-label={label}
-        aria-checked={value}
-        onClick={() => onChange(!value)}
-        className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400 disabled:opacity-50"
-      >
-        <span className={`relative h-6 w-11 rounded-full transition-colors duration-150 ${value ? "bg-violet-500" : "bg-[#343A48]"}`}>
-          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ${value ? "translate-x-5" : ""}`} />
-        </span>
-      </button>
+      <SettingSwitch label={label} checked={value} disabled={disabled} onChange={onChange}/>
     </div>
   );
 }

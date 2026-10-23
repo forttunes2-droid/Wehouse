@@ -27,7 +27,7 @@ select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-00000000
 set local role authenticated;
 select pg_temp.expect(public.report_content('roommate_chat','sr-b','harassment','rude')is not null,'a roommate can report their conversation partner');
 select pg_temp.expect(pg_temp.rejects($$select public.report_content('roommate_chat','sr-c','spam')$$),'cannot report a roommate chat you are not in');
-select pg_temp.expect(pg_temp.rejects($$select public.report_content('companion_chat','sr-b','spam')$$),'cannot report a non-Companion as a Companion');
+select pg_temp.expect(pg_temp.rejects($$select public.report_content('friend_chat','sr-b','spam')$$),'cannot report a non-friend as a friend');
 select pg_temp.expect(pg_temp.rejects($$select public.report_content('worker_chat','sr-b','spam')$$),'cannot report a worker chat you are not in');
 select pg_temp.expect(pg_temp.rejects($$select public.report_content('profile','sr-a','spam')$$),'cannot report yourself');
 select pg_temp.expect(pg_temp.rejects($$select public.report_content('profile','sr-b','bad')$$),'reason must be from the list');

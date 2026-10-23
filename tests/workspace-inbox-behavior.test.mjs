@@ -1,3 +1,4 @@
+import timeoutApi from './helpers/with-timeout.mjs';
 import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -13,7 +14,7 @@ function moduleAt(path, dependencies = {}, globals = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   const exports = {};
-  vm.runInNewContext(code, { exports, require: name => name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name] ?? require(name), setTimeout, clearTimeout, ...globals });
+  vm.runInNewContext(code, { exports, require: name => name==='@/lib/withTimeout'?timeoutApi:name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name] ?? require(name), setTimeout, clearTimeout, ...globals });
   return exports;
 }
 const session = moduleAt('src/lib/workspaceSession.ts');
@@ -114,11 +115,15 @@ test('Existing professional profiles remain visible before public approval and d
   let stateIndex=0;
   let selectedPanel='workspaces';
   const Account=moduleAt('src/pages/AccountCenter.tsx',{
-    react:{...React,useState:initial=>[stateIndex++===0?selectedPanel:initial,()=>{}],useEffect(){},useMemo:fn=>fn()},
+    react:{...React,useState:initial=>[stateIndex++===0?selectedPanel:initial,()=>{}],useEffect(){},useMemo:fn=>fn(),useRef:value=>({current:value})},
     '@/components/AccountShell':accountShell,'@/components/WorkspaceMark':{ActivityKindIcon:()=>null,AccountIcon:()=>null,WorkspaceIcon:()=>null,__esModule:true},'@/components/AccountHelpCenter':()=>null,
     '@/pages/PrivacySecuritySettings':()=>null,'@/components/MediaViewer':()=>null,
+    '@/components/PhoneNotificationSettings':()=>null,
+    '@/components/SettingSwitch':()=>null,
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
     '@/lib/notificationSound':{notificationSoundEnabled:()=>false,setNotificationSoundEnabled(){}},
+    '@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts'),
+    '@/lib/supabase/notification-preferences':{saveNotificationPreference:async()=>({error:null})},
     '@/lib/appearance':{useAppearance:()=> 'dark',setAppearance(){}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
     '@/lib/supabase/activity':{getCanonicalActivitySummary:async()=>({count:0})},

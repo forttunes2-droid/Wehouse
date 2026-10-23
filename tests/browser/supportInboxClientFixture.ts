@@ -2,10 +2,10 @@
 const w = window as any;
 export const control = w.__supportInbox = {
  calls: [] as any[], threads: {} as Record<string, any[]>, messages: {} as Record<string, any[]>,
- failInbox: false, holdSend: false, releaseSend: null as null | (() => void), firstSends: 0,
+ loseReplyReceipt: false, failInbox: false, holdSend: false, releaseSend: null as null | (() => void), firstSends: 0,
  role: w.__supportRole || 'user',
 };
-const ok=(data:any)=>Promise.resolve({data,error:null});
+const ok=(data:any)=>Promise.resolve({data:structuredClone(data),error:null});
 const scope=()=>control.role==='user'?'personal':control.role==='hotel_staff'?'hotel':control.role;
 export const supabase:any={
  rpc(name:string,args:any={}) {
@@ -30,10 +30,11 @@ export const supabase:any={
     if(control.holdSend)control.releaseSend=finish;else finish();
    });
   }
-  if(name==='send_support_message'){
+  if(name==='send_support_message_v2'){
    const id=args.p_conversation_id;
-   control.messages[id].push({id:'follow-up',sender_id:'viewer',sender_role:'user',content:args.p_content,created_at:'2026-09-25T00:01:00Z'});
-   return ok('follow-up');
+   if(!control.messages[id].some(row=>row.id===args.p_request_id))control.messages[id].push({id:args.p_request_id,sender_id:'viewer',sender_role:'user',content:args.p_content,created_at:'2026-09-25T00:01:00Z'});
+   if(control.loseReplyReceipt){control.loseReplyReceipt=false;return ok(null);}
+   return ok(args.p_request_id);
   }
   if(name==='get_my_support_message_draft_status')return ok({state:'sent',conversation_id:'support-'+scope(),message_id:'msg-1'});
   throw new Error('Unexpected test RPC '+name);

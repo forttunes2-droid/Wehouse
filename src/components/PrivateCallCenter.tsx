@@ -6,6 +6,7 @@ import {
   getActiveCalls,
   getCallDetails,
   getPrivateCallIceServers,
+  getCallPreferences,
   listCallSignals,
   respondPrivateCall,
   sendCallSignal,
@@ -25,11 +26,16 @@ const finished = new Set(["declined", "missed", "ended", "failed"]);
 
 export default function PrivateCallCenter() {
   const [userId, setUserId] = useState(""),
-    [call, setCall] = useState<PrivateCall | null>(null),
-    [busy, setBusy] = useState(false);
+    [call, setCall] = useState<PrivateCall | null>(null);
+  const starting = useRef(false);
+  const closing = useRef<string|null>(null);
+  const responding = useRef(false);
+  const [answering,setAnswering]=useState(false);
   const refresh = useCallback(async (id: string) => {
     const result = await getCallDetails(id);
-    if (result.call) setCall(result.call);
+    if(closing.current===id)return;
+    if (result.error || !result.call) { setCall(null); return; }
+    setCall(result.call);
   }, []);
   useEffect(() => {
     let live = true;
@@ -40,11 +46,12 @@ export default function PrivateCallCenter() {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("user_id,role,account_kind")
+        .select("user_id")
         .eq("auth_id", user.id)
         .maybeSingle();
-      if (!live || !data || !(data.account_kind === "consumer" || data.role === "worker"))
-        return;
+      if (!live || !data) return;
+      const permission=await getCallPreferences();
+      if(!live||permission.error||!permission.preferences)return;
       setUserId(data.user_id);
       const active = await getActiveCalls();
       if (active.calls.length) setCall(active.calls[0]);
@@ -57,15 +64,15 @@ export default function PrivateCallCenter() {
     if (!userId) return;
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<StartDetail>).detail;
-      if (!detail || busy) return;
+      if (!detail || starting.current) return;
+      starting.current = true;
       void (async () => {
-        setBusy(true);
         const result = await startPrivateCall(
           detail.contextType,
           detail.contextId,
           detail.callType,
         );
-        setBusy(false);
+        starting.current = false;
         if (result.error || !result.call)
           return toast.error(result.error?.message || "Call could not start");
         setCall(result.call);
@@ -73,7 +80,9 @@ export default function PrivateCallCenter() {
     };
     async function checkActive() {
       const active = await getActiveCalls();
-      if (active.calls.length) setCall((current) => current || active.calls[0]);
+      if(active.error){setCall(null);return;}
+      const available=active.calls.filter(item=>item.id!==closing.current);
+      setCall(current=>available.find(item=>item.id===current?.id)||available[0]||null);
     }
     window.addEventListener("wehouse:start-private-call", handler);
     const channel = supabase
@@ -110,7 +119,7 @@ export default function PrivateCallCenter() {
       window.removeEventListener("wehouse:start-private-call", handler);
       void supabase.removeChannel(channel);
     };
-  }, [userId, busy, refresh]);
+  }, [userId, refresh]);
   useEffect(() => {
     if (!call || !finished.has(call.status)) return;
     const timer = window.setTimeout(() => setCall(null), 1200);
@@ -125,37 +134,44 @@ export default function PrivateCallCenter() {
     return () => window.clearTimeout(timeout);
   }, [call?.id, call?.status, call?.caller_id, userId]);
   async function answer(accept: boolean) {
-    if (!call) return;
+    if (!call||responding.current) return;
+    responding.current=true;setAnswering(true);
     const result = await respondPrivateCall(call.id, accept);
+    responding.current=false;setAnswering(false);
+    if(closing.current===call.id)return;
     if (result.error) return toast.error(result.error.message);
     setCall(result.call);
   }
   async function hangup() {
     if (!call) return;
-    const result = await endPrivateCall(call.id);
+    const closingId = call.id;
+    closing.current=closingId;
+    setCall(null);
+    const result = await endPrivateCall(closingId);
     if (result.error) return toast.error(result.error.message);
-    setCall(result.call);
   }
-  if (!userId || !call) return null;
+  if (!userId || !call || finished.has(call.status)) return null;
   if (call.status === "ringing" && call.callee_id === userId)
     return (
       <div className="fixed inset-0 z-[190] grid place-items-end bg-black/75 p-3 backdrop-blur-md sm:place-items-center">
-        <section className="w-full rounded-[30px] border border-white/10 bg-[var(--wh-surface)] p-6 text-center text-white sm:max-w-sm">
+        <section className="w-full rounded-[30px] border border-[var(--wh-border)] bg-[var(--wh-surface)] p-6 text-center text-[var(--wh-text)] sm:max-w-sm" aria-label="Incoming call">
           <CallAvatar call={call} />
           <h2 className="mt-4 text-xl font-bold">
             {call.peer_name || "WeHouse member"}
           </h2>
-          <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">Incoming {call.call_type} call</p>
+          <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Incoming {call.call_type} call</p>
           <div className="mt-7 grid grid-cols-2 gap-3">
             <button
               onClick={() => void answer(false)}
-              className="h-14 rounded-2xl bg-red-500/15 text-xs font-semibold text-red-200"
+              disabled={answering}
+              className="h-14 rounded-2xl bg-red-500/15 text-xs font-semibold text-red-700 dark:text-red-200"
             >
               Decline
             </button>
             <button
               onClick={() => void answer(true)}
-              className="h-14 rounded-2xl bg-emerald-500 text-xs font-semibold"
+              disabled={answering}
+              className="h-14 rounded-2xl bg-emerald-600 text-xs font-semibold text-white"
             >
               Answer
             </button>
@@ -172,7 +188,7 @@ export default function PrivateCallCenter() {
         </div>
       </div>
     );
-  return <RtcCall call={call} userId={userId} onHangup={() => void hangup()} />;
+  return <RtcCall key={call.id} call={call} userId={userId} onHangup={() => void hangup()} />;
 }
 
 function RtcCall({
@@ -195,16 +211,23 @@ function RtcCall({
     [muted, setMuted] = useState(false),
     [cameraOff, setCameraOff] = useState(false),
     [facingMode, setFacingMode] = useState<"user" | "environment">("user"),
-    [speakerOn, setSpeakerOn] = useState(true),
+    [outputSelectionAvailable, setOutputSelectionAvailable] = useState(false),
     [error, setError] = useState("");
   const isVideo = call.call_type === "video";
+  const mounted = useRef(false);
+  const switchingCamera = useRef(false);
   useEffect(() => {
     let live = true;
+    mounted.current = true;
+    let signalChannel:ReturnType<typeof supabase.channel>|undefined;
+    setOutputSelectionAvailable(typeof (navigator.mediaDevices as MediaDevices & {selectAudioOutput?: unknown})?.selectAudioOutput === 'function' && typeof (HTMLMediaElement.prototype as HTMLMediaElement & {setSinkId?: unknown}).setSinkId === 'function');
     void setup();
     return () => {
       live = false;
+      mounted.current = false;
       stream.current?.getTracks().forEach((track) => track.stop());
       pc.current?.close();
+      if(signalChannel)void supabase.removeChannel(signalChannel);
     };
     async function setup() {
       try {
@@ -214,7 +237,7 @@ function RtcCall({
             ? { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
             : false,
         });
-        if (!live) return;
+        if (!live) { media.getTracks().forEach(track=>track.stop()); return; }
         stream.current = media;
         if (isVideo && localVideo.current) localVideo.current.srcObject = media;
         const ice = await getPrivateCallIceServers(call.id);
@@ -230,7 +253,7 @@ function RtcCall({
               userId,
               "ice",
               event.candidate.toJSON(),
-            );
+            ).then(result=>{if(result.error&&live){setError("Call signalling stopped. End the call and try again.");stream.current?.getTracks().forEach(track=>track.stop());peer.close();}});
         };
         peer.ontrack = (event) => {
           const incoming = event.streams[0] || new MediaStream([event.track]);
@@ -254,7 +277,8 @@ function RtcCall({
               await peer.addIceCandidate(pending.current.shift());
             const answer = await peer.createAnswer();
             await peer.setLocalDescription(answer);
-            await sendCallSignal(call.id, userId, "answer", answer);
+            const sent=await sendCallSignal(call.id, userId, "answer", answer);
+            if(sent.error)throw new Error(sent.error.message);
           } else if (
             signal.signal_type === "answer" &&
             peer.signalingState === "have-local-offer"
@@ -269,6 +293,8 @@ function RtcCall({
           }
         }
         const existing = await listCallSignals(call.id);
+        if(!live)return;
+        if(existing.error)throw new Error(existing.error.message);
         for (const signal of existing.signals) await process(signal);
         const channel = supabase
           .channel(`signals:${call.id}`)
@@ -280,16 +306,21 @@ function RtcCall({
               table: "private_call_signals",
               filter: `call_id=eq.${call.id}`,
             },
-            (payload) => void process(payload.new as CallSignal),
+            (payload) => void process(payload.new as CallSignal).catch(()=>{if(live){setError("Call signalling stopped. End the call and try again.");stream.current?.getTracks().forEach(track=>track.stop());peer.close();}}),
           )
           .subscribe();
+        signalChannel=channel;
         if (call.caller_id === userId) {
           const offer = await peer.createOffer();
           await peer.setLocalDescription(offer);
-          await sendCallSignal(call.id, userId, "offer", offer);
+          const sent=await sendCallSignal(call.id, userId, "offer", offer);
+          if(sent.error)throw new Error(sent.error.message);
         }
         if (!live) void supabase.removeChannel(channel);
       } catch (reason: any) {
+        stream.current?.getTracks().forEach(track=>track.stop());
+        pc.current?.close();
+        if (!live) return;
         setError(
           reason?.name === "NotAllowedError"
             ? `Allow ${isVideo ? "camera and microphone" : "microphone"} access to make this call.`
@@ -298,7 +329,7 @@ function RtcCall({
       }
     }
   }, [call.id, call.caller_id, isVideo, userId]);
-  useEffect(()=>{if(connected||error)return;const timer=window.setTimeout(()=>{setConnectionLabel("Could not connect");setError("The peer-to-peer call could not cross this network. End the call and try again on a different connection.")},15000);return()=>window.clearTimeout(timer)},[call.id,connected,error]);
+  useEffect(()=>{if(call.status!=="accepted"||connected||error)return;const timer=window.setTimeout(()=>{setConnectionLabel("Could not connect");setError("The call could not connect on this network. End the call and try again.")},15000);return()=>window.clearTimeout(timer)},[call.id,call.status,connected,error]);
   function toggleMute() {
     const next = !muted;
     stream.current
@@ -312,28 +343,35 @@ function RtcCall({
     setCameraOff(next);
   }
   async function switchCamera(){
-    if(!isVideo)return;
+    if(!isVideo||switchingCamera.current)return;
+    switchingCamera.current=true;
+    let replacement:MediaStream|undefined;
     try{
       const next=facingMode==="user"?"environment":"user";
-      const replacement=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:next},width:{ideal:1280},height:{ideal:720}},audio:false});
+      replacement=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:next},width:{ideal:1280},height:{ideal:720}},audio:false});
+      if(!mounted.current)return;
       const track=replacement.getVideoTracks()[0];
       const sender=pc.current?.getSenders().find(item=>item.track?.kind==="video");
       if(!track||!sender)throw new Error("Camera switching is not available on this device");
       await sender.replaceTrack(track);
+      if(!mounted.current)return;
       stream.current?.getVideoTracks().forEach(item=>{item.stop();stream.current?.removeTrack(item)});
       stream.current?.addTrack(track);
       if(localVideo.current)localVideo.current.srcObject=stream.current;
       setFacingMode(next); setCameraOff(false);
-    }catch(reason){toast.error(reason instanceof Error?reason.message:"Camera could not switch")}
+      replacement=undefined;
+    }catch(reason){if(mounted.current)toast.error(reason instanceof Error?reason.message:"Camera could not switch")}
+    finally{replacement?.getTracks().forEach(track=>track.stop());switchingCamera.current=false;}
   }
   async function toggleSpeaker(){
     const media=remoteMedia.current as (HTMLMediaElement & {setSinkId?:(id:string)=>Promise<void>})|null;
     if(!media?.setSinkId)return toast.error("Audio output selection is not supported on this device");
-    try{const next=!speakerOn;await media.setSinkId(next?"default":"communications");setSpeakerOn(next)}catch{toast.error("Audio output could not be changed")}
-  }
-  function reconnect(){
-    setError("");setConnectionLabel("Reconnecting…");
-    try{pc.current?.restartIce()}catch{setError("Reconnect could not start. End the call and try again.")}
+    try{
+      const devices=navigator.mediaDevices as MediaDevices & {selectAudioOutput?:()=>Promise<MediaDeviceInfo>};
+      if(!devices.selectAudioOutput)return;
+      const output=await devices.selectAudioOutput();
+      if(mounted.current)await media.setSinkId(output.deviceId);
+    }catch(reason){if(mounted.current && !(reason instanceof DOMException && reason.name==='NotAllowedError'))toast.error("Audio output could not be changed")}
   }
   return (
     <div className="fixed inset-0 z-[190] flex h-[100dvh] flex-col bg-black text-white">
@@ -345,30 +383,30 @@ function RtcCall({
             <h2 className="mt-5 text-2xl font-bold">
               {call.peer_name || "WeHouse member"}
             </h2>
-            <p className="mt-2 text-[10px] text-[var(--wh-text-secondary)]">
-              {connected ? "Connected" : connectionLabel}
+            <p className="mt-2 text-xs text-white/75">
+              {error ? 'Call needs attention' : call.status==='ringing' ? 'Calling…' : connected ? "Connected" : connectionLabel}
             </p>
           </div>
           {isVideo && <video ref={localVideo} autoPlay muted playsInline className="absolute right-4 top-4 h-40 w-28 rounded-2xl border border-white/20 bg-[var(--wh-surface)] object-cover shadow-2xl sm:h-52 sm:w-36" />}
         </div>
         {!isVideo && <video ref={remoteMedia} autoPlay playsInline className="hidden" />}
         {error && (
-          <div className="absolute inset-x-4 top-20 rounded-2xl bg-red-500/15 p-3 text-center text-[10px] text-red-100"><p>{error}</p><button onClick={reconnect} className="mt-2 rounded-lg bg-white/10 px-3 py-2 font-semibold">Try reconnecting</button></div>
+          <div role="alert" className="absolute inset-x-4 top-20 rounded-2xl p-4 text-center text-sm" style={{color:'#ffe4e6',backgroundColor:'#321217'}}><p>{error}</p><p className="mt-2">End this call before trying again.</p></div>
         )}
       </main>
-      <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 bg-[var(--wh-surface)] p-4 sm:gap-4 sm:p-5">
-        <button
+      <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 bg-[#10131a] p-4 sm:gap-4 sm:p-5">
+        {stream.current?.getAudioTracks().length ? <button
           onClick={toggleMute}
-          className="h-12 rounded-full bg-white/10 px-5 text-[10px]"
+          className="h-12 rounded-full bg-white/10 px-5 text-xs"
         >
           {muted ? "Unmute" : "Mute"}
-        </button>
-        {isVideo && <button onClick={toggleCamera} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">{cameraOff ? "Start camera" : "Stop camera"}</button>}
-        {isVideo && <button onClick={()=>void switchCamera()} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">Switch camera</button>}
-        <button onClick={()=>void toggleSpeaker()} className="h-12 rounded-full bg-white/10 px-5 text-[10px]">{speakerOn?"Speaker":"Earpiece"}</button>
+        </button> : null}
+        {isVideo && <button onClick={toggleCamera} className="h-12 rounded-full bg-white/10 px-5 text-xs">{cameraOff ? "Start camera" : "Stop camera"}</button>}
+        {isVideo && <button onClick={()=>void switchCamera()} className="h-12 rounded-full bg-white/10 px-5 text-xs">Switch camera</button>}
+        {outputSelectionAvailable && <button onClick={()=>void toggleSpeaker()} className="h-12 rounded-full bg-white/10 px-5 text-xs">Audio output</button>}
         <button
           onClick={onHangup}
-          className="h-12 rounded-full bg-red-500 px-6 text-[10px] font-semibold"
+          className="h-12 rounded-full bg-red-500 px-6 text-xs font-semibold"
         >
           End call
         </button>

@@ -10,6 +10,8 @@ export default function EmailChangeFinisher() {
       if (!alive) return;
       if (error) toast.error(error);
       else if (email) toast.success(`Your email is now ${email}`);
+    }).catch(() => {
+      if (alive) toast.error('Email change could not be confirmed. Refresh your account before retrying.');
     });
     return () => {
       alive = false;

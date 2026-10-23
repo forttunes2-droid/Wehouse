@@ -653,7 +653,7 @@ export default function Chat({
     const incoming: File[] = [];
     for (const file of Array.from(list)) {
       if (!isSelectableChatAttachment(file, source)) {
-        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE}`);
+        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE}`);
         continue;
       }
       try {

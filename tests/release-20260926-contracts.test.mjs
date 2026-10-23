@@ -87,7 +87,7 @@ test('Property management is post-publication, property-scoped and booking respo
   assert.doesNotMatch(submissions, /PropertyManagementPanel|set_my_property_management_mode/);
   assert.match(panel, /Host manages/);
   assert.match(panel, /WeHouse manages/);
-  assert.match(panel, /Co-host/);
+  assert.match(panel, /Team member/);
   assert.match(panel, /Hosting team/);
   assert.match(panel, /Property Operations/);
   assert.match(panel, /Guest booking code/);
@@ -159,7 +159,7 @@ test('Host conversations stay separate from WeHouse support and media storage is
 test('Short Let shared payment starts only after paid Reserve date', async () => {
   const [migration, split] = await Promise.all([
     read('supabase/migrations/20260926062800_short_let_share_after_reserve_date.sql'),
-    read('src/components/ShortLetSplitCosts.tsx'),
+    read('src/components/ShortLetBookingShares.tsx'),
   ]);
   assert.match(migration, /Pay Reserve date before splitting the remaining stay cost/);
   assert.match(migration, /reservation_fee_status<>'paid'/);

@@ -33,7 +33,7 @@ test('Worker job status and Payment Protection remain separate contracts',async(
   assert.equal(legacy.money_state,'protected');
   assert.equal(legacy.payment_status,'payment_protected');
   assert.equal(contract.workerNextAction('confirmed','protected','worker'),'Start job');
-  assert.equal(contract.workerNextAction('confirmed','protected','customer'),'Waiting for Worker to start');
+  assert.equal(contract.workerNextAction('confirmed','protected','customer'),'Waiting for Service Worker to start');
   for(const terminal of ['approved_released','cancelled','refunded']){
     assert.equal(contract.workerNextAction(terminal,'released','customer'),null);
     assert.equal(contract.workerNextAction(terminal,'released','worker'),null);
@@ -253,7 +253,8 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   assert.doesNotMatch(discovery,/WorkerProBadge/);
   assert.doesNotMatch(workers,/export async function createBlueBadgeSubscription/);
   assert.doesNotMatch(workers,/export async function cancelBlueBadgeSubscription/);
-  assert.match(workers,/const hasCompletedVerification = status === 'verified'/);
+  assert.doesNotMatch(workers,/reviewWorkerVerification|submitWorkerVerification/);
+  assert.match(read('supabase/migrations/20261020145446_worker_credential_review.sql'),/private\.worker_credentials_current\(new\.user_id\)/);
   assert.doesNotMatch(exports,/createBlueBadgeSubscription|cancelBlueBadgeSubscription/);
 });
 
@@ -330,7 +331,7 @@ test('Short Let checkout follows reservation occupancy, not global listing state
 test('Worker ratings and reviews render only after verified job reviews exist',()=>{
   const profile=read('src/components/WorkerPublicProfile.tsx');
   const discovery=read('src/pages/WorkerDiscovery.tsx');
-  const workerWorkspace=read('src/components/WorkerProfilePanelV2.tsx');
+  const workerWorkspace=read('src/components/WorkerProfilePanel.tsx');
   const booking=read('src/components/BookingNegotiationChat.tsx');
   const schema=read('supabase/migrations/20250525000000_remote_schema.sql');
   assert.match(profile,/reviewCount > 0 && <span>★/);

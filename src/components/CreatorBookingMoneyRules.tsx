@@ -1,3 +1,4 @@
+import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { currencySymbol } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -40,7 +41,7 @@ type Rules = {
 const DEFAULTS: Rules = {
   short_let: {
     reservation_hold_minutes: 30,
-    full_refund_hours_before_check_in: 48,
+    full_refund_hours_before_check_in: 24,
     late_cancel_max_nights: 1,
     no_show_max_nights: 1,
     security_deposit_enabled: true,
@@ -395,6 +396,8 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Hotel" suffix="%" value={rules.commissions.hotel_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("hotel_percent", value)} />
         <NumberRule label="Service Worker" suffix="%" value={rules.commissions.service_worker_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("service_worker_percent", value)} />
       </RuleSection>
+
+      <CreatorExperienceCommission />
 
       <RuleSection
         title="Service Worker completion"

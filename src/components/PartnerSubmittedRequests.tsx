@@ -3,7 +3,7 @@ import { matchesPropertyRecord, propertyRecordKey, propertyRecordTitle } from "@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
-import type { Profile } from "@/types";
+import { APARTMENT_SUB_LABELS, PROPERTY_TYPE_LABELS, type Profile, type PropertyType, type ApartmentSubType } from "@/types";
 import { propertyLifecycleLabel } from "@/lib/status";
 import PropertyInspectionRequestPanel from "./PropertyInspectionRequestPanel";
 import PropertyMediaCarousel from "./PropertyMediaCarousel";
@@ -16,11 +16,17 @@ import { ListingMediaImage } from "./ListingCandidateMedia";
 import PartnerHotelOperations from "./PartnerHotelOperations";
 import { prepareEvidenceVideo } from "@/lib/mediaVideo";
 import { formatMoney } from "@/lib/regional";
+import PropertyDocuments from './PropertyDocuments';
+import { homeStyleLabel } from '@/lib/homeStyles';
 
 export type SubmissionFilter = "all" | "submitted" | "public" | "rejected";
 export type PartnerAssetKind = "all" | "apartment" | "hotel";
 
 type RequestRow = {
+  home_style?: string | null;
+  space_scope?:'entire_unit'|'private_room'|null;
+  space_label?:string|null;
+  shared_areas?:string[]|null;
   id: string;
   request_code: string | null;
   property_address: string | null;
@@ -71,7 +77,7 @@ type RequestRow = {
 };
 
 const fields =
-  "id,request_code,property_address,property_display_name,property_type,sub_type,requested_management_mode,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program";
+  "id,request_code,property_address,property_display_name,property_type,sub_type,requested_management_mode,property_state,property_city,bedrooms,bathrooms,expected_rent,security_deposit_amount,max_guests,description,photo_urls,gps_latitude,gps_longitude,location_accuracy_m,status,created_at,scheduled_date,completed_at,draft_listing_id,draft_hotel_id,published_at,notes,rejection_reason,submission_batch_id,submission_batch_position,authority_relationship,access_evidence_status,lifecycle_stage,hotel_program,space_scope,space_label,shared_areas,home_style";
 const PAGE_SIZE = 40;
 
 function submissionsQuery(ownerId: string, assetKind: PartnerAssetKind, filter: SubmissionFilter) {
@@ -84,14 +90,14 @@ function submissionsQuery(ownerId: string, assetKind: PartnerAssetKind, filter: 
   return query;
 }
 
-async function findLinkedSubmission(ownerId: string, assetKind: PartnerAssetKind, recordId: string) {
+async function findLinkedSubmission(ownerId: string, recordId: string) {
   const match = /^(inspection|listing|hotel):(.+)$/.exec(recordId);
   const id = match?.[2] || recordId;
   const column = match?.[1] === "listing" ? "draft_listing_id"
     : match?.[1] === "hotel" ? "draft_hotel_id" : "id";
   if (column === "draft_hotel_id" && !/^\d+$/.test(id)) return null;
   const { data, error } = await supabase.from("inspection_requests").select(fields)
-    .eq("owner_id", ownerId).eq("property_type", assetKind)
+    .eq("owner_id", ownerId)
     .eq(column, id).maybeSingle();
   return error ? null : data as RequestRow | null;
 }
@@ -161,7 +167,7 @@ export default function PartnerSubmittedRequests({
           let target = nextRequests.find((request) =>
             matchesPropertyRecord(request, initialRecordId),
           );
-          if (!target) target = await findLinkedSubmission(profile.user_id, assetKind, initialRecordId) || undefined;
+          if (!target) target = await findLinkedSubmission(profile.user_id, initialRecordId) || undefined;
           if (!active || generation !== requestGeneration.current) return;
           openedTarget.current = String(initialRecordId);
           if (target) openRequest(target);
@@ -254,7 +260,7 @@ export default function PartnerSubmittedRequests({
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold">
-                Submitted {assetKind === "hotel" ? "hotels" : assetKind === "apartment" ? "apartments" : "properties"}
+                Submitted {assetKind === "hotel" ? "hotels" : assetKind === "apartment" ? "homes" : "properties"}
               </h2>
             </div>
             <button
@@ -379,7 +385,7 @@ function RequestDetail({
     request.property_type === "hotel" &&
     request.draft_hotel_id
   )
-    return <LiveHotel profile={profile} request={request} onBack={onBack} />;
+    return <><LiveHotel profile={profile} request={request} onBack={onBack} /><PropertyDocuments key={request.id} requestId={request.id} accountId={profile.user_id}/></>;
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -415,15 +421,20 @@ function RequestDetail({
             <Status request={request} />
           </div>
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <Info label="Type" value={friendly(request.property_type)} />
-            <Info label="Stay" value={friendly(request.sub_type)} />
-            <Info label="Bedrooms" value={request.bedrooms ?? "—"} />
-            <Info label="Bathrooms" value={request.bathrooms ?? "—"} />
+            <Info label="Property type" value={PROPERTY_TYPE_LABELS[request.property_type as PropertyType] || "Not specified"} />
+            {request.property_type === 'apartment' ? <>
+              {homeStyleLabel(request.home_style) && <Info label="Home type" value={homeStyleLabel(request.home_style)} />}
+              <Info label="Let type" value={APARTMENT_SUB_LABELS[request.sub_type as ApartmentSubType] || "Not specified"} />
+              {request.space_scope&&<Info label="Bookable space" value={`${request.space_scope==='private_room'?'Private room':'Entire home'} · ${request.space_label||'Label unavailable'}`}/>}
+              <Info label="Bedrooms" value={request.bedrooms === 0 ? "Studio" : request.bedrooms ?? "—"} />
+              <Info label="Bathrooms" value={request.bathrooms ?? "—"} />
+            </> : null}
             {request.sub_type === "short_let" && (
-              <Info label="Guests" value={`Up to ${request.max_guests || 1}`} />
+              <Info label="Guests" value={Number.isSafeInteger(Number(request.max_guests)) && Number(request.max_guests) > 0 ? `Up to ${request.max_guests}` : 'Not specified'} />
             )}
           </div>
           <div className="mt-2">
+            {request.space_scope==='private_room'&&<Info label="Shared areas" value={request.shared_areas?.join(', ')||'Not specified'}/>}
             <Info
               label="Your relationship"
               value={friendly(request.authority_relationship)}
@@ -525,6 +536,7 @@ function RequestDetail({
           ) : null}
         </section>
       ) : null}
+      <PropertyDocuments key={request.id} requestId={request.id} accountId={profile.user_id}/>
       <AccessEvidenceSummary status={request.access_evidence_status} />
       {stage === "changes_requested" && (
         <AccessEvidenceCorrection

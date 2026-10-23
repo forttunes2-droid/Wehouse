@@ -32,6 +32,22 @@ const event = (id, minutesAgo, extra = {}) => ({
 });
 const ids = rows => Array.from(currentActivityRows(rows, now), row => row.id);
 
+test('support case routing follows the selected workspace rather than profile role',()=>{
+ for(const scope of ['creator','admin','staff','property_operations','field_operations','worker_operations','finance_operations','security_operations','support'])assert.equal(workspaceExports.isInternalActivityWorkspace(scope),true);
+ for(const scope of ['personal','account','worker','partner','property_partner','hotel'])assert.equal(workspaceExports.isInternalActivityWorkspace(scope),false);
+ const screen=fs.readFileSync('src/pages/Notifications.tsx','utf8');assert.match(screen,/!isInternalActivityWorkspace\(scope\)/);assert.doesNotMatch(screen,/includes\(profile\.role\)/);
+});
+
+test('destination IDs cannot be coerced from objects into a broken record link',()=>{
+ const destination=resolveActivityDestination({type:'property_booking',source_type:'reservation',source_id:'booking',destination_route:'reservation',destination_params:{reservation_id:{id:'wrong'},context_id:['wrong']}});
+ assert.equal(destination.id,'booking');
+});
+
+test('an explicit informational domain state overrides actionable words',()=>{
+  assert.equal(exports.activityNeedsAction({type:'payment_required',title:'Payment required',action_required:false,resolved_at:null}),false);
+  assert.equal(exports.activityNeedsAction({type:'payment_required',action_required:true,resolved_at:null}),true);
+});
+
 test('newer informational update does not hide an unresolved hotel action', () => {
   const older = event('arrival-action', 15, { type: 'hotel.arrival_review_required', action_required: true });
   assert.deepEqual(ids([older, event('stay-update', 2)]), ['stay-update', 'arrival-action']);

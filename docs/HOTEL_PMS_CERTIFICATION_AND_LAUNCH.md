@@ -55,8 +55,8 @@ including reads through the service role. A token marked active does not overrid
 revoked provider certification, a disabled hotel or expired launch approvals.
 
 Inbound idempotency keys bind to the HTTP method, complete route (including booking
-ID) and canonical JSON body. Only completed or explicitly review-required events
-can return a successful replay. Pending, failed and mismatched requests return 409;
+ID) and canonical JSON body. Only acknowledged or explicitly review-required events
+can return a successful replay. Pending, dead-letter and mismatched requests return 409;
 do not generate a fresh key blindly after a failure. Inspect the event and reconcile
 any partial application first. Database errors must not be reported as a completed
 acknowledgement. Every catalog domain is authorized before any catalog writes, and
@@ -69,9 +69,43 @@ reservations does not update booking delivery fields; doing so would advance the
 booking update timestamp and repeatedly deliver the same rows. An explicit
 acknowledgement updates the booking's synchronization state.
 
-Catalog batches still use multiple database operations. A runtime failure may
-partially apply a batch; the event is marked failed with reconciliation required.
-Atomic batch application or proven adapter reconciliation remains a certification
-requirement. Automated handler tests use synthetic external I/O and do not certify
-a real hotel vendor connection. Production inspection on 2026-09-19 found zero
-registered providers, zero certified providers and zero active connections.
+On Test, catalog batches now use one `apply_hotel_pms_catalog` transaction, including
+their completion receipt. A later rate/inventory error rolls back earlier room
+changes. Missing/invalid prices are rejected; they never become a one-naira rate.
+The current gateway supports NGN whole-number rates and pay-now packages. Other
+currencies/payment timing require an implemented, reviewed market capability.
+Room-status changes and reservation acknowledgements also commit with their event
+receipts. A lost response cannot overwrite an already committed receipt; retrying
+the same key/body reads that result. A definitively rejected request keeps its
+failure/review event. Automated external-I/O tests and rollback database fixtures
+do not certify a real vendor connection. Production inspection on 2026-09-19 found
+zero registered providers, zero certified providers and zero active connections.
+
+## Reservation changes and acknowledgements (23 October)
+
+`GET /v1/reservations` includes cancellation/refund changes. Consumers preserve the
+opaque complete cursor, retry failed reads with that cursor, and acknowledge the
+latest delivered version. `POST /v1/reservations/{id}/ack` requires:
+
+- `accepted`: a boolean.
+- `reservation_status`: the delivered reservation's exact `status`.
+- `reservation_updated_at`: its exact `updated_at`, preserving timestamp precision.
+- A stable `Idempotency-Key`; optional external reservation ID and review reason.
+
+The database rechecks connection authorization and locks the booking/event. A stale
+version returns 409 without acknowledging a newer cancellation. Fetch current
+state and reconcile before submitting a new acknowledgement. A rejected PMS
+acknowledgement does not reverse WeHouse cancellation or invent a refund.
+
+Cancellation creates one outbound event and supersedes undelivered earlier
+confirmation events. Paused connections retain the event and alert the Partner for
+review; inactive credentials still cannot read it. Unmapped or assigned physical
+units cannot be overwritten by room-status input, including a cleaning update.
+The transport is a polling/acknowledgement contract; no generic vendor webhook
+delivery guarantee is implied. Named-adapter recovery and certification remain gates.
+
+The Test gateway is version 5. Missing-token hosted smoke returns 401. Each
+connection has a 120-request/minute budget and 30 POSTs/minute; 429 includes
+`Retry-After`. The limiter fails closed. JSON is bounded to 256 KiB, with up to 200
+records per catalog collection. Adapter certification must include backoff,
+pagination, batch splitting and measured capacity for the hotel's actual workload.

@@ -1,36 +1,42 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/withTimeout';
 
 export type SponsoredResult = { campaign_id: string; resource_id: string };
 
-export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hotel', state: string, lga: string) {
+export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hotel', state: string, lga: string, category = '') {
   const [results, setResults] = useState<SponsoredResult[]>([]);
   useEffect(() => {
     let live = true;
+    setResults([]);
     const timer = window.setTimeout(() => {
-      void supabase.auth.getSession().then(({ data: session }) => {
+      void withTimeout(supabase.auth.getSession(),15000,'Session lookup timed out').then(({ data: session }) => {
+        if (!live) return;
         if (!session.session && resourceType === 'worker') { if (live) setResults([]); return; }
-        return supabase.rpc('get_sponsored_discovery', {
+        return withTimeout(supabase.rpc('get_sponsored_discovery', {
           p_resource_type: resourceType, p_state: state || null,
-          p_lga: lga || null, p_category: null, p_limit: 6,
-        }).then(({ data, error }) => { if (live) setResults(error ? [] : (data || []) as SponsoredResult[]); });
-      });
+          p_lga: lga || null, p_category: category || null, p_limit: 6,
+        }),15000,'Sponsored discovery timed out').then(({ data, error }) => {
+          if (live) setResults(error || !Array.isArray(data) ? [] : data.filter(item => item
+            && typeof item.campaign_id === 'string' && typeof item.resource_id === 'string').slice(0,6));
+        });
+      }).catch(() => { if (live) setResults([]); });
     }, 250);
     return () => { live = false; window.clearTimeout(timer); };
-  }, [resourceType, state, lga]);
+  }, [resourceType, state, lga, category]);
   return results;
 }
 
 export function recordSponsoredImpression(campaignId: string, context: 'worker_discovery' | 'home_discovery' | 'hotel_discovery') {
-  void supabase.auth.getSession().then(({ data }) => {
-    if (data.session) return supabase.rpc('record_my_sponsored_impression', {
+  void withTimeout(supabase.auth.getSession(),15000,'Session lookup timed out').then(({ data }) => {
+    if (data.session) return withTimeout(supabase.rpc('record_my_sponsored_impression', {
       p_campaign_id: campaignId, p_context: context,
-    });
-  });
+    }),15000,'Impression recording timed out');
+  }).catch(() => { /* Failed telemetry is not a confirmed impression. */ });
 }
 
 export function recordSponsoredOpen(campaignId: string) {
-  void supabase.auth.getSession().then(({ data }) => {
-    if (data.session) return supabase.rpc('record_my_sponsored_open', { p_campaign_id: campaignId });
-  });
+  void withTimeout(supabase.auth.getSession(),15000,'Session lookup timed out').then(({ data }) => {
+    if (data.session) return withTimeout(supabase.rpc('record_my_sponsored_open', { p_campaign_id: campaignId }),15000,'Open recording timed out');
+  }).catch(() => { /* Failed telemetry is not a confirmed open. */ });
 }

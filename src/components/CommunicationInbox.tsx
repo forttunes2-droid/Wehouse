@@ -1,6 +1,7 @@
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import type { ActivityDestination } from "@/lib/activityFeed";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import Notifications from "@/pages/Notifications";
 import type { Profile } from "@/types";
 import { supabase } from "@/lib/supabase";
@@ -79,6 +80,11 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   }, [hostingOnly]);
 
   useEffect(() => {
+    setHotelChats([]);
+    setHostChats([]);
+    setSupportThreads([]);
+    setActiveHotel(null);
+    setActiveHost(null);
     void loadMessages();
     const refresh = () => void loadMessages();
     window.addEventListener("wehouse:unread-changed", refresh);
@@ -94,7 +100,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
 
   const safeUnreadCount = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
 
-const items = useMemo<InboxItem[]>(() => [
+  const items = useMemo<InboxItem[]>(() => [
     ...hotelChats.map((thread) => ({ kind: "hotel" as const, id: `hotel:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread: { ...thread, unread_count: safeUnreadCount(thread.unread_count) } })),
     ...hostChats.map((thread) => ({ kind: "host" as const, id: `host:${thread.conversation_id}`, time: thread.last_message_time || thread.updated_at, thread: { ...thread, unread_count: safeUnreadCount(thread.unread_count) } })),
     ...supportThreads.map((thread) => ({ kind: "support" as const, id: `support:${thread.conversation_id}`, time: thread.last_message_time || thread.created_at, thread: { ...thread, unread_count: safeUnreadCount(thread.unread_count) } })),
@@ -108,13 +114,21 @@ const items = useMemo<InboxItem[]>(() => [
         ? [item.thread.other_person_name,item.thread.listing_title,item.thread.last_message]
         : (() => { const presentation = conversationPresentation(item.thread, "customer"); return [presentation.title, presentation.meta, item.thread.last_message]; })();
     return source.filter(Boolean).join(" ").toLowerCase().includes(value);
-  }).sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()), [filter, hotelChats, query, supportThreads]);
+  }).sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()), [filter, hotelChats, hostChats, query, supportThreads]);
 
   function openActivityDestination(page: string, id?: string, destination?: ActivityDestination) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if (["conversation", "conversations", "message", "messages", "chat"].includes(route)) {
       const hotel = hotelChats.find((thread) => String(thread.conversation_id) === String(id || ""));
       if (hotel) { setHotelChats((current) => current.map((thread) => String(thread.conversation_id) === String(hotel.conversation_id) ? { ...thread, unread_count: 0 } : thread)); setActiveHotel(hotel); return; }
+      const host = hostChats.find((thread) => String(thread.conversation_id) === String(id || ""));
+      if (host) { setHostChats((current) => current.map((thread) => String(thread.conversation_id) === String(host.conversation_id) ? { ...thread, unread_count: 0 } : thread)); setActiveHost(host); return; }
+      const support = supportThreads.find((thread) => String(thread.conversation_id) === String(id || ""));
+      if (support) { openSupport(support); return; }
+      if (!id) { setShowActivity(false); return; }
+      toast.error("This conversation could not be opened. Refresh messages and try again.");
+      void loadMessages();
+      return;
     }
     onNavigate(page, id, destination);
   }
@@ -176,7 +190,7 @@ const items = useMemo<InboxItem[]>(() => [
 function HotelRow({ thread, onOpen }: { thread: HotelConversation; onOpen: () => void }) {
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]">
     <div aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] font-semibold text-violet-200">{(thread.guest_name || 'G')[0].toUpperCase()}</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.guest_name || "Guest"}</p><span className="text-[7px] font-semibold text-amber-200">GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[var(--wh-text-muted)]"}`}>{thread.last_message || "Stay conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{stayContext(thread)}</p></div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.guest_name || "Guest"}</p><span className="text-[7px] font-semibold text-amber-200">GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}>{thread.last_message || "Stay conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{stayContext(thread)}</p></div>
     {thread.unread_count > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
   </button>;
 }
@@ -184,7 +198,7 @@ function HotelRow({ thread, onOpen }: { thread: HotelConversation; onOpen: () =>
 function HostRow({ thread, onOpen }: { thread: PropertyHostConversation; onOpen: () => void }) {
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]">
     <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-200">{thread.other_person_avatar?<img src={thread.other_person_avatar} alt="" className="h-full w-full object-cover"/>:(thread.other_person_name||"G")[0].toUpperCase()}</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.other_person_name || "Guest"}</p><span className="text-[7px] font-semibold text-violet-300">HOME GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count?"text-white":"text-[var(--wh-text-muted)]"}`}>{thread.last_message || "Booking conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{thread.listing_title} · {thread.stay_type==="short_let"?"Short Let":"Long Let"}</p></div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{thread.other_person_name || "Guest"}</p><span className="text-[7px] font-semibold text-violet-300">HOME GUEST</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count?"text-[var(--wh-text)]":"text-[var(--wh-text-muted)]"}`}>{thread.last_message || "Booking conversation"}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{thread.listing_title} · {thread.stay_type==="short_let"?"Short Let":"Long Let"}</p></div>
     {thread.unread_count>0&&<span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
   </button>;
 }
@@ -193,7 +207,7 @@ function SupportRow({ thread, onOpen }: { thread: SupportThread; onOpen: () => v
   const presentation = conversationPresentation(thread, "customer");
   return <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 py-3 text-left active:bg-[var(--wh-interactive)]">
     <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/12 text-[11px] font-bold text-violet-300">W</div>
-    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{presentation.title}</p><span className="text-[7px] font-semibold text-violet-300">WEHOUSE</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-white" : "text-[var(--wh-text-muted)]"}`}>{thread.last_message || presentation.operator}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{presentation.meta || "Property and account support"}</p></div>
+    <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{presentation.title}</p><span className="text-[7px] font-semibold text-violet-300">WEHOUSE</span></div><p className={`mt-1 truncate text-[10px] ${thread.unread_count ? "text-[var(--wh-text)]" : "text-[var(--wh-text-muted)]"}`}>{thread.last_message || presentation.operator}</p><p className="mt-0.5 truncate text-[8px] text-[var(--wh-text-muted)]">{presentation.meta || "Property and account support"}</p></div>
     {thread.unread_count > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold">{thread.unread_count}</span>}
   </button>;
 }

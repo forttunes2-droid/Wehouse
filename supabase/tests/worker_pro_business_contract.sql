@@ -68,7 +68,7 @@ begin
   exception when others then if sqlerrm='Cross-Worker reminder accepted' then raise; end if; end;
 end $$;
 
--- Verify both physical columns with the migration-test owner, not the
+-- Verify the canonical cost and its generated read projection with the migration-test owner, not the
 -- authenticated Worker role. The table is intentionally not directly readable
 -- by customers or Workers; their supported read path is the guarded RPC.
 reset role;
@@ -78,7 +78,11 @@ do $$ begin
     where worker_id='business-one'
       and booking_id='78666666-0000-4000-8000-000000000012'
       and amount=2500 and cost_ngn=2500
-  ) then raise exception 'Worker cost columns are not synchronized'; end if;
+  ) then raise exception 'Worker cost projection disagrees with its canonical value'; end if;
+  if not exists(select 1 from information_schema.columns where table_schema='public'
+    and table_name='worker_pro_job_costs' and column_name='amount' and is_generated='ALWAYS') then
+    raise exception 'Compatibility amount must be generated, never a second writable cost';
+  end if;
 end $$;
 
 select set_config('request.jwt.claim.sub','78666666-0000-4000-8000-000000000003',true);

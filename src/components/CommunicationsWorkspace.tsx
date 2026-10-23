@@ -11,17 +11,17 @@ import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import {
   claimCommunicationCase,
   conversationPresentation,
-  deleteSupportAttachment,
   getOperationalConversationBundle,
   getOperationalSubjectState,
   getSupportInbox,
   markSupportMessagesRead,
-  sendSupportMessage,
+  operationalConversationControls,
+  sendReliableSupportReply,
   supportNextStep,
   supportStatusLabel,
   transitionSupportCase,
-  uploadSupportAttachment,
   type SupportCaseEvent,
+  type SupportQueue,
 } from "@/lib/supabase/support";
 import type { Profile } from "@/types";
 import BackButton from "@/components/BackButton";
@@ -40,13 +40,7 @@ type Props = {
   onOpenConversation?: (id?: string) => void;
   forcedView?: View;
   hideViewTabs?: boolean;
-  queue?:
-    | "all"
-    | "support"
-    | "operations"
-    | "property_operations"
-    | "reservation_operations"
-    | "field_operations";
+  queue?: SupportQueue;
   onUnreadChange?: (count: number) => void;
   initialConversationId?: string;
   onOpenContext?: (page: string, id?: string) => void;
@@ -94,6 +88,7 @@ export default function CommunicationsWorkspace({
     receiptRef = useRef(""),
     scrollRef = useRef<HTMLElement>(null),
     stickToBottomRef = useRef(true);
+  const caseMutationRef=useRef(false),replyMutationRef=useRef(false);
   useEffect(() => {
     scopeEpochRef.current += 1;
     listLoadedRef.current = false;
@@ -151,7 +146,7 @@ export default function CommunicationsWorkspace({
       }
       // A read failure, superseded request, or closed screen cannot mark anything read.
       // Receipt writes do not delay painting, and a receipt event cannot create a loop.
-      const unread = bundle.messages.filter((message: any) => !message.is_read && message.sender_id !== profile.user_id);
+      const unread = [...bundle.messages,...bundle.internal_notes].filter((message: any) => !message.is_read && message.sender_id !== profile.user_id);
       const receiptKey = `${id}:${unread.map((message: any) => message.id).join(",")}`;
       if (unread.length && receiptRef.current !== receiptKey) {
         receiptRef.current = receiptKey;
@@ -246,7 +241,7 @@ export default function CommunicationsWorkspace({
     if (!list) return;
     const valid = Array.from(list).filter((file) => {
       if (isSelectableChatAttachment(file, source)) return true;
-      toast.error(file.size > 25 * 1024 * 1024 ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
+      toast.error(file.size > 25 * 1024 * 1024 ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE);
       return false;
     });
     setFiles((current) => {
@@ -257,40 +252,32 @@ export default function CommunicationsWorkspace({
     });
   }
   async function reply() {
-    if (!selected || sending || loadingThread || threadError || (!input.trim() && !files.length)) return;
+    if (!selected || replyMutationRef.current || sending || loadingThread || threadError || (!input.trim() && !files.length)) return;
+    replyMutationRef.current=true;
     const targetId = selected.conversation_id;
     const selection = selectionRef.current;
     const epoch = scopeEpochRef.current;
     const current = () => selectedIdRef.current === targetId && selectionRef.current === selection && epoch === scopeEpochRef.current;
     const body = input.trim(), visibility = messageVisibility, attachments = [...files];
-    const paths: string[] = [], types: string[] = [];
-    let sent = false;
     setSending(true);
     try {
-      for (const file of attachments) {
-        const uploaded = await uploadSupportAttachment(targetId, file);
-        if (uploaded.error || !uploaded.path) throw new Error(uploaded.error?.message || `Could not upload ${file.name}`);
-        paths.push(uploaded.path);
-        types.push(file.type || "application/octet-stream");
-      }
-      // The captured recipient/body cannot become a different thread mid-send.
-      const { error } = await sendSupportMessage(targetId, body, paths, types, null, visibility);
-      if (error) throw error;
-      sent = true;
+      const { error } = await sendReliableSupportReply(profile.user_id,targetId,body,attachments,visibility);
+      if(error)throw error;
       if (!current()) return;
       stickToBottomRef.current = true;
       setInput(""); setFiles([]);
       await refreshMessages(targetId, true);
       void load(true);
     } catch (cause) {
-      if (!sent) await Promise.allSettled(paths.map(path => deleteSupportAttachment(path)));
       if (current()) toast.error((cause as Error)?.message || "Unable to send reply");
     } finally {
+      replyMutationRef.current=false;
       if (current()) setSending(false);
     }
   }
   async function takeConversation() {
-    if (!selected || updatingCase || profile.role !== "staff") return;
+    if (!selected || updatingCase || caseMutationRef.current) return;
+    caseMutationRef.current=true;
     const target = selected, selection = selectionRef.current, epoch = scopeEpochRef.current;
     const current = () => selection === selectionRef.current && epoch === scopeEpochRef.current;
     setUpdatingCase(true);
@@ -298,23 +285,26 @@ export default function CommunicationsWorkspace({
       const claimed = await claimCommunicationCase(selected.conversation_id);
       if (claimed.error) throw claimed.error;
       if (!current()) return;
+      setSelected((row:any)=>row?.conversation_id===target.conversation_id?{...row,assigned_staff_id:profile.user_id,assigned_staff_name:profile.full_name||profile.username||'WeHouse team member'}:row);
       toast.success(conversationPresentation(target, presentationAudience).operational ? "Assignment taken" : "Request assigned to you");
       await load(true);
     } catch (cause) {
       if (current()) toast.error((cause as Error)?.message || "This work could not be assigned");
     } finally {
+      caseMutationRef.current=false;
       if (current()) setUpdatingCase(false);
     }
   }
 
   async function updateCase(action: CaseAction) {
-    if (!selected || updatingCase || loadingThread || threadError) return;
+    if (!selected || updatingCase || caseMutationRef.current || loadingThread || threadError) return;
     if (["request_info", "escalate", "resolve"].includes(action) && !caseNote.trim()) {
       toast.error(action === "request_info" ? "Say exactly what information the requester must provide" : action === "escalate" ? "Add the reason for escalation" : "Explain the outcome before resolving");
       return;
     }
     const targetId = selected.conversation_id, selection = selectionRef.current, epoch = scopeEpochRef.current;
     const current = () => selection === selectionRef.current && epoch === scopeEpochRef.current;
+    caseMutationRef.current=true;
     setUpdatingCase(true);
     try {
       const { error } = await transitionSupportCase(targetId, action, caseNote.trim());
@@ -329,6 +319,7 @@ export default function CommunicationsWorkspace({
     } catch (cause) {
       if (current()) toast.error((cause as Error)?.message || "Could not update this request");
     } finally {
+      caseMutationRef.current=false;
       if (current()) setUpdatingCase(false);
     }
   }
@@ -405,18 +396,13 @@ export default function CommunicationsWorkspace({
     }
     const requesterLabel =
       selected.requester_name || selected.requester_email || "WeHouse member";
-    const handlerLabel =
-      selected.assigned_staff_name ||
-      (profile.role === "staff"
-        ? "Awaiting assignment"
-        : profile.full_name || profile.username || "Current team member");
-    const staffOwnsConversation =
-      profile.role !== "staff" || selected.assigned_staff_id === profile.user_id;
-    const staffCanTakeConversation =
-      profile.role === "staff" && !selected.assigned_staff_id;
+    const controls = operationalConversationControls(selected,profile.user_id,queue);
+    const staffOwnsConversation = controls.ownsCase;
+    const assignedFieldParticipant = controls.fieldParticipant;
+    const staffCanTakeConversation = controls.canClaim;
     const caseNumber = String(selected.context_snapshot?.case_number || "");
     const conversationLocked = Boolean(
-      loadingThread || threadError || !staffOwnsConversation ||
+      loadingThread || threadError || !controls.canReply ||
         (!selectedPresentation.operational &&
           (selected.status === "resolved" || selected.status === "closed")),
     );
@@ -441,16 +427,20 @@ export default function CommunicationsWorkspace({
             </span>
           )}
         </header>
-        {profile.role === "staff" && !staffOwnsConversation ? (
+        {!staffOwnsConversation ? (
           <section className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] bg-amber-500/[.04] px-4 py-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold text-amber-100">
-                {staffCanTakeConversation
+                {assignedFieldParticipant
+                  ? "You are the assigned Field Operations Staff member"
+                  : staffCanTakeConversation
                   ? "This work is not assigned yet"
                   : `Assigned to ${selected.assigned_staff_name || "another team member"}`}
               </p>
               <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">
-                Opening a record never assigns it. Take it explicitly before replying or changing its state.
+                {assignedFieldParticipant
+                  ? "You can contribute to this case. Property Operations retains ownership and case decisions."
+                  : "Opening a record never assigns it. Take it explicitly before replying or changing its state."}
               </p>
             </div>
             {staffCanTakeConversation ? (
@@ -640,10 +630,12 @@ export default function CommunicationsWorkspace({
               {sending ? "…" : "➤"}
             </button>
           </div>
-          <p className={`mx-auto mt-2 max-w-4xl text-center text-[10px] ${messageVisibility === "internal" ? "text-amber-300/70" : "text-[var(--wh-text-muted)]"}`}>
+          <p className={`mx-auto mt-2 max-w-4xl text-center text-[10px] ${messageVisibility === "internal" ? "text-[var(--wh-text-muted)]" : "text-[var(--wh-text-muted)]"}`}>
             {messageVisibility === "internal"
               ? "Only authorized WeHouse team members can see this note."
-              : `Customer reply from ${handlerLabel} · WeHouse`}
+              : controls.canReply
+                ? `Customer reply from ${profile.full_name || profile.username || "WeHouse team member"}${assignedFieldParticipant ? " · Field Operations" : ""} · WeHouse`
+                : "Replies require an authorized case assignment."}
           </p>
         </footer>
       </div>
@@ -1108,7 +1100,7 @@ function HeaderTabs({
     <div className="grid grid-cols-2 border-b border-[var(--wh-border-subtle)]">
       <button
         onClick={() => setView("inbox")}
-        className={`relative min-h-12 text-xs font-semibold ${view === "inbox" ? "text-white" : "text-[var(--wh-text-muted)]"}`}
+        className={`relative min-h-12 text-xs font-semibold ${view === "inbox" ? "text-[var(--wh-text-primary)]" : "text-[var(--wh-text-muted)]"}`}
       >
         Chats{unread ? ` · ${unread}` : ""}
         {view === "inbox" && (
@@ -1117,7 +1109,7 @@ function HeaderTabs({
       </button>
       <button
         onClick={() => setView("broadcast")}
-        className={`relative min-h-12 text-xs font-semibold ${view === "broadcast" ? "text-white" : "text-[var(--wh-text-secondary)]"}`}
+        className={`relative min-h-12 text-xs font-semibold ${view === "broadcast" ? "text-[var(--wh-text-primary)]" : "text-[var(--wh-text-secondary)]"}`}
       >
         Updates
         {view === "broadcast" && (
@@ -1162,20 +1154,20 @@ function InternalNotes({ notes }: { notes: any[] }) {
   const latest = notes[notes.length - 1];
   return (
     <details className="max-h-[30%] shrink-0 overflow-y-auto border-b border-[var(--wh-border-subtle)] bg-amber-500/[.025] px-4 py-2.5">
-      <summary className="cursor-pointer list-none text-[10px] font-semibold text-amber-200/90">
+      <summary className="cursor-pointer list-none text-[10px] font-semibold text-[var(--wh-text-primary)]">
         Internal notes · {notes.length}
-        <span className="ml-2 font-normal text-amber-100/45">
+        <span className="ml-2 font-normal text-[var(--wh-text-muted)]">
           {latest?.sender_name ? `Latest by ${latest.sender_name}` : "WeHouse team only"}
         </span>
       </summary>
       <div className="mx-auto mt-2 max-w-4xl space-y-2 pb-1">
         {notes.map((note) => (
-          <div key={note.id} className="rounded-xl border border-amber-500/10 bg-black/10 px-3 py-2">
-            <div className="flex items-center justify-between gap-3 text-[8px] text-amber-100/45">
+          <div key={note.id} className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-2">
+            <div className="flex items-center justify-between gap-3 text-[8px] text-[var(--wh-text-muted)]">
               <span className="truncate">{note.sender_name || "WeHouse team"}</span>
               <span>{new Date(note.created_at).toLocaleString()}</span>
             </div>
-            {note.content ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[#C8C1B3]">{note.content}</p> : null}
+            {note.content ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--wh-text-secondary)]">{note.content}</p> : null}
             {(note.attachments || []).map((path: string, index: number) => <SecureSupportAttachment key={path} path={path} type={note.attachment_types?.[index] || ""} />)}
           </div>
         ))}

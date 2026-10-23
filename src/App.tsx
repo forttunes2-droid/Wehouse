@@ -6,6 +6,7 @@ import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import { playNotificationSound, unlockNotificationAudio } from "@/lib/notificationSound";
+import { startNativePush } from '@/lib/nativePush';
 import {
   useState,
   useEffect,
@@ -17,7 +18,6 @@ import {
 } from "react";
 import {
   useAuth,
-  canCreateListings,
   isCreator as checkCreator,
 } from "@/hooks/useAuth";
 import { CreatorAuthProvider } from "@/hooks/useCreatorAuth";
@@ -109,7 +109,6 @@ const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
 const PrivacySecuritySettings = lazy(
   () => import("@/pages/PrivacySecuritySettings"),
 );
-const CreateListing = lazy(() => import("@/pages/CreateListing"));
 const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
 const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
 const WorkerDashboard = lazy(() => import("@/pages/WorkerDashboard"));
@@ -247,9 +246,9 @@ function normalizePageForRole(
       ? page
       : "worker_dashboard";
   if (role === "creator")
-    return page === "creator" || page === "new_listing" ? page : "creator";
+    return "creator";
   if (role === "admin")
-    return page === "admin" || page === "new_listing" ? page : "admin";
+    return "admin";
   if (role === "staff") return "staff_dashboard";
   if (role === "worker")
     return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
@@ -439,8 +438,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         : {}),
     };
   }, [baseProfile, effectiveRole, activeWorkspace, activeWorkspaceGrant]);
-  const canList = canCreateListings(effectiveRole),
-    isCreator = checkCreator(effectiveRole),
+  const isCreator = checkCreator(effectiveRole),
     userRole = effectiveRole,
     isStaffRole = userRole === "staff",
     isAdminRole = userRole === "admin",
@@ -569,7 +567,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       if (!baseProfile) return;
       const destination: NavPage =
         workspace === "worker"
-          ? baseProfile.worker_status === "profile_under_review" ? "worker_dashboard" : "worker_setup"
+          ? "worker_dashboard"
           : "property_partner";
       setChatConvId(null);
       setChatPeerId(null);
@@ -1119,7 +1117,12 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   useEffect(() => {
     const uid = profile?.user_id;
     if (!uid || isUserRole) return;
-    const alertsEnabled = profile?.pref_push_notif !== false;
+    let alertsEnabled = profile?.pref_push_notif !== false;
+    const onAlertPreference = (event:Event) => {
+      const detail=(event as CustomEvent<{userId:string;enabled:boolean}>).detail;
+      if(detail?.userId===uid)alertsEnabled=detail.enabled;
+    };
+    window.addEventListener('wehouse:in-app-alerts',onAlertPreference);
     const channel = subscribeToCanonicalActivity(
       uid,
       `workspace-activity-alerts:${uid}`,
@@ -1156,7 +1159,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         });
       },
     ).subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => { window.removeEventListener('wehouse:in-app-alerts',onAlertPreference);void supabase.removeChannel(channel); };
   }, [profile?.user_id, profile?.pref_push_notif, isUserRole, workspaceAccess, switchWorkspace]);
 
   const toggle = useCallback(
@@ -1267,6 +1270,26 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     },
     [goTo, goToChat, goToDetail],
   );
+  const pushInboxHandler=useRef<(workspace:string)=>void>(()=>{});
+  const pendingPushWorkspace=useRef<WorkspaceChoice|null>(null);
+  useEffect(()=>{pushInboxHandler.current=(scope)=>{
+    if(!baseProfile||!workspaceReady)return;
+    const target=workspaceForActivity(scope,baseProfile.user_id,workspaceAccess);
+    if(!target)return void toast.error('This update is no longer available in your workspaces.');
+    if(target!==activeWorkspace){pendingPushWorkspace.current=target;switchWorkspace(target);return;}
+    goTo(isUserRole?'activity':roleRootFor(userRole));
+    setInboxOpenRequest(++inboxOpenSequence.current);
+  };},[baseProfile,workspaceReady,workspaceAccess,activeWorkspace,switchWorkspace,goTo,isUserRole,userRole]);
+  useEffect(()=>{
+    if(!baseProfile?.user_id||!workspaceReady||auth.pendingDevice)return;
+    return startNativePush(baseProfile.user_id,scope=>pushInboxHandler.current(scope));
+  },[baseProfile?.user_id,workspaceReady,auth.pendingDevice]);
+  useEffect(()=>{
+    if(!pendingPushWorkspace.current||activeWorkspace!==pendingPushWorkspace.current)return;
+    pendingPushWorkspace.current=null;
+    goTo(isUserRole?'activity':roleRootFor(userRole));
+    setInboxOpenRequest(++inboxOpenSequence.current);
+  },[activeWorkspace,isUserRole,userRole,goTo]);
   useEffect(() => {
     if (!propertyIntent || !isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
     openUserDestination(propertyIntent.kind === "hotel" ? "hotel_detail" : "detail", propertyIntent.id);
@@ -1582,8 +1605,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "detail":
         return isUserRole && detailId ? (
           <ListingDetail
+            onGoToFriendChat={(id) => openUserDestination("activity", id)}
             key={detailId}
             listingId={detailId}
+            onOpenListing={goToDetail}
             onNavigate={goBack}
             isSaved={savedIds.has(detailId)}
             onToggleSave={() => toggle(detailId)}
@@ -1655,16 +1680,6 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         ) : (
           renderRoleRoot()
         );
-      case "new_listing":
-        return canList ? (
-          <CreateListing
-            profile={profile}
-            onBack={subpageBack}
-            onSuccess={() => handleSetNavPage(roleRoot())}
-          />
-        ) : (
-          renderRoleRoot()
-        );
       case "hotels":
         return isUserRole ? (
           <HotelsHome onNavigate={openUserDestination} />
@@ -1674,6 +1689,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "hotel_detail":
         return isUserRole && hotelId ? (
           <HotelDetail
+            onGoToFriendChat={(id) => openUserDestination("activity", id)}
             onGoToChat={goToChat}
             hotelId={hotelId}
             onBack={subpageBack}
@@ -1779,7 +1795,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       /> : null}
       <Suspense fallback={<RouteTransitionFallback />}>
         <Suspense fallback={null}>
-          <PrivateCallCenter />
+          {profile && <PrivateCallCenter key={profile.user_id} />}
         </Suspense>
         {profile && <LegalGate userId={profile.user_id} onLogout={auth.logout} />}
         {profile && <NewLoginAlert profile={profile} />}

@@ -1,3 +1,4 @@
+import WorkerCredentials from '@/components/WorkerCredentials';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -46,7 +47,9 @@ type Identity = IdentityReviewPolicy & {
 
 export default function StaffWorkerReviewModern() {
   const selectionVersion = useRef(0);
+  const reviewBusy = useRef(false);
   const [detailError, setDetailError] = useState('');
+  const [credentialsReady,setCredentialsReady]=useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [rows, setRows] = useState<Worker[]>([]),
     [selected, setSelected] = useState<Worker | null>(null),
@@ -94,6 +97,7 @@ export default function StaffWorkerReviewModern() {
   async function open(worker: Worker) {
     const request = ++selectionVersion.current;
     setSelected(worker);
+    setCredentialsReady(false);
     setEvidence(null);
     setIdentity(null);
     setHistory([]);
@@ -135,7 +139,8 @@ export default function StaffWorkerReviewModern() {
     }
   }
   async function act(status: "verified" | "rejected") {
-    if (!selected || detailLoading || detailError) return;
+    if (!selected || detailLoading || detailError || reviewBusy.current) return;
+    if(status==='verified'&&!credentialsReady)return toast.error('Complete the current service credential review first.');
     if (status === "verified" && !identityReviewGateSatisfied(identity))
       return toast.error(identity?.identity_required ? "The required identity review is incomplete" : "The identity policy could not be checked. Reload the review.");
     if (
@@ -146,15 +151,19 @@ export default function StaffWorkerReviewModern() {
       return toast.error("A real skill/work video is required before approval");
     if (status === "rejected" && !reason.trim())
       return toast.error("Enter the rejection reason");
+    reviewBusy.current = true;
+    const request = selectionVersion.current;
     setSaving(true);
-    const { error } = await supabase.rpc("review_my_staff_worker_v2", {
+    try {
+    const { data, error } = await withTimeout(supabase.rpc("review_my_staff_worker_v2", {
       p_worker_id: selected.user_id,
       p_status: status,
       p_reason: status === "rejected" ? reason.trim() : null,
       p_notes: notes.trim() || null,
-    });
-    setSaving(false);
-    if (error) return toast.error(error.message);
+    }), 15000, 'Review confirmation timed out. Reload the review before retrying.');
+    if (error) throw error;
+    if (data !== true) throw new Error('The review decision was not confirmed. Reload the review.');
+    if (request !== selectionVersion.current) return;
     toast.success(
       status === "verified"
         ? "Professional review approved"
@@ -165,6 +174,12 @@ export default function StaffWorkerReviewModern() {
     setIdentity(null);
     setHistory([]);
     void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'The review could not be confirmed. Reload before retrying.');
+    } finally {
+      reviewBusy.current = false;
+      setSaving(false);
+    }
   }
   if (selected) {
     const identityPassed = identity?.identity_current === true,
@@ -174,6 +189,7 @@ export default function StaffWorkerReviewModern() {
       );
     return (
       <div className="space-y-4 pb-24">
+        <WorkerCredentials workerId={selected.user_id} operator onReadyChange={setCredentialsReady}/>
         <button
           onClick={() => { selectionVersion.current++; setSelected(null); }}
           className="text-[10px] font-semibold text-violet-400"
@@ -303,7 +319,7 @@ export default function StaffWorkerReviewModern() {
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <button
                 onClick={() => void act("verified")}
-                disabled={saving || detailLoading || Boolean(detailError) || !identitySatisfied || !professionalReady}
+                disabled={saving || detailLoading || Boolean(detailError) || !identitySatisfied || !professionalReady || !credentialsReady}
                 className="min-h-11 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold disabled:opacity-35"
               >
                 Approve review

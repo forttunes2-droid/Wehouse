@@ -1,5 +1,7 @@
 import { useInboxRefresh } from "./useInboxRefresh";
-import { useCallback, useEffect, useState } from "react";
+import { useActorInboxCounts } from "./useActorInboxCounts";
+import { withTimeout } from "@/lib/withTimeout";
+import { useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { getMySupportConversations } from "@/lib/supabase/support";
 import { getMyHotelConversations } from "@/lib/supabase/hotel-chat";
@@ -11,20 +13,19 @@ import {
 } from "@/lib/supabase/activity";
 
 export function usePartnerInboxSummary(userId: string) {
-  const [chatUnread, setChatUnread] = useState(0);
-  const [activityUnread, setActivityUnread] = useState(0);
+  const { chatUnread, activityUnread, updateCounts } = useActorInboxCounts(userId);
   const load = useCallback(async (isCurrent: () => boolean) => {
     if (!userId) return;
-    const [wehouse, hotels, events, announcements] = await Promise.all([
+    const [wehouse, hotels, events, announcements] = await withTimeout(Promise.all([
       getMySupportConversations("property_partner"),
       getMyHotelConversations("property_partner"),
       getCanonicalActivity("partner", 100),
       getAnnouncementsForUser(userId, "partner"),
-    ]);
+    ]), 15000, "Inbox summary took too long to load.");
     if (!isCurrent()) return;
     const wehouseUnread = wehouse.error ? 0 : (wehouse.conversations || []).reduce((sum, row) => sum + Number(row.unread_count || 0), 0);
     const hotelUnread = hotels.error ? 0 : hotels.conversations.reduce((sum, row) => sum + Number(row.unread_count || 0), 0);
-    setChatUnread(wehouseUnread + hotelUnread);
+    if (!wehouse.error && !hotels.error) updateCounts({ chatUnread: wehouseUnread + hotelUnread });
     const eventUnread = events.error ? 0 : visibleUnreadActivityCount(events.rows, "partner");
     const announcementUnread = (announcements.messages || []).filter((delivery: any) => {
       const announcement = Array.isArray(delivery.announcements) ? delivery.announcements[0] : delivery.announcement || delivery.message;
@@ -32,8 +33,8 @@ export function usePartnerInboxSummary(userId: string) {
     }).length;
     // Never replace a complete Activity count with a partial result. The feed
     // reports its load error and this badge keeps the last known complete value.
-    if (!events.error && !announcements.error) setActivityUnread(eventUnread + announcementUnread);
-  }, [userId]);
+    if (!events.error && !announcements.error) updateCounts({ activityUnread: eventUnread + announcementUnread });
+  }, [userId, updateCounts]);
 
   const refresh = useInboxRefresh(load, Boolean(userId));
 

@@ -1,3 +1,4 @@
+import SponsoredPlacement from "@/components/SponsoredPlacement";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -6,7 +7,7 @@ import {
   getWorkers,
   supabase,
 } from "@/lib/supabase";
-import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
+import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
 import LocationFilterFields from "@/components/LocationFilterFields";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
@@ -118,7 +119,7 @@ export default function WorkerDiscovery({
       conversationId: string;
       bookingId: string;
     } | null>(null);
-  const sponsoredResults = useSponsoredDiscovery('worker', state, city);
+  const sponsoredResults = useSponsoredDiscovery('worker', state, city, category);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -307,9 +308,7 @@ export default function WorkerDiscovery({
         Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city }))),
     [sponsoredResults, liveWorkers, search, category, specialty, state, city],
   );
-  useEffect(() => {
-    visibleFeaturedWorkers.forEach(item => recordSponsoredImpression(item.campaignId, 'worker_discovery'));
-  }, [visibleFeaturedWorkers]);
+
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
   function clear() {
     setSearch("");
@@ -493,8 +492,7 @@ export default function WorkerDiscovery({
             </div>
             <div className="divide-y divide-amber-300/10">
               {visibleFeaturedWorkers.map(({ worker, campaignId }) => (
-                <WorkerCard
-                  key={campaignId}
+                <SponsoredPlacement key={campaignId} campaignId={campaignId} context="worker_discovery"><WorkerCard
                   worker={worker}
                   active={active.has(worker.user_id)}
                   bookable={worker.user_id !== profile?.user_id}
@@ -503,7 +501,7 @@ export default function WorkerDiscovery({
                   onProfile={() => openWorker(worker)}
                   onBook={() => { recordSponsoredOpen(campaignId); setBookingWorker(worker); }}
                   onOpen={() => onNavigate("my_reservations")}
-                />
+                /></SponsoredPlacement>
               ))}
             </div>
           </section>

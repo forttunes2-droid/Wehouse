@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { withTimeout } from '@/lib/withTimeout';
+import { validatePropertyDocument } from '@/lib/propertyDocuments';
+import WorkerCredentials from '@/components/WorkerCredentials';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { assertWorkerActivation } from "@/lib/workerActivation";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { toast } from "sonner";
 import WorkerIdentityCheck from "@/components/WorkerIdentityCheck";
@@ -6,7 +10,7 @@ import WorkerVerificationChecklist from "@/components/WorkerVerificationChecklis
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
-import { prepareEvidenceVideo } from "@/lib/mediaVideo";
+import { prepareEvidenceVideo, EVIDENCE_VIDEO_MAX_INPUT_BYTES } from "@/lib/mediaVideo";
 
 type Props = {
   profile: Profile;
@@ -76,15 +80,29 @@ export default function WorkerVerificationPhase9({
     [certificatePath, setCertificatePath] = useState(""),
     [preview, setPreview] = useState(""),
     [uploadState, setUploadState] = useState<UploadState>(null);
-  async function refresh() {
-    const activation = await supabase.rpc("get_my_worker_activation");
-    if (activation.error) toast.error(activation.error.message);
-    else setA({ ...EMPTY, ...(activation.data || {}) } as Activation);
-    setLoading(false);
-  }
-  useEffect(() => {
-    void refresh();
+  const [statusError, setStatusError] = useState('');
+  const statusGeneration = useRef(0);
+  const refresh = useCallback(async () => {
+    const generation = ++statusGeneration.current;
+    setLoading(true);
+    setStatusError('');
+    try {
+      const activation = await withTimeout(supabase.rpc('get_my_worker_activation'), 15000,
+        'Verification status took too long to load. Please try again.');
+      if (activation.error) throw activation.error;
+      assertWorkerActivation(activation.data);
+      if (generation === statusGeneration.current) setA(activation.data as unknown as Activation);
+    } catch (cause) {
+      if (generation === statusGeneration.current) setStatusError(cause instanceof Error ? cause.message : 'Verification status could not be loaded. Please try again.');
+    } finally {
+      if (generation === statusGeneration.current) setLoading(false);
+    }
   }, [profile.user_id]);
+  useEffect(() => {
+    setVideoPath(''); setCertificatePath(''); setPreview(''); setUploadState(null);
+    void refresh();
+    return () => { statusGeneration.current += 1; };
+  }, [refresh]);
   useEffect(
     () => () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -103,7 +121,7 @@ export default function WorkerVerificationPhase9({
       a.worker_status === "profile_under_review" ||
       (a.submitted && a.worker_status !== "verified"),
     approvedProfile =
-      a.worker_status === "verified" && profile.worker_verified === true,
+      a.reviewed === true,
     identityExpired =
       a.identity_required === true &&
       a.identity_recurring_required === true &&
@@ -135,8 +153,8 @@ export default function WorkerVerificationPhase9({
     if (!file) return;
     if (!file.type.startsWith("video/"))
       return toast.error("Choose a video file");
-    if (file.size > 50 * 1024 * 1024)
-      return toast.error("Skill video must be under 50MB");
+    if (file.size > EVIDENCE_VIDEO_MAX_INPUT_BYTES)
+      return toast.error("Skill video must be under 100 MB before compression");
     setUploadState({
       name: file.name,
       size: file.size,
@@ -177,8 +195,6 @@ export default function WorkerVerificationPhase9({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024)
-      return toast.error("Certificate must be under 10MB");
     setUploadState({
       name: file.name,
       size: file.size,
@@ -186,16 +202,15 @@ export default function WorkerVerificationPhase9({
       phase: "uploading",
     });
     try {
-      setCertificatePath(
-        await upload(file, "worker-certificates", "certificate"),
-      );
+      await validatePropertyDocument(file);
+      setCertificatePath(await withTimeout(upload(file, 'worker-certificates', 'certificate'), 30000, 'Supporting document upload timed out. Choose the file again to retry.'));
       setUploadState({
         name: file.name,
         size: file.size,
         kind: "certificate",
         phase: "complete",
       });
-      toast.success("Certificate added");
+      toast.success("Supporting document added");
     } catch (error: any) {
       const message = error?.message || "Certificate upload failed";
       setUploadState({
@@ -208,25 +223,37 @@ export default function WorkerVerificationPhase9({
       toast.error(message);
     }
   }
+  const evidenceBusy = useRef(false);
   async function saveEvidence() {
-    if (!videoPath) return toast.error("Add a skill/work demonstration video");
-    setBusy(true);
-    const result = await supabase.rpc("save_my_worker_professional_evidence", {
-      p_certificate_path: certificatePath || null,
-      p_video_path: videoPath,
-    });
-    setBusy(false);
-    if (result.error) return toast.error(result.error.message);
-    await refresh();
+    if (!videoPath) return toast.error('Add a short work demonstration video');
+    await evidenceAction(async () => {
+      const result = await withTimeout(supabase.rpc('save_my_worker_professional_evidence', {
+        p_certificate_path: certificatePath || null, p_video_path: videoPath,
+      }), 15000, 'Evidence confirmation timed out. Refresh status before retrying.');
+      if (result.error) throw result.error;
+      if (typeof result.data !== 'string' || !result.data) throw new Error('Saved evidence was not confirmed.');
+    }, 'Professional evidence saved');
   }
   async function submit() {
-    setBusy(true);
-    const result = await supabase.rpc("submit_my_worker_verification");
-    setBusy(false);
-    if (result.error) return toast.error(result.error.message);
-    toast.success("Sent to WeHouse review");
-    await refresh();
+    await evidenceAction(async () => {
+      const result = await withTimeout(supabase.rpc('submit_my_worker_verification'), 15000, 'Submission confirmation timed out. Refresh status before retrying.');
+      if (result.error) throw result.error;
+    }, 'Sent to WeHouse review');
   }
+  async function evidenceAction(action: () => Promise<void>, success: string) {
+    if (evidenceBusy.current) return;
+    evidenceBusy.current = true; setBusy(true);
+    try {
+      await action();
+      toast.success(success);
+      await refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'The action could not be confirmed. Refresh status before retrying.');
+    } finally {
+      evidenceBusy.current = false; setBusy(false);
+    }
+  }
+
   if (loading)
     return (
       <Shell>
@@ -235,28 +262,31 @@ export default function WorkerVerificationPhase9({
         </div>
       </Shell>
     );
+  if (statusError) return <Shell><main role="alert" className="mx-auto max-w-2xl space-y-4 px-4 py-8"><h1 className="text-xl font-semibold">Verification status unavailable</h1><p className="text-sm text-[var(--wh-text-secondary)]">{statusError}</p><Button label="Retry verification status" onClick={() => { void refresh(); }} /><Button label="Back" onClick={onBack} secondary /></main></Shell>;
   return (
     <Shell>
 
       <header className="border-b border-[var(--wh-border-subtle)] px-4 py-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <button
+      type="button"
             onClick={onBack}
             className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--wh-border-subtle)]"
           >
             ←
           </button>
           <div>
-            <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">
+            <p className="text-xs font-bold tracking-[.18em] text-[var(--wh-accent-text)]">
               WEHOUSE · SERVICE WORKER
             </p>
             <h1 className="mt-1 text-lg font-bold">
-              Worker verification
+              Service Worker verification
             </h1>
           </div>
         </div>
       </header>
       <main className="mx-auto max-w-2xl space-y-3 px-4 py-4">
+        <WorkerCredentials workerId={profile.user_id} onChanged={refresh}/>
         {uploadState && (
           <UploadActivity
             state={uploadState}
@@ -264,16 +294,16 @@ export default function WorkerVerificationPhase9({
           />
         )}
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
-          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
+          <p className="text-xs font-bold uppercase tracking-[.16em] text-[var(--wh-accent-text)]">
             ACCOUNT PROTECTION
           </p>
           <h2 className="mt-1 text-sm font-semibold">
-            Worker onboarding and review are free
+            Service Worker onboarding and review are free
           </h2>
-          <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
+          <p className="mt-2 text-sm leading-5 text-[var(--wh-text-secondary)]">
             WeHouse never charges you to register, submit work evidence,
             become Reviewed, appear in discovery or receive eligible jobs.
-            The paid Worker plan is optional work software and does not
+            The paid Service Worker plan is optional work software and does not
             buy review status, marketplace trust or better dispute treatment.
           </p>
         </section>
@@ -282,9 +312,9 @@ export default function WorkerVerificationPhase9({
             <Card
               eyebrow="IDENTITY CHECK DUE"
               title="Confirm it is still you"
-              text="Your Worker profile and history are safe. Complete the quick live check to return to public discovery and new Worker activity."
+              text="Your Service Worker profile and history are safe. Complete the quick live check to return to public discovery and new service requests."
             >
-              <Status text="New bookings and public Worker activity are paused until this check passes" />
+              <Status text="New bookings and public service requests are paused until this check passes" />
             </Card>
             <WorkerIdentityCheck
               profile={profile}
@@ -296,7 +326,7 @@ export default function WorkerVerificationPhase9({
         ) : live ? (
           <Card
             eyebrow={a.identity_required ? "IDENTITY CURRENT" : "WORKER REVIEWED"}
-            title="Your Worker account is protected"
+            title="Your Service Worker account is protected"
             text={
               a.identity_recurring_required && a.identity_due_at
                 ? `Next identity check: ${formatDate(a.identity_due_at)}${a.identity_days_remaining != null ? ` · ${a.identity_days_remaining} day${a.identity_days_remaining === 1 ? "" : "s"} remaining` : ""}.`
@@ -314,10 +344,10 @@ export default function WorkerVerificationPhase9({
         ) : approvedButMarketplaceClosed ? (
           <Card
             eyebrow="WORKER REVIEWED"
-            title="Your Worker profile is approved"
+            title="Your Service Worker profile is approved"
             text="WeHouse Services public discovery is currently closed. Your approval, services, evidence and history remain saved."
           >
-            <Status text="No new public Worker requests until the marketplace opens" good />
+            <Status text="No new service requests until the marketplace opens" good />
             <Button label="Back to dashboard" onClick={onBack} />
           </Card>
         ) : (
@@ -343,12 +373,12 @@ export default function WorkerVerificationPhase9({
             )}{" "}
             {!a.profile_complete ? (
               <Card
-                eyebrow="1 · WORKER PROFILE"
+                eyebrow="1 · SERVICE WORKER PROFILE"
                 title="Complete your work profile"
                 text="Add your service, experience, price and work location."
               >
                 <Button
-                  label="Continue Worker setup"
+                  label="Continue Service Worker setup"
                   onClick={openProfile}
                 />
               </Card>
@@ -385,8 +415,8 @@ export default function WorkerVerificationPhase9({
                 <Upload
                   label={
                     certificatePath
-                      ? "Certificate added"
-                      : "Certificate · optional"
+                      ? "Supporting document added"
+                      : "Supporting work document"
                   }
                   done={!!certificatePath}
                   onClick={() => certificateInput.current?.click()}
@@ -477,11 +507,11 @@ function Card({
   return (
     <section className="space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       <div>
-        <p className="text-[8px] font-bold tracking-[.16em] text-violet-300">
+        <p className="text-xs font-bold tracking-[.16em] text-[var(--wh-accent-text)]">
           {eyebrow}
         </p>
         <h2 className="mt-1 text-lg font-bold">{title}</h2>
-        <p className="mt-1 text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-sm leading-relaxed text-[var(--wh-text-muted)]">
           {text}
         </p>
       </div>
@@ -502,9 +532,10 @@ function Button({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`h-12 w-full rounded-xl text-xs font-semibold disabled:opacity-40 ${secondary ? "border border-[var(--wh-border-subtle)]" : "bg-violet-500"}`}
+      className={`h-12 w-full rounded-xl text-xs font-semibold disabled:opacity-40 ${secondary ? "border border-[var(--wh-border-subtle)]" : "bg-violet-600 text-white transition-colors duration-150 motion-reduce:transition-none enabled:hover:bg-violet-700"}`}
     >
       {label}
     </button>
@@ -513,7 +544,7 @@ function Button({
 function Status({ text, good = false }: { text: string; good?: boolean }) {
   return (
     <div
-      className={`rounded-xl border px-3 py-2.5 text-[9px] ${good ? "border-emerald-500/15 bg-emerald-500/[.05] text-emerald-300" : "border-amber-500/15 bg-amber-500/[.05] text-amber-200"}`}
+      className={`rounded-xl border px-3 py-2.5 text-xs ${good ? "border-emerald-500/15 bg-emerald-500/[.05] text-emerald-700 dark:text-emerald-300" : "border-amber-500/15 bg-amber-500/[.05] text-amber-800 dark:text-amber-200"}`}
     >
       {text}
     </div>
@@ -530,8 +561,9 @@ function Upload({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`flex h-12 w-full items-center justify-between rounded-xl border px-4 text-xs ${done ? "border-emerald-500/20 text-emerald-300" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}
+      className={`flex h-12 w-full items-center justify-between rounded-xl border px-4 text-xs ${done ? "border-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}
     >
       <span>{label}</span>
       <span>{done ? "✓" : "+"}</span>
@@ -566,7 +598,7 @@ function UploadActivity({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold">{state.name}</p>
-          <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
             {failed
               ? state.message || "Upload failed"
               : uploading
@@ -576,6 +608,7 @@ function UploadActivity({
         </div>
         {!uploading && (
           <button
+      type="button"
             onClick={onDismiss}
             aria-label="Dismiss upload status"
             className="grid h-8 w-8 place-items-center rounded-full text-[var(--wh-text-muted)]"
@@ -607,7 +640,7 @@ function Progress({
   review: boolean;
 }) {
   const items = [
-    ["Worker profile", profile],
+    ["Service Worker profile", profile],
     ["Verification", verification],
     ["WeHouse review", review],
   ] as const;
@@ -619,12 +652,12 @@ function Progress({
           className={`rounded-xl border px-2 py-3 text-center ${done ? "border-emerald-500/15 bg-emerald-500/[.05]" : "border-[var(--wh-border-subtle)]"}`}
         >
           <span
-            className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[9px] font-bold ${done ? "bg-emerald-500 text-[#04120A]" : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]"}`}
+            className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${done ? "bg-emerald-500 text-[#04120A]" : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]"}`}
           >
             {done ? "✓" : index + 1}
           </span>
           <p
-            className={`mt-2 text-[8px] ${done ? "text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
+            className={`mt-2 text-xs ${done ? "text-emerald-700 dark:text-emerald-300" : "text-[var(--wh-text-muted)]"}`}
           >
             {label}
           </p>

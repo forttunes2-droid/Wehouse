@@ -118,10 +118,10 @@ body.wh-auth-open #root { background-color: #090b10 !important; color-scheme: da
 
 /* Animate the changed form once, never the whole screen and its controls again.
    No forwards fill, layout animation, bounce, or artificial auth delay. */
-.wh-auth-brand { animation: whAuthBrandIn 180ms ease-out; }
-.wh-auth-form { animation: whAuthStateIn 200ms cubic-bezier(.2,.7,.2,1); }
+.wh-auth-brand { animation: whAuthBrandIn var(--wh-motion-panel) ease-out; }
+.wh-auth-form { animation: whAuthStateIn var(--wh-motion-panel) var(--wh-motion-ease); }
 .wh-auth-primary,
-.wh-auth-secondary { transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease, opacity 160ms ease; }
+.wh-auth-secondary { transition: background-color var(--wh-motion-feedback) ease, border-color var(--wh-motion-feedback) ease, transform var(--wh-motion-fast) ease, opacity var(--wh-motion-feedback) ease; }
 .wh-auth-primary:not(:disabled):active,
 .wh-auth-secondary:not(:disabled):active { transform: scale(.99); }
 @keyframes whAuthBrandIn {

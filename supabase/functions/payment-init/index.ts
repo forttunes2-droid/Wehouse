@@ -3,12 +3,14 @@ import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
+import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 
 const cors={
  'Access-Control-Allow-Origin':'*',
  'Access-Control-Allow-Methods':'POST, OPTIONS',
  'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type',
  'Content-Type':'application/json',
+ 'Cache-Control':'no-store',
 };
 const SUPPORTED_PURPOSES=new Set(['apartment_reservation','apartment_rent','rent_plan_contribution','hotel_booking','worker_booking','shared_housing_share']);
 const LIVE_MARKETPLACE_PAYMENT_GATE='payments_protection_payouts';
@@ -25,10 +27,10 @@ serve(async(req)=>{
   if(!supabaseUrl||!serviceKey||!paystackSecret)return json({success:false,error:'Payment server configuration is incomplete'},503);
   const paymentReturnUrl=resolvePaymentReturnUrl(supabaseUrl,Deno.env.get('APP_URL'),paystackSecret,'payment-return');
   if(!paymentReturnUrl)return json({success:false,error:'Payment environment configuration is incomplete or mismatched'},503);
-  const db=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  const db=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input:RequestInfo|URL,init?:RequestInit)=>fetch(input,{...init,signal:AbortSignal.timeout(12000)})}});
   const token=authHeader.replace(/^Bearer\s+/i,'');const{data:{user},error:authError}=await db.auth.getUser(token);if(authError||!user?.email)return json({success:false,error:'Invalid or expired session'},401);
     if (!await hasLiveSession(db, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
-  const limit=await consumeUserAction(db,user.id,'payment_init',20,300);if(!limit.allowed)return json({success:false,error:'Too many payment attempts. Please wait a moment and try again.',retry_after_seconds:limit.retryAfterSeconds},429);
+  const limit=await consumeUserAction(db,user.id,'payment_init',20,300,true);if(!limit.allowed)return json({success:false,error:'Too many payment attempts. Please wait a moment and try again.',retry_after_seconds:limit.retryAfterSeconds},429);
   const{data:profile,error:profileError}=await db.from('profiles').select('user_id,role,deleted,suspended,banned').eq('auth_id',user.id).maybeSingle();
   if(profileError)return json({success:false,error:profileError.message},500);if(!profile||profile.deleted||profile.suspended||profile.banned)return json({success:false,error:'Account is not active'},403);
   const body=await req.json();const reference=String(body?.reference||'').trim();if(!/^[A-Za-z0-9.=_-]{6,120}$/.test(reference))return json({success:false,error:'Invalid payment reference'},400);
@@ -37,7 +39,11 @@ serve(async(req)=>{
   const owner=payment.payer_user_id||payment.user_id;if(!owner||owner!==profile.user_id)return json({success:false,error:'Payment does not belong to the authenticated account'},403);
   if(payment.status==='paid'||payment.status==='completed')return json({success:true,already_paid:true,reference,purpose:payment.purpose});
   if(payment.status!=='pending')return json({success:false,error:'This payment can no longer be initialized'},409);
-  const amount=Number(payment.amount_total??payment.amount??0);if(!Number.isFinite(amount)||amount<=0)return json({success:false,error:'Invalid payment amount'},409);if((payment.currency||'NGN')!=='NGN')return json({success:false,error:'Payment must be in NGN'},409);
+  const market=resolvePaymentMarket(payment.currency);
+  if(!market)return json({success:false,error:'Payment currency is missing or unsupported for this provider'},409);
+  const amount=Number(payment.amount_total??payment.amount??0);
+  const amountMinor=paymentMinorUnits(payment.amount_total??payment.amount,market.minorDigits);
+  if(amountMinor===null)return json({success:false,error:'Invalid payment amount or currency precision'},409);
   const meta=payment.metadata&&typeof payment.metadata==='object'?payment.metadata as Record<string,unknown>:{};const returnPage='my_reservations';
 
   // Real marketplace money stays fail-closed until WeHouse has a current written
@@ -123,9 +129,9 @@ serve(async(req)=>{
   }
 
   const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';if(existingUrl&&existingCode)return json({success:true,reference,purpose:payment.purpose,authorization_url:existingUrl,access_code:existingCode,existing:true});
-  const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({email:user.email,amount:String(Math.round(amount*100)),currency:'NGN',reference,callback_url:paymentReturnUrl,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
-  let initialized:any=null;try{initialized=await response.json()}catch{initialized=null}if(!response.ok||!initialized?.status||!initialized?.data?.authorization_url||!initialized?.data?.access_code){const upstreamMessage=String(initialized?.message||'Paystack could not initialize this payment');console.error('[payment-init] Paystack initialization rejected',{reference,purpose:payment.purpose,status:response.status,message:upstreamMessage});return json({success:false,error:upstreamMessage,retryable:response.status>=500},response.status>=500?502:400)}
-  const authorizationUrl=String(initialized.data.authorization_url),accessCode=String(initialized.data.access_code);const nextMeta={...meta,return_page:returnPage,paystack_access_code:accessCode,paystack_authorization_url:authorizationUrl,paystack_initialized_at:new Date().toISOString()};const{error:updateError}=await db.from('booking_payments').update({metadata:nextMeta,updated_at:new Date().toISOString()}).eq('id',payment.id).eq('status','pending');if(updateError)return json({success:false,error:'Could not persist payment session'},500);
+  const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({email:user.email,amount:String(amountMinor),currency:market.currency,reference,callback_url:paymentReturnUrl,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
+  let initialized:any=null;try{initialized=await response.json()}catch{initialized=null}if(!response.ok||initialized?.status!==true||typeof initialized?.data?.authorization_url!=='string'||typeof initialized?.data?.access_code!=='string'||!initialized.data.access_code||initialized?.data?.reference!==reference){const upstreamMessage=String(initialized?.message||'Paystack could not initialize this payment');console.error('[payment-init] Paystack initialization rejected',{reference,purpose:payment.purpose,status:response.status,message:upstreamMessage});return json({success:false,error:upstreamMessage,retryable:response.status>=500},response.status>=500?502:400)}
+  const authorizationUrl=String(initialized.data.authorization_url),accessCode=String(initialized.data.access_code);const nextMeta={...meta,return_page:returnPage,paystack_access_code:accessCode,paystack_authorization_url:authorizationUrl,paystack_initialized_at:new Date().toISOString()};const{data:savedSession,error:updateError}=await db.from('booking_payments').update({metadata:nextMeta,updated_at:new Date().toISOString()}).eq('id',payment.id).eq('status','pending').select('id').maybeSingle();if(updateError||savedSession?.id!==payment.id)return json({success:false,error:'Checkout status changed or could not be confirmed. Refresh this booking before paying.',reference,retryable:false},409);
   return json({success:true,reference,purpose:payment.purpose,authorization_url:authorizationUrl,access_code:accessCode,existing:false});
- }catch(error){console.error('[payment-init] unexpected failure',{message:error instanceof Error?error.message:String(error)});return json({success:false,error:error instanceof Error?error.message:'Payment initialization failed'},500)}
+ }catch(error){console.error('[payment-init] unexpected failure',{message:error instanceof Error?error.message:String(error)});return json({success:false,error:'Checkout could not be confirmed. Refresh this booking before retrying.',outcome:'unknown'},503)}
 });

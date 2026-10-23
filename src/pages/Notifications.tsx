@@ -1,5 +1,5 @@
 import { ActivityKindIcon } from "@/components/WorkspaceMark";
-import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
+import { activityWorkspaceMatches, isInternalActivityWorkspace } from "@/lib/activityWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -88,6 +88,8 @@ function NotificationFeed({
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
   const [invitationId,setInvitationId]=useState<string|null>(null);
+  const readActionLock=useRef(false),mounted=useRef(true);
+  const [readBusy,setReadBusy]=useState(false);
 
   async function load(quiet = false) {
     const request = ++requestVersion.current;
@@ -127,9 +129,10 @@ function NotificationFeed({
           };
         },
       );
+      const retained = activityCache.get(cacheKey) || [];
       const next = [
-        ...events,
-        ...announcements.filter((row) => activityIsCurrent(row)),
+        ...(eventResult.error ? retained.filter(row=>row.source==='event') : events),
+        ...(announcementResult.error ? retained.filter(row=>row.source==='announcement') : announcements.filter((row) => activityIsCurrent(row))),
       ].sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -144,15 +147,18 @@ function NotificationFeed({
   }
 
   useEffect(() => {
+    mounted.current=true;
     setRows(activityCache.get(cacheKey) || []);
     setExpanded(null);
     setWorkPost(null);
     setError("");
     void load(Boolean(activityCache.get(cacheKey)));
+    let refreshTimer:ReturnType<typeof setTimeout>|undefined;
+    const refresh=()=>{if(refreshTimer!==undefined)clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{refreshTimer=undefined;void load(true);},200);};
     const channel = subscribeToCanonicalActivity(
       profile.user_id,
       `activity-feed:${profile.user_id}:${scope}`,
-      () => void load(true),
+      refresh,
     )
       .on(
         "postgres_changes",
@@ -162,11 +168,13 @@ function NotificationFeed({
           table: "announcement_recipients",
           filter: `user_id=eq.${profile.user_id}`,
         },
-        () => void load(true),
+        refresh,
       )
       .subscribe();
     return () => {
       requestVersion.current += 1;
+      mounted.current=false;
+      if(refreshTimer!==undefined)clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [profile.user_id, scope]);
@@ -193,16 +201,18 @@ function NotificationFeed({
 
   async function markRead(row: Activity) {
     if (row.read) return true;
-    const result =
+    try {
+    const result = await withTimeout<{error:{message?:string}|null}>(
       row.source === "announcement"
-        ? await markAnnouncementRead(
+        ? markAnnouncementRead(
             Number(row.sourceNumericId),
             profile.user_id,
           )
-        : await markCanonicalActivityRead(
+        : markCanonicalActivityRead(
             row.id.replace("event:", ""),
             scope,
-          );
+          ),10000,'The read outcome could not be confirmed. Refresh Activity.');
+    if(!mounted.current)return false;
     if (result.error) {
       toast.error(
         result.error.message || "Activity could not be marked as read",
@@ -220,6 +230,10 @@ function NotificationFeed({
     onUnreadChange?.(rows.filter(item => !item.read && item.id !== row.id).length);
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     return true;
+    } catch {
+      if(mounted.current)toast.error('The read outcome could not be confirmed. Refresh Activity.');
+      return false;
+    }
   }
 
   async function open(row: Activity) {
@@ -230,6 +244,7 @@ function NotificationFeed({
     // Finish the read write before opening another screen. Otherwise the
     // Activity panel can unmount with a stale badge, especially for work posts.
     await markRead(row);
+    if(!mounted.current)return;
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));
       return;
@@ -265,7 +280,7 @@ function NotificationFeed({
       } as WorkPostConfirmation);
       return;
     }
-    if (row.source_type === "wehouse_case" && !["creator", "admin", "staff"].includes(profile.role)) {
+    if (row.source_type === "wehouse_case" && !isInternalActivityWorkspace(scope)) {
       window.dispatchEvent(new CustomEvent("openSupportChat", { detail: { conversationId: row.source_id } }));
       return;
     }
@@ -290,46 +305,35 @@ function NotificationFeed({
   }
 
   async function markAll() {
-    const unreadEvents = rows.filter(
-      (row) => !row.read && row.source === "event",
-    );
-    const unreadAnnouncements = rows.filter(
-      (row) => !row.read && row.source === "announcement",
-    );
-    const [eventResult, announcementResults] = await Promise.all([
-      unreadEvents.length
-        ? markAllCanonicalActivityRead(scope)
-        : Promise.resolve({ count: 0, error: null }),
-      Promise.all(
-        unreadAnnouncements.map((row) =>
-          markAnnouncementRead(Number(row.sourceNumericId), profile.user_id),
-        ),
-      ),
-    ]);
-    const eventError = eventResult.error;
-    const announcementError = announcementResults.find(
-      (result) => result.error,
-    )?.error;
-    if (eventError || announcementError)
-      return toast.error(
-        eventError?.message ||
-          announcementError?.message ||
-          "Activity could not be marked as read",
-      );
-    setRows((current) => {
-      const next = current.map((row) => ({ ...row, read: true }));
-      activityCache.set(cacheKey, next);
-      return next;
-    });
-    onUnreadChange?.(0);
-    window.dispatchEvent(new Event("wehouse:unread-changed"));
-    toast.success("Activity marked as read");
+    if(readActionLock.current)return;
+    readActionLock.current=true;setReadBusy(true);
+    const pending=rows.filter(row=>!row.read),ids=new Set(pending.map(row=>row.id));
+    const unreadEvents=pending.filter(row=>row.source==='event');
+    const unreadAnnouncements=pending.filter(row=>row.source==='announcement');
+    try {
+      const [events,announcements]=await withTimeout(Promise.all([
+        unreadEvents.length?markAllCanonicalActivityRead(scope):Promise.resolve({count:0,error:null}),
+        Promise.all(unreadAnnouncements.map(row=>markAnnouncementRead(Number(row.sourceNumericId),profile.user_id))),
+      ]),15000,'The read outcome could not be confirmed. Refresh Activity.');
+      if(!mounted.current)return;
+      const failure=events.error||announcements.find(result=>result.error)?.error;
+      if(failure)throw failure;
+      if(unreadEvents.length&&events.count===0) {await load(true);return;}
+      setRows(current=>{
+        const next=current.map(row=>ids.has(row.id)?{...row,read:true}:row);
+        activityCache.set(cacheKey,next);return next;
+      });
+      window.dispatchEvent(new Event('wehouse:unread-changed'));
+      toast.success('Activity marked as read');
+    } catch {
+      if(mounted.current)toast.error('The read outcome could not be confirmed. Refresh Activity.');
+    } finally {readActionLock.current=false;if(mounted.current)setReadBusy(false);}
   }
 
   const unread = rows.filter((row) => !row.read).length;
   useEffect(() => {
-    onUnreadChange?.(unread);
-  }, [onUnreadChange, unread]);
+    if(!loading&&!error)onUnreadChange?.(unread);
+  }, [onUnreadChange, unread, loading, error]);
   const content = (
     <main className={embedded ? "mx-auto w-full max-w-5xl px-4 py-3 sm:px-5 lg:px-8" : "mx-auto max-w-4xl px-4 py-5"}>
       {loading ? (
@@ -340,9 +344,10 @@ function NotificationFeed({
         <Empty />
       ) : (
         <div className="space-y-5">
+          {error&&<div role="alert" className="rounded-xl border border-amber-500/30 p-3 text-sm text-[var(--wh-text-secondary)]"><p>Some updates could not be refreshed. Previously loaded updates remain visible.</p><p>{error}</p><button type="button" onClick={()=>void load()} className="mt-2 min-h-11 font-semibold text-violet-700 dark:text-violet-300">Refresh Activity</button></div>}
           {!compact && <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
             <p className="text-xs text-[var(--wh-text-secondary)]">
-              {unread > 0 ? `${unread} new` : "All caught up"}
+              {error ? "Activity refresh incomplete" : unread > 0 ? `${unread} new` : "All caught up"}
             </p>
             <WeHouseSelect
               value={activityFilter}
@@ -368,9 +373,11 @@ function NotificationFeed({
             <div className="flex items-center justify-end">
               <button
                 onClick={() => void markAll()}
-                className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 py-2 text-[11px] font-semibold text-violet-300"
+                disabled={readBusy}
+                aria-busy={readBusy}
+                className="min-h-11 shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-700 dark:text-violet-300 disabled:opacity-40"
               >
-                Mark all read
+                {readBusy ? 'Marking read…' : 'Mark all read'}
               </button>
             </div>
           )}
@@ -556,7 +563,7 @@ function NotificationFeed({
 
       <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
-          <h1 className="text-xl font-bold">Inbox</h1>
+          <h1 className="text-xl font-bold">Activity</h1>
         </div>
       </header>
       {content}

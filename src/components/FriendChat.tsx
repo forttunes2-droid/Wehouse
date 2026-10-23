@@ -1,10 +1,14 @@
+import { PropertyDraftAttachment } from '@/components/SharedPropertyCard';
+import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, type SharedProperty } from '@/lib/propertyShare';
 import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
 import { useMessagePins } from "@/hooks/useMessagePins";
+import { createFriendPlanMessage } from "@/lib/friendPlans";
 import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic } from "lucide-react";
+import { CalendarPlus, Mic } from "lucide-react";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import ReportDialog from "@/components/ReportDialog";
 import RoommateBubble from "@/components/RoommateMessageBubble";
 import { WorkerDraftAttachment } from "@/components/WorkerShareCard";
@@ -18,7 +22,7 @@ import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE
 import { decryptPrivateMessage, encryptPrivateMessage, privateConversationReadiness, type EncryptedAttachment, type PrivateConversationReadiness } from "@/lib/e2ee";
 import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import {
-  getFriendEncryptedMessages, blockFriend, friendlyFriendMessage, sendFriendEncryptedMessage,
+  getFriendEncryptedMessages, blockFriend, sendFriendEncryptedMessage,
   uploadFriendChatAttachment, openFriendChatAttachment, reactToFriendMessage, deleteFriendMessageForMe, type Friend,
 } from "@/lib/supabase/friends";
 
@@ -35,6 +39,12 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState("");
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planActivity, setPlanActivity] = useState("Dinner or coffee");
+  const [customPlanActivity, setCustomPlanActivity] = useState("");
+  const [planWhen, setPlanWhen] = useState("");
+  const [planPlace, setPlanPlace] = useState("");
+  const [propertyDraft, setPropertyDraft] = useState<SharedProperty | null>(null);
   const [workerDraft, setWorkerDraft] = useState<SharedWorker | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [replyingTo, setReplyingTo] = useState<Line | null>(null);
@@ -48,19 +58,19 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
   const media = useRef(new Map<string, { url: string; type: string }>());
   const blocked = friend.status === "blocked";
 
-  useEffect(() => { setWorkerDraft(pendingWorkerShare(myUserId, friend.friend_id)); }, [myUserId, friend.friend_id]);
+  useEffect(() => { const worker = pendingWorkerShare(myUserId, friend.friend_id); setWorkerDraft(worker); setPropertyDraft(worker ? null : pendingPropertyShare(myUserId, friend.friend_id)); }, [myUserId, friend.friend_id]);
 
   useEffect(() => { const cache = media.current; return () => { for (const item of cache.values()) URL.revokeObjectURL(item.url); cache.clear(); }; }, []);
 
   const load = useCallback(async () => {
-    const state = await privateConversationReadiness("companion", friend.friend_id, friend.user_id);
+    const state = await privateConversationReadiness("friend", friend.friend_id, friend.user_id);
     setReadiness(state);
     if (state.state !== "ready") return;
     const { messages, error } = await getFriendEncryptedMessages(friend.friend_id);
     if (error) return toast.error(error.message || "Could not load messages");
     const decoded = await Promise.all(messages.map(async (m): Promise<Line> => {
       let content = "Message could not be decrypted on this device.";
-      try { content = await decryptPrivateMessage("companion", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
+      try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
       const attachments: string[] = [], types: string[] = [];
       let failed = false;
       for (const item of (m.encrypted_attachments || []) as EncryptedAttachment[]) {
@@ -82,7 +92,7 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
     if (!list) return;
     const incoming: File[] = [];
     for (const file of Array.from(list)) {
-      if (!isSelectableChatAttachment(file, source)) { toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE); continue; }
+      if (!isSelectableChatAttachment(file, source)) { toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE); continue; }
       try { await validateChatUpload(file, false); incoming.push(file); } catch (error) { toast.error(error instanceof Error ? error.message : CHAT_MEDIA_ONLY_MESSAGE); }
     }
     if (files.length + incoming.length > MAX_FILES) toast.error("You can send up to 6 items at once");
@@ -95,42 +105,68 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
     try { await voice.start(); } catch (error) { toast.error(error instanceof Error ? error.message : "Microphone permission is required for voice notes"); }
   }
 
-  async function send() {
-    const text = draft.trim();
-    if ((!text && !files.length && !workerDraft) || busy || blocked) return;
+  async function send(overrideContent?: string, overrideReplyId?: string | null): Promise<boolean> {
+    const text = (overrideContent ?? draft).trim();
+    if ((!text && !files.length && !workerDraft && !propertyDraft) || busy || blocked) return false;
     setBusy(true);
-    const queued = [...files];
-    const replyId = replyingTo?.id || null;
+    const preserveComposer = overrideContent !== undefined;
+    const queued = preserveComposer ? [] : [...files];
+    const replyId = overrideReplyId !== undefined ? overrideReplyId : replyingTo?.id || null;
     try {
-      const content = workerDraft ? workerShareMessage(workerDraft, text) : text;
+      const content = preserveComposer ? text : workerDraft ? workerShareMessage(workerDraft, text) : propertyDraft ? propertyShareMessage(propertyDraft, text) : text;
       const signature = `friend-chat:${friend.friend_id}:${content}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
       await runSafeAction(signature, async () => {
         const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, friend.friend_id, friend.user_id)));
         const failed = uploaded.find((u) => u.error || !u.attachment);
         if (failed) throw failed.error || new Error("Could not upload the attachment");
-        const { ciphertext, iv } = await encryptPrivateMessage("companion", friend.friend_id, friend.user_id, content);
-        const { error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
+        const { ciphertext, iv } = await encryptPrivateMessage("friend", friend.friend_id, friend.user_id, content);
+        const { id, error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
         if (error) throw error;
+        if (typeof id !== 'string' || !id.trim()) throw new Error('Message delivery could not be confirmed. Your draft has been kept; refresh this conversation before retrying.');
         releaseRequestKey(signature);
       });
-      if (workerDraft) clearWorkerShare(myUserId, friend.friend_id);
-      setWorkerDraft(null); setDraft(""); setFiles([]); setReplyingTo(null);
+      if (!preserveComposer) {
+        if (workerDraft) clearWorkerShare(myUserId, friend.friend_id);
+        if (propertyDraft) clearPropertyShare(myUserId, friend.friend_id);
+        setPropertyDraft(null); setWorkerDraft(null); setDraft(""); setFiles([]); setReplyingTo(null);
+      }
       await load();
+      return true;
     } catch (error) {
-      toast.error(friendlyFriendMessage(error instanceof Error ? error.message : "Message was not sent"));
+      toast.error(error instanceof Error ? error.message : "Message was not sent");
+      return false;
     } finally { setBusy(false); }
+  }
+
+  async function sendPlan(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const activity = planActivity === "Something else" ? customPlanActivity.trim() : planActivity;
+    if (!activity) return toast.error("Describe what you would like to do");
+    if (!planWhen || new Date(planWhen).getTime() <= Date.now()) return toast.error("Choose a future date and time");
+    try {
+      const sent = await send(createFriendPlanMessage({ activity, when: new Date(planWhen).toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", place: planPlace }), null);
+      if (!sent) return;
+      setPlanOpen(false);
+      setPlanWhen("");
+      setPlanPlace("");
+      setCustomPlanActivity("");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Plan could not be prepared"); }
+  }
+
+  async function replyToPlan(reply: "I'm in" | "Suggest a change", planMessageId: string) {
+    await send(`${reply} for your plan.`, planMessageId);
   }
 
   async function react(line: Line, emoji: string) {
     const current = line.reactions[myUserId];
     const result = await reactToFriendMessage(friend.friend_id, line.id, current === emoji ? null : emoji);
-    if (result.error) return toast.error(friendlyFriendMessage(result.error.message));
+    if (result.error) return toast.error(result.error.message);
     setLines((all) => all.map((l) => (l.id === line.id ? { ...l, reactions: result.reactions } : l)));
   }
 
   async function removeForMe(line: Line) {
     const { error } = await deleteFriendMessageForMe(friend.friend_id, line.id);
-    if (error) return toast.error(friendlyFriendMessage(error.message));
+    if (error) return toast.error(error.message);
     setLines((all) => all.filter((l) => l.id !== line.id));
     toast.success("Deleted for you");
   }
@@ -153,17 +189,22 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
           <div className="flex-1 space-y-2 overflow-y-auto p-4">
             {!lines.length && <p className="text-center text-xs text-[var(--wh-text-secondary)]">No messages yet. Say hello.</p>}
             {lines.map((line) => (
-              <RoommateBubble
-                key={line.id}
-                msg={line as never}
-                mine={line.sender_id === myUserId}
-                quoted={line.reply_to_id ? (lines.find((l) => l.id === line.reply_to_id) as never) : undefined}
-                onOpenActions={(anchor) => setActions({ line, mode: "actions", anchor })}
-                onTapReaction={(anchor) => setActions({ line, mode: "reactions", anchor })}
-                onReply={() => setReplyingTo(line)}
-                onOpenProperty={() => undefined}
-                onOpenWorker={(id) => onNavigate?.("worker_discovery", id)}
-              />
+              <div key={line.id}>
+                <RoommateBubble
+                  msg={line as never}
+                  mine={line.sender_id === myUserId}
+                  allowFriendPlans
+                  friendPlanBusy={busy || blocked}
+                  friendPlanReplyState={lines.some((reply) => reply.reply_to_id === line.id && reply.content === "I'm in for your plan.") ? "accepted" : lines.some((reply) => reply.reply_to_id === line.id && reply.content === "Suggest a change for your plan.") ? "change_suggested" : null}
+                  onFriendPlanReply={replyToPlan}
+                  quoted={line.reply_to_id ? (lines.find((l) => l.id === line.reply_to_id) as never) : undefined}
+                  onOpenActions={(anchor) => setActions({ line, mode: "actions", anchor })}
+                  onTapReaction={(anchor) => setActions({ line, mode: "reactions", anchor })}
+                  onReply={() => setReplyingTo(line)}
+                  onOpenProperty={(page, id) => onNavigate?.(page, id)}
+                  onOpenWorker={(id) => onNavigate?.("worker_discovery", id)}
+                />
+              </div>
             ))}
             <div ref={bottom} />
           </div>
@@ -172,6 +213,7 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
               <p className="py-2 text-center text-xs text-[var(--wh-text-secondary)]">You blocked {name}. Unblock them from your Friends list to chat again.</p>
             ) : (
               <>
+                {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { clearPropertyShare(myUserId, friend.friend_id); setPropertyDraft(null); }} />}
                 {workerDraft && <WorkerDraftAttachment onRemove={() => { clearWorkerShare(myUserId, friend.friend_id); setWorkerDraft(null); }} />}
                 <PendingMessageMedia files={files} onRemove={(index) => setFiles((current) => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel recording={voice.recording} seconds={voice.seconds} level={voice.level} draft={voice.draft} onCancel={voice.cancel} onFinish={voice.finish} onDiscard={voice.discard}
@@ -186,15 +228,28 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
                   </div>
                 )}
                 <div className="flex items-end gap-2">
+                  <button type="button" onClick={() => setPlanOpen(true)} disabled={busy} aria-label="Suggest a plan with this Friend" title="Suggest a plan" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"><CalendarPlus size={17} aria-hidden="true" /></button>
                   <ChatAttachmentPicker onFiles={chooseFiles} disabled={busy} />
                   <button type="button" onClick={() => void toggleVoice()} aria-label={voice.recording ? "Finish voice recording" : "Record voice note"}
                     className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${voice.recording ? "bg-red-500 text-white" : "border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}><Mic size={18} aria-hidden="true" /></button>
                   <input value={draft} onChange={(e) => setDraft(e.target.value.slice(0, 4000))} onKeyDown={(e) => { if (e.key === "Enter") void send(); }} aria-label="Message" placeholder="Message" className="min-h-11 min-w-0 flex-1 rounded-[22px] border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-4 text-sm outline-none focus:border-violet-500/40" />
-                  <button type="button" onClick={() => void send()} disabled={busy || (!draft.trim() && !files.length && !workerDraft)} aria-label="Send" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-600 text-white disabled:opacity-40">{busy ? "…" : "➤"}</button>
+                  <button type="button" onClick={() => void send()} disabled={busy || (!draft.trim() && !files.length && !workerDraft && !propertyDraft)} aria-label="Send" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-600 text-white disabled:opacity-40">{busy ? "…" : "➤"}</button>
                 </div>
               </>
             )}
           </footer>
+          <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+            <DialogContent showCloseButton={false} overlayClassName="!z-[85]" className="!z-[86] !top-auto !bottom-0 !left-0 !translate-x-0 !translate-y-0 !max-h-[90dvh] !w-full !max-w-none overflow-y-auto rounded-t-3xl border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-[var(--wh-text)] sm:!left-1/2 sm:!top-1/2 sm:!bottom-auto sm:!-translate-x-1/2 sm:!-translate-y-1/2 sm:!max-w-md sm:!rounded-3xl">
+            <form onSubmit={(event) => void sendPlan(event)} className="space-y-4">
+              <div><DialogTitle>Plan something with {name}</DialogTitle><DialogDescription className="mt-2 leading-5 text-[var(--wh-text-secondary)]">This private suggestion stays in your encrypted chat. It does not book or charge for anything.</DialogDescription></div>
+              <label className="block text-sm">What would you like to do?<select value={planActivity} onChange={(event) => setPlanActivity(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base"><option>Dinner or coffee</option><option>Walk or catch-up</option><option>Day activity</option><option>Trip or stay</option><option>Something else</option></select></label>
+              {planActivity === "Something else" && <label className="block text-sm">Your plan<input value={customPlanActivity} onChange={(event) => setCustomPlanActivity(event.target.value)} maxLength={60} required placeholder="For example, a picnic at the park" className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base" /></label>}
+              <label className="block text-sm">Suggested date and time<input required type="datetime-local" min={localDateTimeValue(new Date(Date.now() + 60_000))} value={planWhen} onChange={(event) => setPlanWhen(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base" /></label>
+              <label className="block text-sm">Place or event name <span className="text-[var(--wh-text-secondary)]">(optional)</span><input value={planPlace} maxLength={140} onChange={(event) => setPlanPlace(event.target.value)} placeholder="A place, or leave it for you both to choose" className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base" /></label>
+              <div className="flex gap-2"><button type="button" onClick={() => setPlanOpen(false)} className="min-h-11 flex-1 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold">Cancel</button><button type="submit" disabled={busy || !planWhen} className="min-h-11 flex-1 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-40">Send plan</button></div>
+            </form>
+            </DialogContent>
+          </Dialog>
           {actions && (
             <MessageActionSheet
               anchor={actions.anchor}
@@ -221,13 +276,13 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
             <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[var(--wh-interactive)] text-2xl font-semibold">{name.slice(0, 1).toUpperCase()}</div>
             <h2 className="mt-4 text-lg font-semibold">{name}</h2>
             {friend.username && <p className="text-sm text-[var(--wh-text-secondary)]">@{friend.username}</p>}
-            <p className="mt-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Friends can chat privately and split a Short Let payment. Messages are end-to-end encrypted, so WeHouse cannot read them.</p>
+            <p className="mt-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Friend messages and private plans are end-to-end encrypted, so WeHouse cannot read them. Friends can share eligible Long Let and Short Let booking costs. Hotel cost-sharing is not available yet.</p>
             <div className="mt-8 space-y-2">
               <button type="button" onClick={() => { setInfo(false); setReporting(true); }} className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold">Report</button>
               <button type="button" disabled={busy} onClick={() => {
                 if (!window.confirm(`Block ${name}? They will not be able to message you or send you requests. You can unblock them anytime and your chat will still be there.`)) return;
                 void runSafeAction(`friend-block:${friend.user_id}`, () => blockFriend(friend.user_id)).then((result) => {
-                  if (result.error) return toast.error(friendlyFriendMessage(result.error.message));
+                  if (result.error) return toast.error(result.error.message);
                   toast.success("Blocked");
                   onClose();
                 }).catch((error) => toast.error(error instanceof Error ? error.message : "Could not block"));
@@ -236,7 +291,12 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
           </div>
         </div>
       )}
-      {reporting && <ReportDialog subjectType="companion_chat" subjectUserId={friend.user_id} subjectName={name} onClose={() => setReporting(false)} />}
+      {reporting && <ReportDialog subjectType="friend_chat" subjectUserId={friend.user_id} subjectName={name} onClose={() => setReporting(false)} />}
     </div>
   );
+}
+
+function localDateTimeValue(date: Date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }

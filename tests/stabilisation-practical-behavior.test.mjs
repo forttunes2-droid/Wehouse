@@ -39,7 +39,7 @@ test('non-negotiable room and both smoking answers are explicit; school only req
   assert.match(prefs.roommatePreferenceError({...valid(),smoking_preference:''},'2026-09-23'),/two smoking/);
   assert.match(prefs.roommatePreferenceError({...valid(),school_match:true,school_name:' '},'2026-09-23'),/school/);
 });
-for(const members of [2,3,4,5,6,7,8,9,10,11,12]) test(`equal split for ${members} people reconciles every kobo and both components`,()=>{
+for(const members of [2,3,4,5,6,7,8,9,10,11,12]) test(`equal booking shares for ${members} people reconcile every kobo and both components`,()=>{
   for(const [rent,deposit] of [[800000,0],[1000.01,500.02],[120000,50000],[0.01,0.01]]) {
     const amounts=plain(split.sharedAmounts(rent,deposit,members));
     assert.equal(amounts.length,members);

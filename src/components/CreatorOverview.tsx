@@ -46,8 +46,8 @@ export default function CreatorOverview({ userId, onOpen }: { userId: string; on
   return <section data-overview-state="ready" className="wh-creator-overview space-y-6">
     <header className="wh-creator-hero">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="wh-eyebrow"><span className="wh-live-dot"/> GLOBAL CONTROL PLANE</span>
-        <span className="wh-hero-caption">Creator workspace · Live summary</span>
+        <span className="wh-eyebrow">Marketplace operations</span>
+        <button type="button" onClick={() => void refresh()} className="wh-secondary-action">Refresh overview</button>
       </div>
       <div className="mt-5 max-w-2xl"><h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Platform overview</h2><p className="mt-2 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">A clear view of marketplace supply, account growth and the work that needs your attention.</p></div>
       <div className="mt-6 flex flex-wrap items-center gap-2">

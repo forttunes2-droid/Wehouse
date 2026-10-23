@@ -9,6 +9,15 @@ const tracked = execFileSync('git', ['ls-files', '*.md'], { cwd: root, encoding:
   .split('\n')
   .filter((file) => file && !file.startsWith('supabase/migrations_legacy/') && fs.existsSync(path.join(root, file)));
 
+test('confirmed product decisions have unique identifiers', () => {
+  const source = fs.readFileSync('docs/DECISION_LOG.md', 'utf8');
+  const identifiers = [...source.matchAll(/^\| (C-\d+) \|/gm)].map(match => match[1]);
+  assert.ok(identifiers.length > 0);
+  assert.equal(new Set(identifiers).size, identifiers.length, 'A decision identifier cannot describe two different rules');
+  assert.match(source, /\| C-064 \| \*\*Buildings and bookable spaces, for both Short Let and Long Let/);
+  assert.ok(source.indexOf('| C-064 |') < source.indexOf('## Repository-established decisions'));
+});
+
 test('relative markdown links resolve', () => {
   const broken = [];
   for (const file of tracked) {

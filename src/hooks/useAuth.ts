@@ -9,7 +9,6 @@ import {
   endSession,
   createUserSession,
   registerUserSession,
-  confirmCurrentDeviceWithGoogle,
   deactivateUserSession,
   getStoredSessionId,
   clearStoredSessionId,
@@ -19,10 +18,10 @@ import {
 import type { Profile, Page } from "@/types";
 import type { User } from "@supabase/supabase-js";
 import type { DeviceRegistration } from "@/lib/supabase";
+import { savePendingDevice, clearPendingDevice } from "@/lib/pendingDevice";
 import {
   clearGoogleVerification,
   readGoogleVerification,
-  saveGoogleVerification,
 } from "@/lib/googleVerification";
 interface AuthState {
   page: Page;
@@ -214,7 +213,6 @@ async function ensurePropertyPartnerRecord() {
 const ADMIN_ROLES = new Set(["creator", "admin"]);
 export const hasAdminAccess = (r: string) => ADMIN_ROLES.has(r);
 export const isStaff = (r: string) => r === "staff";
-export const canCreateListings = (r: string) => hasAdminAccess(r);
 export const isAdmin = (r: string) => r === "admin";
 export const isCreator = (r: string) => r === "creator";
 export const canSendAnnouncements = (r: string) => isCreator(r) || isAdmin(r);
@@ -376,16 +374,9 @@ export function useAuth() {
             });
             return;
           }
-          if(verification?.context==='signup'&&!user?.identities?.some(identity=>identity.provider==='google')){
+          if(verification?.context==='signup'&&!user?.email_confirmed_at){
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false});
             return;
-          }
-          if(verification?.context==='new_device'){
-            const pendingSession=verification.pendingDeviceSessionId;
-            if(!pendingSession)throw new Error('The pending device confirmation expired. Sign in again.');
-            const confirmed=await withTimeout(confirmCurrentDeviceWithGoogle(pendingSession), 20000, "Device confirmation took too long. Please try again.");
-            if(confirmed.error)throw confirmed.error;
-            clearGoogleVerification();
           }
           const [profileResult, maintenanceEnabled] = await withTimeout(Promise.all([
             getProfileByAuthId(authId, email),
@@ -423,15 +414,17 @@ export function useAuth() {
               return;
             }
           }
-          if (verification?.context === "signup" && user?.identities?.some(identity => identity.provider === "google"))
+          if (verification?.context === "signup" && user?.email_confirmed_at)
             clearGoogleVerification();
           const registration=await withTimeout(registerUserSession(profile.user_id,authId), 20000, "We could not confirm this device. Please try signing in again.");
           if (!isCurrentIdentity()) return;
-          if(['password','passkey'].includes(sessionStorage.getItem('wh_login_method')||'')&&registration.trustStatus==='pending'){
-            if(registration.sessionId)saveGoogleVerification({context:'new_device',email:profile.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
+          if(registration.trustStatus==='pending'){
+            savePendingDevice(registration);
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;
           }
+          if(registration.trustStatus!=='trusted'||!registration.sessionId)throw new Error('This device could not be authorized. Sign in again.');
+          clearPendingDevice();
           sessionStorage.removeItem('wh_login_method');
           if (isCurrentIdentity() && await allowEntry(profile, maintenanceEnabled)) {
             saveProfileSnapshot(profile);
@@ -645,11 +638,13 @@ export function useAuth() {
         }
         if (await allowEntry(p, maintenanceEnabled)) {
           const registration=await withTimeout(registerUserSession(p.user_id,authId), 20000, "We could not confirm this device. Please try again.");
-          if(['password','passkey'].includes(sessionStorage.getItem('wh_login_method')||'')&&registration.trustStatus==='pending'){
-            if(registration.sessionId)saveGoogleVerification({context:'new_device',email:p.email||email,pendingDeviceSessionId:registration.sessionId,device:registration.device,os:registration.os,browser:registration.browser,location:registration.location});
+          if(registration.trustStatus==='pending'){
+            savePendingDevice(registration);
             setState({page:'login',profile:null,isLoading:false,error:'',kickedOut:false,pendingDevice:registration});
             return;
           }
+          if(registration.trustStatus!=='trusted'||!registration.sessionId)throw new Error('This device could not be authorized. Sign in again.');
+          clearPendingDevice();
           sessionStorage.removeItem('wh_login_method');
           saveProfileSnapshot(p);
           syncIdentityNavigation(p);

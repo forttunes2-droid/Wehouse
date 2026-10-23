@@ -7,6 +7,45 @@ concurrency:
   group: experience-browser-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
+  wallet-pro-journeys:
+    name: Wallet and Pro browser journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/wallet-pro-journeys.mjs
+      - name: Experience applications, evidence and session preparation
+        run: |
+          node tests/browser/wallet-pro-journeys.mjs --experience-applications-only
+          node tests/browser/wallet-pro-journeys.mjs --experience-sessions-only
+      - name: Property sharing and customer viewing lifecycle
+        run: |
+          node tests/browser/wallet-pro-journeys.mjs --share-journeys-only
+          node tests/browser/wallet-pro-journeys.mjs --viewing-journeys-only
+      - name: Check compound, unit and private-room submission in both themes
+        run: node tests/browser/wallet-pro-journeys.mjs --property-spaces-only
+      - name: Check Partner inventory and reservation read recovery
+        run: node tests/browser/wallet-pro-journeys.mjs --partner-assets-only
+      - name: Check Partner reservation history and older booking links
+        run: node tests/browser/wallet-pro-journeys.mjs --partner-history-only
+      - name: Verify Field and publication review space details
+        run: node tests/browser/wallet-pro-journeys.mjs --space-review-only
+      - name: Check Hotel cancellation preview, confirmation and lost-response recovery
+        run: node tests/browser/wallet-pro-journeys.mjs --hotel-cancellation-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wallet-pro-browser-results
+          path: test-results/wallet-pro-journeys
+          retention-days: 7
   media-compression:
     name: Browser media compression
     runs-on: ubuntu-latest

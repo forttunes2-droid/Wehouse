@@ -17,7 +17,7 @@ test('Short Let Reserve date is fee-first and keeps stay/deposit separate',async
   assert.match(sql,/v_total:=v_stay\+v_caution/);
   assert.match(detail,/Review dates · \$\{formatMoney\(/);
   assert.match(detail,/shortCancellationTerms/);
-  assert.match(detail,/confirmDisabled=\{paymentReview === "short_let" && !shortPolicy\}/);
+  assert.match(detail,/confirmDisabled=\{paymentReview === "short_let" && \(!shortPolicy \|\| shortRefundHours===null \|\| !reviewShortPrice\)\}/);
   assert.match(review,/editLabel = "Edit details"/);
 });
 

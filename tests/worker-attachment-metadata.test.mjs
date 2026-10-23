@@ -15,7 +15,7 @@ function harness(rows, failure = null) {
         assert.equal(bucket,'chat-files'); return { createSignedUrls: async paths => ({ data:paths.filter(path=>path!=='missing.jpg').map(path=>({path,signedUrl:`https://test.invalid/${path}?token=test`})),error:null }) };
       } },
     } },
-    './utils': {}, '@/lib/workerBookingContract': {},
+    './utils': {}, '@/lib/workerBookingContract': {}, '@/lib/withTimeout': { withTimeout: async task => await task },
     '@/lib/e2ee': {
       preparePrivateConversation() {},
       decryptPrivateMessage: async () => 'Readable text',

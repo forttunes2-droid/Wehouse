@@ -27,7 +27,7 @@ async def main():
      if mode=='google-pending':
       await page.get_by_role('button',name='Continue with Google',exact=True).click()
       await expect(page.get_by_role('button',name='Opening Google…',exact=True)).to_be_disabled()
-      for label in ['Continue with email','Create account','Back to places']:
+      for label in ['Continue with username or email','Create account','Back to places']:
        await expect(page.get_by_role('button',name=label,exact=True)).to_be_disabled()
       await page.get_by_role('button',name='Opening Google…',exact=True).evaluate('(e)=>{e.dispatchEvent(new MouseEvent("click",{bubbles:true}));e.dispatchEvent(new MouseEvent("click",{bubbles:true}));}')
       assert len(await page.evaluate('window.__authTest.calls'))==1
@@ -40,7 +40,7 @@ async def main():
       await expect(entry_signin).to_be_enabled()
      else:
       signup=mode=='signup-confirmation'
-      await page.get_by_role('button',name='Create account' if signup else 'Continue with email',exact=True).click()
+      await page.get_by_role('button',name='Create account' if signup else 'Continue with username or email',exact=True).click()
       await page.get_by_label('Email' if signup else 'Username or email',exact=True).fill('test@example.invalid')
       await page.locator('input[autocomplete="new-password"]' if signup else 'input[autocomplete="current-password"]').fill('not-a-real-password')
       await page.locator('form').get_by_role('button',name='Create account' if signup else 'Sign in',exact=True).click()
@@ -57,9 +57,10 @@ async def main():
       elif signup:
        await page.evaluate('window.__authTest.resolve({data:{user:{id:"test-user"}},error:null})')
        await expect(page.get_by_role('heading',name='Confirm your email',exact=True)).to_be_visible()
-       await expect(page.get_by_role('button',name='Verify with Google',exact=True)).to_be_enabled()
-       await page.get_by_role('button',name='Verify with Google',exact=True).click()
-       assert (await page.evaluate('window.__authTest.calls'))[-1]=={'name':'google','args':['test@example.invalid','signup']}
+       await expect(page.get_by_role('button',name='Resend confirmation email',exact=True)).to_be_enabled()
+       await expect(page.get_by_role('button',name='Verify with Google',exact=True)).to_have_count(0)
+       await page.get_by_label('Signup email code',exact=True).fill('123456')
+       await expect(page.get_by_role('button',name='Confirm email code',exact=True)).to_be_enabled()
       else:
        await page.evaluate('window.__authTest.resolve({data:{session:{user:{id:"test-user"}}},error:null})')
        await expect(page.locator('form').get_by_role('button',name='Signing in…',exact=True)).to_be_disabled()
@@ -69,7 +70,8 @@ async def main():
         await page.screenshot(path=str(OUT/f'signin-pending-{width}.png'))
         await page.evaluate('window.__pendingDevice()')
         await expect(page.get_by_role('heading',name='Confirm this device',exact=True)).to_be_visible()
-        await expect(page.get_by_role('button',name='Verify with Google',exact=True)).to_be_enabled()
+        await expect(page.get_by_role('button',name='Send email code',exact=True)).to_be_enabled()
+        await expect(page.get_by_role('button',name='Verify with Google',exact=True)).to_have_count(0)
        else:
         await page.evaluate('window.__accountError()')
         await expect(form_signin).to_be_enabled()

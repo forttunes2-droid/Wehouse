@@ -62,7 +62,8 @@ export async function getAnnouncementsForUser(userId:string,workspace="personal"
   void workspace;
   const{data,error}=await supabase.rpc('get_my_announcement_inbox');
   if(error)return{messages:[],error};
-  const rows=(data||[]) as AnnouncementInboxRow[];
+  if(!Array.isArray(data))return{messages:[],error:{message:'Announcements could not be confirmed. Refresh Activity.'}};
+  const rows=data as AnnouncementInboxRow[];
   return{messages:rows.map((row)=>({...row,announcements:row.announcement?[row.announcement]:[],message:row.announcement||null})),error:null};
 }
 export async function markAnnouncementRead(announcementId:number,userId:string){void userId;const{error}=await supabase.rpc('mark_my_announcement_read',{p_announcement_id:announcementId});return{error}}

@@ -39,7 +39,6 @@ export const RESTORABLE_NAVIGATION_PAGES: NavPage[] = [
   "worker_setup",
   "worker_discovery",
   "worker_categories",
-  "new_listing",
   "hotels",
   "detail",
   "hotel_detail",

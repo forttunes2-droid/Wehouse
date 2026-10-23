@@ -11,8 +11,8 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_
 ('94000000-0000-4000-8000-000000000002','short-split-b@example.invalid','short-split-b','creator',true,'consumer','Bola','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000003','short-split-c@example.invalid','short-split-c','user',true,'consumer','Chika','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000004','short-split-d@example.invalid','short-split-d','user',true,'consumer','Different guest','Nasarawa','Lafia','Lafia');
--- Short Let splits use Companions. A Roommate conversation alone must not qualify (short-split-d).
-insert into public.companions(user_low,user_high,requested_by,status) values
+-- Short Let splits use friends. A Roommate conversation alone must not qualify (short-split-d).
+insert into public.friends(user_low,user_high,requested_by,status) values
 ('short-split-a','short-split-b','short-split-a','accepted'),
 ('short-split-a','short-split-c','short-split-a','accepted');
 insert into public.conversations(id,participant_a,participant_b,conversation_type,status) values
@@ -73,7 +73,7 @@ select pg_temp.expect((select status='reserved' and reservation_fee_status='paid
 select short_stay_balance_due_at as original_deadline from public.reservations where id=:'reservation' \gset
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L])',:'reservation','short-split-d')),'A roommate who is not a companion cannot be invited to a Short Let split');
+select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L])',:'reservation','short-split-d')),'A roommate who is not a friend cannot be invited to a Short Let split');
 select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L,%L,%L])',:'reservation','short-split-b','short-split-c','short-split-d')),'More than 3 paying people is rejected');
 select (public.create_my_shared_short_let(:'reservation',array['short-split-b','short-split-c'])->>'id') as shared_group \gset
 select pg_temp.expect((public.create_my_shared_short_let(:'reservation',array['short-split-b','short-split-c'])->>'id')=:'shared_group','Retry reuses the same group and reservation');

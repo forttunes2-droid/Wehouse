@@ -63,6 +63,12 @@ approval.
 
 ## Research baseline
 
+### 19 October clarification: merchant compliance and recipient identity
+
+Paystack merchant onboarding does not automatically provide government-ID verification for every WeHouse Partner/Service Worker. Current account-name resolution is a banking check, not NIN verification or a complete recipient KYC approval. Confirm WeHouse's actual recipient/settlement model with Paystack; a dedicated approved identity provider/integration remains necessary for NIN checks. Ordinary Personal signup and customer payments do not require NIN under the proposed product policy.
+
+The owner accepted the asset-specific product checklist in `PRODUCT_RULES.md`: common person/entity/authority/address evidence, Short Let permitted use and guest terms, Long Let tenancy/term/payment/maintenance/exit terms, and Hotel operator/operating evidence plus room/rate/guest facts. Private request-linked collection, independent decisions/corrections, expiry and new-publication enforcement are implemented and contract-verified on Test. This does not establish local legal eligibility. Counsel/operations must approve accepted forms, applicable permits and retention. Live person KYC, structured booking/tenancy terms, ongoing recertification, expiry outreach, appeals and retention/deletion processing remain internal/integration tasks. Neither utility bills nor access footage alone establish ownership.
+
 Primary sources checked for this register:
 
 - [Federal Ministry of Labour and Employment / NELEX Recruiter's Licence](https://nelex.gov.ng/recruiters-license/) — describes the Ministry's licensing programme, statutory references, requirements and its FAQ scope for private employment agencies/labour contractors. Whether WeHouse's exact model is in that scope is a legal classification question, so the gate remains closed.

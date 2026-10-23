@@ -1,3 +1,6 @@
+import { createBookingActionRunner } from "@/lib/bookingActionRunner";
+import { parseWorkerQuotePrice } from "@/lib/workerBookingContract";
+import { withTimeout } from "@/lib/withTimeout";
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useMessagePins } from "@/hooks/useMessagePins";
@@ -81,6 +84,9 @@ type ChatMessage = {
   delivery_state?: "sending" | "failed";
 };
 type Booking = {
+  canonical_job_state?: string|null;
+  user_approved?: boolean|null;
+  money_state?: string|null;
   user_id: string;
   worker_id: string;
   status: string;
@@ -353,7 +359,7 @@ export default function BookingNegotiationChat({
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
       if (!isSelectableChatAttachment(file, source)) {
-        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
+        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       return true;
@@ -542,8 +548,18 @@ export default function BookingNegotiationChat({
     setReviewOpen(false);
     toast.success("Your review was saved");
   }
+  const jobActions=useRef(createBookingActionRunner());
+  const [jobActionBusy,setJobActionBusy]=useState(false);
+  function runJobAction(work:()=>Promise<unknown>){
+    return jobActions.current(bookingId,async()=>{await work();await withTimeout(loadAll(true),12000,"Job saved; refresh its current status.");},id=>setJobActionBusy(id!==null),async()=>{
+      toast.error("The job action could not be confirmed. Your input is retained; refresh the booking before retrying.");
+      void withTimeout(loadAll(true),12000,"The current job status could not be refreshed.").catch(()=>{});
+    });
+  }
+
   async function handleWorkerAccept() {
-    const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
+    return runJobAction(async()=>{
+    const amount = parseWorkerQuotePrice(acceptAmount);
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
     if (!acceptDate) return toast.error("Pick a schedule date");
     const { success, error } = await workerAcceptBooking(
@@ -555,30 +571,38 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Booking could not be accepted");
     toast.success("Booking accepted. The customer can now pay.");
     setShowAcceptForm(false);
-    void loadAll(true);
+
+    });
   }
   async function handleWorkerStart() {
+    return runJobAction(async()=>{
     const { success, error } = await workerStartJob(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Job could not be started");
     toast.success("Job started");
-    void loadAll(true);
+
+    });
   }
   async function handleWorkerComplete() {
+    return runJobAction(async()=>{
     const { success, error } = await workerMarkComplete(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Job could not be completed");
     toast.success("Marked complete. Waiting for customer confirmation.");
-    void loadAll(true);
+
+    });
   }
   async function handleCustomerConfirm() {
+    return runJobAction(async()=>{
     const { success, error } = await customerConfirmCompletion(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Completion could not be confirmed");
-    toast.success("Job confirmed. Payment released to the Worker.");
-    void loadAll(true);
+    toast.success("Completion confirmed. Payment release is being processed.");
+
+    });
   }
   async function handleCustomerDispute() {
+    return runJobAction(async()=>{
     if (!disputeReason.trim()) return toast.error("Enter a reason");
     if (booking?.status === "in_progress" || booking?.status === "confirmed") {
       const { reviewId, error: reviewError } = await requestWorkerRefundReview(
@@ -590,7 +614,7 @@ export default function BookingNegotiationChat({
         return toast.error(reviewError?.message || "Refund review could not be requested");
       toast.success("WeHouse is reviewing your refund. The money stays protected until it is decided.");
       setShowDisputeForm(false);
-      void loadAll(true);
+
       return;
     }
     const { success, error } = await customerRaiseDispute(
@@ -601,9 +625,11 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Dispute could not be raised");
     toast.success("Dispute sent to WeHouse for review");
     setShowDisputeForm(false);
-    void loadAll(true);
+
+    });
   }
   async function handleCancel() {
+    return runJobAction(async()=>{
     if (!cancelReason.trim()) return toast.error("Enter a reason");
     if (booking?.status === "confirmed") {
       const { result, error: cancelError } = await cancelPaidBookingBeforeStart(
@@ -618,7 +644,7 @@ export default function BookingNegotiationChat({
           : "Booking cancelled",
       );
       setShowCancelForm(false);
-      void loadAll(true);
+
       return;
     }
     const { success, error } = await cancelBooking(
@@ -629,9 +655,12 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Booking could not be cancelled");
     toast.success("Booking cancelled");
     setShowCancelForm(false);
-    void loadAll(true);
+
+    });
   }
-  const statusInfo = booking?.status
+  const completionConfirmed=booking?.user_approved===true&&booking?.canonical_job_state==='completed';
+  const releasePending=completionConfirmed&&booking?.money_state==='release_pending';
+  const statusInfo = releasePending?{label:'Completion confirmed',color:'bg-violet-500/10 text-[var(--wh-accent-text)]'}:booking?.status
       ? BOOKING_STATUS_LABELS[booking.status]
       : null,
     paymentReview = booking?.payment_review_required === true,
@@ -776,7 +805,7 @@ export default function BookingNegotiationChat({
                   What happens next
                 </p>
                 <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
-                  {workerNextStep(booking.status, isWorker)}
+                  {releasePending?'Completion is confirmed. Payment release is processing; the wallet updates after release is confirmed.':workerNextStep(booking.status, isWorker)}
                 </p>
               </div>
               {Number(booking.negotiated_amount || 0) > 0 && (
@@ -842,9 +871,9 @@ export default function BookingNegotiationChat({
                     Set price &amp; accept
                   </button>
                 )}
-              {isWorker && booking.status === "confirmed" && (
+              {isWorker && !paymentReview && booking.status === "confirmed" && (
                 <button
-                  onClick={() => void handleWorkerStart()}
+                  disabled={jobActionBusy} onClick={() => void handleWorkerStart()}
                   className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                 >
                   Start job
@@ -852,7 +881,7 @@ export default function BookingNegotiationChat({
               )}
               {isWorker && booking.status === "in_progress" && (
                 <button
-                  onClick={() => void handleWorkerComplete()}
+                  disabled={jobActionBusy} onClick={() => void handleWorkerComplete()}
                   className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                 >
                   Mark complete
@@ -868,9 +897,9 @@ export default function BookingNegotiationChat({
                     {`Review payment · ${formatMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0))}`}
                   </button>
                 )}
-              {!isWorker && booking.status === "completed_pending_approval" && (
+              {!isWorker && !paymentReview && !completionConfirmed && booking.status === "completed_pending_approval" && (
                 <button
-                  onClick={() => void handleCustomerConfirm()}
+                  disabled={jobActionBusy} onClick={() => void handleCustomerConfirm()}
                   className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                 >
                   Confirm completion
@@ -909,10 +938,10 @@ export default function BookingNegotiationChat({
                 <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
                   Your price ({currencySymbol()})
                   <input
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={acceptAmount}
                     onChange={(e) =>
-                      setAcceptAmount(e.target.value.replace(/[^0-9]/g, ""))
+                      setAcceptAmount(e.target.value)
                     }
                     placeholder="Enter the final price"
                     className="mt-1 h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
@@ -920,7 +949,7 @@ export default function BookingNegotiationChat({
                 </label>
                 <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
                 <button
-                  disabled={!Number(acceptAmount) || !acceptDate}
+                  disabled={jobActionBusy || parseWorkerQuotePrice(acceptAmount)===null || !acceptDate}
                   onClick={() => void handleWorkerAccept()}
                   className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                 >
@@ -950,7 +979,7 @@ export default function BookingNegotiationChat({
                   className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
                 />
                 <button
-                  onClick={() => void handleCustomerDispute()}
+                  disabled={jobActionBusy} onClick={() => void handleCustomerDispute()}
                   className="h-9 w-full rounded-lg bg-red-500 text-[10px] font-semibold"
                 >
                   Submit dispute
@@ -974,7 +1003,7 @@ export default function BookingNegotiationChat({
                     Keep booking
                   </button>
                   <button
-                    onClick={() => void handleCancel()}
+                    disabled={jobActionBusy} onClick={() => void handleCancel()}
                     className="h-9 rounded-lg bg-red-500/10 text-[10px] font-semibold text-red-300"
                   >
                     Cancel booking

@@ -6,6 +6,160 @@
 
 ## Readiness checkpoint
 
+**23 October follow-through:** C-064 has a private canonical physical-space registry
+on Test, optional grouping/copy/reuse in the existing submission form, scoped
+review/public/booking labels, whole-home/private-room reservation guards and
+Partner inventory labels. Actual customer conflict and unpaid cancellation-release
+SQL checks pass; simultaneous races and grouped stock/defaults/calendar remain open.
+Property submission browser checks pass 13 cases. Partner assets pass 34 cases,
+including compound grouping by canonical identity, explicit annual/nightly prices,
+recorded currency and read recovery. Partner history passes 12 browser cases with
+bounded pagination and permission-scoped older booking links. Field/publication
+review passes 12 browser cases and normal-Auth rollback checks through audited
+assignment, canonical Creator access and revocation denial. The V2 review wrapper's
+legacy-role/RLS mismatch is repaired without widening direct table policies.
+The current source suite passes 656 tests; TypeScript, focused lint and build pass.
+Host arrival now binds the customer code to the exact reservation, validates the
+occupied receipt and bounds waiting. Private activation prevents a Host bypass
+through staff endpoints. Normal-Auth rollback SQL passes actual customer checkout,
+seeded verified provider/payment/ledger/Protection, exact Short Let check-in and
+idempotent retry with one policy snapshot; this is not live PSP evidence. The full
+wallet/Pro browser suite now passes 83 cases including wrong arrival receipts.
+Hotel cancellation's missing snapshot and refund projections are repaired on Test;
+preview and locked cancellation share eligibility, the local screen reviews exact
+amount/deadline before confirmation, and verified refund completion reaches the
+receipt. Its replacement normal-Auth SQL contract keeps triggers/RLS enabled;
+36 browser cases pass. PMS queued cancellation, stale-ack refusal and atomic current
+acknowledgement pass rollback SQL checks. The updated Test gateway uses correct event states,
+bounded input and request budgets; hosted missing-token smoke returns 401. Synthetic
+approvals/providers/users are rolled back. Atomic catalog/room-status checks pass
+late-error rollback, price/stock validation, committed-receipt recovery and assigned
+unit protection. Thirteen gateway handler checks and Deno check pass. Public Long Let
+search/detail also respect a linked Short Let hold and recover after cancellation.
+Source UI is not deployed and Production is unchanged.
+The release register retains remaining internal work and external dependencies;
+this is not whole-product readiness.
+
+**22 October latest follow-through:** Provider API refund reconciliation now
+shares the canonical ledger routine with signed webhook receipts, while keeping
+their proof methods distinct. Bounded reconciliation and a configuration-gated
+minutely scheduler are applied to Test; processor v3 and interactive reconciliation
+v2 are deployed there. Real hosted Auth checks passed scoped Finance/Creator
+access and device revocation; fixtures were removed. Missing Test provider and
+scheduler credentials still prevent real settlement/dispatch verification.
+Finance summary failures no longer fabricate zero counts, and both provider
+wallets share validated NGN balances. The full isolated wallet/Pro browser suite
+passed 81 cases, with eight additional summary and eight wallet recovery cases.
+Private call ownership is bound to live trusted originating/answering devices;
+the normal-Auth rollback contract passes block/preference changes, other-device
+denial, revocation and signal cleanup. The broken Roommate restore reference is
+repaired without removing its waiting period. Late media permission cleanup,
+subscription cleanup and network-receipt guards have regression tests. Full
+source suite passed 633 checks; build and focused checks passed. Exact Pro and
+Sponsored amounts now use the common market contract locally. The existing
+release register records deployment boundaries and remaining internal work;
+this is not whole-product completion or real PSP/two-device calling acceptance.
+Further Test repairs serialize financial actions per protected payment, verify
+the original successful provider charge before a refund POST, and deploy processor
+v4/reconciliation v3. Pro setting writers now share trusted canonical Creator
+authority. Fifteen absent Service Pro controls were restored with sales disabled
+and existing values preserved. Expanded Finance rollback checks pass Creator
+access, price precision and revoked-device denial; twelve isolated call browser
+cases pass across both themes and three widths. See the release register for
+the exact forward migration versions and remaining internal gates.
+
+**22 October financial recovery follow-through:** Test migration
+`20261022144813_financial_action_recovery_visibility.sql` moves interrupted
+15-minute processing claims into manual review without resubmitting money.
+Uncertain refunds now block another refund against the same protected payment.
+The existing Finance queue exposes scoped action/provider references and errors;
+the actual component passed six isolated browser checks in both themes at
+320/768/1440 pixels. Normal authenticated-role rollback tests passed for scope,
+revocation, service-only execution, fresh claims and recovery retries. The full
+automated suite passed 618 checks after late-receipt fixes. Provider reconciliation/resolution, scheduler
+and deployment remain open. A removed-toast pointer-blocking defect found during
+broader browser checks is fixed locally; the rerun passed 81 isolated wallet/Pro cases. Late verified refund events recover uniquely matched attempted actions; submission responses preserve their bound provider receipt. Ambiguity and missing proof remain unresolved.
+
+**22 October booking and service follow-through:** checkout now discloses the
+Short Let reserve-date fee, stay charge and caution as one saved total before
+payment. Arrival access reuses canonical payment authorization; move-in and
+inspection commands enforce trusted sessions and checked receipts. Nine service
+commands reject inactive/untrusted sessions. Completion confirmation and actual
+release are distinguished in chat and payment projection. The full 608-test
+suite and build passed; three additional financial processor recovery tests
+passed. Five related Test migrations are recorded in the existing release
+roadmap. Positive hosted whole-booking/whole-job settlement, unfinished inventory,
+monthly rent and Experiences remain open; this is not whole-product acceptance.
+
+**22 October inspection and Finance follow-through:** actual authenticated-role
+Test contracts exposed and repaired the missing customer-inspection completion
+column, incorrect report projection, stale assignment/coverage access and mutable
+submitted evidence. Inspection start, submission, correction, resubmission and
+independent review now pass targeted database checks; current access approval,
+revoked devices and additive Team grants are covered. The Staff screen shows
+correction instructions and applies the four-photo rule only to property supply.
+Local payout repairs preserve held funds after uncertain provider responses and
+validate matching transfer and action receipts. The Finance queue uses canonical
+Team identity and a trusted session. The payout function repair is not deployed.
+600 tests, 12 inspection and 79 wallet/Pro isolated browser cases, build, focused
+lint and payout type-check passed. The existing release roadmap records exact
+Test migrations and remaining hosted/recovery/provider gates; this is not a
+whole-product completion claim.
+
+**21 October routing and scale follow-through:** actual Test RPC checks found
+missing case-reason configuration, overly broad conversation uniqueness and a
+queue filter that mistook the shared case channel for General Support ownership.
+Three forward migrations restore the catalog, retain one conversation per case,
+and route by operational ownership. Six real first-send paths now pass with
+matching-branch staff claim/reply and cross-domain/branch denial. Customer Inbox
+refresh bursts are coalesced through the existing scheduler. Public-index metadata
+contains no structurally equivalent duplicates; that does not close the table/data
+or hosted-capacity audit. The v4 brand ZIP and vector source were inspected, with
+application branding unchanged. Evidence and remaining gates are in the existing
+release register.
+
+**21 October operational support follow-through:** Finance, Security and Service
+Worker Operations now expose their server-supported domain message queues with
+the shared Activity entry. Creator/Admin assignment controls follow the same
+claim-before-reply authority as staff. Replies and private notes reuse the existing
+message table with server-enforced intent receipts; uncertain sends retain their
+composer/evidence for retry. Test SQL verifies replay, private-note separation,
+assignment, unrelated-person and revoked-device denial. Twenty-four isolated customer
+workspace browser journeys pass in light and dark themes, including a lost receipt
+and duplicate-free retry. Read receipts now use central conversation scope; requester
+reads cannot consume private-note receipts, and note-only team updates are acknowledged.
+Customer previews, counts and message reads exclude private notes. Direct-table
+RLS also excludes notes for an owning requester with a privileged legacy role;
+rollback checks exercise the actual authenticated database role. Message-table
+client writes are revoked in favor of controlled RPCs. Operational and customer
+support Inbox reads require trusted active sessions. Test migrations are recorded
+under `20261021183712`, `20261021184300` and `20261021184531` in the release register.
+The 585-test checkpoint and production build pass; these are not hosted acceptance
+of all dashboards. Security Operations action receipts were subsequently tightened;
+the full role/scope and dashboard/table audit remains open in the release register.
+
+**21 October connected provider follow-through:** common workspace access is now
+separate from requested-service review, with existing-job management preserved after
+credential expiry. Experience submissions and decisions enter canonical Activity;
+applicants can read feedback before service approval. Exact-record authorization
+protects unsent and newly edited drafts. Current source regression passes 583/583,
+14 isolated host/Creator browser scenarios pass, the 20-assertion application SQL
+contract passes with rollback, and the credential contract passes with reviewed and
+expired-existing-job capability checks. Build and focused lint pass. Scope, Test
+migrations, advisor findings and remaining internal dependencies are recorded in the
+existing [release roadmap](WEHOUSE_RELEASE_ROADMAP.md). Production is unchanged;
+Experiences sales and the full product are not ready.
+
+**21 October working-tree follow-through:** shared motion tokens now align Login,
+workspace navigation, media and reusable controls/panels, including reduced motion.
+Found and repaired malformed identity-gate response handling, false empty job/Inbox
+states, overlapping refreshes, cross-account badge state and partial-read count loss.
+Receipt fixes cover paper contrast, verified-data validation, refreshed status,
+reference/purpose matching, reload recovery and independent receipt retry. See the
+21 October checkpoint in the existing [release roadmap](WEHOUSE_RELEASE_ROADMAP.md)
+for exact scope and evidence. These changes do not complete Experiences or the full
+release gates; the original baseline below remains historical evidence.
+
 At the source commit above, the required PR checks observed in this run passed: browser interaction matrix, media-compression/FFmpeg check, structural regression, build, isolated mixed-journey preflight, consolidation validation (migration replay, tests/build, existing-account upgrade), and deployment previews. Vercel had a READY deployment for the exact source SHA; Netlify preview was also green. Keep the Vercel URL and status tied to that SHA when the PR changes.
 
 Production and test Supabase projects were queried read-only. Both were healthy, and their migration histories still differ (712 versus 694 entries); do not reconcile by applying migrations until the existing read-only release plan explains every difference. No production writes were made.
@@ -178,3 +332,138 @@ Other release blockers already documented remain open: service-fee and refund-po
 ### Phase A exit and current next actions
 
 Phase A has an evidence-backed, read-only baseline. Phase B has reconciled accepted market scope and documented unresolved sellable-unit, fulfillment, package/quote, owner-lifecycle and response-clock decisions. Phase C has begun with a shared design contract, 12px minimum rendered text, and a focused correction to the Long Let reservation panel; full route-level visual and journey review remains open. Next: finish local Python/Deno checks, continue the route and security reviews, prepare (but do not apply) the migration disposition, and reproduce the browser failure from its actual assertion. No production mutation or broad rewrite is authorized by this audit.
+
+### 19 October implementation follow-up (supersedes the earlier next-actions paragraph)
+
+The full readiness scope remains active. Additional owner requests belong to the existing release work register and do not replace the money, permissions, supply, legal, design, migration or operational gates.
+
+Targeted Test migrations repaired listing-report routing, Friend schema, durable withdrawal receipts, Pro RPC/schema alignment, the single writable job-cost amount, review resolution and financial action throttling. Repository throttle migration timestamp is aligned to the recorded Test version `20261019154146`. Production remains unchanged; fresh replay and full migration-history disposition are still required.
+
+Worker and Partner wallets share durable withdrawal intents and canonical activity rendering. Lost responses retain the same request identifier, and protected money is not displayed as a second released credit. Payout-account reconciliation now retains a missing-ledger request rather than declaring failure after an arbitrary two minutes. Its terminal recovery/support path still requires completion; this is not evidence of a real provider payout.
+
+The owner removed shows and parties from Experiences. The previous nightlife/event-directory/referral proposal is withdrawn. The remaining activities proposal does not authorize fictitious listings or incomplete checkout.
+
+Username login was already supported by the sign-in form and identifier adapter; the entry button incorrectly advertised email only and is corrected. The shared search/hotel price slider had two identically labelled pointer-only handles and hard-coded dark colours. It now exposes separately named minimum/maximum sliders with keyboard steps, bounds, accessible current values, focus indication and theme tokens. Browser checks are being rerun after this change.
+
+Initial role-source tracing confirms that Creator exposes people, properties, workers, finance, reports, refunds, legal and audit workspaces. Property pipeline UI includes Creator oversight and an exception path. This is not proof that every required server action works without staff: independent evidence/self-review rules and the actual permission contracts still require journey verification. Do not weaken those controls merely to make a solo operator appear supported.
+
+Partner Pro and Worker Pro retain the existing workspace navigation. The current implementation places their main panels under Tools and Paid Tools respectively; useful in-context entry points, entitlement enforcement and consistent wording remain part of the ongoing review. No full-role visual or global scalability certification has been established.
+
+Verification follow-up: full source suite 511/511; isolated Wallet/Pro and price-control browser scenarios 32/32; production build, lint and type validation passed. Creator's seven focused behavior tests passed after the overview refresh change. Friend's three naming/workflow checks passed after removal of event presets. These are local/isolated checks, not exact-SHA CI or real-provider end-to-end evidence.
+
+### 19 October continued: payout recovery and internal finance
+
+The same readiness programme continued through the financial failure paths. Payout-account polling every five seconds could consume the Edge Function's shared allowance of 20 requests per ten minutes. The client now serializes checks and spaces them at least one minute apart, including manual checks. No mutation is retried merely because a response is late.
+
+Request references now persist in local browser storage, with migration from the prior session-only key. Unreadable/corrupt storage blocks a new request rather than silently deleting the identifier. Account read failures display retry rather than pretending no bank exists. Bank-list and account-resolution reads have bounded waits and release their loading states. Account saves remain pending until confirmed; the user can close setup and find the same reference and support action. Support receives the request reference and the originating Worker/Partner workspace; the existing first-message path is responsible for creating the case. This browser navigation evidence does not prove privileged provider reconciliation or case resolution.
+
+The app previously offered a bank replacement flow that the server always refused pending additional sign-in verification. The current UI explains that restriction and offers support instead of implying replacement is available. Implementing secure replacement remains a release gate; support must not bypass that security requirement.
+
+The shared internal finance screen also treated a failed read as an empty queue and could leave a thrown payout action busy. Reads now reject malformed/incomplete responses, handle network failures and timeouts, reject late read results, and show an explicit retry state. Payout actions have an immediate duplicate-action guard and reset busy state in finally. An uncertain network response reloads authoritative records without claiming a transfer succeeded or failed. The isolated browser fixture substitutes Creator elevation and provider responses; it does not establish actual step-up or provider money movement.
+
+The Experiences proposal now specifies a complete scheduled-activity journey, including provider review, dated sessions, atomic capacity holds, checkout revalidation, late-payment reconciliation, canonical earnings, cancellation/refund, reviews and Creator operations. Code inventory found no active Experiences catalog or booking implementation. No Experience UI, schema or commerce has been published.
+
+Verification at this checkpoint: 511/511 source tests, 41/41 isolated browser scenarios, production build and focused lint passed. The browser scenarios include bank-list/account-resolution timeout recovery. Production and remote Test were not changed in this continuation.
+
+### 19 October: full-scope inventory and Friend planning clarification
+
+The existing release register now includes the full requested feature scope and distinguishes not implemented, implemented/verification pending, not inspected and external approvals. It includes declared navigation families and nested-control coverage, auth/permissions, domain rules, real-provider money reconciliation, Pro lifecycle, moderation, data rights, discovery, deployed parity, dependencies, recovery, legal/operations, global expansion, native release and exact-commit promotion. This is the inventory of known work, not a claim that unknown defects have all been discovered. The earlier 2–4 week range is withdrawn for the full scope; dates require verified work estimates and external approval dates.
+
+Current source counts: 37 declared navigation keys including aliases; 49 page modules; 222 component modules; 26 Edge Function directories; 764 active migration SQL files; 74 SQL contracts; 92 Node test files. Counts are not a completion measure and do not close nested role/state/action coverage.
+
+The Friend list/entry point was inside Inbox Activity. It now belongs to Inbox Messages, including opening a Friend deep link. Individual conversation-only views do not display the contacts panel. Plan wording uses Suggest a plan / Plan together, explains that no booking/payment is created, and supports a short custom activity when Something else is selected. A two-person plan is the sender plus one accepted Friend. Friend groups are a separate, unimplemented private coordination feature; neither creates a booking, debt or Roommate relationship.
+
+The current Experiences proposal is compared with public Airbnb host/cancellation rules and Booking.com Attractions responsibility disclosure. It has a coherent proposed lifecycle but no evidence of superiority and no implemented catalog/session/booking feature. Its remaining implementation stays in the full-scope register.
+
+Verification: 513/513 source tests passed, including two new Friend placement/payload checks; production build passed and focused lint passed. The previous 41-scenario isolated browser result remains applicable to its named money/Pro/price checks, not the newly moved Friend interface. Hosted visual/two-device Friend checks remain open. No remote migration or production deployment was made in this pass.
+
+### 19 October: Hotel and shared report-flow implementation
+
+The active public Hotel page now has Report this hotel. It requires authentication, uses the existing property-report form, and calls a dedicated report_hotel RPC. The server resolves the Hotel owner and location, rejects own/inactive Hotel reports, and records the report in the existing content_reports queue. The same reporter/reason on an open Hotel concern returns its existing reference instead of creating another open queue row. No competing Hotel-report table was created.
+
+Migration 20261019171328_hotel_listing_reports was applied to Test. The new SQL contract verified receipt creation/replay, private reporter status, wrong-state/branch denial, owner-home-location independence, local Admin review, Creator resolution and anonymous/direct-table denial. The existing shared-content-report contract also passed after the helper change. Both fixture sets rolled back; no hr- test profiles remain. Test now records 744 migrations; Production remains unchanged.
+
+The operator queue now displays Hotel and report references, accepts a review note, distinguishes failed/malformed reads from empty queues, and resets failed actions. Its text clarifies that marking a report does not itself remove a listing or restrict an account. Reporter history displays the complete reference and status. Urgent Hotel safety opens contextual Support; the browser check establishes the correct context, not an actual emergency response or completed support case.
+
+The generic chat/profile report form previously discarded the returned receipt and could strand busy state on a thrown request. It now requires a reference before success, catches thrown errors, resets busy state and uses shared dialog isolation/focus with theme tokens. A report already being sent is not cancelled by closing the form; report history is the recovery path.
+
+Verification: 515/515 source tests; 50/50 isolated browser scenarios, including Hotel-to-operator-to-reporter status, authentication, missing receipts, submission failures, queue-read recovery, urgent support context and generic form recovery. Focused lint passed; final full build/lint results are recorded in the release register when complete. These are Test SQL contracts plus isolated browser checks, not an authenticated deployed end-to-end role pass.
+
+Security advisor review still reports 52 RLS-enabled/no-policy notices, 17 anonymous-executable SECURITY DEFINER warnings and now 557 authenticated-executable warnings. The new authenticated Hotel RPC is intentional; its actor checks and grants are covered by the contract, and the private scope helper remains closed to clients. Existing notices remain part of the broader security review, not 626 confirmed vulnerabilities. [Function permission advisor guidance](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable).
+
+### 19 October: Property facts and NIN preparation
+
+Test migration `20261019202244_property_submission_fact_validation.sql` rejects incomplete/invalid apartment counts and Hotel capacity/inventory; its rolled-back SQL contract passed. Studio bedrooms remain zero. Partner submission uses the same numeric rules. The separate internal listing form now rejects invalid apartment counts and preserves zero instead of defaulting to one; focused lint passed. Its generic Hotel creation path still needs reconciliation with dedicated Hotel inventory. Test has 745 migration records; Production was not changed.
+
+The owner confirmed no NIN provider account. `supabase/functions/_shared/nigerianIdentity.ts` prepares a server-only integration boundary: approved purpose policy, live active account, consent, provider result binding, mismatch review and protected replay. Receipt data excludes raw NIN. No provider-specific adapter, actual receipt store, endpoint or UI is connected. Signup does not require NIN, and this module does not change face review, ownership or licensing claims.
+
+Verification checkpoint: 520/520 source tests and production build passed before the final internal-form correction. The property/NIN focused suite passed 5/5 again after that correction; internal-form lint passed. Full lint from the reporting checkpoint also completed successfully. Deno checks and focused lint for the new NIN module passed. Hosted role verification, evidence-policy enforcement, migration replay and real provider/payment recovery remain in the existing release register.
+
+### 19 October: Retired direct creation and defined provider-evidence contract
+
+Removed the unused internal CreateListing page, new_listing route/type/restoration entry, client writer/export, unused permission helper and isolated-fixture export. Removed the unreferenced HotelDetailCore implementation; active Hotel detail remains the existing canonical page. Updated mixed-journey workflow paths and SECURITY documentation. Source inventory found no remaining active direct-writer/route consumers. Historical applied migration definitions remain as history.
+
+Test migration `20261019204555_retire_internal_listing_bypass.sql` removes both direct-publication RPCs with dependency-restricting DROP FUNCTION, without deleting marketplace or financial records. Apply returned success; the rolled-back retirement SQL contract passed, confirming both functions absent and canonical property submission plus listing/Hotel/room tables present. Security advisors were retrieved after apply; broad existing advisor categories remain. A later migration-count read failed with an MCP transport error, so no new count is asserted. Production was not changed.
+
+Product Rules now contains a researched Short Let/Hotel evidence matrix, separating identity, asset authority, entity/operator, applicable permits, listing facts, guest terms and payout eligibility. Private document collection/review/correction, expiry/recheck, appeal and publication/payout enforcement remain internal engineering work. Legal evidence/retention approval and provider/processor agreements are separate external requirements. The NIN module now accepts only Property Partner and Service Worker purposes, excluding ordinary booking; NIN remains one proposed Nigerian ID method, not mandatory customer signup or payment data.
+
+Verification: full source suite 520/520, TypeScript/Vite build and full ESLint passed after source retirement. A subsequently added route-retirement regression initially lacked URLSearchParams in its isolated VM harness; the harness was corrected and all six focused property/NIN/retirement tests passed. Deno module check and git diff --check passed. CI includes the SQL retirement contract; exact-SHA CI and hosted role checks remain open.
+Final full-suite rerun after adding the route-retirement regression: 521/521 passed; diff whitespace check passed.
+
+### 19 October: Full completion boundary and document requirements clarified
+
+Corrected the Paystack capability distinction: merchant onboarding and account-name resolution do not establish NIN verification for WeHouse recipients. Product Rules now spells out shared evidence plus separate Short Let, Long Let and Hotel intake/terms. The legal register records document forms and local permits as jurisdiction-specific approval work; collection/review/publication enforcement is still internal engineering work.
+
+Reconciled the existing release register: removed the duplicate generic Paystack test row in favor of the complete money/reconciliation row; replaced bare Codex placeholders with acceptance work; corrected the stale 200-RPS-failed entry to the later recorded passing evidence; withdrew retired internal-form discount evidence; updated source counts to 36 navigation keys, 47 pages, 222 components, 767 migrations and 77 SQL contracts. No readiness claim is derived from these counts.
+
+The register now defines engineering complete pending external activation. Missing implementations, provider adapters, hosted verification, migration replay/disposition, security fixes and recovery exercises remain internal work even when a provider account or approval is also needed. No new competing roadmap was created. This checkpoint changes documentation only; diff whitespace check passed. The previous 521-test/build/lint results remain historical implementation evidence, not a new execution or a whole-product readiness pass.
+
+### 19 October: Accepted provider requirements implemented through review and publication
+
+The owner accepted the property/Hotel/Long Let/Short Let requirements and NIN direction (C-063). Partner responsibilities mean accurate facts, authority, disclosed terms and fulfillment; WeHouse retains scoped review, enforcement, moderation and support duties. Operating sign-off means the launch owner can actually run the queues, incidents, refunds and recovery obligations. It does not require hiring staff; self-review restrictions still apply to an owner's own supplier assets.
+
+Implemented one private request-linked document workflow in the existing Partner submission and Property Operations record. Reviewers confirm accepted evidence instructions and expiry rules before collection. The Partner can upload supported files, recover an unfinished upload, receive a persistent correction reason and submit an immutable replacement. Independent current-session reviewers decide with a reason; another person's or out-of-scope records are denied. Material changes invalidate the requirements snapshot. Canonical Inbox/operations records carry review, correction and outcome work; resolved/superseded tasks do not remain actionable. No NIN, passport or bank document is collected by this property-evidence flow.
+
+Actual apartment and Hotel publication commands now use additive workspace authority, deny own-property approval, check current documents and retain one approval event on replay. The contract proved successful publication with base profile role user plus an Admin/Creator grant, preserved a zero-bedroom studio, and blocked missing/expired/changed evidence. Collection, access/inspection evidence, current documents, media review and final publication remain distinct checks. Already-live recertification, expiry outreach, acceptance/booking rechecks, structured guest/tenancy terms, appeals and legal retention/deletion remain open. Live person KYC and the actual identity-provider adapter remain unimplemented.
+
+The stronger contract exposed two further Test parity gaps: the requested management-choice column/commands were absent, and media buckets allowed 50�100 MiB despite the current 13 MB compressed-video contract. Forward migrations restored the choice/owner-only handoff controls and bounded the six existing media buckets without changing visibility or deleting objects. The current v4 submission body retains identity, authority, numeric and batch validation and now persists the Partner choice; its obsolete private historical base wrapper was retired. The management-publication/media contract then passed. All synthetic document/cost contract profiles and document rows were confirmed absent after rollback.
+
+### 19 October: Pro business value and cost records
+
+Research checked the primary Jobber features page (https://www.getjobber.com/features/) and Guesty features page (https://www.guesty.com/features/). These support the practical scheduling/customer/quote/invoice/cost and portfolio/operations/reporting directions, not an assertion of competitive superiority or willingness to pay. Worker retains twelve described workflows; Partner now has fifteen with property operating costs, recorded margin and cost correction/export.
+
+Added owner-scoped, entitlement-checked, idempotent operating-cost commands and a bounded monthly report. It joins the canonical released-earnings/payment authorities, attributes Hotel and home income through their existing payment links, records costs by owned property, supports 50-row keyset pagination, CSV for the shown rows, and retains voided records/reasons. It never writes a wallet movement. Mixed/unknown income currency suppresses income/margin instead of converting or adding currencies. NGN and UTC reporting are explicit. Owner RLS read access to their own records remains after paid access expires. Worker reminders still run only while its business-tools screen is open; durable delivery remains a Pro gap.
+
+Verification: full source suite 530/530, full ESLint and production build passed; 61 isolated browser scenarios passed, including document upload/private download/correction/approval and cost recording/CSV/void/recovery at 320px in actual light and dark palettes. Visual inspection caught that the first new light fixtures toggled only the dark class; the fixtures now set both data-wh-theme and class, matching applyAppearance, and the full browser run passed again. Initial native-select label and stale twelve-tool offer assertions were corrected; the new fifteen-tool offer is checked. SQL document/publication, cost/entitlement/ownership and management/media contracts passed on Test with fixture rollback. These are not authenticated hosted/two-device or full-app journey passes.
+
+Seven forward migrations in this checkpoint are recorded on Test: 20261019212345, 20261019212920, 20261019213241, 20261019214237, 20261019215454, 20261019215745 and 20261019220022. Test has 753 migration records; repository has 774 active migration files, 79 SQL contracts, 36 navigation keys, 47 page modules and 224 component modules. Production was not changed. Advisor results remain 52 RLS-no-policy notices, 17 anonymous-executable and 566 authenticated-executable SECURITY DEFINER warnings; these are review categories, not a count of confirmed vulnerabilities. Full history disposition, fresh/upgrade replay and exact-SHA CI remain open. Docker CLI is unavailable locally; connected Test migrations and contracts did not require Docker.
+
+### 19 October: confirmed core-feature and media corrections
+
+Found a real core/free-boundary defect: essential guest arrival instructions were sold as Partner Pro. Moved the editor into normal home and Hotel owner operations, removed its paid catalog entry, renamed the canonical private table/owner commands, and retired the old writer and mixed arrival/occupancy RPC through Test migration 20261019221843. Existing data stays in the renamed table. Paid portfolio occupancy stays separate. Updated Test SQL contract passes without a Pro entitlement and denies cross-owner access; eligible paid guest access still passes.
+
+Corrected studio presentation across public cards/detail and Partner records; zero means no separate bedrooms. Added video metadata/duration checks for small files and a 10-second metadata timeout; removed the small-file/unreadable fallback bypass. Worker evidence input screens now share the 100 MB source cap; public/chat preparation and evidence retain their separate duration/output budgets. Chat source size and video preparation both accept 25 MiB, and attachment messages use the same unit. Media viewer supports retry without closing. Hosting selected/text colours were corrected for the light palette. No 3D renderer is present; 3D is optional, not evidence of premium usability.
+
+The isolated browser runner passed 65 scenarios, including both themes at 320px for free arrival editing, saved-state reload and failure reconciliation. Viewed both screenshots. Updated media tests cover small over-duration/unreadable/stalled/empty videos and private evidence duration. Full source suite passed 533/533 after running outside the sandbox with access to the installed Python runtime. The full-product route/design/security/payment coverage remains open; current evidence must not be described as complete production readiness. See the existing release register for competitor sources, exact media budgets and next gates.
+
+### 19 October: property grouping and measured-capacity continuation
+
+Kept the existing Apartment (Short Let/Long Let) and Hotel/room-type structure; did not introduce a studio category or 3D work. Added plain-language studio help with an accessible description to submission, corrected raw property/subtype labels in Partner details through the existing canonical label maps, removed irrelevant apartment fields from Hotel submissions and made Hotel room-type inventory wording explicit. Missing guest capacity no longer appears as an invented one-guest limit. Submission fields now use the shared border token and visible keyboard focus.
+
+The existing hosted Test catalog runner recorded latency but did not gate it; this could pass slow responses. It also allowed an unvalidated route when warm-up expired before that route started, and its warm-up failure file had a literal escape after JSON. Repaired these defects, added overall/per-route latency and dispatch/sample-accounting gates, stop-on-failure, metadata and partial report persistence. Four gate unit tests and the full source suite (537/537) pass; production build and focused lint pass. Read-only Test counts confirmed 1,000 synthetic homes, 1,000 synthetic Hotels and zero Auth users. No new hosted load test was run. Historical read-only catalog results remain narrower than signed-in/money/message/media/soak capacity. Current details and competitor sources are in the existing release register and capacity-validation document.
+
+### 20 October: building/space scope and next money repair
+
+Owner clarified both self-contained apartments and separately let private bedrooms in one building, across Short Let and Long Let. C-064 is accepted and the canonical supply row/rules/data-model direction now cover both terms. Current apartment schema lacks building/parent-space identity; no new inventory system was claimed or activated. Replaced the obsolete whole-home-only recommendation and corrected duplicate C-060 decision numbering (identity is now C-063; announcements retain C-060). A decision uniqueness/placement regression check passes.
+
+Payout-account now applies a 12-second provider deadline and shares the same budget across reconciliation pages. Added mutation-timeout/no-POST-retry, shared-deadline and pending-without-bank-write tests. Existing recipient reuse still passes. Full source suite 541/541 and Deno type-check pass. Test deployment version 5 is ACTIVE with JWT verification true; retrieved source and shared-helper parity were checked. No real transfer, bank-save or Production change was made. Secure replacement step-up and broader financial recovery remain unfinished.
+
+### 20 October: management failure recovery and preserved co-host authority
+
+Repaired missing/failed management and sent-invitation reads, malformed property/assignment handling, rejected-command action locks, absent invitation receipts, withdrawal error recovery and Short Let arrival/Long Let handover rejection recovery. Removed the unused legacy PropertyHostInvitations component. Visible refresh/support controls accompany recovery instructions. Reviewed React hooks, stable account/property keys, stale-result guards, labels, bounded reads and theme surfaces. Browser suite 79/79 and source suite 545/545 pass; production build and focused lint pass. Both 320px management themes were visually inspected after transitions settled.
+
+Test migration 20261020062733 prevents re-inviting active co-hosts from resetting access, reuses matching live pending direct invitations, and preserves deliberate pending-permission changes. SQL rollback contract passes for active access, receipt/notification uniqueness, replacement and outsider denial; fixture cleanup confirmed. Test755/repository776 active migrations, 80 SQL contracts. No Production change.
+
+The full property-space hierarchy/customer operator projection is still open, and Experiences is not implemented. Existing rules/proposal now explicitly cover customer matching for pure/mixed let buildings, independent operating responsibility and category-as-data over the activity/session booking lifecycle. Deployed multi-account/provider-sandbox evidence remains separate from these isolated/SQL checks.
+
+Final management follow-through: the complete isolated browser run passed 79 scenarios; after the final refresh-control changes, a focused 14-scenario management/arrival replay passed and both 320px theme artifacts were regenerated. Source tests remain 545/545, with production build, focused lint and Test SQL contract passes. The focused runner writes results-management.json so it cannot overwrite the full results.json evidence. Security advisors still require the established role/body review; aggregate executable-function warnings are not counts of proven vulnerabilities.

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
 
 type SecurityAlert = {
@@ -44,6 +45,7 @@ export default function StaffSecurityOverviewV2({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [acting, setActing] = useState("");
+  const actionInFlight = useRef(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
@@ -76,50 +78,56 @@ export default function StaffSecurityOverviewV2({
   }, [load]);
 
   async function openSignal(alert: SecurityAlert) {
+    if (actionInFlight.current) return;
     if (!alert.target_user_id) return toast.error("This signal is missing its account reference");
-    const key = `signal:${alert.kind || alert.target_user_id}`;
-    setActing(key);
-    const { data: caseId, error: requestError } = await supabase.rpc(
-      "staff_security_open_signal_case",
-      {
-        p_target_user_id: alert.target_user_id,
-        p_signal_type: alert.kind || "recorded_signal",
-        p_summary: alert.detail || alert.title || "Recorded Security Operations signal",
-      },
-    );
-    setActing("");
-    if (requestError) return toast.error(requestError.message);
-    toast.success("Security review opened");
-    await load(true);
-    if (caseId) setExpanded(String(caseId));
+    actionInFlight.current=true;
+    setActing(`signal:${alert.kind || alert.target_user_id}`);
+    try {
+      const { data: caseId, error: requestError } = await withTimeout(supabase.rpc(
+        "staff_security_open_signal_case", {
+          p_target_user_id: alert.target_user_id,
+          p_signal_type: alert.kind || "recorded_signal",
+          p_summary: alert.detail || alert.title || "Recorded Security Operations signal",
+        },
+      ),15000,"The review could not be confirmed. Refresh cases before trying again.");
+      if (requestError) throw requestError;
+      if (typeof caseId!=="string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(caseId)) throw new Error("The review could not be confirmed. Refresh cases before trying again.");
+      toast.success("Security review opened");
+      await load(true);
+      setExpanded(caseId);
+    } catch(cause) {
+      toast.error((cause as Error)?.message || "The review could not be confirmed. Refresh cases before trying again.");
+    } finally {
+      actionInFlight.current=false;setActing("");
+    }
   }
 
-  async function caseAction(
-    row: SecurityCase,
-    action: "claim" | "note" | "escalate" | "resolve",
-  ) {
+  async function caseAction(row: SecurityCase, action: "claim" | "note" | "escalate" | "resolve") {
+    if(actionInFlight.current)return;
     const trimmed = note.trim();
     if (["note", "escalate", "resolve"].includes(action) && !trimmed) {
-      return toast.error(
-        action === "escalate"
-          ? "Explain why Admin or Creator action is required"
-          : "Add a short security review note",
-      );
+      return toast.error(action === "escalate" ? "Explain why Admin or Creator action is required" : "Add a short security review note");
     }
+    actionInFlight.current=true;
     setActing(`${row.operational_case_id}:${action}`);
-    const { error: actionError } = await supabase.rpc("staff_security_case_action", {
-      p_case_id: row.operational_case_id,
-      p_action: action,
-      p_note: trimmed || null,
-    });
-    setActing("");
-    if (actionError) return toast.error(actionError.message);
-    setNote("");
-    if (action === "escalate") toast.success("Escalated to Admin and Creator");
-    else if (action === "resolve") toast.success("Security review resolved");
-    else if (action === "claim") toast.success("Security case assigned to you");
-    else toast.success("Internal note saved");
-    await load(true);
+    try {
+      const { data: receipt, error: actionError } = await withTimeout(supabase.rpc("staff_security_case_action", {
+        p_case_id: row.operational_case_id, p_action: action, p_note: trimmed || null,
+      }),15000,"The change could not be confirmed. Refresh the case before retrying.");
+      if(actionError)throw actionError;
+      const expectedStatus={claim:"investigating",note:row.status,escalate:"decision_ready",resolve:"resolved"}[action];
+      if(receipt?.success!==true || receipt.case_id!==row.operational_case_id || receipt.status!==expectedStatus)throw new Error("The change could not be confirmed. Refresh the case before retrying.");
+      setNote("");
+      if (action === "escalate") toast.success("Escalated to Admin and Creator");
+      else if (action === "resolve") toast.success("Security review resolved");
+      else if (action === "claim") toast.success("Security case assigned to you");
+      else toast.success("Internal note saved");
+      await load(true);
+    } catch(cause) {
+      toast.error((cause as Error)?.message || "The change could not be confirmed. Refresh the case before retrying.");
+    } finally {
+      actionInFlight.current=false;setActing("");
+    }
   }
 
   const stats = data.stats || {};

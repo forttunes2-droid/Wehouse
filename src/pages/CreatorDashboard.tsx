@@ -1,13 +1,13 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { currencySymbol } from "@/lib/regional";
 import AdminReports from "@/components/AdminReports";
-import { internalActivityDestination } from "@/lib/internalActivityDestination";
+import { internalActivityDestination, type BookingActivityKind } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import CreatorOverview from "@/components/CreatorOverview";
 import { useRpcRead } from '@/hooks/useRpcRead';
 import { withTimeout } from '@/lib/withTimeout';
 import InboxActivityEntry from "@/components/InboxActivityEntry";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import BackButton from "@/components/BackButton";
@@ -68,7 +68,7 @@ type Props = {
   activeWorkspace?: WorkspaceChoice;
   onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 };
-type OperationTarget = { operation: Operation; id?: string } | null;
+type OperationTarget = { operation: Operation; id?: string; bookingKind?: BookingActivityKind } | null;
 
 const NAV = [
   { id: "overview", label: "Overview" },
@@ -186,9 +186,9 @@ export default function CreatorDashboard({
     if (returnToInbox) setTab("inbox");
     setReturnToInbox(false);
   }, tab === "operations" && Boolean(operation));
-  function openOperation(next: Operation, id?: string) {
+  function openOperation(next: Operation, id?: string, bookingKind?: BookingActivityKind) {
     setReturnToInbox(tab === "inbox");
-    setOperationTarget({ operation: next, id });
+    setOperationTarget({ operation: next, id, bookingKind });
     setOperation(next);
     setPlatformSection(null);
     setTab("operations");
@@ -196,12 +196,13 @@ export default function CreatorDashboard({
 
   function openCreatorDestination(page: string, id?: string) {
     const route = String(page || "").toLowerCase().replace(/-/g, "_");
+    if(route==='experience_review'&&id){openOperation('workers',`experience:${id}`);return;}
     if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
       setInboxTargetId(id); setTab("inbox"); return;
     }
     const target = internalActivityDestination(route, id);
     if (target?.operation === "security") { toast.error("Open Security Operations from the team workspace for this case."); return; }
-    if (target) { openOperation(target.operation, target.id); return; }
+    if (target) { openOperation(target.operation, target.id, target.bookingKind); return; }
     if (["profile", "privacy", "security", "devices", "privacy_policy", "terms_of_service"].includes(route)) { onNavigate?.(route, id); return; }
     toast.error("This update cannot be opened in the current workspace. Your workspace has not changed.");
   }
@@ -359,9 +360,10 @@ function Operations({
           />
         </div>
       )}
-      {active === "workers" && <CreatorWorkerOversight userId={profile.user_id} />}
+      {active === "workers" && <CreatorWorkerOversight userId={profile.user_id} initialExperienceId={target?.operation==='workers'&&target.id?.startsWith('experience:')?target.id.slice('experience:'.length):undefined} />}
       {active === "bookings" && (
         <Bookings
+          initialKind={target?.operation === "bookings" ? target.bookingKind : undefined}
           initialRecordId={
             target?.operation === "bookings" ? target.id : undefined
           }
@@ -568,40 +570,62 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
   );
 }
 
-function Bookings({ initialRecordId }: { initialRecordId?: string }) {
+function Bookings({ initialRecordId, initialKind }: { initialRecordId?: string; initialKind?: BookingActivityKind }) {
   const [view, setView] = useState<"worker" | "apartments" | "hotels">(
-    initialRecordId ? "apartments" : "worker",
+    initialKind === "services" ? "worker" : initialKind ?? (initialRecordId ? "apartments" : "worker"),
   );
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
+  const bookingLoadGeneration = useRef(0);
   useEffect(() => {
-    if (initialRecordId) setView("apartments");
-  }, [initialRecordId]);
+    setSelected(null);
+    setView(initialKind === "services" ? "worker" : initialKind ?? (initialRecordId ? "apartments" : "worker"));
+  }, [initialRecordId, initialKind]);
   useEffect(() => {
     if (view !== "worker") void load();
-  }, [view, initialRecordId]);
+    return () => { bookingLoadGeneration.current++; };
+  }, [view, initialRecordId, initialKind]);
   async function load() {
+    const request = ++bookingLoadGeneration.current;
     setLoading(true);
-    const { data, error } = await supabase.rpc("creator_get_booking_records", {
+    setSelected(null);
+    try {
+    const linked = Boolean(initialRecordId && view === (initialKind ?? "apartments"));
+    const { data, error } = await withTimeout(linked ? supabase.rpc("creator_get_booking_record", {
+      p_kind: view,
+      p_record_id: initialRecordId,
+    }) : supabase.rpc("creator_get_booking_records", {
       p_kind: view,
       p_limit: 100,
-    });
-    const next = !error && Array.isArray(data) ? data : [];
-    if (error) toast.error("Booking records could not be loaded");
+    }), 15000, "Booking records took too long");
+    if (request !== bookingLoadGeneration.current) return;
+    if (error) throw error;
+    if (linked && data != null && (typeof data !== 'object' || Array.isArray(data) ||
+      String(data.id) !== initialRecordId || String(data.booking_id) !== initialRecordId ||
+      data.kind !== (view === 'hotels' ? 'hotel' : 'apartment'))) throw new Error('The linked booking could not be confirmed.');
+    if (!linked && !Array.isArray(data)) throw new Error('Booking records could not be confirmed.');
+    const next = linked ? data ? [data] : [] : data;
     setRows(next);
-    if (!error && initialRecordId) {
+    if (initialRecordId && view === (initialKind ?? "apartments")) {
       const target = next.find((row: any) =>
         [row.id, row.booking_id]
           .filter(Boolean)
           .some((value) => String(value) === String(initialRecordId)),
       );
       if (target) setSelected(target);
-      else if (view === "apartments")
-        toast.error("The linked booking record is no longer available.");
+      else if (view === "apartments" || view === "hotels")
+        toast.error("This booking is unavailable or you no longer have access to it.");
     }
-    setLoading(false);
+    } catch {
+      if (request === bookingLoadGeneration.current) {
+        setRows([]);
+        toast.error("Booking records could not be loaded. Please reopen Bookings to retry.");
+      }
+    } finally {
+      if (request === bookingLoadGeneration.current) setLoading(false);
+    }
   }
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -647,6 +671,7 @@ function Bookings({ initialRecordId }: { initialRecordId?: string }) {
       </div>
       {view === "worker" ? (
         <ServiceBookingOversight
+          initialRecordId={initialKind === "services" ? initialRecordId : undefined}
           title="Service Worker bookings"
           note="Platform-wide oversight. Participants control the job; WeHouse watches lifecycle and exceptions."
         />

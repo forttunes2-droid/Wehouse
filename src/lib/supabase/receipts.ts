@@ -1,5 +1,6 @@
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "./client";
+import { assertPaymentReceipt } from '../paymentReceiptContract';
 
 export type PaymentReceipt = {
   id: string; reference: string; purpose: string; amount: number; currency: string;
@@ -17,5 +18,10 @@ export async function getPaymentReceipts(reference?: string, subjectType?: strin
     p_reference: reference || null, p_subject_type: subjectType || null, p_subject_id: subjectId || null,
   }), 15000, "Receipts took too long to load. Please try again.");
   if (error) throw error;
-  return (Array.isArray(data) ? data : []) as PaymentReceipt[];
+  if (!Array.isArray(data)) throw new Error('Receipts could not be loaded. Please try again.');
+  data.forEach(assertPaymentReceipt);
+  if (reference && data.some(row => row.reference !== reference)) {
+    throw new Error('The receipt does not match this payment reference. Please try again.');
+  }
+  return data as PaymentReceipt[];
 }

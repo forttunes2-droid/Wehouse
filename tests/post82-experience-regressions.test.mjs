@@ -208,7 +208,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
 test("shared reservation state stays participant-specific and payment-gated", async () => {
   const [details, share, rpc] = await Promise.all([
     read("src/components/SharedHousingDetails.tsx"),
-    read("src/components/ShortLetSplitCosts.tsx"),
+    read("src/components/ShortLetBookingShares.tsx"),
     read("src/lib/supabase/shared-housing.ts"),
   ]);
   assert.match(details, /member\.user_id === userId/);

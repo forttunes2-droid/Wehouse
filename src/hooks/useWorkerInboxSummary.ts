@@ -1,5 +1,7 @@
 import { useInboxRefresh } from "./useInboxRefresh";
-import { useCallback, useEffect, useState } from "react";
+import { withTimeout } from "@/lib/withTimeout";
+import { useActorInboxCounts } from "./useActorInboxCounts";
+import { useCallback, useEffect } from "react";
 import { activityIsCurrent, visibleUnreadActivityCount } from "@/lib/activityFeed";
 import {
   getCanonicalActivity,
@@ -11,20 +13,19 @@ import { getMySupportConversations } from "@/lib/supabase/support";
 import { getCommunicationBookingConversations } from "@/lib/supabase/worker-bookings";
 
 export function useWorkerInboxSummary(userId: string) {
-  const [chatUnread, setChatUnread] = useState(0);
-  const [activityUnread, setActivityUnread] = useState(0);
+  const { chatUnread, activityUnread, updateCounts } = useActorInboxCounts(userId);
 
   const load = useCallback(async (isCurrent: () => boolean) => {
     if (!userId) return;
-    const [jobs, support, events, announcements] = await Promise.all([
+    const [jobs, support, events, announcements] = await withTimeout(Promise.all([
       getCommunicationBookingConversations(userId),
       getMySupportConversations("worker"),
       getCanonicalActivity("worker", 100),
       getAnnouncementsForUser(userId, "worker"),
-    ]);
+    ]), 15000, "Inbox summary took too long to load.");
     if (!isCurrent()) return;
 
-    if (!jobs.error || !support.error) {
+    if (!jobs.error && !support.error) {
       const jobThreads = jobs.error
         ? 0
         : (jobs.conversations || []).filter(
@@ -37,7 +38,7 @@ export function useWorkerInboxSummary(userId: string) {
             (row: { unread_count?: number | null }) =>
               Number(row.unread_count || 0) > 0,
           ).length;
-      setChatUnread(jobThreads + supportThreads);
+      updateCounts({ chatUnread: jobThreads + supportThreads });
     }
 
     const eventUnread = events.error ? 0 : visibleUnreadActivityCount(events.rows, "worker");
@@ -60,8 +61,8 @@ export function useWorkerInboxSummary(userId: string) {
     // Keep the last complete count if either source failed; zero is not evidence
     // that a failed Activity read is empty.
     if (!events.error && !announcements.error)
-      setActivityUnread(eventUnread + announcementUnread);
-  }, [userId]);
+      updateCounts({ activityUnread: eventUnread + announcementUnread });
+  }, [userId, updateCounts]);
 
   const refresh = useInboxRefresh(load, Boolean(userId));
 

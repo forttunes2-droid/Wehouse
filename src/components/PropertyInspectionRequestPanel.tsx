@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { propertySubmissionFactsError } from '@/lib/propertySubmissionFacts';
+import { copyHomeUnit, patchHomeDraft, physicalHomeError, physicalHomePayload, type PhysicalHomeDraft } from '@/lib/propertySpaces';
+import PropertySpaceDetails from '@/components/PropertySpaceDetails';
+import { HOME_STYLES, type HomeStyle } from '@/lib/homeStyles';
+import PropertyRegionFields from '@/components/PropertyRegionFields';
+import { submitPropertyBatch } from '@/lib/submitPropertyBatch';
 import { toast } from "sonner";
 import { supabase, uploadStorageObjectWithProgress } from "@/lib/supabase";
 import { uploadListingCandidateImage } from "@/lib/supabase/listings";
@@ -63,6 +69,8 @@ type HotelProgramRoom = {
   media: string[];
 };
 type Draft = {
+  homeStyle: HomeStyle | '';
+  physicalSpace:PhysicalHomeDraft|null;
   id: string;
   propertyAddress: string;
   propertyDisplayName: string;
@@ -91,6 +99,7 @@ type Draft = {
   hotelRooms: HotelRoomDraft[];
 };
 type InspectionRequestItem = {
+  physical_space?:ReturnType<typeof physicalHomePayload>;
   property_address: string;
   property_display_name: string | null;
   property_city: string;
@@ -142,6 +151,8 @@ function newRoom(): HotelRoomDraft {
 }
 function fresh(profile: Profile, copy?: Draft): Draft {
   return {
+    physicalSpace:null,
+    homeStyle: '',
     id: id(),
     propertyAddress: "",
     propertyDisplayName: copy?.propertyDisplayName || "",
@@ -245,6 +256,8 @@ export default function PropertyInspectionRequestPanel({
   }, [open, onOpenChange]);
   const draftIsComplete = (draft: Draft) =>
     Boolean(
+      !propertySubmissionFactsError(draft) &&
+      (draft.propertyType!=='apartment'||!physicalHomeError(draft.physicalSpace)) &&
       draft.propertyAddress.trim() &&
       draft.propertyState.trim() &&
       draft.propertyCity.trim() &&
@@ -278,6 +291,7 @@ export default function PropertyInspectionRequestPanel({
         draft.accessVideo,
     );
   const draftHasProgress = (draft: Draft) => Boolean(
+    draft.physicalSpace ||
     draft.propertyAddress.trim() ||
     draft.propertyDisplayName.trim() ||
     draft.propertyCity.trim() !== String(profile.city || profile.local_government || "").trim() ||
@@ -488,9 +502,7 @@ export default function PropertyInspectionRequestPanel({
   }
   function patch(index: number, next: Partial<Draft>) {
     changed();
-    setDrafts((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, ...next } : row)),
-    );
+    setDrafts((rows) => patchHomeDraft(rows,index,next));
   }
   function addPhotos(index: number, incoming: File[]) {
     changed();
@@ -534,6 +546,10 @@ export default function PropertyInspectionRequestPanel({
       return next;
     });
   }
+  function addSimilarUnit(){
+    const source=drafts[active];if(!source?.physicalSpace)return;
+    changed();setDrafts(rows=>{const next=[...rows,copyHomeUnit(source,id())];setActive(next.length-1);return next;});
+  }
   function remove(index: number) {
     changed();
     setDrafts((rows) => {
@@ -575,11 +591,15 @@ export default function PropertyInspectionRequestPanel({
     });
   }
   async function submit(e: React.FormEvent) {
+    const spaceIssue=drafts.map(draft=>draft.propertyType==='apartment'?physicalHomeError(draft.physicalSpace):null).findIndex(Boolean);
+    if(spaceIssue>=0){e.preventDefault();setActive(spaceIssue);return toast.error(physicalHomeError(drafts[spaceIssue].physicalSpace));}
     e.preventDefault();
     const invalid = drafts.findIndex((d) => !draftIsComplete(d));
     if (invalid >= 0) {
       setActive(invalid);
       const d = drafts[invalid];
+      const factsError = propertySubmissionFactsError(d);
+      if (factsError) return toast.error(`Property ${invalid + 1}: ${factsError}`);
       return toast.error(
         d.files.length < 4
           ? `Property ${invalid + 1}: add at least 4 ${d.propertyType === "hotel" ? "hotel/common-area" : "property"} photos`
@@ -612,6 +632,7 @@ export default function PropertyInspectionRequestPanel({
     }
     setSubmitting(true);
     const uploadedCandidates: string[] = [];
+    let submissionAttempted=false;
     try {
       const items: InspectionRequestItem[] = [];
       for (let i = 0; i < drafts.length; i++) {
@@ -721,8 +742,8 @@ export default function PropertyInspectionRequestPanel({
               name: room.name.trim(),
               description: room.description.trim() || null,
               nightly_rate: Number(room.rate),
-              guest_capacity: Number(room.maxGuests) || 1,
-              inventory: Number(room.inventory) || 1,
+              guest_capacity: Number(room.maxGuests),
+              inventory: Number(room.inventory),
               bed_type: room.bedType.trim() || null,
               amenities: words(room.amenities),
               media,
@@ -737,6 +758,8 @@ export default function PropertyInspectionRequestPanel({
           property_city: d.propertyCity.trim(),
           property_state: d.propertyState.trim(),
           property_type: d.propertyType,
+          ...(d.propertyType==='apartment'?{home_style:d.homeStyle||null}:{}),
+          ...(d.propertyType==='apartment'&&d.physicalSpace?{physical_space:physicalHomePayload(d.physicalSpace)}:{}),
           sub_type: d.propertyType === "apartment" ? d.subType : null,
           ...(d.propertyType === "apartment" ? { management_mode: d.managementMode as "host" | "wehouse" } : {}),
           authority_relationship: d.relationship,
@@ -784,14 +807,10 @@ export default function PropertyInspectionRequestPanel({
         });
       }
       const submittedBatchId = batchId;
-      const { data, error } = await supabase.rpc(
-        "create_my_property_inspection_batch_v4",
-        { p_batch_id: batchId, p_items: items },
-      );
-      if (error) throw error;
+      submissionAttempted=true;
+      const result=await submitPropertyBatch(batchId,items);
       uploadedCandidates.length = 0;
-      const result = data as { count?: number } | null;
-      const count = Number(result?.count || drafts.length);
+      const count = result.count;
       await removePropertyDraftBatch(submittedBatchId).catch(() => undefined);
       toast.success(
         `${count} ${count === 1 ? "property" : "properties"} sent to WeHouse`,
@@ -802,7 +821,7 @@ export default function PropertyInspectionRequestPanel({
       setActive(0);
       setOpen(false);
     } catch (err: unknown) {
-      if (uploadedCandidates.length)
+      if (uploadedCandidates.length&&!submissionAttempted)
         await supabase.storage
           .from("listing-candidates")
           .remove(uploadedCandidates);
@@ -825,13 +844,13 @@ export default function PropertyInspectionRequestPanel({
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold">Add a property</p>
             {drafts.length > 1 && (
-              <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[9px] font-semibold text-violet-300">
+              <span className="rounded-full bg-violet-500/10 px-2 py-1 text-xs font-semibold wh-accent-text">
                 {drafts.length} properties
               </span>
             )}
             {saveState !== "idle" && (
               <span
-                className={`text-[8px] font-semibold ${saveState === "error" ? "text-red-300" : "text-[var(--wh-text-muted)]"}`}
+                className={`text-xs font-semibold ${saveState === "error" ? "text-[var(--wh-danger-text)]" : "text-[var(--wh-text-muted)]"}`}
               >
                 {saveState === "loading"
                   ? "Loading…"
@@ -843,15 +862,15 @@ export default function PropertyInspectionRequestPanel({
               </span>
             )}
           </div>
-          <p className="mt-1 max-w-xl text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
-            Choose Apartment or Hotel and complete the steps shown.
+          <p className="mt-1 max-w-xl text-xs leading-relaxed text-[var(--wh-text-secondary)]">
+            Choose Home or Hotel. Complete the details, photos and property visit sections at your own pace.
           </p>
         </div>
         <button
           type="button"
           disabled={!hydrated || submitting}
           onClick={() => void openForm()}
-          className="rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold disabled:opacity-40"
+          className="min-h-11 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40"
         >
           {open ? "Close" : "Add property"}
         </button>
@@ -865,7 +884,7 @@ export default function PropertyInspectionRequestPanel({
           <fieldset disabled={submitting} className="contents">
           <div className="border-b border-[var(--wh-border-subtle)] p-3 sm:p-4">
             <SubmissionSteps draft={current} />
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <div className="mt-3 flex flex-wrap gap-2 pb-1">
               {drafts.length > 1 &&
                 drafts.map((d, i) => (
                   <button
@@ -874,19 +893,19 @@ export default function PropertyInspectionRequestPanel({
                     onClick={() => setActive(i)}
                     className={`shrink-0 rounded-xl border px-3 py-2 text-left ${active === i ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}
                   >
-                    <span className="block text-[10px] font-semibold">
-                      {d.propertyType === "hotel" ? "Hotel" : "Apartment"}{" "}
+                    <span className="block text-xs font-semibold">
+                      {d.propertyType === "hotel" ? "Hotel" : "Home"}{" "}
                       {i + 1}
                     </span>
-                    <span className="mt-0.5 block max-w-32 truncate text-[8px] text-[var(--wh-text-muted)]">
-                      {d.hotelName || d.propertyAddress || "Not named yet"}
+                    <span className="mt-0.5 block max-w-32 truncate text-xs text-[var(--wh-text-muted)]">
+                      {d.hotelName || d.physicalSpace?.unitLabel || d.propertyAddress || "Not named yet"}
                     </span>
                   </button>
                 ))}
               <button
                 type="button"
                 onClick={add}
-                className="shrink-0 rounded-xl border border-dashed border-violet-500/25 px-4 py-2 text-[10px] font-semibold text-violet-300"
+                className="shrink-0 rounded-xl border border-dashed border-violet-500/25 px-4 py-2 text-xs font-semibold wh-accent-text"
               >
                 ＋ Add another property
               </button>
@@ -897,7 +916,7 @@ export default function PropertyInspectionRequestPanel({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold">Property {active + 1}</p>
-                  <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                  <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                     Complete one property at a time.
                   </p>
                 </div>
@@ -906,13 +925,45 @@ export default function PropertyInspectionRequestPanel({
                     <button
                       type="button"
                       onClick={() => remove(active)}
-                      className="rounded-lg border border-red-500/15 px-2.5 py-2 text-[9px] text-red-300"
+                      className="rounded-lg border border-red-500/15 px-2.5 py-2 text-xs text-[var(--wh-danger-text)]"
                     >
                       Remove
                     </button>
                   )}
                 </div>
               </div>
+                <section className="space-y-1">
+                  <p className="text-xs text-[var(--wh-text-secondary)]">What are you adding?</p>
+                  <div
+                    className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-1"
+                    role="group"
+                    aria-label="Property group"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={current.propertyType === "apartment"}
+                      onClick={() =>
+                        patch(active, { propertyType: "apartment" })
+                      }
+                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "apartment" ? "bg-violet-500 text-white" : "text-[var(--wh-text-muted)]"}`}
+                    >
+                      Home
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={current.propertyType === "hotel"}
+                      onClick={() => patch(active, { propertyType: "hotel" })}
+                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "hotel" ? "bg-violet-500 text-white" : "text-[var(--wh-text-muted)]"}`}
+                    >
+                      Hotel
+                    </button>
+                  </div>
+                </section>
+              {current.propertyType === "apartment" && (
+                    <PropertySpaceDetails userId={profile.user_id} value={current.physicalSpace} onChange={physicalSpace=>patch(active,{physicalSpace})} onLocationChange={location=>patch(active,location)}/>
+              )}
+              <details open className="rounded-xl border border-[var(--wh-border-subtle)] p-3">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Property details and pricing</summary>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field
                   label="Street address *"
@@ -920,18 +971,9 @@ export default function PropertyInspectionRequestPanel({
                   set={(v) => patch(active, { propertyAddress: v })}
                   span
                 />
-                <Field
-                  label="State *"
-                  value={current.propertyState}
-                  set={(v) => patch(active, { propertyState: v })}
-                />
-                <Field
-                  label="LGA / city *"
-                  value={current.propertyCity}
-                  set={(v) => patch(active, { propertyCity: v })}
-                />
+                <PropertyRegionFields countryCode="NG" state={current.propertyState} area={current.propertyCity} onChange={location => patch(active, location)}/>
                 <label className="space-y-1">
-                  <span className="text-[10px] text-[var(--wh-text-secondary)]">
+                  <span className="text-xs text-[var(--wh-text-secondary)]">
                     Your relationship to this property *
                   </span>
                   <WeHouseSelect
@@ -951,33 +993,7 @@ export default function PropertyInspectionRequestPanel({
                     className="h-11 w-full text-sm"
                   />
                 </label>
-                <section className="space-y-1">
-                  <p className="text-[10px] text-[var(--wh-text-secondary)]">Property group *</p>
-                  <div
-                    className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[#2A2A3A] bg-[var(--wh-surface)] p-1"
-                    role="group"
-                    aria-label="Property group"
-                  >
-                    <button
-                      type="button"
-                      aria-pressed={current.propertyType === "apartment"}
-                      onClick={() =>
-                        patch(active, { propertyType: "apartment" })
-                      }
-                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "apartment" ? "bg-violet-500 text-white" : "text-[var(--wh-text-muted)]"}`}
-                    >
-                      Apartment
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={current.propertyType === "hotel"}
-                      onClick={() => patch(active, { propertyType: "hotel" })}
-                      className={`rounded-lg text-xs font-semibold transition-colors ${current.propertyType === "hotel" ? "bg-violet-500 text-white" : "text-[var(--wh-text-muted)]"}`}
-                    >
-                      Hotel
-                    </button>
-                  </div>
-                </section>
+
                 <Field
                   label="Phone for visit"
                   value={current.ownerPhone}
@@ -985,9 +1001,15 @@ export default function PropertyInspectionRequestPanel({
                 />
                 {current.propertyType === "apartment" && (
                   <>
+                    <section className="space-y-2 md:col-span-2">
+                      <p className="text-sm font-semibold">Home type</p>
+                      <WeHouseSelect ariaLabel="Home type" title="Choose the type of this unit" value={current.homeStyle} options={[{value:'',label:'Choose home type'},...HOME_STYLES]} onChange={value=>patch(active,{homeStyle:value as HomeStyle | ''})}/>
+                      <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Choose Apartment / flat for a studio or self-contained unit, then enter 0 separate bedrooms. A penthouse can have any bedroom count; it does not automatically receive a luxury rating.</p>
+                    </section>
+
                     <section className="md:col-span-2">
-                      <p className="mb-2 text-[10px] text-[var(--wh-text-secondary)]">
-                        Stay type *
+                      <p className="mb-2 text-xs text-[var(--wh-text-secondary)]">
+                        How will this home be rented? *
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <button
@@ -1004,7 +1026,7 @@ export default function PropertyInspectionRequestPanel({
                           <span className="block text-xs font-semibold">
                             Long Let
                           </span>
-                          <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">
+                          <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">
                             Annual rent
                           </span>
                         </button>
@@ -1018,7 +1040,7 @@ export default function PropertyInspectionRequestPanel({
                           <span className="block text-xs font-semibold">
                             Short Let
                           </span>
-                          <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">
+                          <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">
                             Nightly · furnished
                           </span>
                         </button>
@@ -1026,13 +1048,14 @@ export default function PropertyInspectionRequestPanel({
                     </section>
                     <section className="md:col-span-2" aria-label="Choose who operates this home">
                       <p className="mb-2 text-xs font-semibold">Who will manage guest stays? *</p>
-                      <p className="mb-3 text-[10px] leading-5 text-[var(--wh-text-secondary)]">Choose before publication. Existing bookings keep their assigned operator; a later change requires WeHouse review.</p>
+                      <p className="mb-3 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose before publication. Existing bookings keep their assigned operator; a later change requires WeHouse review.</p>
                       <div className="grid grid-cols-2 gap-2">
-                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-white" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">{mode === "host" ? "You or your approved co-host handles guests" : "Property Operations reviews and handles stays"}</span></button>)}
+                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-[var(--wh-text)]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-xs leading-4 text-[var(--wh-text-secondary)]">{mode === "host" ? "You or your approved co-host handles guests" : "Property Operations reviews and handles stays"}</span></button>)}
                       </div>
                     </section>
                     <Field
-                      label="Bedrooms"
+                      label="Bedrooms (0 for a studio)"
+                      hint="A studio has one main sleeping and living area, with no separate bedroom. Enter 0 for this layout."
                       inputMode="numeric"
                       value={current.bedrooms}
                       set={(v) => patch(active, { bedrooms: digits(v) })}
@@ -1062,7 +1085,7 @@ export default function PropertyInspectionRequestPanel({
                           span
                         />
                         <section className="space-y-2">
-                          <p className="text-[10px] text-[var(--wh-text-secondary)]">
+                          <p className="text-xs text-[var(--wh-text-secondary)]">
                             Refundable caution
                           </p>
                           <div className="grid grid-cols-2 gap-2">
@@ -1076,16 +1099,16 @@ export default function PropertyInspectionRequestPanel({
                               }
                               className={`rounded-xl border p-3 text-left ${!current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                             >
-                              <span className="block text-[10px] font-semibold">No caution</span>
-                              <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">Guest pays only the stay price</span>
+                              <span className="block text-xs font-semibold">No caution</span>
+                              <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">Guest pays only the stay price</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => patch(active, { cautionEnabled: true })}
                               className={`rounded-xl border p-3 text-left ${current.cautionEnabled ? "border-violet-500/35 bg-violet-500/10" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]"}`}
                             >
-                              <span className="block text-[10px] font-semibold">Use caution</span>
-                              <span className="mt-1 block text-[8px] text-[var(--wh-text-muted)]">Separate refundable property protection</span>
+                              <span className="block text-xs font-semibold">Use caution</span>
+                              <span className="mt-1 block text-xs text-[var(--wh-text-muted)]">Separate refundable property protection</span>
                             </button>
                           </div>
                         </section>
@@ -1115,11 +1138,21 @@ export default function PropertyInspectionRequestPanel({
                     onChange={(next) => patch(active, next)}
                   />
                 )}
+              </div>
+              </details>
+              {current.propertyType === 'apartment' && current.physicalSpace && <section className="space-y-2 border-t border-[var(--wh-border-subtle)] pt-4">
+                <h3 className="text-sm font-semibold">Another unit at this address?</h3>
+                <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Copy these details and price, then change anything different for the next unit. Each unit needs its own photos and access evidence.</p>
+                <button type="button" disabled={!current.physicalSpace.unitLabel.trim()} onClick={addSimilarUnit} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 py-2 text-sm font-semibold disabled:opacity-40">{current.physicalSpace.scope === 'private_room' ? 'Add another bedroom' : 'Add another unit'}</button>
+              </section>}
+              <details className="rounded-xl border border-[var(--wh-border-subtle)] p-3">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Photos and description</summary>
+              <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-[10px] text-[var(--wh-text-secondary)]">
+                  <span className="text-xs text-[var(--wh-text-secondary)]">
                     {current.propertyType === "hotel"
                       ? "Hotel and common-area photos *"
-                      : "Apartment photos *"}
+                      : "Home photos *"}
                   </span>
                   <input
                     type="file"
@@ -1131,15 +1164,15 @@ export default function PropertyInspectionRequestPanel({
                     }}
                     className="sr-only"
                   />
-                  <span className="flex min-h-12 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-4 text-xs font-semibold text-violet-200">
+                  <span className="flex min-h-12 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-4 text-xs font-semibold wh-accent-text">
                     <span>Add photos</span>
-                    <span className="text-[10px] font-normal text-[var(--wh-text-secondary)]">
+                    <span className="text-xs font-normal text-[var(--wh-text-secondary)]">
                       {current.files.length
                         ? `${current.files.length} selected`
                         : "At least 4"}
                     </span>
                   </span>
-                  <span className="block text-[9px] text-[var(--wh-text-muted)]">
+                  <span className="block text-xs text-[var(--wh-text-muted)]">
                     {current.propertyType === "hotel"
                       ? "These photos are for the hotel and common areas. Add each room’s photos inside that room type."
                       : "Add at least four clear photos. WeHouse will choose the final public gallery after the visit."}
@@ -1183,7 +1216,7 @@ export default function PropertyInspectionRequestPanel({
                   )}
                 </label>
                 <label className="space-y-1 md:col-span-2">
-                  <span className="text-[10px] text-[var(--wh-text-secondary)]">
+                  <span className="text-xs text-[var(--wh-text-secondary)]">
                     {current.propertyType === "hotel"
                       ? "Hotel description"
                       : "Property details"}
@@ -1199,9 +1232,14 @@ export default function PropertyInspectionRequestPanel({
                         ? "Describe check-in, policies and what makes this hotel useful to guests"
                         : "Useful details about this property"
                     }
-                    className="w-full resize-none rounded-xl border border-[#2A2A3A] bg-[var(--wh-elevated)] p-3 text-sm outline-none focus:border-violet-500/40"
+                    className="w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm outline-none focus:border-violet-500/40"
                   />
                 </label>
+              </div>
+              </details>
+              <details className="rounded-xl border border-[var(--wh-border-subtle)] p-3">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Verify access and location</summary>
+                <p className="mb-3 text-xs text-[var(--wh-text-secondary)]">Complete this section while you are at the property. You can save the other details first.</p>
                 {current.accessChallenge &&
                 challengeIsCurrent(current.accessChallenge) ? (
                   <PropertyAccessRecorder
@@ -1218,7 +1256,7 @@ export default function PropertyInspectionRequestPanel({
                         ? "Access code expired"
                         : "Access video"}
                     </p>
-                    <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
+                    <p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">
                       {current.accessChallenge
                         ? "Create a fresh code before recording. We check it before any upload starts."
                         : "When you are at the property, create the code and record the entrance in one video."}
@@ -1226,7 +1264,7 @@ export default function PropertyInspectionRequestPanel({
                     <button
                       type="button"
                       onClick={() => void prepareChallenge(active)}
-                      className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-[10px] font-semibold"
+                      className="mt-3 rounded-xl bg-violet-500 px-4 py-2.5 text-xs font-semibold"
                     >
                       {current.accessChallenge
                         ? "Create new code"
@@ -1234,19 +1272,18 @@ export default function PropertyInspectionRequestPanel({
                     </button>
                   </section>
                 )}
-              </div>
               {current.propertyType === "apartment" &&
                 current.subType === "short_let" && (
                   <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3">
-                    <p className="text-[10px] font-semibold text-violet-200">
+                    <p className="text-xs font-semibold wh-accent-text">
                       Short Let rule
                     </p>
-                    <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
-                      Short Let apartments are furnished and priced per night.
+                    <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
+                      Short Let homes are furnished and priced per night.
                       A Property Partner may optionally enable a refundable caution amount.
                       When caution is enabled, the guest can record pre-existing condition
                       evidence during the booked 30–60 minute check-in window. Set the
-                      maximum number of guests the apartment safely allows.
+                      maximum number of guests the home safely allows.
                     </p>
                   </div>
                 )}
@@ -1267,6 +1304,7 @@ export default function PropertyInspectionRequestPanel({
                 }
                 onChange={(value) => setPreciseLocation(active, value)}
               />
+              </details>
               {canSubmit && (
                 <button
                   disabled={submitting}
@@ -1284,7 +1322,7 @@ export default function PropertyInspectionRequestPanel({
             <div className="absolute inset-0 z-20 flex items-end justify-center bg-[var(--wh-bg)]/65 p-4 backdrop-blur-[2px]" role="status">
               <div className="sticky bottom-4 w-full max-w-sm rounded-2xl border border-violet-500/20 bg-[var(--wh-elevated)] p-4 text-center shadow-2xl">
                 <p className="text-xs font-semibold">Sending property securely</p>
-                <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">Upload {uploadProgress ?? 0}% · keep this page open</p>
+                <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Upload {uploadProgress ?? 0}% · keep this page open</p>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--wh-interactive)]"><div className="h-full rounded-full bg-violet-500 transition-[width]" style={{ width: `${uploadProgress ?? 0}%` }} /></div>
               </div>
             </div>
@@ -1368,14 +1406,14 @@ function SubmissionSteps({ draft }: { draft?: Draft }) {
       ];
   return (
     <div>
-      <p className="text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-        {hotel ? "Hotel setup" : "Apartment setup"}
+      <p className="text-xs font-semibold text-[var(--wh-text-secondary)]">
+        {hotel ? "Hotel setup" : "Home setup"}
       </p>
       <div
-        className={`mt-2 grid ${hotel ? "grid-cols-4" : "grid-cols-3"} gap-1 text-center text-[8px] font-semibold text-[var(--wh-text-muted)]`}
+        className={`mt-2 grid ${hotel ? "grid-cols-4" : "grid-cols-3"} gap-1 text-center text-xs font-semibold text-[var(--wh-text-muted)]`}
       >
         {steps.map(([label, done]) => (
-          <span key={String(label)} className={done ? "text-emerald-300" : ""}>
+          <span key={String(label)} className={done ? "wh-accent-text" : ""}>
             {done ? "✓ " : ""}
             {label}
           </span>
@@ -1390,22 +1428,28 @@ function Field({
   set,
   inputMode = "text",
   span = false,
+  hint,
 }: {
   label: string;
   value: string;
   set: (v: string) => void;
   inputMode?: "text" | "numeric" | "decimal" | "tel";
   span?: boolean;
+  hint?: string;
 }) {
+  const hintId = useId();
   return (
     <label className={`space-y-1 ${span ? "md:col-span-2" : ""}`}>
-      <span className="text-[10px] text-[var(--wh-text-secondary)]">{label}</span>
+      <span className="text-xs text-[var(--wh-text-secondary)]">{label}</span>
       <input
+        aria-label={label}
+        aria-describedby={hint ? hintId : undefined}
         inputMode={inputMode}
         value={value}
         onChange={(e) => set(e.target.value)}
-        className="h-11 w-full rounded-xl border border-[#2A2A3A] bg-[var(--wh-elevated)] px-3 text-sm outline-none focus:border-violet-500/40"
+        className="h-11 w-full rounded-xl border border-[var(--wh-border)] bg-[var(--wh-elevated)] px-3 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-500"
       />
+      {hint ? <span id={hintId} className="block text-xs leading-5 text-[var(--wh-text-secondary)]">{hint}</span> : null}
     </label>
   );
 }
@@ -1423,7 +1467,7 @@ function ChoiceChips({
   const selected = words(value);
   return (
     <section>
-      <p className="mb-2 text-[10px] text-[var(--wh-text-secondary)]">{label}</p>
+      <p className="mb-2 text-xs text-[var(--wh-text-secondary)]">{label}</p>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const active = selected.includes(option);
@@ -1440,7 +1484,7 @@ function ChoiceChips({
                   ).join(", "),
                 )
               }
-              className={`min-h-9 rounded-full border px-3 py-2 text-[9px] font-semibold ${active ? "border-violet-500/35 bg-violet-500/15 text-violet-100" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
+              className={`min-h-9 rounded-full border px-3 py-2 text-xs font-semibold ${active ? "border-violet-500/35 bg-violet-500/15 text-[var(--wh-text)]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
             >
               {option}
             </button>
@@ -1453,7 +1497,7 @@ function ChoiceChips({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Add anything else, separated by commas"
-          className="h-10 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-black/15 px-3 text-[10px] outline-none focus:border-violet-500/35"
+          className="h-10 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/35"
         />
       </label>
     </section>
@@ -1488,7 +1532,7 @@ function HotelProgramEditor({
     <section className="space-y-4 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 md:col-span-2">
       <div>
         <p className="text-sm font-semibold">Hotel setup</p>
-        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">
           Add hotel facilities once, then configure each bookable room type.
         </p>
       </div>
@@ -1512,7 +1556,7 @@ function HotelProgramEditor({
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold">Room type {index + 1}</p>
-                <p className="mt-0.5 text-[8px] text-[var(--wh-text-muted)]">
+                <p className="mt-0.5 text-xs text-[var(--wh-text-muted)]">
                   Guests book this inventory and rate.
                 </p>
               </div>
@@ -1520,7 +1564,7 @@ function HotelProgramEditor({
                 <button
                   type="button"
                   onClick={() => removeRoom(index)}
-                  className="text-[9px] font-semibold text-red-300"
+                  className="text-xs font-semibold text-[var(--wh-danger-text)]"
                 >
                   Remove
                 </button>
@@ -1551,7 +1595,7 @@ function HotelProgramEditor({
                 set={(value) => updateRoom(index, { maxGuests: digits(value) })}
               />
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[10px] text-[var(--wh-text-secondary)]">Bed type</span>
+                <span className="text-xs text-[var(--wh-text-secondary)]">Bed type</span>
                 <WeHouseSelect
                   value={room.bedType}
                   onChange={(value) => updateRoom(index, { bedType: value })}
@@ -1565,7 +1609,7 @@ function HotelProgramEditor({
                 />
               </label>
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[10px] text-[var(--wh-text-secondary)]">
+                <span className="text-xs text-[var(--wh-text-secondary)]">
                   Room description
                 </span>
                 <textarea
@@ -1588,7 +1632,7 @@ function HotelProgramEditor({
               />
             </div>
             <label className="mt-3 block">
-              <span className="mb-2 block text-[9px] text-[var(--wh-text-secondary)]">
+              <span className="mb-2 block text-xs text-[var(--wh-text-secondary)]">
                 Room photos *
               </span>
               <input
@@ -1601,7 +1645,7 @@ function HotelProgramEditor({
                 }}
                 className="sr-only"
               />
-              <span className="flex min-h-11 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-3 text-[10px] font-semibold text-violet-200">
+              <span className="flex min-h-11 items-center justify-between rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[.04] px-3 text-xs font-semibold wh-accent-text">
                 <span>Add room photos</span>
                 <span className="font-normal text-[var(--wh-text-secondary)]">
                   {room.files.length
@@ -1644,7 +1688,7 @@ function HotelProgramEditor({
       <button
         type="button"
         onClick={addRoom}
-        className="min-h-11 w-full rounded-xl border border-dashed border-violet-500/25 text-[10px] font-semibold text-violet-300"
+        className="min-h-11 w-full rounded-xl border border-dashed border-violet-500/25 text-xs font-semibold wh-accent-text"
       >
         ＋ Add another room type
       </button>

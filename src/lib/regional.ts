@@ -1,6 +1,6 @@
-// The only place that knows the platform's default country. Everything else asks this file, so adding
-// a country is a new row in `platform_countries`, not a code change. The fallback below only keeps the
-// app working before the row has loaded.
+// Shared display defaults, independent of payment-provider availability. Adding a
+// country catalogue row does not enable its payments, refunds, tax or settlement.
+// The fallback keeps presentation working before the configured row has loaded.
 export type RegionalDefaults = {
   countryCode: string;
   countryName: string;

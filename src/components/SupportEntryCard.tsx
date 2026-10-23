@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInboxRefresh } from "@/hooks/useInboxRefresh";
 import { supabase } from "@/lib/supabase";
 import {
   conversationPresentation,
@@ -27,32 +28,28 @@ export default function SupportEntryCard({
     [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const generation = useRef(0);
-  const load = useCallback(async () => {
+  const load = useCallback(async (isCurrent: () => boolean) => {
     const request = ++generation.current;
     try {
       const { conversations, error } = await withTimeout(getMySupportConversations(profile.role), 15000, "WeHouse conversations timed out");
-      if (request !== generation.current) return;
+      if (!isCurrent() || request !== generation.current) return;
       setLoadError(Boolean(error));
       if (!error) setThreads(conversations || []);
-    } catch { if (request === generation.current) setLoadError(true); }
-    finally { if (request === generation.current) setLoading(false); }
+    } catch { if (isCurrent() && request === generation.current) setLoadError(true); }
+    finally { if (isCurrent() && request === generation.current) setLoading(false); }
   }, [profile.user_id, profile.role]);
+  const refresh = useInboxRefresh(load, Boolean(profile.user_id));
   useEffect(() => {
     setThreads([]); setLoading(true); setLoadError(false);
-    const refresh = () => void load();
-    refresh();
-    const timer = window.setInterval(refresh, 15000);
-    window.addEventListener("wehouse:unread-changed", refresh);
     const channel = supabase.channel(`wehouse-conversations:${profile.user_id}:${profile.role}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_messages" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "partner_support_conversations" }, refresh)
       .subscribe();
     return () => {
-      generation.current++; window.clearInterval(timer);
-      window.removeEventListener("wehouse:unread-changed", refresh);
+      generation.current++;
       void supabase.removeChannel(channel);
     };
-  }, [load, profile.user_id, profile.role]);
+  }, [refresh, profile.user_id, profile.role]);
   const ordered = useMemo(
     () =>
       [...threads].sort(
@@ -92,13 +89,13 @@ export default function SupportEntryCard({
         Loading WeHouse conversations…
       </div>
     );
-  if (loadError) return <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]">WeHouse conversations could not be refreshed. <button type="button" onClick={() => void load()} className="min-h-11 px-2 font-medium text-violet-300">Try again</button></div>;
+  if (loadError) return <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]">WeHouse conversations could not be refreshed. <button type="button" onClick={refresh} className="min-h-11 px-2 font-medium text-[var(--wh-text-primary)]">Try again</button></div>;
   if (!ordered.length && hideWhenEmpty) return null;
   if (!ordered.length)
     return (
       <div className="px-4 py-8 text-center">
         <p className="text-xs font-semibold">No WeHouse conversations yet</p>
-        <p className="mx-auto mt-2 max-w-sm text-[9px] leading-4 text-[var(--wh-text-muted)]">
+        <p className="mx-auto mt-2 max-w-sm text-xs leading-4 text-[var(--wh-text-muted)]">
           Open the relevant property, booking, payment or account action to
           contact the correct WeHouse work area.
         </p>
@@ -164,28 +161,28 @@ function SupportRow({
           : "flex w-full items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-4 text-left transition hover:bg-[var(--wh-interactive)]"
       }
     >
-      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] font-bold text-violet-200">
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] font-bold text-[var(--wh-text-primary)]">
         W
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold text-white">{title}</p>
+        <p className="truncate text-[13px] font-semibold text-[var(--wh-text-primary)]">{title}</p>
         <p
-          className={`mt-1 truncate text-[11px] ${unread ? "font-medium text-[#E3E5EB]" : "text-[var(--wh-text-muted)]"}`}
+          className={`mt-1 truncate text-[11px] ${unread ? "font-medium text-[var(--wh-text-primary)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {preview}
         </p>
-        <p className="mt-0.5 truncate text-[9px] text-[var(--wh-text-muted)]">{meta}</p>
+        <p className="mt-0.5 truncate text-xs text-[var(--wh-text-muted)]">{meta}</p>
       </div>
       <div className="shrink-0 self-start pt-0.5 text-right">
         {time && (
           <p
-            className={`text-[8px] ${unread ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
+            className={`text-[11px] ${unread ? "text-[var(--wh-text-primary)]" : "text-[var(--wh-text-muted)]"}`}
           >
             {formatTime(time)}
           </p>
         )}
         {unread > 0 && (
-          <span className="ml-auto mt-2 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">
+          <span className="ml-auto mt-2 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[11px] font-bold text-white">
             {unread > 99 ? "99+" : unread}
           </span>
         )}

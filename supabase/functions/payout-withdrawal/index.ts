@@ -29,6 +29,7 @@ function jwtSessionId(token: string): string {
 async function paystack(path: string, secret: string, init?: RequestInit) {
   const response = await fetch(`https://api.paystack.co${path}`, {
     ...init,
+    signal: AbortSignal.timeout(12000),
     headers: {
       Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
@@ -42,17 +43,25 @@ async function paystack(path: string, secret: string, init?: RequestInit) {
     body = null;
   }
   if (!response.ok || !body?.status) {
-    const failure = new Error(body?.message || `Paystack request failed (${response.status})`);
-    (failure as any).conclusive = response.status >= 400 && response.status < 500;
-    throw failure;
+    throw new Error(body?.message || `Paystack request failed (${response.status})`);
   }
   return body.data;
 }
 
 function ngnBalanceKobo(data: any) {
-  if (!Array.isArray(data)) return 0;
+  if (!Array.isArray(data)) return null;
   const row = data.find((item: any) => String(item?.currency || "").toUpperCase() === "NGN");
-  return Math.max(0, Number(row?.balance || 0));
+  if (!row || row.balance === null || row.balance === undefined || row.balance === "") return null;
+  const balance = Number(row.balance);
+  return Number.isSafeInteger(balance) && balance >= 0 ? balance : null;
+}
+
+function assertTransferReceipt(transfer: any, reference: string, amount: number) {
+  if (!transfer || transfer.reference !== reference ||
+    !Number.isSafeInteger(transfer.amount) || transfer.amount !== Math.round(amount * 100) ||
+    transfer.currency !== "NGN" || typeof transfer.status !== "string" || !transfer.status.trim()) {
+    throw new Error("Paystack transfer details do not match the stored withdrawal. Funds remain held for reconciliation.");
+  }
 }
 
 function transferFeeBufferKobo() {
@@ -199,6 +208,8 @@ serve(async (req) => {
         }, 502);
       }
       const availableKobo = ngnBalanceKobo(balances);
+      if (availableKobo === null)
+        return json({ success: false, error: "Paystack NGN balance could not be confirmed. The withdrawal remains awaiting review." }, 502);
       const transferKobo = Math.round(Number(pending.amount) * 100);
       const requiredKobo = transferKobo + transferFeeBufferKobo();
       if (!Number.isFinite(transferKobo) || transferKobo <= 0)
@@ -218,35 +229,31 @@ serve(async (req) => {
       });
       if (claimError || !claim?.success)
         return json({ success: false, error: claim?.error || claimError?.message || "Withdrawal could not be reviewed" }, 409);
+      if (claim.already_claimed)
+        return json({ success: true, status: "processing", reconciliation_required: true });
       let transfer: any;
       try {
         transfer = await paystack("/transfer", paystackSecret, {
           method: "POST",
           body: JSON.stringify({
             source: "balance",
+            currency: "NGN",
             amount: Math.round(Number(claim.amount) * 100),
             recipient: claim.recipient_code,
             reference: claim.reference,
             reason: `WeHouse ${claim.owner_type === "worker" ? "Worker" : "Property Partner"} withdrawal`,
           }),
         });
+        assertTransferReceipt(transfer, claim.reference, Number(claim.amount));
       } catch (error) {
         console.error("payout transfer initiation failed", {
           withdrawal_id: withdrawalId,
           reference: claim.reference,
           error: errorMessage(error, "Paystack transfer failed"),
         });
-        if ((error as any)?.conclusive) {
-          await admin.rpc("fail_withdrawal_before_transfer", {
-            p_withdrawal_id: withdrawalId,
-            p_reason: errorMessage(error, "Paystack rejected the transfer"),
-          });
-        }
         return json({
           success: false,
-          error: (error as any)?.conclusive
-            ? errorMessage(error, "Paystack rejected the transfer")
-            : "Paystack did not return a conclusive response. Funds remain held; use Check Paystack status before retrying.",
+          error: "Paystack did not return a confirmed matching transfer. Funds remain held; use Check Paystack status before retrying.",
         }, 502);
       }
       const paystackStatus = String(transfer?.status || "pending").toLowerCase();
@@ -277,16 +284,18 @@ serve(async (req) => {
       let transfer: any;
       try {
         transfer = await paystack(`/transfer/verify/${encodeURIComponent(snapshot.reference)}`, paystackSecret);
+        assertTransferReceipt(transfer, snapshot.reference, Number(snapshot.amount));
       } catch (error) {
         return json({ success: false, error: errorMessage(error, "Could not verify this transfer with Paystack") }, 502);
       }
       const status = String(transfer?.status || "pending").toLowerCase();
-      await admin.rpc("record_withdrawal_transfer_response", {
+      const { error: recordError } = await admin.rpc("record_withdrawal_transfer_response", {
         p_withdrawal_id: withdrawalId,
         p_transfer_code: String(transfer?.transfer_code || snapshot.transfer_code || "") || null,
         p_paystack_status: status,
         p_response: transfer || {},
       });
+      if (recordError) return json({ success: false, error: "Paystack status could not be recorded. Funds remain held; check the status again." }, 500);
       if (["success", "failed", "reversed"].includes(status)) {
         const { data: settled, error: settleError } = await admin.rpc("settle_withdrawal_transfer_event", {
           p_reference: snapshot.reference,

@@ -1,68 +1,9 @@
 import { supabase } from './client';
-import { prepareEvidenceVideo } from '@/lib/mediaVideo';
-import type { Profile, ServiceCategory, ServiceSubcategory, WorkerVerification, LegacyWorkerSubscription, Wallet, WalletTransaction, PaymentProtectionTransaction, Withdrawal, FinancialAuditLog } from '@/types';
+import type { ServiceCategory, ServiceSubcategory, Wallet, WalletTransaction, PaymentProtectionTransaction, Withdrawal, FinancialAuditLog } from '@/types';
 
 // ═══════════════════════════════════════════════════════════════
 // WORKER DISCOVERY — Find workers by filters
 // ═══════════════════════════════════════════════════════════════
-
-// Parse worker status from profile — worker_status column is the source of truth.
-// bio emoji string is legacy fallback only.
-export function parseWorkerStatus(profile: Profile): string {
-  if (profile.worker_status) return profile.worker_status;
-  const match = profile.bio?.match(/🛠️STATUS:(\w+)🛠️/);
-  if (match) return match[1];
-  return 'pending';
-}
-
-export async function getAllWorkers() {
-  // Use RPC to bypass RLS
-  const { data, error } = await supabase.rpc('admin_get_all_workers');
-  return { workers: data as Profile[] | null, error };
-}
-
-export async function getPendingWorkers() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('role', 'worker')
-    .eq('worker_status', 'pending')
-    .order('created_at', { ascending: false });
-  return { workers: data as Profile[] | null, error };
-}
-
-export async function updateWorkerStatus(userId: string, status: string) {
-  const { data: row } = await supabase
-    .from('profiles')
-    .select('bio')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const bio = row?.bio || '';
-  const cleanBio = bio.replace(/🛠️STATUS:\w+🛠️/g, '').trim();
-  const newBio = `🛠️STATUS:${status}🛠️ ${cleanBio}`.trim();
-
-  // WeHouse approval is the only state that grants the reviewed flag. Payment,
-  // queue entry and rejection are never substitutes for an approval decision.
-  const hasCompletedVerification = status === 'verified';
-
-  const { data: updated, error } = await supabase
-    .from('profiles')
-    .update({
-      bio: newBio,
-      worker_status: status,
-      worker_verified: hasCompletedVerification,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-    .select();
-
-  if (!error && (!updated || updated.length === 0)) {
-    return { error: { message: `Update succeeded but 0 rows changed for user ${userId}` } as any };
-  }
-
-  return { error };
-}
 
 // Worker: Toggle availability (accepting new bookings)
 // ═══════════════════════════════════════════════════════════════
@@ -188,138 +129,10 @@ export async function seedSubcategoriesForCategory(categoryId: string, categoryN
 }
 
 // ═══════════════════════════════════════════════════════════════
-// WORKER VERIFICATION VIDEO UPLOAD
-// ═══════════════════════════════════════════════════════════════
-
-export async function uploadWorkerVerificationVideo(file: File, workerId: string) {
-  // Validate file
-  const validTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'];
-  if (!validTypes.includes(file.type)) {
-    return { path: null, signedUrl: null, error: { message: 'Only MP4, MOV, or WebM videos are allowed' } as any };
-  }
-
-  // Max 100MB for skill demonstration videos (2-3 minutes)
-  if (file.size > 100 * 1024 * 1024) {
-    return { path: null, signedUrl: null, error: { message: 'Video must be under 100MB' } as any };
-  }
-
-  let prepared;
-  try { prepared = await prepareEvidenceVideo(file); }
-  catch (error) { return { path: null, signedUrl: null, error: { message: error instanceof Error ? error.message : 'Video preparation failed' } }; }
-  const path = `worker-verifications/${workerId}/skill-demo-${Date.now()}.${prepared.extension}`;
-
-  const { data, error } = await supabase.storage
-    .from('worker-files')
-    .upload(path, prepared.body, { contentType: prepared.contentType, upsert: false });
-
-  if (error) return { path: null, signedUrl: null, error };
-
-  // Return the stored path + a short-lived signed URL for immediate display
-  const { data: signedData, error: signedError } = await supabase.storage
-    .from('worker-files')
-    .createSignedUrl(data.path, 60 * 60); // 1 hour
-
-  return { path: data.path, signedUrl: signedData?.signedUrl || null, error: signedError };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// WORKER VERIFICATION
-// ═══════════════════════════════════════════════════════════════
-
-export async function submitWorkerVerification(verification: {
-  worker_id: string;
-  gov_id_type?: string | null;
-  gov_id_number?: string | null;
-  gov_id_photo_url?: string | null;
-  selfie_photo_url?: string | null;
-  verification_video_url?: string | null;
-  years_of_experience?: number;
-  service_category_id?: string | null;
-  service_subcategory_id?: string | null;
-}) {
-  const { data, error } = await supabase
-    .from('worker_verifications')
-    .upsert(
-      { ...verification, status: 'pending', updated_at: new Date().toISOString() },
-      { onConflict: 'worker_id' }
-    )
-    .select()
-    .single();
-  return { verification: data as WorkerVerification | null, error };
-}
-
-export async function getWorkerVerification(workerId: string) {
-  const { data, error } = await supabase
-    .from('worker_verifications')
-    .select('*, service_category:service_categories(*), service_subcategory:service_subcategories(*)')
-    .eq('worker_id', workerId)
-    .maybeSingle();
-  return { verification: data as WorkerVerification | null, error };
-}
-
-export async function getVerificationsByStatus(status?: WorkerVerification['status']) {
-  let query = supabase
-    .from('worker_verifications')
-    .select('*, service_category:service_categories(*), service_subcategory:service_subcategories(*), worker:profiles(*)')
-    .order('created_at', { ascending: false });
-  if (status) query = query.eq('status', status);
-  const { data, error } = await query;
-  return { verifications: data as (WorkerVerification & { worker: Profile })[] | null, error };
-}
-
-// Staff: Review a verification
-export async function reviewWorkerVerification(
-  verificationId: string,
-  status: 'approved' | 'rejected',
-  reviewedBy: string,
-  notes?: string
-) {
-  const { data, error } = await supabase
-    .from('worker_verifications')
-    .update({
-      status,
-      reviewed_by: reviewedBy,
-      review_notes: notes || null,
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', verificationId)
-    .select()
-    .single();
-
-  if (!error && data) {
-    // Also update the worker's profile status
-    const workerId = data.worker_id;
-    // Canonical flow: admin review puts worker into 'profile_under_review' (approved)
-    // or 'rejected' (declined). Worker is NOT automatically 'verified' — that's a
-    // separate admin action after full review.
-    const newStatus = status === 'approved' ? 'profile_under_review' : 'rejected';
-    await updateWorkerStatus(workerId, newStatus);
-  }
-
-  return { verification: data as WorkerVerification | null, error };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// RETIRED WORKER SUBSCRIPTION HISTORY
-// ═══════════════════════════════════════════════════════════════
-
-// Read compatibility only. Historical rows remain financial records, but they
-// never grant Reviewed, Trusted or the gold PRO entitlement.
-export async function getLegacyWorkerSubscription(workerId: string) {
-  const { data, error } = await supabase
-    .from('blue_badge_subscriptions')
-    .select('*')
-    .eq('worker_id', workerId)
-    .maybeSingle();
-  return { subscription: data as LegacyWorkerSubscription | null, error };
-}
-
-// ═══════════════════════════════════════════════════════════════
 // WALLETS
 // ═══════════════════════════════════════════════════════════════
 
-export async function getOrCreateWallet(ownerId: string, ownerType: 'worker' | 'property_partner') {
+export async function getWallet(ownerId: string, ownerType: 'worker' | 'property_partner') {
   // Wallets are created by the server when the first earning arrives; the client only reads.
   const { data: existing, error } = await supabase
     .from('wallets')
@@ -328,15 +141,6 @@ export async function getOrCreateWallet(ownerId: string, ownerType: 'worker' | '
     .eq('owner_type', ownerType)
     .maybeSingle();
   return { wallet: (existing as Wallet | null) ?? null, error };
-}
-
-export async function getWallet(ownerId: string) {
-  const { data, error } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('owner_id', ownerId)
-    .maybeSingle();
-  return { wallet: data as Wallet | null, error };
 }
 
 export async function getWalletTransactions(walletId: string, limit = 50) {
@@ -369,16 +173,8 @@ export async function getPaymentProtectionForBooking(bookingId: string) {
 // WITHDRAWALS — Automatic via Paystack
 // ═══════════════════════════════════════════════════════════════
 
-// Worker: Request withdrawal (canonical, atomic balance reservation)
-// SECURITY: Backend derives identity from auth.uid().
-// Optionally pass a bank_account_id for snapshot; otherwise uses wallet bank details.
-export async function requestWithdrawal(amount: number, bankAccountId?: string) {
-  const { data, error } = await supabase.rpc('request_worker_withdrawal', {
-    p_amount: amount,
-    p_bank_account_id: bankAccountId || null,
-  });
-  return { result: data, error };
-}
+// Withdrawal requests use useWalletWithdrawal, which persists an intent ID
+// and reconciles the same canonical withdrawal after a lost response.
 
 export async function getWithdrawals(walletId?: string, status?: Withdrawal['status']) {
   let query = supabase.from('withdrawals').select('*').order('created_at', { ascending: false });
@@ -418,97 +214,4 @@ export async function getFinancialAuditLogs(filters?: {
 
   const { data, error, count } = await query;
   return { logs: data as FinancialAuditLog[] | null, error, count };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// WORKER DASHBOARD DATA
-// ═══════════════════════════════════════════════════════════════
-
-export async function getWorkerDashboardData(workerId: string) {
-  // Get wallet
-  const { wallet } = await getOrCreateWallet(workerId, 'worker');
-
-  // Get verification
-  const { verification } = await getWorkerVerification(workerId);
-
-  // Historical compatibility only; current Pro comes from get_my_worker_pro.
-  const { subscription: legacySubscription } = await getLegacyWorkerSubscription(workerId);
-
-  // Get recent transactions
-  const transactionsPromise = wallet
-    ? getWalletTransactions(wallet.id, 10)
-    : Promise.resolve({ transactions: [], error: null });
-
-  // Get pending withdrawals
-  const withdrawalsPromise = wallet
-    ? getWithdrawals(wallet.id)
-    : Promise.resolve({ withdrawals: [], error: null });
-
-  const [{ transactions }, { withdrawals }] = await Promise.all([
-    transactionsPromise,
-    withdrawalsPromise,
-  ]);
-
-  return {
-    wallet: wallet || null,
-    verification: verification || null,
-    legacySubscription: legacySubscription || null,
-    transactions: transactions || [],
-    withdrawals: withdrawals || [],
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// CREATOR: STATS
-// ═══════════════════════════════════════════════════════════════
-
-export async function getWorkerSystemStats() {
-  const { data: workers } = await supabase
-    .from('profiles')
-    .select('worker_status')
-    .eq('role', 'worker');
-
-  const { data: verifications } = await supabase
-    .from('worker_verifications')
-    .select('status');
-
-  const { data: legacySubscriptions } = await supabase
-    .from('blue_badge_subscriptions')
-    .select('status');
-
-  const { data: walletsData } = await supabase
-    .from('wallets')
-    .select('available_balance,owner_type');
-
-  const { data: withdrawalsData } = await supabase
-    .from('withdrawals')
-    .select('status,amount');
-
-  return {
-    workers: {
-      total: workers?.length || 0,
-      pending: workers?.filter(w => w.worker_status === 'pending').length || 0,
-      reviewQueue: workers?.filter(w => w.worker_status === 'verification_paid' || w.worker_status === 'profile_under_review').length || 0,
-      suspended: workers?.filter(w => w.worker_status === 'suspended').length || 0,
-    },
-    verifications: {
-      pending: verifications?.filter(v => v.status === 'pending').length || 0,
-      under_review: verifications?.filter(v => v.status === 'under_review').length || 0,
-      approved: verifications?.filter(v => v.status === 'approved').length || 0,
-      rejected: verifications?.filter(v => v.status === 'rejected').length || 0,
-    },
-    legacySubscriptions: {
-      active: legacySubscriptions?.filter(subscription => subscription.status === 'active').length || 0,
-      total: legacySubscriptions?.length || 0,
-    },
-    wallets: {
-      totalBalance: walletsData?.reduce((sum, w) => sum + (w.available_balance || 0), 0) || 0,
-      workerWallets: walletsData?.filter(w => w.owner_type === 'worker').length || 0,
-      partnerWallets: walletsData?.filter(w => w.owner_type === 'property_partner').length || 0,
-    },
-    withdrawals: {
-      pending: withdrawalsData?.filter(w => w.status === 'pending').length || 0,
-      totalAmount: withdrawalsData?.filter(w => w.status === 'successful').reduce((sum, w) => sum + (w.amount || 0), 0) || 0,
-    },
-  };
 }

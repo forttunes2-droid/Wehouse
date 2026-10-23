@@ -1,3 +1,4 @@
+import { withTimeout } from '@/lib/withTimeout';
 import { supabase } from './client';
 import { parseDeviceInfo } from './session';
 import type { GoogleVerificationContext } from '@/lib/googleVerification';
@@ -29,7 +30,7 @@ export async function signUpWithEmail(
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/`,
+      emailRedirectTo: verificationRedirectUrl('signup'),
       data: { source: 'wehouse', legal_review: legalChoices },
     },
   });
@@ -182,13 +183,14 @@ export async function finishEmailChangeWithGoogle(): Promise<{ email: string | n
   let pending: { email: string; at: number } | null = null;
   try { pending = JSON.parse(sessionStorage.getItem(EMAIL_CHANGE_KEY) || 'null'); } catch { pending = null; }
   if (!pending) return { email: null, error: null };
-  if (Date.now() - pending.at > 15 * 60 * 1000) {
+  if (typeof pending.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pending.email) || !Number.isFinite(pending.at) || pending.at > Date.now() || Date.now() - pending.at > 15 * 60 * 1000) {
     try { sessionStorage.removeItem(EMAIL_CHANGE_KEY); } catch { /* nothing to clean */ }
     return { email: null, error: 'The email change expired. Start again.' };
   }
-  const { data, error } = await supabase.rpc('change_my_email_to_verified_identity', { p_new_email: pending.email });
+  const { data, error } = await withTimeout(supabase.rpc('change_my_email_to_verified_identity', { p_new_email: pending.email }), 15000, 'Email change could not be confirmed. Refresh your account before retrying.');
   try { sessionStorage.removeItem(EMAIL_CHANGE_KEY); } catch { /* nothing to clean */ }
   if (error) return { email: null, error: error.message || 'Email could not be changed' };
-  await supabase.auth.refreshSession().catch(() => undefined);
-  return { email: String(data), error: null };
+  await withTimeout(supabase.auth.refreshSession(), 15000, 'Session refresh timed out').catch(() => undefined);
+  if (typeof data !== 'string' || data.trim().toLowerCase() !== pending.email.trim().toLowerCase()) return { email: null, error: 'The updated email could not be confirmed. Refresh your account.' };
+  return { email: data, error: null };
 }

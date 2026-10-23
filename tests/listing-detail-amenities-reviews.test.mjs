@@ -7,11 +7,11 @@ const detail = readFileSync(
   "utf8",
 );
 const migration = readFileSync(
-  new URL("../supabase/migrations/20261007190000_production_schema_reconciliation.sql", import.meta.url),
+  new URL("../supabase/migrations/20261023121029_booking_bound_property_reviews.sql", import.meta.url),
   "utf8",
 );
 
-test("property details show saved amenities and verified guest reviews", () => {
+test("property details show saved amenities and verified property reviews", () => {
   assert.match(detail, /listing\.amenities\.map\(\(amenity\)/);
   assert.match(detail, /get_listing_review_summary/);
   assert.match(detail, /listingReviewSummary\.reviews\.map/);
@@ -19,9 +19,9 @@ test("property details show saved amenities and verified guest reviews", () => {
 
 test("a property review requires the existing server-verified eligibility gate", () => {
   assert.match(detail, /listingReviewSummary\?\.eligible/);
-  assert.match(detail, /create_my_verified_listing_review/);
+  assert.match(detail, /submitBookingReview\(listingReviewSummary\.eligible_reservation_id/);
   assert.match(migration, /create_my_verified_listing_review/);
-  assert.match(migration, /A verified stay or occupancy is required before reviewing this apartment/);
+  assert.match(migration, /Verified occupancy or a completed verified stay is required/);
   assert.match(migration, /r\.rent_payment_status='paid'/);
-  assert.match(migration, /not exists\([\s\S]*from public\.listing_reviews/);
+  assert.match(migration, /reservation_id=booking\.id/);
 });

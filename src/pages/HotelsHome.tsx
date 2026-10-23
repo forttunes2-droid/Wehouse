@@ -1,9 +1,10 @@
+import SponsoredPlacement from "@/components/SponsoredPlacement";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
-import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
+import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getHotels } from "@/lib/supabase";
@@ -234,9 +235,7 @@ export default function HotelsHome({ onNavigate }: Props) {
     entry: filtered.find(({ hotel }) => String(hotel.hotel_id) === item.resource_id),
   })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
     [sponsoredResults, filtered]);
-  useEffect(() => {
-    sponsoredHotels.forEach(item => recordSponsoredImpression(item.campaignId, 'hotel_discovery'));
-  }, [sponsoredHotels]);
+
 
   const priceActive = minPrice !== "" || maxPrice !== "";
   const filterCount =
@@ -367,13 +366,13 @@ export default function HotelsHome({ onNavigate }: Props) {
           <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored hotels</p>
           <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching hotels. WeHouse checks and organic order are separate.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <div key={campaignId}>
+            {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <SponsoredPlacement key={campaignId} campaignId={campaignId} context="hotel_discovery">
               <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
               <HotelCard hotel={hotel} distance={distance} saved={savedHotelIds.has(Number(hotel.hotel_id))}
                 saving={savingHotelId === Number(hotel.hotel_id)}
                 onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
                 onOpen={() => { recordSponsoredOpen(campaignId); onNavigate('hotel_detail', String(hotel.hotel_id)); }} />
-            </div>)}
+            </SponsoredPlacement>)}
           </div>
         </section>}
 

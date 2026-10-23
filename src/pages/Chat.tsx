@@ -153,8 +153,8 @@ export default function Chat({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<InboxCategory>("all");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
-  const [view, setView] = useState<"messages" | "activity">(initialFriendChatId ? "activity" : "messages");
-  useEffect(() => { if (initialFriendChatId) setView("activity"); }, [initialFriendChatId]);
+  const [view, setView] = useState<"messages" | "activity">("messages");
+  useEffect(() => { if (initialFriendChatId) setView("messages"); }, [initialFriendChatId]);
 
   useEffect(() => {
     if (view !== "activity") return;
@@ -584,7 +584,6 @@ export default function Chat({
         <div className="sticky top-0 z-30 bg-[var(--wh-bg)]/95 px-4 pt-3 backdrop-blur-xl sm:px-5 lg:px-8">
           <ActivityHeader onBack={() => setView("messages")} className="mx-auto max-w-5xl" />
         </div>
-        <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8"><FriendsPanel myUserId={profile.user_id} initialChatId={initialFriendChatId} onInitialChatOpened={onFriendChatOpened} onNavigate={onNavigate} /></main>
         <Notifications
           profile={profile}
           scope="personal"
@@ -606,6 +605,7 @@ export default function Chat({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+        {!conversationOnly && <FriendsPanel myUserId={profile.user_id} initialChatId={initialFriendChatId} onInitialChatOpened={onFriendChatOpened} onNavigate={onNavigate} />}
         <section className="pt-4">
           <h2 className="sr-only">Messages</h2>
           <label className="flex h-12 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 focus-within:border-violet-500/45">

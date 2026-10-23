@@ -2,30 +2,38 @@ import { useState } from 'react';
 import AccountShell, { AccountRow, AccountSection } from '@/components/AccountShell';
 import PrivacySettings from '@/pages/PrivacySettings';
 import SecuritySettings from '@/pages/SecuritySettings';
+import MyReports from '@/components/MyReports';
 import type { Profile } from '@/types';
+import { useWorkspaceAccess } from '@/hooks/useWorkspaceAccess';
 
-type Section='privacy'|'access'|'devices'|'close';
+type Section='privacy'|'access'|'devices'|'close'|'reports';
 type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;onLogout?:()=>Promise<unknown>;initialSection?:Section};
 
 export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogout,initialSection}:Props){
   const [section,setSection]=useState<Section|null>(initialSection||null);
-  const hasPrivacyControls=profile.role==='user';
+  const workspace=useWorkspaceAccess(profile.user_id);
+  const hasPrivacyControls=Boolean(workspace.access?.personal_workspace||workspace.access?.privileged_workspaces?.some(item=>item.role==='worker'));
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
-  const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':'Privacy & Security';
-  const description=section==='privacy'?'Control roommate discovery and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':'Only settings that directly change or protect this account.';
+  const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':section==='reports'?'Reports you sent':'Privacy & Security';
+  const description=section==='privacy'?'Manage incoming calls and available profile visibility settings.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':section==='reports'?'Check the review status of reports you sent.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
 
-    {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
+    {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded workspaceAccess={workspace.access} workspaceError={workspace.error} reloadWorkspace={workspace.reload}/>:
     section==='access'?<><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="password"/><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/></>:
     section==='devices'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/>:
     section==='close'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="close"/>:
+    section==='reports'?<MyReports/>:
     <>
+      {workspace.error&&<p role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 text-sm">Privacy access could not be loaded. <button className="min-h-11 underline" onClick={()=>void workspace.reload()}>Try again</button></p>}
       {hasPrivacyControls&&<AccountSection title="Privacy">
-        <AccountRow title="Roommate visibility" detail="Control profile visibility and participation in roommate discovery" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
+        <AccountRow title="Privacy & calls" detail="Incoming call controls and available profile visibility settings" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
       </AccountSection>}
       <AccountSection title="Account access">
         <AccountRow title="Access & security" detail="Password, trusted devices and active sessions" onClick={()=>setSection('access')} icon={<LockIcon/>}/>
+      </AccountSection>
+      <AccountSection title="Safety">
+        <AccountRow title="Reports you sent" detail="Check whether WeHouse has received or reviewed your reports" onClick={()=>setSection('reports')} icon={<ShieldIcon/>}/>
       </AccountSection>
       {canClose&&<AccountSection title="Account ownership">
         {canClose&&(

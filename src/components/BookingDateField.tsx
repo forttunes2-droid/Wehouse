@@ -59,17 +59,17 @@ export default function BookingDateField({ label, value, min, max, onChange, con
         if (dragged) { event.preventDefault(); return; }
         setOpen(true);
       }}
-      className="flex min-h-12 w-full touch-manipulation items-center justify-between gap-2 rounded-xl border border-white/15 bg-[var(--wh-interactive)] px-3 text-left text-sm text-white outline-none focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-400/40 disabled:opacity-40">
+      className="flex min-h-12 w-full touch-manipulation items-center justify-between gap-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 text-left text-sm text-[var(--wh-text)] outline-none focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-400/40 disabled:opacity-40">
       <span className="min-w-0 truncate">{value ? displayDate(value) : "Choose date"}</span>
-      <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-300" />
+      <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--wh-accent-text)]" />
     </button>
     {open && typeof document !== "undefined" && createPortal(
-      <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100300] flex touch-none items-end justify-center bg-black/75 sm:items-center sm:p-5" onClick={event => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100300] flex touch-none items-end justify-center bg-[var(--wh-overlay)] sm:items-center sm:p-5" onClick={event => { if (event.target === event.currentTarget) setOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-label={`Choose ${label}`} onClick={event => event.stopPropagation()}
           className="max-h-[calc(100dvh-1rem)] w-full touch-pan-y overflow-y-auto overscroll-contain rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-[var(--wh-text)] shadow-2xl sm:max-w-md sm:rounded-3xl">
           <header className="flex items-start justify-between gap-3 border-b border-[var(--wh-border-subtle)] px-5 py-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-violet-300">{context}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[var(--wh-accent-text)]">{context}</p>
               <h2 className="mt-1 text-lg font-semibold">Choose {label.toLowerCase()}</h2>
               <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{value ? displayDate(value) : "Select an available day"}</p>
             </div>
@@ -82,7 +82,7 @@ export default function BookingDateField({ label, value, min, max, onChange, con
               disabled={[...(first ? [{ before: first }] : []), ...(last ? [{ after: last }] : [])]}
               onSelect={date => { if (date) { onChange(calendarValue(date)); setOpen(false); } }}
               className="w-full max-w-sm rounded-2xl bg-[var(--wh-elevated)] p-2 [--cell-size:2.5rem]"
-              classNames={{ caption_label: "text-sm font-semibold text-white", weekday: "flex-1 text-xs text-[var(--wh-text-secondary)]", today: "rounded-xl bg-violet-500/10 text-violet-200", selected: "rounded-xl bg-violet-500 text-white", day_button: "rounded-xl hover:bg-[var(--wh-interactive)]" }} />
+              classNames={{ caption_label: "text-sm font-semibold text-[var(--wh-text)]", weekday: "flex-1 text-xs text-[var(--wh-text-secondary)]", today: "rounded-xl bg-violet-500/10 text-[var(--wh-accent-text)]", selected: "rounded-xl bg-violet-500 text-white", day_button: "rounded-xl hover:bg-[var(--wh-interactive)]" }} />
           </div>
           <p className="border-t border-[var(--wh-border-subtle)] px-5 py-3 pb-[max(.85rem,env(safe-area-inset-bottom))] text-xs text-[var(--wh-text-secondary)]">{label === "Check-out" ? "Choose a day after check-in." : context === "Stay dates" ? "Dates outside the booking window are unavailable." : "Choose a date inside the allowed range."}</p>
         </section>

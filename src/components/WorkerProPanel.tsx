@@ -7,6 +7,7 @@ import { isAndroid, isIOS, isNative } from '@/lib/native';
 import { getNativeStorePlan, purchaseNativeStoreProduct, restoreNativeStoreSubscriptions, type NativeStorePlan } from '@/lib/nativePurchases';
 import type { Profile, WorkerProBillingPeriod, WorkerProEntitlement } from '@/types';
 import { formatMoney } from "@/lib/regional";
+import { WORKER_PRO_TOOLS } from '@/content/proTools';
 
 type Props = {
   pro: WorkerProEntitlement | null;
@@ -91,10 +92,13 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
       return;
     }
     setBusy(true);
-    const result = await supabase.functions.invoke('worker-pro-manage');
-    setBusy(false);
-    if (result.error || !result.data?.url) return toast.error(result.data?.error || result.error?.message || 'Subscription management could not open');
-    window.location.assign(String(result.data.url));
+    try {
+      const result = await supabase.functions.invoke('worker-pro-manage');
+      if (result.error || !result.data?.url) throw new Error('Subscription management could not open. Please try again.');
+      window.location.assign(String(result.data.url));
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : 'Subscription management could not open. Please try again.');
+    } finally { setBusy(false); }
   }
 
   async function restore() {
@@ -161,7 +165,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           </div>
         </div>
         <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-          {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule, calendar export and in-app work reminders', 'Job costs, released earnings and net-after-costs CSV', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><span>{feature}</span></div>)}
+          {WORKER_PRO_TOOLS.map(([title, detail]) => <div key={title} className="flex min-h-12 items-start gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{detail}</p></div></div>)}
         </div>
         {!pro.active && !underReview && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">

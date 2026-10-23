@@ -8,13 +8,45 @@ import ts from 'typescript';
 const require=createRequire(import.meta.url);
 function moduleAt(path, dependencies={}, globals={}) {
   const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-  const exports={};vm.runInNewContext(code,{exports,require:name=>name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name]??require(name),...globals});return exports;
+  const exports={};vm.runInNewContext(code,{exports,require:name=>name==='@/lib/withTimeout'?moduleAt('src/lib/withTimeout.ts',{}, {setTimeout,clearTimeout}):name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name]??require(name),...globals});return exports;
 }
 const api=moduleAt('src/lib/supabase/support.ts',{'./client':{},'@/lib/propertyBookingLifecycle':{propertyBookingStatusLabel:()=> 'Status unavailable'}});
 const dates=moduleAt('src/lib/displayDate.ts',{'./regional':moduleAt('src/lib/regional.ts')});
 const topic=id=>({contextType:'hotel_property',contextId:id,contextSnapshot:{hotel_name:id}});
 const thread=id=>({conversation_id:'chat-'+id,subject:id,status:'open',context_type:'hotel_property',context_id:id,context_snapshot:{hotel_name:id}});
 const tick=()=>new Promise(setImmediate);
+
+test('assigned Field Operations participation enables replies without property-case ownership controls',()=>{
+ const row={assigned_staff_id:null,context_snapshot:{field_assignee_id:'field-a'}};
+ let controls=api.operationalConversationControls(row,'field-a','field_operations');
+ assert.equal(controls.canReply,true);assert.equal(controls.ownsCase,false);assert.equal(controls.canClaim,false);
+ controls=api.operationalConversationControls(row,'field-b','field_operations');
+ assert.equal(controls.canReply,false);assert.equal(controls.ownsCase,false);
+ controls=api.operationalConversationControls({...row,assigned_staff_id:'property-a'},'property-a','operations');
+ assert.equal(controls.canReply,true);assert.equal(controls.ownsCase,true);
+ controls=api.operationalConversationControls(row,'','field_operations');
+ assert.equal(controls.canReply,false);assert.equal(controls.canClaim,false);
+});
+
+test('Support reply requires a receipt and retries the same intent after response loss',async()=>{
+ const calls=[];let attempts=0;
+ const id='11111111-1111-4111-8111-111111111111';
+ const client=moduleAt('src/lib/supabase/support.ts',{'./client':{supabase:{rpc:async(name,args)=>{calls.push({name,args});return ++attempts===1?{data:null,error:null}:{data:id,error:null};}}},'@/lib/propertyBookingLifecycle':{}},{crypto:{randomUUID:()=>id}});
+ const first=await client.sendReliableSupportReply('person-a','conversation-a','Please help',[]);
+ assert.ok(first.error);assert.equal(first.messageId,null);
+ const retry=await client.sendReliableSupportReply('person-a','conversation-a','Please help',[]);
+ assert.equal(retry.error,null);assert.equal(retry.messageId,id);
+ assert.equal(calls[0].name,'send_support_message_v2');
+ assert.equal(calls[0].args.p_request_id,calls[1].args.p_request_id);
+});
+
+test('All operational work areas use their domain message queue and shared Activity entry',()=>{
+ const staff=readFileSync(new URL('../src/pages/StaffWorkspaceRepair.tsx',import.meta.url),'utf8');
+ for(const queue of ['finance_operations','security_operations','worker_operations','field_operations'])assert.ok(staff.includes('"'+queue+'"'));
+ assert.match(staff,/queue=\{communicationQueue\}/);
+ assert.doesNotMatch(staff,/function ActivityOnlyInbox/);
+ assert.match(staff,/<InboxActivityEntry/);
+});
 test('Property conversation client passes canonical subjects and reads the returned conversation ID',async()=>{
   const calls=[];
   const client=moduleAt('src/lib/supabase/support.ts',{'./client':{supabase:{rpc:async(name,args)=>{calls.push({name,args});return {data:{conversation_id:'saved-'+args.p_subject_id},error:null};}}},'@/lib/propertyBookingLifecycle':{}});

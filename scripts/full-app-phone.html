@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WeHouse · Full Test app</title>
+<style>
+:root{font-family:system-ui,sans-serif;color-scheme:light dark;background:light-dark(#f5f3fa,#111016);color:light-dark(#201b2b,#f5f1fb)}*{box-sizing:border-box}body{margin:0;padding:24px 12px}main{max-width:1240px;margin:auto}h1{font-size:24px;margin:0 0 8px}p{line-height:1.6;max-width:70ch}.controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:20px 0}label{display:flex;align-items:center;gap:8px}select,a{font:inherit;min-height:44px;padding:10px;border-radius:10px;color:inherit}select{background:light-dark(#fff,#221e2a);border:1px solid light-dark(#c8bfd7,#655b72)}.device{width:min(100%,410px);margin:auto;padding:8px;background:light-dark(#2c2537,#74677f);border-radius:30px;box-shadow:0 16px 50px #0002}.device iframe{display:block;width:100%;height:780px;border:0;border-radius:23px;background:light-dark(#fff,#15111b)}.device.tablet{width:min(100%,820px)}.device.desktop{width:100%;border-radius:16px}.device.desktop iframe{border-radius:10px}@media(max-width:450px){body{padding:16px 8px}.device{padding:4px}.device iframe{height:700px}}
+</style></head><body><main>
+<h1>WeHouse · Full Test app</h1>
+<p>This is the current app connected to the Test environment. Use a Test account to access your permitted dashboards. Actions save to Test. Production is unchanged.</p>
+<div class="controls"><label>Screen size<select id="size"><option value="phone">Phone</option><option value="tablet">Tablet</option><option value="desktop">Desktop</option></select></label><a href="http://127.0.0.1:5180" target="_blank" rel="noopener">Open app in its own tab</a></div>
+<div id="device" class="device"><iframe title="Full WeHouse Test app" src="http://127.0.0.1:5180" allow="camera; microphone; geolocation; clipboard-write"></iframe></div>
+</main><script>document.getElementById('size').addEventListener('change',event=>{document.getElementById('device').className='device '+event.target.value;});</script></body></html>

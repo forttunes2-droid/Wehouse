@@ -270,7 +270,7 @@ export default function WorkerSetupProfessional({
       );
 
     setInitialServicesKey(servicesKey(services));
-    toast.success("Worker profile saved");
+    toast.success("Service Worker profile saved");
 
     if (!profile.worker_verified) {
       if (onContinueVerification) {

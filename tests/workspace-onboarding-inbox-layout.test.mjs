@@ -14,9 +14,9 @@ test("professional onboarding stays inside its workspace and never traps switchi
     read("src/App.tsx"),
   ]);
 
-  assert.match(worker, /ACTIVATION_NAV = \[\{ id: "home", label: "Setup" \}, \{ id: "inbox", label: "Inbox" \}\]/);
-  assert.match(worker, /!live && safeTab === "inbox"[\s\S]*?<SupportEntryCard/);
-  assert.doesNotMatch(worker, /ACTIVATION_NAV[\s\S]{0,160}label: "Account"/);
+  assert.match(worker, /COMMON_NAV = \[[\s\S]*?label: "Experiences"[\s\S]*?label: "Inbox"[\s\S]*?label: "Earnings"[\s\S]*?label: "Account"/);
+  assert.match(worker, /!canManageJobs && safeTab === "inbox"[\s\S]*?<ApplicantInbox/);
+  assert.match(worker, /useProviderWorkspaceCapabilities/);
   assert.match(worker, /WorkspaceSwitchSheet/);
   assert.match(worker, /onWorkspaceSwitch=/);
   assert.match(gate, /onWorkspaceSwitch\?: \(\) => void/);
@@ -74,5 +74,5 @@ test("Inbox favors cache and realtime reconciliation over fixed polling", async 
   assert.match(admin, /InboxActivityEntry/);
   assert.match(admin, /Back to Inbox messages/);
   assert.match(staff, /InboxActivityEntry/);
-  assert.match(staff, /Assigned conversations in this Operation/);
+  assert.match(staff, /Conversations for this work area/);
 });

@@ -1,0 +1,83 @@
+begin;
+create function pg_temp.expect(value boolean,description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description;end if;end$$;
+create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$begin execute statement;return false;exception when others then return true;end$$;
+grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to authenticated;
+do $$
+declare actors jsonb:='{}'; kind text; au uuid; sid uuid; person text; actor jsonb;
+ alternate uuid:=gen_random_uuid(); conversation uuid:=gen_random_uuid(); c uuid; receipt jsonb;
+begin
+ for kind in select unnest(array['caller','callee','outsider']) loop
+  au:=gen_random_uuid();sid:=gen_random_uuid();person:='call-contract-'||au;
+  insert into auth.users(id,aud,role,email,created_at,updated_at) values(au,'authenticated','authenticated',au||'@example.invalid',now(),now());
+  insert into public.profiles(auth_id,email,user_id,role,account_kind,profile_complete,full_name)
+  values(au,au||'@example.invalid',person,'user','consumer',true,'Call contract');
+  insert into auth.sessions(id,user_id,created_at,updated_at) values(sid,au,now(),now());
+  insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+  values(person,au,sid,'call-'||sid,'Browser',true,'trusted');
+  actors:=actors||jsonb_build_object(kind,jsonb_build_object('auth',au,'session',sid,'person',person));
+ end loop;
+ actor:=actors->'callee';
+ insert into auth.sessions(id,user_id,created_at,updated_at) values(alternate,(actor->>'auth')::uuid,now(),now());
+ insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+ values(actor->>'person',actor->>'auth',alternate,'call-'||alternate,'Other browser',true,'trusted');
+ insert into public.conversations(id,participant_a,participant_b,conversation_type,status)
+ values(conversation,actors->'caller'->>'person',actors->'callee'->>'person','roommate','active');
+ actor:=actors->'caller';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ receipt:=public.start_private_call('roommate',conversation,'audio'); c:=(receipt->>'id')::uuid;
+ perform pg_temp.expect(receipt->>'status'='ringing','trusted caller starts call');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.start_private_call(%L,%L,%L)','roommate',conversation,'audio')),'participant busy prevents a second call');
+ insert into public.private_call_signals(call_id,sender_id,signal_type,payload) values(c,actor->>'person','offer','{"type":"offer","sdp":"fixture"}');
+ execute 'reset role';
+ actor:=actors->'outsider';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ perform pg_temp.expect(not public.can_access_private_call(c,true),'unrelated person cannot read signals');
+ perform pg_temp.expect((select count(*)=0 from public.private_call_signals where call_id=c),'RLS hides signals from unrelated person');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_private_call_details(%L)',c)),'unrelated person cannot inspect call');
+ execute 'reset role';
+ actor:=actors->'callee';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ perform pg_temp.expect(not public.can_access_private_call(c,true),'ringing callee must answer before signal access');
+ perform public.set_my_private_call_preferences(false,false);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.respond_private_call(%L,true)',c)),'preference change is enforced at answer time');
+ perform public.set_my_private_call_preferences(true,true);
+ execute 'reset role';
+ insert into public.roommate_user_blocks(blocker_user_id,blocked_user_id) values(actor->>'person',actors->'caller'->>'person');
+ execute 'set local role authenticated';
+ perform pg_temp.expect(pg_temp.rejects(format('select public.respond_private_call(%L,true)',c)),'block after ringing prevents answer');
+ execute 'reset role';
+ update public.roommate_user_blocks set updated_at=now()-interval '31 days' where blocker_user_id=actor->>'person' and blocked_user_id=actors->'caller'->>'person';
+ delete from public.roommate_user_blocks where blocker_user_id=actor->>'person' and blocked_user_id=actors->'caller'->>'person';
+ execute 'set local role authenticated';
+ receipt:=public.respond_private_call(c,true);
+ perform pg_temp.expect(receipt->>'status'='accepted' and public.can_access_private_call(c,true),'answer binds this trusted device');
+ receipt:=public.respond_private_call(c,true);
+ perform pg_temp.expect(receipt->>'status'='accepted','answer retry preserves accepted call');
+ execute 'reset role';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',alternate,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ perform pg_temp.expect(not public.can_access_private_call(c,true),'other trusted device cannot join accepted call');
+ perform pg_temp.expect(public.get_my_active_private_calls()='[]'::jsonb,'other trusted device does not auto-open media');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.end_private_call(%L)',c)),'other device cannot hang up owned call');
+ execute 'reset role';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ update public.user_sessions set is_active=false where auth_session_id=actor->>'session';
+ execute 'set local role authenticated';
+ perform pg_temp.expect(pg_temp.rejects('select public.get_my_private_call_preferences()'),'revoked device cannot change or read call preferences');
+ perform pg_temp.expect(not public.can_access_private_call(c,true),'revoked device cannot access signals');
+ execute 'reset role';
+ actor:=actors->'caller';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ perform pg_temp.expect(public.get_my_active_private_calls()='[]'::jsonb,'peer revocation closes active call');
+ execute 'reset role';
+ perform pg_temp.expect((select status='ended' from public.private_calls where id=c),'call history retained after expiry');
+ perform pg_temp.expect((select count(*)=0 from public.private_call_signals where call_id=c),'ephemeral signals removed on end');
+ perform pg_temp.expect(not has_function_privilege('authenticated','private.private_call_actor()','execute'),'private actor helper is not directly exposed');
+ perform pg_temp.expect(not has_table_privilege('authenticated','public.private_calls','update'),'browser cannot directly mutate call state');
+end $$;
+rollback;
+select 'Private call device, preference, block, busy, revocation and signal RLS checks passed; fixtures rolled back' as result;

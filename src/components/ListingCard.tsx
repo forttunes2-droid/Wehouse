@@ -1,4 +1,5 @@
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import { homeStyleLabel } from '@/lib/homeStyles';
 import { locationLabel } from "@/lib/locationPresentation";
 import type { Listing, ListingStatus } from "@/types";
 import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from "@/types";
@@ -135,15 +136,16 @@ export default function ListingCard({
               {listing.sub_type === "short_let" ? "Short Let" : "Long Let"}
             </p>
             <h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3>
+            {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</p>}
             <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
               {locationLabel(listing.address, listing.city, listing.state) ||
                 "Location unavailable"}
             </p>
           </div>
           <div className="shrink-0 text-right text-[9px] text-[var(--wh-text-secondary)]">
-            {listing.bedrooms > 0 ? (
+            {listing.bedrooms != null ? (
               <p>
-                {listing.bedrooms} bed · {listing.bathrooms || 0} bath
+                {homeStyleLabel(listing.home_style) ? `${homeStyleLabel(listing.home_style)} · ` : ''}{listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`} · {listing.bathrooms ?? '—'} bath
               </p>
             ) : null}
             {distanceLabel ? (
@@ -197,14 +199,15 @@ export default function ListingCard({
           <h3 className="mt-1 line-clamp-2 text-[13px] font-bold leading-4">
             {displayTitle}
           </h3>
+          {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</p>}
           <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
             {locationLabel(listing.address, listing.city, listing.state) ||
               "Location unavailable"}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] text-[var(--wh-text-secondary)]">
-            {listing.bedrooms > 0 ? (
+            {listing.bedrooms != null ? (
               <span>
-                {listing.bedrooms} bed · {listing.bathrooms || 0} bath
+                {homeStyleLabel(listing.home_style) ? `${homeStyleLabel(listing.home_style)} · ` : ''}{listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`} · {listing.bathrooms ?? '—'} bath
               </span>
             ) : null}
             {distanceLabel ? (

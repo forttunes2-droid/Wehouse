@@ -1,6 +1,10 @@
 # Supabase Configuration
 project_id = "wehouse"
 
+[functions.email-account-security]
+# Password recovery is public; device approval verifies its bearer in the body.
+verify_jwt = false
+
 [auth]
 enable_manual_linking = true
 
@@ -19,3 +23,18 @@ verify_jwt = true
 
 [functions.creator-security-setup]
 verify_jwt = true
+
+# Status validates Auth; dispatch validates a dedicated worker secret in the body handler.
+[functions.native-push]
+verify_jwt = false
+
+# Scheduled dispatch validates its private cron secret before service authority.
+[functions.financial-action-processor]
+verify_jwt = false
+
+[functions.financial-action-reconcile]
+verify_jwt = true
+
+# PMS partners use a hashed, scoped connection token, checked on every request.
+[functions.hotel-pms-api]
+verify_jwt = false

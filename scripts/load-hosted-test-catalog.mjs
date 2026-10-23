@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import { assessCatalogStage, catalogWarmupComplete, CATALOG_CAPACITY_LIMITS } from './lib/catalog-capacity-gates.mjs';
 
 // Explicit allowlist: this cannot be pointed at the live WeHouse project.
 const origin = new URL('https://qoobnkedfyosnizrlttt.supabase.co');
@@ -52,16 +53,26 @@ async function read(path) {
   return { name: path.name, ms: performance.now() - started, ok: false, status: 'retry-exhausted', retries, retry_status };
 }
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
-  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; max 3000 in flight (200 RPS × the 15-second request timeout).',
+  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Thirty-second stages are a catalog smoke benchmark, not sustained whole-product capacity. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; fixed ceiling of 3000 logical requests in flight, each allowing up to three 15-second attempts.',
+  measured_at: new Date().toISOString(),
+  status: 'running',
+  passed: false,
+  reviewed_sha: process.env.GITHUB_SHA || null,
+  gates: CATALOG_CAPACITY_LIMITS,
   warmup: { max_seconds: 180, attempts: 0, failures: [], successful_paths: [] },
   stages: [] };
+function saveReport() {
+  mkdirSync('test-results', { recursive: true });
+  writeFileSync('test-results/hosted-test-catalog.json', JSON.stringify(result, null, 2) + '\n');
+}
+saveReport();
 
 // Hosted Test projects can resume from idle. Do not mix cold-start/resume
 // failures into the measured 1 RPS baseline. First require every read contract
 // to return valid data, retaining the warm-up evidence and bounding startup wait.
 const warmupDeadline = performance.now() + 180_000;
 for (const path of paths) {
-  let lastFailure = null;
+  let lastFailure = { path: path.name, status: 'warmup-deadline-before-validation', retries: 0 };
   while (performance.now() < warmupDeadline) {
     result.warmup.attempts++;
     const sample = await read(path);
@@ -76,13 +87,15 @@ for (const path of paths) {
   }
   if (lastFailure) {
     result.warmup.elapsed_ms = Math.round(180_000 - Math.max(0, warmupDeadline - performance.now()));
-    mkdirSync('test-results', { recursive: true });
-    writeFileSync('test-results/hosted-test-catalog.json', JSON.stringify(result, null, 2) + '\\n');
+    result.status = 'warmup_failed';
+    result.passed = false;
+    saveReport();
     console.error('Hosted Test project did not become ready during bounded warm-up', lastFailure);
     process.exit(1);
   }
 }
 result.warmup.elapsed_ms = Math.round(180_000 - Math.max(0, warmupDeadline - performance.now()));
+assert.ok(catalogWarmupComplete(result.warmup.successful_paths, paths.map(path => path.name)), 'Every catalog contract must pass warm-up');
 console.log(`Hosted Test warm-up ready: ${result.warmup.successful_paths.length}/${paths.length} read contracts validated in ${result.warmup.elapsed_ms}ms (${result.warmup.attempts} attempts)`);
 await new Promise(resolve => setTimeout(resolve, 5000));
 let serial = 0;
@@ -97,11 +110,12 @@ for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [1
     if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
     // Size the ceiling to the offered rate and request timeout, rather than
     // dropping valid arrivals at 500 in-flight and confusing generator saturation
-    // with service saturation. The run still fails on actual errors, drops, or >1% retries.
+    // with service saturation. Errors, latency, retries and dispatch timing are gated below.
     if (running.size >= 3000) { dropped++; continue; }
     const task = read(paths[serial++ % paths.length]).then(sample => samples.push(sample));
     running.add(task); max_inflight = Math.max(max_inflight, running.size); void task.finally(() => running.delete(task));
   }
+  const dispatchSeconds = (performance.now() - started) / 1000 + 1 / rps;
   await Promise.all(running);
   const elapsed = (performance.now() - started) / 1000;
   const good = samples.filter(s => s.ok).map(s => s.ms).sort((a, b) => a - b);
@@ -109,7 +123,7 @@ for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [1
   const retriedRequests = samples.filter(s => s.retries > 0).length;
   const retryAttempts = samples.reduce((sum, s) => sum + s.retries, 0);
   const retried = samples.filter(s => s.retries > 0);
-  const stage = { target_rps: rps, seconds, max_inflight, offered: rps * seconds, completed: samples.length, errors: errors.length, dropped,
+  const stage = { target_rps: rps, seconds, dispatch_seconds: dispatchSeconds, max_inflight, offered: rps * seconds, completed: samples.length, errors: errors.length, dropped,
     retried_requests: retriedRequests, retry_attempts: retryAttempts,
     retry_rate_pct: samples.length ? Math.round(retriedRequests / samples.length * 100000) / 1000 : 0,
     retry_statuses: Object.fromEntries([...new Set(retried.map(s => String(s.retry_status)))].map(code => [code, retried.filter(s => String(s.retry_status) === code).length])),
@@ -118,9 +132,17 @@ for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [1
     by_path: Object.fromEntries(paths.map(path => { const sample = samples.filter(s => s.name === path.name);
       const goodPath = sample.filter(s => s.ok).map(s => s.ms).sort((a, b) => a - b);
       return [path.name, { requests: sample.length, errors: sample.length - goodPath.length, p95_ms: pct(goodPath, .95) }]; })) };
+  stage.assessment = assessCatalogStage(stage, paths.map(path => path.name));
   result.stages.push(stage);
+  saveReport();
   console.log(`hosted Test target=${rps}rps in_flight=${stage.max_inflight} completed=${stage.completed}/${stage.offered} errors=${stage.errors} retries=${stage.retry_attempts} dropped=${dropped} p95=${stage.p95_ms}ms`);
+  if (!stage.assessment.passed) {
+    console.error('Stopping the ramp after a failed stage:', stage.assessment.failures);
+    break;
+  }
 }
-mkdirSync('test-results', { recursive: true });
-writeFileSync('test-results/hosted-test-catalog.json', JSON.stringify(result, null, 2) + '\n');
-if (result.stages.some(s => s.errors || s.dropped || s.completed !== s.offered || s.retry_rate_pct > 1)) process.exitCode = 1;
+result.passed = result.stages.length === 7 && result.stages.every(stage => stage.assessment.passed);
+result.status = result.passed ? 'passed' : 'failed';
+result.finished_at = new Date().toISOString();
+saveReport();
+if (!result.passed) process.exitCode = 1;

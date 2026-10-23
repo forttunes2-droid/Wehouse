@@ -2,6 +2,7 @@ import {
   getPropertyBookingJourney,
   type PropertyJourneyAudience,
 } from "@/lib/propertyBookingLifecycle";
+import { displayDate, displayDateTimeAtProperty } from '@/lib/displayDate';
 
 export default function PropertyBookingJourney({
   row,
@@ -24,6 +25,13 @@ export default function PropertyBookingJourney({
       <p className={`mt-1 max-w-xl text-[10px] leading-4 text-[var(--wh-text-secondary)]`}>
         {journey.detail}
       </p>
+      {journey.action === 'inspection' && inspection?.scheduled_date && (
+        <p className="mt-3 text-xs font-semibold text-[var(--wh-text)]">
+          Viewing scheduled: {/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(inspection.scheduled_date))
+            ? displayDate(inspection.scheduled_date)
+            : displayDateTimeAtProperty(inspection.scheduled_date, row.property_timezone || row.timezone)}
+        </p>
+      )}
       <ol className="mt-4 space-y-0">
         {journey.steps.map((step, index) => (
           <li
@@ -39,7 +47,7 @@ export default function PropertyBookingJourney({
             )}
             <span
               aria-hidden="true"
-              className={`relative z-10 grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[9px] font-bold ${
+              className={`wh-motion-control relative z-10 grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs font-bold ${
                 step.state === "complete"
                   ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-300"
                   : step.state === "current"

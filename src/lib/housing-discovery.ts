@@ -12,6 +12,7 @@ export type HomeSearchFilters = {
   maxPrice?: number | '';
   bedrooms?: number | '';
   bathrooms?: number | '';
+  homeStyle?: string;
 };
 export type HomePageCursor = { createdAt: string; id: string };
 
@@ -28,6 +29,7 @@ export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, curs
     p_cursor_created_at: cursor?.createdAt || null,
     p_cursor_id: cursor?.id || null,
     p_limit: 24,
+    p_home_style: filters.homeStyle || null,
   });
 
   // The server RPC is the publication/operational boundary. Short Let date

@@ -26,10 +26,9 @@ import {
   sendFirstContextualHelpMessage,
   sendFirstWeHouseMessage,
   supportContextForWorkspace,
-  sendSupportMessage,
+  sendReliableSupportReply,
   supportNextStep,
   supportStatusLabel,
-  uploadSupportAttachment,
   uploadSupportDraftAttachment,
   supportContextType,
   sanitizeSupportSnapshot,
@@ -144,7 +143,7 @@ export default function SupportChat({
     if (!list) return;
     const allowed = Array.from(list).filter((file) => {
       if (file.size > 25 * 1024 * 1024) {
-        toast.error(`${file.name} is larger than 25MB`);
+        toast.error(`${file.name} is larger than 25 MiB`);
         return false;
       }
       if (!isSupportedSupportEvidence(file)) {
@@ -280,7 +279,7 @@ export default function SupportChat({
   }, [thread?.conversation_id, open, loadMessages, refreshThread]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    bottomRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "end" });
   }, [messages.length, open]);
 
   useEffect(() => {
@@ -305,30 +304,9 @@ export default function SupportChat({
 
       const existingConversationId = thread?.conversation_id || null;
       if (existingConversationId) {
-        const paths: string[] = [];
-        const types: string[] = [];
-        for (const file of files) {
-          const uploaded = await uploadSupportAttachment(existingConversationId, file);
-          if (uploaded.error || !uploaded.path) {
-            for (const path of paths) await deleteSupportAttachment(path);
-            toast.error(uploaded.error?.message || `Could not upload ${file.name}`);
-            return;
-          }
-          paths.push(uploaded.path);
-          types.push(file.type || "application/octet-stream");
-        }
-        const { error } = await sendSupportMessage(
-          existingConversationId,
-          input.trim(),
-          paths,
-          types,
-          null,
-        );
-        if (error) {
-          for (const path of paths) await deleteSupportAttachment(path);
-          toast.error(error.message || "Message failed");
-          return;
-        }
+        const { error } = await sendReliableSupportReply(profile.user_id,existingConversationId,input.trim(),files);
+        if(error){toast.error(error.message);return;}
+        if(request!==requestRef.current)return;
         drafts.current.delete(sendingKey);
         window.dispatchEvent(new Event("wehouse:unread-changed"));
         setInput("");
@@ -882,9 +860,9 @@ function MessageBubble({
       </div>
     );
   }
-  const senderIsWeHouse = ["staff", "admin", "creator"].includes(
-    String(msg.sender_role || ""),
-  );
+  // This is a requester-to-WeHouse thread. Workspace grants can coexist with
+  // a Personal profile role; that legacy field does not identify the handling team.
+  const senderIsWeHouse = !mine;
   const sender = mine
     ? "You"
     : msg.sender_name
@@ -905,12 +883,12 @@ function MessageBubble({
           />
         )}
         <p
-          className={`mb-1 px-1 text-[8px] font-medium ${mine ? "text-right text-violet-200/65" : "text-[var(--wh-text-muted)]"}`}
+          className={`mb-1 px-1 text-[8px] font-medium ${mine ? "text-right text-[var(--wh-text-muted)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {sender}
         </p>
         <div
-          className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[#E4E6EC]"}`}
+          className={`rounded-[19px] px-3.5 py-2.5 ${mine ? "rounded-br-md bg-violet-500 text-white" : "rounded-bl-md border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-primary)]"}`}
         >
           {(msg.attachments || []).map((path: string, i: number) => (
             <SecureSupportAttachment
@@ -925,7 +903,7 @@ function MessageBubble({
             </p>
           )}
           <p
-            className={`mt-1 text-[8px] ${mine ? "text-violet-100/65" : "text-[var(--wh-text-muted)]"}`}
+            className={`mt-1 text-[8px] ${mine ? "text-white/90" : "text-[var(--wh-text-muted)]"}`}
           >
             {formatTime(msg.created_at)}
             {mine && (
@@ -933,7 +911,7 @@ function MessageBubble({
                 className={
                   msg.is_read
                     ? "ml-1 font-bold text-cyan-200"
-                    : "ml-1 text-violet-100/45"
+                    : "ml-1 text-white/75"
                 }
               >
                 {msg.is_read ? "✓✓" : "✓"}

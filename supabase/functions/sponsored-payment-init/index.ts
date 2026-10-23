@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import { hasLiveSession } from '../_shared/liveSession.ts';
 import { consumeUserAction } from '../_shared/rateLimit.ts';
+import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 
 const headers = {
@@ -27,13 +28,16 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user?.email || !await hasLiveSession(admin, user.id, token))
       return json({ success: false, error: 'Sign in again to continue' }, 401);
-    const limit = await consumeUserAction(admin, user.id, 'sponsored_payment', 10, 600);
+    const limit = await consumeUserAction(admin, user.id, 'sponsored_payment', 10, 600, true);
     if (!limit.allowed) return json({ success: false, error: 'Too many payment attempts. Please wait and try again.', retry_after_seconds: limit.retryAfterSeconds }, 429);
     const { data: owner } = await admin.from('profiles')
       .select('user_id,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
     if (!owner || owner.deleted || owner.suspended || owner.banned)
       return json({ success: false, error: 'Account is not eligible' }, 403);
-    const { campaign_id } = await req.json();
+    const { campaign_id, expected_amount_ngn } = await req.json();
+    const expectedMinor = paymentMinorUnits(expected_amount_ngn,2);
+    if (expectedMinor===null)
+      return json({ success: false, error: 'Review a valid Sponsored price before checkout' }, 400);
     if (!/^[a-f0-9-]{36}$/i.test(String(campaign_id || '')))
       return json({ success: false, error: 'Invalid campaign' }, 400);
 
@@ -51,18 +55,22 @@ Deno.serve(async (req) => {
     const { data: payment, error: paymentError } = await admin.from('booking_payments')
       .select('id,payer_user_id,amount_total,currency,status,purpose,metadata')
       .eq('paystack_reference', reference).single();
+    const market=resolvePaymentMarket(payment?.currency);
+    const amountMinor=market?paymentMinorUnits(payment?.amount_total,market.minorDigits):null;
     if (paymentError || payment?.payer_user_id !== owner.user_id ||
       payment?.purpose !== 'sponsored_campaign' || payment.status !== 'pending' ||
-      payment.currency !== 'NGN' || Number(payment.amount_total) <= 0)
+      !market || amountMinor===null)
       return json({ success: false, error: 'Checkout record does not match the account' }, 409);
+    if (amountMinor !== expectedMinor)
+      return json({ success: false, error: 'The Sponsored price changed. Review the current offer before paying.' }, 409);
     if (payment.metadata?.paystack_authorization_url)
       return json({ success: true, reference, authorization_url: payment.metadata.paystack_authorization_url });
     const environment = secret.startsWith('sk_live_') ? 'live' : 'test';
-    const amountMinor = Math.round(Number(payment.amount_total) * 100);
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
+      signal: AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: user.email, amount: String(amountMinor), currency: 'NGN',
+      body: JSON.stringify({ email: user.email, amount: String(amountMinor), currency: market.currency,
         reference, callback_url: returnUrl,
         metadata: { purpose: 'sponsored_campaign', campaign_id, payment_id: payment.id },
       }),

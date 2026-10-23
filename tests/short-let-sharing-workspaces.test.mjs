@@ -139,8 +139,10 @@ test('Activity never infers the audience from a highest role and preserves inten
 test('Creator/Admin destinations preserve hotel, home and inspection identities without a public fallback', () => {
   const { internalActivityDestination: destination } = load('src/lib/internalActivityDestination.ts');
   for (const [route, kind] of [['hotel_detail','hotel'],['detail','listing'],['inspection','inspection']]) assert.deepEqual(plain(destination(route,'7')), { operation:'properties', id:`${kind}:7` });
-  assert.deepEqual(plain(destination('hotel_booking','42')), {operation:'bookings',id:'42'});
+  assert.deepEqual(plain(destination('hotel_booking','42')), {operation:'bookings',bookingKind:'hotels',id:'42'});
   assert.deepEqual(plain(destination('security_operations','case-1')), {operation:'security',id:'case-1'});
+  assert.deepEqual(plain(destination('service_booking','job-42')), {operation:'bookings',bookingKind:'services',id:'job-42'});
+  assert.deepEqual(plain(destination('reservation','home-42')), {operation:'bookings',id:'home-42'});
   assert.equal(destination('invented_other_dashboard','7'), null);
 });
 test('hotel daily totals and their destination filters agree and exclude cancelled arrivals', () => {
@@ -205,4 +207,16 @@ test('a property share uses real encryption and only the intended second identit
   }
   const outsider=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:client('outsider')}},{sessionStorage:storage()});
   await outsider.createEncryptionIdentity('777777');await assert.rejects(()=>outsider.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv),/access denied/);
+});
+
+
+test('Homes and Hotels connect accepted Friends to encrypted chat drafts and actionable cards',()=>{
+ const dialog=fs.readFileSync('src/components/PropertyShareDialog.tsx','utf8');
+ assert.match(dialog,/listMyFriends\(\)/);assert.match(dialog,/friend.status === 'accepted'/);assert.match(dialog,/onFriendConversation\?\.\(person.conversationId\)/);
+ const chat=fs.readFileSync('src/components/FriendChat.tsx','utf8');
+ assert.match(chat,/pendingPropertyShare\(myUserId, friend.friend_id\)/);
+ assert.match(chat,/propertyShareMessage\(propertyDraft, text\)/);
+ assert.match(chat,/onOpenProperty=\{\(page, id\) => onNavigate\?\.\(page, id\)\}/);
+ assert.match(chat,/typeof id !== 'string'/);
+ for(const kind of ['listing','hotel']){const property={kind,id:kind==='hotel'?'42':'home-one'};sharing.queuePropertyShare('me','friend-one',property,1000);assert.deepEqual(plain(sharing.pendingPropertyShare('me','friend-one',1001)),property);assert.equal(sharing.pendingPropertyShare('me','other-friend',1001),null);sharing.clearPropertyShare('me','friend-one');}
 });

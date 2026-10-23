@@ -1,3 +1,5 @@
+import WorkerCredentials from '@/components/WorkerCredentials';
+import ExperienceActivityReviewQueue from '@/components/ExperienceActivityReviewQueue';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WorkerPublicationControls from "@/components/WorkerPublicationControls";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
@@ -42,9 +44,12 @@ type Checks = {
   review_status?: string | null;
 };
 
-export default function CreatorWorkerOversight({ userId }: { userId: string }) {
+export default function CreatorWorkerOversight({ userId,initialExperienceId }: { userId: string;initialExperienceId?:string }) {
   const { requestElevation } = useCreatorAuth();
   const selection = useRef(0);
+  const reviewBusy = useRef(false);
+  const [credentialWorker,setCredentialWorker]=useState<string|null>(null);
+  const [credentialsReady,setCredentialsReady]=useState(false);
   useEffect(() => () => { selection.current += 1; }, [userId]);
   const [selected, setSelected] = useState<Worker | null>(null),
     [checks, setChecks] = useState<Checks | null>(null),
@@ -72,6 +77,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   const { data, loading, error: listError, refresh: load } = useRpcRead<Worker[]>("creator_get_people", userId, { p_workspace: "worker" });
   const rows = useMemo(() => data || [], [data]);
   async function open(worker: Worker) {
+    setCredentialWorker(null);setCredentialsReady(false);
     const current = ++selection.current;
     setSelected(worker); setReason(""); setChecks(null); setLoadingChecks(true);
     try {
@@ -117,16 +123,19 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     decision: "approve" | "reject",
     elevationId: string,
   ) {
-    if (!selected) return;
+    if (!selected || reviewBusy.current) return;
+    reviewBusy.current = true;
+    const request = selection.current;
     setActing(true);
-    const { error } = await supabase.rpc("creator_review_worker", {
+    try {
+    const { error } = await withTimeout(supabase.rpc("creator_review_worker", {
       p_worker_id: selected.user_id,
       p_decision: decision,
       p_reason: decision === "reject" ? reason.trim() : null,
       p_creator_elevation_id: elevationId,
-    });
-    setActing(false);
-    if (error) return toast.error(error.message);
+    }), 15000, 'Review confirmation timed out. Reload the review before retrying.');
+    if (error) throw error;
+    if (request !== selection.current) return;
     toast.success(
       decision === "approve"
         ? "Service Worker approved"
@@ -135,6 +144,12 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     setSelected(null);
     setReason("");
     await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'The review could not be confirmed. Reload before retrying.');
+    } finally {
+      reviewBusy.current = false;
+      setActing(false);
+    }
   }
 
   function review(decision: "approve" | "reject") {
@@ -193,6 +208,8 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   if (selected)
     return (
       <div className="space-y-4">
+        <button type="button" className="min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm font-semibold text-[var(--wh-accent-text)]" onClick={()=>requestElevation("private_evidence",()=>setCredentialWorker(selected.user_id))}>Review service credentials</button>
+        {credentialWorker===selected.user_id&&<WorkerCredentials workerId={selected.user_id} operator onReadyChange={setCredentialsReady}/>}
         <button
           onClick={() => { selection.current += 1; setSelected(null); }}
           className="text-sm font-semibold text-violet-400"
@@ -321,7 +338,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
               </button>
               <button
                 onClick={() => review("approve")}
-                disabled={acting}
+                disabled={acting||!credentialsReady}
                 className="h-11 rounded-xl bg-emerald-500 text-xs font-semibold text-[#04120A] disabled:opacity-35"
               >
                 Approve Service Worker
@@ -368,6 +385,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           exceptions for WeHouse Services.
         </p>
       </div>
+      <ExperienceActivityReviewQueue initialApplicationId={initialExperienceId} />
       <WorkerPublicationControls userId={userId} />
       <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5" aria-label="Customer Worker discovery preview">
         <div className="flex flex-wrap items-center justify-between gap-3">

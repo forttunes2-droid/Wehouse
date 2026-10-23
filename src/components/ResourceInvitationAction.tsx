@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import type { InvitationPreview } from "@/lib/resourceInvitation";
 
 function roleLabel(row: InvitationPreview) {
-  if (row.role_key === "property_cohost") return "Co-host";
+  if (row.role_key === "property_cohost") return "Team member";
   if (row.role_key === "hotel_manager") return "Hotel Manager";
   return "Front desk";
 }

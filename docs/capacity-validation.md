@@ -1,5 +1,62 @@
 # WeHouse capacity validation
 
+## Request path and infrastructure boundary - 23 October 2026
+
+The inspected browser client sends API requests directly to its environment's
+Supabase URL. Vercel hosts the web build and applies the repository's asset/cache,
+rewrite and security-header configuration. There is no custom WeHouse reverse
+proxy between that browser and Supabase in the current source.
+
+```mermaid
+flowchart LR
+  U[Browser or native client] --> V[Vercel CDN: web assets and app routes]
+  U --> G[Supabase managed API ingress]
+  G --> A[Auth and session validation]
+  G --> F[Edge Functions: provider calls and action budgets]
+  G --> R[Data API and authorized RPCs]
+  R --> D[Postgres: RLS, transactions, locks and constraints]
+  F --> D
+  F --> P[Payment or identity provider]
+```
+
+Vercel's managed CDN provides routing and automatic DDoS mitigation for requests
+that reach Vercel. It does not place a Vercel project firewall in front of direct
+Supabase requests. Supabase Edge Functions have managed gateway ingress; gateway
+presence does not establish a WeHouse-specific abuse budget on every API or RPC.
+An added proxy URL alone would not close the direct origin path. Do not cache
+private user data or distribute transactional booking/payment writes to stale
+read replicas. Supabase read replicas are asynchronous and read-only; their
+load-balancer endpoint and routing must be explicitly configured and verified
+before changing the application's API endpoint. No replica was provisioned or
+unlimited-capacity claim established by this review.
+
+Found and repaired a concrete origin-side gap: the shared action-budget helper
+previously defaulted to allowing requests when its database limiter was unavailable.
+Payout withdrawal and payout-account callers relied on that default. The helper
+now denies by default on errors, exceptions or malformed boolean receipts,
+validates its budget arguments and returns bounded finite retry information.
+An explicit fail-open option remains available for deliberately non-sensitive
+uses; no current consumer uses it. Verification: 55 focused payment/payout/refund/
+PMS checks and Deno type checking pass. The initial inventory request failed with
+a connector transport error. The owner-requested retry succeeded: preserved
+`verify_jwt=true` and deployed Test payout-account version 7 and payout-withdrawal
+version 4 with the shared helper. Both full handlers pass Deno checks. Hosted POST
+probes reject missing and invalid bearer tokens with HTTP 401 (four checks,
+test-results/payout-edge-auth.json). No charge, refund or transfer was submitted.
+Node's direct HTTP client failed to connect; the Windows HTTP client succeeded.
+The function-source readback connector failed, so no remote source comparison is
+claimed. Controlled authenticated limiter-outage/provider/ledger verification
+remains internal work; gateway denial alone does not establish that behavior.
+
+Platform references checked on 23 October:
+[Vercel CDN](https://vercel.com/docs/cdn),
+[Supabase Edge Functions](https://supabase.com/docs/guides/functions),
+[Supabase read replicas](https://supabase.com/docs/guides/platform/read-replicas).
+Configured project firewall rules, backend ingress limits, connection/pool
+ceilings and real mixed transactional capacity still require deployed inspection
+and the measured exercises below. A managed network layer does not close those
+engineering checks.
+
 ## What “one million users” must mean
 
 Report registered accounts, daily active accounts, concurrent foreground sessions, open Realtime connections, and completed business actions per second separately. One million simultaneous foreground sessions taking one action every 30 seconds means roughly 33,333 actions per second before page resources, session checks, notifications, and chat fan-out. Ten and one hundred million under the same assumption mean roughly 333,333 and 3,333,333 actions per second. A 30-second ramp measures a burst, not steady capacity.
@@ -27,3 +84,11 @@ Proposed release gates to agree before a run: observed request rate within 5% of
 - Test has no Auth users, so an authenticated mixed load result cannot honestly be reported yet. Payment sandbox webhooks and representative actors must be installed and verified before that run.
 
 Reference: [Supabase Realtime limits](https://supabase.com/docs/guides/realtime/limits) and [database change delivery guidance](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes).
+
+## 19 October 2026: current fixture check and stricter catalog checker
+
+Read-only Test inspection confirmed 1,000 capacity-stage homes, 1,000 capacity-stage hotels and **zero Auth users**. This is synthetic catalog data, not evidence of customer concurrency. The later historical 200-RPS catalog result and its exact commit are recorded in the existing release roadmap; it does not replace mixed-journey testing.
+
+The catalog checker now requires all distinct routes to finish warm-up, overall and per-route p95 at most 2,000 ms, zero final errors/drops, at most 1% retried requests, complete per-route sample accounting and a measured dispatch rate within 5% of its target. It stops increasing traffic after a failed stage and saves its failure reasons. Reports include time, CI SHA when available, scope, thresholds and an overall result. Fixed an expired-warm-up path that could skip a contract, and the failure report's invalid literal newline escape. The new gates have four passing unit tests. **No new hosted load run has been performed with these gates.** Existing results lack the new dispatch measurement and must not be relabelled as passes of this revised checker.
+
+These 30-second anonymous stages are a catalog smoke benchmark. Whole-product capacity still requires the isolated signed-in booking/message/payment mix, sustained and soak runs, races/recovery, browser/media delivery, resource ceilings and cost measurements described above. The thresholds are the current engineering check defaults, not a promise of a supported user count.

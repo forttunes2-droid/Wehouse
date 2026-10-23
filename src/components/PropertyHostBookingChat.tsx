@@ -62,7 +62,7 @@ export default function PropertyHostBookingChat({conversation,profile,onClose,on
     if(!list)return;
     const incoming:File[]=[];
     for(const file of Array.from(list)){
-      if(!isSelectableChatAttachment(file,source)){toast.error(`An attachment could not be added: ${file.size>MAX_FILE_SIZE?`${file.name} is larger than 25MB`:CHAT_MEDIA_ONLY_MESSAGE}`);continue}
+      if(!isSelectableChatAttachment(file,source)){toast.error(`An attachment could not be added: ${file.size>MAX_FILE_SIZE?`${file.name} is larger than 25 MiB`:CHAT_MEDIA_ONLY_MESSAGE}`);continue}
       try{await validateChatUpload(file,false);incoming.push(file)}
       catch(error){toast.error(`An attachment could not be added: ${error instanceof Error?error.message:CHAT_MEDIA_ONLY_MESSAGE}`)}
     }

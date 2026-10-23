@@ -51,7 +51,6 @@ export {
   getSessionHistory,
   createUserSession,
   registerUserSession,
-  confirmCurrentDeviceWithGoogle,
   approximateDeviceLocation,
   deactivateUserSession,
   isSessionActive,
@@ -76,7 +75,6 @@ export {
   saveListing,
   unsaveListing,
   getSavedListings,
-  createListing,
   getRequiredApproverRank,
   getApproverLabel,
   canApproveListing,
@@ -145,10 +143,6 @@ export {
   setWorkerAvailability,
 } from "./workers-public";
 export {
-  parseWorkerStatus,
-  getAllWorkers,
-  getPendingWorkers,
-  updateWorkerStatus,
   getServiceCategories,
   getServiceSubcategories,
   getCategoryWithSubcategories,
@@ -159,22 +153,12 @@ export {
   updateServiceSubcategory,
   deleteServiceSubcategory,
   seedSubcategoriesForCategory,
-  submitWorkerVerification,
-  uploadWorkerVerificationVideo,
-  getWorkerVerification,
-  getVerificationsByStatus,
-  reviewWorkerVerification,
-  getLegacyWorkerSubscription,
-  getOrCreateWallet,
   getWallet,
   getWalletTransactions,
   getPaymentProtectionForBooking,
-  requestWithdrawal,
   getWithdrawals,
   logFinancialEvent,
   getFinancialAuditLogs,
-  getWorkerDashboardData,
-  getWorkerSystemStats,
 } from "./workers";
 
 // Paystack
@@ -265,12 +249,6 @@ export {
 // Permissions
 export {
   getStaffPermissions,
-  grantPermission,
-  revokePermission,
-  hasPermission,
-  hasAnyPermission,
-  getAllStaffWithPermissions,
-  getStaffByPermission,
 } from "./permissions";
 
 // Hotels

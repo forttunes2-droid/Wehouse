@@ -23,29 +23,34 @@ export default function WorkerShareDialog({ userId, worker, workerName, onClose,
   const dialogRef = useDialogInteraction(dismiss);
   useEffect(() => {
     let active = true;
-    setLoading(true); setError(""); setRecipients([]);
+    setLoading(true); setError(""); setRecipients([]); setFriends([]);
     void (async () => {
       try {
-        const [result, friendResult] = await withTimeout(Promise.all([getRoommateConversationPeople(), listMyFriends()]), 15000, "Connections took too long to load.");
+        if (audience === "friends") {
+          const friendResult = await withTimeout(listMyFriends(), 15000, "Friends took too long to load.");
+          if (!active) return;
+          if (friendResult.error) throw friendResult.error;
+          setFriends(friendResult.friends.filter(friend => friend.status === "accepted" && friend.user_id !== userId));
+          return;
+        }
+        const result = await withTimeout(getRoommateConversationPeople(), 15000, "Roommates took too long to load.");
         if (!active) return;
         if (result.error) throw result.error;
-        if (friendResult.error) throw friendResult.error;
         setRecipients(selectRoommateRecipientsFromPeers(userId, result.connections));
-        setFriends(friendResult.friends.filter(friend => friend.status === "accepted" && friend.user_id !== userId));
       } catch { if (active) setError("Your connections could not be loaded. Please try again."); }
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
-  }, [userId, attempt]);
+  }, [userId, attempt, audience]);
   const visible = recipients.filter(person => `${person.name} ${person.username}`.toLowerCase().includes(query.trim().toLowerCase()));
   const visibleFriends = friends.filter(friend => `${friend.full_name || ""} ${friend.username || ""}`.toLowerCase().includes(query.trim().toLowerCase()));
   return createPortal(<div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100060] flex items-end justify-center bg-[var(--wh-overlay)] sm:items-center sm:p-5" role="presentation" onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
-    <section role="dialog" aria-modal="true" aria-label="Share Worker profile" className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text)] shadow-[var(--wh-shadow-md)] sm:max-h-[90dvh] sm:rounded-2xl">
-      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to Worker profile" /><div><h2 className="text-lg font-semibold">Recommend this Worker</h2><p className="text-xs text-[var(--wh-text-secondary)]">Choose a connection to send the profile in chat.</p></div></header>
+    <section role="dialog" aria-modal="true" aria-label="Share Service Worker profile" className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text)] shadow-[var(--wh-shadow-md)] sm:max-h-[90dvh] sm:rounded-2xl">
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4 py-3"><BackButton onClick={dismiss} ariaLabel="Back to Service Worker profile" /><div><h2 className="text-lg font-semibold">Recommend this Service Worker</h2><p className="text-xs text-[var(--wh-text-secondary)]">Choose a connection to send the profile in chat.</p></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
-        <div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4"><p className="text-xs font-semibold text-[var(--wh-accent-text)]">Worker profile</p><p className="mt-1 text-sm font-semibold">{workerName}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">The recipient can open the public profile and make their own service request.</p></div>
+        <div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-4"><p className="text-xs font-semibold text-[var(--wh-accent-text)]">Service Worker profile</p><p className="mt-1 text-sm font-semibold">{workerName}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">The recipient can open the public profile and make their own service request.</p></div>
         <section className="mt-5" aria-label="Send in WeHouse"><h3 className="flex items-center gap-2 text-sm font-semibold"><Users size={17} aria-hidden="true" className="text-[var(--wh-accent-text)]" />Send in WeHouse</h3>
-          <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" aria-pressed={audience === "roommates"} onClick={() => setAudience("roommates")} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${audience === "roommates" ? "bg-violet-600 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>Roommates</button><button type="button" aria-pressed={audience === "friends"} onClick={() => setAudience("friends")} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${audience === "friends" ? "bg-violet-600 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>Friends</button></div>
+          <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" aria-pressed={audience === "roommates"} onClick={() => { if (audience !== "roommates") { setLoading(true); setQuery(""); setAudience("roommates"); } }} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${audience === "roommates" ? "bg-violet-600 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>Roommates</button><button type="button" aria-pressed={audience === "friends"} onClick={() => { if (audience !== "friends") { setLoading(true); setQuery(""); setAudience("friends"); } }} className={`min-h-11 rounded-xl px-3 text-sm font-semibold ${audience === "friends" ? "bg-violet-600 text-white" : "border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>Friends</button></div>
           <label className="mt-3 block"><span className="sr-only">Search your connections</span><span className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[var(--wh-text-secondary)]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search connections" className="min-w-0 flex-1 bg-transparent py-3 text-base text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)]" /></span></label>
           {loading ? <WeHouseLoadingState compact label="Loading your connections" /> : <>
             {error && <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]"><p>{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-[var(--wh-accent-text)]">Refresh connections</button></div>}

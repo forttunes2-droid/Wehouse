@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
-import { createReport } from "@/lib/supabase/admin";
+import { reportHotel, reportListing, type ReportReason } from "@/lib/supabase/reports";
 import { toast } from "sonner";
 
 const REASONS = [
@@ -15,33 +15,43 @@ const REASONS = [
 type Props = {
   listingId: string;
   listingTitle: string;
-  reporterId: string;
+  targetType?: 'listing' | 'hotel';
+  onUrgentSafety: () => void;
   onClose: () => void;
 };
 
 export default function ReportListingDialog({
   listingId,
   listingTitle,
-  reporterId,
+  targetType = 'listing',
+  onUrgentSafety,
   onClose,
 }: Props) {
   const [reason, setReason] = useState<(typeof REASONS)[number][0] | "">("");
   const [details, setDetails] = useState("");
   const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
   const dialogRef = useDialogInteraction(onClose);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!reason || saving) return;
+    if (!reason || inFlight.current) return;
+    inFlight.current = true;
     setSaving(true);
     try {
       const label = REASONS.find(([value]) => value === reason)?.[1] || "Other";
-      const fullReason = details.trim()
-        ? `${label}\n\n${details.trim()}`
-        : label;
-      const result = await createReport(reporterId, fullReason, listingId);
+      const reasonCode: ReportReason =
+        reason === "suspicious" ? "scam"
+          : reason === "prohibited" ? "inappropriate"
+            : reason === "safety" ? "unsafe"
+              : "other";
+      const fullDetails = [label, details.trim()].filter(Boolean).join("\n\n");
+      const result = targetType === 'hotel'
+        ? await reportHotel(Number(listingId), reasonCode, fullDetails)
+        : await reportListing(listingId, reasonCode, fullDetails);
       if (result.error) throw result.error;
-      toast.success("Your report was sent to WeHouse for review.");
+      if (!result.reportId) throw new Error("WeHouse could not confirm receipt. Please try again.");
+      toast.success(`Report sent to WeHouse for review${result.reportId ? ` · Ref ${result.reportId.slice(0, 8)}` : ""}.`);
       onClose();
     } catch (error) {
       toast.error(
@@ -50,6 +60,7 @@ export default function ReportListingDialog({
           : "We couldn’t send your report. Please try again.",
       );
     } finally {
+      inFlight.current = false;
       setSaving(false);
     }
   }
@@ -63,7 +74,7 @@ export default function ReportListingDialog({
       aria-labelledby="report-listing-title"
       className="fixed inset-0 z-[100040] flex items-end justify-center bg-black/70 p-0 text-[var(--wh-text)] sm:items-center sm:p-4"
       onClick={(event) => {
-        if (event.target === event.currentTarget && !saving) onClose();
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <section className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 sm:rounded-3xl">
@@ -73,7 +84,7 @@ export default function ReportListingDialog({
               LISTING SAFETY
             </p>
             <h2 id="report-listing-title" className="mt-1 text-lg font-bold">
-              Report this listing
+              {targetType === 'hotel' ? 'Report this hotel' : 'Report this listing'}
             </h2>
             <p className="mt-1 line-clamp-2 text-xs text-[var(--wh-text-muted)]">
               {listingTitle}
@@ -82,7 +93,6 @@ export default function ReportListingDialog({
           <button
             type="button"
             onClick={onClose}
-            disabled={saving}
             aria-label="Close report form"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-xl text-[var(--wh-text-secondary)] disabled:opacity-50"
           >
@@ -132,7 +142,12 @@ export default function ReportListingDialog({
           <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">
             WeHouse reviews reports through its operations team. Reporting does
             not automatically cancel a reservation or hide the listing.
+            {' '}Closing this form does not cancel a report already being sent. Check Reports you sent for its status.
           </p>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-[var(--wh-text-secondary)]">
+            <p>If you are in immediate danger, contact local emergency services. To reach WeHouse about an urgent safety concern, contact Support now.</p>
+            <button type="button" onClick={onUrgentSafety} className="mt-2 min-h-11 font-semibold text-amber-300">Contact WeHouse about urgent safety</button>
+          </div>
           <button
             type="submit"
             disabled={saving || !reason}

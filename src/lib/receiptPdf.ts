@@ -4,9 +4,11 @@ import font from "./receiptFont";
 import { displayDate, displayMoment } from "./displayDate";
 import type { PaymentReceipt } from "./supabase/receipts";
 import receiptMark from "@/assets/receipt-mark.png?inline";
+import { assertPaymentReceipt } from './paymentReceiptContract';
 
 /** Loaded only on download. All amounts and identities come from the receipt RPC. */
 export function buildReceiptPdf(r: PaymentReceipt) {
+  assertPaymentReceipt(r);
   const PAGE_WIDTH = 90;
   const MARGIN = 8;
   const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;

@@ -1,3 +1,8 @@
+import {submitBookingReview} from '@/lib/propertyReviews';
+import PropertySiteOffers from "@/components/PropertySiteOffers";
+import { homeStyleLabel } from '@/lib/homeStyles';
+import { shortLetRefundHours } from "@/lib/shortLetCancellationPolicy";
+import { shortLetPayment,shortLetBookingPrice } from "@/lib/shortLetPayment";
 import { propertyTimeZone } from "@/lib/regional";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
@@ -46,19 +51,22 @@ import {
 import { toast } from "sonner";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
 import { locationLabel } from "@/lib/locationPresentation";
-import { hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
+import PropertyBookingJourney from "@/components/PropertyBookingJourney";
+import { getPropertyBookingJourney, hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
 import BackButton from "@/components/BackButton";
 import BookingPaymentReview from "@/components/BookingPaymentReview";
 import { formatMoney } from "@/lib/regional";
 
 type Props = {
   listingId: string;
+  onOpenListing?: (id: string) => void;
   onNavigate: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
   profile: Profile | null;
   onRequireAuth?: () => void;
   onGoToChat: (convId: string) => void;
+  onGoToFriendChat?: (id: string) => void;
   onOpenBooking: (reservationId: string) => void;
 };
 
@@ -73,6 +81,7 @@ type ListingReviewSummary = {
     profiles?: { username?: string | null; avatar_url?: string | null } | null;
   }>;
   eligible: boolean;
+  eligible_reservation_id?: string | null;
 };
 type ListingState =
   | "pending_approval"
@@ -138,7 +147,9 @@ export default function ListingDetail({
   onToggleSave,
   onOpenBooking,
   onGoToChat,
+  onGoToFriendChat,
   onRequireAuth,
+  onOpenListing,
 }: Props) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [listingReviewSummary, setListingReviewSummary] = useState<ListingReviewSummary | null>(null);
@@ -157,6 +168,7 @@ export default function ListingDetail({
   const [accountError, setAccountError] = useState("");
   const loadGeneration = useRef(0);
   const reservationInFlight = useRef(false);
+  const viewingInFlight = useRef(false);
   const [reservation, setReservation] = useState<any>(null);
   const [inspection, setInspection] = useState<any>(null);
   const [reservationOptionsOpen, setReservationOptionsOpen] = useState(false);
@@ -242,13 +254,13 @@ export default function ListingDetail({
     void withTimeout(
       supabase.rpc("get_listing_review_summary", { p_listing_id: String(listing.id) }),
       15000,
-      "Guest reviews took too long.",
+      "Property reviews took too long.",
     ).then(({ data, error }) => {
       if (!active) return;
-      if (error || !data) setListingReviewError("Guest reviews could not be loaded.");
+      if (error || !data) setListingReviewError("Property reviews could not be loaded.");
       else setListingReviewSummary(data as ListingReviewSummary);
     }).catch(() => {
-      if (active) setListingReviewError("Guest reviews could not be loaded.");
+      if (active) setListingReviewError("Property reviews could not be loaded.");
     }).finally(() => {
       if (active) setListingReviewLoading(false);
     });
@@ -336,7 +348,7 @@ function support(
               : kind === "payment"
                 ? "payment"
                 : "apartment_booking",
-          subject: `${kind === "property" ? "Question about" : kind === "payment" ? "Payment help" : kind === "inspection" ? "Inspection help" : "Reservation help"} · ${displayTitle}`,
+          subject: `${kind === "property" ? "Question about" : kind === "payment" ? "Payment help" : kind === "inspection" ? "Viewing help" : "Reservation help"} · ${displayTitle}`,
           contextType,
           contextId,
           contextSnapshot: {
@@ -355,20 +367,13 @@ function support(
     );
   }
 
+  const reviewLock=useRef(false);
   async function submitListingReview() {
-    if (!listing?.id || !listingReviewSummary?.eligible || listingReviewSaving) return;
+    if (!listing?.id || !listingReviewSummary?.eligible || !listingReviewSummary.eligible_reservation_id || reviewLock.current || listingReviewSaving) return;
+    reviewLock.current=true;
     setListingReviewSaving(true);
     try {
-      const { error } = await withTimeout(
-        supabase.rpc("create_my_verified_listing_review", {
-          p_listing_id: String(listing.id),
-          p_rating: listingReviewRating,
-          p_comment: listingReviewComment.trim() || null,
-        }),
-        15000,
-        "Your review took too long to submit.",
-      );
-      if (error) throw error;
+      await submitBookingReview(listingReviewSummary.eligible_reservation_id,listingReviewRating,listingReviewComment);
       const refreshed = await withTimeout(
         supabase.rpc("get_listing_review_summary", { p_listing_id: String(listing.id) }),
         15000,
@@ -377,10 +382,11 @@ function support(
       if (!refreshed.error && refreshed.data) setListingReviewSummary(refreshed.data as ListingReviewSummary);
       setListingReviewFormOpen(false);
       setListingReviewComment("");
-      toast.success("Your verified stay review was saved");
+      toast.success("Your property review was saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Your review could not be submitted");
     } finally {
+      reviewLock.current=false;
       setListingReviewSaving(false);
     }
   }
@@ -435,7 +441,7 @@ function support(
 
   async function continueReservationPayment() {
     if (!reservation?.id || !reservation.payment_reference || !paymentReview || busy) return;
-    if (paymentReview === "short_let" && !reservation.short_stay_cancellation_policy_snapshot) {
+    if (paymentReview === "short_let" && (!reservation.short_stay_cancellation_policy_snapshot || shortLetRefundHours(reservation.short_stay_cancellation_policy_snapshot)===null || !shortLetBookingPrice(shortLetPayment(reservation),reservation.reservation_fee_snapshot))) {
       toast.error("Saved cancellation terms are missing, so payment is paused.");
       return;
     }
@@ -616,19 +622,30 @@ function support(
 
   async function requestInspection() {
     if (!profile) { onRequireAuth?.(); return; }
-    if (!reservation) return;
+    if (!reservation || viewingInFlight.current) return;
+    if (getPropertyBookingJourney(reservation, inspection).action !== 'choose_inspection_or_rent') {
+      toast.error('Refresh this booking to see its current next step.');
+      return;
+    }
+    viewingInFlight.current = true;
     setBusy(true);
-    const { inspection: request, error } = await createInspectionRequest(
+    try {
+    const { inspection: request, error } = await withTimeout(createInspectionRequest(
       reservation.id,
       listingId,
       profile.user_id,
-      `Inspection requested for ${listing?.title || "apartment"}`,
-    );
-    setBusy(false);
-    if (error) return toast.error(error.message);
+      `Viewing requested for ${listing?.title || "property"}`,
+    ), 15000, 'The viewing request could not be confirmed. Refresh this booking before retrying.');
+    if (error) throw error;
     setInspection(request || null);
     await load();
-    toast.success("Inspection requested");
+    toast.success("Viewing requested");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The viewing request could not be confirmed. Refresh this booking before retrying.');
+    } finally {
+      viewingInFlight.current = false;
+      setBusy(false);
+    }
   }
 
   if (loading)
@@ -645,7 +662,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
     return (
       <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-4 text-center text-[var(--wh-text)]">
         <div>
-          <p className="text-sm font-semibold">Apartment unavailable</p>
+          <p className="text-sm font-semibold">Home unavailable</p>
           <button onClick={onNavigate} className="mt-4 text-xs text-violet-400">
             ← Go back
           </button>
@@ -692,10 +709,12 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
       : reservation?.amount ?? reservationFee,
   );
   const shortPolicy = reservation?.short_stay_cancellation_policy_snapshot as Record<string, unknown> | undefined;
-  const shortCancellationTerms = shortPolicy
+  const shortRefundHours=shortPolicy?shortLetRefundHours(shortPolicy):null;
+  const reviewShortPrice=reservation?shortLetBookingPrice(shortLetPayment(reservation),reservation.reservation_fee_snapshot):null;
+  const shortCancellationTerms = shortPolicy && shortRefundHours!==null
     ? shortPolicy.non_refundable
       ? "This discounted rate is non-refundable for ordinary guest cancellation. Provider failure and payment errors remain reviewable by WeHouse."
-      : `Cancel at least ${Number(shortPolicy.full_refund_hours_before_check_in || 48)} hours before check-in for a full refund. Late cancellations and no-shows may be charged up to ${Number(shortPolicy.late_cancel_max_nights || 1)} night. The refundable security deposit is never used as a cancellation charge. These terms are saved with your reservation.`
+      : `Cancel at least ${shortRefundHours} hours before check-in for a refund of eligible protected stay funds. Separate reservation fees require policy review. Late cancellations and no-shows require WeHouse review under the saved policy. The refundable security deposit is never used as a cancellation charge. These terms are saved with your reservation.`
     : "Cancellation terms are missing from this reservation. Payment stays paused until WeHouse can show the saved policy.";
 
   const reviewRows = paymentReview === "short_let"
@@ -709,15 +728,16 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
         ...(Number(reservation?.security_deposit_snapshot || 0) > 0
           ? [{ label: "Refundable security deposit due later", value: formatMoney(reservation?.security_deposit_snapshot) }]
           : []),
+        { label: "Total booking cost", value: reviewShortPrice?formatMoney(reviewShortPrice.total):"Price could not be confirmed" },
         { label: "Stay balance due later", value: formatMoney(Number(reservation?.stay_rent_total || 0) + Number(reservation?.security_deposit_snapshot || 0)) },
         { label: "Date hold expires", value: formatBookingDeadline(reservation?.payment_expires_at || reservation?.hold_expires_at) },
       ]
     : [
-        { label: "Apartment", value: String(reservation?.listing_title || displayTitle) },
+        { label: "Home", value: String(reservation?.listing_title || displayTitle) },
         { label: "Location", value: String(reservation?.listing_location || visibleAddress) },
         { label: "Reservation fee", value: formatMoney(reviewAmount) },
         { label: "Hold expires", value: formatBookingDeadline(reservation?.payment_expires_at || reservation?.hold_expires_at) },
-        { label: "Next step", value: "Arrange an inspection before the tenancy and rent plan are finalised" },
+        { label: "Next step", value: "Review the tenancy and rent plan; request an optional viewing before paying rent" },
       ];
 
   return (
@@ -737,7 +757,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
             <button
               onClick={onToggleSave}
               aria-label={
-                isSaved ? "Remove from saved apartments" : "Save apartment"
+                isSaved ? "Remove from saved listings" : "Save listing"
               }
               aria-pressed={isSaved}
               className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/55 shadow-lg backdrop-blur active:scale-95"
@@ -754,12 +774,29 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
           )}
         </PropertyMediaCarousel>
 
-        {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} stayType={listing.sub_type === 'short_let' ? 'short_let' : 'long_stay'} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
+        {sendPropertyOpen && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "listing", id: String(listing.id) }} title={displayTitle} stayType={listing.sub_type === 'short_let' ? 'short_let' : 'long_stay'} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} onFriendConversation={onGoToFriendChat} />}
         {reportOpen && profile && listing && (
           <ReportListingDialog
             listingId={String(listing.id)}
             listingTitle={displayTitle}
-            reporterId={profile.user_id}
+            onUrgentSafety={() => {
+              setReportOpen(false);
+              window.dispatchEvent(new CustomEvent("openSupportChat", {
+                detail: {
+                  subject: `Urgent safety concern · ${displayTitle}`,
+                  category: "safety",
+                  contextType: "property_listing",
+                  contextId: String(listing.listing_id || listing.id),
+                  priority: "urgent",
+                  contextSnapshot: {
+                    source_type: "listing",
+                    source_id: String(listing.listing_id || listing.id),
+                    listing_title: displayTitle,
+                    reason_code: "safety_threat",
+                  },
+                },
+              }));
+            }}
             onClose={() => setReportOpen(false)}
           />
         )}
@@ -810,16 +847,19 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       ? "Short Let"
                       : listing.sub_type === "long_stay"
                         ? "Long Let"
-                        : listing.property_type || "Apartment"
+                        : listing.property_type === "hotel" ? "Hotel" : "Home"
                   }
                 />
-                <Fact label="Bedrooms" value={listing.bedrooms || "—"} />
+                {homeStyleLabel(listing.home_style) && <Fact label="Home type" value={homeStyleLabel(listing.home_style)} />}
+                <Fact label="Bedrooms" value={listing.bedrooms === 0 ? "Studio" : listing.bedrooms ?? "—"} />
                 <Fact label="Bathrooms" value={listing.bathrooms || "—"} />
               </section>
+              {listing.space_scope&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-sm"><h2 className="font-semibold">{listing.space_scope==='private_room'?'Private room in a shared home':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</h2>{listing.space_scope==='private_room'&&<p className="mt-2 leading-6 text-[var(--wh-text-secondary)]">Shared areas: {listing.shared_areas?.join(', ')||'Ask WeHouse to confirm before booking.'}</p>}</section>}
+              {onOpenListing&&<PropertySiteOffers key={listing.id} listingId={listing.id} checkIn={shortCheckIn} checkOut={shortCheckOut} onOpen={onOpenListing}/>}
               {listing.description && (
                 <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
                   <h2 className="text-sm font-semibold">
-                    About this apartment
+                    About this home
                   </h2>
                   <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[var(--wh-text-secondary)]">
                     {listing.description}
@@ -838,7 +878,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-sm font-semibold">
-                      Apartment location
+                      Property location
                     </h2>
                     <p className="mt-1 text-sm leading-5 text-[var(--wh-text-muted)]">
                       {visibleAddress || "Location unavailable"}
@@ -862,14 +902,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                   )}
                 </div>
               </section>
-              <section aria-label="Guest reviews" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
+              <section aria-label="Property reviews" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold">Guest reviews</h2>
+                    <h2 className="text-sm font-semibold">Property reviews</h2>
                     {Number(listingReviewSummary?.review_count || 0) > 0 && (
                       <p className="mt-1 text-sm text-[var(--wh-text-secondary)]">
                         <span aria-label={`${Number(listingReviewSummary?.rating || 0).toFixed(1)} out of 5`}>★ {Number(listingReviewSummary?.rating || 0).toFixed(1)}</span>
-                        {` · ${listingReviewSummary?.review_count} verified ${listingReviewSummary?.review_count === 1 ? "stay" : "stays"}`}
+                        {` · ${listingReviewSummary?.review_count} verified ${listingReviewSummary?.review_count === 1 ? "review" : "reviews"}`}
                       </p>
                     )}
                   </div>
@@ -879,7 +919,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                     </button>
                   )}
                 </div>
-                {listingReviewLoading ? <WeHouseLoadingState compact label="Loading guest reviews" />
+                {listingReviewLoading ? <WeHouseLoadingState compact label="Loading property reviews" />
                   : listingReviewError ? <div role="status" className="mt-3 text-sm text-[var(--wh-text-secondary)]"><p>{listingReviewError}</p><button type="button" onClick={() => setListingReviewAttempt((attempt) => attempt + 1)} className="mt-2 min-h-11 font-semibold text-violet-600 dark:text-violet-300">Try again</button></div>
                   : listingReviewSummary?.reviews?.length ? (
                     <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">
@@ -887,7 +927,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         <article key={review.review_id} className="py-3 first:pt-0 last:pb-0">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-sm font-medium">{review.profiles?.username || "Guest"}</p>
+                              <p className="text-sm font-medium">{review.profiles?.username || "Verified reviewer"}</p>
                               <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{formatBookingDate(review.created_at)}</p>
                             </div>
                             <span aria-label={`${review.rating} out of 5`} className="shrink-0 text-sm text-amber-500 dark:text-amber-300">{"★".repeat(Math.max(0, Math.min(5, Number(review.rating))))}</span>
@@ -896,7 +936,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         </article>
                       ))}
                     </div>
-                  ) : <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">No verified guest reviews yet.</p>}
+                  ) : <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">No verified property reviews yet.</p>}
                 {listingReviewFormOpen && listingReviewSummary?.eligible && (
                   <form className="mt-4 space-y-3 border-t border-[var(--wh-border-subtle)] pt-4" onSubmit={(event) => { event.preventDefault(); void submitListingReview(); }}>
                     <label className="block text-sm font-medium">Your rating
@@ -905,7 +945,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       </select>
                     </label>
                     <label className="block text-sm font-medium">Your review
-                      <textarea maxLength={2000} rows={3} value={listingReviewComment} onChange={(event) => setListingReviewComment(event.target.value)} className="mt-2 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm text-[var(--wh-text)]" placeholder="Share what future guests should know" />
+                      <textarea maxLength={2000} rows={3} value={listingReviewComment} onChange={(event) => setListingReviewComment(event.target.value)} className="mt-2 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm text-[var(--wh-text)]" placeholder={listing.sub_type === "long_stay" ? "Share what future tenants should know" : "Share what future guests should know"} />
                     </label>
                     <button type="submit" disabled={listingReviewSaving} className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-60">{listingReviewSaving ? "Saving review…" : "Submit review"}</button>
                   </form>
@@ -914,11 +954,11 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               {!hasOwnActiveReservation && !sharedGroup && (
                 <section className="border-y border-[var(--wh-border-subtle)] py-4">
                   <h2 className="text-sm font-semibold">
-                    Questions about this apartment?
+                    Questions about this property?
                   </h2>
                   <p className="mt-1 text-sm leading-relaxed text-[var(--wh-text-secondary)]">
                     Message WeHouse here. Your conversation stays connected to
-                    this apartment.
+                    this property.
                   </p>
                   <button
                     onClick={() => support("property")}
@@ -1066,7 +1106,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                           Long Let
                         </p>
                         <h2 className="mt-1 text-lg font-bold">
-                          Reserve this apartment
+                          {listing.space_scope==='private_room'?'Reserve this room':'Reserve this home'}
                         </h2>
                       </div>
                       <p className="text-right">
@@ -1079,7 +1119,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       </p>
                     </div>
                     <p className="mt-3 text-sm leading-relaxed text-[var(--wh-text-muted)]">
-                      Proceed with reservation to begin the inspection and
+                      Proceed with reservation to begin the viewing and
                       tenancy journey.
                     </p>
                     <button
@@ -1093,7 +1133,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       onClick={() => setReservationOptionsOpen(true)}
                       className="mt-3 h-10 w-full text-xs font-semibold text-violet-300"
                     >
-                      Split costs
+                      Share booking cost
                     </button>
                   </section>
                 )
@@ -1101,7 +1141,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                 <section className="rounded-3xl border border-amber-500/15 bg-amber-500/[.04] p-5">
                   <h2 className="text-sm font-semibold">{state.label}</h2>
                   <p className="mt-2 text-sm text-[var(--wh-text-secondary)]">
-                    This apartment is not open for a new reservation right now.
+                    This property is not open for a new reservation right now.
                   </p>
                 </section>
               )}
@@ -1123,14 +1163,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               title={paymentReview === "short_let" ? "Review your dates and payment" : "Review your reservation"}
               subtitle={paymentReview === "short_let"
                 ? "Your dates are held while you review. The amount due now is the reserve-date fee; the stay balance is separate."
-                : "Check the apartment and reservation fee before continuing. Rent and any tenancy deposit are handled after inspection."}
+                : "Check the property and reservation fee before continuing. Rent is paid separately. A viewing is optional."}
               rows={reviewRows}
               amountLabel={paymentReview === "short_let" ? "Reserve-date fee due now" : "Reservation fee due now"}
               amount={formatMoney(reviewAmount)}
               termsTitle={paymentReview === "short_let" ? "Cancellation and stay terms" : "What this reservation payment covers"}
               terms={paymentReview === "short_let"
                 ? shortCancellationTerms
-                : "This payment holds the apartment while you begin the inspection and tenancy journey. It is the reservation fee only; it is not rent or a security deposit. Paid reservations that need cancellation or a refund are handled through WeHouse support."}
+                : "This payment holds the property while you begin the viewing and tenancy journey. It is the reservation fee only; it is not rent or a security deposit. Paid reservations that need cancellation or a refund are handled through WeHouse support."}
               note={paymentReview === "short_let"
                 ? "Only the reserve-date fee is paid now. The stay rent and refundable security deposit are due in a separate checkout before the stay. WeHouse confirms payment only after verified Paystack confirmation."
                 : "Your reservation fee and hold expiry come from the saved booking record. WeHouse confirms payment only after verified Paystack confirmation."}
@@ -1138,7 +1178,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
               confirmLabel="Accept terms and continue"
               busy={busy}
               busyLabel="Opening Paystack…"
-              confirmDisabled={paymentReview === "short_let" && !shortPolicy}
+              confirmDisabled={paymentReview === "short_let" && (!shortPolicy || shortRefundHours===null || !reviewShortPrice)}
               onEdit={() => void editPaymentReview()}
               onConfirm={() => void continueReservationPayment()}
             />
@@ -1205,9 +1245,9 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
             <div className="flex justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold uppercase text-violet-300">
-                  Shared apartment
+                  Shared home
                 </p>
-                <h2 className="mt-1 text-lg font-bold">Split with</h2>
+                <h2 className="mt-1 text-lg font-bold">Share this booking</h2>
                 <p className="mt-1 text-sm text-[var(--wh-text-muted)]">
                   Choose up to 2 people. At most 3 people can pay, and each must accept.
                 </p>
@@ -1310,7 +1350,7 @@ function SharedHomeCard({
   return (
     <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
       <p className="text-sm font-semibold uppercase tracking-wide text-violet-300">
-        Shared apartment · equal split
+        Shared home · equal booking shares
       </p>
       <h2 className="mt-2 text-lg font-bold">
         You and {peer?.name || "your roommate"}
@@ -1378,7 +1418,7 @@ function SharedHomeCard({
       )}
       {allPaid && (
         <p className="mt-4 rounded-xl bg-emerald-500/[.06] p-3 text-sm text-emerald-300">
-          Both shares are confirmed. This apartment is held for your shared
+          Both shares are confirmed. This property is held for your shared
           reservation.
         </p>
       )}
@@ -1386,7 +1426,7 @@ function SharedHomeCard({
   );
 }
 
-function ReservationPanel({
+export function ReservationPanel({
   shortStay,
   reservation,
   inspection,
@@ -1409,217 +1449,23 @@ function ReservationPanel({
   onOpenBooking: () => void;
   onSupport: () => void;
 }) {
-  const status = String(reservation?.status || "payment_pending");
-  if (shortStay)
-    return (
-      <ShortStayReservationPanel
-        reservation={reservation}
-        busy={busy}
-        onPay={onRentPay}
-        onSupport={onSupport}
-      />
-    );
-  if (status === "payment_pending")
-    return (
-      <section className="rounded-3xl border border-amber-500/15 bg-[var(--wh-surface)] p-5">
-        <p className="text-sm font-semibold uppercase tracking-wide text-amber-300">
-          Reservation not completed
-        </p>
-        <h2 className="mt-2 text-lg font-bold">Finish your reservation</h2>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-muted)]">
-          Complete the {formatMoney(fee)} reservation payment to submit
-          this booking.
-        </p>
-        {reservation.payment_expires_at && (
-          <p className="mt-3 text-sm text-amber-300">
-            Checkout available until ·{" "}
-            {new Date(reservation.payment_expires_at).toLocaleString()}
-          </p>
-        )}
-        <button
-          disabled={busy}
-          onClick={onResume}
-          className="mt-4 h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-50"
-        >
-          {busy ? "Opening Paystack…" : "Continue reservation"}
-        </button>
-        <button
-          onClick={onSupport}
-          className="mt-2 h-10 w-full text-xs text-violet-300"
-        >
-          Message WeHouse
-        </button>
-      </section>
-    );
-  if (status === "occupied")
-    return (
-      <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-5">
-        <p className="text-sm font-semibold uppercase tracking-wide text-violet-300">
-          Occupied
-        </p>
-        <h2 className="mt-2 text-lg font-bold">Your tenancy is active</h2>
-        {reservation.tenancy_start_date && (
-          <Row
-            label="Started"
-            value={new Date(
-              reservation.tenancy_start_date,
-            ).toLocaleDateString()}
-          />
-        )}
-        {reservation.tenancy_end_date && (
-          <Row
-            label="Tenancy ends"
-            value={new Date(reservation.tenancy_end_date).toLocaleDateString()}
-          />
-        )}
-        {reservation.move_out_grace_until && (
-          <Row
-            label="Grace until"
-            value={new Date(
-              reservation.move_out_grace_until,
-            ).toLocaleDateString()}
-          />
-        )}
-        <button
-          onClick={onSupport}
-          className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
-        >
-          Message WeHouse
-        </button>
-      </section>
-    );
-  if (status === "ready_for_move_in") {
-    const rentPaid = ["paid", "upfront_paid"].includes(
-      String(reservation.rent_payment_status || ""),
-    );
-    if (!rentPaid)
-      return (
-        <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
-            Inspection passed
-          </p>
-          <h2 className="mt-2 text-lg font-bold">Settle contract rent</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-muted)]">
-            Move-in cannot be activated until WeHouse verifies the required
-            contract-rent payment.
-          </p>
-          <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
-            <Row
-              label="Total contract"
-              value={`${formatMoney(Number(reservation.contract_rent_total || 0))}`}
-            />
-            <Row
-              label="Required now"
-              value={`${formatMoney(Number(reservation.upfront_rent_required || 0))}`}
-            />
-          </div>
-          <button
-            disabled={busy}
-            onClick={onRentPay}
-            className="mt-4 h-12 w-full rounded-xl bg-emerald-500 text-sm font-semibold text-[#03100B] disabled:opacity-50"
-          >
-            {busy
-              ? "Opening Paystack…"
-              : reservation.rent_payment_status === "payment_pending"
-                ? "Continue contract-rent payment"
-                : "Pay required contract rent"}
-          </button>
-          <button
-            onClick={onSupport}
-            className="mt-2 h-10 w-full text-xs text-violet-300"
-          >
-            Message WeHouse
-          </button>
-        </section>
-      );
-    const moveInRequested = Boolean(reservation.requested_move_in_at);
-    return (
-      <section className="rounded-3xl border border-emerald-500/15 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,.12),transparent_45%),#11141C] p-5">
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
-          Year 1 rent verified
-        </p>
-        <h2 className="mt-2 text-xl font-bold">
-          {moveInRequested ? "Move-in time sent" : "Choose your move-in time"}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--wh-text-secondary)]">
-          {moveInRequested
-            ? "Meet Property Operations at the selected time. Show the booking code only when you arrive; your tenancy starts after access is handed over and verified."
-            : "Rent payment alone does not start the tenancy. Open Bookings to choose when you can meet Property Operations for handover."}
-        </p>
-        {moveInRequested && reservation.requested_move_in_at && (
-          <Row
-            label="Requested arrival"
-            value={new Date(reservation.requested_move_in_at).toLocaleString()}
-          />
-        )}
-        {moveInRequested && reservation.booking_code && (
-          <Row label="Booking code" value={String(reservation.booking_code)} />
-        )}
-        {reservation.rent_paid_at && (
-          <Row
-            label="Rent verified"
-            value={new Date(reservation.rent_paid_at).toLocaleString()}
-          />
-        )}
-        <button
-          onClick={onOpenBooking}
-          className="mt-4 h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
-        >
-          {moveInRequested ? "Open move-in booking" : "Choose move-in time in Bookings"}
-        </button>
-        <button
-          onClick={onSupport}
-          className="mt-2 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold"
-        >
-          Message WeHouse
-        </button>
-      </section>
-    );
-  }
-  return (
-    <section className="rounded-3xl border border-emerald-500/15 bg-[var(--wh-surface)] p-5">
-      <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">
-        Reservation paid
-      </p>
-      <h2 className="mt-2 text-lg font-bold">Apartment held for you</h2>
-      {reservation.hold_expires_at && (
-        <p className="mt-2 text-sm text-amber-300">
-          Current hold · until{" "}
-          {new Date(reservation.hold_expires_at).toLocaleString()}
-        </p>
-      )}
-      <div className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3">
-        <Row
-          label="Reservation fee"
-          value={`${formatMoney(Number(reservation.amount || fee))}`}
-        />
-        <Row
-          label="Tenancy term"
-          value={`${reservation.rental_plan_years || 1} year${Number(reservation.rental_plan_years || 1) === 1 ? "" : "s"}`}
-        />
-      </div>
-      {inspection ? (
-        <div className="mt-3 rounded-xl border border-violet-500/10 bg-violet-500/[.05] p-3 text-sm text-violet-300">
-          Inspection ·{" "}
-          {String(inspection.status || "pending").replace(/_/g, " ")}
-        </div>
-      ) : (
-        <button
-          disabled={busy}
-          onClick={onInspect}
-          className="mt-4 h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50"
-        >
-          {busy ? "Requesting…" : "Request apartment inspection"}
-        </button>
-      )}
-      <button
-        onClick={onSupport}
-        className="h-10 w-full text-xs text-violet-300"
-      >
-        Message WeHouse
-      </button>
-    </section>
-  );
+  if (shortStay) return <ShortStayReservationPanel reservation={reservation} busy={busy} onPay={onRentPay} onSupport={onSupport} />;
+  const journey = getPropertyBookingJourney(reservation, inspection);
+  return <section className="space-y-3">
+    <PropertyBookingJourney row={reservation} inspection={inspection} />
+    <div className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+      <Row label="Reservation fee" value={formatMoney(Number(reservation.amount || fee))} />
+      {reservation.hold_expires_at && <Row label="Reservation held until" value={new Date(reservation.hold_expires_at).toLocaleString()} />}
+      {journey.action === 'reservation_payment' && <button type="button" disabled={busy} onClick={onResume} className="mt-3 min-h-12 w-full rounded-xl bg-violet-600 text-sm font-semibold text-white disabled:opacity-50">Continue reservation payment</button>}
+      {journey.action === 'choose_inspection_or_rent' && <>
+        <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">A viewing is optional. Request a visit before paying rent, or continue if you are satisfied with the home. Your reservation fee is not rent.</p>
+        <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-12 w-full rounded-xl bg-violet-600 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Sending request?' : 'Request a viewing'}</button>
+      </>}
+      {(journey.action === 'choose_inspection_or_rent' || journey.action === 'rent_payment') && <button type="button" disabled={busy} onClick={onOpenBooking} className="mt-3 min-h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold disabled:opacity-50">{busy ? 'Opening secure payment?' : 'Review Year 1 rent payment'}</button>}
+      {journey.action !== 'reservation_payment' && <button type="button" onClick={onOpenBooking} className="mt-3 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold">Open booking details</button>}
+      <button type="button" onClick={onSupport} className="mt-2 min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">Message WeHouse about this booking</button>
+    </div>
+  </section>;
 }
 
 function ShortStayReservationPanel({

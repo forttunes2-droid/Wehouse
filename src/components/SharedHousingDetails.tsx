@@ -4,7 +4,7 @@ import {createPortal} from 'react-dom';
 import BackButton from '@/components/BackButton';
 import {useDialogInteraction} from '@/hooks/useDialogInteraction';
 import {useRecordScreenBack} from '@/hooks/useRecordScreenBack';
-import {getSharedHousingGroup,initializeSharedHousingPayment,respondToSharedHousingInvite,startSharedHousingContractSplit,type SharedHousingGroup} from '@/lib/supabase/shared-housing';
+import {getSharedHousingGroup,initializeSharedHousingPayment,respondToSharedHousingInvite,startSharedHousingContractPayment,type SharedHousingGroup} from '@/lib/supabase/shared-housing';
 import {sharedHousingLane} from '@/lib/sharedHousingPresentation';
 import {withTimeout} from '@/lib/withTimeout';
 import {displayDate,displayMoment} from '@/lib/displayDate';
@@ -73,7 +73,7 @@ export default function SharedHousingDetails({groupId,userId,onBack,onChanged,on
         if (!outcome.result?.authorization_url) throw new Error(outcome.result?.error || 'Checkout could not open.');
         window.location.assign(outcome.result.authorization_url); return;
       }
-      const result = await withTimeout(kind === 'rent' ? startSharedHousingContractSplit(group.id)
+      const result = await withTimeout(kind === 'rent' ? startSharedHousingContractPayment(group.id)
         : respondToSharedHousingInvite(group.id, kind === 'accept'), 15000, 'The decision could not be confirmed. Refresh before retrying.');
       if (result.error) throw result.error;
       if (current === generation.current) { refreshAfter = true; onChanged?.(); }

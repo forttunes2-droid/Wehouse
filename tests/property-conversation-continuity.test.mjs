@@ -11,7 +11,7 @@ test("Apartment and Hotel Message WeHouse preserve one property-to-booking conve
     read("src/pages/MyReservations.tsx"),
     read("src/pages/ListingDetailCore.tsx"),
   ]);
-  assert.match(apartment,/Message WeHouse here\. Your conversation stays connected to[\s\S]*this apartment/);
+  assert.match(apartment,/Message WeHouse here\. Your conversation stays connected to[\s\S]*this property/);
   assert.match(hotel,/contextType: "hotel_property"/);
   assert.match(hotel,/Message WeHouse/);
   assert.match(reservations,/contextType: "hotel_booking"/);
@@ -33,13 +33,13 @@ test("Inspection help with a reservation stays on that reservation conversation"
   assert.match(migration,/v_context='property_inspection'[\s\S]*v_snapshot->>'reservation_id'[\s\S]*open_my_reservation_conversation/);
 });
 
-test("Property Partner owns apartments and hotels in one Properties workspace",async()=>{
+test("Property Partner owns homes and hotels in one Properties workspace",async()=>{
   const [partner,hotelTeam]=await Promise.all([
     read("src/pages/PropertyOwnerDashboard.tsx"),
     read("src/pages/HotelTeamDashboard.tsx"),
   ]);
   assert.match(partner,/type PartnerTab = "properties" \| "finance" \| "communication"/);
-  assert.match(partner,/value: "apartment", label: "Apartments"/);
+  assert.match(partner,/value: "apartment", label: "Homes"/);
   assert.match(partner,/value: "hotel", label: "Hotels"/);
   assert.match(partner,/assetKind === "apartment"[\s\S]*get_my_property_assets_page[\s\S]*get_my_owned_hotels_page/);
   assert.match(partner,/accessRole="owner"/);

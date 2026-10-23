@@ -11,10 +11,12 @@ found elsewhere (old reports, dated notes), delete it or move it to git history.
 | 1 | [DECISION_LOG.md](./DECISION_LOG.md) | Accepted owner decisions and open questions |
 | 2 | [PRODUCT_RULES.md](./PRODUCT_RULES.md) | Accepted product rules |
 | 3 | [../WEHOUSE_MASTER_PLAN.md](../WEHOUSE_MASTER_PLAN.md) and [../WEHOUSE_ARCHITECTURE_CONTRACT.md](../WEHOUSE_ARCHITECTURE_CONTRACT.md) | Language, ownership and route boundaries |
-| 4 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md), [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md), [LIFECYCLES.md](./LIFECYCLES.md), [PAYMENTS_AND_MONEY.md](./PAYMENTS_AND_MONEY.md), [NAVIGATION.md](./NAVIGATION.md), [NOTIFICATIONS_AND_ACTIVITY.md](./NOTIFICATIONS_AND_ACTIVITY.md), [CHAT_AND_COMMUNICATION.md](./CHAT_AND_COMMUNICATION.md), [COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md](./COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md), [DATA_MODEL.md](./DATA_MODEL.md), [GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md](./GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md) | Visual and interaction system plus domain detail |
+| 4 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md), [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md), [LIFECYCLES.md](./LIFECYCLES.md), [PAYMENTS_AND_MONEY.md](./PAYMENTS_AND_MONEY.md), [NAVIGATION.md](./NAVIGATION.md), [NOTIFICATIONS_AND_ACTIVITY.md](./NOTIFICATIONS_AND_ACTIVITY.md), [CHAT_AND_COMMUNICATION.md](./CHAT_AND_COMMUNICATION.md), [DATA_MODEL.md](./DATA_MODEL.md), [GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md](./GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md) | Current visual, interaction and domain contracts |
 | 5 | [PRODUCT_MASTER.md](./PRODUCT_MASTER.md) | Historical implementation audit (11 Sep). Context only |
 
 Accepted decisions with their own record: [D-002 hotel capability](./DECISION_D002_HOTEL_CAPABILITY_AUTHORITY_2026-09-12.md), [D-010 money authority](./DECISION_D010_MONEY_AUTHORITY_2026-09-12.md), [D-014 post-publication edits](./DECISION_D014_POST_PUBLICATION_EDIT_BOUNDARY_2026-09-12.md).
+
+Product exploration that is **not yet an accepted product rule**: [Friends and Experiences proposal](./FRIENDS_AND_EXPERIENCES_PRODUCT_PROPOSAL.md). The two-person encrypted plan card is implemented in the working tree; public event discovery remains a proposal requiring owner approval and validation.
 
 ## 2. What is left to do (release authority)
 
@@ -35,6 +37,7 @@ Accepted decisions with their own record: [D-002 hotel capability](./DECISION_D0
 - Legal: [LEGAL_LAUNCH_REGISTER_NIGERIA_2026-09-13.md](./LEGAL_LAUNCH_REGISTER_NIGERIA_2026-09-13.md), [WEHOUSE_LAWYER_REVIEW_PACK.md](./WEHOUSE_LAWYER_REVIEW_PACK.md), [WEHOUSE_PUBLIC_LEGAL_PACK_DRAFT.md](./WEHOUSE_PUBLIC_LEGAL_PACK_DRAFT.md), [legal-review-and-preview-status.md](./legal-review-and-preview-status.md)
 - Branches: [BRANCH_CLEANUP_AUDIT.md](./BRANCH_CLEANUP_AUDIT.md)
 - Security reporting: [../SECURITY.md](../SECURITY.md)
+- Historical snapshot (superseded; retained for audit context): [COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md](./COMMUNICATION_AND_SAVED_CANONICAL_2026-09-12.md)
 
 ## Coverage of the Master Engineering Directive
 

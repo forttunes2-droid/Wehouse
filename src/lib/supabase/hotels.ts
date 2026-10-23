@@ -174,8 +174,8 @@ export async function getHotelBookingsForHotel(hotelId: number) {
 
 export async function updateBookingStatus(bookingId: number, status: HotelBooking['status']) {
   if (status === 'cancelled') {
-    const { error } = await supabase.rpc('cancel_my_hotel_booking', { p_booking_id: bookingId });
-    return { error };
+    const { data, error } = await supabase.rpc('cancel_my_hotel_booking', { p_booking_id: bookingId });
+    return { error:error||(data!==true?new Error('Hotel cancellation could not be confirmed. Refresh the booking before retrying.'):null) };
   }
   return { error: { message: 'Hotel booking status is controlled by the verified booking workflow.' } as any };
 }
@@ -328,7 +328,7 @@ export type HotelDiscountRow = {
 
 export async function partnerListHotelDiscounts(hotelId: number) {
   const { data, error } = await supabase.rpc('partner_list_hotel_discounts', { p_hotel_id: hotelId });
-  return { discounts: (data || []) as HotelDiscountRow[], error };
+  return { discounts: data as HotelDiscountRow[] | null, error };
 }
 
 export async function partnerSetHotelDiscount(input: {

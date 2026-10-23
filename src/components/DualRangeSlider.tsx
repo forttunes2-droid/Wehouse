@@ -19,14 +19,27 @@ export default function DualRangeSlider({min,max,floor,ceiling,step,onChange}:Du
   <div className="grid grid-cols-2 gap-2"><ValueBox label="From" value={minDraft} active={editing==='min'} onFocus={()=>setEditing('min')} onChange={v=>live('min',v)} onBlur={()=>commit('min')}/><ValueBox label="To" value={maxDraft} active={editing==='max'} onFocus={()=>setEditing('max')} onChange={v=>live('max',v)} onBlur={()=>commit('max')}/></div>
   <div className="relative mt-1.5 h-14 touch-none select-none">
    <div ref={trackRef} onPointerDown={track} className="absolute inset-x-6 inset-y-0 cursor-pointer touch-none">
-    <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-[#272B35]"/>
+    <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-[var(--wh-interactive)]"/>
     <div className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-violet-500" style={{left:`${minPercent}%`,width:`${maxPercent-minPercent}%`}}/>
-    <Handle percent={minPercent} active={dragging==='min'} onPointer={e=>{e.preventDefault();e.stopPropagation();setDragging('min')}}/>
-    <Handle percent={maxPercent} active={dragging==='max'} onPointer={e=>{e.preventDefault();e.stopPropagation();setDragging('max')}}/>
+    <Handle label="Minimum price" value={safeMin} lower={floor} upper={safeMax-step} step={step} onChange={value=>onChange(value,safeMax)} percent={minPercent} active={dragging==='min'} onPointer={e=>{e.preventDefault();e.stopPropagation();setDragging('min')}}/>
+    <Handle label="Maximum price" value={safeMax} lower={safeMin+step} upper={ceiling} step={step} onChange={value=>onChange(safeMin,value)} percent={maxPercent} active={dragging==='max'} onPointer={e=>{e.preventDefault();e.stopPropagation();setDragging('max')}}/>
    </div>
   </div>
   <div className="flex justify-between px-0.5 text-[7px] font-medium text-[var(--wh-text-muted)]"><span>{short(floor)}</span><span>{short(ceiling)}</span></div>
  </div>
 }
-function Handle({percent,active,onPointer}:{percent:number;active:boolean;onPointer:(e:React.PointerEvent)=>void}){return <button type="button" aria-label="Adjust price" onPointerDown={onPointer} className="absolute top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 touch-none cursor-grab place-items-center rounded-full" style={{left:`${percent}%`}}><span className={`block h-6 w-6 rounded-full border-[3px] border-[#0F1218] bg-violet-500 shadow-md transition ${active?'scale-110 ring-4 ring-violet-400/20':''}`}/></button>}
-function ValueBox({label,value,active,onFocus,onChange,onBlur}:{label:string;value:string;active:boolean;onFocus:()=>void;onChange:(v:string)=>void;onBlur:()=>void}){return <label className={`flex h-10 items-center gap-2 rounded-xl border px-3 ${active?'border-violet-500/35 bg-violet-500/[.055]':'border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]'}`}><span className="shrink-0 text-[8px] font-medium text-[var(--wh-text-muted)]">{label}</span><span className="text-[10px] text-[var(--wh-text-muted)]">{currencySymbol()}</span><input inputMode="numeric" value={value} onFocus={onFocus} onChange={e=>onChange(e.target.value)} onBlur={onBlur} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur()}} className="min-w-0 flex-1 bg-transparent text-right text-[11px] font-semibold text-white outline-none"/></label>}
+function Handle({label,value,lower,upper,step,onChange,percent,active,onPointer}:{label:string;value:number;lower:number;upper:number;step:number;onChange:(value:number)=>void;percent:number;active:boolean;onPointer:(e:React.PointerEvent)=>void}){
+ function key(event:React.KeyboardEvent<HTMLButtonElement>){
+  let next=value;
+  if(event.key==='ArrowRight'||event.key==='ArrowUp')next+=step;
+  else if(event.key==='ArrowLeft'||event.key==='ArrowDown')next-=step;
+  else if(event.key==='PageUp')next+=step*10;
+  else if(event.key==='PageDown')next-=step*10;
+  else if(event.key==='Home')next=lower;
+  else if(event.key==='End')next=upper;
+  else return;
+  event.preventDefault();onChange(Math.max(lower,Math.min(next,upper)));
+ }
+ return <button type="button" role="slider" aria-label={label} aria-orientation="horizontal" aria-valuemin={lower} aria-valuemax={upper} aria-valuenow={value} aria-valuetext={`${currencySymbol()}${formatMoney(value)}`} onKeyDown={key} onPointerDown={onPointer} className="absolute top-1/2 z-10 grid h-12 w-12 -translate-x-1/2 -translate-y-1/2 touch-none cursor-grab place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wh-accent-text)]" style={{left:`${percent}%`}}><span className={`block h-6 w-6 rounded-full border-[3px] border-[var(--wh-surface)] bg-violet-500 shadow-md motion-safe:transition ${active?'scale-110 ring-4 ring-violet-400/20':''}`}/></button>;
+}
+function ValueBox({label,value,active,onFocus,onChange,onBlur}:{label:string;value:string;active:boolean;onFocus:()=>void;onChange:(v:string)=>void;onBlur:()=>void}){return <label className={`flex h-10 items-center gap-2 rounded-xl border px-3 ${active?'border-violet-500/35 bg-violet-500/[.055]':'border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)]'}`}><span className="shrink-0 text-[8px] font-medium text-[var(--wh-text-muted)]">{label}</span><span className="text-[10px] text-[var(--wh-text-muted)]">{currencySymbol()}</span><input inputMode="numeric" value={value} onFocus={onFocus} onChange={e=>onChange(e.target.value)} onBlur={onBlur} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur()}} className="min-w-0 flex-1 bg-transparent text-right text-[11px] font-semibold text-[var(--wh-text)] outline-none"/></label>}

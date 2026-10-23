@@ -101,3 +101,31 @@ successful path. Record the exact commit and evidence in the release roadmap.
 
 The route-level phone/tablet/desktop and light/dark review remains open in the
 release roadmap. A passing build or shared token does not prove visual quality.
+
+## Motion must explain a state or action
+
+### Shared motion timing
+
+The shared tokens in `src/index.css` apply in both themes: `--wh-motion-fast`
+(120 ms) for small fades, `--wh-motion-feedback` (160 ms) for control feedback,
+and `--wh-motion-panel` (190 ms) for sheets/dialogs and content arrival. Login,
+workspace navigation, media entry and shared Radix primitives use these values.
+Control transitions name only visual properties; they must not animate layout
+dimensions. Switch thumbs move with transforms while their saved on/off state
+remains authoritative.
+
+Reduced motion disables shared primitive animations/transitions without clearing
+layout transforms needed to centre dialogs or position switches. Loading keeps
+its text when decorative spinning/pulsing is suppressed. Payment status and
+navigation never wait for an entrance animation. This foundation does not replace
+route-level visual and keyboard checks.
+
+Receipt documents intentionally use a white paper surface with locally scoped
+ink colours in either app theme. Their surrounding dialog follows the app theme.
+Receipt text must not inherit light ink from the dark app palette. The screen
+receipt and PDF use the same verified transaction data; an unknown payment state
+must never be labelled Paid.
+
+2D motion is appropriate for sheet entry/exit, navigation, selected controls, save feedback and loading. Keep it brief, interruptible and independent of successful server receipts. Generic spinning and pulsing placeholders must also respect reduced-motion preferences, including outside the shared loading component. Static loading text remains necessary when animation is suppressed. Optional 3D belongs to a useful spatial preview or property tour with equivalent photos/details, not a required step in authentication, checkout or support.
+
+Use short transitions for opening/closing panels and state changes, and truthful loading/progress/error feedback. Respect reduced-motion settings and keep navigation and payment confirmation independent of an animation completing. Sign-in, sign-out, booking and loading do not require 3D. No 3D framework is currently present. A future real property tour needs a concrete viewing benefit and an accessible, low-bandwidth fallback before adding a renderer. Visual polish is assessed through hierarchy, readable contrast, consistent spacing, keyboard/touch controls and complete responsive journeys; decorative motion does not close those checks.

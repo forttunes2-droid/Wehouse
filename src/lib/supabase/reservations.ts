@@ -209,12 +209,14 @@ export async function cancelReservation(reservationId: string) {
       p_reservation_id: reservationId,
     },
   );
-  return { reservation: (data as ReservationRecord) || null, error };
+  return { reservation: (data as ReservationRecord) || null, error:error||(data?.id!==reservationId||data.status!=='cancelled'?new Error('Cancellation could not be confirmed. Refresh the booking before retrying.'):null) };
 }
 
 export async function cancelPaidShortLetStay(reservationId: string) {
   const { data, error } = await supabase.rpc("cancel_my_paid_short_let", { p_reservation_id: reservationId });
-  return { refundAmount: Number((data as { refund_amount?: number } | null)?.refund_amount ?? 0), error };
+  const amount=data?.refund_amount;
+  const confirmed=typeof amount==='number'&&Number.isFinite(amount)&&amount>=0;
+  return { refundAmount: confirmed?amount:0, error:error||(!confirmed?new Error('Cancellation and refund could not be confirmed. Refresh the booking before retrying.'):null) };
 }
 
 export async function markSupportContacted(reservationId: string) {
@@ -242,7 +244,7 @@ export async function createInspectionRequest(
 
   return {
     inspection: (data as InspectionRecord) || null,
-    error,
+    error:error||(!data?.id||data.reservation_id!==reservationId?new Error('The inspection request could not be confirmed. Refresh the booking before retrying.'):null),
     alreadyExists: false,
   };
 }
@@ -432,7 +434,7 @@ export async function requestApartmentMoveIn(
     p_reservation_id: reservationId,
     p_requested_at: requestedAt,
   });
-  return { reservation: (data as ReservationRecord) || null, error };
+  return { reservation: (data as ReservationRecord) || null, error:error||(data?.id!==reservationId||data.status!=='ready_for_move_in'||!data.requested_move_in_at||Date.parse(data.requested_move_in_at)!==Date.parse(requestedAt)?new Error('The move-in time could not be confirmed. Refresh the booking before retrying.'):null) };
 }
 
 export async function completeApartmentTenancy(
