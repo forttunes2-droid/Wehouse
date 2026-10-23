@@ -1,7 +1,7 @@
 # Friends and Experiences product proposal
 
-**Status:** two-person encrypted plan card implemented in the working tree; browser/device and exact-SHA CI verification remain. Owner deferred private Friend groups on 20 October: do not build them yet. The historical group design below is deferred. Provider-led Experiences is the approved implementation direction. Private activity applications, submission/history and Creator correction/decline workflow now have source and Test database implementation. The public catalog, approval evidence, dated sessions and booking/payment lifecycle remain unbuilt.  
-**Reviewed:** 21 October 2026  
+**Status:** the two-person encrypted Friend plan is implemented; hosted/two-device verification remains. Friend groups are deferred by the owner and excluded from this release. Experiences now has private applications, activity-specific documents/photos, independent approval, dated-session preparation/prices, revision and host Activity on Test. Public catalog/publication, booking/capacity, protected checkout, cancellation/refunds, attendance, reviews, sharing, discounts and sponsorship remain internal work.
+**Reviewed:** 23 October 2026
 **Decision state:** private Friend groups are deferred by the owner on 20 October, superseding the earlier direction. On 19 October the owner removed shows and parties from the Experiences direction. Provider-led activities remain in the agreed full product scope; Friend groups are excluded for now.
 
 ## Product fit
