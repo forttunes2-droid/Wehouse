@@ -40,6 +40,10 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogou
           <AccountRow title="Close account" detail="Close this account after bookings, balances and obligations are cleared" onClick={()=>setSection('close')} icon={<WarningIcon/>}/>
         )}
       </AccountSection>}
+      <AccountSection title="Your personal data">
+        <AccountRow title="Request access, correction or deletion" detail="Send a personal-data request to WeHouse and follow its reply in Messages" onClick={()=>window.dispatchEvent(new CustomEvent('openSupportChat',{detail:{subject:'Personal data request: access, correction or deletion',category:'account_access',contextType:'general',contextSnapshot:{source_type:'privacy_request',source_id:profile.user_id}}}))} icon={<ShieldIcon/>}/>
+        <p className="px-4 pb-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose what you need in the message and send it to submit your request. WeHouse may need to confirm your identity. Payment, booking and dispute records may require separate review before deletion.</p>
+      </AccountSection>
     </>}
   </AccountShell>;
 }

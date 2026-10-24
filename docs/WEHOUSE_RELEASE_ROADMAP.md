@@ -2,6 +2,29 @@
 
 **Status date:** 24 October 2026
 
+### 24 October: exact-commit gates and personal-data/location follow-up
+
+All eight GitHub workflows on 96b90067775e954b7926d03279ad544db410bd11 pass,
+including fresh replay, existing-account upgrade, complete browser workflow,
+build, structural regression, mixed journeys and the bounded catalog ramp.
+The earlier 200 RPS failure remains historical capacity evidence; a later passing
+smoke run alone does not establish sustained production capacity.
+
+Personal-data access/correction/deletion now has a visible entry point for every
+account in Privacy & Security. It opens the existing account-access conversation
+with a typed privacy-request source. The user must send the message to submit;
+the UI does not pretend opening it completes erasure. The existing scoped support
+reply/receipt controls apply. Actual retention, purge coverage, operator resolution
+and legal publication still require separate completion/evidence.
+
+Homes, Hotels and Service search now reuse the searchable structured State/LGA
+dataset for Nigeria. Changing State clears a stale LGA. Browser checks cover this
+and the privacy-request handoff at 320/390/768/1440px. Other countries still need
+reviewed administrative datasets/stable identifiers before equivalent regional
+filtering can be claimed; free-text fallback is not global-location completion.
+Same-school matching uses the shared theme-aware switch and explains reciprocal
+preferences, self-reported school names and preservation of existing connections.
+
 ### 24 October: browser and privileged-RPC verification follow-through
 
 The hosted rollback sweep now covers 42 contract files, including support reply

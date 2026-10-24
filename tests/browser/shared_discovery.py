@@ -10,6 +10,7 @@ RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_pla
 HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
 SCRIPT="""s=>{
  window.__browse=s;
+ window.addEventListener('openSupportChat',event=>{window.__browse.dataRequest=event.detail;});
  for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}
  window.__browseAPI=async(name,args)=>{
   const s=window.__browse;s.calls.push({name,args});
@@ -21,6 +22,7 @@ SCRIPT="""s=>{
   if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
   if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
+  if(name==='rpc:get_my_workspace_access')return{data:{identity:{user_id:'qa-viewer'},personal_workspace:true,privileged_workspaces:[]},error:null};
   if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
@@ -51,6 +53,25 @@ async def main():
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
+    await page.evaluate('window.__switchBrowseMode("locations")')
+    await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
+    await page.get_by_role('button',name='State Any region',exact=True).click()
+    await page.get_by_placeholder('Search regions').fill('nasar')
+    await page.get_by_role('option',name='Nasarawa',exact=True).click()
+    await page.get_by_role('button',name='Local Government Any local area',exact=True).click()
+    await page.get_by_placeholder('Search local areas').fill('laf')
+    await page.get_by_role('option',name='Lafia',exact=True).click()
+    await expect(page.get_by_label('Chosen local area')).to_have_text('Lafia')
+    await page.get_by_role('button',name='State Nasarawa',exact=True).click()
+    await page.get_by_placeholder('Search regions').fill('lagos')
+    await page.get_by_role('option',name='Lagos',exact=True).click()
+    await expect(page.get_by_label('Chosen local area')).to_have_text('')
+    await page.evaluate('window.__switchBrowseMode("privacy")')
+    await page.get_by_role('button',name='Request access, correction or deletion',exact=False).click()
+    request=await page.evaluate('window.__browse.dataRequest')
+    assert request['category']=='account_access' and request['contextSnapshot']=={'source_type':'privacy_request','source_id':'qa-viewer'}
+    await expect(page.get_by_text('Choose what you need in the message and send it to submit your request.',exact=False)).to_be_visible()
+    await page.evaluate('window.__switchBrowseMode("homes")')
     await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
@@ -90,7 +111,7 @@ async def main():
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')
     assert not errors,errors
-    row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','compact missing gallery','explicit failed thumbnails']
+    row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
     row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}.png'),full_page=True)
    finally:results.append(row);print(json.dumps(row),flush=True);await context.close()
