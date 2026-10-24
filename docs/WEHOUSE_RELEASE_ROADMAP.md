@@ -2,6 +2,24 @@
 
 **Status date:** 24 October 2026
 
+### 24 October: repeatable capacity transport
+
+Exact-commit 16519f06 passes seven workflows, including both-theme browser checks,
+fresh/upgrade replay and mixed journeys; the hosted 200 RPS ramp fails. Its retained
+report records 3,000 failed logical requests and 1,556 drops after reaching 3,000
+in flight. Errors are connection refusal/connect timeout/attempt timeout. During
+the same window, the available Supabase catalog edge logs record 2,802 HTTP 200s
+and no other status; this does not prove every offered request reached Supabase.
+Aggregate Home/Hotel database search time is about 6.2 ms, not a transport verdict.
+
+The benchmark now uses an explicit reusable 128-socket TLS pool instead of an
+unbounded implicit client connection budget. Queued time remains inside the same
+15-second attempt deadline; offered rate, logical in-flight ceiling, retry budget,
+latency, drops and success gates are unchanged. Seven local transport/gate tests
+pass, including 64 concurrent POSTs on four reused connections and queue expiry.
+The next hosted run must determine the result. This is measurement hardening,
+not a claim that application caching or production capacity is complete.
+
 ### 24 October: shared late receipts and theme evidence
 
 Consolidation on 9ab4777aa919984aa7df0185bca38d27f98ad719 passes the added

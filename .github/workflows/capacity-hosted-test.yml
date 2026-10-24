@@ -5,7 +5,9 @@ on:
       - '.github/workflows/capacity-hosted-test.yml'
       - 'scripts/load-hosted-test-catalog.mjs'
       - 'scripts/lib/catalog-capacity-gates.mjs'
+      - 'scripts/lib/catalog-transport.mjs'
       - 'tests/catalog-capacity-gates.test.mjs'
+      - 'tests/catalog-transport.test.mjs'
       - 'supabase/tests/hosted_catalog_fixture.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
@@ -27,7 +29,7 @@ jobs:
         with:
           node-version: 24
       - name: Check capacity report gates
-        run: node --test tests/catalog-capacity-gates.test.mjs
+        run: node --test tests/catalog-capacity-gates.test.mjs tests/catalog-transport.test.mjs
       - name: Read-only Test project catalog ramp from 1 to 200 requests per second
         env:
           # A browser-safe publishable key for the dedicated Test project. RLS

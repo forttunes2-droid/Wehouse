@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { assessCatalogStage, catalogWarmupComplete, CATALOG_CAPACITY_LIMITS } from './lib/catalog-capacity-gates.mjs';
+import { createCatalogTransport } from './lib/catalog-transport.mjs';
 
 // Explicit allowlist: this cannot be pointed at the live WeHouse project.
 const origin = new URL('https://qoobnkedfyosnizrlttt.supabase.co');
 const key = process.env.WEHOUSE_TEST_PUBLISHABLE_KEY;
 assert.ok(key?.startsWith('sb_publishable_'), 'Test project publishable key required');
 assert.equal(origin.hostname, 'qoobnkedfyosnizrlttt.supabase.co');
+const transport = createCatalogTransport(origin);
+process.once('exit', () => transport.close());
 const paths = [
   { name: 'home_feed', rpc: 'search_discoverable_homes', body: { p_limit: 24 }, validate: d => d?.items?.length === 24 },
   { name: 'hotel_feed', rpc: 'search_discoverable_hotels', body: { p_limit: 24 }, validate: d => d?.items?.length === 24 },
@@ -24,11 +27,9 @@ async function read(path) {
   let retry_status = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const response = await fetch(new URL(`/rest/v1/rpc/${path.rpc}`, origin), {
-        method: 'POST', headers: { apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-        body: JSON.stringify(path.body), signal: AbortSignal.timeout(15000),
-      });
-      const body = await response.text();
+      const response = await transport.post(`/rest/v1/rpc/${path.rpc}`,
+        { apikey: key, authorization: `Bearer ${key}` }, path.body);
+      const body = response.body;
       const data = response.ok ? JSON.parse(body) : null;
       if (response.ok && path.validate(data)) {
         return { name: path.name, ms: performance.now() - started, ok: true, status: response.status, retries, retry_status };
@@ -40,7 +41,7 @@ async function read(path) {
       }
       return { name: path.name, ms: performance.now() - started, ok: false, status: response.status, retries, retry_status };
     } catch (error) {
-      const code = error.cause?.code;
+      const code = error.cause?.code || error.code;
       const retryable = ['AbortError', 'TimeoutError'].includes(error.name) || ['ECONNRESET', 'ECONNREFUSED', 'UND_ERR_SOCKET'].includes(code);
       if (retryable && attempt < 2) {
         retries++; retry_status = String(error.name) + ':' + String(code || error.message);
@@ -55,6 +56,7 @@ async function read(path) {
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
   scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Thirty-second stages are a catalog smoke benchmark, not sustained whole-product capacity. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; fixed ceiling of 3000 logical requests in flight, each allowing up to three 15-second attempts.',
   measured_at: new Date().toISOString(),
+  transport: { protocol: 'https', keep_alive: true, max_sockets: transport.maxSockets, attempt_deadline_ms: 15000, queued_time_in_deadline: true },
   status: 'running',
   passed: false,
   reviewed_sha: process.env.GITHUB_SHA || null,
