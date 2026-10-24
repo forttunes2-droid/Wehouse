@@ -25,8 +25,9 @@ test('local startup provisions bucket metadata before replaying the unchanged mi
 });
 test('versioned reset replays only the requested prefix and restores every source file',t=>{
  const root=workspace(t),calls=[];
- disposableSupabase(['reset','--version','20260101000000'],{root,run:(r,p,args)=>{calls.push(args);if(args[0]==='db')assert.equal(fs.readdirSync(path.join(r,'supabase','migrations')).length,0);if(args[0]==='migration')assert.deepEqual(fs.readdirSync(path.join(r,'supabase','migrations')),['20260101000000_one.sql']);}});
- assert.equal(calls[0].join(' '),'db reset --local --no-seed');assert.equal(fs.readdirSync(path.join(root,'supabase','migrations')).length,2);
+ fs.writeFileSync(path.join(root,'supabase','migrations','20250526_historical.sql'),'-- original historical version\n');
+ disposableSupabase(['reset','--version','20260101000000'],{root,run:(r,p,args)=>{calls.push(args);if(args[0]==='db')assert.equal(fs.readdirSync(path.join(r,'supabase','migrations')).length,0);if(args[0]==='migration')assert.deepEqual(fs.readdirSync(path.join(r,'supabase','migrations')),['20250526_historical.sql','20260101000000_one.sql']);}});
+ assert.equal(calls[0].join(' '),'db reset --local --no-seed');assert.equal(fs.readdirSync(path.join(root,'supabase','migrations')).length,3);
 });
 test('a failed startup or migration restores the original source directory',t=>{
  for(const mode of ['start','reset']){

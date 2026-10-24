@@ -1,6 +1,6 @@
 # WeHouse release roadmap
 
-**Status date:** 23 October 2026
+**Status date:** 24 October 2026
 
 ### 24 October: exact-PR replay and cancellation prerequisite
 
@@ -21,6 +21,27 @@ push); do not repair history by falsely marking it applied. Hosted rollback
 checks verified unchanged existing history, empty-table initialization against
 a temporary table with the real constraints, and repeated execution. Added a
 fresh-replay SQL contract. Full fresh/upgrade CI still decides replay readiness.
+
+On d79082ef, full fresh initialization and reset complete, including the new
+policy contract. Consolidation then catches a stale source assertion: cancellation
+now delegates eligibility to the shared preview helper. The revised assertion
+checks both the call/required full-refund receipt and that helper's saved terms,
+deadline and Finance guards; hosted rollback execution passes. The real paid
+cancellation behavioral contract remains enabled.
+
+Versioned upgrade omitted the historical eight-digit 20250526 migration from
+the disposable runner's fourteen-digit filter. The runner and regression fixture
+now retain it without changing its version or bytes; all 26 focused checks pass.
+Mixed-journey booking correctly rejected synthetic Hotels lacking current
+document approval. The local-only fixture now supplies distinct synthetic owner/
+reviewer records and every default Hotel evidence requirement. Hosted rollback
+verification confirms all 50 satisfy the unchanged production document guard.
+Six coordinated-release tests also pass on Windows after normalizing only their
+LF fixture, leaving the exact migration-hash exception unchanged.
+
+The hosted anonymous catalog ramp passed through 50 requests/second but failed
+at 100 with 1,173 request failures. This is unresolved capacity evidence; it is
+not a passed global-scaling gate and its threshold has not been lowered.
 
 ### PR integration and actual CI failure repair
 

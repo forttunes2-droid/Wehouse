@@ -45,7 +45,9 @@ export function disposableSupabase(args,{root=process.cwd(),run=command}={}) {
     if(options.length){if(options.length!==2||options[0]!=='--version'||!/^\d{14}$/.test(options[1]))throw new Error('Only a migration --version is accepted for local reset.');version=options[1];}
   }else throw new Error('Use start [--exclude names] or reset [--version timestamp]. Remote targets are not supported.');
   const folder=path.join(root,'supabase','migrations');
-  const names=fs.readdirSync(folder).filter(name=>/^\d{14}_.+\.sql$/.test(name)).sort();
+  // Preserve the recorded eight-digit historical migration as well as modern
+  // timestamp versions; dropping it makes the upgrade baseline incomplete.
+  const names=fs.readdirSync(folder).filter(name=>/^\d{8,14}_.+\.sql$/.test(name)).sort();
   if(version&&!names.some(name=>name.startsWith(version+'_')))throw new Error('Requested baseline migration does not exist.');
   const bootstrap=fs.readFileSync(path.join(root,'supabase','bootstrap','storage-buckets.sql'),'utf8');
   // Supabase's schema-only dump omits storage.buckets data. Start/reset only
@@ -54,7 +56,7 @@ export function disposableSupabase(args,{root=process.cwd(),run=command}={}) {
   selectedMigrations(root,[],()=>run(root,'supabase',mode==='start'?['start',...excludes]:['db','reset','--local','--no-seed']));
   run(root,'docker',['exec','-i','supabase_db_wehouse','psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],bootstrap);
   const migrate=()=>run(root,'supabase',['migration','up','--local']);
-  if(version)selectedMigrations(root,names.filter(name=>name.slice(0,14)<=version),migrate);else migrate();
+  if(version)selectedMigrations(root,names.filter(name=>name.split('_',1)[0]<=version),migrate);else migrate();
 }
 
 if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url){
