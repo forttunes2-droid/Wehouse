@@ -14,7 +14,20 @@ values
  ('f6100000-0000-4000-8000-000000000006','mkt-hotel-manager@example.invalid','mkt-hotel-manager','market-hotel-manager','user',true,'Hotel Manager','consumer',null,false,'Lagos','Ikeja',''),
  ('f6100000-0000-4000-8000-000000000007','mkt-hotel-target@example.invalid','mkt-hotel-target','hotel-target','user',true,'Hotel Target','consumer',null,false,'Lagos','Ikeja',''),
  ('f6100000-0000-4000-8000-000000000008','mkt-worker-a@example.invalid','mkt-worker-a','worker-a','user',true,'Worker A','consumer','verified',true,'Lagos','Ikeja','Plumber'),
- ('f6100000-0000-4000-8000-000000000009','mkt-worker-b@example.invalid','mkt-worker-b','worker-b','user',true,'Worker B','consumer','profile_under_review',false,'Lagos','Ikeja','Plumber');
+ ('f6100000-0000-4000-8000-000000000009','mkt-worker-b@example.invalid','mkt-worker-b','worker-b','user',true,'Worker B','consumer','profile_under_review',false,'Lagos','Ikeja','Plumber'),
+ -- Existing verified professional without an active workspace: membership
+ -- reactivation must still respect the market cap under the real triggers.
+ ('f6100000-0000-4000-8000-000000000010','mkt-worker-c@example.invalid','mkt-worker-c','worker-c','user',true,'Worker C','consumer','verified',true,'Lagos','Ikeja','Plumber');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id like 'mkt-%';
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id,auth_id,'market-contract-'||user_id,'Synthetic contract browser',true,'trusted'
+from public.profiles where user_id like 'mkt-%';
+create function pg_temp.market_actor(actor uuid) returns text language plpgsql as $$begin
+ perform set_config('request.jwt.claim.sub',actor::text,true);
+ return set_config('request.jwt.claims',jsonb_build_object('sub',actor,'session_id',actor,'role','authenticated')::text,true);
+end $$;
+grant execute on function pg_temp.market_actor(uuid) to authenticated;
 
 insert into public.listings(
   id,listing_id,title,sub_type,state,city,status,availability_status,approved_at,
@@ -92,7 +105,7 @@ do $$ begin
 end $$;
 
 select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000001',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000001');
 set local role authenticated;
 do $$ begin
   if public.get_public_listing_detail('mkt-hosted-home')->>'location_exact'<>'true' then
@@ -109,7 +122,7 @@ do $$ begin
       'f6100000-1000-4000-8000-000000000001','market-host','direct','operations');
     raise exception 'Re-inviting an active co-host unexpectedly succeeded';
   exception when raise_exception then
-    if sqlerrm not like 'An active co-host must be revoked%' then raise; end if;
+    if sqlerrm not like 'This person is already an active co-host.%' then raise; end if;
   end;
   if (select assignment_role from public.property_host_assignments
       where assignment_id='f6100000-2000-4000-8000-000000000001')<>'owner'
@@ -123,7 +136,7 @@ reset role;
 
 -- Only the currently assigned Host sees their property target; the same person
 -- cannot open Hosting support on another public listing.
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000002',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000002');
 set local role authenticated;
 do $$ declare help jsonb; begin
   help:=public.get_my_hosting_help_targets();
@@ -147,7 +160,7 @@ end $$;
 reset role;
 
 -- The inviter's hotel authority is rechecked at response time.
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000007',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000007');
 set local role authenticated;
 do $$ begin
   begin
@@ -174,7 +187,7 @@ do $$ declare preview jsonb; begin
   end if;
 end $$;
 reset role;
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000001',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000001');
 set local role authenticated;
 do $$ declare revoked boolean; begin
   revoked:=public.revoke_resource_invitation('f6100000-3000-4000-8000-000000000004');
@@ -196,10 +209,6 @@ do $$ begin
   exception when raise_exception then
     if sqlerrm not like '%capacity is full%' then raise; end if;
   end;
-  insert into public.profiles(auth_id,email,user_id,role,profile_complete,full_name,account_kind,
-    worker_status,worker_verified,state,local_government,worker_occupation)
-  values('f6100000-0000-4000-8000-000000000010','mkt-worker-c@example.invalid','mkt-worker-c',
-    'user',true,'Worker C','consumer','verified',true,'Lagos','Ikeja','Plumber');
   begin
     insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
     values('mkt-worker-c','worker','global','active');
@@ -210,7 +219,7 @@ do $$ begin
 end $$;
 
 -- Capacity status cannot be used by a different account to inspect a Worker.
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000009',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000009');
 set local role authenticated;
 do $$ begin
   begin
@@ -225,7 +234,7 @@ reset role;
 -- Revoking the Partner workspace removes management and owner-only reads even
 -- when a historical owner assignment is still active. The delegated co-host's
 -- separate Hosting assignment remains valid for the same home.
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000001',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000001');
 set local role authenticated;
 do $$ declare first_page jsonb; second_page jsonb; exact jsonb; quote jsonb;
   hotel_first jsonb; hotel_second jsonb; hotel_exact jsonb; begin
@@ -314,7 +323,7 @@ do $$ begin
   end;
 end $$;
 reset role;
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000005',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000005');
 set local role authenticated;
 do $$ begin
   if public.get_public_hotel_detail(-76101) is not null then
@@ -334,7 +343,7 @@ do $$ begin
   end;
 end $$;
 reset role;
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000002',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000002');
 set local role authenticated;
 do $$ begin
   if not public.current_actor_can_manage_property('f6100000-1000-4000-8000-000000000001')
@@ -347,7 +356,7 @@ do $$ begin
   end if;
 end $$;
 reset role;
-select set_config('request.jwt.claim.sub','f6100000-0000-4000-8000-000000000003',true);
+select pg_temp.market_actor('f6100000-0000-4000-8000-000000000003');
 set local role authenticated;
 do $$ begin
   begin

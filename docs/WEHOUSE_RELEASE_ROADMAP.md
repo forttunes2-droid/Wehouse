@@ -90,6 +90,37 @@ Activity booking links, access revocation, and internal property-profile navigat
 Public discovery checks pass at 320/390/768/1440px, including guest read-only access,
 room/rate selection continuity, sign-in return and retained search state.
 
+### 24 October: batch role, money and marketplace verification
+
+Existing-account upgrade on 2c3ea788 passes its atomic rollback, commit and repeat
+checks in GitHub. A broader hosted rollback sweep has now verified 32 contract
+files covering Pro, Friend cost sharing, reports, property documents/submission,
+operating costs, Roommate cancellation/matching, discounts, worker refunds,
+country settings, account email security, workspace authority/inboxes, Help
+routing, property management, co-host invitations, Sponsored payment/placement
+and cross-user RLS. Synthetic setup was brought through current trusted-device,
+hosting-assignment and credential requirements; those production guards remain
+enabled. psql-specific recovery/shared-stay contracts and the upgrade-fixture-
+dependent withdrawal contract still require the exact CI run; they are not
+counted as hosted passes.
+
+The matching sweep found Test deployment drift: the existing canonical
+20261007210000 Roommate ranking fix was missing there. Applied its unchanged SQL
+to Test as recorded version 20261024174602, then its full practical matching
+contract passed. The existing canonical file is preserved; no duplicate Roommate
+implementation was added. This Test alias is distinct from Production history.
+
+Cross-user security checks found unintended browser grants on hotel_rooms and
+hotel_commercial_change_audit plus automatic public-table browser defaults.
+Additive Test migrations 20261024175813 and 20261024180442 revoke those direct
+grants and close future postgres-owned public table defaults, preserving service
+maintenance and scoped RPCs. The complete foundation RLS contract passes after
+the fixes. Its explicit anonymous-function inventory now includes the reviewed
+Home-style search overload, key-allowlisted discovery settings and published-only
+bounded site offers. Marketplace and Sponsored contracts also pass with the real
+invitation, publication, payment and row-access guards. No Production changes,
+real charges, transfers or persistent synthetic customer records were made.
+
 ### PR integration and actual CI failure repair
 
 The accumulated engineering work was committed in d489194c and pushed to #118;

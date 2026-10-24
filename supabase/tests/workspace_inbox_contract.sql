@@ -13,6 +13,16 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 ('99999999-1111-4111-8111-000000000001','inbox-a@example.invalid','inbox-a','worker',true),
 ('99999999-1111-4111-8111-000000000002','inbox-b@example.invalid','inbox-b','worker',true),
 ('99999999-1111-4111-8111-000000000003','inbox-c@example.invalid','inbox-c','user',true);
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in('inbox-a','inbox-b','inbox-c');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id,auth_id,'inbox-contract-'||user_id,'Synthetic contract browser',true,'trusted'
+from public.profiles where user_id in('inbox-a','inbox-b','inbox-c');
+create function pg_temp.inbox_actor(actor uuid) returns text language plpgsql as $$begin
+ perform set_config('request.jwt.claim.sub',actor::text,true);
+ return set_config('request.jwt.claims',jsonb_build_object('sub',actor,'session_id',actor,'role','authenticated')::text,true);
+end $$;
+grant execute on function pg_temp.inbox_actor(uuid) to authenticated;
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values
 ('inbox-a','worker','global','active'),('inbox-a','property_partner','global','active'),('inbox-b','worker','global','active');
 insert into public.worker_bookings(id,user_id,worker_id,service_type) values
@@ -48,7 +58,7 @@ do $$
 declare rows jsonb; draft uuid; sent jsonb;
 begin
   if has_function_privilege('anon','public.get_my_workspace_inbox(text,text)','EXECUTE') then raise exception 'Anonymous inbox access'; end if;
-  perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
+  perform pg_temp.inbox_actor('99999999-1111-4111-8111-000000000001');
   rows:=public.get_my_workspace_help_targets('personal');
   if jsonb_array_length(rows->'worker_jobs')<>1 or rows->'worker_jobs'->0->>'label'<>'Customer purchase'
     or rows ? 'properties' or rows ? 'worker_profile' or rows ? 'withdrawals' then
@@ -60,14 +70,14 @@ begin
   rows:=public.get_my_workspace_help_targets('property_partner');
   if jsonb_array_length(rows->'hotels')<>1 or rows ? 'worker_jobs' or rows ? 'hotel_bookings' then
     raise exception 'Partner Help is disconnected or includes personal records'; end if;
-  perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000002',true);
+  perform pg_temp.inbox_actor('99999999-1111-4111-8111-000000000002');
   rows:=public.get_my_workspace_help_targets('hotel');
   if jsonb_array_length(rows->'hotels')<>1 or rows ? 'worker_jobs' or rows ? 'withdrawals' then
     raise exception 'Hotel Team Help includes unrelated records'; end if;
-  perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000003',true);
+  perform pg_temp.inbox_actor('99999999-1111-4111-8111-000000000003');
   begin perform public.get_my_workspace_help_targets('property_partner'); raise exception 'Unassigned partner Help access';
   exception when raise_exception then if sqlerrm<>'Workspace access required' then raise; end if; end;
-  perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
+  perform pg_temp.inbox_actor('99999999-1111-4111-8111-000000000001');
   rows:=public.get_my_workspace_inbox('personal','service');
   if jsonb_array_length(rows)<>1 or rows->0->>'service_type'<>'Customer purchase' then raise exception 'Personal Inbox contains provider work'; end if;
   rows:=public.get_my_workspace_inbox('worker','service');
@@ -90,7 +100,7 @@ begin
   if not public.get_my_workspace_inbox('worker','wehouse') @> jsonb_build_array(jsonb_build_object('conversation_id',sent->>'conversation_id')) then raise exception 'New worker help lost workspace'; end if;
   if exists(select 1 from public.notifications where recipient_id='inbox-c') then raise exception 'Another person activity is visible'; end if;
   if exists(select 1 from public.notifications where recipient_id='inbox-a' and workspace_scope in ('personal','account')) then raise exception 'Work event incorrectly placed in Personal'; end if;
-  perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000003',true);
+  perform pg_temp.inbox_actor('99999999-1111-4111-8111-000000000003');
   begin
     perform public.get_my_workspace_inbox('worker','service');
     raise exception 'Missing workspace grant was accepted';
@@ -103,7 +113,7 @@ reset role;
 update public.workspace_role_assignments set status='revoked',revoked_at=now() where user_id='inbox-a' and workspace_role='worker';
 set local role authenticated;
 do $$ begin
-  perform set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
+  perform pg_temp.inbox_actor('99999999-1111-4111-8111-000000000001');
   begin
     perform public.get_my_workspace_inbox('worker','service');
     raise exception 'Revoked worker retained workspace access';

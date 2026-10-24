@@ -81,14 +81,17 @@ insert into public.partner_support_messages(conversation_id,sender_id,content,vi
 ('99999999-2222-4222-8222-000000000001','repair-owner','Customer-visible message','customer'),
 ('99999999-2222-4222-8222-000000000001','repair-staff','Private staff note','internal');
 insert into public.user_sessions(id,user_id,auth_id,device_id,auth_session_id,device,trust_status,is_active) values
-('99999999-3333-4333-8333-000000000001','repair-owner','99999999-1111-4111-8111-000000000001','same-browser-device','current-auth-session','Android Device','trusted',true),
-('99999999-3333-4333-8333-000000000002','repair-owner','99999999-1111-4111-8111-000000000001','same-browser-device','earlier-auth-session','Android Device','trusted',false),
-('99999999-3333-4333-8333-000000000003','repair-owner','99999999-1111-4111-8111-000000000001','different-device','other-auth-session','Desktop','trusted',true);
+('99999999-3333-4333-8333-000000000001','repair-owner','99999999-1111-4111-8111-000000000001','same-browser-device','99999999-4444-4444-8444-000000000001','Android Device','trusted',true),
+('99999999-3333-4333-8333-000000000002','repair-owner','99999999-1111-4111-8111-000000000001','same-browser-device','99999999-4444-4444-8444-000000000002','Android Device','trusted',false),
+('99999999-3333-4333-8333-000000000003','repair-owner','99999999-1111-4111-8111-000000000001','different-device','99999999-4444-4444-8444-000000000003','Desktop','trusted',true);
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_session_id::uuid,auth_id::uuid,now(),now() from public.user_sessions
+where user_id='repair-owner';
 insert into public.notifications(recipient_id,type,title,source_id,destination_params,read,workspace_scope) values
 ('repair-owner','new_device_login','Test same device','99999999-3333-4333-8333-000000000002','{"decision":"unreviewed"}',false,'account'),
 ('repair-owner','new_device_login','Test new device','99999999-3333-4333-8333-000000000003','{"decision":"unreviewed"}',false,'account');
 set local session_replication_role=origin;
-select set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000001","role":"authenticated","session_id":"current-auth-session"}',true);
+select set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000001","role":"authenticated","session_id":"99999999-4444-4444-8444-000000000001"}',true);
 select set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
 set local role authenticated;
 do $$ declare snapshot jsonb; messages integer; notice jsonb; review_summary jsonb; begin

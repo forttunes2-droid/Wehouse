@@ -8,8 +8,13 @@ insert into public.profiles(auth_id,email,user_id,username,role,profile_complete
 insert into auth.sessions(id,user_id,created_at,updated_at) values
 ('f7440000-1000-4000-8000-000000000001','f7440000-0000-4000-8000-000000000001',now(),now()),
 ('f7440000-1000-4000-8000-000000000004','f7440000-0000-4000-8000-000000000004',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select p.user_id,p.auth_id,s.id::text,'cohost-contract-'||p.user_id,'Synthetic contract browser',true,'trusted'
+from public.profiles p join auth.sessions s on s.user_id::text=p.auth_id
+where p.user_id in('cohost-owner','cohost-other');
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
-values('cohost-owner','property_partner','global','active');
+values('cohost-owner','property_partner','global','active'),
+ ('cohost-other','property_partner','global','active');
 insert into public.listings(id,listing_id,title,sub_type,state,city,status,availability_status,owner_id,partner_id,approved_at,management_mode,management_updated_at,management_host_user_id)
 values('f7440000-2000-4000-8000-000000000001','cohost-control-home','Co-host control home','short_let','Lagos','Ikeja','available','available','cohost-owner','cohost-owner',now(),'host',now(),'cohost-owner');
 insert into public.property_host_assignments(assignment_id,listing_id,user_id,assignment_role,status,invited_by,accepted_at,access_level) values

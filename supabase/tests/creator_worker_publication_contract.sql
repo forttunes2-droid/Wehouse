@@ -10,6 +10,18 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_
 ('93000000-0000-4000-8000-000000000003','pub-customer@example.invalid','pub-customer','user',true,'consumer','Customer','Nasarawa','Lafia','Lafia',null,null,null,false,false);
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values('pub-creator','creator','global','active'),('pub-worker','worker','global','active');
 insert into public.worker_service_coverage(worker_id,state,lga,areas) values('pub-worker','Nasarawa','Lafia','{}');
+insert into public.worker_verifications(worker_id,status,credential_requirements,
+ credential_revision,credential_requirements_set_by,credential_requirements_set_at)
+values('pub-worker','verified','[{"code":"trade","label":"Plumbing credential","requires_expiry":false}]',
+ 1,'pub-creator',now());
+update public.worker_verifications set credential_context=private.worker_credential_context('pub-worker')
+ where worker_id='pub-worker';
+insert into public.worker_credential_documents(worker_id,requirement_code,requirements_revision,
+ version,request_key,original_name,mime_type,byte_size,object_path,status,submitted_at,
+ reviewed_at,reviewed_by,review_note)
+values('pub-worker','trade',1,1,'93000000-0000-4000-8000-000000000009',
+ 'synthetic-publication-trade.pdf','application/pdf',12,'pub-worker/synthetic-trade.pdf',
+ 'approved',now(),now(),'pub-creator','Synthetic reviewed trade credential');
 insert into public.creator_elevation_grants(creator_elevation_id,creator_user_id,auth_user_id,auth_session_id,action_classes,issued_at,expires_at,verification_method)
 values('93000000-0000-4000-8000-000000000099','pub-creator','93000000-0000-4000-8000-000000000001','publication-session',array['all_sensitive'],now(),now()+interval '10 minutes','password');
 insert into public.platform_settings(key,value,category,label,data_type,is_active) values
