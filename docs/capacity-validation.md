@@ -2,6 +2,22 @@
 
 ## Public-feed boundary and expanded ramp — 24 October 2026
 
+First expanded CI result (`f8507e32`): 200 RPS completed 6,000/6,000 with zero
+errors/retries/drops and 232ms p95. At 500 RPS it completed 12,543/15,000, dropped
+2,457 and reached 9,087ms p95; it stopped without running 1,000. This is a failure,
+not higher-capacity proof. Its 256-socket generator ceiling can itself queue
+traffic below the intended 1,000-RPS/2-second budget. The next run allows up to
+2,048 sockets while retaining the 3,000 logical in-flight bound and every gate.
+Reports now distinguish final-attempt client socket-queue time from time after
+socket assignment. The latter includes connection/TLS/network/response work;
+it is not database execution time. Full request latency still includes all
+attempts and retry delays and remains the acceptance metric.
+
+The separate disposable 50k-home/100k-Hotel run on `ec5f35ef` completed 400-client,
+800-request bursts per endpoint without request errors. Measured throughput was
+374–443 RPS for feed/filter endpoints and 790–925 RPS for detail endpoints.
+These short closed-loop bursts do not establish sustained hosted capacity.
+
 The working implementation adds `/api/public-catalog` for deployed web Home and
 Hotel feeds. It calls the existing anonymous redacted search RPCs, never a raw
 table, service-role client or arbitrary RPC. Only bounded public feed parameters

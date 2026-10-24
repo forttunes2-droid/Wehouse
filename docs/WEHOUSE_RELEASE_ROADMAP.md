@@ -11,6 +11,12 @@ substitute the earlier passing run for this failure. The staged CI ceiling is no
 it stops immediately at a failed stage. A local expanded attempt failed its 1 RPS
 latency/retry gate and did not run the higher stages.
 
+Expanded CI on f8507e32 passes 200 RPS, then fails 500 RPS (12,543/15,000 completed,
+2,457 dropped; 9,087ms p95). No 1,000-RPS result exists. Subsequent transport work
+removes the 256-socket generator bottleneck for the expanded ceiling and reports
+client queue versus post-socket response timings separately. The 2,000ms p95,
+errors/retries/drops and dispatch gates stay unchanged; the next run decides.
+
 The public-feed gateway, browser wiring, API build checks and negative/concurrency
 tests are implemented; see `capacity-validation.md` for the exact cache boundary
 and exclusions. No payment/booking/session data is cached. Focused tests and

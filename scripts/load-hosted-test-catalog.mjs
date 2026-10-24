@@ -11,7 +11,10 @@ const key = process.env.WEHOUSE_TEST_PUBLISHABLE_KEY;
 assert.ok(key?.startsWith('sb_publishable_'), 'Test project publishable key required');
 assert.equal(origin.hostname, 'qoobnkedfyosnizrlttt.supabase.co');
 const stages = catalogRamp(process.env.WEHOUSE_CATALOG_MAX_RPS || '200');
-const transport = createCatalogTransport(origin,{maxSockets:stages.at(-1)[0]>200?256:128});
+// 1,000 RPS at the 2-second latency ceiling needs up to 2,000 live sockets.
+// Keep the generator above that budget and record queueing rather than mistake
+// a small client pool for the service's capacity. Logical in-flight stays 3,000.
+const transport = createCatalogTransport(origin,{maxSockets:stages.at(-1)[0]>200?2048:128});
 process.once('exit', () => transport.close());
 const paths = [
   { name: 'home_feed', rpc: 'search_discoverable_homes', body: { p_limit: 24 }, validate: d => d?.items?.length === 24 },
@@ -34,14 +37,14 @@ async function read(path) {
       const body = response.body;
       const data = response.ok ? JSON.parse(body) : null;
       if (response.ok && path.validate(data)) {
-        return { name: path.name, ms: performance.now() - started, ok: true, status: response.status, retries, retry_status };
+        return { name: path.name, ms: performance.now() - started, ok: true, status: response.status, retries, retry_status,timing:response.timing };
       }
       if ([502, 503, 504].includes(response.status) && attempt < 2) {
         retries++; retry_status = response.status;
         await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
         continue;
       }
-      return { name: path.name, ms: performance.now() - started, ok: false, status: response.status, retries, retry_status };
+      return { name: path.name, ms: performance.now() - started, ok: false, status: response.status, retries, retry_status,timing:response.timing };
     } catch (error) {
       const code = error.cause?.code || error.code;
       const retryable = ['AbortError', 'TimeoutError'].includes(error.name) || ['ECONNRESET', 'ECONNREFUSED', 'UND_ERR_SOCKET'].includes(code);
@@ -50,7 +53,7 @@ async function read(path) {
         await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
         continue;
       }
-      return { name: path.name, ms: performance.now() - started, ok: false, status: String(error.name) + ':' + String(code || error.message), retries, retry_status };
+      return { name: path.name, ms: performance.now() - started, ok: false, status: String(error.name) + ':' + String(code || error.message), retries, retry_status,timing:error.catalogTiming };
     }
   }
   return { name: path.name, ms: performance.now() - started, ok: false, status: 'retry-exhausted', retries, retry_status };
@@ -128,9 +131,13 @@ for (const [rps, seconds] of stages) {
   const retriedRequests = samples.filter(s => s.retries > 0).length;
   const retryAttempts = samples.reduce((sum, s) => sum + s.retries, 0);
   const retried = samples.filter(s => s.retries > 0);
+  const timingPercentile=key=>pct(samples.map(s=>s.timing?.[key]).filter(value=>typeof value==='number').sort((a,b)=>a-b),.95);
   const stage = { target_rps: rps, seconds, dispatch_seconds: dispatchSeconds, max_inflight, offered: rps * seconds, completed: samples.length, errors: errors.length, dropped,
     retried_requests: retriedRequests, retry_attempts: retryAttempts,
     retry_rate_pct: samples.length ? Math.round(retriedRequests / samples.length * 100000) / 1000 : 0,
+    final_attempt_queue_p95_ms:timingPercentile('queue_ms'),
+    final_attempt_response_p95_ms:timingPercentile('response_ms'),
+    final_attempt_headers_p95_ms:timingPercentile('headers_ms'),
     retry_statuses: Object.fromEntries([...new Set(retried.map(s => String(s.retry_status)))].map(code => [code, retried.filter(s => String(s.retry_status) === code).length])),
     p50_ms: pct(good, .5), p95_ms: pct(good, .95), p99_ms: pct(good, .99), achieved_rps: Math.round(samples.length / elapsed * 10) / 10,
     errors_by_status: Object.fromEntries([...new Set(errors.map(s => String(s.status)))].map(code => [code, errors.filter(s => String(s.status) === code).length])),
@@ -140,7 +147,7 @@ for (const [rps, seconds] of stages) {
   stage.assessment = assessCatalogStage(stage, paths.map(path => path.name));
   result.stages.push(stage);
   saveReport();
-  console.log(`hosted Test target=${rps}rps in_flight=${stage.max_inflight} completed=${stage.completed}/${stage.offered} errors=${stage.errors} retries=${stage.retry_attempts} dropped=${dropped} p95=${stage.p95_ms}ms`);
+  console.log(`hosted Test target=${rps}rps in_flight=${stage.max_inflight} completed=${stage.completed}/${stage.offered} errors=${stage.errors} retries=${stage.retry_attempts} dropped=${dropped} p95=${stage.p95_ms}ms final_attempt_queue_p95=${stage.final_attempt_queue_p95_ms}ms final_attempt_response_p95=${stage.final_attempt_response_p95_ms}ms`);
   if (!stage.assessment.passed) {
     console.error('Stopping the ramp after a failed stage:', stage.assessment.failures);
     break;
