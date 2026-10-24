@@ -1,5 +1,26 @@
 # WeHouse capacity validation
 
+## Compressed repeat and response resource limits — 25 October 2026
+
+Exact commit `1f34cb29be3d83f75dc28938af59fe1a74795064` passed its single-source
+200-RPS stage (6,000 requests; 604ms p95; zero final errors, retries or drops),
+then failed 500: 4,072 completed of 15,000 offered, 3,434 errors, 10,928 drops,
+11,128ms p95. The test correctly stopped before 1,000.
+The subsequent four-source repeat passed 10 RPS per source, then failed at
+25 each: all 750 requests per source completed without final errors, but p95
+was 7,477–7,669ms. The aggregate gate failed; no 800-RPS success exists.
+These results remain failures and do not establish a database hard ceiling.
+The matching provider-log window (24 October 23:01–23:02 UTC) contains 3,175
+HTTP 200 entries; logs alone do not establish where the client delay occurred.
+
+The gateway additionally limits each origin receipt to 2 MiB of decoded bytes,
+checking actual streamed bytes rather than trusting Content-Length. Fixed
+storage bounds tiny-chunk overhead. Oversized streams are cancelled, pending
+slots released, and the response stays uncached. Malformed JSON/UTF-8 also
+fails closed. Non-success HTTP bodies are cancelled without buffering or
+revealing provider diagnostics. These are memory/connection safeguards, not
+a substitute for a deployed CDN measurement or sustained mixed load.
+
 ## Public-feed boundary and expanded ramp — 24 October 2026
 
 **Benchmark fidelity correction:** the native keep-alive transport introduced on
@@ -77,8 +98,8 @@ key. Build/type checks now include the API directory. Gateway security, input
 bounds, request collapse, overload, failure and client-routing tests pass; real
 browser journeys exercise the same-origin route with intercepted synthetic
 responses in both themes at four widths. These are not hosted-CDN performance
-measurements. Vercel reports an account deployment block, and the connector is
-unavailable; real preview routing/cache headers and hit ratios remain unverified.
+measurements. Vercel confirms an overdue-balance deployment block; the connector
+has recovered, but real preview routing/cache headers and hit ratios remain unverified.
 The legacy Netlify build remains intentionally ignored in `netlify.toml`.
 
 The Test-only direct-origin benchmark now supports a bounded 1→5→10→25→50→100→

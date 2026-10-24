@@ -4,6 +4,31 @@ import {resolveSupabaseEnvironment} from '../src/lib/supabase/environment';
 type Environment = Record<string,string|undefined>;
 type CatalogDiagnostic={event:'public_catalog_unavailable';kind:'homes'|'hotels';stage:string;status?:number};
 const uncached={'Cache-Control':'no-store','Vercel-CDN-Cache-Control':'no-store'};
+// Bound decoded data, including chunked/compressed responses whose advertised
+// length cannot be trusted. A slow or malformed origin must not grow heap usage
+// without limit across concurrent cache misses.
+const MAX_CATALOG_BYTES=2*1024*1024;
+async function readCatalogReceipt(response:Response):Promise<unknown>{
+  const reader=response.body?.getReader();
+  if(!reader)throw Object.assign(Error('Missing catalog body'),{gatewayStage:'origin_receipt'});
+  let bytes=0,complete=false;
+  try{
+    if(Number(response.headers.get('content-length'))>MAX_CATALOG_BYTES)throw Error('Catalog body exceeds budget');
+    // Fixed storage also bounds overhead when an origin sends tiny chunks.
+    const body=new Uint8Array(MAX_CATALOG_BYTES);
+    while(true){
+      const part=await reader.read();
+      if(part.done){complete=true;break;}
+      if(bytes+part.value.byteLength>MAX_CATALOG_BYTES)throw Error('Catalog body exceeds budget');
+      body.set(part.value,bytes);bytes+=part.value.byteLength;
+    }
+    return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(body.subarray(0,bytes)));
+  }catch{throw Object.assign(Error('Invalid public catalog receipt'),{gatewayStage:'origin_receipt'});}
+  finally{
+    if(!complete)try{await reader.cancel();}catch{/* Preserve the public receipt failure. */}
+    reader.releaseLock();
+  }
+}
 /** This endpoint never receives a session, privileged key or write-capable RPC. */
 export function createPublicCatalogHandler(env:Environment,upstream:typeof fetch=fetch,
   report:(event:CatalogDiagnostic)=>void=event=>console.error(JSON.stringify(event))){
@@ -35,8 +60,13 @@ export function createPublicCatalogHandler(env:Environment,upstream:typeof fetch
           method:'POST',headers:{apikey:project.key,Authorization:`Bearer ${project.key}`,'Content-Type':'application/json'},
           body:JSON.stringify(parsed.body),signal:AbortSignal.timeout(8000),redirect:'error',
         });
-        if(!response.ok)throw Object.assign(Error('Public catalog lookup failed'),{gatewayStage:'origin_status',gatewayStatus:response.status});
-        const result=await response.json();
+        if(!response.ok){
+          // Discard error streams so failed requests release their connection;
+          // provider bodies are neither buffered nor exposed to customers.
+          try{await response.body?.cancel();}catch{/* Retain the safe HTTP status. */}
+          throw Object.assign(Error('Public catalog lookup failed'),{gatewayStage:'origin_status',gatewayStatus:response.status});
+        }
+        const result=await readCatalogReceipt(response) as {items?:unknown;has_more?:unknown}|null;
         if(!result||!Array.isArray(result.items)||result.items.length>24||typeof result.has_more!=='boolean')throw Object.assign(Error('Invalid public catalog receipt'),{gatewayStage:'origin_receipt'});
         return result;
       })().catch((failure:unknown)=>{

@@ -76,3 +76,41 @@ test('one failed collapsed lookup emits one secret-free operator diagnostic',asy
  assert.deepEqual(events,[{event:'public_catalog_unavailable',kind:'homes',stage:'origin_transport',status:undefined}]);
  assert.ok(!JSON.stringify(events).includes('private'));
 });
+
+test('oversized and advertised-too-large receipts cancel upstream streams and permit recovery',async()=>{
+ for(const advertised of [false,true]){
+  let cancelled=false,calls=0;
+  const events=[];
+  const handler=createPublicCatalogHandler(env,async()=>{
+   if(++calls>1)return Response.json(receipt);
+   const body=new ReadableStream({
+    pull(controller){controller.enqueue(new Uint8Array(128*1024));},
+    cancel(){cancelled=true;},
+   });
+   return new Response(body,{headers:advertised?{'Content-Length':String(3*1024*1024)}:{}});
+  },event=>events.push(event));
+  const response=await handler(request());
+  assert.equal(response.status,503);assert.equal(response.headers.get('Cache-Control'),'no-store');
+  assert.equal(cancelled,true);assert.equal(events[0].stage,'origin_receipt');
+  assert.equal((await handler(request())).status,200,'failed pending entries must release their slot');
+ }
+});
+
+test('origin status failures discard their body without buffering or exposing it',async()=>{
+ let cancelled=false,pulls=0;
+ const handler=createPublicCatalogHandler(env,async()=>new Response(new ReadableStream({
+  pull(controller){pulls++;controller.enqueue(new TextEncoder().encode('private provider error'));},
+  cancel(){cancelled=true;},
+ }),{status:502}),()=>{});
+ const response=await handler(request());
+ assert.equal(response.status,503);assert.equal(cancelled,true);assert.ok(pulls<=1);
+ assert.ok(!(await response.text()).includes('private provider'));
+});
+
+test('malformed JSON and invalid UTF-8 never become cached catalog responses',async()=>{
+ for(const bytes of [new TextEncoder().encode('{broken'),new Uint8Array([0xff])]){
+  const handler=createPublicCatalogHandler(env,async()=>new Response(bytes),()=>{});
+  const response=await handler(request());
+  assert.equal(response.status,503);assert.equal(response.headers.get('Vercel-CDN-Cache-Control'),'no-store');
+ }
+});

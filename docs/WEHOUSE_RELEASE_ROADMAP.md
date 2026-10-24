@@ -1,6 +1,30 @@
 # WeHouse release roadmap
 
-**Status date:** 24 October 2026
+**Status date:** 25 October 2026
+
+### 25 October: measured capacity failures retained; public response memory bounded
+
+The compressed direct-origin run on `1f34cb29` passed 200 RPS (6,000/6,000;
+604ms p95; zero errors/retries/drops), then failed 500 RPS (4,072/15,000
+completed; 3,434 errors; 10,928 drops; 11,128ms p95). It never ran 1,000.
+Four subsequent generators each passed 10 RPS, then failed the 25-RPS latency
+gate (7,477–7,669ms p95), despite completing all requests without final errors.
+There is no passing 800-RPS distributed result. Neither this variability nor
+the database's configured 60 connections establishes a fixed database RPS limit.
+The matching 23:01–23:02 UTC provider log window contains 3,175 HTTP 200 entries;
+it does not explain all client latency or establish CPU/IO headroom.
+
+Public gateway responses now have a 2 MiB decoded-byte budget enforced while
+streaming, including chunked responses. Oversized, malformed and invalid UTF-8
+receipts fail uncached; failed streams are cancelled and pending slots released.
+Non-success origin bodies are discarded rather than buffered. Fixed storage
+also bounds tiny-chunk bookkeeping. Negative/recovery tests cover these paths.
+This protects function memory; it is not evidence of higher production RPS.
+Current-preview/CDN verification still requires resolving Vercel's overdue balance.
+Local full regression passes 739/739 outside the Windows sandbox; the sandbox
+itself denied loopback sockets and temporary-directory renames. The prior pushed
+head passes the other seven workflows, including migration replay, browser
+journeys and disposable mixed/catalog checks; hosted capacity remains failed.
 
 ### 24 October: higher-throughput work continues beyond the 200-RPS test ceiling
 
