@@ -121,6 +121,14 @@ bounded site offers. Marketplace and Sponsored contracts also pass with the real
 invitation, publication, payment and row-access guards. No Production changes,
 real charges, transfers or persistent synthetic customer records were made.
 
+Full 25a20e5f source regression passes 718/718, while exact CI fresh replay has
+progressed through the first 68 steps and now reaches the shared Short Let
+contract. That fixture previously created a public-looking home without an owner,
+reviewed inspection/documents or trusted payer devices. Its setup now includes
+those prerequisites; the real booking guard remains enabled. Hosted rollback
+verification reaches reservation creation successfully. The complete psql shared
+payment lifecycle still requires the next CI result; it is not counted as passed.
+
 ### PR integration and actual CI failure repair
 
 The accumulated engineering work was committed in d489194c and pushed to #118;
