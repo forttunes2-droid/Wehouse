@@ -144,6 +144,21 @@ select (public.create_my_shared_housing_payment(:'shared_group')->>'reference') 
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000002","session_id":"94000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 select (public.create_my_shared_housing_payment(:'shared_group')->>'reference') as bola_payment \gset
 reset role;
+-- A verified final receipt after the common deadline records the money but
+-- must not revive the reservation. Exercise this separately from success.
+savepoint late_shared_receipt;
+update public.shared_housing_groups set expires_at=now()-interval '1 second' where id=:'shared_group';
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select public.confirm_shared_housing_payment(:'ada_payment','synthetic-late-ada',500);
+select public.confirm_shared_housing_payment(:'bola_payment','synthetic-late-bola',500);
+select public.confirm_shared_housing_payment(:'bola_payment','synthetic-late-bola',500);
+reset role;
+select pg_temp.expect((select status='refunding' and expires_at<now() from public.shared_housing_groups where id=:'shared_group'),'Late final receipt requires refunds without extending the deadline');
+select pg_temp.expect((select rent_payment_status='not_started' and status='reserved' from public.reservations where id=:'reservation'),'Late money never confirms arrival or rent');
+select pg_temp.expect((select count(*)=3 and bool_and(payment_status='paid') from public.shared_housing_members where group_id=:'shared_group'),'Late verified payments remain recorded for reconciliation');
+rollback to savepoint late_shared_receipt;
+release savepoint late_shared_receipt;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select public.confirm_shared_housing_payment(:'ada_payment','synthetic-ada',500);
