@@ -35,12 +35,13 @@ export default function ListingCard({
       ? "Booked now"
       : LISTING_STATUS_LABELS[listingStatus] || "Available";
   const price = listing.price || 0;
+  const listingMoney = (amount: unknown) => formatMoney(amount,{currency:listing.currency||'NGN'});
   const priceDisplay =
     price >= 1000000
-      ? `${formatMoney((price / 1000000).toFixed(1))}M`
+      ? `${listingMoney((price / 1000000).toFixed(1))}M`
       : price >= 1000
-        ? `${formatMoney((price / 1000).toFixed(0))}k`
-        : `${formatMoney(price)}`;
+        ? `${listingMoney((price / 1000).toFixed(0))}k`
+        : `${listingMoney(price)}`;
   const priceUnit = listing.sub_type === "short_let" ? "/night" : "/year";
   const statusBg = statusColor.includes("green")
     ? "bg-green-500/15"
@@ -100,7 +101,7 @@ export default function ListingCard({
       onClick={onClick}
       className="group cursor-pointer border-b border-[var(--wh-border-subtle)] pb-5"
     >
-      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] ${primary ? "aspect-[4/3]" : "h-40"}`}>
+      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-white ${primary ? "aspect-[4/3]" : "h-40"}`}>
         <ShowcaseMediaThumbnail src={primary} mediaType="image"
           alt={displayTitle}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
@@ -173,7 +174,7 @@ export default function ListingCard({
         onClick={onClick}
         className="flex cursor-pointer gap-3 border-b border-[var(--wh-border-subtle)] py-3 sm:hidden"
       >
-        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[var(--wh-elevated)]">
+        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-white">
           <ShowcaseMediaThumbnail src={primary} mediaType="image"
             alt={displayTitle}
             className="h-full w-full object-cover"

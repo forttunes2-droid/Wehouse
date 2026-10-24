@@ -2,6 +2,22 @@
 
 **Status date:** 24 October 2026
 
+### 24 October: shared late receipts and theme evidence
+
+Consolidation on 9ab4777aa919984aa7df0185bca38d27f98ad719 passes the added
+late-shared-receipt savepoint test. A final payment after expiry and its duplicate
+leave all three verified payments recorded, keep the group refunding and never
+confirm rent/arrival. Rolling that branch back then exercises normal on-time
+completion in the same contract. This is database behavior, not a live refund.
+
+Discovery/privacy/location and Roommate/shared-payment browser checks now run
+both actual theme attributes at 320/390/768/1440px, with separate screenshots.
+Light screenshot inspection exposed inherited dark ink on photo price/Save
+overlays; ListingCard now gives media its own white foreground in both variants,
+and formats amounts in the listing currency rather than the viewer's default.
+The shared design reference names the reusable controls instead of introducing
+a competing visual system. These checks do not certify all app screens polished.
+
 ### 24 October: exact-commit gates and personal-data/location follow-up
 
 All eight GitHub workflows on 96b90067775e954b7926d03279ad544db410bd11 pass,

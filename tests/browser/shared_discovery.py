@@ -33,14 +33,14 @@ async def main():
   options={'headless':True,'args':['--no-sandbox']}
   if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**options)
-  for width in [320,390,768,1440]:
-   context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(4000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'passed':False}
+  for width,theme in [(w,t) for w in [320,390,768,1440] for t in ['dark','light']]:
+   context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(4000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'theme':theme,'passed':False}
    async def route(request):
     if request.request.url=='https://assets.wehouse.test/interior.jpg':return await request.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await request.abort()
    await page.route('**/*',route)
    try:
-    await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>')
+    await page.set_content(f'<html data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
     await page.evaluate(SCRIPT,{'mode':'public','calls':[],'unexpected':[],'home':HOME,'hotel':HOTEL})
     await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
@@ -48,11 +48,12 @@ async def main():
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) for c in await page.evaluate('window.__browse.calls'))
     await page.wait_for_function('Array.from(document.querySelectorAll("[data-media-thumbnail] img")).some(img=>img.complete&&img.naturalWidth>0)')
-    await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}.png'),full_page=True)
+    await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("homes")')
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
+    await expect(page.get_by_text('₦400k',exact=True)).to_have_css('color','rgb(255, 255, 255)')
     await page.evaluate('window.__switchBrowseMode("locations")')
     await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
     await page.get_by_role('button',name='State Any region',exact=True).click()
@@ -72,7 +73,7 @@ async def main():
     assert request['category']=='account_access' and request['contextSnapshot']=={'source_type':'privacy_request','source_id':'qa-viewer'}
     await expect(page.get_by_text('Choose what you need in the message and send it to submit your request.',exact=False)).to_be_visible()
     await page.evaluate('window.__switchBrowseMode("homes")')
-    await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}.png'),full_page=True)
+    await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
     await page.get_by_placeholder('Search hotel name').fill('Garden')
@@ -87,7 +88,7 @@ async def main():
     await expect(page.get_by_text('Non-refundable',exact=True)).to_be_visible()
     await page.get_by_role('button',name='Breakfast stay',exact=False).click()
     await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
-    await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}.png'))
+    await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}-{theme}.png'))
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) or c['name'].startswith(('create_','saveHotel','rpc:save_')) for c in await page.evaluate('window.__browse.calls'))
     await page.get_by_role('button',name='Save hotel',exact=True).click()
     assert await page.evaluate('window.__browse.requested')
@@ -107,13 +108,13 @@ async def main():
     await expect(page.get_by_text('Photo unavailable',exact=True)).to_have_count(1)
     await expect(page.locator('[data-media-thumbnail]').first).to_have_attribute('data-media-state','loading')
     await expect(page.get_by_text('Preview unavailable · open video',exact=True)).to_be_visible()
-    await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}.png'))
+    await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}-{theme}.png'))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')
     assert not errors,errors
     row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
-    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}.png'),full_page=True)
+    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True)
    finally:results.append(row);print(json.dumps(row),flush=True);await context.close()
   await browser.close()
  (OUT/'shared-discovery-results.json').write_text(json.dumps(results,indent=2));assert all(row['passed'] for row in results)

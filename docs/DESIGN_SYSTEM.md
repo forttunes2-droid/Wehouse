@@ -63,6 +63,21 @@ status color with a label or icon.
 
 ## Controls and feedback
 
+Use these existing components as implementation references:
+
+| Interaction | Shared reference |
+|---|---|
+| Settings on/off, including optional school matching | `src/components/SettingSwitch.tsx` |
+| Searchable State/LGA filters for Homes, Hotels and Services | `src/components/LocationFilterFields.tsx`, `SearchableSelect.tsx` |
+| Account settings hierarchy and personal-data requests | `src/components/AccountShell.tsx`, `src/pages/PrivacySecuritySettings.tsx` |
+| Date selection with deliberate tap versus scroll | `src/components/BookingDateField.tsx` |
+| Listing photography and readable price overlay | `src/components/ListingCard.tsx` |
+
+Photo overlays retain white foreground ink in both themes; ordinary content below
+the photo uses theme text tokens. Payment amounts retain their recorded currency
+when a person changes presentation region. A deadline shows one explicit timezone,
+not a second hardcoded zone after the formatted time.
+
 - Prefer the shared controls in `src/components/ui/`, `WeHouseChoice`,
   `WeHouseSelect`, `BackButton`, `ConfirmDialog` and the shared dialog hooks
   before making another control.

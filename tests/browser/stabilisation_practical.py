@@ -9,14 +9,14 @@ async def main():
   options={'headless':True,'args':['--no-sandbox']}
   if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**options)
-  for width in [320,390,768,1440]:
+  for width,theme in [(w,t) for w in [320,390,768,1440] for t in ['dark','light']]:
    for mode in ['preferences','profile','publication-global','publication-worker','split','shared-guest']:
     context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block',has_touch=True)
     page=await context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
     await page.route('**/*',lambda route:route.abort())
-    row={'case':mode,'width':width,'passed':False,'page_errors':errors}
+    row={'case':mode,'width':width,'theme':theme,'passed':False,'page_errors':errors}
     try:
-     await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>')
+     await page.set_content(f'<html data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
      await page.evaluate('(mode)=>window.__practicalMode=mode',mode)
      await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
      if mode=='preferences':
@@ -63,7 +63,7 @@ async def main():
       assert await page.evaluate('history.length')==before_history
       assert not await page.evaluate('Boolean(window.__savedForm)')
       await page.evaluate('scrollTo(0,0)')
-      await page.screenshot(path=str(OUT/f'roommate-preferences-unified-{width}.png'),full_page=True)
+      await page.screenshot(path=str(OUT/f'roommate-preferences-unified-{width}-{theme}.png'),full_page=True)
       await page.get_by_role('button',name='Save preferences',exact=True).click();await expect(page.get_by_role('status')).to_contain_text('saved')
       saved=await page.evaluate('window.__savedForm');assert saved['preferred_lga']=='Lafia' and saved['school_match'] and saved['budget_max']==500000 and saved['cleanliness']=='' and saved['overnight_visitors']=='agreement'
       await page.evaluate('scrollTo(0,0)')
@@ -86,7 +86,7 @@ async def main():
       await expect(page.get_by_text('You',exact=True)).to_be_visible()
       await expect(page.get_by_text('₦500',exact=True).first).to_be_visible()
       assert not any(x['name']=='create_my_shared_short_let' for x in await page.evaluate('window.__practicalTransport.calls'))
-      await page.screenshot(path=str(OUT/f'short-let-shares-before-invitation-{width}.png'),full_page=True)
+      await page.screenshot(path=str(OUT/f'short-let-shares-before-invitation-{width}-{theme}.png'),full_page=True)
       await page.get_by_role('button',name='Invite people',exact=True).click();await expect(page.get_by_role('dialog',name='Shared stay')).to_be_visible()
       result=await page.evaluate('window.__createdGroup');assert result['reservation_id']=='reservation-existing'
       assert not any(x['name'] in ['payment-init','create_my_shared_housing_payment'] for x in await page.evaluate('window.__practicalTransport.calls'))
@@ -107,13 +107,13 @@ async def main():
       await expect(page.get_by_role('alert')).to_be_visible();assert await page.get_by_text('Courtyard Short Let',exact=True).count()==0
       await page.evaluate('window.__practicalTransport.denied=false');await page.get_by_role('button',name='Refresh shared reservation',exact=True).click();await expect(page.get_by_text('Courtyard Short Let',exact=True)).to_be_visible()
      assert not errors;assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
-     await page.screenshot(path=str(OUT/f'stabilisation-{mode}-{width}.png'),full_page=True)
+     await page.screenshot(path=str(OUT/f'stabilisation-{mode}-{width}-{theme}.png'),full_page=True)
      if mode in ['split','shared-guest']:
       await page.get_by_role('button',name='Back from shared stay',exact=True).click();await expect(page.get_by_role('dialog',name='Shared stay')).to_have_count(0)
       assert await page.evaluate('window.__closed')
      row['passed']=True
     except Exception as error:
-     row['error']=str(error);await page.screenshot(path=str(OUT/f'FAIL-stabilisation-{mode}-{width}.png'),full_page=True)
+     row['error']=str(error);await page.screenshot(path=str(OUT/f'FAIL-stabilisation-{mode}-{width}-{theme}.png'),full_page=True)
     finally:results.append(row);await context.close()
   await browser.close()
  (OUT/'stabilisation-practical-results.json').write_text(json.dumps(results,indent=2));print(json.dumps(results,indent=2));assert all(x['passed'] for x in results)
