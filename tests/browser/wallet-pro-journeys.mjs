@@ -115,7 +115,13 @@ try {
       await page.getByRole('dialog',{name:'Discard unsaved changes?'}).waitFor();
       await page.getByRole('button',{name:'Keep editing',exact:true}).click();
       assert.equal(await page.getByLabel('Places available').inputValue(),'5');
-      await page.getByRole('button',{name:'Save prepared session'}).click();await page.getByRole('button',{name:'Edit session'}).waitFor();assert.equal(await page.getByRole('button',{name:'Submit for review',exact:true}).isEnabled(),true);await page.getByRole('button',{name:'Back to activities'}).click();await page.getByRole('button',{name:/Campus orientation walk/}).click();await page.getByText(/5 places/).waitFor();results.push('session application continuity '+theme);await page.close();
+      await page.getByRole('button',{name:'Save prepared session'}).click();
+      await page.getByRole('button',{name:'Edit session'}).waitFor();
+      // The saved row renders before the parent clears its dirty/busy guard.
+      // Wait for real button actionability; do not click or bypass the guard.
+      await page.getByRole('button',{name:'Submit for review',exact:true}).click({trial:true});
+      assert.equal(await page.getByRole('button',{name:'Submit for review',exact:true}).isEnabled(),true);
+      await page.getByRole('button',{name:'Back to activities'}).click();await page.getByRole('button',{name:/Campus orientation walk/}).click();await page.getByText(/5 places/).waitFor();results.push('session application continuity '+theme);await page.close();
     }
   }else if(process.argv.includes('--site-offers-only')){
     for(const theme of ['light','dark'])for(const mode of ['site-offers-success','site-offers-error','site-offers-malformed','site-offers-empty','site-offers-ungrouped','site-offers-paging']){

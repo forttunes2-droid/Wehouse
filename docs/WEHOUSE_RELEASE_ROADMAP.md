@@ -43,6 +43,21 @@ The hosted anonymous catalog ramp passed through 50 requests/second but failed
 at 100 with 1,173 request failures. This is unresolved capacity evidence; it is
 not a passed global-scaling gate and its threshold has not been lowered.
 
+Follow-up on 07039d62: the hosted catalog ramp passed every 30-second stage
+through 200 requests/second, with zero errors/retries/drops and 232ms p95 at
+200. This is bounded anonymous catalog evidence, not sustained mixed-product
+capacity or an explanation of the earlier intermittent timeouts.
+
+Further replay checks reached the credential-dependent team fixture. It now
+includes reviewed synthetic service evidence, and its full hosted rollback
+contract passes. Upgrade execution identified a leading UTF-8 BOM interpreted
+as SQL by the coordinated runner; only SQL decoding removes that initial marker,
+while original file hashes remain exact. Seven runner/history tests pass.
+The mixed Auth load now registers its first trusted device and uses the same
+idempotent support message RPC as the app. Experience continuity waits for the
+actual submit button to become actionable after save instead of reading a
+transient busy state; 32 application and 10 session browser journeys pass locally.
+
 ### PR integration and actual CI failure repair
 
 The accumulated engineering work was committed in d489194c and pushed to #118;

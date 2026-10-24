@@ -136,6 +136,11 @@ class ProductionAliases(unittest.TestCase):
         self.assertIn("rollback;", sql)
         self.assertNotIn("insert into supabase_migrations.schema_migrations(version,name,statements)", sql)
 
+    def test_sql_encoding_marker_is_not_sent_as_a_statement(self):
+        self.assertEqual(release.migration_body("\ufeffbegin;\nselect 'unchanged';\ncommit;"),
+                         release.migration_body("begin;\nselect 'unchanged';\ncommit;"))
+        self.assertIn("'\ufeff'", release.migration_body("select '\ufeff';"))
+
 
 if __name__ == "__main__":
     unittest.main()

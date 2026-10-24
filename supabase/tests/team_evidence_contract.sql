@@ -39,6 +39,20 @@ insert into public.announcement_recipients(announcement_id,user_id) values
 (-920001,'team-user'),(-920002,'team-partner');
 update public.profiles set full_name='Team Worker',worker_occupation='Plumber',worker_skills='["Plumbing"]'::jsonb where user_id='team-worker';
 insert into public.worker_service_coverage(worker_id,state,lga) values('team-worker','Nasarawa','Lafia');
+-- Eligibility includes current reviewed service credentials. Do not weaken the
+-- marketplace gate to retain an older incomplete synthetic provider fixture.
+insert into public.worker_verifications(worker_id,status,credential_requirements,
+ credential_revision,credential_requirements_set_by,credential_requirements_set_at)
+values('team-worker','verified','[{"code":"trade","label":"Plumbing credential","requires_expiry":false}]',
+ 1,'team-creator',now());
+update public.worker_verifications set credential_context=private.worker_credential_context('team-worker')
+ where worker_id='team-worker';
+insert into public.worker_credential_documents(worker_id,requirement_code,requirements_revision,
+ version,request_key,original_name,mime_type,byte_size,object_path,status,submitted_at,
+ reviewed_at,reviewed_by,review_note)
+values('team-worker','trade',1,1,'77777777-0000-4000-8000-000000000009',
+ 'synthetic-trade.pdf','application/pdf',12,'team-worker/synthetic-trade.pdf',
+ 'approved',now(),now(),'team-creator','Synthetic reviewed trade credential');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;

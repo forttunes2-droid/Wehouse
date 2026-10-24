@@ -85,6 +85,10 @@ def literal(value):
 
 
 def migration_body(source):
+    # UTF-8 BOM is a file encoding marker, not a PostgreSQL statement. Preserve
+    # original file bytes for history verification; strip only this leading
+    # marker from the SQL sent to PostgreSQL, matching Supabase CLI decoding.
+    source = source.removeprefix("\ufeff")
     # These reviewed migrations have either no outer transaction or exactly
     # BEGIN/COMMIT. Keep every function body untouched. Reject other controls.
     controls = re.findall(r"(?mi)^\s*(begin|commit|rollback)\s*;\s*$", source)
