@@ -8,6 +8,8 @@ import { catalogRamp } from './lib/catalog-ramp.mjs';
 // Explicit allowlist: this cannot be pointed at the live WeHouse project.
 const origin = new URL('https://qoobnkedfyosnizrlttt.supabase.co');
 const key = process.env.WEHOUSE_TEST_PUBLISHABLE_KEY;
+const shardId=process.env.WEHOUSE_CATALOG_SHARD_ID||'single';
+assert.ok(['single','0','1','2','3'].includes(shardId),'Invalid catalog generator identity');
 assert.ok(key?.startsWith('sb_publishable_'), 'Test project publishable key required');
 assert.equal(origin.hostname, 'qoobnkedfyosnizrlttt.supabase.co');
 const stages = catalogRamp(process.env.WEHOUSE_CATALOG_MAX_RPS || '200');
@@ -33,7 +35,7 @@ async function read(path) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await transport.post(`/rest/v1/rpc/${path.rpc}`,
-        { apikey: key, authorization: `Bearer ${key}` }, path.body);
+        { apikey: key, authorization: `Bearer ${key}`,'user-agent':`WeHouse-Capacity/1 shard=${shardId}` }, path.body);
       const body = response.body;
       const data = response.ok ? JSON.parse(body) : null;
       if (response.ok && path.validate(data)) {
@@ -61,6 +63,7 @@ async function read(path) {
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
   scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Thirty-second stages are a catalog smoke benchmark, not sustained whole-product capacity. Fixed ceiling of 3000 logical requests in flight, each allowing up to three 15-second attempts. Stops at the first failed stage.',
   requested_stages:stages,
+  shard_id:shardId,
   measured_at: new Date().toISOString(),
   transport: { protocol: 'https', keep_alive: true, max_sockets: transport.maxSockets, attempt_deadline_ms: 15000, queued_time_in_deadline: true },
   status: 'running',
@@ -113,6 +116,7 @@ for (const [rps, seconds] of stages) {
   let max_inflight = 0;
   let dropped = 0;
   const started = performance.now();
+  const startedAt=Date.now();
   for (let i = 0; i < rps * seconds; i++) {
     const delay = started + i * 1000 / rps - performance.now();
     if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
@@ -124,6 +128,7 @@ for (const [rps, seconds] of stages) {
     running.add(task); max_inflight = Math.max(max_inflight, running.size); void task.finally(() => running.delete(task));
   }
   const dispatchSeconds = (performance.now() - started) / 1000 + 1 / rps;
+  const dispatchFinishedAt=Date.now();
   await Promise.all(running);
   const elapsed = (performance.now() - started) / 1000;
   const good = samples.filter(s => s.ok).map(s => s.ms).sort((a, b) => a - b);
@@ -132,7 +137,7 @@ for (const [rps, seconds] of stages) {
   const retryAttempts = samples.reduce((sum, s) => sum + s.retries, 0);
   const retried = samples.filter(s => s.retries > 0);
   const timingPercentile=key=>pct(samples.map(s=>s.timing?.[key]).filter(value=>typeof value==='number').sort((a,b)=>a-b),.95);
-  const stage = { target_rps: rps, seconds, dispatch_seconds: dispatchSeconds, max_inflight, offered: rps * seconds, completed: samples.length, errors: errors.length, dropped,
+  const stage = { target_rps: rps, seconds, dispatch_seconds: dispatchSeconds,started_at_ms:startedAt,dispatch_finished_at_ms:dispatchFinishedAt, max_inflight, offered: rps * seconds, completed: samples.length, errors: errors.length, dropped,
     retried_requests: retriedRequests, retry_attempts: retryAttempts,
     retry_rate_pct: samples.length ? Math.round(retriedRequests / samples.length * 100000) / 1000 : 0,
     final_attempt_queue_p95_ms:timingPercentile('queue_ms'),

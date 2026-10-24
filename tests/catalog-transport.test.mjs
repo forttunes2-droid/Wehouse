@@ -34,7 +34,12 @@ test('catalog deadline includes time waiting for the TCP pool', async () => {
     const results = await Promise.allSettled([transport.post('/slow', {}, {}), transport.post('/queued', {}, {})]);
     assert.ok(results.every(result => result.status === 'rejected' && result.reason.name === 'AbortError'));
     assert.ok(results.every(result=>result.reason.catalogTiming.queue_ms>=0));
-    assert.equal(results[1].reason.catalogTiming.response_ms,null,'queued deadline must be distinguishable from an origin timeout');
+    // The first abort may free its socket in the same event-loop turn as the
+    // queued deadline. Unix can assign that socket just before the second
+    // abort, producing response_ms=0 rather than null. The measured queue and
+    // absence of response headers are the actual distinction we require.
+    assert.ok(results[1].reason.catalogTiming.queue_ms>=70,'the queued request must retain its measured pool wait');
+    assert.equal(results[1].reason.catalogTiming.headers_ms,null,'the queued deadline must not manufacture response headers');
     assert.ok(performance.now() - start < 1500, 'queued requests must not wait indefinitely');
   } finally { transport.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });

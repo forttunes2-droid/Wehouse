@@ -66,3 +66,13 @@ test('canonical ordering redirects without origin work; invalid upstream receipt
  assert.equal(redirect.headers.get('Location'),'/api/public-catalog?kind=homes&p_limit=24');
  const failure=await handler(request());assert.equal(failure.status,503);assert.equal(failure.headers.get('Cache-Control'),'no-store');
 });
+
+test('one failed collapsed lookup emits one secret-free operator diagnostic',async()=>{
+ const events=[];let finish;const blocked=new Promise(resolve=>{finish=resolve;});
+ const handler=createPublicCatalogHandler(env,async()=>{await blocked;throw Error('private-user-token and provider-private-body');},event=>events.push(event));
+ const waiting=Array.from({length:40},()=>handler(request(undefined,{headers:{Authorization:'Bearer private-user-token',Cookie:'private-cookie'}})));
+ finish();const replies=await Promise.all(waiting);
+ assert.ok(replies.every(reply=>reply.status===503));
+ assert.deepEqual(events,[{event:'public_catalog_unavailable',kind:'homes',stage:'origin_transport',status:undefined}]);
+ assert.ok(!JSON.stringify(events).includes('private'));
+});

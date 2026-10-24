@@ -2,6 +2,21 @@
 
 ## Public-feed boundary and expanded ramp — 24 October 2026
 
+Repeat expanded run (`fbcffd6e`) passes 200 RPS (6,000/6,000, zero errors/retries/
+drops; 186ms p95), but fails 500 with 11,240 drops, 3,240 failed logical requests
+and substantial client queue/post-socket delay. 1,000 is not run. Do not call this
+a database limit: post-socket timing also includes TLS, API ingress and network.
+
+To distinguish one-generator pressure from many-client demand, the same workflow
+now schedules four independent 200-RPS generators only after the single-generator
+job finishes. Each keeps every lower stage and acceptance gate. The summary
+requires four distinct generator IDs, identical versions and Test project,
+independently passing reports and at least ten seconds of actual overlap among
+their 200-RPS dispatch windows. Sequential runs cannot be added into an 800-RPS
+claim, and no passing aggregate is emitted for incomplete/failed inputs. This
+test is prepared, not yet measured. Generator User-Agents identify each shard
+for comparison against provider ingress logs; no client identity is spoofed.
+
 First expanded CI result (`f8507e32`): 200 RPS completed 6,000/6,000 with zero
 errors/retries/drops and 232ms p95. At 500 RPS it completed 12,543/15,000, dropped
 2,457 and reached 9,087ms p95; it stopped without running 1,000. This is a failure,
@@ -24,7 +39,10 @@ table, service-role client or arbitrary RPC. Only bounded public feed parameters
 are accepted. Canonical GET queries let Vercel cache a successful response for
 five seconds; browsers must revalidate. There is no stale-on-error extension.
 Identical cold requests share an in-flight origin lookup, and each function
-instance admits at most sixteen distinct misses. These local controls supplement
+instance admits at most sixteen distinct misses. One failed shared lookup emits
+one structured operator diagnostic containing only catalog kind, failure stage
+and safe HTTP status, never caller tokens/cookies, search text or provider body.
+These local controls supplement
 the managed CDN; they are not a distributed rate limiter.
 
 Typed text searches, precise coordinates, pagination, detailed property reads,

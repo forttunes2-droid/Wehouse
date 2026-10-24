@@ -7,9 +7,12 @@ on:
       - 'scripts/lib/catalog-capacity-gates.mjs'
       - 'scripts/lib/catalog-transport.mjs'
       - 'scripts/lib/catalog-ramp.mjs'
+      - 'scripts/lib/distributed-catalog-gates.mjs'
+      - 'scripts/summarize-distributed-catalog.mjs'
       - 'tests/catalog-capacity-gates.test.mjs'
       - 'tests/catalog-transport.test.mjs'
       - 'tests/catalog-ramp.test.mjs'
+      - 'tests/distributed-catalog-gates.test.mjs'
       - 'supabase/tests/hosted_catalog_fixture.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
@@ -50,4 +53,51 @@ jobs:
         with:
           name: capacity-hosted-test-results
           path: test-results/hosted-test-catalog.json
+          retention-days: 14
+  distributed:
+    needs: catalog
+    if: ${{ always() && !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run independent Test catalog generator
+        env:
+          WEHOUSE_TEST_PUBLISHABLE_KEY: sb_publishable_Rv3lT3wV3AVqWIlxM3Dygw_E3q_aSlV
+          WEHOUSE_CATALOG_MAX_RPS: '200'
+          WEHOUSE_CATALOG_SHARD_ID: ${{ matrix.shard }}
+        run: node scripts/load-hosted-test-catalog.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catalog-shard-${{ matrix.shard }}
+          path: test-results/hosted-test-catalog.json
+          retention-days: 14
+  distributed-summary:
+    needs: distributed
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test tests/distributed-catalog-gates.test.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: catalog-shard-*
+          path: test-results/distributed-catalog
+      - run: node scripts/summarize-distributed-catalog.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: distributed-catalog-summary
+          path: test-results/distributed-catalog-summary.json
           retention-days: 14

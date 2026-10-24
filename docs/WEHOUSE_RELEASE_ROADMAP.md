@@ -17,6 +17,15 @@ removes the 256-socket generator bottleneck for the expanded ceiling and reports
 client queue versus post-socket response timings separately. The 2,000ms p95,
 errors/retries/drops and dispatch gates stay unchanged; the next run decides.
 
+Repeat fbcffd6e still fails 500 after a passing 200 stage; no 1,000 result exists.
+The workflow now additionally measures four independent generators after the
+single-generator phase, with strict same-version, complete per-shard gates and
+overlapping-window validation before reporting 800 aggregate offered RPS. This
+is pending measured evidence. The structural timing assertion was corrected for
+Unix assigning a newly freed socket just before abort; measured queue time and
+absence of headers remain required. Secret-free gateway operator diagnostics are
+also covered, with one event per failed collapsed lookup rather than per waiter.
+
 The public-feed gateway, browser wiring, API build checks and negative/concurrency
 tests are implemented; see `capacity-validation.md` for the exact cache boundary
 and exclusions. No payment/booking/session data is cached. Focused tests and
