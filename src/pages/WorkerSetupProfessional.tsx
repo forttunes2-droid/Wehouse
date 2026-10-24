@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getRegionalDefaults, currencySymbol } from "@/lib/regional";
 import { toast } from "sonner";
 import {
   getServiceCategories,
@@ -12,6 +13,7 @@ import BackButton from "@/components/BackButton";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import ProfilePhotoEditor from "@/components/ProfilePhotoEditor";
 import { occupationForService, workerOccupation } from "@/lib/workerTaxonomy";
+import { formatMoney } from "@/lib/regional";
 
 type Props = {
   profile: Profile;
@@ -50,7 +52,7 @@ export default function WorkerSetupProfessional({
   const [phone, setPhone] = useState(profile.phone || "");
   const [avatar, setAvatar] = useState(profile.avatar_url || "");
   const [location, setLocation] = useState({
-    country: profile.country || "Nigeria",
+    country: profile.country || getRegionalDefaults().countryName,
     state: profile.state || "",
     city: profile.local_government || profile.city || "",
     area: profile.area || "",
@@ -167,7 +169,7 @@ export default function WorkerSetupProfessional({
       servicesKey(services) !== initialServicesKey ||
       bio.trim() !== (profile.worker_bio || "") ||
       experience.trim() !== (profile.worker_experience || "") ||
-      location.country !== (profile.country || "Nigeria") ||
+      location.country !== (profile.country || getRegionalDefaults().countryName) ||
       location.state !== (profile.state || "") ||
       location.city !== (profile.local_government || profile.city || "") ||
       location.area !== (profile.area || "")
@@ -224,7 +226,7 @@ export default function WorkerSetupProfessional({
     if (!occupation.trim()) return toast.error("Add your work title");
     if (!experience.trim()) return toast.error("Add your work experience");
     if (!location.state || !location.city)
-      return toast.error("Choose your State and LGA");
+      return toast.error("Choose your state or region and city or area");
 
     setBusy(true);
     const servicePayload = services.map((item) => ({
@@ -268,7 +270,7 @@ export default function WorkerSetupProfessional({
       );
 
     setInitialServicesKey(servicesKey(services));
-    toast.success("Worker profile saved");
+    toast.success("Service Worker profile saved");
 
     if (!profile.worker_verified) {
       if (onContinueVerification) {
@@ -343,7 +345,7 @@ export default function WorkerSetupProfessional({
                       <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
                         {item.categoryName}
                         {item.price
-                          ? ` · From ₦${Number(item.price).toLocaleString()}`
+                          ? ` · From ${formatMoney(Number(item.price))}`
                           : " · Price discussed with customer"}
                       </p>
                     </div>
@@ -388,7 +390,7 @@ export default function WorkerSetupProfessional({
             </div>
             <div className="mt-3">
               <Field
-                label="Starting price (₦) · optional"
+                label={`Starting price (${currencySymbol()}) · optional`}
                 value={servicePrice}
                 inputMode="numeric"
                 set={(value) => setServicePrice(value.replace(/[^0-9]/g, ""))}

@@ -94,15 +94,18 @@ class ProductionAliases(unittest.TestCase):
         self.assertIn("No pending database migrations", self.run_plan(rows))
 
     def test_statement_representation_exception_is_exact_and_local_ci_only(self):
-        path = self.paths["20260913180000"]
-        self.assertTrue(release.local_ci_statement_representation_mismatch(
-            "20260913180000", path, True
-        ))
-        self.assertFalse(release.local_ci_statement_representation_mismatch(
-            "20260913180000", path, False
-        ))
         with tempfile.TemporaryDirectory() as directory:
-            changed = Path(directory) / path.name
+            # CI checks out LF bytes; Windows may check out CRLF. Exercise the
+            # exact CI representation without changing the reviewed hash rule.
+            path = Path(directory) / self.paths["20260913180000"].name
+            path.write_bytes(self.paths["20260913180000"].read_text().encode())
+            self.assertTrue(release.local_ci_statement_representation_mismatch(
+                "20260913180000", path, True
+            ))
+            self.assertFalse(release.local_ci_statement_representation_mismatch(
+                "20260913180000", path, False
+            ))
+            changed = Path(directory) / ("changed_" + path.name)
             changed.write_bytes(path.read_bytes() + b"-- changed\\n")
             self.assertFalse(release.local_ci_statement_representation_mismatch(
                 "20260913180000", changed, True
@@ -132,6 +135,11 @@ class ProductionAliases(unittest.TestCase):
         self.assertIn("Production migration alias changed", sql)
         self.assertIn("rollback;", sql)
         self.assertNotIn("insert into supabase_migrations.schema_migrations(version,name,statements)", sql)
+
+    def test_sql_encoding_marker_is_not_sent_as_a_statement(self):
+        self.assertEqual(release.migration_body("\ufeffbegin;\nselect 'unchanged';\ncommit;"),
+                         release.migration_body("begin;\nselect 'unchanged';\ncommit;"))
+        self.assertIn("'\ufeff'", release.migration_body("select '\ufeff';"))
 
 
 if __name__ == "__main__":

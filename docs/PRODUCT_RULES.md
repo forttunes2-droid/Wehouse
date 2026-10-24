@@ -12,9 +12,18 @@ The repository already enforces some of these rules in newer database functions:
 
 Rules currently live in SQL migrations, SECURITY DEFINER functions, RLS policies, Edge Functions, frontend status arrays, button conditions, route aliases, and copy. There is no shared registry or test generator, so the UI can omit a valid database state (`payment_protected`) or display an action whose RPC will reject it.
 
-## PROPOSED CANONICAL MODEL
+## Canonical model and implementation requirements
+
+The invariants below are the shared engineering contract. Their approval
+status comes from `DECISION_LOG.md`: confirmed owner decisions are binding;
+items explicitly called open or proposed remain recommendations until the
+owner records a decision. Do not treat a recommended default in an audit or
+operating model as product-owner approval.
 
 ### Cross-system invariants
+
+**Account access (C-065, 20 October):** Google/Apple authenticate a linked identity; they do not confirm a new device or substitute for email-account recovery. Email signup accepts its Auth confirmation link/code. Device approval and password recovery use separate eight-digit, purpose/account/challenge-bound codes, ten-minute expiry, at most five guesses, per-network and account send limits. Pending-device proof also binds the exact device and existing Auth session. No raw codes or passwords are persisted or logged. Recovery claims are one-use, reset passwords server-side and require global Auth-session revocation plus device-history cleanup before success. Unknown outcomes cannot be reported as success or automatically reopen a consumed proof. Delivery is gated on verified mail configuration and exercised recovery; no client can enable it.
+
 
 | ID | Rule |
 |---|---|
@@ -102,6 +111,99 @@ The server/read model should return capabilities, or the UI should derive them f
 - Keep mobile continuity: opening a conversation or record preserves the parent list and returns to it.
 - A dashboard Overview summarizes work and next actions; it must not duplicate every navigation destination as a collection of oversized buttons/cards.
 
+### Contracts requiring implementation or remaining decisions
+
+| Area | Verified current behavior | Accepted direction / remaining choice | Remaining release gate |
+|---|---|---|---|
+| Long Let contract duration and rent schedule | The existing model is annual rent with a 1–5 year tenure. The current flow requires Year 1 rent before handover. Database logic can create eight scheduled payments for each later contract year, due in months 5–12 of the preceding year; this payment path is deliberately paused because it lacks a safe Partner settlement design. The active app has no tenure-selection call, and there is no live monthly payment choice. | Keep term and payment agreement explicit. Offer only terms the Partner has accepted (including 3/6/12-month options and multi-year terms). For a one-year stay, show the full-year amount and let the tenant choose full payment or 12 monthly amounts only when that Partner has opted into monthly payment. For a multi-year contract, default to the full contract amount unless the Partner opts into monthly payments: Year 1 is paid before handover, then each later year's rent is paid in eight equal monthly amounts in months 5–12 of the prior contract year (first future payment four months after move-in). The Partner receives each confirmed payment through the payment provider's split settlement; WeHouse must not hold the future-year balance. If monthly payment is not accepted, show and collect the full multi-year total before booking. Snapshot price, term and every due date in the contract; make renewal an explicit new agreement. Start with tenant-initiated monthly checkout; add automatic debit only as a separate, clearly consented provider mandate with pause/cancel, failed-charge, retry and notification rules. | Owner and local counsel approve eligible terms, due dates, arrears/grace, notice, renewal and refund treatment. Finance/Engineering verifies provider split settlement, Partner account checks, fees, duplicates, late/failed payments, chargebacks, payout reconciliation and recovery when a Partner has already received a payment. |
+| Property/building and bookable spaces (C-064) | The Test physical registry links existing inspection/listing/reservation records and enforces whole-unit/private-room overlap; grouped stock/allocation and full concurrency proof remain open. Multiple independently submitted Short Let/Long Let listings already exist; submission batches group paperwork, not physical inventory. Hotel room inventory is separate and established. | Owner confirmed both independent apartments in one building and private bedrooms with disclosed shared areas, covering both Short Let and Long Let. Keep one physical-property/space hierarchy, per-space terms and dated availability. Studio remains a layout value. Retain existing booking and money authorities. | Implement the shared hierarchy through submission, documents/review, publication, discovery, booking, Partner operations and recovery. Concurrent whole-unit/child-room bookings and Short Let/Long Let overlap must be rejected atomically. Verified access and document scope must not spread to another owner merely because units share an address. |
+| Worker service fulfillment | `create_booking_request` requires a customer address; the contract has no authoritative mode for provider venue, agreed public location or remote work. | Configure allowed fulfillment modes per service category and market: customer site, provider venue, agreed public/neutral location, and remote. Request private address/location only when that mode needs it, and disclose it only to authorized participants. | Owner/operations confirms mode availability and safety/response rules for each category. |
+| Worker offers and packages | The marketplace negotiates a custom quote; Worker Pro's service packages are business records and are not selected into a marketplace booking. Public starting-price copy is not an accepted quote. | Keep negotiation as the live path. Label estimates accurately. Treat any later fixed package as an optional, scoped offer with explicit deliverables, exclusions, duration, capacity, currency, cancellation terms and a quote snapshot. Do not imply Worker Pro packages are public checkout packages. | Owner confirms whether fixed-price marketplace packages are in scope and how they coexist with custom quotes. |
+| Trust evidence and verification claims | Worker identity is policy-gated; Worker onboarding collects professional work evidence and offers a certificate upload, currently optional. Property submissions record a declared authority relationship, private Partner access evidence, and can proceed through independent Field Operations evidence/review. This is evidence of identity, claimed representation, access or work samples; it does not by itself prove title, legal authority, a valid licence, every listing fact, property condition, or safety. | Create separate status claims for `identity checked`, `authority documents reviewed`, `property access observed`, `field visit completed`, `listing facts checked`, `credential checked`, and `licence/insurance checked`. For Partners, collect the minimum appropriate evidence that the named person may list/manage the asset (for example ownership record or a current management/letting authorization), plus entity/representative evidence when acting for a business; keep documents private and ask counsel which forms are valid locally. For each Worker category/market, define required qualifications, licenses/permits, insurance and expiry/recheck rules; keep non-required certificates optional and disclose what was checked. Publish the scope/date of each check, never an undifferentiated “safe/verified” guarantee. | Operations and local counsel approve evidence by asset type, Worker category and launch market; privacy owner sets purpose, access, retention/deletion and appeal rules. Do not require or retain sensitive documents without a defined need and lawful basis. |
+| Owner property lifecycle | Host pause exists in a limited hosting mode; a consistent pause/unlist/removal request across apartment and hotel workflows is not verified. | Owners can stop new discovery/bookings across supported modes while existing bookings remain fulfillable. Permanent removal is a request/retirement path that preserves active bookings, payments, evidence, legal holds and required history. | Owner confirms visibility consequences, who reviews removal, and how affected future bookings are handled. |
+| Provider response clock | Requests can remain pending without one documented response target/expiry rule across service categories. | Set category-specific response targets and reminders; missed targets escalate or expire only before acceptance. A missed response must not cancel an already accepted/paid job without a separately authorized recovery path. | Operations confirms staffed targets, coverage hours and escalation ownership. |
+
 ## Enforcement
 
+### Nigerian identity verification
+
+NIN is not required to create a Personal account, browse, use Friends or make an ordinary customer payment. The prepared NIN module accepts only Property Partner and Service Worker verification purposes; ordinary booking is not a NIN purpose. NIN is one potential Nigerian government-identity method, not the sole ID for every nationality. An approved alternative-ID/manual appeal route is required before an identity gate can launch. Hotel Team employees do not each become payout beneficiaries merely by accepting an operational invitation.
+
+The owner accepted these enforcement points on 19 October: provider approval before public supply/accepting work and recipient KYC before payout activation. Workspace drafts may be prepared before those checks. Identity, business/entity review, property authority, professional credentials and payout-account verification are separate decisions. One person with both workspaces reuses an eligible current identity result, while each workspace retains its own authority/credential review. The existing face review and bank-name resolution do not implement the government-ID/KYC contract; that integration remains unfinished.
+
+Any later NIN check must have a defined purpose, approved provider, explicit consent and server-authenticated result. NIN format, a face/liveness review, property access evidence and paid Pro membership cannot grant a NIN verification claim. Identity verification does not establish property ownership or professional licensing. No NIN provider is currently integrated; the server orchestration module is preparation only and remains unavailable without approved dependencies. Processor requirements must be confirmed for WeHouse's actual marketplace recipient model, rather than copied from merchant onboarding.
+
+### Property and Hotel submission evidence contract
+
+The owner accepted this product contract on 19 October. Private request-linked document upload, current-requirement snapshots, correction/replacement, independent scoped review, expiry and new-publication enforcement are implemented on Test. Exact legal forms/retention still need local approval; live account KYC, structured guest/tenancy term capture and booking-time eligibility/recheck remain unfinished. No live identity or operating-licence verification is implied by a manual document decision.
+
+| Check | Short Let / Long Let | Hotel | Review outcome |
+|---|---|---|---|
+| Responsible person | Legal name, contact details, approved identity method | Authorized operator/representative and legal entity where applicable | Identity checked; not ownership checked |
+| Authority to offer accommodation | Owner evidence, or signed current management/letting authorization; tenant-host requires permission to sublet/host | Owner/operator agreement or current management authorization | Authority reviewed for this asset; address, parties, permitted use and expiry match |
+| Business details | Registration and tax details when applicable to the host/business model | Legal/trading name, registration, address and tax details applicable to operator | Business reviewed independently from the named representative |
+| Operating permission | Applicable accommodation/letting permits and landlord/building restrictions | Applicable tourism/accommodation, fire, health, planning and other locally required evidence | Issuer, scope and expiry reviewed; not a blanket nationwide checklist |
+| Property facts | Exact private address, public map disclosure, whole-unit/private-bedroom scope, shared-space disclosures, beds/sleeping arrangements, bathrooms, occupancy, amenities and accurate media | Exact address, room types, bed configurations, capacity, sellable inventory, amenities and accurate media | Facts checked; access video alone does not establish authority |
+| Guest terms | Price basis, currency, all compulsory fees/taxes, caution, house rules, arrival/departure, cancellation/refund, minimum/maximum stay; tenancy term for Long Let | Room/rate inclusions, taxes/fees, guest/child/extra-bed rules, arrival/departure, cancellation/no-show and inventory restrictions | Terms versioned and snapshotted into booking |
+| Payout beneficiary | Recipient identity/entity and bank ownership/name match under approved processor rules | Authorized individual/entity recipient and compatible bank ownership | Payout eligible; no raw identity documents in wallet activity |
+
+#### Asset-specific collection and review checklist
+
+The examples below define the intended product intake, not a declaration that every example is legally compulsory or sufficient throughout Nigeria. Operations/counsel must approve acceptable evidence for each enabled state and asset type. Collect an appropriate accepted document, not every possible alternative.
+
+- **Common identity and authority:** responsible person's legal name/contact and approved identity method; exact address and location; owner evidence such as an accepted deed/title/registry record, or a signed current letting/management authorization identifying the owner, representative, property and permitted use. A tenant offering accommodation needs the applicable landlord/subletting permission. An entity needs applicable registration details (for example CAC registration in Nigeria) and representative authority. Address evidence such as a utility bill supports address matching; it does not establish title. Payout beneficiary checks remain separate.
+- **Short Let:** authority for short-stay use and any applicable local permit/building restriction; whole-unit/private-bedroom scope and disclosed shared spaces, bedrooms/beds/sleeping arrangements, bathrooms, maximum occupancy, amenities and condition media; nightly rate/currency, mandatory fees/taxes, refundable caution, minimum/maximum stay, house rules, check-in/out, cancellation/no-show and emergency/support contacts. Disclose relevant access limitations and safety information accurately. Snapshot the guest's accepted terms.
+- **Long Let:** authority to let for the offered term; property condition/inventory and tenancy agreement; Partner-accepted term, annual/term total, any approved monthly schedule and due dates, itemized agency/service/deposit charges, utilities/service-charge responsibility, maintenance/repairs, handover, renewal/rent review, arrears/grace, notice, early exit and deposit return. Offer only supported approved schedules; a signed contract does not itself implement automatic debit or arrears recovery.
+- **Hotel:** legal/trading operator name, applicable business/tax registration, authorized representative and owner/operator/management agreement; applicable local accommodation/tourism, fire, health, planning and other operating evidence with issuer, scope and expiry. Capture sellable room types/inventory, beds, occupancy/children/extra beds, amenities/accessibility, rate-plan inclusions, taxes/fees, arrival/departure, cancellations/no-shows, payment and complaint contacts. Company registration alone does not prove hotel operating eligibility.
+
+The current document panel shows missing, unfinished upload, awaiting review, correction required, approved, rejected and expired states. Reviewers set accepted evidence instructions before collection, record a decision/reason and expiry, and cannot review their own asset. New requirements/material property changes invalidate the snapshot. New publication checks the latest approved current evidence on the server. The existing operations queue and canonical Inbox carry review and Partner correction/outcome work. Existing bookings are preserved. Automatic expiry outreach, recertification of already-live properties, broader appeal/retention processing and hosted-role verification remain open.
+
+Required evidence is private. Request corrections through the existing submission/review journey, with a reason, reviewer, timestamp, expiry/recheck and appeal history. Unreviewed, expired or rejected required evidence prevents new publication/acceptance as appropriate; it must not silently cancel existing stays or destroy financial history. Guests and unrelated staff cannot read raw documents. Do not ask Partners to send identity documents through chat.
+
+Research checked 19 October 2026: [Airbnb identity verification](https://www.airbnb.com/help/article/3033) includes booking guests as well as hosts and accepts multiple ID types; it does not establish a universal NIN requirement. [Airbnb hosting responsibilities](https://www.airbnb.co.uk/help/article/1397) cover permissions, local rules and licences. [Booking.com accommodation onboarding](https://join.booking.com/index.html?lang=xu) describes property verification before bookings may open; its publicly accessible material does not establish one universal Nigerian document list. [Paystack Nigeria compliance](https://support.paystack.com/en/articles/2123970) documents merchant ID/entity requirements and several accepted IDs; it is not proof that every WeHouse recipient must submit the same merchant dossier. The matrix above is WeHouse's proposed control contract, not a claim that either competitor requests every listed document or that counsel has approved it.
+
 These invariants should become database constraints/RPC tests where possible, TypeScript types/read-model capability tests in UI, and end-to-end browser scenarios for visibility. Code review should cite rule IDs when accepting a deliberate exception.
+
+### Core features and paid enhancements (19 October clarification)
+
+Essential arrival/access instructions are included in normal property/Hotel operations, with owner-only editing and booking-scoped paid-guest reading. Pro may add consolidated portfolio reporting and optional business tools; it must not gate normal fulfillment, payment records, verification, reporting, support or safety. Studio denotes zero separate bedrooms and must retain that meaning in submission, cards and detail views.
+
+### C-064: customer view and operator responsibility (20 October)
+
+**Identical units in one compound/building (owner clarification, 22 October):**
+A Partner may manage several separate Long Let or Short Let units with the same
+layout, price and terms. Support a shared unit-type description/default price
+and distinct physical units beneath it; equal prices do not merge occupancy.
+Any valid layout/bedroom count is supported; two bedrooms is only an example.
+For example, six two-bedroom flats can share an annual rent default while flats
+A–F retain independent availability, inspections, tenants, agreements, payments,
+handover and maintenance records. Changing the shared price affects new offers;
+accepted agreements retain their saved prices and charges. Unit-specific facts,
+condition/photos, price overrides and responsible operator remain explicit.
+
+Discovery may show one matching unit-type card with the price basis and actual
+matching availability, rather than six indistinguishable cards. A customer must
+choose, or explicitly accept allocation of, an identified physical unit before
+binding checkout. Allocation and a temporary hold must be atomic; the available
+count alone is not inventory authority. Disclose material differences before
+payment. Annual rent, term total, optional approved monthly schedule and separately
+itemized charges must not be conflated. A shared address or equal rent never
+grants access to another owner's units, private documents or money.
+
+Promotion of a unit group requires that canonical group identity and availability
+to exist first. An individual-listing campaign must not silently expand to all
+units belonging to the Partner. Identical-unit presentation must not let one
+compound fill a Sponsored section with duplicate cards. Grouped inventory and
+group-targeted promotion remain unimplemented; this clarifies the existing C-064
+workstream, not a separate product or new property category.
+
+A building may contain only Long Lets, only Short Lets, or a mixture. The customer chooses the letting arrangement and applicable dates/term before comparing prices. Results and availability must identify the actual bookable apartment/private bedroom, with its whole/private scope, shared areas, guest capacity, price basis, total, terms and current operator. A building page groups matching available spaces; a building-wide room count is not dated availability. A physical space offered under more than one term still has one occupancy authority. Do not create independent inventory copies for each offer. The Test physical registry, submission/reuse and overlap guards are implemented; public grouped stock, Partner grouped calendar, defaults/allocation and full booking concurrency evidence remain unfinished.
+
+Management responsibility is independent of property layout and let type. Existing management is recorded per listing: Host manages uses the named responsible host and scoped co-host permissions; WeHouse manages requires accepted Operations responsibility before new WeHouse-managed bookings. Ownership, commercial controls, operational access, earnings and support are separate capabilities. A future building default must not grant authority over separately owned spaces or change existing booking snapshots without a reviewed handoff. Customer operator wording must come from approved space/booking state, not a marketing label or the current viewer role.
+
+## 23 October owner confirmation: Experience money policy and legal review pack
+
+- Confirmed by the owner: the standard full-refund deadline is 24 hours before the scheduled start for Experiences, Services, Short Let and Hotel bookings. Provider/host cancellation gives a full refund. Existing bookings retain their accepted policy snapshot; rollout must not silently rewrite them.
+- Experience commission is configurable by the Creator. No numerical percentage was approved in this decision. Checkout must require a published, valid commission policy rather than inventing a default. Changes apply to new quotes/bookings, with the policy version and calculated amount saved alongside the booking currency and total.
+- Customer screens must show the exact cancellation deadline and relevant booking/session timezone before payment. The 24-hour threshold alone does not decide every late-cancellation deduction, no-show, dispute or statutory exception; do not invent those terms.
+- After the internal implementation is complete, produce one shareable PDF for lawyer review covering all agreed WeHouse policies. Derive it from confirmed decisions and implemented behavior; separate unresolved decisions and jurisdiction-dependent review questions. Do not present it as lawyer-approved terms or draft the pack prematurely.

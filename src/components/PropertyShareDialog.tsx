@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import SharedPropertyCard from "@/components/SharedPropertyCard";
 import { ChevronRight, Copy, Search, Share2, Users } from "lucide-react";
 import { useEffect, useState } from 'react';
@@ -5,14 +6,17 @@ import { createPortal } from 'react-dom';
 import { getRoommateConversationPeople } from '@/lib/supabase/chat';
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from '@/lib/roommateRecipients';
 import { propertyShareUrl, queuePropertyShare, sharePropertyExternally, type SharedProperty } from '@/lib/propertyShare';
+import { clearWorkerShare } from '@/lib/workerShare';
 import { withTimeout } from '@/lib/withTimeout';
 import { useRecordScreenBack } from '@/hooks/useRecordScreenBack';
 import BackButton from '@/components/BackButton';
 import { useDialogInteraction } from '@/hooks/useDialogInteraction';
 import { toast } from 'sonner';
+import { listMyFriends } from '@/lib/supabase/friends';
 
-type Props = { userId: string; property: SharedProperty; title: string; stayType?: 'short_let' | 'long_stay'; onClose: () => void; onConversation: (id: string) => void };
-export default function PropertyShareDialog({ userId, property, title, onClose, onConversation }: Props) {
+type Props = { userId: string; property: SharedProperty; title: string; stayType?: 'short_let' | 'long_stay'; onClose: () => void; onConversation: (id: string) => void; onFriendConversation?: (id: string) => void };
+export default function PropertyShareDialog({ userId, property, title, onClose, onConversation, onFriendConversation }: Props) {
+  const [audience, setAudience] = useState<'roommates' | 'friends'>('roommates');
   const [recipients, setRecipients] = useState<RoommateRecipient[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -23,6 +27,13 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
     setLoading(true); setError(''); setRecipients([]);
     void (async () => {
       try {
+        if (audience === 'friends') {
+          const result = await withTimeout(listMyFriends(), 15000, 'Friends took too long to load.');
+          if (!active) return;
+          if (result.error) throw result.error;
+          setRecipients(result.friends.filter(friend => friend.status === 'accepted' && friend.user_id !== userId).map(friend => ({ userId: friend.user_id, conversationId: friend.friend_id, name: friend.full_name || friend.username || 'Friend', username: friend.username || '', avatar: null })));
+          return;
+        }
         const peers = await withTimeout(getRoommateConversationPeople(), 15000, 'Connections took too long to load.');
         if (!active) return;
         if (peers.error) throw peers.error;
@@ -31,7 +42,7 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
-  }, [userId, attempt]);
+  }, [userId, attempt, audience]);
   const visible = recipients.filter(person => `${person.name} ${person.username}`.toLowerCase().includes(query.trim().toLowerCase()));
   async function copyLink() {
     try { await navigator.clipboard.writeText(propertyShareUrl(property)); toast.success('Property link copied'); }
@@ -60,13 +71,20 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
       <section className="mt-6 border-t border-[var(--wh-border-subtle)] pt-5" aria-label="Send within WeHouse">
       <h3 className="flex items-center gap-2 text-sm font-semibold"><Users size={17} aria-hidden="true" className="text-violet-300" />Send in WeHouse</h3>
       <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a WeHouse connection. You can add a message before sending.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">{(['roommates', 'friends'] as const).map(value => <button type="button" key={value} aria-pressed={audience === value} disabled={value === 'friends' && !onFriendConversation} onClick={() => { if (value === audience) return; setRecipients([]); setLoading(true); setQuery(''); setAudience(value); }} className={`min-h-11 rounded-xl px-3 text-sm font-semibold disabled:opacity-50 ${audience === value ? 'bg-violet-600 text-white' : 'border border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]'}`}>{value === 'friends' ? 'Friends' : 'Roommates'}</button>)}</div>
       <label className="mt-3 block"><span className="sr-only">Search your connections</span><span className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"><Search size={18} aria-hidden="true" className="shrink-0 text-[var(--wh-text-secondary)]" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search connections" className="min-w-0 flex-1 bg-transparent py-3 text-base text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)]" /></span></label>
-      {loading ? <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading your connections…</p> : <>
+      {loading ? <WeHouseLoadingState compact label="Loading your connections" /> : <>
         {error && <div role="alert" className="py-4 text-sm text-[var(--wh-text-secondary)]"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} className="min-h-11 font-semibold text-violet-300">Refresh connections</button></div>}
         <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{visible.map(person => <button key={person.userId} type="button" onClick={() => {
+          try {
+          if (audience === 'friends' && !onFriendConversation) return;
           queuePropertyShare(userId, person.conversationId, property);
+          clearWorkerShare(userId, person.conversationId);
           // The normal conversation (and its existing PIN gate) owns Send.
-          onClose(); onConversation(person.conversationId);
+          onClose();
+          if (audience === 'friends') onFriendConversation?.(person.conversationId);
+          else onConversation(person.conversationId);
+          } catch (error) { toast.error(error instanceof Error ? error.message : 'This property could not be shared.'); }
         }} className="flex min-h-16 w-full items-center gap-3 py-3 text-left">
           <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 font-semibold text-violet-200">{person.avatar ? <img src={person.avatar} alt="" className="h-full w-full object-cover" /> : person.name[0]?.toUpperCase()}</span>
           <span className="min-w-0 flex-1"><span className="block break-words text-base font-semibold">{person.name}</span>{person.username && <span className="mt-1 block break-words text-sm text-[var(--wh-text-secondary)]">@{person.username}</span>}</span>

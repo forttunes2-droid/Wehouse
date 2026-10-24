@@ -13,9 +13,18 @@ insert into public.profiles(
   'support-atomic-contract','user',true,'Support Atomic Contract',
   'Nasarawa','Lafia','Lafia'
 );
+-- Real Auth and trusted-device fixtures are required by current access checks.
+insert into auth.users(id,aud,role,email,created_at,updated_at)
+select auth_id::uuid,'authenticated','authenticated',email,now(),now()
+from public.profiles where user_id in ('support-atomic-contract');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in ('support-atomic-contract');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id::uuid,auth_id::uuid,'contract-'||auth_id,'Browser',true,'trusted'
+from public.profiles where user_id in ('support-atomic-contract');
 set local session_replication_role=origin;
 
-select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','session_id','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','role','authenticated')::text,true);
 select set_config('request.jwt.claim.role','authenticated',true);
 
 do $$

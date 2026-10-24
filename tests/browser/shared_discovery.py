@@ -2,6 +2,7 @@
 No live account, database, provider, payment or published data is changed.
 """
 import asyncio,json,os,subprocess
+from urllib.parse import urlparse,parse_qs
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');B=Path('test-results/shared-discovery-offline')
@@ -10,6 +11,8 @@ RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_pla
 HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
 SCRIPT="""s=>{
  window.__browse=s;
+ window.__browse.gatewayRequests=[];
+ window.addEventListener('openSupportChat',event=>{window.__browse.dataRequest=event.detail;});
  for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}
  window.__browseAPI=async(name,args)=>{
   const s=window.__browse;s.calls.push({name,args});
@@ -20,6 +23,8 @@ SCRIPT="""s=>{
   if(name==='getReservationForListing')return{reservation:null,error:null};
   if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
+  if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
+  if(name==='rpc:get_my_workspace_access')return{data:{identity:{user_id:'qa-viewer'},personal_workspace:true,privileged_workspaces:[]},error:null};
   if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
@@ -30,27 +35,56 @@ async def main():
   options={'headless':True,'args':['--no-sandbox']}
   if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**options)
-  for width in [320,390,768,1440]:
-   context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(4000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'passed':False}
+  for width,theme in [(w,t) for w in [320,390,768,1440] for t in ['dark','light']]:
+   context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(4000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'theme':theme,'passed':False}
    async def route(request):
+    if request.request.url=='https://wehouse-preview.vercel.app/':
+     return await request.fulfill(status=200,content_type='text/html',body=f'<html data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
+    if request.request.url.startswith('https://wehouse-preview.vercel.app/api/public-catalog?'):
+     assert request.request.method=='GET'
+     assert not request.request.headers.get('authorization') and not request.request.headers.get('cookie')
+     kind=parse_qs(urlparse(request.request.url).query)['kind'][0]
+     assert kind in ['homes','hotels']
+     await page.evaluate('(kind)=>window.__browse.gatewayRequests.push(kind)',kind)
+     return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':[HOME if kind=='homes' else HOTEL],'has_more':False}))
     if request.request.url=='https://assets.wehouse.test/interior.jpg':return await request.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await request.abort()
    await page.route('**/*',route)
    try:
-    await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10"><div id="root"></div></body></html>')
+    await page.goto('https://wehouse-preview.vercel.app/')
     await page.evaluate(SCRIPT,{'mode':'public','calls':[],'unexpected':[],'home':HOME,'hotel':HOTEL})
     await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True)).to_be_visible()
-    await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) for c in await page.evaluate('window.__browse.calls'))
     await page.wait_for_function('Array.from(document.querySelectorAll("[data-media-thumbnail] img")).some(img=>img.complete&&img.naturalWidth>0)')
-    await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}.png'),full_page=True)
+    await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("homes")')
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
-    await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
-    await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}.png'),full_page=True)
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
+    await expect(page.get_by_text('₦400k',exact=True)).to_have_css('color','rgb(255, 255, 255)')
+    await page.evaluate('window.__switchBrowseMode("locations")')
+    await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
+    await page.get_by_role('button',name='State Any region',exact=True).click()
+    await page.get_by_placeholder('Search regions').fill('nasar')
+    await page.get_by_role('option',name='Nasarawa',exact=True).click()
+    await page.get_by_role('button',name='Local Government Any local area',exact=True).click()
+    await page.get_by_placeholder('Search local areas').fill('laf')
+    await page.get_by_role('option',name='Lafia',exact=True).click()
+    await expect(page.get_by_label('Chosen local area')).to_have_text('Lafia')
+    await page.get_by_role('button',name='State Nasarawa',exact=True).click()
+    await page.get_by_placeholder('Search regions').fill('lagos')
+    await page.get_by_role('option',name='Lagos',exact=True).click()
+    await expect(page.get_by_label('Chosen local area')).to_have_text('')
+    await page.evaluate('window.__switchBrowseMode("privacy")')
+    await page.get_by_role('button',name='Request access, correction or deletion',exact=False).click()
+    request=await page.evaluate('window.__browse.dataRequest')
+    assert request['category']=='account_access' and request['contextSnapshot']=={'source_type':'privacy_request','source_id':'qa-viewer'}
+    await expect(page.get_by_text('Choose what you need in the message and send it to submit your request.',exact=False)).to_be_visible()
+    await page.evaluate('window.__switchBrowseMode("homes")')
+    await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
     await page.get_by_placeholder('Search hotel name').fill('Garden')
@@ -65,7 +99,7 @@ async def main():
     await expect(page.get_by_text('Non-refundable',exact=True)).to_be_visible()
     await page.get_by_role('button',name='Breakfast stay',exact=False).click()
     await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
-    await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}.png'))
+    await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}-{theme}.png'))
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) or c['name'].startswith(('create_','saveHotel','rpc:save_')) for c in await page.evaluate('window.__browse.calls'))
     await page.get_by_role('button',name='Save hotel',exact=True).click()
     assert await page.evaluate('window.__browse.requested')
@@ -85,13 +119,14 @@ async def main():
     await expect(page.get_by_text('Photo unavailable',exact=True)).to_have_count(1)
     await expect(page.locator('[data-media-thumbnail]').first).to_have_attribute('data-media-state','loading')
     await expect(page.get_by_text('Preview unavailable · open video',exact=True)).to_be_visible()
-    await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}.png'))
+    await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}-{theme}.png'))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')
+    assert await page.evaluate('window.__browse.gatewayRequests.length>0'),'Deployed web must exercise the public gateway'
     assert not errors,errors
-    row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','compact missing gallery','explicit failed thumbnails']
+    row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
-    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}.png'),full_page=True)
+    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True)
    finally:results.append(row);print(json.dumps(row),flush=True);await context.close()
   await browser.close()
  (OUT/'shared-discovery-results.json').write_text(json.dumps(results,indent=2));assert all(row['passed'] for row in results)

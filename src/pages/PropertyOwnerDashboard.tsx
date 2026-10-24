@@ -1,4 +1,7 @@
+﻿import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { hotelInventorySummary, matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
+import { propertyAssetGroups } from "@/lib/propertyAssetGroups";
+import PropertySiteSchedule from "@/components/PropertySiteSchedule";
 import type { ActivityDestination } from "@/lib/activityFeed";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { locationLabel } from "@/lib/locationPresentation";
@@ -14,16 +17,20 @@ import PartnerSubmittedRequests, {
   type SubmissionFilter,
 } from "@/components/PartnerSubmittedRequests";
 import PartnerHotelOperations from "@/components/PartnerHotelOperations";
+import PropertyArrivalInstructions from "@/components/PropertyArrivalInstructions";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import { ListingMediaImage } from "@/components/ListingCandidateMedia";
-import type { Profile } from "@/types";
+import { APARTMENT_SUB_LABELS, PROPERTY_TYPE_LABELS, type Profile, type PropertyType, type ApartmentSubType } from "@/types";
 import { usePartnerInboxSummary } from "@/hooks/usePartnerInboxSummary";
 import WeHouseSelect from "@/components/WeHouseSelect";
 import PropertyManagementPanel, { HostArrivalAction } from "@/components/PropertyManagementPanel";
 import PropertyHostControls from "@/components/PropertyHostControls";
 import BackButton from "@/components/BackButton";
 import PartnerToolsWorkspace from "@/components/PartnerToolsWorkspace";
+import { formatMoney } from "@/lib/regional";
+import { withTimeout } from "@/lib/withTimeout";
+import {propertyStayPage,propertyStayTarget} from '@/lib/propertyStayPage';
 
 type PartnerTab = "properties" | "finance" | "communication" | "tools";
 const PROPERTY_PAGE_SIZE = 40;
@@ -36,8 +43,19 @@ type Props = {
   onWorkspaceSwitch?: () => void;
   delegatedOnly?: boolean;
 };
-const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (value: unknown,currency:unknown) =>
+  typeof value==='number'&&Number.isFinite(value)&&value>0&&typeof currency==='string'&&/^[A-Z]{3}$/.test(currency)
+    ? formatMoney(value,{currency}) : 'Price unavailable';
+function validAssetRows(value:unknown,kind:'apartment'|'hotel'){
+  if(!Array.isArray(value)||value.length>51)return false;
+  const ids=new Set<string>();
+  return value.every(row=>{
+    if(!row||typeof row!=='object')return false;
+    const id=kind==='hotel'?row.hotel_id:row.id;
+    if(kind==='hotel'?!Number.isSafeInteger(id):typeof id!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id))return false;
+    const key=String(id);if(ids.has(key))return false;ids.add(key);return true;
+  });
+}
 
 const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [
   {
@@ -200,7 +218,7 @@ function PropertiesWorkspace({
   const [publishedTarget, setPublishedTarget] = useState<string>();
   const recordTarget = publishedTarget || initialRecordId;
   const [filter, setFilter] = useState<SubmissionFilter>(delegatedOnly ? "public" : "all");
-  const [assetKind, setAssetKind] = useState<PartnerAssetKind>("apartment");
+  const [assetKind, setAssetKind] = useState<Exclude<PartnerAssetKind,'all'>>("apartment");
   const [viewingDetail, setViewingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -230,13 +248,13 @@ function PropertiesWorkspace({
         <div className="border-b border-[var(--wh-border-subtle)] pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[var(--wh-text-muted)]">
+              <p className="text-xs font-semibold uppercase tracking-[.15em] text-[var(--wh-text-muted)]">
                 Property workspace
               </p>
               <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">One list, filtered by type and lifecycle</p>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
-              <WeHouseSelect value={assetKind} options={[{ value: "apartment", label: "Apartments" }, { value: "hotel", label: "Hotels" }]} onChange={setAssetKind} eyebrow="Properties" title="Property type" ariaLabel="Filter by property type" className="w-full !min-w-0" />
+              <WeHouseSelect value={assetKind} options={[{ value: "apartment", label: "Homes" }, { value: "hotel", label: "Hotels" }]} onChange={setAssetKind} eyebrow="Properties" title="Property category" ariaLabel="Filter by property category" className="w-full !min-w-0" />
               <WeHouseSelect value={filter} options={filters} onChange={setFilter} eyebrow="Properties" title="Lifecycle status" ariaLabel="Filter properties by status" className="w-full !min-w-0" />
             </div>
           </div>
@@ -266,7 +284,7 @@ function PropertiesWorkspace({
     </div>
   );
 }
-function PropertiesTab({
+export function PropertiesTab({
   profile,
   assetKind,
   initialRecordId,
@@ -277,7 +295,7 @@ function PropertiesTab({
   delegatedOnly = false,
 }: {
   profile: Profile;
-  assetKind: PartnerAssetKind;
+  assetKind: Exclude<PartnerAssetKind,'all'>;
   delegatedOnly?: boolean;
   initialRecordId?: string;
   initialReservationId?: string;
@@ -292,6 +310,7 @@ function PropertiesTab({
   const [assets, setAssets] = useState<any[]>([]),
     [selected, setSelected] = useState<any | null>(null),
     [loading, setLoading] = useState(true);
+  const [assetsError,setAssetsError]=useState('');
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [cursor, setCursor] = useState<{ sort_at: string; id: string } | null>(null);
@@ -305,13 +324,15 @@ function PropertiesTab({
     let active = true;
     const generation = ++requestGeneration.current;
     setLoading(true);
+    setAssetsError('');
     setLoadingMore(false);
     setHasMore(false);
     setCursor(null);
     void (async () => {
-      const fetchApartment = assetKind === "all" || assetKind === "apartment";
-      const fetchHotel = !delegatedOnly && (assetKind === "all" || assetKind === "hotel");
-      const [apartmentResult, hotelResult] = await Promise.all([
+      const fetchApartment = assetKind === "apartment";
+      const fetchHotel = !delegatedOnly && assetKind === "hotel";
+      try{
+      const [apartmentResult, hotelResult] = await withTimeout(Promise.all([
         fetchApartment ? supabase.rpc("get_my_property_assets_page", {
           p_workspace: delegatedOnly ? "hosting" : "property_partner",
           p_limit: PROPERTY_PAGE_SIZE + 1,
@@ -319,10 +340,10 @@ function PropertiesTab({
         fetchHotel ? supabase.rpc("get_my_owned_hotels_page", {
           p_limit: PROPERTY_PAGE_SIZE + 1,
         }) : Promise.resolve({ data: [], error: null }),
-      ]);
+      ]),15000,'Properties could not be loaded.');
       if (!active || generation !== requestGeneration.current) return;
-      if (apartmentResult.error || hotelResult.error) {
-        toast.error("Unable to load your properties. Try again.");
+      if (apartmentResult.error || hotelResult.error || !validAssetRows(apartmentResult.data,'apartment') || !validAssetRows(hotelResult.data,'hotel')) {
+        setAssetsError("Your properties could not be loaded. Try again.");
         setAssets([]);
         setSelected(null);
         setLoading(false);
@@ -330,7 +351,7 @@ function PropertiesTab({
       }
       const apartmentRows = ((apartmentResult.data || []) as any[]).map(row => ({ ...row, _assetKind: "property" }));
       const hotelRows = ((hotelResult.data || []) as any[]).filter(row => row.status === "active" && row.access_role === "owner").map(row => ({ ...row, _assetKind: "hotel", id: `hotel:${row.hotel_id}`, title: row.name }));
-      const rows = assetKind === "hotel" ? hotelRows : assetKind === "apartment" ? apartmentRows : [...apartmentRows, ...hotelRows].sort((a,b) => new Date(b.created_at || b.page_updated_at || 0).getTime() - new Date(a.created_at || a.page_updated_at || 0).getTime());
+      const rows = assetKind === "hotel" ? hotelRows : apartmentRows;
       const page = rows.slice(0, PROPERTY_PAGE_SIZE);
       setHasMore(rows.length > PROPERTY_PAGE_SIZE);
       const last = page.at(-1);
@@ -342,21 +363,23 @@ function PropertiesTab({
       setAssets(nextAssets);
       async function readAccessibleAsset(targetId: string) {
         if (assetKind === "apartment") {
-          const exact = await supabase.rpc("get_my_property_assets_page", {
+          const exact = await withTimeout(supabase.rpc("get_my_property_assets_page", {
             p_workspace: delegatedOnly ? "hosting" : "property_partner",
             p_listing_id: targetId.replace(/^listing:/, ""),
             p_limit: 1,
-          });
-          return !exact.error && Array.isArray(exact.data) && exact.data[0]
+          }),15000,'Linked property could not be loaded.');
+          if(exact.error||!validAssetRows(exact.data,'apartment'))throw Error('Linked property could not be confirmed.');
+          return exact.data[0]
             ? { ...exact.data[0], _assetKind: "property" }
             : null;
         }
         const hotelId = /^hotel:(-?\d+)$/.exec(targetId)?.[1];
         if (!hotelId) return null;
-        const exact = await supabase.rpc("get_my_owned_hotels_page", {
+        const exact = await withTimeout(supabase.rpc("get_my_owned_hotels_page", {
           p_hotel_id: Number(hotelId), p_limit: 1,
-        });
-        return !exact.error && Array.isArray(exact.data) && exact.data[0]
+        }),15000,'Linked hotel could not be loaded.');
+        if(exact.error||!validAssetRows(exact.data,'hotel'))throw Error('Linked hotel could not be confirmed.');
+        return exact.data[0]
           ? { ...exact.data[0], _assetKind: "hotel", id: targetId, title: exact.data[0].name }
           : null;
       }
@@ -384,6 +407,11 @@ function PropertiesTab({
         else toast.error("The linked property is no longer available.");
       }
       setLoading(false);
+      }catch{
+        if(!active||generation!==requestGeneration.current)return;
+        setAssetsError('Your properties could not be loaded. Try again.');
+        setAssets([]);setSelected(null);setLoading(false);
+      }
     })();
     return () => {
       active = false;
@@ -393,25 +421,26 @@ function PropertiesTab({
     if (!hasMore || loadingMore || !cursor) return;
     const generation = requestGeneration.current;
     setLoadingMore(true);
-    const { data, error } = assetKind === "apartment"
-      ? await supabase.rpc("get_my_property_assets_page", {
+    try{
+    const { data, error } = await withTimeout(assetKind === "apartment"
+      ? supabase.rpc("get_my_property_assets_page", {
           p_workspace: delegatedOnly ? "hosting" : "property_partner",
           p_before_created_at: cursor.sort_at,
           p_before_id: cursor.id,
           p_limit: PROPERTY_PAGE_SIZE + 1,
         })
-      : await supabase.rpc("get_my_owned_hotels_page", {
+      : supabase.rpc("get_my_owned_hotels_page", {
           p_before_updated_at: cursor.sort_at,
           p_before_hotel_id: Number(cursor.id),
           p_limit: PROPERTY_PAGE_SIZE + 1,
-        });
+        }),15000,'More properties could not be loaded.');
     if (generation !== requestGeneration.current) return;
-    if (error || !Array.isArray(data)) toast.error("More properties could not be loaded");
+    if (error || !validAssetRows(data,assetKind)) toast.error("More properties could not be loaded");
     else {
       const page = data.slice(0, PROPERTY_PAGE_SIZE).map((row: any) => assetKind === "apartment"
         ? { ...row, _assetKind: "property" }
         : { ...row, _assetKind: "hotel", id: `hotel:${row.hotel_id}`, title: row.name });
-      setAssets((current) => [...current, ...page]);
+      setAssets((current) => [...new Map([...current,...page].map(row=>[row.id,row])).values()]);
       setHasMore(data.length > PROPERTY_PAGE_SIZE);
       const last = page.at(-1);
       setCursor(last ? {
@@ -419,7 +448,8 @@ function PropertiesTab({
         id: String(assetKind === "apartment" ? last.id : last.hotel_id),
       } : null);
     }
-    setLoadingMore(false);
+    }catch{if(generation===requestGeneration.current)toast.error('More properties could not be loaded. Try again.');}
+    finally{if(generation===requestGeneration.current)setLoadingMore(false);}
   }
   useEffect(() => {
     onDetailChange?.(Boolean(selected));
@@ -450,25 +480,34 @@ function PropertiesTab({
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">
-            Live {assetKind === "hotel" ? "hotels" : "apartments"}
+            Live {assetKind === "hotel" ? "hotels" : "homes"}
           </h2>
         </div>
-        <span className="text-[10px] font-medium text-[var(--wh-text-muted)]">{hasMore ? "Showing current page" : `${assets.length} ${assetKind === "hotel" ? (assets.length === 1 ? "hotel" : "hotels") : (assets.length === 1 ? "property" : "properties")}`}</span>
+        {!assetsError&&!loading&&<span className="text-xs font-medium text-[var(--wh-text-muted)]">{hasMore ? "Showing current page" : `${assets.length} ${assetKind === "hotel" ? (assets.length === 1 ? "hotel" : "hotels") : (assets.length === 1 ? "property" : "properties")}`}</span>}
       </div>
       {loading ? (
         <Loading />
+      ) : assetsError ? (
+        <div role="alert" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-sm"><p>{assetsError}</p><button type="button" className="mt-3 min-h-11 rounded-xl border border-[var(--wh-border)] px-4 font-semibold" onClick={()=>setRefreshKey(value=>value+1)}>Retry properties</button></div>
       ) : assets.length === 0 ? (
         <Empty
           title="Nothing published yet"
           text="A property appears here after it is ready and published by WeHouse."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {assets.map((property) => (
+        <div className="space-y-6">
+          {propertyAssetGroups(assets).map(group => <section key={group.key} aria-label={group.label || undefined}>
+            {group.label && <header className="mb-3 border-b border-[var(--wh-border-subtle)] pb-3">
+              <h3 className="break-words text-sm font-semibold">{group.label}</h3>
+              <PropertySiteSchedule key={`${profile.user_id}:${group.key}`} accountId={profile.user_id} siteId={group.key.slice(5)}/>
+              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{group.items.length} {group.items.length === 1 ? 'listing' : 'listings'} loaded · Open a home or room to manage its bookings and availability.</p>
+            </header>}
+            <div className="grid gap-3 sm:grid-cols-2">
+          {group.items.map((property) => (
             <button
               key={property.id}
               onClick={() => setSelected(property)}
-              className="group overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-left shadow-[0_10px_35px_rgba(0,0,0,.12)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-400/25"
+              className="group overflow-hidden rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-left shadow-[0_10px_35px_rgba(0,0,0,.12)] transition duration-200 motion-safe:hover:-translate-y-0.5 hover:border-[var(--wh-accent)]"
             >
               <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-[var(--wh-elevated)]">
                 {property.images?.[0] ? (
@@ -476,7 +515,7 @@ function PropertiesTab({
                     reference={property.images[0]}
                     alt={property.title || "Property"}
                     loading="lazy"
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                    className="h-full w-full object-cover transition duration-300 motion-safe:group-hover:scale-[1.02]"
                   />
                 ) : (
                   <div className="grid h-full place-items-center text-[var(--wh-text-muted)]">
@@ -484,19 +523,21 @@ function PropertiesTab({
                   </div>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
                       {property.title || "Property"}
                     </p>
-                    <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
+                    {property.space_label&&<p className="mt-1 break-words text-xs font-medium">{property.site_label?`${property.site_label} · `:''}{property.space_label}</p>}
+                    {property.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{property.space_scope==='private_room'?'Private room':'Entire home'}</p>}
+                    <p className="mt-1 truncate text-xs text-[var(--wh-text-muted)]">
                       {[property.city, property.state]
                         .filter(Boolean)
                         .join(", ")}
                     </p>
                     {property._assetKind === "property" && property._assignment_role ? (
-                      <p className="mt-1 text-[9px] text-violet-300">
+                      <p className="mt-1 text-xs wh-accent-text">
                         {property._assignment_role === "owner" ? "You own this property" : property._access_level === "full_hosting" ? "Co-host · Full hosting" : "Co-host · Operations"}
                       </p>
                     ) : null}
@@ -506,20 +547,23 @@ function PropertiesTab({
                 <p className="mt-2 text-xs font-bold">
                   {property._assetKind === "hotel"
                     ? hotelInventorySummary(property)
-                    : money(Number(property.price || 0))}
+                    : money(property.price,property.currency)}
                 </p>
+                {property._assetKind === 'property' && <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{property.sub_type === 'short_let' ? 'Short Let · per night' : property.sub_type === 'long_stay' ? 'Long Let · per year' : 'Open to review rental terms'}</p>}
                 {property._assetKind === "hotel" ? (
-                  <p className="mt-1 text-[9px] text-violet-300">
+                  <p className="mt-1 text-xs wh-accent-text">
                     Open rooms, packages, calendar and stays
                   </p>
                 ) : null}
               </div>
             </button>
           ))}
+            </div>
+          </section>)}
         </div>
       )}
       {!loading && hasMore && <button type="button" onClick={() => void loadMore()}
-        disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold text-violet-200 disabled:opacity-50">
+        disabled={loadingMore} className="mt-4 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold wh-accent-text disabled:opacity-50">
         {loadingMore ? "Loading more…" : assetKind === "hotel" ? "Load more hotels" : "Load more homes"}
       </button>}
     </section>
@@ -541,7 +585,12 @@ export function PropertyDetails({
   const closeRecord = useRecordScreenBack(onBack);
   const [stays, setStays] = useState<any[]>([]);
   const [loadingStays, setLoadingStays] = useState(true);
+  const [staysError,setStaysError]=useState('');
   const [stayRefresh,setStayRefresh]=useState(0);
+  const [hasOlderStays,setHasOlderStays]=useState(false),[loadingOlderStays,setLoadingOlderStays]=useState(false);
+  const [olderStaysError,setOlderStaysError]=useState(''),[linkedStayError,setLinkedStayError]=useState('');
+  const [stayCursor,setStayCursor]=useState<{createdAt:string;id:string}|null>(null);
+  const stayGeneration=useRef(0),olderStayBusy=useRef(false);
   const [managementMode,setManagementMode]=useState<"host"|"wehouse">(property.management_mode==="host"?"host":"wehouse");
   const [managementConfigured,setManagementConfigured]=useState(Boolean(property.management_updated_at));
   const hostManaged=managementConfigured&&managementMode==="host";
@@ -561,26 +610,46 @@ export function PropertyDetails({
     );
   }, [initialReservationId, stays]);
   useEffect(() => {
-    let active = true;
-    void supabase
-      .rpc("get_my_property_partner_stays", {
-        p_listing_id: String(property.id),
-      })
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) toast.error("Booking activity could not be loaded");
-        setStays(Array.isArray(data) ? data : []);
-        setLoadingStays(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [profile.user_id, property.id, stayRefresh]);
+    const generation=++stayGeneration.current;
+    setLoadingStays(true);setStaysError('');setStays([]);
+    setHasOlderStays(false);setLoadingOlderStays(false);setOlderStaysError('');setLinkedStayError('');setStayCursor(null);olderStayBusy.current=false;
+    void(async()=>{
+      try{
+        const result=await withTimeout(supabase.rpc('get_my_property_partner_stays',{p_listing_id:String(property.id),p_limit:51}),15000,'Reservations could not be loaded.');
+        if(result.error)throw result.error;
+        const page=propertyStayPage(result.data);let rows=page.rows;let targetError='';
+        if(initialReservationId&&!rows.some(row=>row.reservation_id===initialReservationId)){
+          try{
+            const exact=await withTimeout(supabase.rpc('get_my_property_partner_stays',{p_listing_id:String(property.id),p_reservation_id:initialReservationId,p_limit:1}),15000,'Linked reservation could not be loaded.');
+            if(exact.error)throw exact.error;
+            const target=propertyStayTarget(exact.data,initialReservationId);
+            if(target)rows=[target,...rows];else targetError='The linked reservation is no longer available to you.';
+          }catch{targetError='The linked reservation could not be loaded. Retry its current status.';}
+        }
+        if(generation!==stayGeneration.current)return;
+        setStays(rows);setHasOlderStays(page.hasMore);setStayCursor(page.cursor);setLinkedStayError(targetError);
+      }catch{if(generation===stayGeneration.current){setStaysError('Reservations could not be loaded. Try again.');setStays([]);}}
+      finally{if(generation===stayGeneration.current)setLoadingStays(false);}
+    })();
+    return()=>{if(generation===stayGeneration.current){stayGeneration.current++;olderStayBusy.current=false;}};
+  }, [profile.user_id, property.id, stayRefresh,initialReservationId]);
+  async function loadOlderStays(){
+    if(olderStayBusy.current||!hasOlderStays||!stayCursor)return;
+    const generation=stayGeneration.current;olderStayBusy.current=true;setLoadingOlderStays(true);setOlderStaysError('');
+    try{
+      const result=await withTimeout(supabase.rpc('get_my_property_partner_stays',{p_listing_id:String(property.id),p_before_created_at:stayCursor.createdAt,p_before_id:stayCursor.id,p_limit:51}),15000,'Older reservations could not be loaded.');
+      if(result.error)throw result.error;
+      const page=propertyStayPage(result.data);
+      if(generation!==stayGeneration.current)return;
+      setStays(current=>[...new Map([...current,...page.rows].map(row=>[row.reservation_id,row])).values()]);setHasOlderStays(page.hasMore);setStayCursor(page.cursor);
+    }catch{if(generation===stayGeneration.current)setOlderStaysError('Older reservations could not be loaded. Your loaded records are still shown.');}
+    finally{if(generation===stayGeneration.current){setLoadingOlderStays(false);olderStayBusy.current=false;}}
+  }
   useEffect(() => {
     if (loadingStays || !initialReservationId) return;
     const timer = window.setTimeout(() => {
       document.getElementById(`partner-stay-${initialReservationId}`)?.scrollIntoView({
-        behavior: "smooth",
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',
         block: "center",
       });
     }, 120);
@@ -596,6 +665,8 @@ export function PropertyDetails({
           contextId: String(property.id),
           contextSnapshot: {
             property_name: property.title,
+            space_label:property.space_label,
+            site_label:property.site_label,
             address: property.address,
             city: property.city,
             state: property.state,
@@ -625,6 +696,8 @@ export function PropertyDetails({
               <p className="mt-1 break-words text-xs text-[var(--wh-text-muted)]">
                 {locationLabel(property.address, property.city, property.state)}
               </p>
+              {property.space_label&&<p className="mt-2 break-words text-sm font-medium">{property.site_label?`${property.site_label} · `:''}{property.space_label}</p>}
+              {property.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{property.space_scope==='private_room'?'Private room':'Entire home'}{property.space_scope==='private_room'&&property.shared_areas?.length?` · Shared: ${property.shared_areas.join(', ')}`:''}</p>}
             </div>
             <Status
               value={
@@ -633,44 +706,48 @@ export function PropertyDetails({
             />
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Info label="Group" value={property.property_type || "Apartment"} />
-            <Info label="Type" value={property.sub_type || "Not specified"} />
-            <Info label="Bedrooms" value={property.bedrooms ?? "—"} />
+            <Info label="Property type" value={PROPERTY_TYPE_LABELS[property.property_type as PropertyType] || "Not specified"} />
+            <Info label="Let type" value={APARTMENT_SUB_LABELS[property.sub_type as ApartmentSubType] || "Not specified"} />
+            <Info label="Bedrooms" value={property.bedrooms === 0 ? "Studio" : property.bedrooms ?? "—"} />
             <Info label="Bathrooms" value={property.bathrooms ?? "—"} />
           </div>
           <div className="mt-4 border-y border-[var(--wh-border-subtle)] py-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Published home status</p>
-                <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{partnerPropertyStateMessage(property,hostManaged,managementConfigured)}</p>
+                <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Published home status</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{partnerPropertyStateMessage(property,hostManaged,managementConfigured)}</p>
               </div>
               <Status value={property.availability_status || property.status || "available"} />
             </div>
           </div>
           <button
             onClick={contact}
-            className="mt-4 min-h-10 px-1 text-[10px] font-semibold text-[var(--wh-text-secondary)] hover:text-violet-300"
+            className="mt-4 min-h-11 px-1 text-xs font-semibold text-[var(--wh-text-secondary)] hover:wh-accent-text"
           >
             WeHouse support
           </button>
         </div>
       </section>
       <PropertyManagementPanel listingId={String(property.id)} profile={profile} onContact={contact} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
+      {property._assignment_role === 'owner' ? <PropertyArrivalInstructions key={`${profile.user_id}:${property.id}`} kind="home" assetId={String(property.id)} accountId={profile.user_id} /> : null}
       {hostManaged&&property._can_control_commercials?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-[var(--wh-border-subtle)] pt-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">{!managementConfigured?"Operations":hostManaged?"Host operations":"Property operations"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">{!managementConfigured?"Operations":hostManaged?"Host operations":"Property operations"}</p>
             <h2 className="mt-1 text-sm font-bold">Reservations</h2>
-            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{!managementConfigured?"Choose who manages this live home before new bookings.":hostManaged?"Responsible Host operates these reservations.":wehouseManaged?"WeHouse Property Operations operates these reservations.":""}</p>
+            <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{!managementConfigured?"Choose who manages this live home before new bookings.":hostManaged?"Responsible Host operates these reservations.":wehouseManaged?"WeHouse Property Operations operates these reservations.":""}</p>
           </div>
           <div className="flex items-center gap-3">
-            {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-10 px-1 text-[10px] font-semibold text-violet-300">Messages</button>:null}
-            <span className="text-[9px] text-[var(--wh-text-muted)]">{stays.length}</span>
+            {hostManaged&&onOpenInbox?<button type="button" onClick={onOpenInbox} className="min-h-11 px-1 text-xs font-semibold wh-accent-text">Messages</button>:null}
+            {!loadingStays&&!staysError&&<span className="text-xs text-[var(--wh-text-muted)]">{stays.length} loaded</span>}
           </div>
         </div>
+        {linkedStayError&&<p role="alert" className="mt-3 text-xs leading-5">{linkedStayError} <button type="button" onClick={()=>setStayRefresh(value=>value+1)} className="min-h-11 underline">Retry linked reservation</button></p>}
         {loadingStays ? (
           <Loading />
+        ) : staysError ? (
+          <div role="alert" className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-sm"><p>{staysError}</p><button type="button" className="mt-3 min-h-11 rounded-xl border border-[var(--wh-border)] px-4 font-semibold" onClick={()=>setStayRefresh(value=>value+1)}>Retry reservations</button></div>
         ) : stays.length === 0 ? (
           <div className="mt-4 rounded-2xl border border-dashed border-[var(--wh-border-subtle)] px-5 py-8 text-center">
             <p className="text-xs font-semibold">
@@ -678,7 +755,7 @@ export function PropertyDetails({
                 ? hostManaged ? "Reservation active" : "Reserved through WeHouse"
                 : "No reservations yet"}
             </p>
-            <p className="mt-2 text-[9px] text-[var(--wh-text-muted)]">
+            <p className="mt-2 text-xs text-[var(--wh-text-muted)]">
               {(property.availability_status || property.status) === "reserved"
                 ? hostManaged
                   ? "The booking is secured. The guest journey and next host action will appear here."
@@ -708,12 +785,12 @@ export function PropertyDetails({
                       </p>
                     </div>
                     {stay.stay_type === "short_let" ? (
-                      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                      <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                         {stay.management_mode_snapshot === "host" ? "Host-managed stay" : "WeHouse-managed stay"}
                       </p>
                     ) : null}
                   </div>
-                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-[8px] font-semibold text-emerald-300">
+                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-xs font-semibold text-emerald-300">
                     {partnerPaymentLabel(stay)}
                   </span>
                 </div>
@@ -749,7 +826,7 @@ export function PropertyDetails({
                     />
                   </div>
                 )}
-                <p className="mt-3 text-[9px] leading-5 text-[var(--wh-text-secondary)]">
+                <p className="mt-3 text-xs leading-5 text-[var(--wh-text-secondary)]">
                   {partnerStayMessage(stay)}
                 </p>
                 <HostArrivalAction stay={stay} profile={profile} onChanged={() => setStayRefresh(value => value + 1)} />
@@ -757,6 +834,8 @@ export function PropertyDetails({
             ))}
           </div>
         )}
+        {olderStaysError&&<p role="alert" className="mt-3 text-xs leading-5">{olderStaysError}</p>}
+        {!loadingStays&&!staysError&&hasOlderStays&&<button type="button" disabled={loadingOlderStays} onClick={()=>void loadOlderStays()} className="mt-4 min-h-11 w-full rounded-xl border border-[var(--wh-border)] px-4 text-sm font-semibold disabled:opacity-50">{loadingOlderStays?'Loading older reservations…':olderStaysError?'Retry older reservations':'Load older reservations'}</button>}
       </section>
     </div>
   );
@@ -786,14 +865,14 @@ function FinanceTab({ profile }: { profile: Profile }) {
         showAmounts={showAmounts}
         onToggleAmounts={toggleAmounts}
       />
-      <PayoutAccountManager profile={profile} />
+      <PayoutAccountManager profile={profile} workspace="property_partner" />
     </div>
   );
 }
 function Info({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
-      <p className="text-[9px] uppercase tracking-wide text-[var(--wh-text-muted)]">
+      <p className="text-xs uppercase tracking-wide text-[var(--wh-text-muted)]">
         {label}
       </p>
       <p className="mt-1 break-words text-xs font-medium capitalize text-[#D3D4DC]">
@@ -811,7 +890,7 @@ function Status({ value }: { value: string }) {
       normalized === "completed"
         ? "bg-emerald-500/10 text-emerald-300"
         : normalized === "occupied"
-          ? "bg-violet-500/10 text-violet-300"
+          ? "bg-violet-500/10 wh-accent-text"
         : normalized === "rejected" || normalized === "reversed"
           ? "bg-red-500/10 text-red-300"
           : normalized === "held"
@@ -819,7 +898,7 @@ function Status({ value }: { value: string }) {
             : "bg-amber-500/10 text-amber-300";
   return (
     <span
-      className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[8px] font-semibold capitalize ${style}`}
+      className={`inline-flex shrink-0 rounded-full px-2 py-1 text-xs font-semibold capitalize ${style}`}
     >
       {friendly(value)}
     </span>
@@ -829,18 +908,14 @@ function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-5 py-12 text-center">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mx-auto mt-2 max-w-md text-[10px] leading-relaxed text-[var(--wh-text-muted)]">
+      <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[var(--wh-text-muted)]">
         {text}
       </p>
     </div>
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-40 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function partnerDate(value?: string | null) {
   return value

@@ -119,8 +119,14 @@ insert into public.hotel_booking_conversations(id,booking_id,hotel_id,guest_user
 ('88999999-1000-4000-8000-000000000001',-8899,-8899,'media-guest');
 insert into public.hotel_booking_messages(id,conversation_id,sender_id,content,attachments,attachment_types) values
 ('88999999-2000-4000-8000-000000000001','88999999-1000-4000-8000-000000000001','media-owner','Legacy note',array['legacy.pdf'],array['application/pdf']);
+insert into auth.sessions(id,user_id,created_at,updated_at)
+values('88999999-3000-4000-8000-000000000002','88999999-0000-4000-8000-000000000002',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+values('media-guest','88999999-0000-4000-8000-000000000002','88999999-3000-4000-8000-000000000002',
+ 'media-contract-device','Synthetic contract browser',true,'trusted');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"88999999-0000-4000-8000-000000000002","session_id":"88999999-3000-4000-8000-000000000002"}',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 -- Create the support thread via its actual atomic first-send routine.
 do $$ declare r jsonb; begin

@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { getRegionalDefaults } from '../regional';
 
 export type DeviceRegistration = {
   sessionId: string | null;
@@ -30,7 +31,7 @@ export function approximateDeviceLocation(){
   try{
     const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
     const locale=typeof navigator!=='undefined'?navigator.language:'';
-    if(timezone==='Africa/Lagos'||/-NG$/i.test(locale))return 'Nigeria';
+    if(timezone===getRegionalDefaults().timeZone)return getRegionalDefaults().countryName;
     const region=locale.match(/-([A-Z]{2})$/i)?.[1]?.toUpperCase();
     if(region){
       const names=new Intl.DisplayNames([locale||'en'],{type:'region'});
@@ -80,7 +81,6 @@ export async function registerUserSession(userId:string,authId:string):Promise<D
 }
 
 export async function createUserSession(userId:string,authId:string):Promise<string|null>{return(await registerUserSession(userId,authId)).sessionId}
-export async function confirmCurrentDeviceWithGoogle(sessionId:string){return supabase.rpc('confirm_current_device_with_google',{p_session_id:sessionId,p_device_id:getDeviceId()})}
 export async function deactivateUserSession(sessionId:string){await supabase.from('user_sessions').update({is_active:false,is_current:false,logout_time:new Date().toISOString()}).eq('id',sessionId);if(getStoredSessionId()===sessionId)clearStoredSessionId()}
 export async function isSessionActive(sessionId:string){const{data}=await supabase.from('user_sessions').select('is_active').eq('id',sessionId).maybeSingle();return Boolean(data?.is_active)}
 export async function updateSessionLastSeen(sessionId:string){await supabase.from('user_sessions').update({last_seen:new Date().toISOString()}).eq('id',sessionId).eq('is_active',true)}

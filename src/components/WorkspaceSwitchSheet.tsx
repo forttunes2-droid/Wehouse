@@ -1,26 +1,7 @@
 import { useEffect, useRef } from "react";
-import {
-  BriefcaseBusiness,
-  Building2,
-  Crown,
-  Hotel,
-  ShieldCheck,
-  UserRound,
-  Wrench,
-} from "lucide-react";
+import { WorkspaceIcon } from "@/components/WorkspaceMark";
 import { workspaceLabel } from "@/lib/workspacePresentation";
 import type { WorkspaceAccess, WorkspaceChoice } from "@/pages/AccountCenter";
-
-function WorkspaceIcon({ workspace }: { workspace: WorkspaceChoice }) {
-  const common = { size: 18, strokeWidth: 1.8 };
-  if (workspace === "personal") return <UserRound {...common} />;
-  if (workspace === "worker") return <Wrench {...common} />;
-  if (workspace === "property_partner" || workspace === "hosting") return <Building2 {...common} />;
-  if (workspace === "hotel") return <Hotel {...common} />;
-  if (workspace === "creator") return <Crown {...common} />;
-  if (workspace === "admin") return <ShieldCheck {...common} />;
-  return <BriefcaseBusiness {...common} />;
-}
 
 export default function WorkspaceSwitchSheet({
   open,

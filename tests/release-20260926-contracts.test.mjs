@@ -8,7 +8,7 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   const [migration, detail, review, paymentInit] = await Promise.all([
     read('supabase/migrations/20260926061000_short_let_paid_reserve_date.sql'),
     read('src/pages/ListingDetailCore.tsx'),
-    read('src/components/ShortLetPaymentReview.tsx'),
+    read('src/components/BookingPaymentReview.tsx'),
     read('supabase/functions/payment-init/index.ts'),
   ]);
   assert.match(migration, /policy_key='short_let_reservation_fee'/);
@@ -16,10 +16,14 @@ test('Short Let Reserve date is a separate paid fee before stay and deposit', as
   assert.match(migration, /payment_component','short_stay_balance'/);
   assert.match(migration, /v_total:=v_stay\+v_caution/);
   assert.match(migration, /Reserve date payment must be confirmed first/);
-  assert.match(detail, /Reserve date · ₦/);
-  assert.match(detail, /initializeReservationPayment\(reference\)/);
-  assert.match(review, /Reserve date paid/);
-  assert.match(review, /stay charge and any refundable security deposit/i);
+  assert.match(detail, /Review dates · \$\{formatMoney\(/);
+  assert.match(detail, /setPaymentReview\("short_let"\)/);
+  assert.match(detail, /continueReservationPayment[\s\S]*initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
+  assert.match(detail, /shortCancellationTerms/);
+  assert.match(detail, /Stay balance due later/);
+  assert.match(review, /Edit details/);
+  assert.match(review, /Secure checkout by Paystack/);
+  assert.match(detail, /stay rent and refundable security deposit are due in a separate checkout/i);
   assert.match(paymentInit, /Reserve date payment must be confirmed before the stay balance/);
 });
 
@@ -83,7 +87,7 @@ test('Property management is post-publication, property-scoped and booking respo
   assert.doesNotMatch(submissions, /PropertyManagementPanel|set_my_property_management_mode/);
   assert.match(panel, /Host manages/);
   assert.match(panel, /WeHouse manages/);
-  assert.match(panel, /Co-host/);
+  assert.match(panel, /Team member/);
   assert.match(panel, /Hosting team/);
   assert.match(panel, /Property Operations/);
   assert.match(panel, /Guest booking code/);
@@ -155,7 +159,7 @@ test('Host conversations stay separate from WeHouse support and media storage is
 test('Short Let shared payment starts only after paid Reserve date', async () => {
   const [migration, split] = await Promise.all([
     read('supabase/migrations/20260926062800_short_let_share_after_reserve_date.sql'),
-    read('src/components/ShortLetSplitCosts.tsx'),
+    read('src/components/ShortLetBookingShares.tsx'),
   ]);
   assert.match(migration, /Pay Reserve date before splitting the remaining stay cost/);
   assert.match(migration, /reservation_fee_status<>'paid'/);

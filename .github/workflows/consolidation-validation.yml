@@ -41,6 +41,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Reject duplicate migration versions
         shell: bash
         run: |
@@ -52,9 +57,9 @@ jobs:
           fi
       - name: Start local Supabase and apply migrations
         # Consolidation replay does not use Inbucket; avoid a shared runner port collision.
-        run: npx --yes supabase@2.114.0 start --exclude inbucket
+        run: node scripts/disposable-supabase.mjs start --exclude inbucket
       - name: Replay migrations from an empty database
-        run: npx --yes supabase@2.114.0 db reset --local
+        run: node scripts/disposable-supabase.mjs reset
       - name: Verify canonical schema exists
         shell: bash
         run: |
@@ -66,6 +71,10 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/arrival_dates_contract.sql
       - name: Exercise paid hotel cancellation and refund reconciliation
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_paid_cancellation_contract.sql
+      - name: Verify accommodation policy prerequisites and immutable retry
+        run: |
+          docker cp supabase supabase_db_wehouse:/tmp/wehouse-contract-supabase
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/accommodation_policy_prerequisite_contract.sql
       - name: Exercise guest-held hotel arrival and departure codes
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_guest_presence_contract.sql
       - name: Exercise accommodation handover contract
@@ -76,6 +85,10 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_first_send_contract.sql
       - name: Exercise payment cancellation and payout contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_cancellation_payout_contract.sql
+      - name: Reject unsupported payment confirmations without manufacturing paid bookings
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_confirmation_routing_contract.sql
+      - name: Bind subscription event retries to the original verified account and receipt
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/subscription_event_replay_contract.sql
       - name: Exercise Creator booking and money policy authority
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/booking_money_policy_contract.sql
       - name: Exercise reviewed legal signup and acceptance contract
@@ -110,6 +123,70 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_showcase_comment_pages_contract.sql
       - name: Hotel conversation context and recipient receipts
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
+      - name: Hotel base tables are not directly readable or writable by browser roles
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_base_table_exposure_contract.sql
+      - name: Case routing and private reply receipts
+        # Support contracts exercise the same current Auth/device and case routing authority.
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_reply_receipt_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/case_routing_catalog_contract.sql
+      - name: Assigned inspection submission, evidence review and recovery
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inspection_command_authority_contract.sql
+      - name: Finance action authority, held funds and stable provider references
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/finance_action_receipt_contract.sql
+      - name: Booking arrival authority and negative access boundaries
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/booking_arrival_boundary_contract.sql
+      - name: Service booking command session authority
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_command_session_contract.sql
+      - name: Experience application evidence and exact Creator booking authority
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/experience_application_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_exact_booking_contract.sql
+      - name: Friend relationship and payer cap
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_relationship_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_recipient_preview_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/email_account_security_contract.sql
+      - name: Friend bucket and encrypted chat
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_bucket_and_chat_contract.sql
+      - name: Friend request expiry and daily cap
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_request_limits_contract.sql
+      - name: Friend chat key exchange
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_key_exchange_contract.sql
+      - name: Long Let shared booking cost with Roommate or Friend
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_friend_contract.sql
+      - name: Wallet withdrawal receipts and payout destination isolation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/wallet_withdrawal_receipt_contract.sql
+      - name: Shared content reports and scoped moderation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_content_reports_contract.sql
+      - name: Hotel reports, private receipts and geographic review boundaries
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_listing_reports_contract.sql
+      - name: Property and Hotel submission fact validation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_submission_facts_contract.sql
+      - name: Verify internal listing bypass retirement
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/internal_listing_retirement_contract.sql
+      - name: Private property documents and publication boundaries
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_document_review_contract.sql
+      - name: Partner Pro costs, ownership and reporting boundaries
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/partner_operating_costs_contract.sql
+      - name: Roommate cancel connection wait
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/roommate_cancel_wait_contract.sql
+      - name: Roommate cancel connection notice
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/roommate_cancel_notice_contract.sql
+      - name: Listing discount rules
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/listing_discounts_contract.sql
+      - name: Pinned messages and discount breakdown
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/message_pins_contract.sql
+      - name: Fixed fee and withdrawal controls
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fixed_fee_and_withdrawal_controls_contract.sql
+      - name: Service Worker refund rules
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_refund_rules_contract.sql
+      - name: Hotel discounts
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_discounts_contract.sql
+      - name: Short Let cancel and email change
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cancel_and_email_change_contract.sql
+      - name: Country settings
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/country_settings_contract.sql
       - name: Practical reciprocal roommate rules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
       - name: Fresh linked-provider recovery
@@ -124,6 +201,10 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_authority_contract.sql
       - name: Exercise recorded Creator and receipt journeys as authenticated users
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recorded_journeys_contract.sql
+      - name: Exercise private call trusted devices, preferences and signal isolation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/private_call_session_contract.sql
+      - name: Exercise compound and physical-space submission authority
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_space_identity_contract.sql
       - name: Exercise workspace inbox separation and revocation
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_inbox_contract.sql
       - name: Exercise Help payment eligibility and workspace isolation
@@ -138,11 +219,13 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql
       - name: Verify prepublication management choice and public media bounds
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_management_publication_contract.sql
+      - name: Verify active co-host access and invitation retry controls
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cohost_invitation_control_contract.sql
       - name: Exercise Sponsored payment and placement contract
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   existing-account-upgrade:
     name: Existing Account Upgrade
@@ -159,12 +242,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Start disposable local Supabase
-        run: npx --yes supabase@2.114.0 start
+        run: node scripts/disposable-supabase.mjs start
       - name: Load the current production baseline
-        run: npx --yes supabase@2.114.0 db reset --local --version 20260913181317
+        run: node scripts/disposable-supabase.mjs reset --version 20260913181317
       - name: Seed existing approvals, reviews, private evidence and a wallet
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
+      - name: Verify reviewed additions do not hide record changes or row loss
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/release_worker_preservation_contract.sql
       - name: Verify the full upgrade rolls back without changing records or history
         run: python scripts/coordinated-database-release.py check --local-ci
       - name: Verify the full upgrade commits with existing records preserved
@@ -175,7 +265,7 @@ jobs:
         run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   consolidation-gate:
     name: Consolidation Validation

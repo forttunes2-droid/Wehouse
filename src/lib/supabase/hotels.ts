@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { withTimeout } from '@/lib/withTimeout';
+import {publicCatalogRead} from '@/lib/publicCatalogRead';
 async function readHotel<T extends { data: unknown; error: unknown }>(request: PromiseLike<T>): Promise<T> {
   try { return await withTimeout(request, 15000, 'Hotel information took too long to load. Please try again.'); }
   catch (cause) { return { data: null, error: { message: cause instanceof Error ? cause.message : 'Hotel information could not be loaded.' } } as T; }
@@ -21,7 +22,7 @@ export async function getHotels(filters?: {
   longitude?: number;
   radiusKm?: number;
 }, cursor: { featured: boolean; createdAt: string; id: number } | null = null) {
-  const { data, error } = await readHotel(supabase.rpc('search_discoverable_hotels', {
+  const body = {
     p_query: filters?.search?.trim() || null,
     p_state: filters?.state || null,
     p_city: filters?.city || null,
@@ -35,7 +36,8 @@ export async function getHotels(filters?: {
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_id: cursor?.id ?? null,
     p_limit: 24,
-  }));
+  };
+  const { data, error } = await readHotel(publicCatalogRead('hotels',body,()=>supabase.rpc('search_discoverable_hotels',body)));
   const rows = (Array.isArray(data?.items) ? data.items : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
   const includes = (value: unknown, query: string) => String(value || '').toLowerCase().includes(query.toLowerCase());
   const hotels = rows.filter((hotel) => {
@@ -174,8 +176,8 @@ export async function getHotelBookingsForHotel(hotelId: number) {
 
 export async function updateBookingStatus(bookingId: number, status: HotelBooking['status']) {
   if (status === 'cancelled') {
-    const { error } = await supabase.rpc('cancel_my_hotel_booking', { p_booking_id: bookingId });
-    return { error };
+    const { data, error } = await supabase.rpc('cancel_my_hotel_booking', { p_booking_id: bookingId });
+    return { error:error||(data!==true?new Error('Hotel cancellation could not be confirmed. Refresh the booking before retrying.'):null) };
   }
   return { error: { message: 'Hotel booking status is controlled by the verified booking workflow.' } as any };
 }
@@ -314,4 +316,41 @@ export async function getMyHotelBookingTarget(bookingId: string) {
   const { data, error } = await readHotel(supabase.rpc("get_my_hotel_booking_target", { p_booking_id: Number(bookingId) }));
   if (error || !data?.hotel_id || !data?.booking_id) throw error || new Error("Hotel stay unavailable");
   return data as { hotel_id: number; booking_id: number };
+}
+
+export type HotelDiscountRow = {
+  id: string;
+  room_id: number | null;
+  rate_plan_id: number | null;
+  percent: number;
+  starts_on: string;
+  ends_on: string | null;
+  funded_by: 'host' | 'wehouse';
+};
+
+export async function partnerListHotelDiscounts(hotelId: number) {
+  const { data, error } = await supabase.rpc('partner_list_hotel_discounts', { p_hotel_id: hotelId });
+  return { discounts: data as HotelDiscountRow[] | null, error };
+}
+
+export async function partnerSetHotelDiscount(input: {
+  hotelId: number;
+  roomId: number | null;
+  ratePlanId: number | null;
+  percent: number;
+  endsOn: string | null;
+}) {
+  const { data, error } = await supabase.rpc('partner_set_hotel_discount', {
+    p_hotel_id: input.hotelId,
+    p_room_id: input.roomId,
+    p_rate_plan_id: input.ratePlanId,
+    p_percent: input.percent,
+    p_ends_on: input.endsOn,
+  });
+  return { id: data as string | null, error };
+}
+
+export async function partnerClearHotelDiscount(discountId: string) {
+  const { error } = await supabase.rpc('partner_clear_hotel_discount', { p_discount_id: discountId });
+  return { error };
 }

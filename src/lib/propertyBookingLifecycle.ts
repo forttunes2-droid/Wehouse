@@ -1,4 +1,4 @@
-import { displayDate, displayDateTime } from "./displayDate";
+import { displayDate, displayDateTimeAtProperty } from "./displayDate";
 export type PropertyJourneyAudience = "customer" | "operations";
 export type PropertyJourneyState = "complete" | "current" | "upcoming" | "stopped";
 export type PropertyJourneyAction =
@@ -51,7 +51,6 @@ export function hasUnprotectedPaidAccommodation(row: Record<string, any>) {
   const rentStatus = String(row.rent_payment_status || row.payment_status || "not_started");
   return (
     RENT_PAID_STATUSES.has(rentStatus) &&
-    Boolean(row.rent_paid_at) &&
     !hasProtectedAccommodationPayment(row)
   );
 }
@@ -69,14 +68,15 @@ function upcoming(label: string, detail: string, optional = false): PropertyJour
 function inspectionLabel(status: string | null) {
   if (status === "scheduled") return "Visit scheduled";
   if (status === "in_progress") return "Visit in progress";
-  if (status === "completed") return "Inspection completed";
-  return "Inspection requested";
+  if (status === "completed") return "Viewing completed";
+  return "Viewing requested";
 }
 
 function shortLetHasCaution(row: Record<string, any>) {
   return Number(
     row.security_deposit_amount ??
       row.stay_security_deposit_amount ??
+      row.security_deposit_snapshot ??
       row.caution_amount ??
       0,
   ) > 0;
@@ -89,8 +89,9 @@ export function getPropertyBookingJourney(
 ): PropertyJourney {
   const status = String(row.status || row.reservation_status || "payment_pending");
   const shortStay = String(row.stay_type || row._stayKind || "long_stay") === "short_let";
-  const feePaid = Boolean(row.paid_at || row.reservation_fee_paid) &&
-    COMPLETE_STATUSES.has(String(row.manual_payment_status || "paid"));
+  const arrivalHandler = row.management_mode_snapshot === "host" ? "your authorised property host" : "Property Operations";
+  const feePaid = (row.reservation_fee_status==='paid'&&Boolean(row.reservation_fee_paid_at||row.paid_at)) || (Boolean(row.paid_at || row.reservation_fee_paid) &&
+    COMPLETE_STATUSES.has(String(row.manual_payment_status || "paid")));
   const rentStatus = String(row.rent_payment_status || row.payment_status || "not_started");
   const rentPaid = hasProtectedAccommodationPayment(row);
   const inspectionStatus = inspection?.status
@@ -103,11 +104,12 @@ export function getPropertyBookingJourney(
   const inspectionActive = ACTIVE_INSPECTION_STATUSES.has(inspectionStatus || "");
   const inspectionComplete = inspectionStatus === "completed" || Boolean(row.inspection_completed);
   const stopped = STOPPED_STATUSES.has(status);
+  const reservationLabel=shortStay?'Reserve date payment':'Reservation fee';
   const reservationStep = feePaid
-    ? complete("Reservation fee", "Paid · this confirmed the booking; it was not rent.")
+    ? complete(reservationLabel, "Paid · this confirmed the booking; it was not rent.")
     : status === "payment_pending"
-      ? current("Reservation fee", "Complete the fee to reserve this property.")
-      : upcoming("Reservation fee", "Payment confirmation is unavailable.");
+      ? current(reservationLabel, "Complete the fee to reserve this property.")
+      : upcoming(reservationLabel, "Payment confirmation is unavailable.");
 
   if (hasUnprotectedPaidAccommodation(row)) {
     return {
@@ -169,7 +171,7 @@ export function getPropertyBookingJourney(
     const arrivalStep = status === "occupied" || status === "completed"
       ? complete("Check-in", "Access was handed over and entry was recorded.")
       : status === "ready_for_move_in" && rentPaid
-        ? current("Check-in", "Property Operations verifies the booking code at arrival.")
+        ? current("Check-in", `${arrivalHandler} verifies the booking code at arrival.`)
         : upcoming("Check-in", "Available after the required stay payment is confirmed.");
     const stayStep = status === "completed"
       ? complete("Stay", "The reserved stay has ended.")
@@ -178,21 +180,23 @@ export function getPropertyBookingJourney(
         : upcoming("Stay", "Starts after check-in.");
     const finishStep = status === "completed"
       ? complete("Checkout", "Stay completed.")
-      : upcoming("Checkout", "Property Operations closes the stay after departure.");
+      : upcoming("Checkout", `${arrivalHandler} records checkout after departure.`);
     const action: PropertyJourneyAction = status === "completed"
       ? "completed"
       : status === "occupied"
         ? "tenancy"
-        : !rentPaid
+        : !rentPaid && !feePaid
+            ? "reservation_payment"
+            : !rentPaid
             ? "rent_payment"
             : status === "ready_for_move_in"
               ? "handover"
               : "rent_payment";
-    const copy = shortStayCopy(action, audience, rentStatus, cautionEnabled, row.stay_check_in || row.check_in);
+    const copy = shortStayCopy(action, audience, rentStatus, cautionEnabled, row.stay_check_in || row.check_in, arrivalHandler);
     return {
       action,
       ...copy,
-      steps: [paymentStep, arrivalStep, stayStep, finishStep],
+      steps: [reservationStep, {...paymentStep,state:!feePaid&&!rentPaid?'upcoming':paymentStep.state}, arrivalStep, stayStep, finishStep],
       feePaid,
       rentPaid,
       inspectionStatus,
@@ -206,23 +210,23 @@ export function getPropertyBookingJourney(
     action = row.requested_move_in_at ? "handover" : "move_in_request";
   else if (status === "occupied") action = "tenancy";
   else if (status === "completed") action = "completed";
-  else if (rentStatus === "payment_pending" || status === "ready_for_move_in") action = "rent_payment";
+  else if (inspectionComplete || rentStatus === "payment_pending" || status === "ready_for_move_in") action = "rent_payment";
   else action = "choose_inspection_or_rent";
 
   const inspectionStep = inspectionActive
-    ? current("Apartment inspection", inspectionLabel(inspectionStatus), true)
+    ? current("Property viewing", inspectionLabel(inspectionStatus), true)
     : inspectionComplete
-      ? complete("Apartment inspection", "Visit completed.", true)
+      ? complete("Property viewing", "Visit completed.", true)
       : rentStatus !== "not_started" || rentPaid || status === "ready_for_move_in" || status === "occupied" || status === "completed"
-        ? complete("Apartment inspection", "Not requested · customer continued directly to rent.", true)
+        ? complete("Property viewing", "Not requested · customer continued directly to rent.", true)
         : feePaid
-          ? current("Choose next step", "Request an inspection, or continue directly to Year 1 rent.")
+          ? current("Choose next step", "Request a viewing, or continue directly to Year 1 rent.")
           : upcoming("Choose next step", "Available after the reservation fee.");
   const rentStep = rentPaid
     ? complete("Year 1 rent", "Required move-in rent is confirmed.")
     : action === "rent_payment"
       ? current("Year 1 rent", rentStatus === "payment_pending" ? "Secure checkout started; payment is not confirmed yet." : "The required Year 1 rent is ready for payment.")
-      : upcoming("Year 1 rent", inspectionActive ? "Available after the requested inspection is completed." : "Required before handover.");
+      : upcoming("Year 1 rent", inspectionActive ? "Available after the requested viewing is completed." : "Required before handover.");
   const operations = audience === "operations";
   const handoverStep = status === "occupied" || status === "completed"
     ? complete("Property handover", "Booking code verified and access handed over.")
@@ -231,7 +235,7 @@ export function getPropertyBookingJourney(
           "Property handover",
           operations
             ? "At the customer’s requested time, verify the code, customer, property and paid rent before giving access."
-            : "Property Operations verifies your move-in code at the requested arrival time before giving access.",
+            : `${arrivalHandler} verifies your move-in code at the requested arrival time before giving access.`,
         )
       : upcoming(
           "Property handover",
@@ -249,14 +253,14 @@ export function getPropertyBookingJourney(
     : row.requested_move_in_at
       ? complete(
           operations ? "Customer move-in time" : "Move-in time",
-          `${operations ? "Customer requested" : "Requested for"} ${displayDateTime(row.requested_move_in_at, "Africa/Lagos")} WAT.`,
+          `${operations ? "Customer requested" : "Requested for"} ${displayDateTimeAtProperty(row.requested_move_in_at)}.`,
         )
       : action === "move_in_request"
         ? current(
             operations ? "Waiting for customer" : "Move-in time",
             operations
               ? "No move-in time has been submitted. Operations has no handover action yet."
-              : "Choose when you can meet Property Operations within the next 3 days.",
+              : `Choose when you can meet ${arrivalHandler} within the next 3 days.`,
           )
         : upcoming("Move-in time", "Available after Year 1 rent is confirmed.");
   const tenancyStep = status === "completed"
@@ -264,7 +268,7 @@ export function getPropertyBookingJourney(
     : status === "occupied"
       ? current("Tenancy", "The tenancy is active.")
       : upcoming("Tenancy", "Starts after verified handover.");
-  const copy = longStayCopy(action, audience, rentStatus, inspectionStatus);
+  const copy = longStayCopy(action, audience, rentStatus, inspectionStatus, arrivalHandler);
   return {
     action,
     ...copy,
@@ -296,7 +300,7 @@ export function propertyBookingStatusLabel(
   }
   if (status === "occupied") return shortStay ? "Checked in" : "Tenancy active";
   if (status === "completed") return shortStay ? "Stay completed" : "Tenancy completed";
-  if (status === "inspection_pending") return "Inspection in progress";
+  if (status === "inspection_pending") return "Viewing in progress";
   if (status === "payment_pending") return shortStay ? "Stay payment pending" : "Reservation payment pending";
   if (status === "payment_conflict") return "Payment needs review";
   if (status === "reserved") return "Reserved";
@@ -311,31 +315,32 @@ function longStayCopy(
   audience: PropertyJourneyAudience,
   rentStatus: string,
   inspectionStatus: string | null,
+  arrivalHandler: string,
 ) {
   const operations = audience === "operations";
   if (action === "reservation_payment") return {
     title: operations ? "Waiting for reservation payment" : "Complete your reservation",
-    detail: operations ? "Do not start inspection, rent or handover until the reservation fee is confirmed." : "Pay the reservation fee first. It confirms the booking but does not pay the rent.",
+    detail: operations ? "Do not start a viewing, rent or handover until the reservation fee is confirmed." : "Pay the reservation fee first. It confirms the booking but does not pay the rent.",
   };
   if (action === "choose_inspection_or_rent") return {
     title: operations ? "Customer is choosing the next step" : "Choose what happens next",
-    detail: operations ? "The property is reserved. The customer can request a Field Operations inspection or continue directly to Year 1 rent." : "Inspect the apartment first, or continue directly to Year 1 rent if you are satisfied with it.",
+    detail: operations ? "The property is reserved. The customer can request a Field Operations viewing or continue directly to Year 1 rent." : "Request a viewing first, or continue directly to Year 1 rent if you are satisfied with it.",
   };
   if (action === "inspection") return {
-    title: operations ? "Complete the requested inspection" : "Inspection is in progress",
-    detail: operations ? `Continue the assigned Field Operations visit (${inspectionStatus || "pending"}). Rent remains blocked until the inspection finishes.` : "WeHouse will update this booking when the assigned Field Operations visit is completed. You do not need to pay rent while it is in progress.",
+    title: operations ? "Complete the requested viewing" : "Your viewing is being arranged",
+    detail: operations ? `Continue the assigned Field Operations visit (${inspectionStatus || "pending"}). Rent remains blocked until the viewing finishes.` : "WeHouse will update this booking when the assigned Field Operations visit is completed. You do not need to pay rent while it is in progress.",
   };
   if (action === "rent_payment") return {
     title: operations ? "Waiting for verified Year 1 rent" : rentStatus === "payment_pending" ? "Finish Year 1 rent payment" : "Pay the required Year 1 rent",
-    detail: operations ? "Do not hand over access until the payment is verified and the booking becomes ready for move-in." : "Year 1 rent is required before Property Operations can hand over the apartment.",
+    detail: operations ? "Do not hand over access until the payment is verified and the booking becomes ready for move-in." : `Year 1 rent is required before ${arrivalHandler} can hand over the apartment.`,
   };
   if (action === "move_in_request") return {
     title: operations ? "Waiting for the customer’s move-in time" : "Choose your move-in time",
-    detail: operations ? "Year 1 rent is verified. The customer must choose an arrival time before handover can be confirmed." : "Your rent is confirmed, but your tenancy has not started. Choose a time within the next 3 days to meet Property Operations for handover.",
+    detail: operations ? "Year 1 rent is verified. The customer must choose an arrival time before handover can be confirmed." : `Your rent is confirmed, but your tenancy has not started. Choose a time within the next 3 days to meet ${arrivalHandler} for handover.`,
   };
   if (action === "handover") return {
     title: operations ? "Verify code and hand over access" : "Move-in requested · awaiting handover",
-    detail: operations ? "Match the move-in code, customer, property, verified rent and requested time before handing over access and activating the tenancy." : "Your rent is paid, but your tenancy starts only when Property Operations hands over access and verifies your move-in code.",
+    detail: operations ? "Match the move-in code, customer, property, verified rent and requested time before handing over access and activating the tenancy." : `Your rent is paid, but your tenancy starts only when ${arrivalHandler} hands over access and verifies your move-in code.`,
   };
   if (action === "tenancy") return {
     title: "Tenancy active",
@@ -350,6 +355,7 @@ function shortStayCopy(
   rentStatus: string,
   cautionEnabled: boolean,
   checkIn?: string,
+  arrivalHandler = "Property Operations",
 ) {
   const operations = audience === "operations";
   if (action === "reservation_payment") return {
@@ -374,7 +380,7 @@ function shortStayCopy(
     title: operations ? "Verify arrival and booking code" : `Check-in from ${displayDate(checkIn)}`,
     detail: operations
       ? "Check in only after the guest arrives within the reserved dates. Verify the booking code before handing over access."
-      : "Arrive on your booked date and show this code to Property Operations for the keys or access. Payment confirms your dates; it does not check you in.",
+      : `Arrive on your booked date and show this code to ${arrivalHandler} for the keys or access. Payment confirms your dates; it does not check you in.`,
   };
   if (action === "tenancy") {
     return {

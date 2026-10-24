@@ -6,6 +6,45 @@ The tables below are the proposed canonical transition contract grounded in the 
 
 ## PROPERTY
 
+### Customer booking-to-arrival trace (22 October 2026)
+
+**Short Let currently has two payment stages.** The server requires the saved
+Reserve date fee first, then the saved stay charge plus any separate refundable
+caution. The progress card now follows that server contract. The booking price
+summary discloses both stages and their combined cost before the first payment;
+it never uses the mutable reservation `amount` as a substitute for a fee snapshot.
+For example, a saved fee of NGN 3,500, stay charge of NGN 150,000 and caution of
+NGN 20,000 mean NGN 173,500 total: NGN 3,500 now and NGN 170,000 at the stay-payment
+stage. These are illustrative values, not platform tariffs. Rates, dates,
+discounts and caution come from the saved server quote. No client can mark them paid.
+
+After verified stay payment, the customer receives private arrival instructions
+and the booking code, travels on the reserved date and completes verified check-in
+with the authorised property host or WeHouse Property Operations. Payment alone
+does not check the guest in. Directions/instructions reuse the established
+provider-event, ledger and shared-payment access authority. A reservation fee or
+unmatched paid flag cannot unlock them. Missing arrival instructions have an
+explicit loading/empty/retry presentation instead of silently disappearing.
+
+**Long Let currently requires Year 1 rent before handover.** Pay the reservation
+fee, optionally request an inspection before rent, then pay the required rent.
+A requested inspection blocks rent until completed. Choose a move-in time within
+the currently supported three-day window; the responsible host/operations verifies
+the handover code and access before tenancy begins. Repeating the same move-in
+request does not produce another notification. The agreed Partner-approved
+3/6/12-month, multi-year and monthly settlement design is still unfinished; it is
+not available merely because a price or future schedule can be described.
+
+Short Let cancellation uses the saved policy and eligible protected funds;
+separate reservation fees and caution do not acquire a blanket full-refund promise.
+A refund request is not a completed provider refund. Paid Hotel cancellation is
+currently WeHouse-assisted: its existing automatic endpoint only cancels unpaid
+pending bookings. Automatic paid Hotel cancellation/refund remains an engineering gate.
+
+### Current document approval after publication (20 October 2026)
+
+New apartment reservations and Hotel bookings require current approved evidence at insertion or asset change. Existing bookings continue through their normal payment, support, cancellation and stay transitions. Replacement/correction or revised requirements pause public availability; bounded scheduled expiry maintenance does the same for expired evidence and creates Partner/operations Activity. Renewed approval resolves the document tasks; an independent Admin/Creator must explicitly republish through the existing preparation flow. First-publication timestamps remain history, so the operations projection uses current listing/Hotel status to distinguish preparation from live publication. Evidence review, expiry and publication use request-first locks. Hosted concurrency and signed-in whole-route evidence remain release checks.
+
 ### CURRENT IMPLEMENTATION
 
 Supply verification is primarily stored on `inspection_requests`. The current stages are `access_required`, `access_review`, `inspection_ready`, `inspection`, `awaiting_review`, `ready_to_prepare`, `listing_prepared`, `live`, `changes_requested`, and `rejected`. Submission batches/drafts are stored separately, but the inspection record also carries access evidence, field evidence, selected gallery data, draft listing/hotel links, and hotel program JSON.
@@ -99,7 +138,7 @@ Migration `20260911140000_complete_worker_block_and_payment_protection.sql` make
 
 | Current state | Event/action | Permitted actor | Resulting state | UI action shown | UI actions that must disappear | Activity generated | Conversation consequences | Payment consequences | Invalid transitions |
 |---|---|---|---|---|---|---|---|---|---|
-| Onboarding draft | Submit KYC/profile/evidence | Worker | `pending` / `verification_paid` / `evidence_ready` | Complete missing requirement; view review | Resubmit unchanged completed step | Worker Operations review event | Support only for verification issue | Verification fee authoritative if required | Self-verification; activation from UI flag |
+| Onboarding draft | Submit professional profile, applicable person verification, credentials and work evidence | Service Worker | Review pending or evidence ready | Complete missing requirement; view review | Resubmit unchanged completed step | Worker Operations review event | Contextual verification help | Onboarding and review are free | Self-verification; activation from UI flag |
 | Review ready | Approve/reject | Worker Operations in scope | `verified` or `rejected` | Marketplace/jobs or correction path | Approve again; access marketplace if rejected | Worker outcome event | Existing support history | No job funds | Legacy `approved` and `verified` meaning different things |
 | `verified` | Customer requests service | User | `booking_requested` | Worker accept/decline; user view request | Duplicate request for same intent | New service-request event | One booking conversation | None | Blocked pair, unverified worker, invalid service |
 | `booking_requested` | Accept/open negotiation | Worker | `negotiating` | Agree price/scope | Accept again | Negotiation event | Thread writable; private calls if allowed | None | Nonparticipant action; blocked pair |
@@ -107,16 +146,17 @@ Migration `20260911140000_complete_worker_block_and_payment_protection.sql` make
 | `waiting_payment` | Verify protected payment | Server/webhook | One canonical protected-ready state | Start/confirm work | Pay again/cancel as unsecured | Payment-protected event | Thread/calls remain allowed unless blocked | Create protected-funds record idempotently | Duplicate reference; client callback as authority |
 | Protected-ready | Start work | Authorized participant per policy | `in_progress` | Mark work complete / report issue | Start again; cancel as unpaid | Work-started event | Thread/calls allowed | Funds remain protected | Start without protected funds when required |
 | `in_progress` | Worker submits completion | Worker | `completed_pending_approval` | Customer approve or dispute | Complete again | Completion-review event | Thread remains writable | Funds still protected | Release on worker assertion alone |
-| `completed_pending_approval` | Customer approves | User | `approved_released` | Review/history | Approve, pay, complete | Completion and earning event | Archive policy begins | Settle earning/wallet exactly once | Double release; participant mismatch |
+| `completed_pending_approval` | Customer approves | User | Canonical completed; release queued | Completion confirmed; payment release processing | Confirm completion once | Existing financial outbox receipt | Preserve dispute and audit rules | Queue release once; no premature settled balance | Double release; participant mismatch |
+| Release queued | Financial processor completes the eligible release | System | Released protection and completed financial action | Settled payment/history | View receipt | Balanced ledger and release receipt | Preserve financial audit records | Post the eligible ledger transaction exactly once | Missing protection; held risk; stale processing claim |
 | Any nonterminal pair | Block peer, no secured funds | Either participant with booking relationship | Pre-payment booking `cancelled` | Unblock/profile safety controls | Message/call/continue negotiation | Safety event, not public Activity unless useful | Messages and private calls blocked across pair | Pending unpaid attempt cancelled | Block with no booking relationship under current anti-abuse rule |
 | Secured or active job | Block peer | Either participant | `disputed`; payment `review_required` | Open WeHouse review; unblock remains separate | Cancel/release/refund directly | Urgent Operations/finance review | Messages/calls blocked; support case created | Protected funds preserved | Silent cancellation or automatic release/refund |
 | `disputed` | Resolve | Authorized Operations/Finance | Released, refunded, resumed, or terminated state | Resolution/history | Original dispute action | Resolution event to participants | Participant thread policy follows safety outcome; support case retained | Audited settlement/refund | Participant self-settlement |
 
 ### INCONSISTENCIES / LEGACY BEHAVIOUR
 
-- `payment_protected` exists in database transitions but is missing from the primary UI status labels/open-conversation set.
+- The shared client contract normalizes the historical `payment_protected` job value to `confirmed` while displaying money protection separately. Unknown server states now display `Status unavailable` and offer no job mutation instead of becoming a new request or confirmed job. This presentation repair does not prove every service mutation and money boundary.
 - Payment protection can be represented by booking status, `booking_payments`, and `payment_protection_transactions`; these are not a single state contract.
-- Worker records exist in legacy `workers`, profile worker fields, verification tables, and review summaries.
+- The historical `workers` predecessor was unused and empty on Test and was retired there on 20 October. Active person/profile, professional review, identity checks and paid membership have separate purposes; the profile now reads server publication state. Production retirement/configuration parity remains a release gate.
 - The worker profile only offers block when the client finds a nonterminal booking, while the RPC permits any historical booking relationship.
 - Blocking is pair-wide across every booking, not thread-specific; unblocking does not restore a cancelled/disputed booking.
 - Service chat still displays a service booking code/reference in some presentation even though hotel guest chat no longer exposes the hotel booking code. Whether service references are credentials is undefined.
@@ -141,7 +181,7 @@ Roommate data spans `roommate_profiles`, `roommate_preferences`, `roommate_searc
 | Interest pending | Recipient accepts/declines | Recipient | Mutual `match` or `declined` | Message matched person / continue discovery | Pending response | Match/decline event | One match conversation becomes available; created lazily on first message | None | Nonrecipient response; multiple conversation IDs |
 | Matched | Message/call | Either participant | Matched relationship active | Continue chat; propose shared home; block/unmatch | Initial match CTA | Ordinary messages stay in Messages, not Activity | One writable private thread | None | Blocked pair, unmatched pair, duplicate thread |
 | Matched | Create shared-home group/invite | Participant under group policy | `inviting` | Invite/accept/decline | Create duplicate group for same home/participants | Shared-home invite events | Existing roommate thread remains the social context | No funds yet | Hidden participant, group size outside 2–6, unrelated listing |
-| `inviting` | All required participants accept | Invitees | `ready` | Pay equal share | Accept again | Group-ready/payment-required events | Same participant conversations; one group context | Payment intents per share | Unequal split under current policy; missing participant |
+| `inviting` | All required participants accept | Invitees | `ready` | Pay the assigned booking share | Accept again | Group-ready/payment-required events | Same participant conversations; one group context | Payment intents per share | Unequal share under current policy; missing participant |
 | `ready/payment_pending` | Verify all shares | Server/webhook | `paid` / housing relationship | Move-in/booking actions | Pay completed share | Share and group-paid events | Conversation remains | Create/attach authoritative reservation; preserve each contribution | Client declares another member paid; duplicate payment |
 | Search active | Stop/expire search | User/system | `stopped/expired` | Restart search | Candidate actions from stale search | Usually no Activity | Existing matches/conversations remain | Existing shared housing unaffected | Deleting established matches/history |
 | Matched, unpaid | Block/unmatch | Either participant | Relationship ended; unpaid group cancelled | Unblock/history as policy permits | Message/call/invite | Safety/cancellation event | Messaging/calls stop | Cancel pending unpaid intents | Silent deletion of history |

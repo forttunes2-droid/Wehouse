@@ -24,7 +24,7 @@ We may collect:
 • private face-reference and live-check results for Worker and Property Partner identity review;
 • photos, video, audio and Showcase content you choose to provide.
 
-Private Roommate and Worker-customer message bodies are end-to-end encrypted where the app says so. WeHouse cannot read those message bodies. Hotel, Property Partner, support and official WeHouse conversations are not described as end-to-end encrypted and may be accessed by authorised staff for service and safety work.
+Private Friend, Roommate and Worker-customer message bodies are end-to-end encrypted where the app says so. WeHouse cannot read those message bodies. Friend plan suggestions sent in Friend chat use the same encrypted message path. Hotel, Property Partner, support and official WeHouse conversations are not described as end-to-end encrypted and may be accessed by authorised staff for service and safety work.
 
 3. Why we use information
 We use information to create and protect accounts; provide searches, bookings, messages and workspaces; verify payments and protect payouts; review Workers, partners and listings; prevent fraud and abuse; answer complaints; keep audit and transaction records; meet legal duties; and improve reliability. We do not treat a paid Worker subscription as identity verification or WeHouse approval.
@@ -82,7 +82,7 @@ One person has one account identity. Personal, Worker, Property Partner, Hotel T
 2. Account security
 Keep your password, linked Google or Apple account, Inbox PIN and trusted device secure. Changing a known password requires the current password. Forgotten-password recovery requires control of the exact linked identity provider and a short, one-use recovery transaction. A linked-provider login alone does not change another account. WeHouse may end sessions or hold sensitive actions when security signals require review.
 
-Only Roommate and Worker-customer private chats are described as end-to-end encrypted. Your Inbox PIN unlocks the encrypted message key on that device. If the PIN and recovery key are lost, old private messages may be unreadable. Hotel and WeHouse support messages remain accessible to authorised participants and staff.
+Friend, Roommate and Worker-customer private chats are end-to-end encrypted. Friend plan suggestions sent in a Friend chat are encrypted message content too. Your Inbox PIN unlocks the encrypted message key on that device. If the PIN and recovery key are lost, old private messages may be unreadable. Hotel and WeHouse support messages remain accessible to authorised participants and staff.
 
 3. Guest hotel booking
 The guest chooses dates and guest count, chooses a room and rate, reviews the full price and cancellation rule, pays, receives a confirmed booking, may message the hotel, and then checks in and out. A room is not confirmed merely because it appeared in search or a payment page opened. The hotel team manages arrivals, departures, reservations, rooms, rates, availability, Inbox, team access and finance only for its assigned hotel.

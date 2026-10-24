@@ -44,7 +44,7 @@ test("workspace history and sign-in restore keep internal workspaces intentional
     read("src/App.tsx"),
     read("src/lib/workspaceSession.ts"),
   ]);
-  assert.match(app, /pushState\(\{ page: safe, workspace: activeWorkspace, entry_id:/);
+  assert.match(app, /pushState\(\s*\{\s*page: safe, workspace: activeWorkspace, entry_id:[^}]*\broute\s*\}/s);
   assert.match(app, /replaceState\(\{ page: destination, workspace, entry_id:/);
   assert.match(app, /Browser Back must never silently change persona/);
   assert.match(session, /\["creator", "admin", "staff"\]|\['creator', 'admin', 'staff'\]/);
@@ -172,7 +172,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(partner, /key: "tools"/);
   assert.doesNotMatch(partner, /key: "pro"/);
   assert.doesNotMatch(partner, /key: "sponsored"/);
-  assert.match(tools, /Partner Pro/);
+  assert.match(tools, /WeHouse Pro/);
   assert.match(tools, /Sponsored placement/);
   assert.doesNotMatch(housing, /Bookings and handovers/);
   assert.match(housing, /Verify booking/);
@@ -186,7 +186,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
   assert.match(reservations, /\{ value: "hotels", label: "Hotel" \}/);
   assert.match(reservations, /status=\{propertyBookingStatusLabel\(row\)\}/);
   assert.match(reservations, /status=\{HOTEL_STATUS\[String\(row\.status \|\| ""\)\] \|\| "Active"\}/);
-  assert.match(reservations, /overflow-x-auto/);
+  assert.match(reservations, /flex flex-wrap items-center gap-x-1/);
   assert.match(pro, /Partner tools could not load/);
   assert.match(security, /Additional protection/);
   assert.match(video, /Video unavailable here/);
@@ -208,7 +208,7 @@ test("mobile experience keeps operational hierarchy compact and partner tools co
 test("shared reservation state stays participant-specific and payment-gated", async () => {
   const [details, share, rpc] = await Promise.all([
     read("src/components/SharedHousingDetails.tsx"),
-    read("src/components/ShortLetSplitCosts.tsx"),
+    read("src/components/ShortLetBookingShares.tsx"),
     read("src/lib/supabase/shared-housing.ts"),
   ]);
   assert.match(details, /member\.user_id === userId/);

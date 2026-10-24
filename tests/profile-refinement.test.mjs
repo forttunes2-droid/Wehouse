@@ -60,6 +60,7 @@ test('Worker viewer keeps media and controls separate and supports navigation wi
  assert.match(read('src/components/ShowcaseMediaThumbnail.tsx'),/preload="metadata"/);
 });
 test('Coordinated release accepts verified boundary but rejects gaps and unapproved states',()=>{
- const result=spawnSync('python3',['tests/release-boundaries.py'],{encoding:'utf8'});
- assert.equal(result.status,0,result.stdout+'\n'+result.stderr);
+ const python=process.platform==='win32'?'python':'python3';
+ const result=spawnSync(python,['tests/release-boundaries.py'],{encoding:'utf8'});
+ assert.equal(result.status,0,result.error?.message||result.stdout+'\n'+result.stderr);
 });

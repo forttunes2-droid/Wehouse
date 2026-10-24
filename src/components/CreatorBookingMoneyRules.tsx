@@ -1,3 +1,6 @@
+import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +24,6 @@ type Rules = {
     payment_hold_minutes: number;
     hold_hours: number;
     full_refund_hours: number;
-    installments_enabled: boolean;
     security_deposit_enabled: boolean;
   };
   commissions: {
@@ -39,7 +41,7 @@ type Rules = {
 const DEFAULTS: Rules = {
   short_let: {
     reservation_hold_minutes: 30,
-    full_refund_hours_before_check_in: 48,
+    full_refund_hours_before_check_in: 24,
     late_cancel_max_nights: 1,
     no_show_max_nights: 1,
     security_deposit_enabled: true,
@@ -53,7 +55,6 @@ const DEFAULTS: Rules = {
     payment_hold_minutes: 30,
     hold_hours: 72,
     full_refund_hours: 24,
-    installments_enabled: false,
     security_deposit_enabled: false,
   },
   commissions: {
@@ -96,7 +97,6 @@ function readRules(response: PolicyResponse | null): Rules {
   const arrival = value("accommodation_arrival_issue_window");
   const longFee = value("long_let_reservation_fee");
   const longHold = value("long_let_reservation_hold");
-  const installments = value("future_long_let_installments");
   const workerRelease = value("worker_completion_release");
 
   return {
@@ -154,10 +154,6 @@ function readRules(response: PolicyResponse | null): Rules {
       full_refund_hours: numberValue(
         longHold.full_refund_hours,
         DEFAULTS.long_let.full_refund_hours,
-      ),
-      installments_enabled: booleanValue(
-        installments.enabled,
-        DEFAULTS.long_let.installments_enabled,
       ),
       security_deposit_enabled: false,
     },
@@ -317,9 +313,7 @@ export default function CreatorBookingMoneyRules() {
 
   if (loading)
     return (
-      <div className="grid min-h-44 place-items-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (loadError || !policy) return (
@@ -386,12 +380,11 @@ export default function CreatorBookingMoneyRules() {
         title="Long Let"
         note="Reservation starts the housing process. Long Let does not use Short Let no-show or damage-deposit rules."
       >
-        <NumberRule label="Reservation payment" prefix="₦" value={rules.long_let.reservation_amount} min={1} max={10000000} step={1000} onChange={(value) => setLong("reservation_amount", value)} />
+        <NumberRule label="Reservation payment" prefix={currencySymbol()} value={rules.long_let.reservation_amount} min={1} max={10000000} step={1000} onChange={(value) => setLong("reservation_amount", value)} />
         <NumberRule label="Payment checkout hold" suffix="minutes" value={rules.long_let.payment_hold_minutes} min={5} max={120} onChange={(value) => setLong("payment_hold_minutes", value)} />
         <NumberRule label="Housing process hold" suffix="hours" value={rules.long_let.hold_hours} min={1} max={168} onChange={(value) => setLong("hold_hours", value)} />
         <NumberRule label="Early full-refund window" suffix="hours, if material process has not begun" value={rules.long_let.full_refund_hours} min={0} max={168} onChange={(value) => setLong("full_refund_hours", value)} />
         <LockedRule label="Security deposit" value="Off at launch" />
-        <LockedRule label="Installments" value="Off at launch" />
       </RuleSection>
 
       <RuleSection
@@ -403,6 +396,8 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Hotel" suffix="%" value={rules.commissions.hotel_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("hotel_percent", value)} />
         <NumberRule label="Service Worker" suffix="%" value={rules.commissions.service_worker_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("service_worker_percent", value)} />
       </RuleSection>
+
+      <CreatorExperienceCommission />
 
       <RuleSection
         title="Service Worker completion"
@@ -507,7 +502,7 @@ function ShortLetReserveDateRule() {
   return <section className="border-y border-violet-500/15 py-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Short Let money</p><h4 className="mt-1 text-sm font-semibold">Reserve date</h4><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[var(--wh-text-secondary)]">This payment reserves the selected dates. Stay charge and any refundable security deposit are paid later and remain separate.</p></div><span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[9px] text-[var(--wh-text-secondary)]">v{rule.version}</span></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
-      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee (₦)<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee ({currencySymbol()})<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
       <label className="text-[10px] text-[var(--wh-text-secondary)]">Checkout time (minutes)<input type="number" min={5} max={120} value={draft.payment_hold_minutes} onChange={e=>setDraft({...draft,payment_hold_minutes:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
       <label className="text-[10px] text-[var(--wh-text-secondary)]">Stay balance due (hours)<input type="number" min={1} max={168} value={draft.balance_due_hours} onChange={e=>setDraft({...draft,balance_due_hours:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
     </div>

@@ -33,7 +33,7 @@ test('Worker job status and Payment Protection remain separate contracts',async(
   assert.equal(legacy.money_state,'protected');
   assert.equal(legacy.payment_status,'payment_protected');
   assert.equal(contract.workerNextAction('confirmed','protected','worker'),'Start job');
-  assert.equal(contract.workerNextAction('confirmed','protected','customer'),'Waiting for Worker to start');
+  assert.equal(contract.workerNextAction('confirmed','protected','customer'),'Waiting for Service Worker to start');
   for(const terminal of ['approved_released','cancelled','refunded']){
     assert.equal(contract.workerNextAction(terminal,'released','customer'),null);
     assert.equal(contract.workerNextAction(terminal,'released','worker'),null);
@@ -123,8 +123,27 @@ test('Validation workflow runs regression tests before build',()=>{
   assert.match(workflow,/npm test/);
   assert.match(workflow,/npx tsc --noEmit/);
   assert.match(workflow,/npm run build/);
-  assert.match(workflow,/supabase@2\.114\.0 db reset --local/);
+  assert.match(workflow,/uses: supabase\/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244/);
+  assert.equal((workflow.match(/version: 2\.114\.0/g)||[]).length,2);
+  assert.match(workflow,/node scripts\/disposable-supabase\.mjs reset/);
+  assert.match(read('scripts/disposable-supabase.mjs'),/\['db','reset','--local','--no-seed'\]/);
+  assert.doesNotMatch(workflow,/npx --yes supabase@/);
   assert.match(workflow,/Reject duplicate migration versions/);
+});
+
+test('Disposable Supabase workflows share the pinned CLI release',()=>{
+  const paths=[
+    '.github/workflows/consolidation-validation.yml',
+    '.github/workflows/capacity-medium.yml',
+    '.github/workflows/capacity-stage1.yml',
+    '.github/workflows/mixed-journey-preflight.yml',
+  ];
+  for(const path of paths){
+    const workflow=read(path);
+    assert.match(workflow,/uses: supabase\/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244/);
+    assert.match(workflow,/version: 2\.114\.0/);
+    assert.doesNotMatch(workflow,/npx --yes supabase@/);
+  }
 });
 
 test('Internal lifecycle transition helper closes the execution review queue',()=>{
@@ -235,7 +254,8 @@ test('Worker onboarding stays free and paid tools remain an optional entitlement
   assert.doesNotMatch(discovery,/WorkerProBadge/);
   assert.doesNotMatch(workers,/export async function createBlueBadgeSubscription/);
   assert.doesNotMatch(workers,/export async function cancelBlueBadgeSubscription/);
-  assert.match(workers,/const hasCompletedVerification = status === 'verified'/);
+  assert.doesNotMatch(workers,/reviewWorkerVerification|submitWorkerVerification/);
+  assert.match(read('supabase/migrations/20261020145446_worker_credential_review.sql'),/private\.worker_credentials_current\(new\.user_id\)/);
   assert.doesNotMatch(exports,/createBlueBadgeSubscription|cancelBlueBadgeSubscription/);
 });
 
@@ -312,7 +332,7 @@ test('Short Let checkout follows reservation occupancy, not global listing state
 test('Worker ratings and reviews render only after verified job reviews exist',()=>{
   const profile=read('src/components/WorkerPublicProfile.tsx');
   const discovery=read('src/pages/WorkerDiscovery.tsx');
-  const workerWorkspace=read('src/components/WorkerProfilePanelV2.tsx');
+  const workerWorkspace=read('src/components/WorkerProfilePanel.tsx');
   const booking=read('src/components/BookingNegotiationChat.tsx');
   const schema=read('supabase/migrations/20250525000000_remote_schema.sql');
   assert.match(profile,/reviewCount > 0 && <span>★/);

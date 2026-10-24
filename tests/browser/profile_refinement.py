@@ -20,11 +20,9 @@ async def settled_capture(page, name, media=False):
     const box = node.getBoundingClientRect();
     return box.bottom > 0 && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
    });
-   return visible.length > 0 && visible.every(node => {
-    const image = node.querySelector('img'), video = node.querySelector('video');
-    return (image && image.complete && image.naturalWidth > 0) || (video && video.readyState >= 2 && video.videoWidth > 0);
-   });
-  }""", timeout=6000)
+   const states = visible.map(node => node.querySelector('[data-media-thumbnail]')?.getAttribute('data-media-state'));
+   return states.length > 0 && states.every(state => state === 'ready' || state === 'unavailable') && states.includes('ready');
+  }""", timeout=15000)
  await page.screenshot(path=str(OUT/name))
 
 async def main():

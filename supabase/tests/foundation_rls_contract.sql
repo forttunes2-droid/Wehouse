@@ -17,11 +17,18 @@ begin
       'get_current_legal_documents()', 'get_discoverable_homes()',
       'get_discoverable_hotels()', 'get_discoverable_listings()',
       'search_discoverable_homes(text,text,text,text,numeric,numeric,integer,integer,timestamp with time zone,uuid,integer)',
+      -- Reviewed Home-style filter overload; same bounded public projection.
+      'search_discoverable_homes(text,text,text,text,numeric,numeric,integer,integer,timestamp with time zone,uuid,integer,text)',
       'search_discoverable_hotels(text,text,text,text[],numeric,numeric,double precision,double precision,numeric,boolean,timestamp with time zone,integer,integer)',
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
+      -- Explicit setting-key allowlist and published-only, 12-offer site page.
+      'get_public_discovery_settings()',
+      'get_property_site_offers(uuid,text,date,date,uuid)',
       'get_hotel_review_summary(integer)',
       'get_accommodation_rate_terms()',
       'get_listing_review_summary(text)',
+      'listing_discount_percent(uuid,date)',
+      'listing_discount_breakdown(uuid,date)',
       -- This bounded reader returns IDs for eligible public home/hotel ads;
       -- its Worker branch explicitly requires an authenticated viewer.
       'get_sponsored_discovery(text,text,text,text,integer)',

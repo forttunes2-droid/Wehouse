@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
@@ -57,6 +57,12 @@ for (let i = 0; i < 10; i++) {
   const profile = await client.rpc('create_my_profile', { p_email: email, p_role: 'user' });
   if (profile.error || !profile.data?.user_id) throw new Error(`Synthetic profile failed: ${profile.error?.message}`);
   const actor = { client, email, password, authId: created.data.user.id, userId: profile.data.user_id };
+  const device = await client.rpc('register_current_device_v2', {
+    p_device_id: `capacity-${suffix}-${i}`, p_device: 'Synthetic CI browser',
+    p_os: 'Linux', p_browser: 'Capacity runner', p_location: null, p_existing_session_id: null,
+  });
+  if (device.error || device.data?.trust_status !== 'trusted')
+    throw new Error(`Synthetic device registration failed: ${device.error?.message || 'first device not trusted'}`);
   actor.bookingId = await booking(actor, 20000 + i);
   const conversation = await client.rpc('create_my_support_case', {
     p_subject: 'Synthetic capacity conversation', p_category: 'general',
@@ -84,9 +90,10 @@ const journeys = [
   } },
   { name: 'booking', weight: 15, run: async (actor, i) => { await booking(actor, i); } },
   { name: 'message', weight: 10, run: async (actor, i) => {
-    const result = await actor.client.rpc('send_support_message', {
+    const result = await actor.client.rpc('send_support_message_v2', {
+      p_request_id: randomUUID(),
       p_conversation_id: actor.conversationId, p_content: `Synthetic message ${i}`,
-      p_attachments: [], p_attachment_types: [], p_action_type: null, p_action_metadata: {}, p_visibility: 'customer',
+      p_attachments: [], p_attachment_types: [], p_visibility: 'customer',
     });
     if (result.error || !result.data) throw new Error(result.error?.message || 'message not stored');
   } },

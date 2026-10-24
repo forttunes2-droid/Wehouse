@@ -8,7 +8,7 @@ on:
       - supabase/migrations/**
       - src/lib/supabase/**
       - src/pages/MyReservations.tsx
-      - src/pages/CreateListing.tsx
+      - src/components/PropertyInspectionRequestPanel.tsx
       - src/components/WorkerShowcaseManager.tsx
       - src/lib/mediaVideo.ts
   workflow_dispatch:
@@ -29,11 +29,16 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - run: npm ci
       - name: Start disposable Supabase
-        run: npx --yes supabase@2.114.0 start
+        run: node scripts/disposable-supabase.mjs start
       - name: Apply all migrations to an empty local database
-        run: npx --yes supabase@2.114.0 db reset --local
+        run: node scripts/disposable-supabase.mjs reset
       - name: Seed synthetic catalog and rates
         run: |
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/load_baseline_fixture.sql
@@ -48,4 +53,4 @@ jobs:
           retention-days: 7
       - name: Stop disposable Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup

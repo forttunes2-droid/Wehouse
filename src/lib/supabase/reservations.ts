@@ -73,8 +73,10 @@ export async function createShortStayReservation(
   checkIn: string,
   checkOut: string,
   guestCount: number,
+  idempotencyKey: string = crypto.randomUUID(),
 ) {
-  const { data, error } = await supabase.rpc("create_short_stay_reservation", {
+  const { data, error } = await supabase.rpc("create_short_stay_reservation_idem", {
+    p_idempotency_key: idempotencyKey,
     p_listing_id: listingId,
     p_check_in: checkIn,
     p_check_out: checkOut,
@@ -207,18 +209,14 @@ export async function cancelReservation(reservationId: string) {
       p_reservation_id: reservationId,
     },
   );
-  return { reservation: (data as ReservationRecord) || null, error };
+  return { reservation: (data as ReservationRecord) || null, error:error||(data?.id!==reservationId||data.status!=='cancelled'?new Error('Cancellation could not be confirmed. Refresh the booking before retrying.'):null) };
 }
 
-export async function updateReservationPlan(
-  reservationId: string,
-  planYears: number,
-) {
-  const { data, error } = await supabase.rpc("update_my_reservation_plan", {
-    p_reservation_id: reservationId,
-    p_plan_years: planYears,
-  });
-  return { reservation: (data as ReservationRecord) || null, error };
+export async function cancelPaidShortLetStay(reservationId: string) {
+  const { data, error } = await supabase.rpc("cancel_my_paid_short_let", { p_reservation_id: reservationId });
+  const amount=data?.refund_amount;
+  const confirmed=typeof amount==='number'&&Number.isFinite(amount)&&amount>=0;
+  return { refundAmount: confirmed?amount:0, error:error||(!confirmed?new Error('Cancellation and refund could not be confirmed. Refresh the booking before retrying.'):null) };
 }
 
 export async function markSupportContacted(reservationId: string) {
@@ -246,7 +244,7 @@ export async function createInspectionRequest(
 
   return {
     inspection: (data as InspectionRecord) || null,
-    error,
+    error:error||(!data?.id||data.reservation_id!==reservationId?new Error('The inspection request could not be confirmed. Refresh the booking before retrying.'):null),
     alreadyExists: false,
   };
 }
@@ -436,7 +434,7 @@ export async function requestApartmentMoveIn(
     p_reservation_id: reservationId,
     p_requested_at: requestedAt,
   });
-  return { reservation: (data as ReservationRecord) || null, error };
+  return { reservation: (data as ReservationRecord) || null, error:error||(data?.id!==reservationId||data.status!=='ready_for_move_in'||!data.requested_move_in_at||Date.parse(data.requested_move_in_at)!==Date.parse(requestedAt)?new Error('The move-in time could not be confirmed. Refresh the booking before retrying.'):null) };
 }
 
 export async function completeApartmentTenancy(

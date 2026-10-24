@@ -11,8 +11,9 @@ export function addCalendarDays(value: string, days: number): string {
   const result = new Date((day + days) * DAY);
   return Number.isFinite(result.getTime()) ? result.toISOString().slice(0, 10) : '';
 }
-export function nigeriaCalendarDate(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+/** Today in the property's zone (the platform default when none is given). */
+export function platformCalendarDate(now = new Date(), zone?: string | null): string {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
   const part = (type: string) => parts.find(value => value.type === type)?.value || '';
   return `${part('year')}-${part('month')}-${part('day')}`;
 }

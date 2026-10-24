@@ -1,15 +1,18 @@
+import { getRegionalDefaults } from "@/lib/regional";
 import { jsPDF } from "jspdf";
 import font from "./receiptFont";
-import { displayDate, displayDateTime } from "./displayDate";
+import { displayDate, displayMoment } from "./displayDate";
 import type { PaymentReceipt } from "./supabase/receipts";
 import receiptMark from "@/assets/receipt-mark.png?inline";
+import { assertPaymentReceipt } from './paymentReceiptContract';
 
 /** Loaded only on download. All amounts and identities come from the receipt RPC. */
 export function buildReceiptPdf(r: PaymentReceipt) {
+  assertPaymentReceipt(r);
   const PAGE_WIDTH = 90;
   const MARGIN = 8;
   const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-  const money = (value: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: r.currency || "NGN" }).format(value);
+  const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency || getRegionalDefaults().currencyCode }).format(value);
   const makeDocument = (height: number) => {
     const doc = new jsPDF({ unit: "mm", format: [PAGE_WIDTH, height], orientation: "portrait", compress: true });
     doc.addFileToVFS("WeHouseReceipt.ttf", font);
@@ -51,7 +54,7 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     y += 6;
     write(money(r.amount), 22);
     y += 3;
-    write(displayDateTime(r.paid_at, "Africa/Lagos") + " WAT", 8, "#77717D");
+    write(displayMoment(r.paid_at), 8, "#77717D");
     if (r.environment === "test") { y += 3; write("TEST PAYMENT · No real money was charged.", 8, "#925F0A"); }
     if (r.environment === null) { y += 3; write("Payment mode was not recorded for this transaction.", 8, "#77717D"); }
     if (r.status.includes("refund")) {
@@ -68,7 +71,7 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     if (r.stay_amount != null) field("Stay price", money(r.stay_amount));
     if (Number(r.deposit_amount) > 0) field("Refundable caution", money(Number(r.deposit_amount)));
     if (r.cancellation_snapshot) field("Booked cancellation terms", r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline
-      ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})`
+      ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})`
       : "Non-refundable for ordinary cancellation");
     field("Payment provider", "Paystack");
     field("Payment reference", r.reference);

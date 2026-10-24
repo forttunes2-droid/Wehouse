@@ -85,6 +85,10 @@ def literal(value):
 
 
 def migration_body(source):
+    # UTF-8 BOM is a file encoding marker, not a PostgreSQL statement. Preserve
+    # original file bytes for history verification; strip only this leading
+    # marker from the SQL sent to PostgreSQL, matching Supabase CLI decoding.
+    source = source.removeprefix("\ufeff")
     # These reviewed migrations have either no outer transaction or exactly
     # BEGIN/COMMIT. Keep every function body untouched. Reject other controls.
     controls = re.findall(r"(?mi)^\s*(begin|commit|rollback)\s*;\s*$", source)
@@ -150,6 +154,15 @@ do $$ begin
   end if;
 end $$;
 create temporary table wh_release_snapshot(name text primary key,digest text not null) on commit drop;
+-- Only these six reviewed additive columns may be absent at the baseline.
+-- If already deployed, they remain part of the preservation hash as usual.
+create temporary table wh_release_added_worker_fields on commit drop as
+select name from unnest(array['credential_requirements','credential_revision',
+ 'credential_context','credential_requirements_note','credential_requirements_set_at',
+ 'credential_requirements_set_by']) fields(name)
+where not exists(select 1 from pg_attribute a
+ where a.attrelid='public.worker_verifications'::regclass and a.attname=name
+  and a.attnum>0 and not a.attisdropped);
 """]
     for remote_version, name, digest in aliases:
         parts.append(f"""do $$ begin
@@ -173,6 +186,8 @@ end $$;""")
                   f"insert into supabase_migrations.schema_migrations(version,name,statements) values ({literal(version)},{literal(name)},array[{delimiter}{body}{delimiter}]);"]
     parts.append("\\echo WH_RELEASE: preservation assertions")
     for name, query in queries.items():
+        if name == "worker_verifications":
+            query = "select to_jsonb(t)-array(select name from wh_release_added_worker_fields) as row from public.worker_verifications t"
         parts.append(f"do $$ begin if (select digest from wh_release_snapshot where name={literal(name)}) is distinct from ({digest_query(query)}) then raise exception 'Existing records changed unexpectedly: {name}'; end if; end $$;")
     parts.append("""
 do $$ begin

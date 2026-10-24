@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { createPlatformSettingsStore } from '@/lib/platformSettingsStore';
 
 const store = createPlatformSettingsStore(async () => {
-  const { data, error } = await supabase.rpc('get_all_settings_v2');
+  const { data, error } = await supabase.rpc('get_public_discovery_settings');
   if (error || !Array.isArray(data)) throw error || new Error('Settings unavailable');
   return Object.fromEntries(data.map((row: { key: string; value: string }) => [row.key, row.value ?? '']));
 });

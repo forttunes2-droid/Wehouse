@@ -1,6 +1,7 @@
 import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
+import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 
 const cors={
   'Access-Control-Allow-Origin':'*',
@@ -13,7 +14,42 @@ const IGNORED_NAMES=new Set(['mr','mrs','miss','ms','dr','chief','alhaji','hajiy
 const REQUEST_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function nameTokens(value:string){return [...new Set(value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(v=>v.length>1&&!IGNORED_NAMES.has(v)))];}
 function matchCount(profileName:string,accountName:string){const profile=new Set(nameTokens(profileName));return nameTokens(accountName).filter(token=>profile.has(token)).length;}
-async function paystack(path:string,secret:string,init?:RequestInit){const response=await fetch(`https://api.paystack.co${path}`,{...init,headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json',...(init?.headers||{})}});let body:any=null;try{body=await response.json()}catch{body=null}if(!response.ok||!body?.status)throw new Error(body?.message||`Paystack request failed (${response.status})`);return body.data;}
+const PAYSTACK_REQUEST_TIMEOUT_MS = 12000;
+async function paystack(path:string,secret:string,init?:RequestInit,envelope=false){
+  const response=await fetch(`https://api.paystack.co${path}`,{
+    ...init,
+    signal:init?.signal ?? AbortSignal.timeout(PAYSTACK_REQUEST_TIMEOUT_MS),
+    headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json',...(init?.headers||{})},
+  });
+  let body:any=null;
+  try{body=await response.json()}catch{body=null}
+  if(!response.ok||body?.status!==true)throw new Error(body?.message||`Paystack request failed (${response.status})`);
+  return envelope?body:body.data;
+}
+let bankCache:{rows:Array<{code:string;name:string}>;until:number}|null=null;
+async function listPayoutBanks(secret:string){
+  if(bankCache&&bankCache.until>Date.now())return bankCache.rows;
+  const signal=AbortSignal.timeout(PAYSTACK_REQUEST_TIMEOUT_MS),seen=new Set<string>(),banks=new Map<string,{code:string;name:string}>();
+  let cursor='';
+  for(let page=0;page<20;page++){
+    const payload=await paystack('/bank?country=nigeria&currency=NGN&perPage=100&use_cursor=true'+(cursor?'&next='+encodeURIComponent(cursor):''),secret,{signal},true);
+    if(!Array.isArray(payload?.data))throw new Error('Bank list could not be confirmed');
+    for(const bank of payload.data){
+      if(bank?.active===false||bank?.is_deleted===true||bank?.type&&bank.type!=='nuban')continue;
+      if(typeof bank?.code!=='string'||!/^\d{3,12}$/.test(bank.code)||typeof bank?.name!=='string'||!bank.name.trim())throw new Error('Invalid bank-list response');
+      banks.set(bank.code,{code:bank.code,name:bank.name.trim()});
+    }
+    const next=payload.meta?.next;
+    if(next===null||(next===undefined&&payload.data.length<100)){
+      const rows=[...banks.values()].sort((a,b)=>a.name.localeCompare(b.name));
+      if(!rows.length)throw new Error('No supported payout banks were returned');
+      bankCache={rows,until:Date.now()+300000};return rows;
+    }
+    if(typeof next!=='string'||!next||seen.has(next)||!payload.data.length)throw new Error('Incomplete bank list');
+    seen.add(next);cursor=next;
+  }
+  throw new Error('Bank-list pagination limit reached');
+}
 function message(error:unknown,fallback:string){return error instanceof Error&&error.message?error.message:fallback;}
 function accountPayload(value:any){return value?.account||value||null;}
 
@@ -34,8 +70,10 @@ async function finishSucceeded(admin:any,row:any,account:any){
   return account;
 }
 async function findMatchingRecipient(paystackSecret:string,bankCode:string,accountNumber:string){
+  // One deadline covers the complete lookup, rather than restarting per page.
+  const signal=AbortSignal.timeout(PAYSTACK_REQUEST_TIMEOUT_MS);
   for(let page=1;page<=5;page++){
-    const data=await paystack(`/transferrecipient?perPage=100&page=${page}`,paystackSecret);
+    const data=await paystack(`/transferrecipient?perPage=100&page=${page}`,paystackSecret,{signal});
     const rows=Array.isArray(data)?data:[];
     const found=rows.find((item:any)=>String(item?.details?.bank_code||item?.details?.bank?.code||'')===bankCode&&String(item?.details?.account_number||'').replace(/\D/g,'')===accountNumber&&item?.recipient_code);
     if(found)return String(found.recipient_code);
@@ -57,9 +95,9 @@ async function reconcileChange(admin:any,paystackSecret:string,row:any){
 
   // Read-before-retry: the original request may have completed after the client
   // stopped waiting. Never create a second recipient if the destination exists.
-  const{data:existing,error:existingError}=await admin.from('bank_accounts').select('id,bank_name,bank_code,account_number,account_name,verified_at,is_default,is_active,recipient_code').eq('user_id',row.user_id).eq('bank_code',row.bank_code).eq('account_number',row.account_number).eq('is_active',true).maybeSingle();
+  const{data:existing,error:existingError}=await admin.from('bank_accounts').select('id,bank_name,bank_code,account_number,account_name,verified_at,is_default,is_active,paystack_recipient_code').eq('user_id',row.user_id).eq('bank_code',row.bank_code).eq('account_number',row.account_number).eq('is_active',true).maybeSingle();
   if(existingError)throw existingError;
-  if(existing?.recipient_code){
+  if(existing?.paystack_recipient_code){
     const account=await promoteDefault(admin,row.user_id,existing.id);
     return{pending:false,status:'succeeded',account:await finishSucceeded(admin,row,account)};
   }
@@ -107,6 +145,7 @@ serve(async req=>{
     const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
     const token=authHeader.replace(/^Bearer\s+/i,'');const{data:{user},error:authError}=await admin.auth.getUser(token);if(authError||!user)return json({success:false,error:'Invalid or expired session'},401);
     if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+    const limit=await consumeUserAction(admin,user.id,'payout_account',20,600);if(!limit.allowed)return json({success:false,error:'Too many requests. Please wait and try again.',retry_after_seconds:limit.retryAfterSeconds},429);
     const{data:profile,error:profileError}=await admin.from('profiles').select('user_id,role,full_name,deleted,suspended,banned').eq('auth_id',user.id).maybeSingle();
     if(profileError)return json({success:false,error:'Could not load your payout profile',stage:'profile'},500);
     if(!profile || !(await hasActiveWorkspace(admin,profile.user_id,'worker') || await hasActiveWorkspace(admin,profile.user_id,'property_partner')))return json({success:false,error:'Worker or Property Partner account required'},403);
@@ -114,7 +153,7 @@ serve(async req=>{
 
     const body=await req.json().catch(()=>({}));const action=String(body?.action||'').trim();
     if(action==='banks'){
-      try{const data=await paystack('/bank?currency=NGN&perPage=100',paystackSecret);const banks=(Array.isArray(data)?data:[]).filter((bank:any)=>bank?.active!==false&&bank?.code&&bank?.name&&(bank?.type==='nuban'||!bank?.type)).map((bank:any)=>({code:String(bank.code),name:String(bank.name)})).sort((a:any,b:any)=>a.name.localeCompare(b.name));return json({success:true,banks});}
+      try{const banks=await listPayoutBanks(paystackSecret);return json({success:true,banks});}
       catch(error){console.error('payout-account banks failed',{error:message(error,'banks failed')});return json({success:false,error:'Could not load banks from Paystack. Try again.',stage:'banks'},502);}
     }
 
@@ -137,7 +176,7 @@ serve(async req=>{
 
     const bankCode=String(body?.bank_code||'').trim(),accountNumber=String(body?.account_number||'').replace(/\D/g,'');
     if(!bankCode)return json({success:false,error:'Choose a bank'},400);if(!/^\d{10}$/.test(accountNumber))return json({success:false,error:'Enter a valid 10-digit account number'},400);
-    let bankData:any;try{bankData=await paystack('/bank?currency=NGN&perPage=100',paystackSecret)}catch(error){console.error('payout-account bank lookup failed',{user_id:profile.user_id,last4:accountNumber.slice(-4),error:message(error,'bank lookup failed')});return json({success:false,error:'Could not confirm the selected bank with Paystack. Try again.',stage:'bank_lookup'},502)}
+    let bankData:any;try{bankData=await listPayoutBanks(paystackSecret)}catch(error){console.error('payout-account bank lookup failed',{user_id:profile.user_id,last4:accountNumber.slice(-4),error:message(error,'bank lookup failed')});return json({success:false,error:'Could not confirm the selected bank with Paystack. Try again.',stage:'bank_lookup'},502)}
     const bank=(Array.isArray(bankData)?bankData:[]).find((item:any)=>String(item?.code||'')===bankCode&&item?.active!==false);if(!bank)return json({success:false,error:'Bank is unavailable'},400);
     let resolved:any;try{resolved=await paystack(`/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,paystackSecret)}catch(error){console.error('payout-account resolve failed',{user_id:profile.user_id,bank_code:bankCode,last4:accountNumber.slice(-4),error:message(error,'resolve failed')});return json({success:false,error:message(error,'Paystack could not verify this account'),stage:'resolve'},400)}
     const accountName=String(resolved?.account_name||'').trim();if(!accountName)return json({success:false,error:'Paystack could not verify this account name',stage:'resolve'},400);
@@ -168,8 +207,9 @@ serve(async req=>{
       return json({success:false,error:'Could not begin payout-account change',stage:'request_create'},500);
     }
 
-    const{data:existing}=await admin.from('bank_accounts').select('id,bank_name,bank_code,account_number,account_name,verified_at,is_default,is_active,recipient_code').eq('user_id',profile.user_id).eq('bank_code',bankCode).eq('account_number',accountNumber).eq('is_active',true).maybeSingle();
-    if(existing?.recipient_code){
+    const{data:existing,error:existingError}=await admin.from('bank_accounts').select('id,bank_name,bank_code,account_number,account_name,verified_at,is_default,is_active,paystack_recipient_code').eq('user_id',profile.user_id).eq('bank_code',bankCode).eq('account_number',accountNumber).eq('is_active',true).maybeSingle();
+    if(existingError)throw existingError;
+    if(existing?.paystack_recipient_code){
       const account=await promoteDefault(admin,profile.user_id,existing.id);
       const row={...target};
       return json({success:true,replacement:replacing,status:'succeeded',pending:false,account:await finishSucceeded(admin,row,account)});

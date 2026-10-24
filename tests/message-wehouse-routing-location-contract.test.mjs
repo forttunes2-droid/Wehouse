@@ -79,10 +79,11 @@ test("discovery distance is server-computed and directions use the written addre
 });
 
 test("human location UI is address-only and manual address remains authoritative", async () => {
-  const [picker, submission, profile] = await Promise.all([
+  const [picker, submission, profile, roommate] = await Promise.all([
     read("src/components/PreciseLocationPicker.tsx"),
     read("src/components/PropertyInspectionRequestPanel.tsx"),
     read("src/pages/ProfileEditAccount.tsx"),
+    read("src/pages/Roommate.tsx"),
   ]);
   assert.match(picker, /latitude: number \| null/);
   assert.match(picker, /longitude: number \| null/);
@@ -95,8 +96,13 @@ test("human location UI is address-only and manual address remains authoritative
   assert.doesNotMatch(picker, /Adjust entrance on map/i);
   assert.doesNotMatch(picker, /Edit pin/i);
   assert.match(submission, /const hasCoordinates = value\.latitude != null && value\.longitude != null/);
+  assert.doesNotMatch(profile, /State and Local Government are required/);
+  assert.match(profile, /updates\.state = state\.trim\(\) \|\| null/);
+  assert.match(profile, /updates\.local_government = lga\.trim\(\) \|\| null/);
+  assert.doesNotMatch(roommate, /\|\|"Nigeria"/);
+  assert.match(roommate, /Location not added/);
   assert.match(profile, /label="Street address"/);
   assert.match(profile, /preciseLocation\?\.address\?\.trim\(\) \|\| 'Not added'/);
-  assert.match(profile, /Choose your State and Local Government, then add your street address/);
+  assert.match(profile, /Choose your state or region and city or area, then add your street address/);
   assert.match(submission, /current\.propertyAddress \|\| current\.location\.address/);
 });

@@ -14,7 +14,7 @@ const load = (path, dependencies = {}) => {
   return exports;
 };
 const plain = value => JSON.parse(JSON.stringify(value));
-const nav = load('src/lib/propertyNavigation.ts');
+const nav = load('src/lib/propertyNavigation.ts', { '@/lib/regional': load('src/lib/regional.ts') });
 const activityWorkspace = load('src/lib/activityWorkspace.ts');
 const activity = load('src/lib/activityFeed.ts', { './activityWorkspace': activityWorkspace });
 
@@ -34,7 +34,7 @@ test('hotel inventory distinguishes missing projection from real empty and real 
   assert.equal(nav.hotelInventorySummary({}), 'Room inventory unavailable');
   assert.equal(nav.hotelInventorySummary({ room_type_count: null, total_room_count: 3 }), 'Room inventory unavailable');
   assert.equal(nav.hotelInventorySummary({ room_type_count: 0, total_room_count: 0 }), '0 room types · 0 rooms');
-  assert.equal(nav.hotelInventorySummary({ room_type_count: 2, total_room_count: 3, starting_rate: 20000 }), '2 room types · 3 rooms · from ₦20,000');
+  assert.match(nav.hotelInventorySummary({ room_type_count: 2, total_room_count: 3, starting_rate: 20000 }), /^2 room types · 3 rooms · from .*20,000$/);
 });
 
 test('cancelled unpaid stays do not request payment or conceal genuine refunds and failures', () => {
@@ -62,10 +62,10 @@ test('resource invitation responses have a useful label and route to the inviter
     destination_route: 'property-owner',
     destination_params: { invitation_id: 'invite-hotel', resource_type: 'hotel', resource_id: '17' },
   };
-  assert.equal(activity.activityDestinationLabel(propertyResponse), 'View team invitation response');
-  assert.equal(activity.activityDestinationLabel(hotelResponse), 'View team invitation response');
+  assert.equal(activity.activityDestinationLabel(propertyResponse), 'View team access');
+  assert.equal(activity.activityDestinationLabel(hotelResponse), 'View team access');
   assert.deepEqual(plain(activity.resolveActivityDestination(propertyResponse)), { route: 'property_partner' });
-  assert.deepEqual(plain(activity.resolveActivityDestination(hotelResponse)), { route: 'hotel_detail', id: '17' });
+  assert.deepEqual(plain(activity.resolveActivityDestination(hotelResponse)), { route: 'property_partner' });
 });
 
 test('hotel lifecycle Activity keeps the exact booking and parent regardless of legacy destination', () => {
@@ -129,4 +129,18 @@ test('property names stay consistent across submission, publication and internal
   assert.equal(nav.propertyRecordTitle({ request_code: 'WHIR-TEST-ONLY' }), 'Property');
   assert.equal(nav.propertyRecordTitle({}, 'Submitted property'), 'Submitted property');
   for (const path of ['src/components/PartnerSubmittedRequests.tsx', 'src/components/PropertyPipelineWorkspace.tsx']) assert.match(read(path), /propertyRecordTitle\(/);
+});
+
+
+test('hotel team acceptance and decline never route a partner into the personal-only hotel detail page', () => {
+  for (const type of ['hotel_team_invitation_response', 'resource_invitation_response']) {
+    assert.deepEqual(plain(activity.resolveActivityDestination({
+      type,
+      source_type: 'hotel_team_member',
+      source_id: 'invite-front-desk',
+      destination_route: 'hotel_detail',
+      destination_params: { hotel_id: '17', resource_type: 'hotel', resource_id: '17' },
+    })), { route: 'property_partner' });
+    assert.equal(activity.activityDestinationLabel({ type, destination_params: { hotel_id: '17', resource_type: 'hotel', resource_id: '17' } }), 'View team access');
+  }
 });

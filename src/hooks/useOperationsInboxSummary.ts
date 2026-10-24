@@ -7,13 +7,13 @@ import {
 } from "@/lib/supabase/activity";
 import { supabase } from "@/lib/supabase";
 import { getAnnouncementsForUser } from "@/lib/supabase/announcements";
-import { getSupportInbox } from "@/lib/supabase/support";
+import { getSupportInbox, type SupportQueue } from "@/lib/supabase/support";
 
 type LatestActivity = { title: string; createdAt: string } | null;
 export function useOperationsInboxSummary(
   userId: string,
   activityScope = "staff",
-  queue: "support" | "operations" | "field_operations" | null = null,
+  queue: SupportQueue | null = null,
 ) {
   const [messageUnread, setMessageUnread] = useState(0);
   const [activityUnread, setActivityUnread] = useState(0);

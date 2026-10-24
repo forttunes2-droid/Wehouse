@@ -11,7 +11,8 @@ export const WORKER_JOB_STATUSES = [
   'refunded',
 ] as const;
 
-export type WorkerJobStatus = (typeof WORKER_JOB_STATUSES)[number];
+// "unavailable" is a display/recovery state, never a writable booking status.
+export type WorkerJobStatus = (typeof WORKER_JOB_STATUSES)[number] | 'unavailable';
 export type WorkerMoneyState =
   | 'unpaid'
   | 'payment_pending'
@@ -21,19 +22,27 @@ export type WorkerMoneyState =
   | 'refunded'
   | 'review';
 
+export function parseWorkerQuotePrice(input:string):number|null{
+  const text=input.trim();
+  if(!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(text))return null;
+  const amount=Number(text.replaceAll(',',''));
+  return amount>0&&Number.isSafeInteger(Math.round(amount*100))?amount:null;
+}
+
 type WorkerJobStatusInfo={label:string;color:string;description:string};
 
 const CANONICAL_BOOKING_STATUS_LABELS: Record<WorkerJobStatus,WorkerJobStatusInfo> = {
-  booking_requested:{label:'Booking requested',color:'bg-amber-500/10 text-amber-400',description:'Waiting for the Worker to respond'},
-  negotiating:{label:'Negotiating',color:'bg-blue-500/10 text-blue-400',description:'Discussing the job, schedule and price'},
-  waiting_payment:{label:'Waiting for payment',color:'bg-purple-500/10 text-purple-400',description:'The job terms are agreed and payment is required'},
-  confirmed:{label:'Confirmed',color:'bg-emerald-500/10 text-emerald-400',description:'Payment Protection is active and the job can start'},
-  in_progress:{label:'In progress',color:'bg-indigo-500/10 text-indigo-400',description:'The job is underway'},
-  completed_pending_approval:{label:'Awaiting confirmation',color:'bg-orange-500/10 text-orange-400',description:'The Worker marked the job complete; customer confirmation is pending'},
-  approved_released:{label:'Completed',color:'bg-emerald-500/10 text-emerald-400',description:'The job is complete and protected payment has been released'},
-  disputed:{label:'Under review',color:'bg-red-500/10 text-red-400',description:'Payment Protection is paused while WeHouse reviews the issue'},
-  cancelled:{label:'Cancelled',color:'bg-gray-500/10 text-gray-400',description:'Booking cancelled'},
-  refunded:{label:'Refunded',color:'bg-gray-500/10 text-gray-400',description:'The protected payment was refunded'},
+  unavailable:{label:'Status unavailable',color:'bg-gray-500/10 text-[var(--wh-text-secondary)]',description:'Refresh this booking to confirm its current status before taking another action'},
+  booking_requested:{label:'Booking requested',color:'bg-amber-500/10 text-amber-700 dark:text-amber-400',description:'Waiting for the Service Worker to respond'},
+  negotiating:{label:'Negotiating',color:'bg-blue-500/10 text-blue-700 dark:text-blue-400',description:'Discussing the job, schedule and price'},
+  waiting_payment:{label:'Waiting for payment',color:'bg-purple-500/10 text-purple-700 dark:text-purple-400',description:'The job terms are agreed and payment is required'},
+  confirmed:{label:'Confirmed',color:'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',description:'Payment Protection is active and the job can start'},
+  in_progress:{label:'In progress',color:'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400',description:'The job is underway'},
+  completed_pending_approval:{label:'Awaiting confirmation',color:'bg-orange-500/10 text-orange-700 dark:text-orange-400',description:'The Service Worker marked the job complete; customer confirmation is pending'},
+  approved_released:{label:'Completed',color:'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',description:'The job is complete and protected payment has been released'},
+  disputed:{label:'Under review',color:'bg-red-500/10 text-red-700 dark:text-red-400',description:'Payment Protection is paused while WeHouse reviews the issue'},
+  cancelled:{label:'Cancelled',color:'bg-gray-500/10 text-gray-700 dark:text-gray-400',description:'Booking cancelled'},
+  refunded:{label:'Refunded',color:'bg-gray-500/10 text-gray-700 dark:text-gray-400',description:'The protected payment was refunded'},
 };
 
 // Some oversight screens display historical server values with a text fallback.
@@ -53,14 +62,14 @@ export const WORKER_MONEY_LABELS: Record<WorkerMoneyState,string> = {
 const canonicalStatuses = new Set<string>(WORKER_JOB_STATUSES);
 
 export function normalizeWorkerJobStatus(raw:unknown,paymentProtected=false):WorkerJobStatus{
+  void paymentProtected;
   const value=String(raw||'');
   // A short-lived legacy client used payment_protected as if it were a job
   // status. Protection is money state; the corresponding valid job state is
   // confirmed until work actually starts.
   if(value==='payment_protected')return 'confirmed';
   if(canonicalStatuses.has(value))return value as WorkerJobStatus;
-  if(paymentProtected)return 'confirmed';
-  return 'booking_requested';
+  return 'unavailable';
 }
 
 export function workerMoneyState(row:any):WorkerMoneyState{
@@ -69,10 +78,10 @@ export function workerMoneyState(row:any):WorkerMoneyState{
   const protection=String(row?.protection_status||'').toLowerCase();
   const payment=String(row?.payment_status||'').toLowerCase();
   const moneySignals=[explicitState,protection,payment];
-  if(rawJob==='disputed'||moneySignals.some(value=>['review','review_required','under_review','frozen','disputed'].includes(value)))return 'review';
+  if(rawJob==='disputed'||moneySignals.some(value=>['review','review_required','under_review','risk_held','frozen','disputed'].includes(value)))return 'review';
   if(rawJob==='refunded'||moneySignals.some(value=>['refunded','reversed'].includes(value)))return 'refunded';
   if(rawJob==='approved_released'||moneySignals.some(value=>['released','paid_out'].includes(value)))return 'released';
-  if(moneySignals.some(value=>['release_pending','releasing'].includes(value)))return 'release_pending';
+  if(moneySignals.some(value=>['release_eligible','release_pending','releasing'].includes(value)))return 'release_pending';
   if(row?.payment_protected===true||moneySignals.some(value=>['protected','payment_protected','secured','held','holding'].includes(value)))return 'protected';
   // These job states can only be entered after the server has verified
   // protected money. This preserves an unambiguous read when a legacy summary
@@ -98,10 +107,10 @@ export function normalizeWorkerBookingRow<T extends Record<string,any>>(row:T):T
 
 export function workerNextAction(status:WorkerJobStatus,money:WorkerMoneyState,actor:'customer'|'worker'){
   if(['approved_released','cancelled','refunded'].includes(status))return null;
-  if(status==='booking_requested')return actor==='worker'?'Respond to request':'Waiting for Worker';
+  if(status==='booking_requested')return actor==='worker'?'Respond to request':'Waiting for Service Worker';
   if(status==='negotiating')return 'Agree job details';
   if(status==='waiting_payment')return actor==='customer'?'Pay with Payment Protection':'Waiting for protected payment';
-  if(status==='confirmed')return actor==='worker'?(money==='protected'?'Start job':'Wait for Payment Protection'):'Waiting for Worker to start';
+  if(status==='confirmed')return actor==='worker'?(money==='protected'?'Start job':'Wait for Payment Protection'):'Waiting for Service Worker to start';
   if(status==='in_progress')return actor==='worker'?'Mark work complete':'Job in progress';
   if(status==='completed_pending_approval')return actor==='customer'?'Confirm completion':'Waiting for customer confirmation';
   if(status==='disputed')return 'WeHouse review in progress';

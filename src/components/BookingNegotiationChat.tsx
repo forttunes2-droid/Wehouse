@@ -1,4 +1,10 @@
+import { createBookingActionRunner } from "@/lib/bookingActionRunner";
+import { parseWorkerQuotePrice } from "@/lib/workerBookingContract";
+import { withTimeout } from "@/lib/withTimeout";
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -13,8 +19,9 @@ import {
   customerConfirmCompletion,
   customerRaiseDispute,
   cancelBooking,
+  cancelPaidBookingBeforeStart,
+  requestWorkerRefundReview,
   getBookingDetails,
-  createWorkerBookingPayment,
   BOOKING_STATUS_LABELS,
   markBookingMessagesRead,
   hideBookingConversation,
@@ -31,6 +38,7 @@ import MediaViewer from "@/components/MediaViewer";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import PrivateCallHistory from "@/components/PrivateCallHistory";
 import BackButton from "@/components/BackButton";
+import BookingPaymentReview from "@/components/BookingPaymentReview";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
@@ -43,12 +51,14 @@ import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
+import ReportDialog from "@/components/ReportDialog";
 import {
   lockEncryptionIdentity,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
+import { formatMoney, currencySymbol } from "@/lib/regional";
 
 type Props = {
   conversationId: string;
@@ -74,6 +84,9 @@ type ChatMessage = {
   delivery_state?: "sending" | "failed";
 };
 type Booking = {
+  canonical_job_state?: string|null;
+  user_approved?: boolean|null;
+  money_state?: string|null;
   user_id: string;
   worker_id: string;
   status: string;
@@ -121,6 +134,7 @@ export default function BookingNegotiationChat({
   }, [profile.user_id]);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
+    pins = useMessagePins("worker", conversationId, messages.length),
     [messageError, setMessageError] = useState<string | null>(null),
     [booking, setBooking] = useState<Booking | null>(null),
     [input, setInput] = useState(""),
@@ -130,9 +144,10 @@ export default function BookingNegotiationChat({
     [showAcceptForm, setShowAcceptForm] = useState(false),
     [disputeReason, setDisputeReason] = useState(""),
     [showDisputeForm, setShowDisputeForm] = useState(false),
+    [reviewKind, setReviewKind] = useState<"customer_cancel_after_start" | "worker_no_show" | "worker_not_delivered">("worker_not_delivered"),
     [cancelReason, setCancelReason] = useState(""),
     [showCancelForm, setShowCancelForm] = useState(false),
-    [paying, setPaying] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
     [menuOpen, setMenuOpen] = useState(false),
@@ -156,6 +171,7 @@ export default function BookingNegotiationChat({
     [reviewSaving, setReviewSaving] = useState(false),
     [reviewOpen, setReviewOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showPaymentReview, setShowPaymentReview] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
   const messageById = useMemo(
@@ -335,11 +351,15 @@ export default function BookingNegotiationChat({
       }),
     );
   }
+  function openReport() {
+    setProfileOpen(false);
+    setReportOpen(true);
+  }
   function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
       if (!isSelectableChatAttachment(file, source)) {
-        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
+        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       return true;
@@ -528,8 +548,18 @@ export default function BookingNegotiationChat({
     setReviewOpen(false);
     toast.success("Your review was saved");
   }
+  const jobActions=useRef(createBookingActionRunner());
+  const [jobActionBusy,setJobActionBusy]=useState(false);
+  function runJobAction(work:()=>Promise<unknown>){
+    return jobActions.current(bookingId,async()=>{await work();await withTimeout(loadAll(true),12000,"Job saved; refresh its current status.");},id=>setJobActionBusy(id!==null),async()=>{
+      toast.error("The job action could not be confirmed. Your input is retained; refresh the booking before retrying.");
+      void withTimeout(loadAll(true),12000,"The current job status could not be refreshed.").catch(()=>{});
+    });
+  }
+
   async function handleWorkerAccept() {
-    const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
+    return runJobAction(async()=>{
+    const amount = parseWorkerQuotePrice(acceptAmount);
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
     if (!acceptDate) return toast.error("Pick a schedule date");
     const { success, error } = await workerAcceptBooking(
@@ -541,31 +571,52 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Booking could not be accepted");
     toast.success("Booking accepted. The customer can now pay.");
     setShowAcceptForm(false);
-    void loadAll(true);
+
+    });
   }
   async function handleWorkerStart() {
+    return runJobAction(async()=>{
     const { success, error } = await workerStartJob(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Job could not be started");
     toast.success("Job started");
-    void loadAll(true);
+
+    });
   }
   async function handleWorkerComplete() {
+    return runJobAction(async()=>{
     const { success, error } = await workerMarkComplete(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Job could not be completed");
     toast.success("Marked complete. Waiting for customer confirmation.");
-    void loadAll(true);
+
+    });
   }
   async function handleCustomerConfirm() {
+    return runJobAction(async()=>{
     const { success, error } = await customerConfirmCompletion(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Completion could not be confirmed");
-    toast.success("Job confirmed. Payment released to the Worker.");
-    void loadAll(true);
+    toast.success("Completion confirmed. Payment release is being processed.");
+
+    });
   }
   async function handleCustomerDispute() {
+    return runJobAction(async()=>{
     if (!disputeReason.trim()) return toast.error("Enter a reason");
+    if (booking?.status === "in_progress" || booking?.status === "confirmed") {
+      const { reviewId, error: reviewError } = await requestWorkerRefundReview(
+        bookingId,
+        booking.status === "confirmed" ? "worker_no_show" : reviewKind,
+        disputeReason.trim(),
+      );
+      if (reviewError || !reviewId)
+        return toast.error(reviewError?.message || "Refund review could not be requested");
+      toast.success("WeHouse is reviewing your refund. The money stays protected until it is decided.");
+      setShowDisputeForm(false);
+
+      return;
+    }
     const { success, error } = await customerRaiseDispute(
       bookingId,
       disputeReason.trim(),
@@ -574,10 +625,28 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Dispute could not be raised");
     toast.success("Dispute sent to WeHouse for review");
     setShowDisputeForm(false);
-    void loadAll(true);
+
+    });
   }
   async function handleCancel() {
+    return runJobAction(async()=>{
     if (!cancelReason.trim()) return toast.error("Enter a reason");
+    if (booking?.status === "confirmed") {
+      const { result, error: cancelError } = await cancelPaidBookingBeforeStart(
+        bookingId,
+        cancelReason.trim(),
+      );
+      if (cancelError || !result?.cancelled)
+        return toast.error(cancelError?.message || "Booking could not be cancelled");
+      toast.success(
+        result.refund_amount
+          ? `Booking cancelled. ${formatMoney(Number(result.refund_amount))} is being refunded.`
+          : "Booking cancelled",
+      );
+      setShowCancelForm(false);
+
+      return;
+    }
     const { success, error } = await cancelBooking(
       bookingId,
       cancelReason.trim(),
@@ -586,53 +655,12 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Booking could not be cancelled");
     toast.success("Booking cancelled");
     setShowCancelForm(false);
-    void loadAll(true);
+
+    });
   }
-  async function handleCustomerPay() {
-    setPaying(true);
-    try {
-      const { result: bootstrap, error: bootstrapErr } =
-        await createWorkerBookingPayment(bookingId);
-      if (bootstrapErr || !bootstrap?.success) {
-        setPaying(false);
-        return toast.error(bootstrap?.error || "Payment initialization failed");
-      }
-      const reference = bootstrap.reference as string,
-        amount = bootstrap.amount as number;
-      const { data: initialized, error: initError } =
-        await supabase.functions.invoke("payment-init", {
-          body: { reference },
-        });
-      if (initError || !initialized?.success) {
-        throw new Error(
-          initialized?.error ||
-            initError?.message ||
-            "Checkout could not start",
-        );
-      }
-      if (initialized.already_paid) {
-        toast.success("Payment is already confirmed");
-        setPaying(false);
-        void loadAll(true);
-        return;
-      }
-      if (!initialized.authorization_url)
-        throw new Error("Paystack checkout link is missing");
-      try {
-        localStorage.setItem(
-          "wh_worker_booking_payment",
-          JSON.stringify({ reference, bookingId, amount }),
-        );
-      } catch {
-        /* Checkout still works when storage is unavailable. */
-      }
-      window.location.assign(String(initialized.authorization_url));
-    } catch (error: unknown) {
-      setPaying(false);
-      toast.error(error instanceof Error ? error.message : "Payment failed");
-    }
-  }
-  const statusInfo = booking?.status
+  const completionConfirmed=booking?.user_approved===true&&booking?.canonical_job_state==='completed';
+  const releasePending=completionConfirmed&&booking?.money_state==='release_pending';
+  const statusInfo = releasePending?{label:'Completion confirmed',color:'bg-violet-500/10 text-[var(--wh-accent-text)]'}:booking?.status
       ? BOOKING_STATUS_LABELS[booking.status]
       : null,
     paymentReview = booking?.payment_review_required === true,
@@ -658,7 +686,7 @@ export default function BookingNegotiationChat({
   if (loading)
     return createPortal(
       <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--wh-bg)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        <WeHouseLoadingState />
       </div>,
       document.body,
     );
@@ -693,6 +721,15 @@ export default function BookingNegotiationChat({
               </p>
             </div>
           </button>
+          {peerId && (
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="min-h-10 shrink-0 px-2 text-[11px] font-semibold text-amber-200"
+            >
+              Report
+            </button>
+          )}
           {openConversation && !contactBlocked && (
             <>
               <button
@@ -768,12 +805,12 @@ export default function BookingNegotiationChat({
                   What happens next
                 </p>
                 <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
-                  {workerNextStep(booking.status, isWorker)}
+                  {releasePending?'Completion is confirmed. Payment release is processing; the wallet updates after release is confirmed.':workerNextStep(booking.status, isWorker)}
                 </p>
               </div>
               {Number(booking.negotiated_amount || 0) > 0 && (
                 <p className="shrink-0 text-xs font-bold">
-                  ₦{Number(booking.negotiated_amount).toLocaleString()}
+                  {formatMoney(Number(booking.negotiated_amount))}
                 </p>
               )}
             </div>
@@ -834,9 +871,9 @@ export default function BookingNegotiationChat({
                     Set price &amp; accept
                   </button>
                 )}
-              {isWorker && booking.status === "confirmed" && (
+              {isWorker && !paymentReview && booking.status === "confirmed" && (
                 <button
-                  onClick={() => void handleWorkerStart()}
+                  disabled={jobActionBusy} onClick={() => void handleWorkerStart()}
                   className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                 >
                   Start job
@@ -844,7 +881,7 @@ export default function BookingNegotiationChat({
               )}
               {isWorker && booking.status === "in_progress" && (
                 <button
-                  onClick={() => void handleWorkerComplete()}
+                  disabled={jobActionBusy} onClick={() => void handleWorkerComplete()}
                   className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                 >
                   Mark complete
@@ -854,18 +891,15 @@ export default function BookingNegotiationChat({
                 !paymentReview &&
                 booking.status === "waiting_payment" && (
                   <button
-                    onClick={() => void handleCustomerPay()}
-                    disabled={paying}
-                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold disabled:opacity-50"
+                    onClick={() => setShowPaymentReview(true)}
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                   >
-                    {paying
-                      ? "Processing…"
-                      : `Pay ₦${Number(booking.negotiated_amount || 0).toLocaleString()}`}
+                    {`Review payment · ${formatMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0))}`}
                   </button>
                 )}
-              {!isWorker && booking.status === "completed_pending_approval" && (
+              {!isWorker && !paymentReview && !completionConfirmed && booking.status === "completed_pending_approval" && (
                 <button
-                  onClick={() => void handleCustomerConfirm()}
+                  disabled={jobActionBusy} onClick={() => void handleCustomerConfirm()}
                   className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                 >
                   Confirm completion
@@ -881,7 +915,7 @@ export default function BookingNegotiationChat({
                     onClick={() => setShowDisputeForm((v) => !v)}
                     className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] font-semibold text-red-300"
                   >
-                    Raise dispute
+                    {booking.status === "in_progress" || booking.status === "confirmed" ? "Ask for a refund review" : "Raise dispute"}
                   </button>
                 )}
               {!paymentReview &&
@@ -889,6 +923,7 @@ export default function BookingNegotiationChat({
                   "booking_requested",
                   "negotiating",
                   "waiting_payment",
+                  "confirmed",
                 ].includes(booking.status) && (
                   <button
                     onClick={() => setShowCancelForm((v) => !v)}
@@ -901,12 +936,12 @@ export default function BookingNegotiationChat({
             {showAcceptForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
                 <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-                  Your price (₦)
+                  Your price ({currencySymbol()})
                   <input
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={acceptAmount}
                     onChange={(e) =>
-                      setAcceptAmount(e.target.value.replace(/[^0-9]/g, ""))
+                      setAcceptAmount(e.target.value)
                     }
                     placeholder="Enter the final price"
                     className="mt-1 h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
@@ -914,7 +949,7 @@ export default function BookingNegotiationChat({
                 </label>
                 <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
                 <button
-                  disabled={!Number(acceptAmount) || !acceptDate}
+                  disabled={jobActionBusy || parseWorkerQuotePrice(acceptAmount)===null || !acceptDate}
                   onClick={() => void handleWorkerAccept()}
                   className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                 >
@@ -924,6 +959,18 @@ export default function BookingNegotiationChat({
             )}
             {showDisputeForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-red-500/15 bg-red-500/[.035] p-2">
+                {booking.status === "in_progress" && (
+                  <select
+                    value={reviewKind}
+                    onChange={(e) => setReviewKind(e.target.value as typeof reviewKind)}
+                    aria-label="Reason for the review"
+                    className="h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-xs outline-none"
+                  >
+                    <option value="worker_not_delivered">The work was not delivered or is not what we agreed</option>
+                    <option value="worker_no_show">The Worker stopped showing up</option>
+                    <option value="customer_cancel_after_start">I no longer want the job</option>
+                  </select>
+                )}
                 <textarea
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
@@ -932,7 +979,7 @@ export default function BookingNegotiationChat({
                   className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
                 />
                 <button
-                  onClick={() => void handleCustomerDispute()}
+                  disabled={jobActionBusy} onClick={() => void handleCustomerDispute()}
                   className="h-9 w-full rounded-lg bg-red-500 text-[10px] font-semibold"
                 >
                   Submit dispute
@@ -956,7 +1003,7 @@ export default function BookingNegotiationChat({
                     Keep booking
                   </button>
                   <button
-                    onClick={() => void handleCancel()}
+                    disabled={jobActionBusy} onClick={() => void handleCancel()}
                     className="h-9 rounded-lg bg-red-500/10 text-[10px] font-semibold text-red-300"
                   >
                     Cancel booking
@@ -967,6 +1014,20 @@ export default function BookingNegotiationChat({
           </div>
         )}
       </header>
+      <PinnedMessagesBar
+        items={pins.pinned.map((id) => messages.find((m) => m.id === id)).filter((m): m is ChatMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || "Attachment" }))}
+        onJump={scrollToMessage}
+        onUnpin={(id) => void pins.toggle(id)}
+      />
+      {reportOpen && peerId && (
+        <ReportDialog
+          subjectType="worker_chat"
+          subjectUserId={peerId}
+          subjectName={peerName || "this person"}
+          subjectRef={conversationId}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
           {messages.some((message) => message.decryption_failed) ? (
@@ -1032,6 +1093,7 @@ export default function BookingNegotiationChat({
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
                 <MessagePress
+                  messageId={msg.id}
                   onOpen={(anchor) => {
                     setMessageMenuAnchor(anchor);
                     setMessageMenuMode("actions");
@@ -1377,6 +1439,7 @@ export default function BookingNegotiationChat({
             if (peerBlocked) void togglePeerBlock();
             else setBlockPrompt(true);
           }}
+          onReport={openReport}
         />
       ) : null}
       {detailsOpen && booking ? (
@@ -1389,6 +1452,8 @@ export default function BookingNegotiationChat({
       ) : null}
       {messageMenu && (
         <MessageActionSheet
+          pinned={pins.pinned.includes(messageMenu.id)}
+          onPin={() => { const id = messageMenu.id; setMessageMenu(null); void pins.toggle(id); }}
           anchor={messageMenuAnchor}
           mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
@@ -1435,13 +1500,56 @@ export default function BookingNegotiationChat({
       />
       <ConfirmDialog
         isOpen={blockPrompt}
-        title={`Block ${peerProfile?.full_name || peerName}?`}
-        description="Messages and private calls will stop. If money is secured for an active job, WeHouse will move it to review instead of silently cancelling it."
-        confirmLabel="Block person"
+        title={`Stop contact with ${peerProfile?.full_name || peerName}?`}
+        description="Messages and private calls will stop. Your booking, payment review and chat history will stay intact unless WeHouse flags a real safety issue."
+        confirmLabel="Stop contact"
         variant="danger"
         onCancel={() => setBlockPrompt(false)}
         onConfirm={() => void togglePeerBlock()}
       />
+      {showPaymentReview && booking && !isWorker ? (
+        <div
+          className="fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto bg-slate-950/70 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review service booking payment"
+          onClick={(event) => {
+            if (event.target === event.currentTarget)
+              setShowPaymentReview(false);
+          }}
+        >
+          <div className="my-auto w-full max-w-2xl">
+            <BookingPaymentReview
+              eyebrow="Service booking"
+              title="Review before payment"
+              subtitle="Check the agreed service, provider, schedule and total before continuing."
+              rows={[
+                { label: "Service", value: booking.service_type || "Service request" },
+                { label: "Service provider", value: booking.worker_name || peerName },
+                { label: "Scheduled date", value: formatServiceBookingDate(booking.scheduled_date) },
+                { label: "Agreed work", value: booking.description || booking.customer_message || "No work description saved" },
+                { label: "Service location", value: booking.address || "Not saved" },
+                { label: "Booking reference", value: booking.booking_code || bookingId },
+              ]}
+              amountLabel="Total due now"
+              amount={`${formatMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0))}`}
+              checkoutLabel="Payment paused until approved cancellation terms are saved"
+              termsTitle="Cancellation and refund terms"
+              terms={
+                <p>
+                  No Service Worker cancellation or refund policy is attached to this booking. WeHouse must save and show the approved terms before payment can continue.
+                </p>
+              }
+              note="You can return to the conversation to raise a correction to the agreed scope, date or price. No payment will be taken from this screen."
+              editLabel="Back to conversation"
+              confirmLabel="Payment unavailable"
+              confirmDisabled
+              onEdit={() => setShowPaymentReview(false)}
+              onConfirm={() => undefined}
+            />
+          </div>
+        </div>
+      ) : null}
       {confirmDelete && (
         <DeleteSheet
           onCancel={() => setConfirmDelete(false)}
@@ -1451,6 +1559,13 @@ export default function BookingNegotiationChat({
     </div>,
     document.body,
   );
+}
+function formatServiceBookingDate(value?: string | null) {
+  if (!value) return "Not set";
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { dateStyle: "long" });
 }
 function ChatAvatar({ name, src }: { name: string; src?: string | null }) {
   return (
@@ -1477,6 +1592,7 @@ function ConversationIdentitySheet({
   blockedByPeer,
   blockBusy,
   onToggleBlock,
+  onReport,
 }: {
   profile: ConversationProfile | null;
   booking: Booking | null;
@@ -1491,6 +1607,7 @@ function ConversationIdentitySheet({
   blockedByPeer: boolean;
   blockBusy: boolean;
   onToggleBlock: () => void;
+  onReport: () => void;
 }) {
   const [fullProfile, setFullProfile] = useState(false);
   const viewingWorker = !isWorker;
@@ -1509,13 +1626,19 @@ function ConversationIdentitySheet({
         onBack={() => setFullProfile(false)}
         onBook={() => undefined}
         showBookingAction={false}
+        fullProfile
           communicationActions={!blocked && !blockedByPeer ? (
           <>
             <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
             <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
           </>
         ) : undefined}
-        safetyAction={<ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />}
+        safetyAction={
+          <div className="mt-5 space-y-2">
+            <button type="button" className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200" onClick={onReport}>Report profile</button>
+            <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+          </div>
+        }
       />
     );
   }
@@ -1561,7 +1684,7 @@ function ConversationIdentitySheet({
               />
               <CaseFact
                 label="Agreed price"
-                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `₦${Number(booking.agreed_amount || booking.negotiated_amount).toLocaleString("en-NG")}` : "Not agreed"}
+                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `${formatMoney(Number(booking.agreed_amount || booking.negotiated_amount))}` : "Not agreed"}
               />
             </div>
             {booking.address ? (
@@ -1578,7 +1701,10 @@ function ConversationIdentitySheet({
             ) : null}
           </div>
         ) : null}
-        <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        <div className="mt-5 space-y-2">
+          <button type="button" className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text)]" onClick={onReport}>Report profile</button>
+          <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        </div>
         </>
       }
     />
@@ -1731,7 +1857,7 @@ function VideoCall() {
   );
 }
 function ProfileBlockAction({ blocked, busy, onClick }: { blocked: boolean; busy: boolean; onClick: () => void }) {
-  return <button type="button" disabled={busy} onClick={onClick} className="mt-6 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Unblock person" : "Block person"}</button>;
+  return <button type="button" disabled={busy} onClick={onClick} className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Resume contact" : "Stop contact"}</button>;
 }
 function TrashIcon() {
   return (

@@ -21,6 +21,7 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
   activeOwner.current = profile.user_id;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const actionLock = useRef(false);
 
   const load = useCallback(async () => {
     const request = ++generation.current;
@@ -28,6 +29,8 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
       const { data, error: loadError } = await withTimeout(supabase.rpc("get_my_pending_device_login_alert"), 12000, "Login review unavailable");
       if (request !== generation.current) return;
       if (loadError) throw loadError;
+      if (data && (!['notificationId','sessionId','device','os','browser','loginTime'].every(key => typeof data[key] === 'string')
+        || !Number.isFinite(Date.parse(data.loginTime)))) throw new Error('Invalid login review');
       setError("");
       setAlert(data ? { ...data as LoginAlert, ownerId: profile.user_id } : null);
     } catch {
@@ -37,16 +40,23 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
 
   useEffect(() => {
     setAlert(null); setBusy(false); setError("");
+    actionLock.current = false;
     void load();
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { refreshTimer = undefined; void load(); }, 250);
+    };
     const channel = supabase
       .channel(`new-login-alert:${profile.user_id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${profile.user_id}` }, () => void load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `recipient_id=eq.${profile.user_id}` }, schedule)
       .subscribe();
     const refresh = () => { if (document.visibilityState === "visible") void load(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       generation.current += 1;
+      if (refreshTimer !== undefined) clearTimeout(refreshTimer);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
@@ -54,45 +64,49 @@ export default function NewLoginAlert({ profile }: { profile: Profile }) {
   }, [load, profile.user_id]);
 
   async function answer(wasMe: boolean) {
-    if (!alert || busy) return;
+    if (!alert || actionLock.current) return;
+    actionLock.current = true;
     setBusy(true);
     setError("");
     const ownerId = profile.user_id;
 
     try {
-      const { error: reviewError } = await withTimeout(supabase.rpc("review_new_device_login", {
+      const { data, error: reviewError } = await withTimeout(supabase.rpc("review_new_device_login", {
         p_session_id: alert.sessionId, p_was_me: wasMe,
       }), 15000, "Login review timed out");
       if (activeOwner.current !== ownerId) return;
       if (reviewError) throw reviewError;
+      if (data?.session_id !== alert.sessionId || data?.decision !== (wasMe ? 'recognized' : 'terminated'))
+        throw new Error('Login review receipt could not be confirmed');
       setAlert(current => current?.sessionId === alert.sessionId ? null : current);
       setBusy(false);
       void load();
     } catch {
       if (activeOwner.current === ownerId) setError("We couldn't update this login. Check your connection and try again.");
     } finally {
-      if (activeOwner.current === ownerId) setBusy(false);
+      if (activeOwner.current === ownerId) { actionLock.current = false; setBusy(false); }
     }
   }
 
   if (!alert || alert.ownerId !== profile.user_id || typeof document === "undefined") return null;
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[100200] flex justify-center px-3 pt-[max(.75rem,env(safe-area-inset-top))]">
-    <section className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-amber-400/15 bg-[#11141C] text-white shadow-2xl shadow-black/70" role="region" aria-live="polite" aria-labelledby="new-login-title" aria-describedby="new-login-description">
+    <section className="pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] text-[var(--wh-text-primary)] shadow-2xl" role="region" aria-live="polite" aria-labelledby="new-login-title" aria-describedby="new-login-description">
       <div className="flex items-start gap-3 px-4 pb-3 pt-4">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-300/10 text-amber-200"><DeviceShieldIcon /></div>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/10 text-[var(--wh-text-primary)]"><DeviceShieldIcon /></div>
         <div className="min-w-0 flex-1">
           <h2 id="new-login-title" className="text-sm font-semibold">Someone signed in to your account</h2>
-          <p id="new-login-description" className="mt-1 text-xs leading-5 text-[#A4A7B0]">
+          <p id="new-login-description" className="mt-1 break-words text-xs leading-5 text-[var(--wh-text-secondary)]">
             {alert.device} · {alert.browser}. Was this you?
           </p>
-          <p className="mt-1 text-[11px] text-[#8B91A0]">{new Date(alert.loginTime).toLocaleString()}</p>
+          <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{new Date(alert.loginTime).toLocaleString()}</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">If you do not recognize this device, end its WeHouse access and reset your password.</p>
         </div>
       </div>
-      {error && <p className="mx-4 mb-3 rounded-xl bg-red-500/10 px-3 py-2 text-[10px] text-red-300">{error}</p>}
-      <div className="grid grid-cols-2 border-t border-white/[.06]">
-        <button onClick={() => void answer(true)} disabled={busy} className="min-h-11 text-xs font-semibold text-emerald-300 disabled:opacity-40">{busy ? "Checking…" : "Yes, it’s me"}</button>
-        <button onClick={() => void answer(false)} disabled={busy} className="min-h-11 border-l border-white/[.06] text-xs font-semibold text-red-300 disabled:opacity-40">No, it’s not me</button>
+      {error && <p role="alert" className="mx-4 mb-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-[var(--wh-danger-text)]">{error}</p>}
+      <div className="grid grid-cols-2 border-t border-[var(--wh-border-subtle)]">
+        <button onClick={() => void answer(true)} disabled={busy} className="min-h-12 px-3 text-sm font-semibold disabled:opacity-40">{busy ? "Checking…" : "This was me"}</button>
+        <button onClick={() => void answer(false)} disabled={busy} className="min-h-12 border-l border-[var(--wh-border-subtle)] px-3 text-sm font-semibold text-[var(--wh-danger-text)] disabled:opacity-40">End this device’s access</button>
       </div>
     </section>
     </div>,

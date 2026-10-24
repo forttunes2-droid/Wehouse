@@ -11,6 +11,7 @@ declare
   apartment_cancel text;
   hotel_cancel text;
   hotel_cancel_compact text;
+  hotel_eligibility_compact text;
   worker_cancel text;
   record_transfer text;
   settle_transfer text;
@@ -20,6 +21,9 @@ begin
   select pg_get_functiondef('public.cancel_my_hotel_booking(integer)'::regprocedure)
     into hotel_cancel;
   hotel_cancel_compact := regexp_replace(lower(hotel_cancel), '\s+', '', 'g');
+  select regexp_replace(lower(pg_get_functiondef(
+    'private.hotel_cancellation_eligibility(integer,text)'::regprocedure)), '\s+', '', 'g')
+    into hotel_eligibility_compact;
   select pg_get_functiondef('public.cancel_booking(uuid,text)'::regprocedure)
     into worker_cancel;
   select pg_get_functiondef('public.record_withdrawal_transfer_response(uuid,text,text,jsonb)'::regprocedure)
@@ -44,10 +48,14 @@ begin
   end if;
   if hotel_cancel_compact not like '%activepersonalaccountrequired%'
      or hotel_cancel_compact not like '%user_id=actorforupdate%'
-     or hotel_cancel_compact not like '%cancellation_snapshotisnull%'
-     or hotel_cancel_compact not like '%deadline''isnull%'
-     or hotel_cancel_compact not like '%now()>(booking.cancellation_snapshot->>''deadline'')::timestamptz%'
-     or hotel_cancel_compact not like '%paymentrequiresfinancereconciliationbeforecancellation%'
+     or hotel_cancel_compact not like '%eligibility:=private.hotel_cancellation_eligibility(p_booking_id,actor)%'
+     or hotel_cancel_compact not like '%eligibility->>''kind''isdistinctfrom''full_refund''%'
+     or hotel_eligibility_compact not like '%terms:=booking.cancellation_snapshot%'
+     or hotel_eligibility_compact not like '%termsisnull%'
+     or hotel_eligibility_compact not like '%terms->>''deadline''isnull%'
+     or hotel_eligibility_compact not like '%deadline:=(terms->>''deadline'')::timestamptz%'
+     or hotel_eligibility_compact not like '%now()>deadline%'
+     or hotel_eligibility_compact not like '%paymentrequiresfinancereconciliationbeforecancellation%'
      or hotel_cancel_compact not like '%refund_hotel_cancellation%'
      or hotel_cancel_compact like '%setpayment_status=''refunded''%' then
     raise exception 'Hotel cancellation bypasses saved terms, payment review or provider refund confirmation';

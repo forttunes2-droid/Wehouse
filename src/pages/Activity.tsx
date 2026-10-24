@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { Profile } from '@/types';
 import Notifications from '@/pages/Notifications';
+import FriendsPanel from '@/components/FriendsPanel';
 import ActivityHeader from '@/components/ActivityHeader';
 
 type ActivityProps = {
@@ -31,6 +32,7 @@ export default function Activity({ profile, onNavigate }: ActivityProps) {
         <ActivityHeader onBack={() => onNavigate('conversation')} className="mx-auto max-w-5xl" />
       </div>
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-5 lg:px-8">
+        <FriendsPanel myUserId={profile.user_id} />
         <Notifications
           profile={profile}
           scope="personal"

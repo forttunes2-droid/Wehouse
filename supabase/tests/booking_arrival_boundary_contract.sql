@@ -1,0 +1,36 @@
+begin;
+create function pg_temp.expect(value boolean,description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description;end if;end$$;
+create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$begin execute statement;return false;exception when others then return true;end$$;
+grant execute on function pg_temp.expect(boolean,text) to authenticated;
+do $$declare au uuid:=gen_random_uuid();sess uuid:=gen_random_uuid();person text:='arrival-check-'||au;decision jsonb;
+begin
+ insert into auth.users(id,aud,role,email,created_at,updated_at) values(au,'authenticated','authenticated',au||'@example.invalid',now(),now());
+ insert into public.profiles(auth_id,email,user_id,role,profile_complete) values(au,au||'@example.invalid',person,'user',true);
+ insert into auth.sessions(id,user_id,created_at,updated_at) values(sess,au,now(),now());
+ insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status) values(person,au,sess,'check-'||au,'Browser',true,'trusted');
+ perform pg_temp.expect(position('accommodation_access_authorization' in pg_get_functiondef('public.get_my_stay_arrival_instructions(text,text)'::regprocedure))>0,'arrival instructions reuse canonical provider/ledger/shared-payment authority');
+ perform pg_temp.expect(position('accommodation_access_authorization' in pg_get_functiondef('public.request_my_apartment_move_in(text,timestamptz)'::regprocedure))>0,'move-in scheduling reuses canonical authority');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',au,'session_id',sess,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ perform pg_temp.expect(public.get_my_stay_arrival_instructions('home','missing-'||au) is null,'unrelated or absent reservation reveals no arrival instructions');
+ perform pg_temp.expect(not has_function_privilege('authenticated','public.accommodation_access_authorization(text,text,text,text,text,text,timestamptz,text,timestamptz,text,uuid,uuid,uuid,numeric,text)','execute'),'browser cannot invoke the internal authorization helper directly');
+ execute 'reset role';
+ decision:=public.accommodation_access_authorization('missing-'||au,'missing-listing',person,'long_stay','reserved','paid',now(),'not_started',null,null,null,null,null,100,'location');
+ perform pg_temp.expect(not coalesce((decision->>'authorized')::boolean,false),'reservation fee alone cannot authorize private access');
+ decision:=public.accommodation_access_authorization('missing-'||au,'missing-listing',person,'long_stay','ready_for_move_in','paid',now(),'paid',now(),'unverified',null,null,null,100,'handover');
+ perform pg_temp.expect(not coalesce((decision->>'authorized')::boolean,false),'paid labels without matching verified money cannot authorize access');
+ execute 'reset role';
+ update public.user_sessions set is_active=false where user_id=person;
+ execute 'set local role authenticated';
+ perform pg_temp.expect(public.get_my_stay_arrival_instructions('home','missing-'||au) is null,'revoked device receives no arrival instructions');
+ execute 'reset role';
+end $$;
+do $$begin
+ perform pg_temp.expect(private.short_let_refund_hours('{}')=24,'existing default deadline is preserved');
+ perform pg_temp.expect(private.short_let_refund_hours('{"full_refund_hours_before_check_in":48}')=48,'prior saved deadline key is honoured');
+ perform pg_temp.expect(private.short_let_refund_hours('{"standard_full_refund_hours_before_check_in":36}')=36,'current saved deadline key is honoured');
+ perform pg_temp.expect(pg_temp.rejects($q$select private.short_let_refund_hours('{"standard_full_refund_hours_before_check_in":24,"full_refund_hours_before_check_in":48}')$q$),'conflicting saved deadlines require review');
+ perform pg_temp.expect(pg_temp.rejects($q$select private.short_let_refund_hours('{"full_refund_hours_before_check_in":-1}')$q$),'negative deadline is rejected');
+end $$;
+rollback;
+select 'Arrival canonical wiring and negative authenticated access checks passed; paid whole-journey acceptance remains separate' as result;

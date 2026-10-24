@@ -1,4 +1,7 @@
 import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import PublicProfileSurface from "@/components/PublicProfileSurface";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { hotelMessagePresentation, type HotelConversationContext } from "@/lib/hotelConversationContext";
 import { displayDate } from "@/lib/displayDate";
@@ -31,6 +34,7 @@ import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import type { Profile } from "@/types";
 import ChatAttachmentPicker from "@/components/ChatAttachmentPicker";
 import BackButton from "@/components/BackButton";
+import ReportDialog from "@/components/ReportDialog";
 
 type Props = {
   bookingId: number;
@@ -59,9 +63,18 @@ export default function HotelBookingChat({
   onUpdated,
 }: Props) {
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ user_id: string; display_name: string } | null>(null);
   const [conversationId, setConversationId] = useState(
     initialConversationId || "",
   );
+  const openReport = useCallback(async () => {
+    if (!conversationId) return;
+    const { data, error } = await supabase.rpc('hotel_chat_report_target', { p_conversation_id: conversationId });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (error || !row) return toast.error('Could not open the report form');
+    setReportTarget(row);
+  }, [conversationId]);
   const [messages, setMessages] = useState<LocalHotelMessage[]>([]);
   const [context, setContext] = useState<HotelConversationContext | null>(null);
   const [input, setInput] = useState("");
@@ -69,6 +82,7 @@ export default function HotelBookingChat({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [messageMenu, setMessageMenu] = useState<HotelMessage | null>(null);
+  const pins = useMessagePins("hotel", conversationId || null, messages.length);
   const [messageMenuMode, setMessageMenuMode] = useState<"reactions" | "actions">("reactions");
   const [replyingTo, setReplyingTo] = useState<HotelMessage | null>(null);
   const [messageToRemove, setMessageToRemove] = useState<HotelMessage | null>(
@@ -161,7 +175,7 @@ export default function HotelBookingChat({
     const incoming: File[] = [];
     for (const file of Array.from(list)) {
       if (!isSelectableChatAttachment(file, source)) {
-        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE}`);
+        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE}`);
         continue;
       }
       try {
@@ -299,17 +313,41 @@ export default function HotelBookingChat({
       <header className="shrink-0 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 px-3 py-2.5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {!loading ? <BackButton onClick={dismiss} ariaLabel="Back to Inbox" className="!ml-0 !w-10" /> : <span aria-hidden="true" className="h-10 w-10 shrink-0" />}
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
-            {chatTitle.trim().charAt(0).toUpperCase() || "H"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold">{chatTitle}</h1>
-            <p className="mt-0.5 truncate text-xs text-[var(--wh-text-muted)]">
-              {chatSubtitle}
-            </p>
-          </div>
+          <button type="button" onClick={() => setInfoOpen(true)} aria-label={`${chatTitle} conversation info`} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-200">
+              {chatTitle.trim().charAt(0).toUpperCase() || "H"}
+            </span>
+            <span className="min-w-0 flex-1">
+              <h1 className="truncate text-sm font-semibold">{chatTitle}</h1>
+              <p className="mt-0.5 truncate text-xs text-[var(--wh-text-muted)]">
+                {chatSubtitle}
+              </p>
+            </span>
+          </button>
+          {conversationId && !loading ? <button type="button" onClick={() => void openReport()} className="h-10 shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold">Report</button> : null}
         </div>
       </header>
+      {infoOpen && (
+        <PublicProfileSurface conversation name={chatTitle} subtitle={chatSubtitle} onClose={() => setInfoOpen(false)} ariaLabel={`${chatTitle} conversation info`}>
+          {context && (
+            <section className="border-t border-[var(--wh-border-subtle)] py-5">
+              <h2 className="text-xs font-bold uppercase tracking-[.14em] text-[var(--wh-text-secondary)]">Booking</h2>
+              <dl className="mt-3 space-y-2 text-sm">
+                {hotelView && context.hotel_name ? <div className="flex justify-between gap-4"><dt className="text-[var(--wh-text-secondary)]">Hotel</dt><dd className="text-right">{context.hotel_name}</dd></div> : null}
+                {context.room_name ? <div className="flex justify-between gap-4"><dt className="text-[var(--wh-text-secondary)]">Room</dt><dd className="text-right">{context.room_name}</dd></div> : null}
+                <div className="flex justify-between gap-4"><dt className="text-[var(--wh-text-secondary)]">Stay</dt><dd className="text-right">{displayDate(context.check_in)} – {displayDate(context.check_out)}</dd></div>
+              </dl>
+              {specialRequest ? <p className="mt-4 whitespace-pre-line text-sm leading-6 text-[var(--wh-text-secondary)]">Special request: {specialRequest}</p> : null}
+            </section>
+          )}
+        </PublicProfileSurface>
+      )}
+      <PinnedMessagesBar
+        items={pins.pinned.map((id) => messages.find((m) => m.id === id)).filter((m): m is LocalHotelMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || (m.attachments?.length ? "Attachment" : "Message") }))}
+        onJump={scrollToMessage}
+        onUnpin={(id) => void pins.toggle(id)}
+      />
+      {reportTarget ? <ReportDialog subjectType="hotel_chat" subjectUserId={reportTarget.user_id} subjectName={reportTarget.display_name} subjectRef={conversationId} onClose={() => setReportTarget(null)} /> : null}
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         <div className="mx-auto max-w-3xl space-y-2">
@@ -348,6 +386,7 @@ export default function HotelBookingChat({
               return (
                 <MessagePress
                   key={message.id}
+                  messageId={message.id}
                   onOpen={(anchor) => {
                     setMessageMenuAnchor(anchor);
                     if (message.delivery_state) return;
@@ -542,6 +581,8 @@ export default function HotelBookingChat({
             setMessageToRemove(messageMenu);
             setMessageMenu(null);
           }}
+          pinned={pins.pinned.includes(messageMenu.id)}
+          onPin={() => { const id = messageMenu.id; setMessageMenu(null); void pins.toggle(id); }}
           onCopy={messageMenu.content ? () => {
             void navigator.clipboard.writeText(messageMenu.content || "");
             toast.success("Message copied");

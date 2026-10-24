@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import DateField from "@/components/BookingDateField";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -5,10 +6,13 @@ import {
   getRoomById,
   initializeHotelBookingPayment,
   quoteHotelRoomRate,
+  updateBookingStatus,
 } from "@/lib/supabase";
 import type { Hotel, HotelRatePlan, HotelRoom } from "@/types";
 import { toast } from "sonner";
+import { formatMoney, propertyTimeZone } from "@/lib/regional";
 import BackButton from "@/components/BackButton";
+import BookingPaymentReview from "@/components/BookingPaymentReview";
 
 interface HotelBookingProps {
   hotelId: number;
@@ -22,6 +26,19 @@ interface HotelBookingProps {
 }
 
 type RoomContext = HotelRoom & { hotels: Hotel };
+type PendingHotelBooking = {
+  booking_id: number;
+  total_price: number;
+  rate_plan_name?: string | null;
+  check_in: string;
+  check_out: string;
+  guest_count: number;
+  guest_name: string;
+  guest_phone: string;
+  special_requests?: string | null;
+  payment_expires_at?: string | null;
+  cancellation_snapshot?: { refundable: boolean; deadline: string; timezone: string; refund_amount_ngn: number };
+};
 type Quote = {
   available: boolean;
   nights?: number;
@@ -31,9 +48,13 @@ type Quote = {
   cancellation_deadline?: string | null;
   cancellation_timezone?: string;
   refund_amount_ngn?: number;
+  original_price?: number;
+  discount_percent?: number;
+  discount_amount?: number;
+  wehouse_discount_percent?: number;
 };
 
-const money = (value: number) => `₦${value.toLocaleString('en-NG')}`;
+const money = (value: number) => formatMoney(value);
 const mealLabels: Record<HotelRatePlan["meal_plan"], string> = {
   room_only: "Room only",
   breakfast: "Breakfast included",
@@ -63,7 +84,7 @@ export default function HotelBooking({
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [pendingBooking, setPendingBooking] = useState<{booking_id:number;total_price:number;cancellation_snapshot?:{refundable:boolean;deadline:string;timezone:string;refund_amount_ngn:number}}|null>(null);
+  const [pendingBooking, setPendingBooking] = useState<PendingHotelBooking | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -158,6 +179,19 @@ export default function HotelBooking({
     setSubmitting(false);
   }
 
+  async function editPendingBooking() {
+    if (!pendingBooking || submitting) return;
+    setSubmitting(true);
+    const { error } = await updateBookingStatus(pendingBooking.booking_id, "cancelled");
+    setSubmitting(false);
+    if (error) {
+      toast.error(error.message || "The unpaid room hold could not be released");
+      return;
+    }
+    setPendingBooking(null);
+    toast.success("Room hold released. You can edit the booking details.");
+  }
+
   async function openPayment() {
     if (!pendingBooking || submitting) return;
     setSubmitting(true);
@@ -181,15 +215,58 @@ export default function HotelBooking({
     window.location.assign(String(payment.result.authorization_url));
   }
 
-  if (pendingBooking) return <main className="mx-auto max-w-lg space-y-4 p-5 text-[var(--wh-text)]"><BackButton onClick={onBack}/><h1 className="text-xl font-semibold">Review your saved booking</h1><p className="text-sm">Total {money(Number(pendingBooking.total_price))}. The room hold expires if you do not complete payment.</p>
-    {pendingBooking.cancellation_snapshot?.refundable ? <p className="text-sm leading-6">Full refund {money(Number(pendingBooking.cancellation_snapshot.refund_amount_ngn))} if cancelled by {new Date(pendingBooking.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:pendingBooking.cancellation_snapshot.timezone})} ({pendingBooking.cancellation_snapshot.timezone}). These terms are saved for this booking.</p> : <p className="text-sm leading-6">Non-refundable for ordinary cancellation or missed arrival. Payment or stay problems can be reported to WeHouse for review.</p>}
-    <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Eligible refunds go to the original payment method and are complete only after provider confirmation.</p><button type="button" disabled={submitting} onClick={()=>void openPayment()} className="min-h-12 w-full rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{submitting?'Opening Paystack…':'Accept saved terms and continue to payment'}</button></main>;
+  if (pendingBooking) {
+    const savedCancellation = pendingBooking.cancellation_snapshot;
+    const cancellationTerms = savedCancellation
+      ? savedCancellation.refundable
+        ? `Full refund ${money(Number(savedCancellation.refund_amount_ngn))} if cancelled by ${formatDeadline(savedCancellation.deadline, savedCancellation.timezone)}. These terms are saved for this booking.`
+        : "This rate is non-refundable for ordinary cancellation or missed arrival. A payment or stay problem can still be reported to WeHouse for review."
+      : "Saved cancellation terms are not available. Payment is disabled until the booking can show the terms.";
+
+    const pendingRows = [
+      { label: "Hotel", value: room?.hotels.name || "Selected hotel" },
+      { label: "Room and package", value: `${room?.room_type || "Room"} · ${pendingBooking.rate_plan_name || ratePlan?.name || "Selected package"}` },
+      { label: "Check-in", value: formatBookingDate(pendingBooking.check_in) },
+      { label: "Check-out", value: formatBookingDate(pendingBooking.check_out) },
+      { label: "Guests", value: String(pendingBooking.guest_count) },
+      { label: "Guest name", value: pendingBooking.guest_name },
+      { label: "Guest phone", value: pendingBooking.guest_phone },
+      ...(pendingBooking.special_requests ? [{ label: "Special request", value: pendingBooking.special_requests }] : []),
+      { label: "Stay total", value: money(Number(pendingBooking.total_price)) },
+      ...(pendingBooking.payment_expires_at ? [{ label: "Room hold expires", value: formatDeadline(pendingBooking.payment_expires_at) }] : []),
+    ];
+    return (
+      <main className="min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-6 text-[var(--wh-text)] sm:py-10">
+        <div className="mx-auto max-w-xl">
+          <BackButton onClick={() => void editPendingBooking()} />
+          <div className="mt-4">
+            <BookingPaymentReview
+              eyebrow="Hotel booking"
+              title="Review your stay"
+              subtitle="Check the hotel, room, package, dates, guest details and saved cancellation terms before paying."
+              rows={pendingRows}
+              amountLabel="Total due now"
+              amount={money(Number(pendingBooking.total_price))}
+              termsTitle="Cancellation and arrival"
+              terms={cancellationTerms}
+              note="Eligible refunds go to the original payment method and remain processing until Paystack confirms them. WeHouse confirms your booking only after verified payment."
+              editLabel="Edit booking"
+              confirmLabel="Accept terms and continue"
+              busy={submitting}
+              busyLabel="Releasing room hold…"
+              confirmDisabled={!savedCancellation}
+              onEdit={() => void editPendingBooking()}
+              onConfirm={() => void openPayment()}
+            />
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (!room || !ratePlan)
@@ -197,7 +274,7 @@ export default function HotelBooking({
       <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-5 text-center text-[var(--wh-text)]">
         <div>
           <p className="text-sm font-semibold">Room package unavailable</p>
-          <button onClick={onBack} className="mt-4 text-xs font-semibold text-violet-300">Choose another room</button>
+          <button onClick={onBack} className="mt-4 text-xs font-semibold text-violet-700 dark:text-violet-300">Choose another room</button>
         </div>
       </div>
     );
@@ -209,7 +286,7 @@ export default function HotelBooking({
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <BackButton onClick={onBack} />
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[.16em] text-violet-300">Secure hotel booking</p>
+            <p className="text-[11px] font-bold uppercase tracking-[.16em] text-violet-700 dark:text-violet-300">Secure hotel booking</p>
             <h1 className="mt-1 truncate text-sm font-semibold">{room.hotels.name}</h1>
           </div>
         </div>
@@ -221,12 +298,12 @@ export default function HotelBooking({
           <div className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div><h2 className="text-base font-bold">{room.room_type}</h2><p className="mt-1 text-xs text-[var(--wh-text-muted)]">Up to {room.max_guests} guests{room.bed_type ? ` · ${room.bed_type}` : ""}</p></div>
-              <p className="text-sm font-bold text-violet-200">₦{Number(ratePlan.price_per_night).toLocaleString()}<span className="block text-right text-[11px] font-normal text-[var(--wh-text-muted)]">per night</span></p>
+              <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{formatMoney(Number(ratePlan.price_per_night))}<span className="block text-right text-[11px] font-normal text-[var(--wh-text-muted)]">per night</span></p>
             </div>
             <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
               <p className="text-xs font-semibold">{ratePlan.name}</p>
               <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{mealLabels[ratePlan.meal_plan]} · {ratePlan.refundable ? `Refundable up to ${ratePlan.cancellation_hours || 0}h before arrival` : "Non-refundable"}</p>
-              {ratePlan.included_features?.length ? <p className="mt-2 text-[11px] text-emerald-300">Includes {ratePlan.included_features.join(" · ")}</p> : null}
+              {ratePlan.included_features?.length ? <p className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">Includes {ratePlan.included_features.join(" · ")}</p> : null}
             </div>
           </div>
         </section>
@@ -238,10 +315,10 @@ export default function HotelBooking({
             <DateField label="Check-in" value={checkIn} min={tomorrowString} max={windowEndString} onChange={(value) => { setCheckIn(value); if (checkOut && checkOut <= value) setCheckOut(""); }} />
             <DateField label="Check-out" value={checkOut} min={minimumCheckout} max={windowEndString} onChange={setCheckOut} />
           </div>
-          {quoteLoading ? <p className="mt-3 text-xs text-violet-300">Checking live room inventory…</p> : null}
-          {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
+          {quoteLoading ? <p className="mt-3 text-xs text-violet-700 dark:text-violet-300">Checking live room inventory…</p> : null}
+          {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-700 dark:text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
           {quote?.available && quote.nights && quote.total_price ? (
-            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><p className="text-lg font-bold">₦{Number(quote.total_price).toLocaleString()}</p></div>
+            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">{formatMoney(Number(quote.original_price))}</span> · {quote.discount_percent}% off{quote.wehouse_discount_percent ? ` · includes ${quote.wehouse_discount_percent}% from WeHouse` : " from the hotel"}</p> : null}<p className="text-lg font-bold">{formatMoney(Number(quote.total_price))}</p></div></div>
           ) : null}
         </section>
 
@@ -264,18 +341,18 @@ export default function HotelBooking({
         </section>
 
         <section className="rounded-2xl border border-violet-400/20 bg-violet-500/[.06] p-4" aria-label="Cancellation and arrival terms">
-          <h2 className="text-sm font-semibold text-white">Cancellation and arrival</h2>
+          <h2 className="text-sm font-semibold text-[var(--wh-text)]">Cancellation and arrival</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">
             {ratePlan.refundable
               ? `This rate is refundable when you request cancellation at least ${ratePlan.cancellation_hours ?? 0} hours before the hotel's check-in time. After that deadline, a refund is not automatic.`
               : "This rate is non-refundable if you cancel or do not arrive. A payment or stay problem can still be reported to WeHouse for review."}
           </p>
-          {quote?.cancellation_deadline && <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Full refund {money(Number(quote.refund_amount_ngn || 0))} if cancelled by {new Date(quote.cancellation_deadline).toLocaleString('en-NG',{timeZone:quote.cancellation_timezone || 'Africa/Lagos'})} ({quote.cancellation_timezone || 'Africa/Lagos'}). The confirmed booking saves these terms.</p>}
+          {quote?.cancellation_deadline && <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Full refund {money(Number(quote.refund_amount_ngn || 0))} if cancelled by {new Date(quote.cancellation_deadline).toLocaleString(undefined,{timeZone:propertyTimeZone(quote.cancellation_timezone)})} ({propertyTimeZone(quote.cancellation_timezone)}). The confirmed booking saves these terms.</p>}
           <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Eligible paid bookings can be cancelled from your booking. Refunds go to the original payment method and remain processing until confirmed. Contact WeHouse for exceptions or a stay the hotel could not provide.</p>
         </section>
 
         <button type="button" onClick={() => void book()} disabled={submitting || quoteLoading || !quote?.available} className="h-12 w-full rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">
-          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ₦${Number(quote.total_price).toLocaleString()}` : "Choose available dates"}
+          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ${formatMoney(Number(quote.total_price))}` : "Choose available dates"}
         </button>
         <p className="text-center text-xs leading-4 text-[var(--wh-text-muted)]">Your room, package, dates, guest and payment stay attached to one WeHouse booking record.</p>
       </main>
@@ -286,6 +363,17 @@ export default function HotelBooking({
 
 function Field({ label, value, onChange, type = "text", autoComplete }: { label: string; value: string; onChange: (value: string) => void; type?: string; autoComplete?: string }) {
   return <label><span className="mb-1.5 block text-xs text-[var(--wh-text-muted)]">{label}</span><input type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40" /></label>;
+}
+
+function formatBookingDate(value: string) {
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+function formatDeadline(value: string, timezone?: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, { timeZone: propertyTimeZone(timezone), dateStyle: "medium", timeStyle: "short" });
 }
 
 function formatHotelTime(value: unknown, fallback: string) {

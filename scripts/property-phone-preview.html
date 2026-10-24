@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WeHouse · Property journey preview</title>
+<style>
+:root{font-family:system-ui,sans-serif;color-scheme:light dark;background:light-dark(#f5f3fa,#111016);color:light-dark(#201b2b,#f5f1fb)}
+*{box-sizing:border-box}body{margin:0;padding:24px 16px}main{max-width:880px;margin:auto}h1{font-size:24px;margin:0 0 8px}p{line-height:1.5}.controls{display:flex;gap:16px;flex-wrap:wrap;margin:20px 0}label{display:grid;gap:6px;font-size:14px}select{font:inherit;min-height:44px;border:1px solid light-dark(#c8bfd7,#655b72);border-radius:10px;padding:8px;background:light-dark(#fff,#221e2a);color:inherit;max-width:100%}.phone{margin:24px auto 0;width:min(100%,410px);padding:10px;border-radius:32px;background:light-dark(#2c2537,#74677f);box-shadow:0 16px 50px #0002}.phone iframe{display:block;width:100%;height:740px;border:0;border-radius:24px;background:light-dark(#fff,#15111b)}.note{font-size:14px;max-width:68ch}a{color:inherit}button{font:inherit;padding:10px;border-radius:10px;border:1px solid light-dark(#c8bfd7,#655b72);background:transparent;color:inherit;min-height:44px}button:focus-visible,select:focus-visible{outline:3px solid #9868ed;outline-offset:3px}@media(max-width:450px){body{padding:16px 8px}.phone{padding:5px;border-radius:24px}.phone iframe{height:680px;border-radius:20px}}
+</style>
+</head>
+<body><main>
+<h1>WeHouse property journey</h1>
+<p class="note">Actual app components · Sample data · No live messages or payments. Uploads, camera and location verification need the connected app.</p>
+<div class="controls">
+<label>Screen<select id="screen">
+<option value="/property?mode=partner-assets-grouped">Partner · Compound and homes</option>
+<option value="/property?mode=property-spaces-new">Partner · Add a property</option>
+<option value="/property?mode=property-spaces-saved">Partner · Add to an existing compound</option>
+<option value="/property?mode=documents-ready">Partner · Property documents</option>
+<option value="/property?mode=hotel-cancel-success">Customer · Hotel cancellation</option>
+<option value="/help?sample=true">Customer · Help and messages</option>
+</select></label>
+<label>Appearance<select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
+<button id="restart" type="button">Restart screen</button>
+</div>
+<div class="phone"><iframe id="app" title="WeHouse sample app screen" src="/property?mode=partner-assets-grouped&theme=light"></iframe></div>
+</main>
+<script>
+const screenPicker=document.getElementById('screen'),themePicker=document.getElementById('theme'),app=document.getElementById('app');
+function openScreen(){app.src=screenPicker.value+'&theme='+themePicker.value;document.documentElement.style.colorScheme=themePicker.value;}
+screenPicker.addEventListener('change',openScreen);
+themePicker.addEventListener('change',()=>{document.documentElement.style.colorScheme=themePicker.value;const doc=app.contentDocument;if(doc){doc.documentElement.dataset.whTheme=themePicker.value;doc.documentElement.classList.toggle('dark',themePicker.value==='dark');}});
+document.getElementById('restart').addEventListener('click',openScreen);
+</script>
+</body></html>

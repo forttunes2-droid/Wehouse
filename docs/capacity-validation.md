@@ -1,5 +1,155 @@
 # WeHouse capacity validation
 
+## Public-feed boundary and expanded ramp — 24 October 2026
+
+**Benchmark fidelity correction:** the native keep-alive transport introduced on
+24 October did not initially negotiate compressed responses as browsers do.
+A Test feed probe returned 21,650 decoded bytes versus 1,591 gzip bytes; the
+identity attempt timed out on the local network. The transport now negotiates
+gzip/deflate/Brotli and decodes each correctly, recording response-body wire
+bytes, decoded bytes and negotiated encoding alongside latency/queue metrics.
+Earlier native-transport results remain recorded as uncompressed workloads;
+they cannot establish the limit for ordinary compressed browser traffic. No
+latency, retry, drop, completion or dispatch threshold was relaxed.
+
+The first four-generator run on c41b3997 passed 50 RPS per generator, then failed
+100 RPS per generator. All four IDs were observed from four distinct source IPs
+in provider logs. The aggregate summary failed and did not report 800 RPS. Those
+runs also used the uncompressed transport and need a correctly negotiated repeat.
+Vercel's deployment API now confirms HTTP 402 `resource_creation_blocked` because
+the team has an overdue balance. The account owner must resolve that before a
+fresh preview or real CDN measurement can be performed; no billing settings were
+changed. The connector itself has recovered.
+
+Repeat expanded run (`fbcffd6e`) passes 200 RPS (6,000/6,000, zero errors/retries/
+drops; 186ms p95), but fails 500 with 11,240 drops, 3,240 failed logical requests
+and substantial client queue/post-socket delay. 1,000 is not run. Do not call this
+a database limit: post-socket timing also includes TLS, API ingress and network.
+
+To distinguish one-generator pressure from many-client demand, the same workflow
+now schedules four independent 200-RPS generators only after the single-generator
+job finishes. Each keeps every lower stage and acceptance gate. The summary
+requires four distinct generator IDs, identical versions and Test project,
+independently passing reports and at least ten seconds of actual overlap among
+their 200-RPS dispatch windows. Sequential runs cannot be added into an 800-RPS
+claim, and no passing aggregate is emitted for incomplete/failed inputs. This
+test is prepared, not yet measured. Generator User-Agents identify each shard
+for comparison against provider ingress logs; no client identity is spoofed.
+
+First expanded CI result (`f8507e32`): 200 RPS completed 6,000/6,000 with zero
+errors/retries/drops and 232ms p95. At 500 RPS it completed 12,543/15,000, dropped
+2,457 and reached 9,087ms p95; it stopped without running 1,000. This is a failure,
+not higher-capacity proof. Its 256-socket generator ceiling can itself queue
+traffic below the intended 1,000-RPS/2-second budget. The next run allows up to
+2,048 sockets while retaining the 3,000 logical in-flight bound and every gate.
+Reports now distinguish final-attempt client socket-queue time from time after
+socket assignment. The latter includes connection/TLS/network/response work;
+it is not database execution time. Full request latency still includes all
+attempts and retry delays and remains the acceptance metric.
+
+The separate disposable 50k-home/100k-Hotel run on `ec5f35ef` completed 400-client,
+800-request bursts per endpoint without request errors. Measured throughput was
+374–443 RPS for feed/filter endpoints and 790–925 RPS for detail endpoints.
+These short closed-loop bursts do not establish sustained hosted capacity.
+
+The working implementation adds `/api/public-catalog` for deployed web Home and
+Hotel feeds. It calls the existing anonymous redacted search RPCs, never a raw
+table, service-role client or arbitrary RPC. Only bounded public feed parameters
+are accepted. Canonical GET queries let Vercel cache a successful response for
+five seconds; browsers must revalidate. There is no stale-on-error extension.
+Identical cold requests share an in-flight origin lookup, and each function
+instance admits at most sixteen distinct misses. One failed shared lookup emits
+one structured operator diagnostic containing only catalog kind, failure stage
+and safe HTTP status, never caller tokens/cookies, search text or provider body.
+These local controls supplement
+the managed CDN; they are not a distributed rate limiter.
+
+Typed text searches, precise coordinates, pagination, detailed property reads,
+personal records, booking/availability quotes, payments, withdrawals and chat do
+not use this shared cache. Native clients retain direct authorized RPCs. A public
+feed can lag a change by up to five seconds; opening a listing or attempting a
+booking still checks the authoritative database. Failed lookups are not cached
+and do not trigger an automatic fallback request storm.
+
+The API shares the existing environment boundary. Preview cannot select Production
+through a supplied Host, token or cookie. It uses only the environment's public
+key. Build/type checks now include the API directory. Gateway security, input
+bounds, request collapse, overload, failure and client-routing tests pass; real
+browser journeys exercise the same-origin route with intercepted synthetic
+responses in both themes at four widths. These are not hosted-CDN performance
+measurements. Vercel reports an account deployment block, and the connector is
+unavailable; real preview routing/cache headers and hit ratios remain unverified.
+The legacy Netlify build remains intentionally ignored in `netlify.toml`.
+
+The Test-only direct-origin benchmark now supports a bounded 1→5→10→25→50→100→
+200→500→1,000 RPS ramp, thirty seconds per stage, stopping at the first failed
+stage. Error, retry, dispatch, drop and p95 limits are unchanged. CI requests the
+expanded ceiling; this is an intended test ceiling, not demonstrated capacity.
+A local attempt on 24 October stopped at 1 RPS (20% retries; 21,139ms p95), so it
+provides no evidence for the higher stages. Report generator/network saturation
+separately from service saturation; do not lower gates to get a green result.
+
+Official implementation references: [Vercel cache headers](https://vercel.com/docs/caching/cache-control-headers)
+and [Node runtime Web handlers](https://vercel.com/docs/functions/runtimes/node-js).
+
+## Request path and infrastructure boundary - 23 October 2026
+
+At this earlier checkpoint, the browser client sent API requests directly to its environment's
+Supabase URL. Vercel hosts the web build and applies the repository's asset/cache,
+rewrite and security-header configuration. The new public-feed boundary above
+supersedes this earlier all-direct request-path description; all other requests
+remain direct.
+
+```mermaid
+flowchart LR
+  U[Browser or native client] --> V[Vercel CDN: web assets and app routes]
+  U --> G[Supabase managed API ingress]
+  G --> A[Auth and session validation]
+  G --> F[Edge Functions: provider calls and action budgets]
+  G --> R[Data API and authorized RPCs]
+  R --> D[Postgres: RLS, transactions, locks and constraints]
+  F --> D
+  F --> P[Payment or identity provider]
+```
+
+Vercel's managed CDN provides routing and automatic DDoS mitigation for requests
+that reach Vercel. It does not place a Vercel project firewall in front of direct
+Supabase requests. Supabase Edge Functions have managed gateway ingress; gateway
+presence does not establish a WeHouse-specific abuse budget on every API or RPC.
+An added proxy URL alone would not close the direct origin path. Do not cache
+private user data or distribute transactional booking/payment writes to stale
+read replicas. Supabase read replicas are asynchronous and read-only; their
+load-balancer endpoint and routing must be explicitly configured and verified
+before changing the application's API endpoint. No replica was provisioned or
+unlimited-capacity claim established by this review.
+
+Found and repaired a concrete origin-side gap: the shared action-budget helper
+previously defaulted to allowing requests when its database limiter was unavailable.
+Payout withdrawal and payout-account callers relied on that default. The helper
+now denies by default on errors, exceptions or malformed boolean receipts,
+validates its budget arguments and returns bounded finite retry information.
+An explicit fail-open option remains available for deliberately non-sensitive
+uses; no current consumer uses it. Verification: 55 focused payment/payout/refund/
+PMS checks and Deno type checking pass. The initial inventory request failed with
+a connector transport error. The owner-requested retry succeeded: preserved
+`verify_jwt=true` and deployed Test payout-account version 7 and payout-withdrawal
+version 4 with the shared helper. Both full handlers pass Deno checks. Hosted POST
+probes reject missing and invalid bearer tokens with HTTP 401 (four checks,
+test-results/payout-edge-auth.json). No charge, refund or transfer was submitted.
+Node's direct HTTP client failed to connect; the Windows HTTP client succeeded.
+The function-source readback connector failed, so no remote source comparison is
+claimed. Controlled authenticated limiter-outage/provider/ledger verification
+remains internal work; gateway denial alone does not establish that behavior.
+
+Platform references checked on 23 October:
+[Vercel CDN](https://vercel.com/docs/cdn),
+[Supabase Edge Functions](https://supabase.com/docs/guides/functions),
+[Supabase read replicas](https://supabase.com/docs/guides/platform/read-replicas).
+Configured project firewall rules, backend ingress limits, connection/pool
+ceilings and real mixed transactional capacity still require deployed inspection
+and the measured exercises below. A managed network layer does not close those
+engineering checks.
+
 ## What “one million users” must mean
 
 Report registered accounts, daily active accounts, concurrent foreground sessions, open Realtime connections, and completed business actions per second separately. One million simultaneous foreground sessions taking one action every 30 seconds means roughly 33,333 actions per second before page resources, session checks, notifications, and chat fan-out. Ten and one hundred million under the same assumption mean roughly 333,333 and 3,333,333 actions per second. A 30-second ramp measures a burst, not steady capacity.
@@ -27,3 +177,11 @@ Proposed release gates to agree before a run: observed request rate within 5% of
 - Test has no Auth users, so an authenticated mixed load result cannot honestly be reported yet. Payment sandbox webhooks and representative actors must be installed and verified before that run.
 
 Reference: [Supabase Realtime limits](https://supabase.com/docs/guides/realtime/limits) and [database change delivery guidance](https://supabase.com/docs/guides/realtime/subscribing-to-database-changes).
+
+## 19 October 2026: current fixture check and stricter catalog checker
+
+Read-only Test inspection confirmed 1,000 capacity-stage homes, 1,000 capacity-stage hotels and **zero Auth users**. This is synthetic catalog data, not evidence of customer concurrency. The later historical 200-RPS catalog result and its exact commit are recorded in the existing release roadmap; it does not replace mixed-journey testing.
+
+The catalog checker now requires all distinct routes to finish warm-up, overall and per-route p95 at most 2,000 ms, zero final errors/drops, at most 1% retried requests, complete per-route sample accounting and a measured dispatch rate within 5% of its target. It stops increasing traffic after a failed stage and saves its failure reasons. Reports include time, CI SHA when available, scope, thresholds and an overall result. Fixed an expired-warm-up path that could skip a contract, and the failure report's invalid literal newline escape. The new gates have four passing unit tests. **No new hosted load run has been performed with these gates.** Existing results lack the new dispatch measurement and must not be relabelled as passes of this revised checker.
+
+These 30-second anonymous stages are a catalog smoke benchmark. Whole-product capacity still requires the isolated signed-in booking/message/payment mix, sustained and soak runs, races/recovery, browser/media delivery, resource ceilings and cost measurements described above. The thresholds are the current engineering check defaults, not a promise of a supported user count.

@@ -30,7 +30,6 @@ export type NavPage =
   | 'hosting'
   | 'hotel_operations'
   // ── Role workflow subpages ──
-  | 'new_listing'
   | 'worker_setup'
   | 'worker_discovery'
   | 'worker_categories'

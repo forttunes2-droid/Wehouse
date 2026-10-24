@@ -37,6 +37,10 @@ end; $$;
 insert into arrival_probe(status,stay_type,stay_check_in,stay_check_out,tenancy_start_date)
 values('occupied','short_let',timezone('Africa/Lagos',now())::date,timezone('Africa/Lagos',now())::date+2,timezone('Africa/Lagos',now())::date);
 
+-- Normal Auth identities and trusted device for the Operations activation command.
+insert into auth.users(id,aud,role,email,created_at,updated_at) values
+('99999999-1111-4111-8111-000000000001','authenticated','authenticated','arrival-ops@example.invalid',now(),now()),
+('99999999-1111-4111-8111-000000000002','authenticated','authenticated','arrival-guest@example.invalid',now(),now());
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 ('99999999-1111-4111-8111-000000000001','arrival-ops@example.invalid','arrival-ops','creator',true),
@@ -50,6 +54,11 @@ values('arrival-short','99999999-2222-4222-8222-000000000001','arrival-guest','r
 insert into public.hotels(hotel_id,name,state,city,owner_id,timezone,check_in_time,check_out_time)
 values(-9999,'Arrival Contract Hotel','Nasarawa','Lafia','arrival-ops','Africa/Lagos','14:00','12:00');
 set local session_replication_role=origin;
+insert into auth.sessions(id,user_id,created_at,updated_at)
+values('99999999-1111-4111-8111-000000000003','99999999-1111-4111-8111-000000000001',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+values('arrival-ops','99999999-1111-4111-8111-000000000001','99999999-1111-4111-8111-000000000003','arrival-contract','Browser',true,'trusted');
+select set_config('request.jwt.claims','{"sub":"99999999-1111-4111-8111-000000000001","session_id":"99999999-1111-4111-8111-000000000003","role":"authenticated"}',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','99999999-1111-4111-8111-000000000001',true);
 set local role authenticated;
@@ -65,7 +74,7 @@ do $$ declare result jsonb; begin
   end;
 end; $$;
 reset role;
--- Direct service entry is also guarded, not just the code wrapper.
+-- Direct trusted Operations entry is also date-guarded, not just the code wrapper.
 do $$ begin
   begin
     perform public.activate_short_stay('arrival-short',timezone('Africa/Lagos',now())::date+2);

@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 import MediaViewer from "@/components/MediaViewer";
+import { formatMoney } from "@/lib/regional";
 
 type SectionKey =
   | "overview"
@@ -219,9 +220,9 @@ function Provider({ provider, onOpen }: { provider: ProviderRecord; onOpen: () =
       <Section title="Professional profile">
         <Row label="Occupation" value={provider.occupation || "Not set"} />
         <Row label="Experience" value={provider.experience || "Not set"} />
-        <Row label="Service price" value={provider.price ? `₦${Number(provider.price).toLocaleString()}` : "Not set"} />
+        <Row label="Service price" value={provider.price ? `${formatMoney(Number(provider.price))}` : "Not set"} />
         <Row label="WeHouse review" value={provider.reviewed ? "Reviewed" : "Not reviewed"} />
-        <Row label="Completed-job earnings" value={`₦${Number(provider.completed_job_earnings || 0).toLocaleString()}`} />
+        <Row label="Completed-job earnings" value={`${formatMoney(Number(provider.completed_job_earnings || 0))}`} />
       </Section>
       {provider.bio ? <Section title="About"><TextBlock>{provider.bio}</TextBlock></Section> : null}
       {provider.skills?.length ? (

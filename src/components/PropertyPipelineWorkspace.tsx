@@ -1,3 +1,5 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { homeStyleLabel } from '@/lib/homeStyles';
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { matchesPropertyRecord, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { withTimeout } from "@/lib/withTimeout";
@@ -22,8 +24,12 @@ import {
 } from "@/lib/supabase/listings";
 import { propertyLifecycleLabel } from "@/lib/status";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
+import { formatMoney } from "@/lib/regional";
+import PropertyDocuments from './PropertyDocuments';
+import PropertySpaceSummary from './PropertySpaceSummary';
 type Stage =
   | "all"
+  | "documents"
   | "access_required"
   | "access_review"
   | "inspection_ready"
@@ -36,6 +42,7 @@ type Stage =
   | "rejected";
 const STAGES: [Stage, string][] = [
   ["all", "All statuses"],
+  ["documents", "Document review"],
   ["access_required", "Access required"],
   ["access_review", "Access review"],
   ["inspection_ready", "Inspection ready"],
@@ -79,6 +86,7 @@ export default function PropertyPipelineWorkspace({
       setLoadError(false);
       const nextRows = Array.isArray(data) ? data : [];
       setRows(nextRows);
+      setSelected((current: any) => current ? nextRows.find((row: any) => String(row.id) === String(current.id)) || null : current);
       if (initialRecordId && openedTarget.current !== String(initialRecordId)) {
         openedTarget.current = String(initialRecordId);
         const target = nextRows.find((row: any) =>
@@ -137,6 +145,7 @@ export default function PropertyPipelineWorkspace({
       <Case
         profile={profile}
         row={selected}
+        refresh={() => load(true)}
         back={() => {
           if (onExitRecord) { onExitRecord(); return; }
           closeRecord();
@@ -148,11 +157,11 @@ export default function PropertyPipelineWorkspace({
   if (initialRecordId && onExitRecord) {
     return <PropertyRecordDialog onClose={onExitRecord}>
       <main className="absolute inset-0 overflow-y-auto p-5">
-        <button type="button" onClick={onExitRecord} aria-label="Close property" className="min-h-11 text-sm font-semibold text-violet-300">← Back</button>
+        <button type="button" onClick={onExitRecord} aria-label="Close property" className="min-h-11 text-sm font-semibold wh-accent-text">← Back</button>
         <h2 className="mt-4 text-xl font-semibold">Property record</h2>
-        {loading ? <p role="status" className="mt-5 text-sm text-[var(--wh-text-secondary)]">Loading property record…</p> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
+        {loading ? <WeHouseLoadingState compact label="Loading property record" /> : <div role="alert" className="mt-5 space-y-4 text-sm leading-6 text-[var(--wh-text-secondary)]">
           <p>{loadError ? "The property record could not be loaded. Please try again." : "This property is no longer available in your work coverage."}</p>
-          <button type="button" onClick={() => { openedTarget.current = null; void load(); }} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
+          <button type="button" onClick={() => { openedTarget.current = null; void load(); }} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold wh-accent-text">Try again</button>
         </div>}
       </main>
     </PropertyRecordDialog>;
@@ -160,16 +169,16 @@ export default function PropertyPipelineWorkspace({
   const shown =
     stage === "all"
       ? rows
-      : rows.filter(
+      : stage === "documents" ? rows.filter(row => row.document_requirements_configured === false || Number(row.document_review_pending) > 0) : rows.filter(
           (row) => String(row.lifecycle_stage || "access_required") === stage,
         );
   return (
     <div className="space-y-5">
-      {onExitRecord ? <button onClick={onExitRecord} className="min-h-11 text-sm text-violet-300">← Go back</button> : null}
+      {onExitRecord ? <button onClick={onExitRecord} className="min-h-11 text-sm wh-accent-text">← Go back</button> : null}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-bold">Property records</h3>
-          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             Each property stays in one record from submission through
             publication.
           </p>
@@ -177,17 +186,17 @@ export default function PropertyPipelineWorkspace({
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="shrink-0 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 text-[9px] font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40"
+          className="shrink-0 rounded-xl border border-white/[0.08] bg-[var(--wh-elevated)] px-3 py-2 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40"
         >
           Refresh
         </button>
       </div>
       <div className="flex items-center justify-between gap-3 border-y border-white/[0.07] py-3">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
             Show
           </p>
-          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             {loadError ? "Unavailable" : `${shown.length} ${shown.length === 1 ? "record" : "records"}`}
           </p>
         </div>
@@ -206,17 +215,17 @@ export default function PropertyPipelineWorkspace({
       ) : loadError ? (
         <div role="alert" className="py-8 text-sm text-[var(--wh-text-secondary)]">
           <p>We couldn’t load your properties. Your records have not been removed.</p>
-          <button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold text-violet-300">Try again</button>
+          <button type="button" onClick={() => void load()} className="mt-3 min-h-11 font-semibold wh-accent-text">Try again</button>
         </div>
       ) : shown.length === 0 ? (
         <Empty text="No properties match this stage." />
       ) : (
-        <div className="divide-y divide-white/[0.065] border-y border-white/[0.065]">
+        <div className="divide-y divide-white/[0.065] border-y border-[var(--wh-border-subtle)]">
           {shown.map((r) => (
             <button
               key={r.id}
               onClick={() => setSelected(r)}
-              className="flex min-h-20 w-full items-center gap-3 px-1 py-3 text-left active:bg-white/[0.025]"
+              className="flex min-h-20 w-full items-center gap-3 px-1 py-3 text-left active:bg-[var(--wh-elevated)]"
             >
               <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-violet-500/[0.08]">
                 {r.photo_urls?.[0] ? (
@@ -226,7 +235,7 @@ export default function PropertyPipelineWorkspace({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-[8px] text-violet-300">
+                  <div className="grid h-full place-items-center text-xs wh-accent-text">
                     No photo
                   </div>
                 )}
@@ -235,14 +244,15 @@ export default function PropertyPipelineWorkspace({
                 <p className="truncate text-sm font-semibold">
                   {propertyRecordTitle(r)}
                 </p>
-                <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
+                <p className="mt-1 truncate text-xs text-[var(--wh-text-muted)]">
                   {r.property_city}, {r.property_state} ·{" "}
                   {String(r.property_type || "property").replace(/_/g, " ")}
                 </p>
-                <p className="mt-1 truncate text-[8px] text-[var(--wh-text-muted)]">
+                <p className="mt-1 truncate text-xs text-[var(--wh-text-muted)]">
                   {r.owner_name || r.owner_email || "Property Partner"} ·{" "}
                   {r.request_code}
                 </p>
+                {Number(r.document_review_pending) > 0 ? <p className="mt-1 text-xs font-medium text-violet-700 dark:wh-accent-text">{r.document_review_pending} document{Number(r.document_review_pending) === 1 ? '' : 's'} awaiting review</p> : r.document_requirements_configured === false ? <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Document requirements need confirmation</p> : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Badge value={String(r.lifecycle_stage || "access_required")} />
@@ -259,12 +269,16 @@ function Case({
   profile,
   row,
   back,
+  refresh,
 }: {
   profile: Profile;
   row: any;
   back: () => void;
+  refresh: () => Promise<void>;
 }) {
   const oversight = ["admin", "creator"].includes(profile.role);
+  const [documentsReady,setDocumentsReady] = useState(false);
+  useEffect(() => setDocumentsReady(false),[row.id]);
   const operationsAccess = profile.role === "staff" || oversight;
   const stage = String(row.lifecycle_stage || "access_required");
   const listingId = row.draft_listing_id || row.listing?.id;
@@ -305,6 +319,7 @@ function Case({
           ) : (
             <SubmissionSummary row={row} stage={stage} />
           )}
+          {operationsAccess && <PropertyDocuments key={row.id} requestId={String(row.id)} accountId={profile.user_id} operator onChanged={refresh} onReadyChange={setDocumentsReady}/>}
           {stage === "access_required" && (
             <Empty text="Access evidence is missing. This submission cannot be assigned or prepared." />
           )}
@@ -316,10 +331,10 @@ function Case({
           )}
           {stage === "inspection" && (
             <div className="rounded-2xl border border-violet-500/10 bg-violet-500/[0.04] p-4">
-              <p className="text-xs font-semibold text-violet-300">
+              <p className="text-xs font-semibold wh-accent-text">
                 Inspection in progress
               </p>
-              <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">
+              <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
                 {row.field_officer_name ||
                   "The assigned Field Operations member"}{" "}
                 handles the independent visit. Completion moves this property to
@@ -341,6 +356,7 @@ function Case({
               row={row}
               canPrepareMedia={operationsAccess}
               canPublish={oversight}
+              documentsReady={documentsReady}
               done={back}
             />
           )}
@@ -349,7 +365,7 @@ function Case({
               <p className="text-xs font-semibold text-amber-200">
                 {stageLabel(stage)}
               </p>
-              <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">
+              <p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">
                 {row.rejection_reason ||
                   row.notes ||
                   "This submission is not moving forward until the recorded issue is resolved."}
@@ -429,10 +445,10 @@ function CreatorHotelRecord({
     })();
     return () => { active = false; };
   }, [hotelId, reloadKey]);
-  if (loading) return <p role="status" className="py-8 text-sm text-[var(--wh-text-secondary)]">Loading hotel details…</p>;
+  if (loading) return <WeHouseLoadingState compact label="Loading hotel details" />;
   if (!hotel) return <div role="alert" className="space-y-3 py-8 text-sm leading-6 text-[var(--wh-text-secondary)]">
     <p>The hotel record is unavailable or outside your work coverage.</p>
-    <button type="button" onClick={() => setReloadKey(value => value + 1)} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold text-violet-300">Try again</button>
+    <button type="button" onClick={() => setReloadKey(value => value + 1)} className="min-h-11 rounded-xl border border-violet-500/20 px-4 font-semibold wh-accent-text">Try again</button>
   </div>;
   const images = Array.isArray(hotel.images) ? hotel.images : [];
   return (
@@ -451,7 +467,7 @@ function CreatorHotelRecord({
         <div className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[.16em] text-violet-300">
+              <p className="text-sm font-bold uppercase tracking-[.16em] wh-accent-text">
                 Published hotel
               </p>
               <h2 className="mt-2 text-2xl font-bold">
@@ -477,7 +493,7 @@ function CreatorHotelRecord({
               {hotel.amenities.map((item: string) => (
                 <span
                   key={item}
-                  className="rounded-full border border-violet-500/15 px-2.5 py-1 text-sm text-violet-200"
+                  className="rounded-full border border-violet-500/15 px-2.5 py-1 text-sm wh-accent-text"
                 >
                   {item}
                 </span>
@@ -528,7 +544,7 @@ function CreatorHotelRecord({
                     {room.bed_type ? ` · ${room.bed_type}` : ""}
                   </p>
                 </div>
-                <p className="shrink-0 text-sm font-bold text-violet-200">
+                <p className="shrink-0 text-sm font-bold wh-accent-text">
                   {money(room.price_per_night)}
                   <span className="block text-right text-sm font-normal text-[var(--wh-text-secondary)]">
                     per night
@@ -563,25 +579,25 @@ function CreatorHotelRecord({
   );
 }
 
-function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
+export function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
   const hotel = row.property_type === "hotel",
     rooms = Array.isArray(row.hotel_program?.room_types)
       ? row.hotel_program.room_types
       : [];
   return (
-    <section className="border-y border-white/[0.065] py-4">
+    <section className="border-y border-[var(--wh-border-subtle)] py-4">
       <div className="flex flex-wrap justify-between gap-3">
         <div>
-          <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">
-            {hotel ? "Hotel programme" : "Apartment property"}
+          <p className="text-xs font-bold uppercase tracking-[.16em] wh-accent-text">
+            {hotel ? "Hotel programme" : "Home submission"}
           </p>
           <h3 className="mt-1 text-base font-bold">
             {propertyRecordTitle(row)}
           </h3>
-          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             {row.property_city}, {row.property_state} · {row.request_code}
           </p>
-          <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             Property Partner: {row.owner_name || row.owner_email}{" "}
             {row.owner_phone ? `· ${row.owner_phone}` : ""}
           </p>
@@ -614,13 +630,13 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
                       <p className="text-xs font-semibold">
                         {room.name || `Room ${index + 1}`}
                       </p>
-                      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
-                        {room.inventory || 1} units · up to{" "}
-                        {room.guest_capacity || 1} guests
+                      <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
+                        {room.inventory ?? "Not provided"} units · up to{" "}
+                        {room.guest_capacity ?? "Not provided"} guests
                         {room.bed_type ? ` · ${room.bed_type}` : ""}
                       </p>
                     </div>
-                    <p className="shrink-0 text-xs font-bold text-violet-200">
+                    <p className="shrink-0 text-xs font-bold wh-accent-text">
                       {money(room.nightly_rate)}/night
                     </p>
                   </div>
@@ -631,9 +647,10 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
         </>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <Info label="Type" value={row.property_type || "Apartment"} />
+          <Info label="Type" value="Home" />
+          {homeStyleLabel(row.home_style) && <Info label="Home type" value={homeStyleLabel(row.home_style)} />}
           <Info
-            label="Annual rent"
+            label={row.sub_type==='short_let'?'Nightly price':'Annual rent'}
             value={row.expected_rent ? money(row.expected_rent) : "—"}
           />
           <Info label="Bedrooms" value={row.bedrooms ?? "—"} />
@@ -643,8 +660,9 @@ function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
           )}
         </div>
       )}
+      <PropertySpaceSummary record={row}/>
       {row.description && (
-        <p className="mt-4 rounded-xl bg-white/[0.025] p-3 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
+        <p className="mt-4 rounded-xl bg-[var(--wh-elevated)] p-3 text-xs leading-relaxed text-[var(--wh-text-secondary)]">
           {row.description}
         </p>
       )}
@@ -658,20 +676,20 @@ function PropertyLocation({ row }: { row: any }) {
     <>
       <section className="flex items-center justify-between gap-4 border-y border-[var(--wh-border-subtle)] py-4">
         <div className="min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">
+          <p className="text-xs font-bold uppercase tracking-[.14em] wh-accent-text">
             Verified visit location
           </p>
           <p className="mt-1 truncate text-xs font-semibold">
             {row.property_address}
           </p>
-          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             {[row.property_city, row.property_state].filter(Boolean).join(", ")}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-4 py-2.5 text-[9px] font-semibold text-violet-200"
+          className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-4 py-2.5 text-xs font-semibold wh-accent-text"
         >
           View map
         </button>
@@ -687,7 +705,7 @@ function PropertyLocation({ row }: { row: any }) {
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-[.14em] text-violet-300">
+                <p className="text-xs font-bold uppercase tracking-[.14em] wh-accent-text">
                   Inspection map
                 </p>
                 <h3 className="mt-1 text-sm font-semibold">
@@ -806,7 +824,7 @@ function AccessReview({
   return (
     <>
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-4">
-        <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
+        <p className="text-xs font-bold uppercase tracking-[.16em] wh-accent-text">
           Private partner access evidence
         </p>
         <h3 className="mt-2 text-sm font-semibold">
@@ -814,7 +832,7 @@ function AccessReview({
             ? "Property Operations review required"
             : "Access evidence record"}
         </h3>
-        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
           {reviewing ? (
             <>
               Confirm that code{" "}
@@ -841,13 +859,13 @@ function AccessReview({
           >
             <span className="grid h-full w-full place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.2),transparent_42%),#090B10]" />
             <span className="absolute inset-0 grid place-items-center bg-black/15">
-              <span className="rounded-full bg-black/70 px-4 py-2 text-[10px] font-semibold backdrop-blur">
+              <span className="rounded-full bg-black/70 px-4 py-2 text-xs font-semibold backdrop-blur">
                 ▶ Open in WeHouse viewer
               </span>
             </span>
           </button>
         ) : (
-          <p className="mt-4 rounded-xl bg-amber-500/[.05] p-3 text-[10px] text-amber-200">
+          <p className="mt-4 rounded-xl bg-amber-500/[.05] p-3 text-xs text-amber-200">
             {loadError || "The private recording could not be opened."}
           </p>
         )}
@@ -857,14 +875,14 @@ function AccessReview({
               <button
                 disabled={busy || !url}
                 onClick={() => setCorrectionOpen(true)}
-                className="h-11 flex-1 rounded-xl border border-amber-500/20 text-[10px] font-semibold text-amber-200 disabled:opacity-40"
+                className="h-11 flex-1 rounded-xl border border-amber-500/20 text-xs font-semibold text-amber-200 disabled:opacity-40"
               >
                 Request correction
               </button>
               <button
                 disabled={busy || !url}
                 onClick={() => void decide("accept")}
-                className="h-11 flex-1 rounded-xl bg-violet-500 text-[10px] font-semibold disabled:opacity-40"
+                className="h-11 flex-1 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
               >
                 Approve evidence
               </button>
@@ -876,7 +894,7 @@ function AccessReview({
               <button
                 disabled={busy}
                 onClick={() => setCorrectionOpen(true)}
-                className="h-11 w-full rounded-xl border border-amber-500/20 text-[10px] font-semibold text-amber-200 disabled:opacity-40"
+                className="h-11 w-full rounded-xl border border-amber-500/20 text-xs font-semibold text-amber-200 disabled:opacity-40"
               >
                 Override decision · Request correction
               </button>
@@ -904,11 +922,11 @@ function AccessReview({
             aria-label="Request access evidence correction"
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="text-[8px] font-bold uppercase tracking-[.2em] text-violet-300">
+            <p className="text-xs font-bold uppercase tracking-[.2em] wh-accent-text">
               PROPERTY OPERATIONS
             </p>
             <h3 className="mt-2 text-lg font-bold">Request a new recording</h3>
-            <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
+            <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">
               Tell the Property Partner exactly what must be corrected.
             </p>
             <textarea
@@ -973,7 +991,7 @@ function Assign({ row, done }: { row: any; done: () => void }) {
   return (
     <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
       <h3 className="text-sm font-semibold">Assign independent inspection</h3>
-      <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+      <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
         The partner access recording is approved. Choose a Field Operations
         member in this property area.
       </p>
@@ -992,12 +1010,12 @@ function Assign({ row, done }: { row: any; done: () => void }) {
               <div className="flex justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold">{o.name}</p>
-                  <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+                  <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
                     {o.assigned_lga}, {o.assigned_state} ·{" "}
                     {o.active_inspections} active
                   </p>
                 </div>
-                <p className="text-[9px] font-semibold text-violet-300">
+                <p className="text-xs font-semibold wh-accent-text">
                   {o.distance_km != null
                     ? `${o.distance_km} km`
                     : "Distance unavailable"}
@@ -1024,7 +1042,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
         ? row.hotel_program?.name || ""
         : row.sub_type === "short_let"
           ? row.property_display_name || `Short Stay · ${row.property_city}`
-          : `Long Let Apartment in ${row.property_city}`,
+          : `Long Let home in ${row.property_city}`,
     ),
     [description, setDescription] = useState(row.description || ""),
     [fieldPhotos, setFieldPhotos] = useState<string[] | null>(null),
@@ -1094,7 +1112,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
       <section className="space-y-4">
         <button
           onClick={() => setPreview(false)}
-          className="text-[10px] font-semibold text-violet-300"
+          className="text-xs font-semibold wh-accent-text"
         >
           ← Continue editing
         </button>
@@ -1107,7 +1125,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="grid h-full place-items-center text-[10px] text-[var(--wh-text-muted)]">
+              <div className="grid h-full place-items-center text-xs text-[var(--wh-text-muted)]">
                 No property photo yet
               </div>
             )}
@@ -1126,7 +1144,7 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
           )}
           <div className="p-4">
             <p className="text-base font-bold">{title || "Listing title"}</p>
-            <p className="mt-1 text-sm font-semibold text-violet-300">
+            <p className="mt-1 text-sm font-semibold wh-accent-text">
               {row.property_type === "hotel" ? "Hotel" : money(row.expected_rent)}
               {row.property_type === "hotel"
                 ? ""
@@ -1134,17 +1152,17 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
                   ? " / night"
                   : " / year"}
             </p>
-            <p className="mt-3 whitespace-pre-wrap text-[10px] leading-5 text-[var(--wh-text-secondary)]">
+            <p className="mt-3 whitespace-pre-wrap text-xs leading-5 text-[var(--wh-text-secondary)]">
               {description || "No public description yet."}
             </p>
-            <div className="mt-3 flex gap-2 text-[9px] text-[var(--wh-text-muted)]">
+            <div className="mt-3 flex gap-2 text-xs text-[var(--wh-text-muted)]">
               <span>{row.bedrooms || 0} bedrooms</span>
               <span>·</span>
               <span>{row.bathrooms || 0} bathrooms</span>
             </div>
           </div>
         </div>
-        <p className="text-center text-[9px] leading-5 text-amber-300">
+        <p className="text-center text-xs leading-5 text-amber-300">
           Private review · {photos.length} submitted photo(s) · the final
           publisher chooses which photos go live
         </p>
@@ -1161,14 +1179,14 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
     <section className="space-y-4 border-y border-[var(--wh-border-subtle)] py-4">
       <div>
         <h3 className="text-sm font-semibold">Prepare listing details</h3>
-        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">
           Property Operations may write the public description and apartment
           title. Rent, stay type, deposit, rooms, capacity and amenities come
           from the accepted submission and cannot be changed here.
         </p>
       </div>
       {mediaError && (
-        <p className="rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">
+        <p className="rounded-xl bg-red-500/[.06] p-3 text-xs text-red-200">
           Field evidence could not be verified. Draft preparation is blocked
           until it loads correctly.
         </p>
@@ -1198,13 +1216,13 @@ function Prepare({ row, done }: { row: any; done: () => void }) {
         className="w-full resize-none border-b border-[var(--wh-border-subtle)] bg-transparent py-2 text-sm outline-none"
       />
       <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
-        <p className="text-[9px] font-semibold">Submitted image pool</p>
-        <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+        <p className="text-xs font-semibold">Submitted image pool</p>
+        <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
           {(row.photo_urls || []).length} Property Partner ·{" "}
           {fieldPhotos === null ? "loading…" : fieldPhotos.length} Field
           Operations
         </p>
-        <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
           These sources stay separate in final review so Admin or Creator can
           see who supplied every photo before selecting it.
         </p>
@@ -1227,10 +1245,10 @@ function HotelProgramSummary({ program }: { program: any }) {
   const rooms = Array.isArray(program?.room_types) ? program.room_types : [];
   return (
     <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3">
-      <p className="text-[10px] font-semibold text-violet-200">
+      <p className="text-xs font-semibold wh-accent-text">
         Submitted hotel programme
       </p>
-      <p className="mt-1 text-[9px] text-[var(--wh-text-secondary)]">
+      <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
         {rooms.length} room type(s) · {(program?.amenities || []).length} hotel
         amenity item(s). Preparing creates these room types automatically.
       </p>
@@ -1238,14 +1256,14 @@ function HotelProgramSummary({ program }: { program: any }) {
         {rooms.map((room: any, index: number) => (
           <div
             key={`${room.name}-${index}`}
-            className="flex items-center justify-between gap-3 py-2 text-[9px]"
+            className="flex items-center justify-between gap-3 py-2 text-xs"
           >
             <span className="min-w-0 truncate">
               {room.name} · {room.bed_type || "Bed not specified"} ·{" "}
               {room.guest_capacity || 2} guests
             </span>
-            <span className="shrink-0 font-semibold text-violet-300">
-              {money(room.nightly_rate)} × {room.inventory || 1}
+            <span className="shrink-0 font-semibold wh-accent-text">
+              {money(room.nightly_rate)} × {room.inventory ?? "Not provided"}
             </span>
           </div>
         ))}
@@ -1257,25 +1275,29 @@ function Prepared({
   row,
   canPrepareMedia,
   canPublish,
+  documentsReady,
   done,
 }: {
   row: any;
   canPrepareMedia: boolean;
   canPublish: boolean;
+  documentsReady: boolean;
   done: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
+  const publicationBusy = useRef(false);
+  const [publishing,setPublishing] = useState(false);
   const [galleryConfirmed, setGalleryConfirmed] = useState(
     Boolean(row.final_media_reviewed_at),
   );
   if (row.property_type === "hotel")
-    return <HotelDraft row={row} canPrepareMedia={canPrepareMedia} canPublish={canPublish} done={done} />;
+    return <HotelDraft row={row} canPrepareMedia={canPrepareMedia} canPublish={canPublish} documentsReady={documentsReady} done={done} />;
   const listingId = row.listing?.id || row.draft_listing_id;
   return (
     <>
       <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
         <h3 className="text-sm font-semibold">Listing prepared — not public</h3>
-        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
           {row.listing?.title || "Prepared listing"} ·{" "}
           {money(row.listing?.price || 0)}
         </p>
@@ -1303,8 +1325,11 @@ function Prepared({
         />
         {canPublish ? (
           <button
-            disabled={!listingId || !galleryConfirmed}
+            disabled={publishing || !documentsReady || !listingId || !galleryConfirmed}
             onClick={async () => {
+              if (publicationBusy.current) return;
+              publicationBusy.current = true; setPublishing(true);
+              try {
               if (
                 !listingId ||
                 !(await ask({
@@ -1316,22 +1341,27 @@ function Prepared({
                 }))
               )
                 return;
-              const { error } = await supabase.rpc(
+              const { error } = await withTimeout(supabase.rpc(
                 "admin_publish_inspected_listing",
                 { p_listing_id: listingId },
-              );
-              if (error) return toast.error(error.message);
+              ),15000,'Publication confirmation timed out. Refresh this property before retrying.');
+              if (error) throw error;
               toast.success("Property is now public");
               done();
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'Publication could not be confirmed. Refresh before retrying.');
+              } finally {
+                publicationBusy.current = false; setPublishing(false);
+              }
             }}
             className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold disabled:opacity-40"
           >
-            {galleryConfirmed
+            {!documentsReady ? 'Complete document review first' : galleryConfirmed
               ? "Final review passed · Publish now"
               : "Confirm the final gallery first"}
           </button>
         ) : (
-          <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-[10px] text-[var(--wh-text-secondary)]">
+          <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-xs text-[var(--wh-text-secondary)]">
             Awaiting final Admin/Creator review. It is not visible to users.
           </p>
         )}
@@ -1354,11 +1384,11 @@ function ReviewStep({
       className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${active ? "border-violet-500/20 bg-violet-500/[.06]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}
     >
       <span
-        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold ${active ? "bg-violet-500 text-white" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
+        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${active ? "bg-violet-500 text-white" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}
       >
         {number}
       </span>
-      <span className="text-[9px] font-semibold">{title}</span>
+      <span className="text-xs font-semibold">{title}</span>
     </div>
   );
 }
@@ -1366,14 +1396,18 @@ function HotelDraft({
   row,
   canPrepareMedia,
   canPublish,
+  documentsReady,
   done,
 }: {
   row: any;
   canPrepareMedia: boolean;
   canPublish: boolean;
+  documentsReady: boolean;
   done: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
+  const publicationBusy = useRef(false);
+  const [publishing,setPublishing] = useState(false);
   const id = Number(row.hotel?.hotel_id || row.draft_hotel_id);
   const [rooms, setRooms] = useState<any[]>([]),
     [galleryConfirmed, setGalleryConfirmed] = useState(
@@ -1391,10 +1425,10 @@ function HotelDraft({
     <>
       <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
         <h3 className="text-sm font-semibold">Hotel setup — not public</h3>
-        <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">
+        <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
           {row.hotel?.name || "Hotel draft"} · {rooms.length} room type(s)
         </p>
-        <p className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
+        <p className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-xs leading-4 text-[var(--wh-text-secondary)]">
           Room types, prices, capacity and inventory are locked to the Property Partner submission. Corrections must be returned to the partner; WeHouse cannot invent or edit them here.
         </p>
         <HotelMediaReview
@@ -1405,8 +1439,11 @@ function HotelDraft({
         />
         {canPublish ? (
           <button
-            disabled={!galleryConfirmed}
+            disabled={publishing || !documentsReady || !galleryConfirmed}
             onClick={async () => {
+              if (publicationBusy.current) return;
+              publicationBusy.current = true; setPublishing(true);
+              try {
               if (
                 !(await ask({
                   title: "Publish this hotel?",
@@ -1417,22 +1454,27 @@ function HotelDraft({
                 }))
               )
                 return;
-              const { error } = await supabase.rpc(
+              const { error } = await withTimeout(supabase.rpc(
                 "admin_publish_inspected_hotel",
                 { p_hotel_id: id },
-              );
-              if (error) return toast.error(error.message);
+              ),15000,'Publication confirmation timed out. Refresh this Hotel before retrying.');
+              if (error) throw error;
               toast.success("Hotel is now public");
               done();
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'Publication could not be confirmed. Refresh before retrying.');
+              } finally {
+                publicationBusy.current = false; setPublishing(false);
+              }
             }}
             className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold disabled:opacity-40"
           >
-            {galleryConfirmed
+            {!documentsReady ? 'Complete document review first' : galleryConfirmed
               ? "Hotel and room media reviewed · Publish now"
               : "Review hotel and room galleries first"}
           </button>
         ) : (
-          <p className="mt-3 text-[10px] text-[var(--wh-text-secondary)]">
+          <p className="mt-3 text-xs text-[var(--wh-text-secondary)]">
             Awaiting final Admin/Creator review of the hotel and each room
             gallery. It is not visible to users.
           </p>
@@ -1598,14 +1640,14 @@ function HotelMediaReview({
   return (
     <section className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
       <div>
-        <p className="text-[10px] font-semibold">Final hotel media review</p>
-        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
+        <p className="text-xs font-semibold">Final hotel media review</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">
           Nothing new is selected automatically. Choose the exact
           hotel/common-area and room images that should go live.
         </p>
       </div>
       {mediaError && (
-        <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">
+        <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-xs text-red-200">
           Inspection media could not be verified. Publishing is blocked until it
           loads correctly.
         </p>
@@ -1644,7 +1686,7 @@ function HotelMediaReview({
             !hotelSelected.length
           }
           onClick={() => void save()}
-          className="mt-4 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-[10px] font-semibold text-emerald-300 disabled:opacity-40"
+          className="mt-4 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-xs font-semibold text-emerald-300 disabled:opacity-40"
         >
           {saving ? "Saving media…" : "Confirm hotel and every room gallery"}
         </button>
@@ -1687,15 +1729,15 @@ function GalleryPicker({
     <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold">{title}</p>
-          <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{subtitle}</p>
+          <p className="text-xs font-semibold">{title}</p>
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{subtitle}</p>
         </div>
-        <span className="shrink-0 text-[8px] text-[var(--wh-text-muted)]">
+        <span className="shrink-0 text-xs text-[var(--wh-text-muted)]">
           {selected.length}/{candidates.length}
         </span>
       </div>
       {candidates.length === 0 ? (
-        <p className="mt-3 text-[9px] text-amber-200/75">
+        <p className="mt-3 text-xs text-amber-200/75">
           No submitted images are available for this gallery.
         </p>
       ) : (
@@ -1833,28 +1875,28 @@ function FinalGalleryReview({
     <section className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold">Final public gallery</p>
-          <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-muted)]">
+          <p className="text-xs font-semibold">Final public gallery</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--wh-text-muted)]">
             {authority
               ? "Review each source separately. Tap only the photos that should appear publicly; nothing is selected automatically."
               : "Only Admin or Creator can select which submitted photos go live."}
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-[8px]">
+        <span className="shrink-0 rounded-full bg-[var(--wh-interactive)] px-2 py-1 text-xs">
           {selected.length}/{fieldPhotos === null ? "…" : candidates.length}
         </span>
       </div>
       {mediaError ? (
-        <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-[9px] text-red-200">
+        <p className="mt-3 rounded-xl bg-red-500/[.06] p-3 text-xs text-red-200">
           Inspection media could not be verified. Publishing is blocked until it
           loads correctly.
         </p>
       ) : fieldPhotos === null ? (
-        <p className="mt-3 text-[9px] text-[var(--wh-text-muted)]">
+        <p className="mt-3 text-xs text-[var(--wh-text-muted)]">
           Loading submitted photos…
         </p>
       ) : candidates.length === 0 ? (
-        <p className="mt-3 text-[9px] text-amber-300">
+        <p className="mt-3 text-xs text-amber-300">
           No eligible submitted photos are available.
         </p>
       ) : (
@@ -1876,10 +1918,10 @@ function FinalGalleryReview({
             onToggle={toggle}
           />
           <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-3">
-            <p className="text-[9px] font-semibold text-emerald-200">
+            <p className="text-xs font-semibold text-emerald-200">
               Final public gallery · {selected.length} selected
             </p>
-            <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
+            <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
               Only the photos marked with a numbered green badge will be copied
               to the public listing. The badge number is their gallery order.
             </p>
@@ -1896,7 +1938,7 @@ function FinalGalleryReview({
             !selected.length
           }
           onClick={() => void save()}
-          className="mt-3 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-[10px] font-semibold text-emerald-300 disabled:opacity-40"
+          className="mt-3 h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.07] text-xs font-semibold text-emerald-300 disabled:opacity-40"
         >
           {saving ? "Saving gallery…" : "Confirm this exact gallery"}
         </button>
@@ -1924,19 +1966,19 @@ function GallerySourceGroup({
     <section>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-[10px] font-semibold">{title}</h4>
-          <p className="mt-1 text-[8px] text-[var(--wh-text-muted)]">{description}</p>
+          <h4 className="text-xs font-semibold">{title}</h4>
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">{description}</p>
         </div>
-        <span className="shrink-0 text-[8px] text-[var(--wh-text-muted)]">
+        <span className="shrink-0 text-xs text-[var(--wh-text-muted)]">
           {photos.length} photo{photos.length === 1 ? "" : "s"}
         </span>
       </div>
       {photos.length === 0 ? (
         <div className="mt-2 rounded-2xl border border-dashed border-amber-500/20 px-4 py-6 text-center">
-          <p className="text-[9px] font-semibold text-amber-200">
+          <p className="text-xs font-semibold text-amber-200">
             No photos from this source
           </p>
-          <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
             This is visible here so a missing Field Operations submission cannot
             be mistaken for Partner media.
           </p>
@@ -1964,7 +2006,7 @@ function GallerySourceGroup({
                   Photo {index + 1}
                 </span>
                 {chosen ? (
-                  <span className="absolute right-1.5 top-1.5 grid h-7 min-w-7 place-items-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-black">
+                  <span className="absolute right-1.5 top-1.5 grid h-7 min-w-7 place-items-center rounded-full bg-emerald-500 px-1 text-xs font-bold text-black">
                     {order + 1}
                   </span>
                 ) : (
@@ -1995,23 +2037,23 @@ function SubmittedMedia({ row }: { row: any }) {
     <section className="border-b border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-emerald-300">
+          <p className="text-xs font-bold uppercase tracking-[.14em] text-emerald-300">
             Property Partner source
           </p>
           <h4 className="mt-1 text-sm font-semibold">
             Partner-submitted property media
           </h4>
-          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             Original property photos supplied with the listing request. Photos
             become final gallery options, not automatically public.
           </p>
         </div>
-        <span className="shrink-0 text-[9px] text-[var(--wh-text-muted)]">
+        <span className="shrink-0 text-xs text-[var(--wh-text-muted)]">
           {items.length} file(s)
         </span>
       </div>
       {items.length === 0 ? (
-        <p className="mt-3 text-[10px] text-amber-200/75">
+        <p className="mt-3 text-xs text-amber-200/75">
           No original property media was attached.
         </p>
       ) : (
@@ -2052,7 +2094,7 @@ function SubmittedMedia({ row }: { row: any }) {
       )}
       {active && (
         <div
-          className="fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
+          className="wh-media-immersive fixed inset-0 z-[100000] flex flex-col bg-[#050609]"
           role="dialog"
           aria-modal="true"
           aria-label="Property Partner media preview"
@@ -2137,7 +2179,7 @@ function EvidenceReview({
   }, [inspectionId]);
   if (loading)
     return (
-      <div className="border-y border-[var(--wh-border-subtle)] py-4 text-[10px] text-[var(--wh-text-muted)]">
+      <div className="border-y border-[var(--wh-border-subtle)] py-4 text-xs text-[var(--wh-text-muted)]">
         Loading inspection evidence…
       </div>
     );
@@ -2167,23 +2209,23 @@ function EvidenceReview({
     <section className="border-y border-[var(--wh-border-subtle)] py-4">
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
+          <p className="text-xs font-bold uppercase tracking-[.14em] wh-accent-text">
             Field Operations source
           </p>
           <h4 className="mt-1 text-xs font-semibold">
             Independent field-visit evidence
           </h4>
-          <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+          <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
             Captured by the assigned visitor. Field photos become final gallery
             options only after Property Operations accepts this evidence.
           </p>
         </div>
-        <span className="text-[9px] text-[var(--wh-text-muted)]">
+        <span className="text-xs text-[var(--wh-text-muted)]">
           {items.length} file(s)
         </span>
       </div>
       {items.length === 0 ? (
-        <p className="mt-3 text-[10px] text-amber-200/75">
+        <p className="mt-3 text-xs text-amber-200/75">
           No independent field media was submitted.
         </p>
       ) : (
@@ -2224,8 +2266,8 @@ function EvidenceReview({
       )}
       {!readOnly && (
         <div className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3">
-          <p className="text-[9px] font-semibold text-[#D9DCE4]">Property Operations decision</p>
-          <p className="mt-1 text-[8px] leading-4 text-[var(--wh-text-muted)]">
+          <p className="text-xs font-semibold text-[#D9DCE4]">Property Operations decision</p>
+          <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
             The assigned Field Officer cannot approve their own evidence. {profile.role === "staff" ? "Your Operations role may review this property only within its branch." : "Admin and Creator may provide independent oversight."}
           </p>
           <textarea
@@ -2233,14 +2275,14 @@ function EvidenceReview({
             onChange={(event) => setNote(event.target.value)}
             rows={3}
             placeholder="Required only when requesting a correction"
-            className="mt-3 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-[10px] outline-none focus:border-violet-500/35"
+            className="mt-3 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-xs outline-none focus:border-violet-500/35"
           />
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={deciding || !items.length}
               onClick={() => void decide("request_changes")}
-              className="min-h-11 rounded-xl border border-amber-500/20 text-[9px] font-semibold text-amber-200 disabled:opacity-40"
+              className="min-h-11 rounded-xl border border-amber-500/20 text-xs font-semibold text-amber-200 disabled:opacity-40"
             >
               Request correction
             </button>
@@ -2248,7 +2290,7 @@ function EvidenceReview({
               type="button"
               disabled={deciding || !items.length}
               onClick={() => void decide("accept")}
-              className="min-h-11 rounded-xl bg-violet-500 text-[9px] font-semibold disabled:opacity-40"
+              className="min-h-11 rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40"
             >
               Accept field evidence
             </button>
@@ -2295,7 +2337,7 @@ function EvidenceReview({
 function ReadOnlyFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5">
-      <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p>
       <p className="mt-1 text-[11px] font-semibold text-[#D9DCE4]">{value || "Not supplied"}</p>
     </div>
   );
@@ -2335,7 +2377,7 @@ function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
     <>
       <section className="rounded-2xl border border-red-500/15 bg-red-500/[.035] p-4">
         <p className="text-xs font-semibold">Creator decision</p>
-        <p className="mt-1 text-[9px] leading-5 text-[var(--wh-text-secondary)]">
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">
           Rejecting stops this submission before publication. Any unpublished
           draft is removed; published or actively reserved property cannot be
           deleted here.
@@ -2351,7 +2393,7 @@ function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
           type="button"
           disabled={busy || !reason.trim()}
           onClick={() => void reject()}
-          className="mt-3 min-h-11 w-full rounded-xl border border-red-500/20 text-[10px] font-semibold text-red-300 disabled:opacity-40"
+          className="mt-3 min-h-11 w-full rounded-xl border border-red-500/20 text-xs font-semibold text-red-300 disabled:opacity-40"
         >
           {busy ? "Removing submission…" : "Reject and remove submission"}
         </button>
@@ -2362,7 +2404,7 @@ function SubmissionDecision({ row, done }: { row: any; done: () => void }) {
 }
 function Badge({ value }: { value: string }) {
   return (
-    <span className="h-fit rounded-full bg-white/[0.06] px-2 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">
+    <span className="h-fit rounded-full bg-white/[0.06] px-2 py-1 text-xs font-semibold text-[var(--wh-text-secondary)]">
       {stageLabel(value)}
     </span>
   );
@@ -2370,7 +2412,7 @@ function Badge({ value }: { value: string }) {
 function Info({ label, value }: { label: string; value: any }) {
   return (
     <div className="border-b border-[var(--wh-border-subtle)] py-2.5">
-      <p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">
+      <p className="text-xs uppercase tracking-wide text-[var(--wh-text-muted)]">
         {label}
       </p>
       <p className="mt-1 text-[11px] font-semibold">{String(value)}</p>
@@ -2379,18 +2421,14 @@ function Info({ label, value }: { label: string; value: any }) {
 }
 function Empty({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/[0.08] p-9 text-center text-[10px] text-[var(--wh-text-muted)]">
+    <div className="rounded-2xl border border-dashed border-white/[0.08] p-9 text-center text-xs text-[var(--wh-text-muted)]">
       {text}
     </div>
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-32 place-items-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function money(v: any) {
-  return `₦${Number(v || 0).toLocaleString("en-NG")}`;
+  const amount=Number(v);return v!==null&&v!==undefined&&v!==''&&Number.isFinite(amount)&&amount>0?formatMoney(amount,{currency:'NGN'}):'Not provided';
 }

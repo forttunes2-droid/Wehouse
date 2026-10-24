@@ -1,7 +1,9 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import { regionDataset } from "@/data/locations";
+import { getRegionalDefaults } from "@/lib/regional";
 import { getServiceCategories } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
@@ -47,7 +49,8 @@ export default function WorkerCapacityManager(){
     setOccupations((categories||[]).filter((row:any)=>row.is_active!==false).map((row:any)=>String(row.name||"").trim()).filter(Boolean));
   }
   useEffect(()=>{void load()},[]);
-  const lgas=useMemo(()=>state?getCitiesForState(state):[],[state]);
+  const regionRows=regionDataset(getRegionalDefaults().countryCode);
+  const lgas=useMemo(()=>regionRows?.find(row=>row.state===state)?.cities??[],[regionRows,state]);
 
   function clear(){
     setSelectedId(null);setState("");setLga("");setOccupation("");setTarget("");setLimit("");setPaused(false);setNote("");
@@ -99,8 +102,13 @@ export default function WorkerCapacityManager(){
     </div>
 
     <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
-      <Field label="State"><WeHouseChoice aria-label="State" value={state} onChange={e=>{setState(e.target.value);setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose State</option>{NIGERIA_STATES.map(row=><option key={row.state} value={row.state}>{row.state}</option>)}</WeHouseChoice></Field>
-      <Field label="LGA"><WeHouseChoice aria-label="LGA" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose LGA</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
+      {regionRows?<>
+      <Field label="State / region"><WeHouseChoice aria-label="State or region" value={state} onChange={e=>{setState(e.target.value);setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose state or region</option>{regionRows.map(row=><option key={row.state} value={row.state}>{row.state}</option>)}</WeHouseChoice></Field>
+      <Field label="City / area"><WeHouseChoice aria-label="City or area" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose city or area</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
+      </>:<>
+      <Field label="State / region"><input aria-label="State or region" value={state} onChange={e=>setState(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+      <Field label="City / area"><input aria-label="City or area" value={lga} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+      </>}
       <Field label="Occupation"><WeHouseChoice aria-label="Occupation" value={occupation} onChange={e=>setOccupation(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose occupation</option>{occupations.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
       <div className="grid grid-cols-2 gap-2"><Field label="Target"><input inputMode="numeric" value={target} onChange={e=>setTarget(e.target.value.replace(/\D/g,""))} placeholder="Optional" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field><Field label="Hard limit"><input inputMode="numeric" value={limit} onChange={e=>setLimit(e.target.value.replace(/\D/g,""))} placeholder="Optional" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field></div>
       <Field label="Internal note"><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
@@ -109,7 +117,7 @@ export default function WorkerCapacityManager(){
     </div>
 
     <div className="mt-4">
-      {loading?<p role="status" className="py-6 text-xs text-muted-foreground">Loading capacity…</p>:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No LGA occupation limits yet. Without a rule, verified approval remains uncapped for that market.</p>:<div className="divide-y divide-border border-y border-border">
+      {loading?<WeHouseLoadingState compact label="Loading capacity" />:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No LGA occupation limits yet. Without a rule, verified approval remains uncapped for that market.</p>:<div className="divide-y divide-border border-y border-border">
         {rules.map(rule=><article key={rule.capacity_id} className="flex items-center gap-3 py-3">
           <button type="button" onClick={()=>edit(rule)} className="min-w-0 flex-1 text-left">
             <p className="truncate text-xs font-semibold text-foreground">{rule.occupation_name} · {rule.lga_name}</p>

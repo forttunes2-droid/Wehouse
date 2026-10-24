@@ -24,7 +24,7 @@ export function isSelectableChatAttachment(file: Pick<File, "type" | "size">, so
   return source === "document" ? isChatDocumentType(file.type) : isChatVisualType(file.type);
 }
 
-export const CHAT_MEDIA_ONLY_MESSAGE = 'Choose a supported photo, video or document (up to 25MB).';
+export const CHAT_MEDIA_ONLY_MESSAGE = 'Choose a supported photo, video or document (up to 25 MiB).';
 const recordedNotes = new WeakSet<Blob>();
 export const normaliseChatMediaType = (value: string) => value.toLowerCase().split(';', 1)[0].trim();
 export function isChatVisualType(type: string): boolean {
@@ -63,7 +63,7 @@ const extensions: Record<string, string[]> = {
 export async function validateMessageMedia(blob: Blob, metadata: { type: string; name?: string }, allowVoice = true): Promise<void> {
   const type = normaliseChatMediaType(metadata.type);
   if (!isChatAttachmentType(type, allowVoice)) throw new Error(CHAT_MEDIA_ONLY_MESSAGE);
-  if (!blob.size || blob.size > CHAT_MEDIA_MAX_BYTES) throw new Error('Photos, videos and voice notes must be 25MB or smaller and cannot be empty.');
+  if (!blob.size || blob.size > CHAT_MEDIA_MAX_BYTES) throw new Error('Photos, videos and voice notes must be 25 MiB or smaller and cannot be empty.');
   const name = metadata.name || '';
   if (name && (/[\\/]/.test(name) || Array.from(name).some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) || (!isChatDocumentType(type) && !extensions[type]?.includes(name.split('.').at(-1)!.toLowerCase())))) {
     throw new Error('The attachment name does not match its media type.');

@@ -4,6 +4,13 @@ import test from 'node:test';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
+test('Partner Pro rejects a missing sign-in before inspecting payment configuration', async () => {
+  const source = await read('supabase/functions/partner-pro-payment-init/index.ts');
+  const missingToken = source.indexOf('if (!token)');
+  assert.ok(missingToken > 0 && missingToken < source.indexOf("Deno.env.get('PAYSTACK_SECRET_KEY')"));
+  assert.match(source, /if \(!token\).*401/);
+});
+
 test('Paystack webhook verifies provider HMAC before service authority', async () => {
   const source = await read('supabase/functions/paystack-webhook/index.ts');
   const signatureCheck = source.indexOf('x-paystack-signature');

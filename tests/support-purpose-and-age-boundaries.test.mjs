@@ -1,3 +1,4 @@
+import timeoutApi from './helpers/with-timeout.mjs';
 import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -14,7 +15,7 @@ async function supportModule() {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   vm.runInNewContext(code, { exports, require(name) {
-    if(name === '@/lib/chatMediaPolicy') return chatMediaPolicy;
+    if(name === '@/lib/withTimeout') return timeoutApi; if(name === '@/lib/chatMediaPolicy') return chatMediaPolicy;
     if (name === "./client") return { supabase: { async rpc(name, args) {
       calls.push({ name, args: JSON.parse(JSON.stringify(args)) });
       return { data: { conversation_id: "test-conversation" }, error: null };
@@ -114,5 +115,5 @@ test("Worker Jobs and Partner Properties remain the existing operational homes",
   assert.match(worker, /<WorkerJobsPanelV2/);
   assert.match(partner, /key: "properties"[\s\S]*label: "Properties"/);
   assert.doesNotMatch(partner, /label: "Overview"/);
-  assert.match(partner, /<WeHouseSelect[\s\S]*label: "Apartments"[\s\S]*label: "Hotels"/);
+  assert.match(partner, /<WeHouseSelect[\s\S]*label: "Homes"[\s\S]*label: "Hotels"/);
 });

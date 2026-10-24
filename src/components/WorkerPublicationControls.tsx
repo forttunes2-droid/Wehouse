@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useCreatorAuth } from '@/hooks/useCreatorAuth';
@@ -58,7 +59,7 @@ export default function WorkerPublicationControls({ userId, workerId }: { userId
       <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{workerId ? 'Publication is separate from this person’s Personal account and optional paid tools.' : 'Control customer discovery here. Each Worker still has to qualify to appear.'}</p></header>
     {error && <div role="alert" className="text-sm leading-6 text-amber-200"><p>{error}</p><button type="button" disabled={busy} onClick={() => setAttempt(n => n + 1)} className="min-h-11 font-semibold underline">Refresh controls</button></div>}
     {notice && <p role="status" className="text-sm leading-6 text-violet-200">{notice}</p>}
-    {!state && !error ? <p role="status" className="text-sm text-[var(--wh-text-secondary)]">Loading publication state…</p> : state && <>
+    {!state && !error ? <WeHouseLoadingState compact label="Loading publication state" /> : state && <>
       <p className="text-base font-semibold">{workerId ? worker?.publicly_visible ? 'Visible to eligible customers' : 'Not visible to customers' : state.enabled ? 'Open' : 'Paused'}</p>
       {workerId ? <>
         {worker?.reasons.map(item => <p key={item} className="text-sm leading-6 text-[var(--wh-text-secondary)]">{item}</p>)}

@@ -1,6 +1,8 @@
 import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
+import { consumeUserAction } from "../_shared/rateLimit.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
+import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -31,6 +33,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user?.email) return json({ success: false, error: 'Invalid or expired session' }, 401);
     if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+    const limit = await consumeUserAction(admin, user.id, 'worker_pro_payment', 10, 600, true);
+    if (!limit.allowed) return json({ success: false, error: 'Too many payment attempts. Please wait and try again.', retry_after_seconds: limit.retryAfterSeconds }, 429);
     const { data: profile } = await admin.from('profiles').select('user_id,role,worker_status,worker_verified,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
     if (!profile || !await hasActiveWorkspace(admin,profile.user_id,'worker') || profile.worker_status !== 'verified' || profile.worker_verified !== true) return json({ success: false, error: 'A WeHouse Reviewed Worker account is required' }, 403);
     if (profile.deleted || profile.suspended || profile.banned) return json({ success: false, error: 'Worker account is not active' }, 403);
@@ -47,21 +51,22 @@ Deno.serve(async (req) => {
     if (payment.status === 'paid' || payment.status === 'completed') return json({ success: true, already_paid: true, reference });
     if (payment.status !== 'pending') return json({ success: false, error: 'This checkout can no longer be initialized' }, 409);
 
-    const amount = Number(payment.amount_total ?? payment.amount ?? 0);
+    const market=resolvePaymentMarket(payment.currency);
+    const amountMinor=market?paymentMinorUnits(payment.amount_total ?? payment.amount,market.minorDigits):null;
     const metadata = payment.metadata && typeof payment.metadata === 'object' ? payment.metadata as Record<string, unknown> : {};
     const planCode = String(metadata.plan_code || '');
     const billingPeriod = String(metadata.billing_period || 'monthly').toLowerCase();
     const expectedInterval = billingPeriod === 'yearly' ? 'annually' : billingPeriod === 'monthly' ? 'monthly' : '';
     const expectedIsoPeriod = billingPeriod === 'yearly' ? 'P1Y' : 'P1M';
-    if (!expectedInterval || !/^PLN_[A-Za-z0-9]+$/.test(planCode) || !Number.isFinite(amount) || amount <= 0 || payment.currency !== 'NGN') {
+    if (!expectedInterval || !/^PLN_[A-Za-z0-9]+$/.test(planCode) || !market || amountMinor===null) {
       return json({ success: false, error: 'Invalid paid plan configuration' }, 409);
     }
 
-    const planResponse = await fetch(`https://api.paystack.co/plan/${encodeURIComponent(planCode)}`, { headers: { Authorization: `Bearer ${paystackSecret}` } });
+    const planResponse = await fetch(`https://api.paystack.co/plan/${encodeURIComponent(planCode)}`, { signal:AbortSignal.timeout(12000),headers: { Authorization: `Bearer ${paystackSecret}` } });
     const planPayload = await planResponse.json().catch(() => null);
     const plan = planPayload?.data;
     if (!planResponse.ok || !planPayload?.status || !plan) return json({ success: false, error: planPayload?.message || 'Paystack paid plan could not be verified' }, 502);
-    if (String(plan.interval || '').toLowerCase() !== expectedInterval || String(plan.currency || 'NGN').toUpperCase() !== 'NGN' || Math.round(Number(plan.amount || 0)) !== Math.round(amount * 100)) {
+    if (String(plan.interval || '').toLowerCase() !== expectedInterval || plan.currency !== market.currency || !Number.isSafeInteger(plan.amount) || plan.amount !== amountMinor) {
       return json({ success: false, error: `Creator price and Paystack ${billingPeriod} plan do not match` }, 409);
     }
 
@@ -69,11 +74,12 @@ Deno.serve(async (req) => {
     if (existingUrl) return json({ success: true, reference, authorization_url: existingUrl, existing: true });
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
+      signal:AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${paystackSecret}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: user.email,
-        amount: String(Math.round(amount * 100)),
-        currency: 'NGN',
+        amount: String(amountMinor),
+        currency: market.currency,
         reference,
         plan: planCode,
         callback_url: paymentReturnUrl,

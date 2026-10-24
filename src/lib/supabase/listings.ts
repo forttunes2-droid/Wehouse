@@ -274,11 +274,6 @@ export async function getSavedListings(userId: string) {
   return { saved: data || [], savedIds: (data || []).map((row) => row.listing_id) as string[], error };
 }
 
-export async function createListing(listing: Omit<Listing, 'id' | 'listing_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase.rpc('create_internal_listing', { p_data: listing });
-  return { listing: data as Listing | null, error };
-}
-
 export function getRequiredApproverRank(posterRole: string) {
   if (posterRole === 'staff') return ROLE_RANK.admin;
   return ROLE_RANK.creator;

@@ -1,8 +1,10 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { currencySymbol, formatMoney } from '@/lib/regional';
 import { toast } from 'sonner';
 type Job = {id:string;booking_code:string|null;service_type:string|null;scheduled_date:string;status:string;released_earnings_ngn:number|null;cost_ngn:number|null;note:string};
-const money=(value:number)=>'₦'+Number(value).toLocaleString('en-NG');
+const money=(value:number)=>formatMoney(Number(value));
 export default function WorkerProJobCosts() {
  const [rows,setRows]=useState<Job[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(false),[busy,setBusy]=useState<string|null>(null);
  const [drafts,setDrafts]=useState<Record<string,{amount:string;note:string}>>({});
@@ -15,7 +17,7 @@ export default function WorkerProJobCosts() {
  useEffect(()=>{void load();},[load]);
  async function save(row:Job) {
   if(busy) return;const d=drafts[row.id],amount=Number(d.amount);
-  if(!d.amount.trim()||!Number.isFinite(amount)||amount<0||amount>10000000) return toast.error('Enter a cost from ₦0 to ₦10,000,000');
+  if(!d.amount.trim()||!Number.isFinite(amount)||amount<0||amount>10000000) return toast.error(`Enter a cost from ${money(0)} to ${money(10000000)}`);
   setBusy(row.id);
   try {const r=await supabase.rpc('save_my_worker_pro_job_cost',{p_booking_id:row.id,p_amount:amount,p_note:d.note});if(r.error)throw r.error;await load();toast.success('Job cost saved');}
   catch {toast.error('Job cost could not be saved');} finally {setBusy(null);}
@@ -29,11 +31,11 @@ export default function WorkerProJobCosts() {
  }
  return <section aria-label="Job costs and profit" className="space-y-3"><div className="flex flex-wrap justify-between gap-2"><h3 className="text-base font-semibold">Job costs and profit</h3><button type="button" disabled={loading||error||!rows.length} onClick={exportCsv} className="min-h-11 rounded-xl border px-3 text-sm disabled:opacity-40">Export costs CSV</button></div>
  <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Record materials, transport and other job costs as a total. Net uses released Worker earnings minus costs you entered; it is not tax profit or proof of payout. Latest 150 jobs are shown. Blank cost means unrecorded, not zero.</p>
- {loading?<p role="status">Loading job costs…</p>:error?<p role="alert">Could not load job costs. <button onClick={()=>void load()} className="underline">Try again</button></p>:!rows.length?<p>No eligible jobs yet.</p>:rows.map(row=>{
+ {loading?<WeHouseLoadingState compact label="Loading job costs" />:error?<p role="alert">Could not load job costs. <button onClick={()=>void load()} className="underline">Try again</button></p>:!rows.length?<p>No eligible jobs yet.</p>:rows.map(row=>{
  const d=drafts[row.id]||{amount:'',note:''};const net=row.released_earnings_ngn!==null&&row.cost_ngn!==null?Number(row.released_earnings_ngn)-Number(row.cost_ngn):null;
  return <form key={row.id} onSubmit={e=>{e.preventDefault();void save(row);}} className="rounded-2xl border border-[var(--wh-border-subtle)] p-4"><h4 className="text-sm font-semibold">{row.service_type||'Service job'} · #{row.booking_code||row.id.slice(0,8)}</h4>
  <p className="mt-1 text-xs">{row.released_earnings_ngn===null?'Earnings not released':`Released earnings ${money(row.released_earnings_ngn)}`}{net!==null?` · Net after recorded costs ${money(net)}`:''}</p>
- <label className="mt-3 block text-sm">Total job costs (₦)<input type="number" required min="0" max="10000000" step="0.01" value={d.amount} onChange={e=>setDrafts(v=>({...v,[row.id]:{...d,amount:e.target.value}}))} className="mt-1 min-h-11 w-full rounded-xl border bg-[var(--wh-surface)] px-3"/></label>
+ <label className="mt-3 block text-sm">Total job costs ({currencySymbol()})<input type="number" required min="0" max="10000000" step="0.01" value={d.amount} onChange={e=>setDrafts(v=>({...v,[row.id]:{...d,amount:e.target.value}}))} className="mt-1 min-h-11 w-full rounded-xl border bg-[var(--wh-surface)] px-3"/></label>
  <label className="mt-3 block text-sm">Cost details<textarea maxLength={600} value={d.note} onChange={e=>setDrafts(v=>({...v,[row.id]:{...d,note:e.target.value}}))} className="mt-1 w-full rounded-xl border bg-[var(--wh-surface)] p-3"/></label>
  <button disabled={busy!==null} type="submit" className="mt-3 min-h-11 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-40">Save job cost</button></form>;
  })}</section>;

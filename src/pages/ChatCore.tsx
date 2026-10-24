@@ -1,11 +1,16 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
 import { createPortal } from "react-dom";
 import { useMessageObjectUrls } from "@/hooks/useMessageObjectUrls";
 import { acknowledgeChatMessage, reconcileChatMessages, type MessageSyncState } from "@/lib/chatMessageReconciliation";
 import { PropertyDraftAttachment } from "@/components/SharedPropertyCard";
+import { WorkerDraftAttachment } from "@/components/WorkerShareCard";
 import RoommateBubble from "@/components/RoommateMessageBubble";
 import { PendingMessageMedia } from "@/components/MessageMedia";
 import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, propertyMessagePreview, type SharedProperty } from "@/lib/propertyShare";
+import { pendingWorkerShare, clearWorkerShare, workerShareMessage, type SharedWorker } from "@/lib/workerShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +27,7 @@ import {
   setRoommateBlock,
   uploadRoommateChatAttachment,
 } from "@/lib/supabase/chat";
+import ReportDialog from "@/components/ReportDialog";
 import type { RoommatePeer } from "@/lib/supabase/chat";
 import {
   BOOKING_STATUS_LABELS,
@@ -164,6 +170,7 @@ export default function Chat({
   onActivityUnreadChange,
 }: Props) {
   const [propertyDraft, setPropertyDraft] = useState<SharedProperty | null>(null);
+  const [workerDraft, setWorkerDraft] = useState<SharedWorker | null>(null);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const cachedInbox = inboxCache.get(profile.user_id);
   const [openingConversation, setOpeningConversation] = useState(Boolean(conversationId));
@@ -191,6 +198,7 @@ export default function Chat({
     [profilePerson, setProfilePerson] = useState<Person | null>(null),
     [blockBusy, setBlockBusy] = useState(false),
     [blockPrompt, setBlockPrompt] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
     [blockReason, setBlockReason] = useState(""),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [bulkDelete, setBulkDelete] = useState(false),
@@ -211,6 +219,7 @@ export default function Chat({
     useState<RoommateMessage | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
+  const messagePins = useMessagePins(active ? "roommate" : null, active?.id, messages.length);
   const {
     status: inboxSecurityStatus,
     refresh: refreshInboxSecurity,
@@ -220,8 +229,8 @@ export default function Chat({
   const sendingRef = useRef(false);
   const mountedRef = useRef(true);
   const currentIdentityRef = useRef(profile.user_id);
-  const composerRef = useRef({ input, files, propertyDraft });
-  useEffect(() => { composerRef.current = { input, files, propertyDraft }; }, [input, files, propertyDraft]);
+  const composerRef = useRef({ input, files, propertyDraft, workerDraft });
+  useEffect(() => { composerRef.current = { input, files, propertyDraft, workerDraft }; }, [input, files, propertyDraft, workerDraft]);
   useEffect(() => {
     mountedRef.current = true; currentIdentityRef.current = profile.user_id;
     return () => { mountedRef.current = false; messageLoadGeneration.current++; activeRef.current = null; };
@@ -644,7 +653,7 @@ export default function Chat({
     const incoming: File[] = [];
     for (const file of Array.from(list)) {
       if (!isSelectableChatAttachment(file, source)) {
-        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE}`);
+        toast.error(`An attachment could not be added: ${file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE}`);
         continue;
       }
       try {
@@ -676,11 +685,13 @@ export default function Chat({
     }
   }
   useEffect(() => {
-    setPropertyDraft(active ? pendingPropertyShare(profile.user_id, active.id) : null);
+    const pendingWorker = active ? pendingWorkerShare(profile.user_id, active.id) : null;
+    setWorkerDraft(pendingWorker);
+    setPropertyDraft(active && !pendingWorker ? pendingPropertyShare(profile.user_id, active.id) : null);
   }, [profile.user_id, active?.id]);
 
   async function submit() {
-    if (!active || sendingRef.current || sending || (!input.trim() && !files.length && !propertyDraft)) return;
+    if (!active || sendingRef.current || sending || (!input.trim() && !files.length && !propertyDraft && !workerDraft)) return;
     if (secureChat?.state !== "ready")
       return toast.error("Secure conversation must be ready before sending");
     const target = active;
@@ -688,7 +699,8 @@ export default function Chat({
     sendingRef.current = true;
     const note = input.trim();
     const shared = propertyDraft;
-    const content = shared ? propertyShareMessage(shared, note) : note;
+    const sharedWorker = workerDraft;
+    const content = sharedWorker ? workerShareMessage(sharedWorker, note) : shared ? propertyShareMessage(shared, note) : note;
     const queuedFiles = [...files];
     const replyTarget = replyingTo;
     const optimisticId = `pending-${crypto.randomUUID()}`;
@@ -697,6 +709,7 @@ export default function Chat({
     setSending(true);
     setInput("");
     setPropertyDraft(null);
+    setWorkerDraft(null);
     setFiles([]);
     setReplyingTo(null);
     setMessages((current) => [
@@ -745,6 +758,7 @@ export default function Chat({
         throw new Error(result.error?.message || "Message could not be sent");
       accepted = true;
       if (shared) clearPropertyShare(profile.user_id, active.id);
+      if (sharedWorker) clearWorkerShare(profile.user_id, active.id);
       if (stillHere()) {
         setMessages(old => acknowledgeChatMessage(old, optimisticId, String(result.message!.id)));
         setSending(false);
@@ -754,9 +768,9 @@ export default function Chat({
     } catch (error: unknown) {
       if (accepted) return;
       if (stillHere()) {
-        const hasNewDraft = Boolean(composerRef.current.input.trim() || composerRef.current.files.length || composerRef.current.propertyDraft);
+        const hasNewDraft = Boolean(composerRef.current.input.trim() || composerRef.current.files.length || composerRef.current.propertyDraft || composerRef.current.workerDraft);
         setMessages(current => hasNewDraft ? current.map(message => message.id === optimisticId ? { ...message, delivery_state: "failed" } : message) : current.filter(message => message.id !== optimisticId));
-        if (!hasNewDraft) { setInput(note); setPropertyDraft(shared); setFiles(queuedFiles); setReplyingTo(replyTarget); }
+        if (!hasNewDraft) { setInput(note); setPropertyDraft(shared); setWorkerDraft(sharedWorker); setFiles(queuedFiles); setReplyingTo(replyTarget); }
       }
       for (const path of paths) await deleteRoommateChatAttachment(path);
       const message =
@@ -813,7 +827,7 @@ export default function Chat({
     );
     setBlockBusy(false);
     if (error)
-      return toast.error(error.message || "Could not update this block");
+      return toast.error(error.message || "Could not update this connection");
     setPeople((current) => ({
       ...current,
       [peerId]: { ...current[peerId], isBlocked: nextBlocked },
@@ -827,11 +841,11 @@ export default function Chat({
     toast.success(
       nextBlocked
         ? cancellationState === "review"
-          ? "Person blocked. The linked paid booking was sent to WeHouse for cancellation."
+          ? "Connection cancelled. The linked paid booking was sent to WeHouse for cancellation."
           : cancellationState === "cancelled"
-            ? "Person blocked and the linked shared booking was cancelled."
-            : "Person blocked and removed from discovery."
-        : "Person unblocked",
+            ? "Connection cancelled and the linked shared booking was cancelled."
+            : "Connection cancelled and removed from discovery."
+        : "Connection restored",
     );
   }
   async function openActiveProfile() {
@@ -1138,6 +1152,16 @@ export default function Chat({
                 <span>Contact info</span>
               </button>
               <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReportOpen(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm"
+              >
+                <span>⚑</span>
+                <span>Report</span>
+              </button>
+              <button
                 disabled={blockBusy}
                 onClick={() => {
                   if (person?.isBlocked) void toggleBlock();
@@ -1150,7 +1174,7 @@ export default function Chat({
               >
                 <span>⊘</span>
                 <span>
-                  {person?.isBlocked ? "Unblock person" : "Block person"}
+                  {person?.isBlocked ? "Restore connection" : "Cancel connection"}
                 </span>
               </button>
               <button
@@ -1166,6 +1190,11 @@ export default function Chat({
             </div>
           )}
         </header>
+        <PinnedMessagesBar
+          items={messagePins.pinned.map((id) => messageById.get(id)).filter((m): m is RoommateMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || "Attachment" }))}
+          onJump={scrollToMessage}
+          onUnpin={(id) => void messagePins.toggle(id)}
+        />
         <main className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.055),transparent_32%)] px-3 py-2 sm:px-4">
           <div className="mx-auto max-w-3xl space-y-2.5">
             {lockedMessages ? (
@@ -1207,6 +1236,7 @@ export default function Chat({
                   <RoommateBubble
                     msg={event.message}
                     onOpenProperty={onNavigate}
+                    onOpenWorker={(id) => onNavigate("worker_discovery", id)}
                     mine={event.message.sender_id === profile.user_id}
                     quoted={
                       event.message.reply_to_id
@@ -1238,14 +1268,14 @@ export default function Chat({
             {person?.isBlocked ? (
               <div className="flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-amber-500/15 bg-amber-500/[.05] px-4">
                 <p className="text-xs text-amber-100">
-                  This person is blocked. Matching, messages and calls are off.
+                  This connection is cancelled. Matching, messages and calls are off.
                 </p>
                 <button
                   type="button"
                   onClick={() => void toggleBlock()}
                   className="shrink-0 text-xs font-semibold text-violet-300"
                 >
-                  Unblock
+                  Restore
                 </button>
               </div>
             ) : !secureChat ? (
@@ -1269,6 +1299,7 @@ export default function Chat({
             ) : (
               <>
                 {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }} />}
+                {workerDraft && <WorkerDraftAttachment onRemove={() => { if (active) clearWorkerShare(profile.user_id, active.id); setWorkerDraft(null); }} />}
                 <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel
                   recording={voice.recording}
@@ -1341,7 +1372,7 @@ export default function Chat({
                   </div>
                   <button
                     onClick={() => void submit()}
-                    disabled={sending || (!input.trim() && !files.length && !propertyDraft)}
+                    disabled={sending || (!input.trim() && !files.length && !propertyDraft && !workerDraft)}
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500 disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                     aria-label="Send"
                   >
@@ -1360,6 +1391,8 @@ export default function Chat({
               messageActions.reactions?.[profile.user_id] || null
             }
             onClose={() => setMessageActions(null)}
+            pinned={messagePins.pinned.includes(messageActions.id)}
+            onPin={() => { const id = messageActions.id; setMessageActions(null); void messagePins.toggle(id); }}
             onReply={() => {
               setReplyingTo(messageActions);
               setMessageActions(null);
@@ -1434,6 +1467,14 @@ export default function Chat({
             busy={blockBusy}
           />
         )}
+        {reportOpen && peerId && (
+          <ReportDialog
+            subjectType="roommate_chat"
+            subjectUserId={peerId}
+            subjectName={person?.name || "this person"}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
         {blockPrompt && (
           <div
             className="fixed inset-0 z-[100060] flex items-end justify-center bg-black/65 p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm"
@@ -1446,7 +1487,7 @@ export default function Chat({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-base font-bold">
-                    Block {person?.name || "this person"}?
+                    Cancel connection with {person?.name || "this person"}?
                   </h2>
                   <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">
                     They will leave your discovery results. A linked shared
@@ -1486,7 +1527,7 @@ export default function Chat({
                   disabled={blockBusy}
                   className="h-11 rounded-xl bg-red-500 text-xs font-semibold disabled:opacity-40"
                 >
-                  {blockBusy ? "Blocking…" : "Block and continue"}
+                  {blockBusy ? "Cancelling…" : "Cancel connection"}
                 </button>
               </div>
             </section>
@@ -2090,7 +2131,7 @@ function PeerProfileSheet({
           onClick={onToggleBlock}
           className="mt-8 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200"
         >
-          {person?.isBlocked ? "Unblock person" : "Block person"}
+          {person?.isBlocked ? "Restore connection" : "Cancel connection"}
         </button>
       }
     />
@@ -2237,11 +2278,7 @@ function Divider() {
   return <div className="ml-[4.5rem] h-px bg-[var(--wh-interactive)]" />;
 }
 function Loading() {
-  return (
-    <div className="grid min-h-24 place-items-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function MessageSkeleton() {
   return (

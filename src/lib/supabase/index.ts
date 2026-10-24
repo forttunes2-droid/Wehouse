@@ -2,7 +2,7 @@
 // Modularized from the original 2160-line monolith.
 
 // Client
-export { supabase, uploadStorageObjectWithProgress } from "./client";
+export { supabase, uploadStorageObjectWithProgress, isWebPasskeyEnabled } from "./client";
 export type { DiagnosticsResult } from "./client";
 export { runDiagnostics } from "./client";
 
@@ -20,6 +20,9 @@ export {
   isUsernameTaken,
   updateUsername,
   changePassword,
+  requestEmailChange,
+  startEmailChangeWithGoogle,
+  finishEmailChangeWithGoogle,
   logPasswordChange,
 } from "./auth";
 
@@ -48,7 +51,6 @@ export {
   getSessionHistory,
   createUserSession,
   registerUserSession,
-  confirmCurrentDeviceWithGoogle,
   approximateDeviceLocation,
   deactivateUserSession,
   isSessionActive,
@@ -73,7 +75,6 @@ export {
   saveListing,
   unsaveListing,
   getSavedListings,
-  createListing,
   getRequiredApproverRank,
   getApproverLabel,
   canApproveListing,
@@ -93,7 +94,6 @@ export {
   getReservationsForUser,
   cancelReservation,
   markSupportContacted,
-  updateReservationPlan,
   createInspectionRequest,
   getInspectionRequestForReservation,
   getInspectionRequestsForUser,
@@ -143,10 +143,6 @@ export {
   setWorkerAvailability,
 } from "./workers-public";
 export {
-  parseWorkerStatus,
-  getAllWorkers,
-  getPendingWorkers,
-  updateWorkerStatus,
   getServiceCategories,
   getServiceSubcategories,
   getCategoryWithSubcategories,
@@ -157,24 +153,12 @@ export {
   updateServiceSubcategory,
   deleteServiceSubcategory,
   seedSubcategoriesForCategory,
-  submitWorkerVerification,
-  uploadWorkerVerificationVideo,
-  getWorkerVerification,
-  getVerificationsByStatus,
-  reviewWorkerVerification,
-  getLegacyWorkerSubscription,
-  getOrCreateWallet,
   getWallet,
   getWalletTransactions,
-  creditWallet,
-  updateWalletBankDetails,
   getPaymentProtectionForBooking,
-  requestWithdrawal,
   getWithdrawals,
   logFinancialEvent,
   getFinancialAuditLogs,
-  getWorkerDashboardData,
-  getWorkerSystemStats,
 } from "./workers";
 
 // Paystack
@@ -265,12 +249,6 @@ export {
 // Permissions
 export {
   getStaffPermissions,
-  grantPermission,
-  revokePermission,
-  hasPermission,
-  hasAnyPermission,
-  getAllStaffWithPermissions,
-  getStaffByPermission,
 } from "./permissions";
 
 // Hotels
@@ -295,6 +273,9 @@ export {
   createHotelRoom,
   partnerCreateHotelRoom,
   partnerSaveHotelRatePlan,
+  partnerListHotelDiscounts,
+  partnerSetHotelDiscount,
+  partnerClearHotelDiscount,
   partnerSaveHotelVenue,
   updateHotelRoom,
   deleteHotelRoom,

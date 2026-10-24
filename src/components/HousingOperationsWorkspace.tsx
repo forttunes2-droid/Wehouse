@@ -1,6 +1,7 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { locationLabel } from "@/lib/locationPresentation";
-import { displayDate, nigeriaDate } from "@/lib/displayDate";
+import { displayDate, propertyDate } from "@/lib/displayDate";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -19,6 +20,7 @@ import {
   getPropertyBookingJourney,
   propertyBookingStatusLabel,
 } from "@/lib/propertyBookingLifecycle";
+import { formatMoney, timeZoneLabel } from "@/lib/regional";
 
 type Filter = "all" | "needs_action" | "upcoming" | "active" | "finished";
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -531,7 +533,7 @@ function ShortStayCase({
   back: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
-  const checkInDate = nigeriaDate();
+  const checkInDate = propertyDate();
   const arrivalOpen = checkInDate >= String(row.check_in || "") && checkInDate < String(row.check_out || "");
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
@@ -650,7 +652,7 @@ function ShortStayCase({
           />
           <Info
             label="Stay rent"
-            value={`₦${Number(row.stay_rent_total || 0).toLocaleString()}`}
+            value={`${formatMoney(Number(row.stay_rent_total || 0))}`}
           />
           <Info
             label="Refundable deposit"
@@ -669,7 +671,7 @@ function ShortStayCase({
             <span className="font-bold text-emerald-200">{bookingCode}</span> is
             verified. Record entry only after the guest receives access today.
           </p>
-          <p className="mt-3 text-sm">Check-in today · {displayDate(checkInDate)} (Nigeria time)</p>
+          <p className="mt-3 text-sm">Check-in today · {displayDate(checkInDate)} ({timeZoneLabel()})</p>
           <button
             disabled={busy}
             onClick={() => void checkIn()}
@@ -752,7 +754,7 @@ function HousingCase({
   back: () => void;
 }) {
   const { ask, dialogProps } = useConfirm();
-  const startDate = nigeriaDate();
+  const startDate = propertyDate();
   const [nextStatus, setNextStatus] = useState<
     "maintenance" | "available" | "closed"
   >("maintenance");
@@ -878,7 +880,7 @@ function HousingCase({
     if (
       !(await ask({
         title: "Complete move-in handover?",
-        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${displayDate(startDate)} (Nigeria time).`,
+        description: `Booking code ${verifiedCode} matches ${row.customer_name || "this customer"}, this apartment, the verified rent and the requested arrival time. This starts the tenancy on ${displayDate(startDate)} (${timeZoneLabel()}).`,
         confirmLabel: "Start tenancy",
         variant: "info",
       }))
@@ -935,7 +937,7 @@ function HousingCase({
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Info
             label="Annual rent"
-            value={`₦${Number(row.annual_rent || 0).toLocaleString()}`}
+            value={`${formatMoney(Number(row.annual_rent || 0))}`}
           />
           <Info
             label="Property"
@@ -997,7 +999,7 @@ function HousingCase({
             />
             <Info
               label="Year 1 due"
-              value={`₦${Number(row.upfront_rent_required || row.annual_rent || 0).toLocaleString()}`}
+              value={`${formatMoney(Number(row.upfront_rent_required || row.annual_rent || 0))}`}
             />
             <Info
               label="Future plan"
@@ -1173,7 +1175,7 @@ function HousingCase({
             Code <span className="font-bold text-emerald-200">{verifiedCode}</span>{" "}
             has been matched. Confirm only after the customer receives the keys or access.
           </p>
-          <p className="mt-3 text-sm">Tenancy starts today · {displayDate(startDate)} (Nigeria time)</p>
+          <p className="mt-3 text-sm">Tenancy starts today · {displayDate(startDate)} ({timeZoneLabel()})</p>
           <button
             disabled={busy}
             onClick={() => void activate()}
@@ -1288,11 +1290,7 @@ function SmallRow({ label, value }: { label: string; value: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-48 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function Empty() {
   return (

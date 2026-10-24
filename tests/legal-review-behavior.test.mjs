@@ -44,6 +44,7 @@ function signupHarness(currentDocuments = documents, readError = null) {
     if (name === './client') return { supabase: { auth: { signUp: async input => { calls.push(input); return { data: { user: { id: 'synthetic' } }, error: null }; } } } };
     if (name === './legal') return { getCurrentLegalDocuments: async () => ({ documents: currentDocuments, error: readError }) };
     if (name === '@/lib/legalConsent') return exports;
+    if (name === '@/lib/googleVerification') return { verificationRedirectUrl: context => `https://fixture.example.invalid/?verify=${context}` };
     return {};
   } });
   return { calls, signUp: authExports.signUpWithEmail };
@@ -62,6 +63,7 @@ test('reviewed signup submits document versions without granting a requested pri
   assert.deepEqual(h.calls[0].options.data.legal_review, choices);
   assert.equal(h.calls[0].options.data.role, undefined);
   assert.equal(h.calls[0].options.data.signup_role, undefined);
+  assert.equal(h.calls[0].options.emailRedirectTo, 'https://fixture.example.invalid/?verify=signup');
 });
 
 test('unpublished documents do not block the actual signup helper', async () => {

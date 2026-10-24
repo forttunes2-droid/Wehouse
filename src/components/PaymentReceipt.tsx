@@ -1,23 +1,26 @@
+import { getRegionalDefaults } from "@/lib/regional";
 import BackButton from "@/components/BackButton";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { paymentReceiptStatus } from "@/lib/paymentReceiptContract";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { displayDate, displayDateTime } from "@/lib/displayDate";
+import { displayDate, displayMoment } from "@/lib/displayDate";
 import { getPaymentReceipts, type PaymentReceipt as Receipt } from "@/lib/supabase/receipts";
 
 export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
-  const money = (value: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: r.currency || "NGN" }).format(value);
+  const status = paymentReceiptStatus(r.status);
+  const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency || getRegionalDefaults().currencyCode }).format(value);
   return <article className="wehouse-receipt mx-auto max-w-md overflow-hidden rounded-2xl bg-white text-[#24212B] shadow-xl shadow-black/20">
     <div className="h-1 bg-violet-600" />
     <header className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
       <div className="flex items-center gap-2.5"><img src="/brand-mark-light.svg" alt="WeHouse" className="h-10 w-10 rounded-xl" /><div><p className="text-base font-bold tracking-tight">WeHouse</p><p className="text-xs text-[var(--wh-text-muted)]">wehouse.com.ng</p></div></div>
-      <span className={`rounded-full px-3 py-1 text-xs font-bold ${r.status.includes("refund") ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>{r.status === "refunded" ? "Refunded" : r.status.includes("refund") ? "Partial refund" : "Paid"}</span>
+      <span className={`rounded-full px-3 py-1 text-xs font-bold ${status.refunded ? "bg-amber-50 text-amber-900" : status.label === "Paid" ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{status.label}</span>
     </header>
     <div className="px-5 pb-5 pt-6 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">{r.booking_type === "hotel" ? "Hotel receipt" : r.booking_type === "housing" ? "Apartment receipt" : r.booking_type === "service" ? "Service receipt" : "Payment receipt"}</p>
-      <p className="mt-2 text-xs text-[var(--wh-text-muted)]">{displayDateTime(r.paid_at, "Africa/Lagos") + " WAT"}</p>
+      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">{r.booking_type === "hotel" ? "Hotel receipt" : r.booking_type === "housing" ? "Home receipt" : r.booking_type === "service" ? "Service receipt" : "Payment receipt"}</p>
+      <p className="mt-2 text-xs text-[var(--wh-text-muted)]">{displayMoment(r.paid_at)}</p>
       <div className="mt-5 rounded-2xl bg-[#F6F3FC] px-4 py-4">
         <p className="text-xs font-semibold text-[var(--wh-text-muted)]">Amount paid</p>
-        <strong className="mt-1 block text-2xl tracking-tight">{money(r.amount)}</strong>
+        <strong className="mt-1 block text-2xl tracking-tight tabular-nums [overflow-wrap:anywhere]">{money(r.amount)}</strong>
       </div>
       {r.environment === "test" && <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-900">Test payment · No real money was charged.</p>}
       {r.environment === null && <p className="mt-4 text-xs text-[var(--wh-text-muted)]">Payment mode was not recorded for this transaction.</p>}
@@ -33,7 +36,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
         {r.nights && <ReceiptLine label="Stay" value={`${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`} />}
         {r.stay_amount != null && <ReceiptLine label="Stay price" value={money(r.stay_amount)} />}
         {Number(r.deposit_amount) > 0 && <ReceiptLine label="Refundable caution" value={money(Number(r.deposit_amount))} />}
-        {r.cancellation_snapshot && <ReceiptLine label="Booked cancellation terms" value={r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})` : 'Non-refundable for ordinary cancellation'} />}
+        {r.cancellation_snapshot && <ReceiptLine label="Booked cancellation terms" value={r.cancellation_snapshot.refundable && r.cancellation_snapshot.deadline ? `Full refund ${money(Number(r.cancellation_snapshot.refund_amount_ngn))} by ${new Date(r.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:r.cancellation_snapshot.timezone})} (${r.cancellation_snapshot.timezone})` : 'Non-refundable for ordinary cancellation'} />}
         <ReceiptLine label="Payment provider" value="Paystack" />
       </dl>
       <div className="mt-6 border-t border-[#E8E5EC] pt-4"><p className="text-xs text-[var(--wh-text-muted)]">Payment reference</p><p className="mt-1 break-all font-mono text-xs font-semibold leading-5">{r.reference}</p></div>
@@ -50,18 +53,25 @@ function ReceiptLine({ label, value }: { label: string; value: string }) {
 export function ReceiptPrintButton({ receipt }: { receipt: Receipt }) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
+  const downloadActive = useRef(false);
   async function download() {
+    if (downloadActive.current) return;
+    downloadActive.current = true;
     setDownloading(true); setDownloadError(false);
     try {
       const { downloadReceiptPdf } = await import("@/lib/receiptPdf");
       await downloadReceiptPdf(receipt);
     } catch { setDownloadError(true); }
-    finally { setDownloading(false); }
+    finally { downloadActive.current = false; setDownloading(false); }
   }
-  return <div className="w-full text-right"><button type="button" onClick={() => void download()} disabled={downloading} className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white disabled:opacity-60">{downloading ? "Preparing PDF…" : "Download PDF"}</button>{downloadError && <p role="alert" className="mt-2 text-xs text-red-300">The PDF could not be saved. Try again.</p>}</div>;
+  return <div className="w-full text-right"><button type="button" onClick={() => void download()} disabled={downloading} className="min-h-11 rounded-xl wh-motion-control bg-violet-600 px-5 text-xs font-semibold text-white disabled:opacity-60">{downloading ? "Preparing PDF…" : "Download PDF"}</button>{downloadError && <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-300">The PDF could not be saved. Try again.</p>}</div>;
 }
 
-export default function ReceiptAccess({
+export default function ReceiptAccess(props: { subjectType?: string; subjectId?: string }) {
+  return <ReceiptAccessContent key={JSON.stringify([props.subjectType, props.subjectId])} {...props} />;
+}
+
+function ReceiptAccessContent({
   subjectType,
   subjectId,
 }: {
@@ -75,30 +85,26 @@ export default function ReceiptAccess({
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    setOpen(false);
-    setReceipts([]);
-    setSelected(null);
-    setError(false);
-    setLoaded(false);
-    setLoading(false);
-  }, [subjectType, subjectId]);
+  const generation = useRef(0);
+  const loadActive = useRef(false);
+  useEffect(() => () => { generation.current += 1; }, []);
 
-  async function loadReceipts(force = false) {
+  async function loadReceipts() {
     setOpen(true);
-    if (loaded && !force) return;
-    setLoading(true);
-    setError(false);
-    setSelected(null);
+    if (loadActive.current) return;
+    loadActive.current = true;
+    const request = ++generation.current;
+    setLoading(true); setError(false); setSelected(null); setReceipts([]); setLoaded(false);
     try {
       const rows = await getPaymentReceipts(undefined, subjectType, subjectId);
-      setReceipts(rows);
-      setLoaded(true);
+      if (request !== generation.current) return;
+      setReceipts(rows); setLoaded(true);
       if (rows.length === 1) setSelected(rows[0]);
     } catch {
-      setError(true);
+      if (request === generation.current) setError(true);
     } finally {
-      setLoading(false);
+      loadActive.current = false;
+      if (request === generation.current) setLoading(false);
     }
   }
 
@@ -107,7 +113,7 @@ export default function ReceiptAccess({
       <button
         type="button"
         onClick={() => void loadReceipts()}
-        className="min-h-10 px-2 text-xs font-semibold text-violet-300"
+        className="wh-motion-control min-h-11 px-2 text-xs font-semibold text-[var(--wh-accent-text)]"
       >
         Receipt
       </button>
@@ -125,8 +131,9 @@ export default function ReceiptAccess({
           <div role="alert">
             <p>We couldn’t load this payment receipt.</p>
             <button
-              className="min-h-11 text-violet-300"
-              onClick={() => void loadReceipts(true)}
+                type="button"
+              className="min-h-11 text-[var(--wh-accent-text)]"
+              onClick={() => void loadReceipts()}
             >
               Try again
             </button>
@@ -135,6 +142,7 @@ export default function ReceiptAccess({
           <div>
             {receipts.map((receipt) => (
               <button
+                type="button"
                 key={receipt.id}
                 onClick={() => setSelected(receipt)}
                 className="block min-h-16 w-full border-b border-[var(--wh-border-subtle)] py-3 text-left"
@@ -143,9 +151,9 @@ export default function ReceiptAccess({
                   {receipt.description || receipt.merchant_name}
                 </span>
                 <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">
-                  {new Intl.NumberFormat("en-NG", {
+                  {new Intl.NumberFormat(undefined, {
                     style: "currency",
-                    currency: receipt.currency || "NGN",
+                    currency: receipt.currency || getRegionalDefaults().currencyCode,
                   }).format(receipt.amount)}
                   {" · "}
                   {displayDate(receipt.paid_at)}
@@ -169,8 +177,8 @@ export function ReceiptViewer({ open, onClose, receipt, onList, children }: { op
     <DialogContent showCloseButton={false} overlayClassName="!z-[100400]" className="!z-[100410] !left-0 !top-0 !flex h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 flex-col !gap-0 !rounded-none border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] !p-0 text-[var(--wh-text)] sm:!left-1/2 sm:!top-1/2 sm:h-[min(90dvh,850px)] sm:!max-w-xl sm:!-translate-x-1/2 sm:!-translate-y-1/2 sm:!rounded-2xl">
       <header className="flex shrink-0 items-center gap-2 border-b border-[var(--wh-border-subtle)] px-2 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]">
         <BackButton onClick={receipt && onList ? onList : onClose} ariaLabel={receipt && onList ? "All receipts" : "Close receipts"} />
-        <div><DialogTitle className="text-sm">{receipt ? (receipt.booking_type === "hotel" ? `${receipt.merchant_name} · Hotel receipt` : receipt.booking_type === "housing" ? "Apartment receipt" : receipt.booking_type === "service" ? "Service receipt" : "Payment receipt") : "Payment receipts"}</DialogTitle><DialogDescription className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">Verified payments through WeHouse</DialogDescription></div>
-        {receipt && onList && <button onClick={onClose} className="ml-auto min-h-11 px-3 text-sm" aria-label="Close receipts">Close</button>}
+        <div className="min-w-0 flex-1"><DialogTitle className="break-words text-sm">{receipt ? (receipt.booking_type === "hotel" ? `${receipt.merchant_name} · Hotel receipt` : receipt.booking_type === "housing" ? "Home receipt" : receipt.booking_type === "service" ? "Service receipt" : "Payment receipt") : "Payment receipts"}</DialogTitle><DialogDescription className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">Verified payments through WeHouse</DialogDescription></div>
+        {receipt && onList && <button type="button" onClick={onClose} className="wh-motion-control ml-auto min-h-11 shrink-0 px-3 text-sm" aria-label="Close receipts">Close</button>}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">{receipt ? <ReceiptDocument receipt={receipt} /> : children}</div>
       {receipt && <footer className="flex shrink-0 justify-end border-t border-[var(--wh-border-subtle)] px-3 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))]"><ReceiptPrintButton receipt={receipt} /></footer>}

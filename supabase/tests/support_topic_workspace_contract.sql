@@ -30,13 +30,22 @@ insert into public.partner_support_conversations(id,partner_id,subject,requester
 ('88888888-4444-4444-8444-000000000003','topic-dual','Legacy hotel enquiry','worker','hotel_operations','-88881','{}');
 insert into public.partner_support_messages(conversation_id,sender_id,content)
 select id,partner_id,'Existing topic message' from public.partner_support_conversations where partner_id='topic-dual';
+-- Real Auth and trusted-device fixtures are required by current access checks.
+insert into auth.users(id,aud,role,email,created_at,updated_at)
+select auth_id::uuid,'authenticated','authenticated',email,now(),now()
+from public.profiles where user_id in ('topic-owner','topic-dual','topic-user');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in ('topic-owner','topic-dual','topic-user');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id::uuid,auth_id::uuid,'contract-'||auth_id,'Browser',true,'trusted'
+from public.profiles where user_id in ('topic-owner','topic-dual','topic-user');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;
 do $$
 declare draft uuid; first jsonb; second jsonb; replay jsonb; listing_message jsonb; rows jsonb;
 begin
-  perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000003',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','88888888-1111-4111-8111-000000000003','session_id','88888888-1111-4111-8111-000000000003','role','authenticated')::text,true);
   draft:=public.create_my_support_message_draft();
   first:=public.send_my_first_wehouse_message(draft,'Hotel One enquiry','general','hotel_property','-88881','{"requester_workspace":"personal","hotel_name":"Topic Hotel One"}','normal','Question about Hotel One');
   if first->>'conversation_id' is null or first->>'message_id' is null then raise exception 'Hotel first send returned no receipt'; end if;
@@ -68,7 +77,7 @@ begin
     if sqlerrm<>'This property is not available to this account' then raise; end if;
   end;
 
-  perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000002',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','88888888-1111-4111-8111-000000000002','session_id','88888888-1111-4111-8111-000000000002','role','authenticated')::text,true);
   rows:=public.get_my_workspace_inbox('personal','wehouse');
   if jsonb_array_length(rows)<>2 or not rows @> '[{"subject":"Legacy hotel enquiry"},{"subject":"Customer service issue"}]'::jsonb then raise exception 'Legacy role hid a personal enquiry or purchase'; end if;
   rows:=public.get_my_workspace_inbox('worker','wehouse');
@@ -78,7 +87,7 @@ begin
   if not public.get_my_workspace_inbox('personal','wehouse') @> jsonb_build_array(jsonb_build_object('conversation_id',first->>'conversation_id')) then raise exception 'Explicit Personal enquiry followed legacy Worker role'; end if;
   if jsonb_array_length(public.get_my_workspace_inbox('property_partner','wehouse'))<>0 then raise exception 'Personal enquiry leaked into Property Partner'; end if;
 
-  perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000001',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','88888888-1111-4111-8111-000000000001','session_id','88888888-1111-4111-8111-000000000001','role','authenticated')::text,true);
   draft:=public.create_my_support_message_draft();
   first:=public.send_my_first_wehouse_message(draft,'Owner hotel work','general','hotel_property','-88881','{"requester_workspace":"property_partner"}','normal','Operations question');
   rows:=public.get_my_workspace_inbox('property_partner','wehouse');
@@ -99,7 +108,7 @@ begin
 end; $$;
 reset role;
 do $$ begin
-  perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000001',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','88888888-1111-4111-8111-000000000001','session_id','88888888-1111-4111-8111-000000000001','role','authenticated')::text,true);
   begin
     update public.partner_support_conversations set context_id='-88882'
     where partner_id='topic-owner' and context_type='hotel_operations';
@@ -118,7 +127,7 @@ end; $$;
 update public.workspace_role_assignments set status='revoked',revoked_at=now() where user_id='topic-dual';
 set local role authenticated;
 do $$ begin
-  perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000002',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','88888888-1111-4111-8111-000000000002','session_id','88888888-1111-4111-8111-000000000002','role','authenticated')::text,true);
   if jsonb_array_length(public.get_my_workspace_inbox('personal','wehouse'))<>3 then raise exception 'Revocation lost personal enquiries'; end if;
   begin
     perform public.get_my_workspace_inbox('worker','wehouse');

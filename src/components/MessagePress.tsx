@@ -6,6 +6,7 @@ type Props = {
   onOpen: (anchor: DOMRect) => void;
   onTap?: (anchor: DOMRect) => void;
   onReply?: () => void;
+  messageId?: string;
   replyDirection?: "left" | "right";
 };
 
@@ -22,7 +23,7 @@ type Gesture = { id: number; x: number; y: number; direction: number; axis: "pen
 /** Reply moves inward from the rendered message side. All chat types share this
  * gesture; no caller needs a second, conflicting touch handler. An explicit
  * direction is available for a surface that does not use start/end alignment. */
-export default function MessagePress({ children, className = "", onOpen, onTap, onReply, replyDirection }: Props) {
+export default function MessagePress({ children, className = "", onOpen, onTap, onReply, replyDirection, messageId }: Props) {
   const timer = useRef<number | null>(null);
   const gesture = useRef<Gesture | null>(null);
   const opened = useRef(false);
@@ -99,6 +100,7 @@ export default function MessagePress({ children, className = "", onOpen, onTap, 
       className={`relative min-w-0 select-none ${className}`}
       style={{ touchAction: "pan-y pinch-zoom", overscrollBehaviorX: "contain", overflowX: "clip", overflowY: "visible", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       data-reply-gesture="inward"
+      data-message-id={messageId}
       onPointerDown={start}
       onPointerMove={move}
       onPointerUp={(event) => finish(event)}

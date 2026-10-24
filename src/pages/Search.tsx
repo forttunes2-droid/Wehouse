@@ -1,10 +1,13 @@
+import SponsoredPlacement from "@/components/SponsoredPlacement";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import WeHouseSelect from '@/components/WeHouseSelect';
+import { HOME_STYLES, homeStyleValue } from '@/lib/homeStyles';
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
 import ListingCard from "@/components/ListingCard";
-import SearchableSelect from "@/components/SearchableSelect";
 import DiscoveryPriceRangeSlider from "@/components/DiscoveryPriceRangeSlider";
 import DiscoveryShell, {
   DiscoveryEmpty,
@@ -17,7 +20,7 @@ import {
   type HomeStayType,
 } from "@/lib/housing-discovery";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
-import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
+import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import type { Listing } from "@/types";
 import { toast } from "sonner";
 import { getListing } from "@/lib/supabase/listings";
@@ -46,6 +49,7 @@ const SHORT_FLOOR = 5000;
 const SHORT_CEILING = 500000;
 type StayFilter = HomeStayType | "all";
 type PropertySearchState = {
+  homeStyle: string;
   query: string;
   stayType: StayFilter;
   priceMin: number | "";
@@ -56,6 +60,7 @@ type PropertySearchState = {
   filterCity: string;
 };
 const emptySearchState: PropertySearchState = {
+  homeStyle: '',
   query: "",
   stayType: "all",
   priceMin: "",
@@ -76,13 +81,16 @@ function normalize(value: unknown) {
 function matchesHome(listing: Listing, filters: {
   query: string; stayType: StayFilter; minPrice: number | ""; maxPrice: number | "";
   bedrooms: number | ""; bathrooms: number | ""; state: string; city: string;
+  homeStyle: string;
 }) {
+  if (filters.homeStyle && listing.home_style !== filters.homeStyle) return false;
   if (filters.query.trim() && !normalize([listing.title, listing.address, listing.city, listing.state].filter(Boolean).join(" ")).includes(normalize(filters.query))) return false;
   if (filters.stayType !== "all" && listing.sub_type !== filters.stayType) return false;
   const price = Number(listing.price || 0);
   if (filters.minPrice !== "" && (price <= 0 || price < filters.minPrice)) return false;
   if (filters.maxPrice !== "" && (price <= 0 || price > filters.maxPrice)) return false;
-  if (filters.bedrooms && Number(listing.bedrooms || 0) < filters.bedrooms) return false;
+  if (filters.bedrooms === 0 && (listing.bedrooms !== 0 || listing.space_scope === 'private_room')) return false;
+  if (filters.bedrooms !== '' && filters.bedrooms > 0 && Number(listing.bedrooms ?? -1) < filters.bedrooms) return false;
   if (filters.bathrooms && Number(listing.bathrooms || 0) < filters.bathrooms) return false;
   if (filters.state && normalize(listing.state) !== normalize(filters.state)) return false;
   if (filters.city && normalize(listing.city) !== normalize(filters.city)) return false;
@@ -98,6 +106,7 @@ export default function Search({
   const guest = useDiscoveryAccess();
   const initialSearch = searchStateBySession.get(sessionKey) || emptySearchState;
   const [query, setQuery] = useState(() => initialSearch.query);
+  const [homeStyle, setHomeStyle] = useState(() => initialSearch.homeStyle || '');
   const { getNumber } = usePlatformSettings();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +124,7 @@ export default function Search({
   const [bathrooms, setBathrooms] = useState<number | "">(() => initialSearch.bathrooms);
   const [filterState, setFilterState] = useState(() => initialSearch.filterState);
   const [filterCity, setFilterCity] = useState(() => initialSearch.filterCity);
-  const sponsoredResults = useSponsoredDiscovery('property', filterState, filterCity);
+  const sponsoredResults = useSponsoredDiscovery('property', filterState, filterCity, stayType === 'all' ? '' : stayType);
   const [showFilters, setShowFilters] = useState(false);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
@@ -148,6 +157,7 @@ export default function Search({
     setPriceMax(number('max_price'));
     setBedrooms(number('bedrooms'));
     setBathrooms(number('bathrooms'));
+    setHomeStyle(homeStyleValue(criteria.home_style));
   }, []);
 
   useEffect(() => {
@@ -165,6 +175,7 @@ export default function Search({
 
   useEffect(() => {
     searchStateBySession.set(sessionKey, {
+      homeStyle,
       query,
       stayType,
       priceMin,
@@ -174,12 +185,12 @@ export default function Search({
       filterState,
       filterCity,
     });
-  }, [sessionKey, query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
+  }, [sessionKey, query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity, homeStyle]);
 
   const serverFilters = useMemo(() => ({
-    query, stayType, minPrice: priceMin, maxPrice: priceMax, bedrooms, bathrooms,
+    query, stayType, minPrice: priceMin, maxPrice: priceMax, bedrooms, bathrooms, homeStyle,
     state: filterState, city: filterCity,
-  }), [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity]);
+  }), [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity, homeStyle]);
 
   useEffect(() => {
     let live = true;
@@ -193,14 +204,14 @@ export default function Search({
     const timer = window.setTimeout(() => {
       void getDiscoverableHomes(serverFilters).then(({ homes, hasMore: more, nextCursor, error }) => {
         if (!live || generation !== requestGeneration.current) return;
-        if (error) setLoadError("Apartments could not be loaded. Check your connection and try again.");
+        if (error) setLoadError("Homes could not be loaded. Check your connection and try again.");
         else {
           setListings(homes.map(item => ({ ...item, images: publicPropertyImages(item.images), videos: publicPropertyImages(item.videos) })));
           setHasMore(more);
           setCursor(nextCursor);
         }
       }).catch(() => {
-        if (live && generation === requestGeneration.current) setLoadError("Apartments could not be loaded. Check your connection and try again.");
+        if (live && generation === requestGeneration.current) setLoadError("Homes could not be loaded. Check your connection and try again.");
       }).finally(() => { if (live && generation === requestGeneration.current) setLoading(false); });
     }, query.trim() ? 250 : 0);
     return () => { live = false; window.clearTimeout(timer); };
@@ -213,7 +224,7 @@ export default function Search({
     try {
       const result = await getDiscoverableHomes(serverFilters, cursor);
       if (generation !== requestGeneration.current) return;
-      if (result.error) { toast.error("More apartments could not be loaded. Try again."); return; }
+      if (result.error) { toast.error("More homes could not be loaded. Try again."); return; }
       setListings(current => {
         const seen = new Set(current.map(item => item.id));
         return [...current, ...result.homes.filter(item => !seen.has(item.id)).map(item => ({
@@ -223,7 +234,7 @@ export default function Search({
       setHasMore(result.hasMore);
       setCursor(result.nextCursor);
     } catch {
-      if (generation === requestGeneration.current) toast.error("More apartments could not be loaded. Try again.");
+      if (generation === requestGeneration.current) toast.error("More homes could not be loaded. Try again.");
     } finally { if (generation === requestGeneration.current) setLoadingMore(false); }
   }
 
@@ -239,15 +250,6 @@ export default function Search({
     return () => { live = false; };
   }, [sponsoredResults]);
 
-  const citiesForState = useMemo(() => getCitiesForState(filterState), [filterState]);
-  const stateOptions = useMemo(
-    () => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => citiesForState.map((city) => ({ value: city, label: city })),
-    [citiesForState],
-  );
   const priceScale = useMemo(
     () =>
       stayType === "short_let"
@@ -289,13 +291,11 @@ export default function Search({
       .find(({ listing }) => listing.id === item.resource_id),
   })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
     [sponsoredResults, sponsoredListings, filtered, serverFilters, distanceMap]);
-  useEffect(() => {
-    sponsoredHomes.forEach(item => recordSponsoredImpression(item.campaignId, 'home_discovery'));
-  }, [sponsoredHomes]);
+
 
   const priceActive = priceMin !== "" || priceMax !== "";
   const filterCount =
-    [bedrooms, bathrooms, filterState, filterCity].filter(Boolean).length +
+    (bedrooms !== '' ? 1 : 0) + [bathrooms, filterState, filterCity, homeStyle].filter(Boolean).length +
     (priceActive ? 1 : 0);
   const hasFilters = Boolean(filterCount || stayType !== "all");
   const currentSearchCriteria = useMemo(
@@ -306,9 +306,10 @@ export default function Search({
       min_price: priceMin === "" ? null : priceMin,
       max_price: priceMax === "" ? null : priceMax,
       bedrooms: bedrooms === "" ? null : bedrooms,
+      home_style: homeStyle || null,
       bathrooms: bathrooms === "" ? null : bathrooms,
     }),
-    [bathrooms, bedrooms, filterCity, filterState, priceMax, priceMin, stayType],
+    [bathrooms, bedrooms, filterCity, filterState, priceMax, priceMin, stayType, homeStyle],
   );
   const currentSearchKey = savedSearchKey("homes", currentSearchCriteria);
   const followedSearch = followedSearches.find(
@@ -316,6 +317,7 @@ export default function Search({
   );
 
   function clearFilters() {
+    setHomeStyle('');
     setQuery("");
     setStayType("all");
     setPriceMin("");
@@ -370,7 +372,7 @@ export default function Search({
     if (!refreshed.error) setFollowedSearches(refreshed.searches);
     toast.success(
       followedSearch
-        ? "Apartment alerts resumed"
+        ? "Home alerts resumed"
         : "Search followed",
     );
   }
@@ -385,14 +387,14 @@ export default function Search({
     ? `${filterCity}, ${filterState}`
     : filterState
       ? filterState
-      : `${modeLabel} apartments`;
+      : stayType === "all" ? "All homes" : `${modeLabel} homes`;
   const emptyTitle = priceActive
-    ? `No ${modeLabel.toLowerCase()} apartments match this ${
+    ? `No ${modeLabel.toLowerCase()} homes match this ${
         stayType === "short_let" ? "nightly" : "yearly"
       } price range`
     : stayType === "all"
-      ? "No apartments match these filters"
-      : `No ${modeLabel.toLowerCase()} apartments match these filters`;
+      ? "No homes match these filters"
+      : `No ${modeLabel.toLowerCase()} homes match these filters`;
 
   return (
     <DiscoveryShell active="homes" onNavigate={onNavigate}>
@@ -400,7 +402,7 @@ export default function Search({
         <DiscoveryToolbar
           value={query}
           onChange={value => setQuery(value.slice(0, 80))}
-          placeholder="City, area or apartment"
+          placeholder="City, area or home"
           toolbarLabel={locationSummary}
           onFilters={() => setShowFilters(true)}
           filterCount={filterCount}
@@ -409,19 +411,19 @@ export default function Search({
           locationBusy={locating}
           onLocation={requestLocation}
           onClearLocation={clearLocation}
-          locationDetail={locationError || undefined}
+          locationDetail={locationError || "Optional: WeHouse uses your location to estimate distances and show nearby homes first. It is not saved to your profile. You can clear it or search by place without sharing device location."}
         />
         {sponsoredHomes.length > 0 && <section aria-label="Sponsored homes" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
           <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored homes</p>
           <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching homes. WeHouse checks and organic order are separate.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sponsoredHomes.map(({ campaignId, entry: { listing, distance } }) => <div key={campaignId}>
+            {sponsoredHomes.map(({ campaignId, entry: { listing, distance } }) => <SponsoredPlacement key={campaignId} campaignId={campaignId} context="home_discovery">
               <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
               <ListingCard listing={listing} distanceKm={distance} compactMobile
                 onClick={() => { recordSponsoredOpen(campaignId); onNavigate('detail', listing.id); }}
                 isSaved={savedIds.has(listing.id)}
                 onToggleSave={event => { event.preventDefault(); event.stopPropagation(); onToggleSave(listing.id); }} />
-            </div>)}
+            </SponsoredPlacement>)}
           </div>
         </section>}
 
@@ -429,8 +431,8 @@ export default function Search({
           <div>
             <p className="text-sm font-semibold">
               {loading
-                ? "Loading apartments…"
-                : `Showing ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
+                ? "Loading homes…"
+                : `Showing ${filtered.length} ${filtered.length === 1 ? "home" : "homes"}`}
             </p>
             <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{modeLabel}</p>
           </div>
@@ -469,7 +471,7 @@ export default function Search({
 
         {loadError && !listings.length ? (
           <section className="border-y border-red-500/15 px-5 py-12 text-center">
-            <p className="text-sm font-semibold">Apartments could not be loaded</p>
+            <p className="text-sm font-semibold">Homes could not be loaded</p>
             <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">{loadError}</p>
             <button
               type="button"
@@ -480,13 +482,11 @@ export default function Search({
             </button>
           </section>
         ) : loading && !listings.length ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
         ) : filtered.length === 0 ? (
           <DiscoveryEmpty
             title={emptyTitle}
-            text="Change the selected filters to see other apartments."
+            text="Change the selected filters to see other homes."
           />
         ) : (
           <>
@@ -509,7 +509,7 @@ export default function Search({
             </div>
             {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
               className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-violet-300 disabled:opacity-50">
-              {loadingMore ? "Loading more…" : "Show more apartments"}
+              {loadingMore ? "Loading more…" : "Show more homes"}
             </button>}
           </>
         )}
@@ -517,10 +517,10 @@ export default function Search({
 
       {showFilters ? (
         <DiscoveryFilterSheet
-          title="Apartment filters"
+          title="Home filters"
           onClose={() => setShowFilters(false)}
           onClear={clearFilters}
-          resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "apartment" : "apartments"}`}
+          resultLabel={`Show ${filtered.length} ${filtered.length === 1 ? "home" : "homes"}`}
         >
           <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-1.5">
             {(
@@ -545,25 +545,7 @@ export default function Search({
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={filterState}
-              onChange={chooseState}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={filterCity}
-              onChange={setFilterCity}
-              options={cityOptions}
-              placeholder={filterState ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!filterState}
-            />
-          </div>
+          <LocationFilterFields region={filterState} locality={filterCity} onRegionChange={chooseState} onLocalityChange={setFilterCity} />
 
           {stayType !== "all" ? (
             <DiscoveryPriceRangeSlider
@@ -579,11 +561,14 @@ export default function Search({
           ) : null}
 
           <section>
-            <p className="mb-2 text-[10px] font-medium text-[var(--wh-text-muted)]">Bedrooms</p>
-            <div className="grid grid-cols-5 gap-2">
+            <p className="mb-2 text-sm font-medium text-[var(--wh-text-secondary)]">Home type</p>
+            <WeHouseSelect ariaLabel="Filter home type" title="Home type" value={homeStyle} options={[{value:'',label:'Any home type'},...HOME_STYLES]} onChange={setHomeStyle}/>
+            <p className="mb-2 mt-5 text-sm font-medium text-[var(--wh-text-secondary)]">Bedrooms</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {(
                 [
                   ["", "Any"],
+                  ["0", "Studio / self-contained"],
                   ["1", "1+"],
                   ["2", "2+"],
                   ["3", "3+"],
@@ -595,7 +580,7 @@ export default function Search({
                   type="button"
                   onClick={() => setBedrooms(value ? Number(value) : "")}
                   aria-pressed={String(bedrooms) === value}
-                  className={`h-11 rounded-xl text-[10px] font-semibold ${
+                  className={`min-h-12 rounded-xl px-2 py-2 text-xs font-semibold ${
                     String(bedrooms) === value
                       ? "bg-violet-500 text-white"
                       : "border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"

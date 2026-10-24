@@ -1,3 +1,7 @@
+import { withTimeout } from '@/lib/withTimeout';
+import { validatePropertyDocument } from '@/lib/propertyDocuments';
+import WorkerCredentials from '@/components/WorkerCredentials';
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -5,7 +9,7 @@ import type { Profile } from '@/types';
 import VideoPlayer from '@/components/VideoPlayer';
 import WorkerVerificationPhase9 from '@/pages/WorkerVerificationPhase9';
 import { useRpcRead } from '@/hooks/useRpcRead';
-import { prepareEvidenceVideo } from '@/lib/mediaVideo';
+import { prepareEvidenceVideo, EVIDENCE_VIDEO_MAX_INPUT_BYTES } from '@/lib/mediaVideo';
 import BackButton from '@/components/BackButton';
 
 type Props = {
@@ -35,9 +39,7 @@ export default function ServiceProviderVerification(props: Props) {
 
   if (loading)
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[var(--wh-bg)] text-[var(--wh-text)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (error || !activation)
@@ -75,6 +77,7 @@ function EvidenceOnlyVerification({
   activation: Activation;
   onRefresh: () => Promise<void>;
 }) {
+  const evidenceBusy = useRef(false);
   const videoInput = useRef<HTMLInputElement>(null);
   const certificateInput = useRef<HTMLInputElement>(null);
   const [videoPath, setVideoPath] = useState('');
@@ -114,7 +117,7 @@ function EvidenceOnlyVerification({
     event.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('video/')) return toast.error('Choose a video file');
-    if (file.size > 50 * 1024 * 1024) return toast.error('Work video must be under 50MB');
+    if (file.size > EVIDENCE_VIDEO_MAX_INPUT_BYTES) return toast.error('Work video must be under 100 MB before compression');
     setUploadState({ name: file.name, phase: 'uploading' });
     try {
       const prepared = await prepareEvidenceVideo(file);
@@ -135,10 +138,10 @@ function EvidenceOnlyVerification({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) return toast.error('Certificate must be under 10MB');
     setUploadState({ name: file.name, phase: 'uploading' });
     try {
-      setCertificatePath(await upload(file, 'worker-certificates', 'certificate'));
+      await validatePropertyDocument(file);
+      setCertificatePath(await withTimeout(upload(file, 'worker-certificates', 'certificate'), 30000, 'Supporting document upload timed out. Choose the file again to retry.'));
       setUploadState({ name: file.name, phase: 'complete' });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Certificate upload failed';
@@ -149,28 +152,37 @@ function EvidenceOnlyVerification({
 
   async function saveEvidence() {
     if (!videoPath) return toast.error('Add a short work demonstration video');
-    setBusy(true);
-    const result = await supabase.rpc('save_my_worker_professional_evidence', {
-      p_certificate_path: certificatePath || null,
-      p_video_path: videoPath,
-    });
-    setBusy(false);
-    if (result.error) return toast.error(result.error.message);
-    toast.success('Professional evidence saved');
-    await onRefresh();
+    await evidenceAction(async () => {
+      const result = await withTimeout(supabase.rpc('save_my_worker_professional_evidence', {
+        p_certificate_path: certificatePath || null, p_video_path: videoPath,
+      }), 15000, 'Evidence confirmation timed out. Refresh status before retrying.');
+      if (result.error) throw result.error;
+      if (typeof result.data !== 'string' || !result.data) throw new Error('Saved evidence was not confirmed.');
+    }, 'Professional evidence saved');
   }
-
   async function submit() {
-    setBusy(true);
-    const result = await supabase.rpc('submit_my_worker_verification');
-    setBusy(false);
-    if (result.error) return toast.error(result.error.message);
-    toast.success('Sent to WeHouse review');
-    await onRefresh();
+    await evidenceAction(async () => {
+      const result = await withTimeout(supabase.rpc('submit_my_worker_verification'), 15000, 'Submission confirmation timed out. Refresh status before retrying.');
+      if (result.error) throw result.error;
+    }, 'Sent to WeHouse review');
+  }
+  async function evidenceAction(action: () => Promise<void>, success: string) {
+    if (evidenceBusy.current) return;
+    evidenceBusy.current = true; setBusy(true);
+    try {
+      await action();
+      toast.success(success);
+      await onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'The action could not be confirmed. Refresh status before retrying.');
+    } finally {
+      evidenceBusy.current = false; setBusy(false);
+    }
   }
 
   return (
     <SimpleShell onBack={onBack}>
+      <WorkerCredentials workerId={profile.user_id} onChanged={onRefresh}/>
 
 
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
@@ -195,9 +207,9 @@ function EvidenceOnlyVerification({
           <PrimaryButton label="Back to Service Worker workspace" onClick={onBack} secondary />
         </Card>
       ) : !activation.evidence_saved ? (
-        <Card title="Show your real work" text="Upload one short skill or completed-work video for private WeHouse review. A certificate is optional.">
+        <Card title="Show your real work" text="Upload one short skill or completed-work video for private WeHouse review. Supporting work evidence is separate from required service credentials.">
           {uploadState ? <UploadStatus state={uploadState} /> : null}
-          <UploadButton label={certificatePath ? 'Certificate added' : 'Certificate · optional'} done={Boolean(certificatePath)} onClick={() => certificateInput.current?.click()} />
+          <UploadButton label={certificatePath ? 'Supporting document added' : 'Supporting work document'} done={Boolean(certificatePath)} onClick={() => certificateInput.current?.click()} />
           <input ref={certificateInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={chooseCertificate} />
           <UploadButton label={videoPath ? 'Work video added' : 'Work demonstration · required'} done={Boolean(videoPath)} onClick={() => videoInput.current?.click()} />
           <input ref={videoInput} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={chooseVideo} />

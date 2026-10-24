@@ -217,6 +217,11 @@ export interface Listing {
   location_accuracy_m?: number | null;
   location_exact?: boolean;
   partner_display_name?: string | null;
+  physical_space_id?: string | null;
+    home_style?: string | null;
+  space_scope?: 'entire_unit' | 'private_room' | null;
+  space_label?: string | null;
+  shared_areas?: string[] | null;
   images: string[];
   videos: string[];
   property_type: PropertyType | null; // 'apartment' (short_let/long_stay) or 'hotel'
@@ -809,12 +814,12 @@ export interface StaffPermissionRecord {
 // ═══════════════════════════════════════════════════════════════
 
 // Property types: Apartment (Short Let or Long Let) or Hotel
-// Short Let = daily/weekly rental | Long Let = monthly/yearly rental
+// Home layouts are independent of Short Let pricing and agreed Long Let terms.
 export type PropertyType = "apartment" | "hotel";
 export type ApartmentSubType = "short_let" | "long_stay";
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
-  apartment: "Apartment",
+  apartment: "Home",
   hotel: "Hotel",
 };
 
@@ -859,111 +864,6 @@ export const WEHOUSE_FEES = {
   SECURITY_DEPOSIT_MIN_NGN: 10000,
 
 } as const;
-
-// ═══════════════════════════════════════════════════════════════
-// RENTAL PLANS — Multi-year payment options
-// ═══════════════════════════════════════════════════════════════
-
-export type RentalDuration = 1 | 2 | 3;
-
-export interface RentalPlan {
-  durationYears: RentalDuration;
-  label: string;
-  description: string;
-  paymentStructure: string;
-}
-
-export const RENTAL_PLANS: RentalPlan[] = [
-  {
-    durationYears: 1,
-    label: "1 Year",
-    description: "Pay full year upfront",
-    paymentStructure: "full_upfront",
-  },
-  {
-    durationYears: 2,
-    label: "2 Years",
-    description: "Year 1 upfront, Year 2 split monthly",
-    paymentStructure: "first_upfront_rest_monthly",
-  },
-  {
-    durationYears: 3,
-    label: "3 Years",
-    description: "Year 1 upfront, Years 2-3 split monthly",
-    paymentStructure: "first_upfront_rest_monthly",
-  },
-];
-
-// Calculate payment breakdown for a rental plan
-// subType: 'short_let' uses higher commission, 'long_stay' uses lower
-// Security deposit (caution fee) ONLY applies to short_let — furnished apartments
-// with appliances that tenants might damage. Long stay tenants bring their own.
-// Each listing sets its own security_deposit_amount (varies by furnishing quality).
-export interface RentalFeeConfig {
-  commissionPercent?: number; // default: 5% (from commission_rate_listing)
-  reservationFee?: number; // default: 5000
-}
-
-export function calculateRentalPayments(
-  annualRent: number,
-  durationYears: RentalDuration,
-  subType: "short_let" | "long_stay" = "long_stay",
-  listingSecurityDeposit?: number | null,
-  feeConfig?: RentalFeeConfig,
-) {
-  const cfg = feeConfig || {};
-  const commissionRate =
-    cfg.commissionPercent ?? WEHOUSE_FEES.SHORT_STAY_COMMISSION_PERCENT;
-  const resFee = cfg.reservationFee ?? WEHOUSE_FEES.RESERVATION_FEE;
-
-  const commissionPercent = commissionRate;
-  const wehouseCommission = Math.round(annualRent * (commissionPercent / 100));
-  const netAnnualRent = annualRent - wehouseCommission;
-
-  // Security deposit: use listing's set amount, or zero if not set
-  // WeHouse does NOT enforce min/max — partner sets freely per listing
-  let securityDeposit = 0;
-  if (
-    subType === "short_let" &&
-    listingSecurityDeposit != null &&
-    listingSecurityDeposit > 0
-  ) {
-    securityDeposit = listingSecurityDeposit;
-  }
-
-  if (durationYears === 1) {
-    return {
-      totalRent: annualRent,
-      wehouseCommission,
-      landlordReceives: netAnnualRent,
-      year1Upfront: annualRent,
-      monthlyInstallments: [] as { month: number; amount: number }[],
-      reservationFee: resFee,
-      securityDeposit,
-      commissionPercent,
-    };
-  }
-
-  const year1Upfront = annualRent;
-  const remainingYears = durationYears - 1;
-  const remainingTotal = annualRent * remainingYears;
-  const monthlyAmount = Math.round(remainingTotal / (remainingYears * 12));
-  const installments: { month: number; amount: number }[] = [];
-  for (let m = 1; m <= remainingYears * 12; m++) {
-    installments.push({ month: m, amount: monthlyAmount });
-  }
-
-  return {
-    totalRent: annualRent * durationYears,
-    wehouseCommission: wehouseCommission * durationYears,
-    landlordReceives: netAnnualRent * durationYears,
-    year1Upfront,
-    monthlyInstallments: installments,
-    reservationFee: resFee,
-    securityDeposit,
-    commissionPercent,
-  };
-}
 
 // ═══════════════════════════════════════════════════════════════
 // WORKER PAYMENT PROTECTION SYSTEM
@@ -1431,87 +1331,7 @@ export const DEFAULT_SUBCATEGORIES: Record<string, string[]> = {
   ],
 };
 
-// ─── WORKER VERIFICATION ────────────────────────────────────
-
-export type WorkerVerificationStatus =
-  "pending" | "under_review" | "approved" | "rejected";
-export type GovIdType = "nin" | "drivers_license" | "passport" | "voters_card";
-
-export interface WorkerVerification {
-  id: string;
-  worker_id: string;
-  gov_id_type: GovIdType | null;
-  gov_id_number: string | null;
-  gov_id_photo_url: string | null;
-  selfie_photo_url: string | null;
-  verification_video_url: string | null;
-  years_of_experience: number;
-  service_category_id: string | null;
-  service_subcategory_id: string | null;
-  status: WorkerVerificationStatus;
-  reviewed_by: string | null;
-  review_notes: string | null;
-  reviewed_at: string | null;
-  created_at: string;
-  updated_at: string;
-  // Joined fields
-  service_category?: ServiceCategory | null;
-  service_subcategory?: ServiceSubcategory | null;
-}
-
-export const WORKER_VERIFICATION_STATUS_LABELS: Record<
-  WorkerVerificationStatus,
-  string
-> = {
-  pending: "Pending",
-  under_review: "Under Review",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
-export const WORKER_VERIFICATION_STATUS_COLORS: Record<
-  WorkerVerificationStatus,
-  string
-> = {
-  pending: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  under_review: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  rejected: "bg-red-500/10 text-red-400 border-red-500/20",
-};
-
-// ─── LEGACY WORKER SUBSCRIPTION RECORD ──────────────
-
-// Legacy subscription type names are retained only for database compatibility.
-export type LegacyWorkerSubscriptionStatus = "active" | "inactive" | "expired" | "cancelled";
-
-export interface LegacyWorkerSubscription {
-  id: string;
-  worker_id: string;
-  status: LegacyWorkerSubscriptionStatus;
-  started_at: string | null;
-  expires_at: string | null;
-  paystack_reference: string | null;
-  paystack_subscription_code: string | null;
-  amount_paid: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export const LEGACY_WORKER_SUBSCRIPTION_STATUS_LABELS: Record<LegacyWorkerSubscriptionStatus, string> = {
-  active: "Active",
-  inactive: "Inactive",
-  expired: "Expired",
-  cancelled: "Cancelled",
-};
-
-export const LEGACY_WORKER_SUBSCRIPTION_STATUS_COLORS: Record<LegacyWorkerSubscriptionStatus, string> = {
-  active: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  inactive: "bg-gray-500/10 text-gray-400 border-gray-500/20",
-  expired: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
-};
-
-// ─── PAID WORKER PLAN ───────────────────────────────────────
+// Paid Worker membership. Professional review and core tools remain free.
 
 export type WorkerProStatus =
   | "inactive"

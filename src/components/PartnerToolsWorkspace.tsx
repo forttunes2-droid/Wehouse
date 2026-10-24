@@ -11,7 +11,7 @@ export default function PartnerToolsWorkspace({ profile }: { profile: Profile })
   const [tool, setTool] = useState<Tool | null>(null);
 
   if (tool === "pro") {
-    return <div className="space-y-4"><ToolBack onBack={() => setTool(null)} title="Partner Pro" /><PropertyPartnerProWorkspace profile={profile} /></div>;
+    return <div className="space-y-4"><ToolBack onBack={() => setTool(null)} title="WeHouse Pro" /><PropertyPartnerProWorkspace profile={profile} /></div>;
   }
 
   if (tool === "sponsored") {
@@ -26,7 +26,7 @@ export default function PartnerToolsWorkspace({ profile }: { profile: Profile })
         <p className="mt-1 max-w-xl text-xs leading-5 text-[var(--wh-text-secondary)]">Optional tools stay here so Properties, bookings, messages and money remain the main workspace.</p>
       </div>
       <div className="mt-3 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-        <ToolRow title="Partner Pro" detail="Calendar, occupancy, earnings reports and property tasks." action="Open Pro" onClick={() => setTool("pro")} />
+        <ToolRow title="WeHouse Pro" detail="Calendar, occupancy, earnings reports and property tasks." action="Open Pro" onClick={() => setTool("pro")} />
         <ToolRow title="Sponsored placement" detail="Promote an eligible home or hotel for a selected period." action="Open Sponsored" onClick={() => setTool("sponsored")} />
       </div>
     </section>
@@ -35,7 +35,7 @@ export default function PartnerToolsWorkspace({ profile }: { profile: Profile })
 
 function ToolRow({ title, detail, action, onClick }: { title: string; detail: string; action: string; onClick: () => void }) {
   return <button type="button" onClick={onClick} className="flex min-h-20 w-full items-center gap-3 border-b border-transparent px-1 py-4 text-left transition-colors hover:bg-[var(--wh-interactive)] active:bg-[var(--wh-interactive)]">
-    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">{title === "Partner Pro" ? <BarChart3 size={18} aria-hidden="true" /> : <Megaphone size={18} aria-hidden="true" />}</span>
+    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-300">{title === "WeHouse Pro" ? <BarChart3 size={18} aria-hidden="true" /> : <Megaphone size={18} aria-hidden="true" />}</span>
     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{title}</span><span className="mt-1 block text-[11px] leading-5 text-[var(--wh-text-secondary)]">{detail}</span></span>
     <span className="shrink-0 text-[10px] font-semibold text-violet-300">{action}</span>
   </button>;

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 async function filesUnder(root) {
@@ -14,11 +15,13 @@ async function filesUnder(root) {
   return output;
 }
 
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 test('browser bundle source never contains privileged server secret material', async () => {
   const browserFiles = [
-    ...await filesUnder(new URL('../src', import.meta.url).pathname),
-    new URL('../index.html', import.meta.url).pathname,
-    new URL('../vercel.json', import.meta.url).pathname,
+    ...await filesUnder(path.join(repositoryRoot, 'src')),
+    path.join(repositoryRoot, 'index.html'),
+    path.join(repositoryRoot, 'vercel.json'),
   ];
   const forbiddenNames = [
     'SUPABASE_SERVICE_ROLE_KEY',

@@ -15,10 +15,21 @@ insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_
 (-76661,-76661,'Standard',20000,2);
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,payment_status) values
 (-76661,-76661,-76661,'pro-guest',current_date+2,current_date+3,1,20000,'confirmed','paid');
+insert into auth.sessions(id,user_id,created_at,updated_at) values
+('76667777-0000-4000-8000-000000000001','76666666-0000-4000-8000-000000000001',now(),now()),
+('76667777-0000-4000-8000-000000000002','76666666-0000-4000-8000-000000000002',now(),now()),
+('76667777-0000-4000-8000-000000000003','76666666-0000-4000-8000-000000000003',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select p.user_id,p.auth_id,s.id::text,'pro-device-'||p.user_id,'Synthetic contract browser',true,'trusted'
+from public.profiles p join auth.sessions s on s.user_id::text=p.auth_id
+where p.user_id in('pro-owner','pro-other','pro-guest');
+select set_config('request.jwt.claims','{"sub":"76666666-0000-4000-8000-000000000001","session_id":"76667777-0000-4000-8000-000000000001"}',true);
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000001',true);
 set local role authenticated;
 do $$
 begin
+  perform public.save_my_property_arrival_instructions('hotel','-76661','Included without Pro');
+  if public.get_my_property_arrival_instructions('hotel','-76661')<>'Included without Pro' then raise exception 'Free hosting instructions unavailable'; end if;
   if (public.get_my_partner_pro()->>'active')::boolean then raise exception 'Unpaid Partner marked active'; end if;
   begin
     perform public.get_my_partner_pro_overview();
@@ -33,7 +44,7 @@ begin
     if sqlerrm='Unpaid Partner created task' then raise; end if;
   end;
   begin
-    perform public.get_my_partner_pro_arrival_setup();
+    perform public.get_my_partner_pro_occupancy();
     raise exception 'Unpaid Partner accessed occupancy';
   exception when others then
     if sqlerrm='Unpaid Partner accessed occupancy' then raise; end if;
@@ -66,19 +77,19 @@ begin
   if (public.get_my_partner_pro_overview()->'tasks'->0->>'title')<>'Inspect room' then raise exception 'Task missing'; end if;
   perform public.save_my_partner_pro_task('hotel','-76661',null,null,t,true);
   if (public.get_my_partner_pro_overview()->'tasks'->0->>'status')<>'done' then raise exception 'Task completion missing'; end if;
-  v:=public.get_my_partner_pro_arrival_setup();
+  v:=public.get_my_partner_pro_occupancy();
   if jsonb_array_length(v->'occupancy')<>1
     or (v->'occupancy'->0->>'available_unit_nights')::int<>60
     or (v->'occupancy'->0->>'booked_unit_nights')::int<>1 then
     raise exception 'Owned occupancy mismatch: %',v; end if;
   begin
-    perform public.save_my_partner_pro_arrival_instructions('hotel','-76662','Wrong owner');
+    perform public.save_my_property_arrival_instructions('hotel','-76662','Wrong owner');
     raise exception 'Cross-owner instructions accepted';
   exception when others then
     if sqlerrm='Cross-owner instructions accepted' then raise; end if;
   end;
-  perform public.save_my_partner_pro_arrival_instructions('hotel','-76661','Arrive at main reception.');
-  if (public.get_my_partner_pro_arrival_setup()->'instructions'->0->>'instructions')<>'Arrive at main reception.' then
+  perform public.save_my_property_arrival_instructions('hotel','-76661','Arrive at main reception.');
+  if public.get_my_property_arrival_instructions('hotel','-76661')<>'Arrive at main reception.' then
     raise exception 'Owner instructions not saved'; end if;
 end $$;
 reset role;
@@ -99,6 +110,7 @@ end $$;
 reset role;
 set local session_replication_role=replica;
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"76666666-0000-4000-8000-000000000002","session_id":"76667777-0000-4000-8000-000000000002"}',true);
 set local role authenticated;
 do $$
 declare v jsonb;
@@ -109,6 +121,7 @@ begin
     raise exception 'Other owner read guest instructions'; end if;
 end $$;
 reset role;
+select set_config('request.jwt.claims','{"sub":"76666666-0000-4000-8000-000000000003","session_id":"76667777-0000-4000-8000-000000000003"}',true);
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000003',true);
 set local role authenticated;
 do $$ begin

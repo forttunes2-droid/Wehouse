@@ -1,8 +1,6 @@
 # WeHouse Product Master
 
-> **Current status — 19 September 2026:** This file's original implementation audit below is historical (11 September), not a current deployment inventory. The owner-locked canonical plan is `WEHOUSE_CANONICAL_MASTER_PRODUCT_PLAN_2026-09-11.md`, with later accepted rules recorded in [the alignment note](./MASTER_PLAN_ALIGNMENT_NOTE_2026-09-15.md) and PR #74. Do not treat old proposed decisions, counts or role descriptions below as newer authority.
->
-> Continue with [the current account, Staff and database review](./account-staff-and-database-review.md), [Creator/control-layout evidence](./creator-controls-and-layout-review.md), and [legal signup evidence](./legal-review-and-preview-status.md). Repairs remain on existing draft PR #74. Live customer records belong to Production; Test is isolated. Complete signed-in, privileged-action, provider, device and restoration checks remain outstanding. WeHouse is not yet technically production-ready.
+> **Status note — 12 October 2026:** The implementation audit below is historical (11 September), not a current deployment inventory. Accepted rules are in [Product Rules](./PRODUCT_RULES.md) and the [Decision Log](./DECISION_LOG.md). Current release status and remaining work are in the [Release roadmap](./WEHOUSE_RELEASE_ROADMAP.md). Start from the [documentation index](./README.md). WeHouse is not yet production-ready.
 
 ## Historical audit begins here
 
@@ -16,7 +14,7 @@ This document is the entry point for the WeHouse product contract. It records wh
 
 ## Canonical authority
 
-This file and the documents it links under `/docs` supersede the July `FULL_AUDIT.md`, `FULL_TEST_CHECKLIST.md`, and later root-level phase reports as product authority. Those files remain useful historical evidence but must not be used to settle a current product rule when they disagree with this contract. The runtime audit was performed after the application changes descended from `2d875578`; later documentation-only commits do not change the audited runtime.
+This file and the documents it links under `/docs` supersede the July audit, checklist and later root-level phase reports as product authority. Those reports were removed from the working tree (they remain in git history) and must not be used to settle a current product rule. The runtime audit was performed after the application changes descended from `2d875578`; later documentation-only commits do not change the audited runtime.
 
 The 17 remote `codex/*` branch heads were also compared with `main`. All 17 are already integrated by patch equivalence or exact squash-result tree equivalence; no unique effective work was found. No branch was deleted. See [BRANCH_CLEANUP_AUDIT.md](./BRANCH_CLEANUP_AUDIT.md).
 
@@ -30,7 +28,7 @@ The live database contains all three access migrations introduced around commit 
 - `restore_public_hotel_discovery_after_rls_repair` (`20260911004927`)
 - `split_public_and_internal_hotel_read_policies` (`20260911004957`)
 
-That proves they were applied, not merely included in a successful Vercel frontend deployment. It does **not** prove the resulting policy contract is correct. Live inspection found that the anonymous/authenticated active-hotel table policy exposes the entire `hotels` row, which can bypass the safer field masking in the authenticated-only `get_public_hotel_detail` RPC. This was structural verification, not a mutation-based impersonation test for every actor; the role matrix and required role-contract tests are in [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md).
+That proves they were applied, not merely included in a successful Vercel frontend deployment. A read-only Production catalog check on 19 October 2026 confirmed that `anon` has no direct SELECT grant on the checked hotel catalog tables: `hotels`, `hotel_rooms`, `hotel_room_units`, `hotel_rate_plans` and `hotel_inventory_daily`; authenticated `hotels` reads are RLS-scoped, and `hotel_rooms` has no browser SELECT policy. This supersedes the historical exposure finding below. It does not prove every actor/action/field combination: complete role-contract and user-journey verification remains open in [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md) and the release roadmap.
 
 ## Product definition
 
@@ -115,7 +113,7 @@ The complete severity-ranked register is [KNOWN_INCONSISTENCIES.md](./KNOWN_INCO
 
 ## B. Contradiction report
 
-- High: public hotel rows bypass field masking and adjacent hotel policies disagree; hotel staff are shown a guest-message action they cannot create; mutation timeouts can lie; worker protected state is not represented consistently; status/navigation and shell fragmentation make destinations ambiguous; short-stay availability conflicts with listing-wide occupancy; customer UPDATE policies are broader than the transition contract suggests. The live advisor also exposes a 320-function SECURITY DEFINER review surface that needs an explicit endpoint allowlist.
+- Historical high findings: public hotel rows were reported to bypass field masking, and hotel staff were shown a guest-message action they could not create; mutation timeouts could report uncertain outcomes; worker protected state was not represented consistently; status/navigation and shell fragmentation made destinations ambiguous; short-stay availability conflicted with listing-wide occupancy; and customer UPDATE policies were reported broader than the transition contract. The hotel base-table exposure claim is superseded by the 2026-10-19 Production grant/RLS check above. Other findings still require current route- and role-specific verification. The live advisor also exposes a 320-function SECURITY DEFINER review surface that needs an explicit endpoint allowlist.
 - Medium: parallel conversation and support table families; multiple money/wallet/audit models; saved-search match triggers do not cover every already-live edit; hotel manager/front-desk Inbox capability is inconsistent; stale Activity resolution is partly client-side; draft and operational records are overloaded.
 - Low: legacy names, aliases, wrappers, reports, labels, duplicated styling, and hard-coded Nigeria timezone/return URL reduce clarity and portability.
 

@@ -12,6 +12,8 @@ const exports = {};
 vm.runInNewContext(compile(await read("supabase/functions/_shared/payment-return.ts")), { exports, URL });
 const resolveReturn = exports.resolvePaymentReturnUrl;
 const sessionExports = {};
+const marketExports = {};
+vm.runInNewContext(compile(await read('supabase/functions/_shared/payment-market.ts')), { exports: marketExports });
 vm.runInNewContext(compile(await read("supabase/functions/_shared/liveSession.ts")), { exports: sessionExports, atob });
 const authId = "90000000-0000-4000-8000-000000000001";
 const sessionId = "90000000-0000-4000-8000-000000000002";
@@ -46,6 +48,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
   const env = {
     SUPABASE_URL: testBackend,
     SUPABASE_SERVICE_ROLE_KEY: "fixture-service-key",
+    SUPABASE_ANON_KEY:'fixture-anon-key',
     PAYSTACK_SECRET_KEY: "sk_test_fixture",
     APP_URL: testApp,
     ...overrides,
@@ -53,19 +56,22 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
   let handler;
   let clients = 0;
   const initialized = [];
-  const reference = "WHP-00000000-0000-0000-0000-000000000001";
+  const planWrites=[];
+  const reference = `${name==='partner-pro-payment-init'?'WHPP':'WHP'}-00000000-0000-0000-0000-000000000001`;
   const rows = {
     profiles: { user_id: "fixture-worker", role: "worker", worker_status: "verified", worker_verified: true },
-    booking_payments: { id: "fixture-payment", user_id: "fixture-worker", status: "pending", amount_total: 42, currency: "NGN", purpose: "worker_booking", worker_booking_id: "fixture-job", metadata: { plan_code: "PLN_fixture", billing_period: "monthly" } },
+    booking_payments: { id: "fixture-payment", user_id: "fixture-worker", payer_user_id:'fixture-worker',status: "pending", amount_total: 42, currency: "NGN", purpose: name==='sponsored-payment-init'?'sponsored_campaign':'worker_booking', worker_booking_id: "fixture-job", metadata: { plan_code: "PLN_fixture", billing_period: "monthly" } },
     worker_bookings: { id: "fixture-job", user_id: "fixture-worker", status: "waiting_payment", agreed_amount: 42 },
   };
   Object.assign(rows, extraRows);
   const admin = {
     auth: { getUser: async () => ({ data: { user: { id: authId, email: "fixture@example.invalid" } }, error: null }) },
     rpc: async (name, params) => {
+      if(name==='creator_set_worker_pro_setting')return{data:extraRows.savedPlanReceipt??true,error:null};
+      if(name==='begin_my_sponsored_checkout')return {data:{reference},error:null};
       if (name === 'user_has_active_workspace') {
         assert.equal(params.p_user_id, 'fixture-worker');
-        assert.equal(params.p_workspace_role, 'worker');
+        assert.ok(['worker','property_partner','creator'].includes(params.p_workspace_role));
         return { data: workspaceActive, error: null };
       }
       assert.equal(name, 'auth_session_is_active');
@@ -74,10 +80,12 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
       return { data: sessionExists, error: null };
     },
     from(table) {
+      let updating=false;
       const query = {
-        select: () => query, eq: () => query, update: () => query,
-        maybeSingle: async () => ({ data: rows[table], error: null }),
-        then: (done) => Promise.resolve({ error: null }).then(done),
+        select: () => query, eq: () => query, update: () => {updating=true;return query;},in:()=>query,
+        maybeSingle: async () => ({ data: updating&&extraRows.noPersistenceReceipt?null:rows[table], error: null }),
+        single: async () => ({ data: rows[table], error: null }),
+        then: (done) => Promise.resolve({data:rows[table], error: null }).then(done),
       };
       return query;
     },
@@ -85,30 +93,43 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
   // Run the actual handlers; replace only external database/provider I/O.
   const source = (await read(`supabase/functions/${name}/index.ts`)).replace(/^import .*;\r?\n/gm, "");
   vm.runInNewContext(compile(source), {
-    exports: {}, URL, Response, console,
+    exports: {}, URL, Response, console,AbortSignal,
     Deno: { env: { get: (key) => env[key] }, serve: (fn) => { handler = fn; } },
     serve: (fn) => { handler = fn; },
     resolvePaymentReturnUrl: resolveReturn,
+    paymentMinorUnits: marketExports.paymentMinorUnits,
+    resolvePaymentMarket: marketExports.resolvePaymentMarket,
     hasLiveSession: sessionExports.hasLiveSession,
+    consumeUserAction: async (...args) => {if(name==='payment-init')assert.equal(args[5],true);return { allowed: !extraRows.rateDenied, retryAfterSeconds: 30 };},
     hasActiveWorkspace: sessionExports.hasActiveWorkspace,
     createClient: () => { clients++; return admin; },
     fetch: async (url, options) => {
-      if (url.startsWith("https://api.paystack.co/plan/")) return Response.json({ status: true, data: { interval: "monthly", amount: 4200, currency: "NGN" } });
+      if(url==='https://api.paystack.co/plan'){planWrites.push(JSON.parse(options.body));return Response.json({status:true,data:{plan_code:'PLN_fixture'}});}
+      if (url.startsWith("https://api.paystack.co/plan/")) return Response.json({ status: true, data: { interval: "monthly", amount: 4200, currency: "NGN",...extraRows.providerPlan } });
       assert.equal(url, "https://api.paystack.co/transaction/initialize");
       initialized.push(JSON.parse(options.body));
-      return Response.json({ status: true, data: { authorization_url: "https://checkout.paystack.com/fixture", access_code: "fixture-code" } });
+      return Response.json({ status: true, data: { reference, authorization_url: "https://checkout.paystack.com/fixture", access_code: "fixture-code",...extraRows.providerInitialization } });
     },
   });
   return {
     initialized,
+    planWrites,
     clients: () => clients,
     request: () => handler(new Request("https://test.invalid/checkout", {
       method: "POST",
       headers: { authorization: `Bearer ${verifiedToken}`, "content-type": "application/json", origin: "https://untrusted.example.invalid" },
-      body: JSON.stringify({ reference, callback_url: "https://untrusted.example.invalid", amount: 1 }),
+      body: JSON.stringify({ reference,campaign_id:'00000000-0000-4000-8000-000000000001',expected_amount_ngn:42,callback_url: "https://untrusted.example.invalid", amount: 1 }),
     })),
   };
 }
+
+test('checkout rejects missing or unsupported currency and sub-minor-unit prices before provider access',async()=>{
+  for(const change of [{currency:null},{currency:'USD'},{amount_total:'42.001'},{amount_total:'9007199254740992'}]){
+    const checkout=await checkoutHarness('payment-init',{},true,{booking_payments:{id:'fixture-payment',user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:'worker_booking',worker_booking_id:'fixture-job',...change}});
+    assert.equal((await checkout.request()).status,409);
+    assert.equal(checkout.initialized.length,0);
+  }
+});
 
 for (const name of ["payment-init", "worker-pro-payment-init"]) {
   test(`${name}: invalid environment is rejected before privileged database or provider access`, async () => {
@@ -164,4 +185,43 @@ test('removed worker workspace denies paid plan checkout despite an old worker r
   const checkout = await checkoutHarness('worker-pro-payment-init', {}, true, {}, false);
   assert.equal((await checkout.request()).status, 403);
   assert.equal(checkout.initialized.length, 0);
+});
+
+for(const name of ['worker-pro-payment-init','partner-pro-payment-init','sponsored-payment-init']){
+ test(`${name}: exact supported amount contract rejects unsafe or missing payment values`,async()=>{
+  for(const change of [{currency:null},{currency:'USD'},{amount_total:'42.001'},{amount_total:'9007199254740992'}, {amount_total:null}]){
+   const payment={id:'payment',user_id:'fixture-worker',payer_user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:name==='sponsored-payment-init'?'sponsored_campaign':'worker_pro_subscription',metadata:{plan_code:'PLN_fixture',billing_period:'monthly'},...change};
+   const checkout=await checkoutHarness(name,{},true,{booking_payments:payment});
+   assert.equal((await checkout.request()).status,409);
+   assert.equal(checkout.initialized.length,0);
+  }
+ });
+}
+test('paid Service plan cannot infer a missing provider currency or round its minor amount',async()=>{
+ for(const providerPlan of [{currency:null},{currency:undefined},{amount:4200.1},{amount:'4200'}]){
+  const checkout=await checkoutHarness('worker-pro-payment-init',{},true,{providerPlan});
+  assert.equal((await checkout.request()).status,409);assert.equal(checkout.initialized.length,0);
+ }
+});
+test('plan synchronization validates exact prices, environment and its saved receipt',async()=>{
+ const platform_settings=[{key:'worker_pro_monthly_price_ngn',value:'42'},{key:'worker_pro_product_name',value:'WeHouse Pro'}];
+ const valid=await checkoutHarness('worker-pro-plan-sync',{},true,{platform_settings});
+ assert.equal((await valid.request()).status,200);assert.equal(valid.planWrites[0].amount,4200);
+ for(const value of ['42.001','9007199254740992','',null]){
+  const bad=await checkoutHarness('worker-pro-plan-sync',{},true,{platform_settings:[{key:'worker_pro_monthly_price_ngn',value}]});
+  assert.equal((await bad.request()).status,409);assert.equal(bad.planWrites.length,0);
+ }
+ const noReceipt=await checkoutHarness('worker-pro-plan-sync',{},true,{platform_settings,savedPlanReceipt:false});
+ assert.equal((await noReceipt.request()).status,500);
+ const wrongEnvironment=await checkoutHarness('worker-pro-plan-sync',{PAYSTACK_SECRET_KEY:'sk_live_fixture'},true,{platform_settings});
+ assert.equal((await wrongEnvironment.request()).status,503);assert.equal(wrongEnvironment.planWrites.length,0);
+});
+
+
+test('checkout requires throttling and a persisted pending session before success',async()=>{
+ const limited=await checkoutHarness('payment-init',{},true,{rateDenied:true});assert.equal((await limited.request()).status,429);assert.equal(limited.initialized.length,0);
+ const lost=await checkoutHarness('payment-init',{},true,{noPersistenceReceipt:true});const response=await lost.request();assert.equal(response.status,409);assert.equal((await response.json()).success,false);
+});
+test('checkout rejects provider initialization belonging to another reference',async()=>{
+ const checkout=await checkoutHarness('payment-init',{},true,{providerInitialization:{reference:'another-payment'}});assert.equal((await checkout.request()).status,400);
 });

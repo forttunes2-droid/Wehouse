@@ -43,6 +43,14 @@ async def main():
      published=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules']
      assert len(published)==1 and published[0]['args']['p_rules']['long_let']['reservation_amount']==13000
      assert published[0]['args']['p_creator_elevation_id']=='test-only-elevation'
+     experience=page.get_by_role('region',name='Experience commission',exact=True)
+     await expect(experience.get_by_text('Not configured. No commission rate has been assumed.',exact=True)).to_be_visible()
+     await experience.get_by_label('WeHouse commission (%)',exact=True).fill('9.25')
+     await experience.get_by_label('Reason for change',exact=True).fill('Fixture-only Experience commission')
+     await experience.get_by_role('button',name='Confirm and publish commission',exact=True).click()
+     await expect(experience.get_by_text('Published: 9.25% - Version 1',exact=True)).to_be_visible()
+     commands=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_experience_commission']
+     assert len(commands)==1 and commands[0]['args']['p_percent']==9.25 and commands[0]['args']['p_expected_version']==0
      assert not errors,errors
      row['passed']=True
     except Exception as e:

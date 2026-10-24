@@ -1,18 +1,25 @@
-import ShortLetSplitCosts from "@/components/ShortLetSplitCosts";
+import PropertyBookingReview from '@/components/PropertyBookingReview';
+import ShortLetPaymentSummary from "@/components/ShortLetPaymentSummary";
+import { createBookingActionRunner } from "@/lib/bookingActionRunner";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import ShortLetBookingShares from "@/components/ShortLetBookingShares";
 import SharedHousingDetails from "@/components/SharedHousingDetails";
 import { getMySharedHousingGroups, type SharedHousingGroup } from "@/lib/supabase/shared-housing";
 import { sharedHousingLane } from "@/lib/sharedHousingPresentation";
 import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
+import HotelCancellationPanel from "@/components/HotelCancellationPanel";
 import StayArrivalInstructions from "@/components/StayArrivalInstructions";
 import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
-import { shortLetPayment } from "@/lib/shortLetPayment";
+import { shortLetPayment,shortLetBookingPrice } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
-import { displayDate, displayDateTime, nigeriaDateTimeInput, nigeriaInputToISO } from "@/lib/displayDate";
+import { displayDate, displayDateTime, displayDateTimeAtProperty, propertyDateTimeInput, propertyInputToISO } from "@/lib/displayDate";
+import { formatMoney, getRegionalDefaults, propertyTimeZone, timeZoneLabel } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   cancelReservation,
+  cancelPaidShortLetStay,
   createInspectionRequest,
   getInspectionRequestsForUser,
   getReservationsForUser,
@@ -82,12 +89,12 @@ const STATUS_OPTIONS = [
   { value: "active", label: "Upcoming" },
   { value: "history", label: "History" },
 ] as const;
-const money = (value: unknown) => `₦${Number(value || 0).toLocaleString()}`;
+const money = (value: unknown) => formatMoney(value);
 const date = displayDate;
 function bookingMonth(value: string) {
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit" }).formatToParts(parsed);
+  const parts = new Intl.DateTimeFormat("en", { timeZone: getRegionalDefaults().timeZone, year: "numeric", month: "2-digit" }).formatToParts(parsed);
   return `${parts.find(part => part.type === "year")?.value}-${parts.find(part => part.type === "month")?.value}`;
 }
 function bookingSearchText(item: BookingItem) {
@@ -155,9 +162,10 @@ export default function MyReservations({
   } | null>(null);
   const [arrivalReason, setArrivalReason] = useState("");
   const [arrivalBusy, setArrivalBusy] = useState(false);
+  const arrivalActionPending=useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<{
-    kind: "cancel_housing" | "cancel_hotel";
+    kind: "cancel_housing" | "cancel_hotel" | "cancel_short_let_paid";
     row: any;
   } | null>(null);
 
@@ -193,17 +201,17 @@ export default function MyReservations({
         }
         if (housingResult.value.error)
           nextErrors.housing =
-            "Apartment bookings could not be fully refreshed.";
+            "Home bookings could not be fully refreshed.";
       } else {
-        nextErrors.housing = "Apartment bookings could not be refreshed.";
+        nextErrors.housing = "Home bookings could not be refreshed.";
       }
       if (hotelResult.status === "fulfilled") {
         if (!hotelResult.value.error) {
-          setHotels(
-            (hotelResult.value.bookings || []).filter(
+          const nextHotels=(hotelResult.value.bookings || []).filter(
               (row: any) => !isUnpaidHotelDraft(row),
-            ),
-          );
+            );
+          setHotels(nextHotels);
+          setActiveHotel((current:any)=>current?nextHotels.find((row:any)=>String(row.booking_id)===String(current.booking_id))||current:current);
         } else nextErrors.hotels = "Hotel stays could not be refreshed.";
       } else nextErrors.hotels = "Hotel stays could not be refreshed.";
       if (serviceResult.status === "fulfilled") {
@@ -216,10 +224,10 @@ export default function MyReservations({
           setInspections(inspectionResult.value.inspections || []);
         else
           nextErrors.housing ||=
-            "Apartment inspection updates could not be refreshed.";
+            "Viewing updates could not be refreshed.";
       } else
         nextErrors.housing ||=
-          "Apartment inspection updates could not be refreshed.";
+          "Viewing updates could not be refreshed.";
       setSourceErrors(nextErrors);
     } finally {
       if(current===loadGeneration.current){setBusyId(null);setLoading(false);}
@@ -389,31 +397,56 @@ export default function MyReservations({
   }, [filteredRows]);
   const visibleCount = filteredRows.length;
 
+  const bookingActionRunner = useRef(createBookingActionRunner());
+  function runBookingAction(id:string,work:()=>Promise<unknown>){
+    return bookingActionRunner.current(id,work,setBusyId,async()=>{
+      toast.error("The booking action could not be confirmed. Refreshing its current status before you try again.");
+      await load(true);
+    });
+  }
+
   async function cancelHousing(row: any) {
-    setBusyId(row.id);
-    const { error } = await cancelReservation(row.id);
-    setBusyId(null);
+    return runBookingAction(row.id,async()=>{
+    const { error } = await withTimeout(cancelReservation(row.id),15000,"Booking confirmation took too long. Check this booking before retrying.");
+
     if (error) return toast.error(error.message);
-    toast.success("Reservation cancelled");
+    toast.success("Booking cancelled");
     await load();
+    });
+  }
+
+  async function cancelPaidShortLet(row: any) {
+    return runBookingAction(row.id,async()=>{
+    const { refundAmount, error } = await withTimeout(cancelPaidShortLetStay(row.id),15000,"Booking confirmation took too long. Check this booking before retrying.");
+
+    if (error) {
+      if (/ask WeHouse/i.test(error.message)) {
+        return toast.error(error.message, { duration: 12000, action: { label: "Contact Support", onClick: () => support(row) } });
+      }
+      return toast.error(error.message);
+    }
+    toast.success(`Stay cancelled. Refund requested for ${formatMoney(refundAmount)} to your original payment method. It is complete only when the payment provider confirms it.`);
+    await load();
+    });
   }
 
   async function cancelHotel(row: any) {
     const id = Number(row.booking_id);
-    setBusyId(`hotel-${id}`);
-    const { error } = await updateBookingStatus(id, "cancelled");
-    setBusyId(null);
+    return runBookingAction(`hotel-${id}`,async()=>{
+    const { error } = await withTimeout(updateBookingStatus(id, "cancelled"),15000,"Booking confirmation took too long. Check this booking before retrying.");
+
     if (error) return toast.error(error.message);
-    toast.success(row.payment_status === "paid" ? "Stay cancelled. Refund queued for the original payment method." : "Hotel reservation cancelled");
+    toast.success(row.payment_status === "paid" ? "Stay cancelled. Refund queued for the original payment method." : "Hotel booking cancelled");
     await load();
+    });
   }
 
   async function payHotel(row: any) {
     const id = Number(row.booking_id);
-    setBusyId(`hotel-${id}`);
-    const { result, error } = await initializeHotelBookingPayment(id);
+    return runBookingAction(`hotel-${id}`,async()=>{
+    const { result, error } = await withTimeout(initializeHotelBookingPayment(id),15000,"Booking confirmation took too long. Check this booking before retrying.");
     if (error || !result?.success) {
-      setBusyId(null);
+
       return toast.error(
         error?.message || result?.error || "Could not open secure payment",
       );
@@ -424,10 +457,11 @@ export default function MyReservations({
       return;
     }
     if (!result.authorization_url) {
-      setBusyId(null);
+
       return toast.error("Secure checkout link is missing");
     }
     window.location.assign(String(result.authorization_url));
+    });
   }
 
   async function continueHousing(row: any) {
@@ -435,50 +469,57 @@ export default function MyReservations({
     const feePaid = row.reservation_fee_status === "paid" || ["paid","completed"].includes(String(row.manual_payment_status || ""));
     if (short && feePaid) return payHousingRent(row);
     if (!row.payment_reference)
-      return toast.error(short ? "Reserve date payment reference is missing." : "This reservation cannot be resumed. Start again from the apartment.");
-    setBusyId(row.id);
-    const { result } = await initializeReservationPayment(String(row.payment_reference));
+      return toast.error(short ? "Reserve date payment reference is missing." : "This booking cannot be resumed. Start again from the apartment.");
+    return runBookingAction(row.id,async()=>{
+    const { result } = await withTimeout(initializeReservationPayment(String(row.payment_reference)),15000,"Booking confirmation took too long. Check this booking before retrying.");
     if (!result?.success) {
-      setBusyId(null);
+
       return toast.error(result?.error || "Could not reopen payment");
     }
     if (result.already_paid) {
-      toast.success(short ? "Reserve date payment is already confirmed" : "Reservation payment is already confirmed");
+      toast.success(short ? "Reserve date payment is already confirmed" : "Booking payment is already confirmed");
       await load();
       return;
     }
     if (!result.authorization_url) {
-      setBusyId(null);
+
       return toast.error("Secure checkout link is missing");
     }
     window.location.assign(String(result.authorization_url));
+    });
   }
 
   async function inspectHousing(row: any) {
-    setBusyId(row.id);
-    const { error } = await createInspectionRequest(
+    return runBookingAction(row.id,async()=>{
+    const currentViewing = inspections.find(item => String(item.reservation_id) === String(row.id));
+    if (getPropertyBookingJourney(row, currentViewing).action !== 'choose_inspection_or_rent') {
+      toast.error('Refresh this booking to see its current next step.');
+      return;
+    }
+    const { error } = await withTimeout(createInspectionRequest(
       row.id,
       row.listing_id,
       profile.user_id,
-      `Inspection requested for ${row.listing_title || "apartment"}`,
-    );
-    setBusyId(null);
+      `Viewing requested for ${row.listing_title || "apartment"}`,
+    ),15000,"Booking confirmation took too long. Check this booking before retrying.");
+
     if (error) return toast.error(error.message);
-    toast.success("Apartment inspection requested");
+    toast.success("Viewing requested");
     await load();
+    });
   }
 
   async function payHousingRent(row: any) {
-    setBusyId(row.id);
+    return runBookingAction(row.id,async()=>{
     if (
       row.rent_payment_status === "payment_pending" &&
       row.rent_payment_reference
     ) {
-      const verified = await verifyPaymentWithRetry(
+      const verified = await withTimeout(verifyPaymentWithRetry(
         String(row.rent_payment_reference),
         { purpose: "apartment_rent" },
         1,
-      );
+      ),15000,"Booking confirmation took too long. Check this booking before retrying.");
       if (verified.success && verified.verified) {
         toast.success(
           row.stay_type === "short_let"
@@ -489,7 +530,7 @@ export default function MyReservations({
         return;
       }
       if (verified.requires_review) {
-        setBusyId(null);
+
         return toast.error(
           verified.error ||
             "Payment was charged and is now with WeHouse for review",
@@ -498,10 +539,10 @@ export default function MyReservations({
     }
     const { result, error } =
       row.stay_type === "short_let"
-        ? await initializeShortStayPayment(row.id)
-        : await initializeApartmentRentPayment(row.id);
+        ? await withTimeout(initializeShortStayPayment(row.id),15000,"Booking confirmation took too long. Check this booking before retrying.")
+        : await withTimeout(initializeApartmentRentPayment(row.id),15000,"Booking confirmation took too long. Check this booking before retrying.");
     if (error || !result?.success) {
-      setBusyId(null);
+
       return toast.error(
         error?.message || result?.error || "Could not open secure payment",
       );
@@ -516,22 +557,24 @@ export default function MyReservations({
       return;
     }
     if (!result.authorization_url) {
-      setBusyId(null);
+
       return toast.error("Secure checkout link is missing");
     }
     window.location.assign(String(result.authorization_url));
+    });
   }
 
   async function requestMoveIn(row: any, requestedAt: string) {
-    setBusyId(row.id);
-    const { error } = await requestApartmentMoveIn(
+    return runBookingAction(row.id,async()=>{
+    const { error } = await withTimeout(requestApartmentMoveIn(
       row.id,
-      nigeriaInputToISO(requestedAt),
-    );
-    setBusyId(null);
+      propertyInputToISO(requestedAt),
+    ),15000,"Booking confirmation took too long. Check this booking before retrying.");
+
     if (error) return toast.error(error.message);
     toast.success(row.management_mode_snapshot === "host" ? "Move-in time sent to your property host" : "Move-in time sent to Property Operations");
     await load(true);
+    });
   }
 
   async function runPending() {
@@ -539,6 +582,7 @@ export default function MyReservations({
     setPending(null);
     if (!action) return;
     if (action.kind === "cancel_housing") return cancelHousing(action.row);
+    if (action.kind === "cancel_short_let_paid") return cancelPaidShortLet(action.row);
     return cancelHotel(action.row);
   }
 
@@ -549,13 +593,15 @@ export default function MyReservations({
       return toast.error(
         "Explain the arrival problem in at least 10 characters",
       );
+    if(arrivalActionPending.current)return;
+    arrivalActionPending.current=true;
     setArrivalBusy(true);
-    const { caseId, error } = await reportMyAccommodationArrivalIssue(
+    try {
+    const { caseId, error } = await withTimeout(reportMyAccommodationArrivalIssue(
       arrivalIssue.subjectType,
       arrivalIssue.subjectId,
       reason,
-    );
-    setArrivalBusy(false);
+    ),15000,"Booking confirmation took too long. Check this booking before retrying.");
     if (error || !caseId)
       return toast.error(
         error?.message || "The arrival issue could not be opened",
@@ -576,6 +622,9 @@ export default function MyReservations({
       "Arrival issue opened. The accommodation payment is frozen for WeHouse review.",
     );
     await load(true);
+    }catch{
+      toast.error('The arrival report could not be confirmed. Your description is retained; check the booking before retrying.');
+    }finally{arrivalActionPending.current=false;setArrivalBusy(false);}
   }
 
   function support(row: any) {
@@ -589,7 +638,7 @@ export default function MyReservations({
               : "apartment_booking",
           subject: `${
             row.stay_type === "short_let" ? "Short Let" : "Long Let"
-          } · ${row.listing_title || "Apartment"}`,
+          } · ${row.listing_title || "Home"}`,
           contextType: "apartment_reservation",
           contextId: row.id,
           contextSnapshot: {
@@ -705,7 +754,7 @@ export default function MyReservations({
 
   if(activeShared) return <SharedHousingDetails groupId={activeShared} userId={profile.user_id} onBack={()=>{setActiveShared(null);void load(true);}} onChanged={()=>void load(true)}
     onOpenListing={onOpenListing ? id=>{setActiveShared(null);onOpenListing(id);} : undefined}
-    onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your reservation.");}} />;
+    onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your booking.");}} />;
 
   if (activeHousing)
     return (
@@ -713,7 +762,7 @@ export default function MyReservations({
         <PropertyBookingDetail
           row={activeHousing}
           userId={profile.user_id}
-          onSplitCreated={group=>{setActiveHousing((current:any)=>current?{...current,shared_payment_group_id:group.id}:current);setActiveShared(group.id);void load(true);}}
+          onShareCreated={group=>{setActiveHousing((current:any)=>current?{...current,shared_payment_group_id:group.id}:current);setActiveShared(group.id);void load(true);}}
           onOpenShared={id=>setActiveShared(id)}
           inspection={
             inspections.find(
@@ -736,7 +785,10 @@ export default function MyReservations({
           onResume={() => void continueHousing(activeHousing)}
           onCancel={() => {
             setActiveHousing(null);
-            setPending({ kind: "cancel_housing", row: activeHousing });
+            setPending({
+              kind: activeHousing.stay_type === "short_let" && activeHousing.stay_payment_protection_id ? "cancel_short_let_paid" : "cancel_housing",
+              row: activeHousing,
+            });
           }}
           onInspect={() => void inspectHousing(activeHousing)}
           onRent={() => void payHousingRent(activeHousing)}
@@ -767,6 +819,7 @@ export default function MyReservations({
         <HotelBookingDetail
           row={activeHotel}
           busy={busyId === `hotel-${activeHotel.booking_id}`}
+          onChanged={()=>load(true)}
           protection={accommodationProtection}
           onArrivalIssue={() => {
             setArrivalReason("");
@@ -849,7 +902,7 @@ export default function MyReservations({
               );
             })}
           </div>
-          <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap items-center gap-x-1">
             {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
               className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-violet-300" : "text-[var(--wh-text-secondary)]"}`}>
               {option.value === "all" ? "All status" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}
@@ -863,7 +916,7 @@ export default function MyReservations({
           <WeHouseChoice value={month} onChange={event => setMonth(event.target.value)} aria-label="Booking month"
             className="h-11 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm text-[var(--wh-text)]">
             <option value="all">Any month</option>
-            {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
+            {months.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: getRegionalDefaults().timeZone }).format(new Date(`${value}-15T12:00:00Z`))}</option>)}
           </WeHouseChoice>
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
@@ -887,10 +940,10 @@ export default function MyReservations({
         ) : (
           <div className="mt-4 space-y-5">
             {groupedRows.map(([monthKey, group]) => (
-              <section key={monthKey} aria-label={monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${monthKey}-15T12:00:00Z`))}>
+              <section key={monthKey} aria-label={monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: getRegionalDefaults().timeZone }).format(new Date(`${monthKey}-15T12:00:00Z`))}>
                 <div className="mb-2 flex items-center justify-between px-1">
                   <h2 className="text-xs font-semibold text-[var(--wh-text-secondary)]">
-                    {monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat("en-NG", { month: "long", year: "numeric", timeZone: "Africa/Lagos" }).format(new Date(`${monthKey}-15T12:00:00Z`))}
+                    {monthKey === "unknown" ? "Date not available" : new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: getRegionalDefaults().timeZone }).format(new Date(`${monthKey}-15T12:00:00Z`))}
                   </h2>
                   <span className="text-[10px] text-[var(--wh-text-muted)]">{group.length}</span>
                 </div>
@@ -922,9 +975,9 @@ export default function MyReservations({
 
       <ConfirmDialog
         isOpen={Boolean(pending)}
-        title="Cancel this reservation?"
-        description={pending?.kind === "cancel_hotel" && pending.row.payment_status === "paid" ? "This cancels your stay and queues the saved full refund to your original payment method. The refund is complete only when the provider confirms it. Cancellation cannot be undone." : "This releases the reservation and cannot be undone."}
-        confirmLabel="Cancel reservation"
+        title="Cancel this booking?"
+        description={pending?.kind === "cancel_short_let_paid" ? "Eligibility is checked against your saved cancellation policy. An eligible protected stay payment is queued for refund to the original payment method; separate reservation fees and caution require their own policy review. A refund is complete only when the provider confirms it. An accepted cancellation cannot be undone." : "This releases the booking and cannot be undone."}
+        confirmLabel="Cancel booking"
         variant="danger"
         onCancel={() => setPending(null)}
         onConfirm={() => void runPending()}
@@ -1198,7 +1251,7 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
         ? `Checkout ${date(row.check_out_date)}`
         : `Ends ${date(row.tenancy_end_date)}`
       : row.status === "payment_pending"
-        ? "Finish your reservation"
+        ? "Finish your booking"
         : row.status === "reserved" && !rentPaid
           ? row.rent_payment_status === "payment_pending"
             ? short
@@ -1206,12 +1259,12 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
               : "Finish Year 1 rent payment"
             : short
               ? "Pay for your stay"
-              : "Choose inspection or Year 1 rent"
+              : "Choose a viewing or Year 1 rent"
           : row.status === "inspection_pending"
-            ? "WeHouse is reviewing the apartment"
+            ? "Your viewing request is being arranged"
             : row.status === "ready_for_move_in" && rentPaid
               ? row.requested_move_in_at
-                ? `Handover ${displayDateTime(row.requested_move_in_at, "Africa/Lagos")} WAT`
+                ? `Handover ${displayDateTimeAtProperty(row.requested_move_in_at)}`
                 : journey.title
               : row.status === "ready_for_move_in"
                 ? short
@@ -1227,7 +1280,7 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
   return (
     <BookingCard
       eyebrow={short ? "Short Let" : "Long Let"}
-      title={row.listing_title || "Apartment reservation"}
+      title={row.listing_title || "Home booking"}
       subtitle={row.listing_location || "WeHouse apartment"}
       image={row.listing_image || null}
       fallback="⌂"
@@ -1250,7 +1303,7 @@ function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => v
     row.status === "pending"
       ? "Complete secure payment to confirm this stay"
       : row.status === "confirmed"
-        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(hotel.check_in_time, "14:00"), hotel.timezone) || `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
+        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(hotel.check_in_time, "14:00"), propertyTimeZone(hotel.timezone)) || `Check-in ${checkIn} from ${formatStayTime(hotel.check_in_time, "14:00")} (hotel local time)`
         : row.status === "checked_in"
           ? `Check-out ${checkOut} by ${formatStayTime(hotel.check_out_time, "12:00")} (hotel local time)`
           : HOTEL_STATUS[String(row.status || "")] || "";
@@ -1258,7 +1311,7 @@ function HotelCard({ row, onOpen, compact = false }: { row: any; onOpen: () => v
     <BookingCard
       eyebrow="Hotel"
       status={HOTEL_STATUS[String(row.status || "")] || "Active"}
-      title={hotel.name || row.hotel_name || "Hotel reservation"}
+      title={hotel.name || row.hotel_name || "Hotel booking"}
       subtitle={room.room_type || row.room_name || row.rate_plan_name || "Hotel room"}
       image={image}
       fallback="H"
@@ -1340,33 +1393,6 @@ export function BookingCard({
   );
 }
 
-function ShortLetPaymentSummary({ row, bill }: { row: any; bill: ReturnType<typeof shortLetPayment> }) {
-  if (row.stay_type !== "short_let") return null;
-  const reservePaid = row.reservation_fee_status === "paid" || ["paid", "completed"].includes(String(row.manual_payment_status || ""));
-  const reservationFee = Number(row.reservation_fee_snapshot || row.amount || 0);
-  if (!reservePaid) {
-    return (
-      <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]" aria-label="Short Let payment">
-        <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Payment</p>
-        <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>Reserve date</span><strong>{reservationFee > 0 ? money(reservationFee) : "Payment required"}</strong></div>
-        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The stay charge and caution fee appear after the reservation date is successfully held.</p>
-      </section>
-    );
-  }
-  return (
-    <section className="mt-4 border-y border-[var(--wh-border-subtle)] py-3" aria-label="Short Let payment">
-      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-violet-300">Payment</p><h3 className="mt-1 text-sm font-semibold">Stay payment</h3></div>{reservationFee > 0 ? <span className="text-[10px] text-[var(--wh-text-secondary)]">Reserve date paid · {money(reservationFee)}</span> : null}</div>
-      {bill ? <dl className="mt-3 divide-y divide-[var(--wh-border-subtle)] text-xs">
-        <div className="flex justify-between gap-4 py-2.5"><dt>Stay charge</dt><dd className="font-semibold">{money(bill.rent)}</dd></div>
-        <div className="flex justify-between gap-4 py-2.5"><dt>Caution fee</dt><dd className="font-semibold">{bill.deposit > 0 ? money(bill.deposit) : "Not required"}</dd></div>
-        <div className="flex justify-between gap-4 py-2.5 text-sm"><dt>Stay amount due</dt><dd className="font-bold">{money(bill.total)}</dd></div>
-      </dl> : <p role="alert" className="mt-3 text-xs leading-5 text-amber-300">The confirmed stay amount could not be loaded. Refresh this booking before paying.</p>}
-      {row.short_stay_balance_due_at && !hasProtectedAccommodationPayment(row) ? <p className="mt-3 text-xs leading-5 text-amber-300">Complete the stay payment by {displayDateTime(row.short_stay_balance_due_at)} to keep the reserved dates.</p> : null}
-      {bill?.deposit ? <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">The caution fee is separate from the stay charge and remains refundable under the booking’s evidence-backed caution-fee rules.</p> : null}
-    </section>
-  );
-}
-
 function formatStayTime(value: unknown, fallback: string) {
   const match = String(value || fallback).match(/^(\d{2}):(\d{2})/);
   const [hour, minute] = match ? [Number(match[1]), match[2]] : [0, "00"];
@@ -1376,7 +1402,7 @@ function formatStayTime(value: unknown, fallback: string) {
 function PropertyBookingDetail({
   row,
   userId,
-  onSplitCreated,
+  onShareCreated,
   onOpenShared,
   inspection,
   busy,
@@ -1392,7 +1418,7 @@ function PropertyBookingDetail({
 }: {
   row: any;
   userId: string;
-  onSplitCreated:(group:SharedHousingGroup)=>void;
+  onShareCreated:(group:SharedHousingGroup)=>void;
   onOpenShared:(id:string)=>void;
   inspection: any;
   busy: boolean;
@@ -1423,6 +1449,7 @@ function PropertyBookingDetail({
     journey.rentPaid &&
     ["handover", "tenancy", "completed"].includes(journey.action);
   const shortBill = shortLetPayment(row);
+  const shortPrice = shortLetBookingPrice(shortBill,row.reservation_fee_snapshot);
   const hostManaged = row.management_mode_snapshot === "host";
   const arrivalManager = hostManaged ? "Property host" : "WeHouse Property Operations";
   const addressForDirections = row.listing_address || row.listing_location || [row.listing_city,row.listing_state].filter(Boolean).join(", ");
@@ -1434,15 +1461,15 @@ function PropertyBookingDetail({
           row.listing_price ||
           0,
   );
-  const earliestMoveIn = nigeriaDateTimeInput(
+  const earliestMoveIn = propertyDateTimeInput(
     new Date(Date.now() + 5 * 60_000),
   );
-  const latestMoveIn = nigeriaDateTimeInput(
+  const latestMoveIn = propertyDateTimeInput(
     new Date(Date.now() + 3 * 86_400_000),
   );
   const [moveInAt, setMoveInAt] = useState(
     row.requested_move_in_at
-      ? nigeriaDateTimeInput(new Date(row.requested_move_in_at))
+      ? propertyDateTimeInput(new Date(row.requested_move_in_at))
       : earliestMoveIn,
   );
   const [editingMoveIn, setEditingMoveIn] = useState(false);
@@ -1462,7 +1489,7 @@ function PropertyBookingDetail({
         {row.listing_image ? (
           <img
             src={row.listing_image}
-            alt={row.listing_title || "Apartment"}
+            alt={row.listing_title || "Home"}
             loading="lazy"
             decoding="async"
             className="h-40 w-full object-cover sm:h-48"
@@ -1475,7 +1502,7 @@ function PropertyBookingDetail({
                 {short ? "Short Let" : "Long Let"}
               </p>
               <h2 className="mt-1 break-words text-base font-bold leading-5">
-                {row.listing_title || "Apartment booking"}
+                {row.listing_title || "Home booking"}
               </h2>
               <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-muted)]">
                 {locationLabel(
@@ -1539,7 +1566,7 @@ function PropertyBookingDetail({
 
           <ShortLetPaymentSummary row={row} bill={shortBill} />
 
-          {journey.rentPaid && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
+          {journey.rentPaid && ['ready_for_move_in','occupied','completed'].includes(row.status) && <StayArrivalInstructions kind="home" bookingId={String(row.id)} />}
 
           {row.hold_expires_at &&
           !journey.rentPaid &&
@@ -1554,12 +1581,17 @@ function PropertyBookingDetail({
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
           <PropertyBookingJourney row={row} inspection={inspection} />
-          <ShortLetSplitCosts row={row} userId={userId} onCreated={onSplitCreated}/>
+          <ShortLetBookingShares row={row} userId={userId} onCreated={onShareCreated}/>
+          {short && row.stay_payment_protection_id && !["cancelled", "completed", "expired"].includes(String(row.status)) && journey.action !== "reservation_payment" ? (
+            <button type="button" disabled={busy} onClick={onCancel} className="mt-4 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
+              Review stay cancellation
+            </button>
+          ) : null}
           {row.shared_payment_group_id && <button type="button" onClick={()=>onOpenShared(String(row.shared_payment_group_id))} className="mt-4 min-h-12 w-full rounded-xl bg-violet-600 px-4 text-sm font-semibold">View shared stay</button>}
 
           {journey.action === "reservation_payment" ? (
             <div className="mt-5 grid gap-2">
-              <button type="button" disabled={busy} onClick={onResume} className="min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
+              <button type="button" disabled={busy||(short&&!shortPrice)} onClick={onResume} className="min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Opening secure payment…" : short ? "Pay Reserve date fee" : "Pay reservation fee"}
               </button>
               <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
@@ -1572,10 +1604,10 @@ function PropertyBookingDetail({
             <section className="mt-5">
               <p className="text-xs font-semibold">Choose one next step</p>
               <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
-                An inspection is optional. If you request it, rent waits until the visit is completed.
+                A viewing is optional. WeHouse will coordinate the visit. Rent payment stays unavailable until the requested visit is completed.
               </p>
               <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
-                {busy ? "Sending request…" : "Request apartment inspection"}
+                {busy ? "Sending request…" : "Request a viewing"}
               </button>
               <button type="button" disabled={busy} onClick={onRent} className="mt-2 min-h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.06] text-xs font-semibold text-emerald-300 disabled:opacity-50">
                 {busy ? "Opening secure payment…" : `Proceed with Year 1 rent · ${money(rentAmount)}`}
@@ -1584,7 +1616,7 @@ function PropertyBookingDetail({
           ) : null}
 
           {journey.action === "rent_payment" && !row.shared_payment_group_id ? (
-            <button type="button" disabled={busy || (short && !shortBill)} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
+            <button type="button" disabled={busy || (short && !shortPrice)} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
               {busy
                 ? "Checking payment…"
                 : row.rent_payment_status === "payment_pending"
@@ -1601,9 +1633,9 @@ function PropertyBookingDetail({
             <section className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4">
               <p className="text-xs font-semibold">Choose your move-in time</p>
               <p className="mt-1 text-xs leading-4 text-[var(--wh-text-muted)]">
-                Times are in Nigeria time (WAT). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
+                Times are in property time ({timeZoneLabel()}). Choose a time within the next 3 days. Paying rent does not start the tenancy; verified handover does.
               </p>
-              <input aria-label="Move-in time in Nigeria (WAT)" type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs" />
+              <input aria-label={`Move-in time (${timeZoneLabel()})`} type="datetime-local" min={earliestMoveIn} max={latestMoveIn} value={moveInAt} onChange={(event) => setMoveInAt(event.target.value)} className="mt-3 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs" />
               <button type="button" disabled={busy || !moveInAt} onClick={() => onMoveIn(moveInAt)} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Saving move-in time…" : "Send move-in time"}
               </button>
@@ -1660,6 +1692,7 @@ function PropertyBookingDetail({
           ) : null}
         </div>
       </section>
+      <PropertyBookingReview key={`${userId}:${row.id}`} reservationId={String(row.id)}/>
     </BookingDetailShell>
   );
 }
@@ -1675,6 +1708,7 @@ function HotelBookingDetail({
   onHotel,
   onPay,
   onCancel,
+  onChanged,
 }: {
   row: any;
   busy: boolean;
@@ -1685,6 +1719,7 @@ function HotelBookingDetail({
   onHotel: () => void;
   onPay: () => void;
   onCancel: () => void;
+  onChanged:()=>void|Promise<void>;
 }) {
   const name =
     row.hotels?.name || row.hotel?.name || row.hotel_name || "Hotel stay";
@@ -1720,7 +1755,7 @@ function HotelBookingDetail({
     journeyStatus === "pending"
       ? "Complete secure payment to confirm the room."
       : journeyStatus === "confirmed"
-        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(row.hotels?.check_in_time || row.hotel?.check_in_time, "14:00"), row.hotels?.timezone || row.hotel?.timezone) || "Arrive from the check-in time shown above. Show your code at reception."
+        ? hotelArrivalGuidance(row.check_in_date || row.check_in, row.check_out_date || row.check_out, formatStayTime(row.hotels?.check_in_time || row.hotel?.check_in_time, "14:00"), propertyTimeZone(row.hotels?.timezone || row.hotel?.timezone)) || "Arrive from the check-in time shown above. Show your code at reception."
         : journeyStatus === "checked_in"
           ? "Your stay is in progress."
           : journeyStatus === "completed"
@@ -1770,7 +1805,7 @@ function HotelBookingDetail({
 
           {showCode ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-violet-500/[.07] px-3 py-2.5">
-              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your reservation ID; arrival and departure use a separate code.</p></div>
+              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your booking ID; arrival and departure use a separate code.</p></div>
               <p className="font-mono text-xs font-bold tracking-wider text-violet-200">{row.booking_code}</p>
             </div>
           ) : null}
@@ -1811,11 +1846,11 @@ function HotelBookingDetail({
 
           <HotelSpecialRequest request={row.special_requests} />
           {row.cancellation_snapshot && <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5">
-            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString('en-NG',{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
+            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
             <p className="mt-1 text-[var(--wh-text-secondary)]">These booked terms remain fixed if the hotel later changes its rate. Exceptions can be sent to WeHouse for review.</p>
           </div>}
-          {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {money(row.refund_amount_ngn)} · {row.refund_status==='completed'?'Completed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status!=='completed'?'The stay is cancelled; the money has not yet been confirmed returned.':''}</p>}
-          {row.status==='confirmed' && row.payment_status==='paid' && row.cancellation_snapshot?.refundable && Date.now()<=new Date(row.cancellation_snapshot.deadline).getTime() && <button type="button" disabled={busy} onClick={onCancel} className="mt-3 min-h-11 w-full rounded-xl border border-red-500/30 px-3 text-xs font-semibold">Cancel stay and request full refund</button>}
+          {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {money(row.refund_amount_ngn)} · {row.refund_status==='completed'?'Provider processed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status==='completed'?'Your bank or payment method may take additional time to show the refund.':'The stay is cancelled; the provider has not yet confirmed processing the refund.'}</p>}
+          {row.status==='confirmed' && row.payment_status==='paid' && <HotelCancellationPanel key={row.booking_id} bookingId={Number(row.booking_id)} onChanged={onChanged} onReview={onDesk}/>}
           {row.payment_status === 'paid' && <StayArrivalInstructions kind="hotel" bookingId={String(row.booking_id)} />}
 
           <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
@@ -2117,11 +2152,7 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 function Loading() {
-  return (
-    <div className="grid min-h-56 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 
 function Empty({ view, statusView, filtered = false }: { view: View; statusView: StatusView; filtered?: boolean }) {

@@ -1,8 +1,10 @@
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
+import { homeStyleLabel } from '@/lib/homeStyles';
 import { locationLabel } from "@/lib/locationPresentation";
 import type { Listing, ListingStatus } from "@/types";
-import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from "@/types";
+import { LISTING_STATUS_LABELS } from "@/types";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
+import { formatMoney } from "@/lib/regional";
 
 interface ListingCardProps {
   listing: Listing;
@@ -26,47 +28,19 @@ export default function ListingCard({
     "";
   const listingStatus: ListingStatus = listing.status || "available";
   const rawStatus = String(listing.status || "available");
-  const statusColor =
-    LISTING_STATUS_COLORS[listingStatus] || LISTING_STATUS_COLORS.available;
   const statusLabel =
     listing.sub_type === "short_let" && rawStatus === "occupied"
       ? "Booked now"
       : LISTING_STATUS_LABELS[listingStatus] || "Available";
   const price = listing.price || 0;
+  const listingMoney = (amount: unknown) => formatMoney(amount,{currency:listing.currency||'NGN'});
   const priceDisplay =
     price >= 1000000
-      ? `₦${(price / 1000000).toFixed(1)}M`
+      ? `${listingMoney((price / 1000000).toFixed(1))}M`
       : price >= 1000
-        ? `₦${(price / 1000).toFixed(0)}k`
-        : `₦${price}`;
+        ? `${listingMoney((price / 1000).toFixed(0))}k`
+        : `${listingMoney(price)}`;
   const priceUnit = listing.sub_type === "short_let" ? "/night" : "/year";
-  const statusBg = statusColor.includes("green")
-    ? "bg-green-500/15"
-    : statusColor.includes("amber")
-      ? "bg-amber-500/15"
-      : statusColor.includes("blue")
-        ? "bg-violet-500/15"
-        : statusColor.includes("red")
-          ? "bg-red-500/15"
-          : "bg-gray-500/15";
-  const statusText = statusColor.includes("green")
-    ? "text-green-400"
-    : statusColor.includes("amber")
-      ? "text-amber-400"
-      : statusColor.includes("blue")
-        ? "text-violet-400"
-        : statusColor.includes("red")
-          ? "text-red-400"
-          : "text-gray-400";
-  const statusBorder = statusColor.includes("green")
-    ? "border-green-500/20"
-    : statusColor.includes("amber")
-      ? "border-amber-500/20"
-      : statusColor.includes("blue")
-        ? "border-violet-500/20"
-        : statusColor.includes("red")
-          ? "border-red-500/20"
-          : "border-gray-500/20";
   const media = (listing.images || []).filter(Boolean);
   const primary = media[0] || imageUrl;
   const displayTitle = listingDisplayTitle(listing);
@@ -98,7 +72,7 @@ export default function ListingCard({
       onClick={onClick}
       className="group cursor-pointer border-b border-[var(--wh-border-subtle)] pb-5"
     >
-      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] ${primary ? "aspect-[4/3]" : "h-40"}`}>
+      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-white ${primary ? "aspect-[4/3]" : "h-40"}`}>
         <ShowcaseMediaThumbnail src={primary} mediaType="image"
           alt={displayTitle}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
@@ -106,7 +80,7 @@ export default function ListingCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10" />
         <div className="absolute left-2.5 top-2.5 z-10">
           <span
-            className={`rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase backdrop-blur-md ${statusBg} ${statusText} ${statusBorder}`}
+            className="rounded-full border border-white/15 bg-black/75 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md"
           >
             {statusLabel}
           </span>
@@ -134,15 +108,16 @@ export default function ListingCard({
               {listing.sub_type === "short_let" ? "Short Let" : "Long Let"}
             </p>
             <h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3>
+            {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</p>}
             <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
               {locationLabel(listing.address, listing.city, listing.state) ||
                 "Location unavailable"}
             </p>
           </div>
           <div className="shrink-0 text-right text-[9px] text-[var(--wh-text-secondary)]">
-            {listing.bedrooms > 0 ? (
+            {listing.bedrooms != null ? (
               <p>
-                {listing.bedrooms} bed · {listing.bathrooms || 0} bath
+                {homeStyleLabel(listing.home_style) ? `${homeStyleLabel(listing.home_style)} · ` : ''}{listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`} · {listing.bathrooms ?? '—'} bath
               </p>
             ) : null}
             {distanceLabel ? (
@@ -150,14 +125,7 @@ export default function ListingCard({
             ) : null}
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-[8px]">
-          {rawStatus === "available" ? (
-            <span className="text-emerald-300">● Verified and available</span>
-          ) : null}
-          {listing.videos?.length > 0 ? (
-            <span className="text-[var(--wh-text-muted)]">▶ Video preview</span>
-          ) : null}
-        </div>
+        {listing.videos?.length > 0 && <p className="mt-3 text-xs text-[var(--wh-text-muted)]">▶ Video preview</p>}
       </div>
     </article>
   );
@@ -170,7 +138,7 @@ export default function ListingCard({
         onClick={onClick}
         className="flex cursor-pointer gap-3 border-b border-[var(--wh-border-subtle)] py-3 sm:hidden"
       >
-        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[var(--wh-elevated)]">
+        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-white">
           <ShowcaseMediaThumbnail src={primary} mediaType="image"
             alt={displayTitle}
             className="h-full w-full object-cover"
@@ -196,14 +164,15 @@ export default function ListingCard({
           <h3 className="mt-1 line-clamp-2 text-[13px] font-bold leading-4">
             {displayTitle}
           </h3>
+          {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</p>}
           <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
             {locationLabel(listing.address, listing.city, listing.state) ||
               "Location unavailable"}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] text-[var(--wh-text-secondary)]">
-            {listing.bedrooms > 0 ? (
+            {listing.bedrooms != null ? (
               <span>
-                {listing.bedrooms} bed · {listing.bathrooms || 0} bath
+                {homeStyleLabel(listing.home_style) ? `${homeStyleLabel(listing.home_style)} · ` : ''}{listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`} · {listing.bathrooms ?? '—'} bath
               </span>
             ) : null}
             {distanceLabel ? (

@@ -1,7 +1,7 @@
 // Loaded only by tests/browser/vite.config.ts; production never imports this file.
 import { useEffect, useState } from 'react';
 import type { Profile } from '../../src/types';
-export { canCreateListings, isCreator, isAdmin, isStaff, hasAdminAccess, canSendAnnouncements, getScope, isGlobal } from '../../src/hooks/useAuth';
+export { isCreator, isAdmin, isStaff, hasAdminAccess, canSendAnnouncements, getScope, isGlobal } from '../../src/hooks/useAuth';
 export const fixtureProfile = {
   user_id: 'experience-creator', auth_id: '77777777-1111-4111-8111-111111111111',
   email: 'experience@example.invalid', full_name: 'Experience Reviewer', username: 'reviewer',

@@ -37,6 +37,8 @@
 .wh-attachment-state { display: flex; align-items: center; gap: 10px; min-height: 64px; max-width: 100%; padding: 12px; border-radius: 12px; background: var(--attachment-bg); color: var(--attachment-muted); overflow-wrap: anywhere; }
 .wh-attachment-state button { min-height: 44px; color: var(--attachment-accent); font-weight: 600; text-align: left; }
 .wh-message-media { width: 288px; max-width: 100%; margin: 4px 0; }
+.wh-attachment-save { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-right: 12px; color: var(--attachment-accent); font-size: 12px; font-weight: 600; }
+.wh-attachment-document-icon { color: var(--attachment-accent); }
 .wh-media-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 3px; overflow: hidden; border-radius: 14px; }
 .wh-media-grid[data-count='1'] { grid-template-columns: minmax(0,1fr); }
 .wh-media-tile { display: grid; place-items: center; position: relative; min-width: 0; width: 100%; aspect-ratio: 1; background: #242633; overflow: hidden; color: #f4f2f8; }
@@ -88,7 +90,7 @@
 .wh-request-conversation-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--attachment-border); }
 .wh-request-conversation-head > span:last-child { display: grid; gap: 2px; min-width: 0; }
 .wh-request-conversation-head strong { font-size: 13px; font-weight: 700; }
-.wh-request-conversation-head small { color: var(--attachment-muted); font-size: 10px; }
+.wh-request-conversation-head small { color: var(--attachment-muted); font-size: 12px; }
 .wh-request-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 11px; background: rgb(139 92 246 / 12%); color: var(--attachment-accent); }
 .wh-request-note-conversation .wh-request-body { margin: 0; padding: 12px 14px 14px; border-top: 0; }
 .wh-request-note-conversation .wh-request-body p { font-size: 14px; line-height: 1.55; font-weight: 520; }

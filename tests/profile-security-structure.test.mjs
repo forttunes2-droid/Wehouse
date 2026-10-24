@@ -48,6 +48,11 @@ test("Security Operations investigates and escalates but cannot impose account s
   assert.match(security, /get_my_staff_security_cases/);
   assert.match(security, /staff_security_open_signal_case/);
   assert.match(security, /staff_security_case_action/);
+  assert.match(security, /actionInFlight\.current=true/);
+  assert.match(security, /receipt\?\.success!==true/);
+  assert.match(security, /receipt\.case_id!==row\.operational_case_id/);
+  assert.match(security, /receipt\.status!==expectedStatus/);
+  assert.match(security, /finally\s*\{\s*actionInFlight\.current=false/);
   assert.match(security, /Claim investigation/);
   assert.match(security, /Escalate decision/);
   assert.match(security, /Resolve review/);

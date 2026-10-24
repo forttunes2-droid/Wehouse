@@ -1,3 +1,5 @@
+import SponsoredPlacement from "@/components/SponsoredPlacement";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -5,9 +7,9 @@ import {
   getWorkers,
   supabase,
 } from "@/lib/supabase";
-import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
+import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
@@ -24,6 +26,7 @@ import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } fr
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { formatMoney } from "@/lib/regional";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
 type ActiveBooking = { worker_id?: string | null };
@@ -31,8 +34,10 @@ type WorkStatusRow = Omit<WorkStatus, "url">;
 type Props = {
   userCity?: string | null;
   profile?: Profile | null;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
   preSelectedCategory?: string | null;
+  initialWorkerId?: string | null;
+  onInitialWorkerOpened?: () => void;
 };
 type WorkStatus = {
   id: string;
@@ -81,6 +86,8 @@ export default function WorkerDiscovery({
   profile,
   onNavigate = () => {},
   preSelectedCategory,
+  initialWorkerId,
+  onInitialWorkerOpened,
 }: Props) {
   const { getBoolean, loading: settingsLoading } = usePlatformSettings();
   const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
@@ -112,7 +119,7 @@ export default function WorkerDiscovery({
       conversationId: string;
       bookingId: string;
     } | null>(null);
-  const sponsoredResults = useSponsoredDiscovery('worker', state, city);
+  const sponsoredResults = useSponsoredDiscovery('worker', state, city, category);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -198,6 +205,12 @@ export default function WorkerDiscovery({
     };
   }, [active, viewWorker]);
   useEffect(() => {
+    if (!initialWorkerId || loading) return;
+    const found = workers.find(worker => worker.user_id === initialWorkerId);
+    if (found) setViewWorker(found);
+    onInitialWorkerOpened?.();
+  }, [initialWorkerId, loading, workers, onInitialWorkerOpened]);
+  useEffect(() => {
     if (!preSelectedCategory || !categories.length) return;
     const direct = categories.find((item) => item.name === preSelectedCategory);
     if (direct) {
@@ -225,7 +238,6 @@ export default function WorkerDiscovery({
     () => categories.find((item) => item.name === category) || null,
     [categories, category],
   );
-  const cities = useMemo(() => getCitiesForState(state), [state]);
   const categoryOptions = useMemo(
     () => categories.map((item) => ({ value: item.name, label: item.name })),
     [categories],
@@ -237,15 +249,6 @@ export default function WorkerDiscovery({
         label: sub.name,
       })),
     [selected],
-  );
-  const stateOptions = useMemo(
-    () =>
-      NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => cities.map((item) => ({ value: item, label: item })),
-    [cities],
   );
   const liveWorkers = useMemo(
     () =>
@@ -305,9 +308,7 @@ export default function WorkerDiscovery({
         Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city }))),
     [sponsoredResults, liveWorkers, search, category, specialty, state, city],
   );
-  useEffect(() => {
-    visibleFeaturedWorkers.forEach(item => recordSponsoredImpression(item.campaignId, 'worker_discovery'));
-  }, [visibleFeaturedWorkers]);
+
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
   function clear() {
     setSearch("");
@@ -375,7 +376,10 @@ export default function WorkerDiscovery({
       <>
         <WorkerPublicProfile
           worker={viewWorker}
+          viewerUserId={profile?.user_id}
           onBack={() => setViewWorker(null)}
+          onGoToChat={(id) => onNavigate("chat", id)}
+          onGoToFriendChat={(id) => onNavigate("activity", id)}
           bookingActive={active.has(viewWorker.user_id)}
           showBookingAction={!viewingOwnWorker}
           onOpenBooking={() => onNavigate("my_reservations")}
@@ -400,8 +404,8 @@ export default function WorkerDiscovery({
                 {profileBlock.busy
                   ? "Updating…"
                   : profileBlock.blockedByMe
-                    ? "Unblock Worker"
-                    : "Block Worker"}
+                    ? "Resume contact"
+                    : "Stop contact"}
               </button>
             </div>
           ) : undefined}
@@ -488,8 +492,7 @@ export default function WorkerDiscovery({
             </div>
             <div className="divide-y divide-amber-300/10">
               {visibleFeaturedWorkers.map(({ worker, campaignId }) => (
-                <WorkerCard
-                  key={campaignId}
+                <SponsoredPlacement key={campaignId} campaignId={campaignId} context="worker_discovery"><WorkerCard
                   worker={worker}
                   active={active.has(worker.user_id)}
                   bookable={worker.user_id !== profile?.user_id}
@@ -498,7 +501,7 @@ export default function WorkerDiscovery({
                   onProfile={() => openWorker(worker)}
                   onBook={() => { recordSponsoredOpen(campaignId); setBookingWorker(worker); }}
                   onOpen={() => onNavigate("my_reservations")}
-                />
+                /></SponsoredPlacement>
               ))}
             </div>
           </section>
@@ -531,9 +534,7 @@ export default function WorkerDiscovery({
           )}
         </div>
         {loading || settingsLoading ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
         ) : !marketplaceEnabled ? (
           <DiscoveryEmpty
             title="WeHouse Services is not open yet"
@@ -594,28 +595,7 @@ export default function WorkerDiscovery({
               disabled={!category}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={state}
-              onChange={(value) => {
-                setState(value);
-                setCity("");
-              }}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={city}
-              onChange={setCity}
-              options={cityOptions}
-              placeholder={state ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!state}
-            />
-          </div>
+          <LocationFilterFields region={state} locality={city} onRegionChange={(value) => { setState(value); setCity(""); }} onLocalityChange={setCity} />
           {(savedState || savedCity) && (
             <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5 text-[9px] text-[var(--wh-text-muted)]">
               Your saved area is the default:{" "}
@@ -789,7 +769,7 @@ function WorkerCard({
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="text-[10px] font-semibold text-[var(--wh-text)]">
           {worker.worker_price
-            ? `From ₦${Number(worker.worker_price).toLocaleString()}`
+            ? `From ${formatMoney(Number(worker.worker_price))}`
             : "Discuss price"}
         </p>
         {active && bookable ? (

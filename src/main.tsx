@@ -4,16 +4,17 @@ import './index.css'
 import './operational-workspaces.css'
 import './worker-discovery-responsive.css'
 import './chat-mobile.css'
-import { Toaster } from 'sonner'
+import WeHouseToaster from '@/components/WeHouseToaster'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { isNative } from '@/lib/native'
 import { registerNativeOAuthHandler } from '@/lib/nativeOAuth'
-import { startAppearanceSync, useAppearance, resolvedAppearance } from '@/lib/appearance'
+import { startAppearanceSync, resolvedAppearance } from '@/lib/appearance'
 
 startAppearanceSync();
 
 function NativeInit() {
   useEffect(() => { document.documentElement.dataset.whReactMounted = "true"; }, []);
+  useEffect(() => { void import('@/lib/regionalLoader').then(m => m.loadRegionalDefaults()).catch(() => {}); }, []);
   useEffect(() => {
     if (!isNative()) return;
     void registerNativeOAuthHandler().catch(() => {});
@@ -81,12 +82,6 @@ function MobileViewportInit() {
   return null;
 }
 
-function AppToaster() {
-  const appearance = useAppearance();
-  return <Toaster position="top-center" theme={resolvedAppearance(appearance)} visibleToasts={1} duration={3200}
-    offset="max(12px, env(safe-area-inset-top))" mobileOffset="max(12px, env(safe-area-inset-top))"
-    style={{ zIndex: 2147483647 }} toastOptions={{ style: { background: "var(--wh-elevated)", color: "var(--wh-text)", borderColor: "var(--wh-border)", borderRadius: '14px', padding: '12px 14px', fontSize: '13px', lineHeight: '1.4' } }} />;
-}
 
 function assertBrowserEnvironmentBeforeAppLoad() {
   const configuredUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
@@ -129,7 +124,7 @@ async function mountWeHouse() {
       <NativeInit />
       <MobileViewportInit />
       <App />
-      <AppToaster />
+      <WeHouseToaster />
     </ErrorBoundary>
   </StrictMode>,
   )

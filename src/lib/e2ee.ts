@@ -1,7 +1,7 @@
 import { validateMessageMedia, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 
-export type PrivateConversationKind = "roommate" | "worker";
+export type PrivateConversationKind = "roommate" | "worker" | "friend";
 export type EncryptedAttachment = {
   path: string;
   file_iv: string;

@@ -45,6 +45,7 @@ export function activityNeedsAction(
   if (String(row.type || "").toLowerCase() === "roommate_interest_withdrawn") return false;
   if (row.action_required === true) return !row.resolved_at;
   if (row.resolved_at) return false;
+  if (row.action_required === false) return false;
   const value = [
     row.type,
     row.title,
@@ -66,7 +67,7 @@ export type ActivityDestination = {
 function value(params: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const candidate = params[key];
-    if (candidate !== null && candidate !== undefined && String(candidate).trim())
+    if ((typeof candidate === 'string' || (typeof candidate === 'number' && Number.isFinite(candidate))) && String(candidate).trim())
       return String(candidate);
   }
   return undefined;
@@ -117,11 +118,9 @@ export function resolveActivityDestination(
   // the invitee response form. Legacy deliveries used "property-owner", which
   // is not a canonical app route.
   if (type === "resource_invitation_response") {
-    const resourceType = String(params.resource_type || "").toLowerCase();
-    const resourceId = value(params, ["resource_id", "resourceId"]);
-    if (resourceType === "hotel" && resourceId) {
-      return { route: "hotel_detail", id: resourceId };
-    }
+    // The inviter manages hotel-team membership from the Property Partner
+    // workspace. "hotel_detail" is a personal-only route and is normalized
+    // away for partner accounts, so sending the inviter there loses the target.
     return { route: "property_partner" };
   }
 
@@ -129,10 +128,10 @@ export function resolveActivityDestination(
   // Their legacy destination is "property-owner" and params carry hotel_id;
   // normalize that payload to a real application route instead of a dead page.
   if (type === "hotel_team_invitation_response") {
-    const hotelId = value(params, ["hotel_id", "hotelId"]);
-    return hotelId
-      ? { route: "hotel_detail", id: hotelId }
-      : { route: "property_partner" };
+    // Team responses are handled in the inviter's workspace, not public
+    // hotel discovery. The hotel id remains in the Activity payload for the
+    // team list to identify the relevant resource.
+    return { route: "property_partner" };
   }
 
   if (route === "security" && /device|login|session/.test(`${type} ${sourceType}`))
@@ -226,6 +225,8 @@ export function resolveActivityDestination(
   }
 
   if (route === "conversation") return { route, id: conversationId || fallbackId };
+  if (route === "experience_application" || route === "experience_review")
+    return { route, id: value(params, ["context_id", "activity_id"]) || row.source_id || undefined };
   if (/propert|listing|inspection|hotel_detail/.test(route))
     return { route, id: propertyId || fallbackId };
   if (/booking|reservation/.test(route))
@@ -243,8 +244,12 @@ export function resolveActivityDestination(
 export function activityDestinationLabel(row: Parameters<typeof resolveActivityDestination>[0]) {
   const { route } = resolveActivityDestination(row);
   const type = String(row.type || "").toLowerCase();
-  if (type === "hotel_team_invitation_response") return "View hotel team";
-  if (type === "resource_invitation_response") return "View team invitation response";
+  if (route === "detail") return "View home";
+  if (route === "hotel_detail") return "View hotel";
+  if (route === "experience_application") return "Open Experience application";
+  if (route === "experience_review") return "Review Experience application";
+  if (type === "hotel_team_invitation_response") return "View team access";
+  if (type === "resource_invitation_response") return "View team access";
   if (type === "property_move_in_requested") return "Prepare handover";
   if (type === "property_rent_confirmed") return "View reservation";
   if (type.startsWith("sponsored_campaign_")) return "View Sponsored placement";
@@ -256,7 +261,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   if (/hotel/.test(type) && /booking|reservation/.test(route)) return "Open hotel stay";
   if (/propert|listing|inspection/.test(route)) return "Open property record";
   if (/booking|reservation/.test(route)) return "Open booking record";
-  if (/worker|service|job/.test(route)) return "Open worker record";
+  if (/worker|service|job/.test(route)) return "Open service record";
   if (route === "roommate") return "Open roommate update";
   if (/finance|earning|payment|wallet/.test(route)) return "Open money record";
   return route ? "Open related record" : "View details";

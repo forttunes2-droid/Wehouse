@@ -1,3 +1,4 @@
+import { withTimeout } from '@/lib/withTimeout';
 import { supabase } from './client';
 import { parseDeviceInfo } from './session';
 import type { GoogleVerificationContext } from '@/lib/googleVerification';
@@ -29,7 +30,7 @@ export async function signUpWithEmail(
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/`,
+      emailRedirectTo: verificationRedirectUrl('signup'),
       data: { source: 'wehouse', legal_review: legalChoices },
     },
   });
@@ -139,4 +140,57 @@ export async function logPasswordChange(userId: string, authId: string) {
     details: { device, os, browser, source: 'security_settings' },
   });
   return { error };
+}
+
+// Password accounts only. The password is checked first, then Supabase emails a confirmation link
+// to the new address. The old address stays active until that link is opened.
+export async function requestEmailChange(currentPassword: string, currentEmail: string, newEmail: string) {
+  const clean = newEmail.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return { error: { message: 'Enter a valid email address' } };
+  if (clean === currentEmail.trim().toLowerCase()) return { error: { message: 'That is already your email' } };
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword });
+  if (signInError) return { error: { message: 'Current password is incorrect' } };
+  const { error } = await supabase.auth.updateUser({ email: clean }, { emailRedirectTo: `${window.location.origin}/` });
+  return { error: error ? { message: error.message || 'Email could not be changed' } : null };
+}
+
+const EMAIL_CHANGE_KEY = 'wh_email_change';
+
+// Main route. Google confirms the new address, the same way sign-up does. Any address works
+// if it is a Google account (Gmail, Yahoo, Outlook, company mail).
+export async function startEmailChangeWithGoogle(currentPassword: string, currentEmail: string, newEmail: string) {
+  const clean = newEmail.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return { error: { message: 'Enter a valid email address' } };
+  if (clean === currentEmail.trim().toLowerCase()) return { error: { message: 'That is already your email' } };
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword });
+  if (signInError) return { error: { message: 'Current password is incorrect' } };
+  try { sessionStorage.setItem(EMAIL_CHANGE_KEY, JSON.stringify({ email: clean, at: Date.now() })); } catch { /* tab storage unavailable */ }
+  const native = isNative();
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/`, skipBrowserRedirect: native, queryParams: { prompt: 'select_account', login_hint: clean } },
+  });
+  if (error) {
+    try { sessionStorage.removeItem(EMAIL_CHANGE_KEY); } catch { /* nothing to clean */ }
+    return { error: { message: error.message || 'Google could not be started' } };
+  }
+  if (native && data?.url) await openNativeOAuth(data.url);
+  return { error: null };
+}
+
+// Runs when the app reopens after Google. Returns the new email, or null if no change was pending.
+export async function finishEmailChangeWithGoogle(): Promise<{ email: string | null; error: string | null }> {
+  let pending: { email: string; at: number } | null = null;
+  try { pending = JSON.parse(sessionStorage.getItem(EMAIL_CHANGE_KEY) || 'null'); } catch { pending = null; }
+  if (!pending) return { email: null, error: null };
+  if (typeof pending.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pending.email) || !Number.isFinite(pending.at) || pending.at > Date.now() || Date.now() - pending.at > 15 * 60 * 1000) {
+    try { sessionStorage.removeItem(EMAIL_CHANGE_KEY); } catch { /* nothing to clean */ }
+    return { email: null, error: 'The email change expired. Start again.' };
+  }
+  const { data, error } = await withTimeout(supabase.rpc('change_my_email_to_verified_identity', { p_new_email: pending.email }), 15000, 'Email change could not be confirmed. Refresh your account before retrying.');
+  try { sessionStorage.removeItem(EMAIL_CHANGE_KEY); } catch { /* nothing to clean */ }
+  if (error) return { email: null, error: error.message || 'Email could not be changed' };
+  await withTimeout(supabase.auth.refreshSession(), 15000, 'Session refresh timed out').catch(() => undefined);
+  if (typeof data !== 'string' || data.trim().toLowerCase() !== pending.email.trim().toLowerCase()) return { email: null, error: 'The updated email could not be confirmed. Refresh your account.' };
+  return { email: data, error: null };
 }

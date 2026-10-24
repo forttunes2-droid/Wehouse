@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import { hasLiveSession, hasActiveWorkspace } from '../_shared/liveSession.ts';
+import { consumeUserAction } from '../_shared/rateLimit.ts';
+import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 
 const headers = {
@@ -16,16 +18,19 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers });
   if (req.method !== 'POST') return json({ success: false, error: 'Method not allowed' }, 405);
   try {
+    const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+    if (!token) return json({ success: false, error: 'Sign in again to continue' }, 401);
     const url = Deno.env.get('SUPABASE_URL');
     const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const secret = Deno.env.get('PAYSTACK_SECRET_KEY');
     const returnUrl = url && secret && resolvePaymentReturnUrl(url, Deno.env.get('APP_URL'), secret, 'payment-return');
     if (!url || !key || !secret || !returnUrl) return json({ success: false, error: 'Payment environment is not configured' }, 503);
-    const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
     const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user?.email || !await hasLiveSession(admin, user.id, token))
       return json({ success: false, error: 'Sign in again to continue' }, 401);
+    const limit = await consumeUserAction(admin, user.id, 'partner_pro_payment', 10, 600, true);
+    if (!limit.allowed) return json({ success: false, error: 'Too many payment attempts. Please wait and try again.', retry_after_seconds: limit.retryAfterSeconds }, 429);
     const { data: partner } = await admin.from('profiles')
       .select('user_id,deleted,suspended,banned').eq('auth_id', user.id).maybeSingle();
     if (!partner || partner.deleted || partner.suspended || partner.banned
@@ -40,16 +45,19 @@ Deno.serve(async (req) => {
     if (paymentError || !payment || payment.payer_user_id !== partner.user_id)
       return json({ success: false, error: 'Checkout does not belong to this Partner' }, 403);
     if (payment.status === 'paid') return json({ success: true, already_paid: true, reference });
-    if (payment.status !== 'pending' || payment.currency !== 'NGN' || Number(payment.amount_total) <= 0)
+    const market=resolvePaymentMarket(payment.currency);
+    const amountMinor=market?paymentMinorUnits(payment.amount_total,market.minorDigits):null;
+    if (payment.status !== 'pending' || !market || amountMinor===null)
       return json({ success: false, error: 'Checkout is unavailable' }, 409);
     if (payment.metadata?.paystack_authorization_url)
       return json({ success: true, reference, authorization_url: payment.metadata.paystack_authorization_url });
     const environment = secret.startsWith('sk_live_') ? 'live' : 'test';
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
+      signal:AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: user.email, amount: String(Math.round(Number(payment.amount_total) * 100)),
-        currency: 'NGN', reference, callback_url: returnUrl,
+      body: JSON.stringify({ email: user.email, amount: String(amountMinor),
+        currency: market.currency, reference, callback_url: returnUrl,
         metadata: { purpose: 'partner_pro_access', payment_id: payment.id,
           billing_period: payment.metadata?.billing_period },
       }),

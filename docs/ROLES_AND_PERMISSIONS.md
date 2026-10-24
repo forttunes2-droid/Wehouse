@@ -1,8 +1,6 @@
 # Roles and Permissions
 
-> **Current status — 19 September 2026:** This file's original implementation audit below is historical (11 September), not a current deployment inventory. The owner-locked canonical plan is `WEHOUSE_CANONICAL_MASTER_PRODUCT_PLAN_2026-09-11.md`, with later accepted rules recorded in [the alignment note](./MASTER_PLAN_ALIGNMENT_NOTE_2026-09-15.md) and PR #74. Do not treat old proposed decisions, counts or role descriptions below as newer authority.
->
-> Continue with [the current account, Staff and database review](./account-staff-and-database-review.md), [Creator/control-layout evidence](./creator-controls-and-layout-review.md), and [legal signup evidence](./legal-review-and-preview-status.md). Repairs remain on existing draft PR #74. Live customer records belong to Production; Test is isolated. Complete signed-in, privileged-action, provider, device and restoration checks remain outstanding. WeHouse is not yet technically production-ready.
+> **Status note — 12 October 2026:** The implementation audit below is historical (11 September), not a current deployment inventory. Accepted rules are in [Product Rules](./PRODUCT_RULES.md) and the [Decision Log](./DECISION_LOG.md). Current release status and remaining work are in the [Release roadmap](./WEHOUSE_RELEASE_ROADMAP.md). Start from the [documentation index](./README.md). WeHouse is not yet production-ready.
 
 ## Historical audit begins here
 
@@ -59,7 +57,7 @@ The following matrix is derived from the live policies and SECURITY DEFINER help
 | Admin | Active public plus scoped internal hotels | Scoped hotel bookings | **Room/inventory direct policies are unscoped; rates are scoped** | **None by current unit policy** | Scoped booking conversations |
 | Creator | All hotels and bookings | All | All room/rate/inventory | **None by current unit policy** | All booking conversations through participant/access helper |
 
-Evidence: live policies and role grants on `hotels`, `hotel_bookings`, `hotel_rooms`, `hotel_rate_plans`, `hotel_inventory_daily`, `hotel_room_units`, `hotel_booking_conversations`, and `hotel_booking_messages`; helpers `current_actor_can_read_hotel_record`, `current_actor_can_read_hotel_booking_record`, `current_actor_hotel_role`, and `get_public_hotel_detail`. Live privilege checks show `get_public_hotel_detail` is executable by `authenticated`, not `anon`. RLS limits rows, not selected columns, so a full-row active-hotel SELECT bypasses RPC field masking.
+Historical evidence captured before the 2026-10-19 Production check: live policies and role grants on `hotels`, `hotel_bookings`, `hotel_rooms`, `hotel_rate_plans`, `hotel_inventory_daily`, `hotel_room_units`, `hotel_booking_conversations`, and `hotel_booking_messages`; helpers `current_actor_can_read_hotel_record`, `current_actor_can_read_hotel_booking_record`, `current_actor_hotel_role`, and `get_public_hotel_detail`. The 2026-10-19 read-only grant/policy query found no anonymous SELECT grants on the hotel base tables, authenticated access to `hotels` is RLS-scoped, and `hotel_rooms` has no browser SELECT policy. This supersedes any claim below that anonymous direct table reads are currently possible. The route/role/field matrix remains a required release check.
 
 ### Hotel action permissions currently encoded
 
@@ -77,7 +75,7 @@ Evidence: live policies and role grants on `hotels`, `hotel_bookings`, `hotel_ro
 1. `profiles.role` and workspace grants both authorize actions. Revoking an assignment cannot be trusted if a stale profile role still grants the same access.
 2. Consumer personal workspace is disabled for worker/property-partner account kinds, so “one person with several capabilities” is not fully realized.
 3. Staff UI assumes exactly one active permission, while schema and helper design can represent several; display names also differ from stored permission names.
-4. Public active-hotel SELECT exposes the full row. The masked detail RPC cannot enforce location/owner privacy while clients can read the base table directly, and anonymous callers cannot execute that RPC anyway.
+4. Historical finding superseded by the 2026-10-19 Production catalog check: anonymous callers have no direct SELECT grant on hotel base tables. Re-run the grant/policy contract after schema changes and complete the role/field matrix before release.
 5. Hotel row, booking, room, rate, inventory, and physical-unit policies do not apply the same scope function. Adjacent records can therefore expose different slices to the same actor.
 6. Hotel manager can configure policy and rooms but cannot execute check-in/out and may not receive Inbox navigation. The code does not establish whether this is deliberate separation of duty.
 7. Broad direct `INSERT`/`UPDATE` policies on `hotels` and `hotel_rooms` permit any active Staff/Admin/Creator at the RLS predicate level; scope and workflow checks are not consistently present.
@@ -119,4 +117,26 @@ For each table/RPC, test anonymous, unrelated customer, owning customer, past cu
 
 ## Decisions requiring approval
 
+### Shared provider capabilities (21 October implementation)
+
+The Service Worker workspace uses a current person-bound server receipt, not a
+client profile flag, to select requested-service management controls. Service review
+and public discoverability are distinct: reviewed providers or people with existing
+jobs retain job management. Common Inbox, application drafts, account and earnings
+entry do not require unrelated service approval. Job, evidence, identity and payout
+commands still enforce their own current requirements. Identity expiry must not hide
+application feedback or support. Experiences owns no separate identity or wallet.
+
+Experience reviewers require an independent Creator workspace and fresh private
+evidence elevation. New or newly edited unsent drafts are not shared for review.
+Knowing a UUID or supplying the review boolean is never sufficient authorization.
+
 See D-001 through D-004 in [DECISION_LOG.md](./DECISION_LOG.md): multi-capability personal workspaces, manager/front-desk division, Admin global versus scoped authority, and whether past paid guests retain exact hotel location after completion.
+
+## 19 October review: launch operator and marketplace workspaces
+
+Creator, Admin and Staff are internal WeHouse authorities; Property Partner, Worker and Hosting are supplier workspaces. A Pro subscription does not grant internal authority. Keep permissions server-enforced and make sensitive actions attributable to an individual identity rather than sharing a master login.
+
+The reviewed Creator UI exposes the core queues and settings. Source contracts also allow Creator inspection execution and property oversight, while conflict-of-interest triggers reject reviewing one's own listing, own Worker verification, own refund and own property evidence. This source review does not establish that every deployed command is present and reachable. The solo-launch journey must verify those commands against Test and explicitly record any action needing another authorized reviewer. Do not remove self-review restrictions to make a launch checklist appear complete.
+
+Airbnb's public documentation describes listing-owner and co-host permissions, including limited access. This supports the supplier-side pattern of one identity with delegated access to specific listings. It does not document Airbnb's internal employee administration system, so WeHouse must not claim its Creator console copies that system. [Airbnb co-host permissions](https://www.airbnb.com/help/article/1244).

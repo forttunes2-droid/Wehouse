@@ -67,7 +67,7 @@ test("apartment Help is contextual and switching away is deliberate", async () =
 
   assert.doesNotMatch(listing, /MutationObserver/);
   assert.doesNotMatch(listing, /pruneRoutineSupport/);
-  assert.match(core, /Questions about this apartment\?/);
+  assert.match(core, /Questions about this property\?/);
   assert.match(core, /Message WeHouse/);
   assert.match(support, /General Help/);
   assert.doesNotMatch(support, /aria-label="Remove linked topic"/);

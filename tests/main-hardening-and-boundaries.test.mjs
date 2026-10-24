@@ -381,10 +381,10 @@ test("marking an Activity row read recomputes unread count by row identity", asy
 });
 
 
-test("hotel team acceptance Activity opens the inviter's hotel with an explicit label", async () => {
+test("hotel team acceptance Activity opens the inviter's partner workspace with an explicit label", async () => {
   const activityFeed = await read("src/lib/activityFeed.ts");
-  assert.match(activityFeed, /type === "hotel_team_invitation_response"[\s\S]*?value\(params, \["hotel_id", "hotelId"\]\)[\s\S]*?route: "hotel_detail"/);
-  assert.match(activityFeed, /type === "hotel_team_invitation_response"\) return "View hotel team"/);
+  assert.match(activityFeed, /type === "hotel_team_invitation_response"[\s\S]*?route: "property_partner"/);
+  assert.match(activityFeed, /type === "hotel_team_invitation_response"\) return "View team access"/);
 });
 
 

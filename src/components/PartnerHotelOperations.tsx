@@ -1,7 +1,10 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
+import PartnerHotelDiscounts from "@/components/PartnerHotelDiscounts";
+import PropertyArrivalInstructions from "@/components/PropertyArrivalInstructions";
 import { hotelTodayMetrics, matchesHotelReservationFilter } from "@/lib/hotelDailyWork";
 import { hotelPaymentLabel, hotelRoomAvailability } from "@/lib/propertyNavigation";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
+import { formatMoney, propertyTimeZone } from "@/lib/regional";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -124,9 +127,9 @@ const HOTEL_CAPABILITY_LABELS: Record<HotelCapability, string> = {
   "hotel.policy.manage": "Manage operating policy",
   "hotel.team.manage": "Manage hotel team",
 };
-const today = (timeZone = "Africa/Lagos") => {
+const today = (timeZone?: string | null) => {
   const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
+    timeZone: propertyTimeZone(timeZone),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -134,8 +137,7 @@ const today = (timeZone = "Africa/Lagos") => {
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${value.year}-${value.month}-${value.day}`;
 };
-const money = (value: number) =>
-  `₦${Number(value || 0).toLocaleString("en-NG")}`;
+const money = (value: number) => formatMoney(value);
 const words = (value: string) =>
   value
     .split(",")
@@ -293,7 +295,7 @@ export default function PartnerHotelOperations({
     };
   }, [hotel.hotel_id, load]);
 
-  const date = today(hotel.timezone || "Africa/Lagos");
+  const date = today(propertyTimeZone(hotel.timezone));
   const metrics = useMemo(() => hotelTodayMetrics(bookings, date), [bookings, date]);
   function openDailyWork(filter: string) {
     setFocusedBooking(undefined); setReservationQuery("");
@@ -404,11 +406,12 @@ export default function PartnerHotelOperations({
       {hotel.status !== "active" ? (
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.045] p-4">
           <p className="text-xs font-semibold text-amber-200">Hotel setup is still private</p>
-          <p className="mt-1 text-sm leading-5 text-[#8F897F]">Add or correct room types, packages and hotel facilities here. WeHouse publishes this one hotel record after final review. An individual room reservation changes dated inventory only; it does not replace the hotel or complete publication.</p>
+          <p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">Add or correct room types, packages and hotel facilities here. WeHouse publishes this one hotel record after final review. An individual room reservation changes dated inventory only; it does not replace the hotel or complete publication.</p>
         </section>
       ) : null}
 
       {visibleSection === "details" ? <HotelStayPolicy hotel={hotel} editable={canManagePolicy} /> : null}
+      {visibleSection === "details" && accessRole === 'owner' && profile ? <PropertyArrivalInstructions key={`${profile.user_id}:${hotel.hotel_id}`} kind="hotel" assetId={String(hotel.hotel_id)} accountId={profile.user_id} /> : null}
 
       {loadError && <div role="alert" className="mb-4 rounded-xl border border-amber-400/20 p-3 text-sm text-amber-100"><p>{loadError}</p><button onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
       {loading ? (
@@ -455,6 +458,7 @@ export default function PartnerHotelOperations({
                 ))}
                 {rooms.length === 0 ? <Empty text="No room types yet. Add the first sellable room type here." /> : null}
               </div>
+              {canManageRates && rooms.length > 0 ? <PartnerHotelDiscounts hotelId={hotel.hotel_id} rooms={rooms} /> : null}
             </section>
           ) : null}
 
@@ -674,7 +678,7 @@ function TodayRooms({ rows }: { rows: Array<{ room: Room } & ReturnType<typeof h
 
 function RoomRow({ room, canEditRoom, canManageRates, onEdit, onRate }: { room: Room; canEditRoom: boolean; canManageRates: boolean; onEdit: () => void; onRate: (plan?: HotelRatePlan) => void }) {
   const plans = room.rate_plans || [];
-  return <article className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[0_8px_25px_rgba(0,0,0,.08)]"><div className="flex items-start justify-between gap-3"><div><p className="text-base font-semibold">{room.room_type}</p><p className="mt-1 text-sm text-[var(--wh-text-muted)]">{room.total_rooms} units · up to {room.max_guests} guests · {room.bed_type || "Bed not specified"}</p></div>{canEditRoom ? <button onClick={onEdit} className="rounded-full border border-violet-500/20 px-3 py-2 text-sm font-semibold text-violet-300">Edit room</button> : null}</div>{room.images?.length ? <div className="-mx-4 mt-4 sm:mx-0"><PropertyMediaCarousel images={room.images} title={room.room_type} /></div> : <div className="mt-4 grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-[var(--wh-border-subtle)] text-sm text-[var(--wh-text-muted)]">No approved room photos</div>}{room.description ? <p className="mt-4 text-sm leading-5 text-[var(--wh-text-secondary)]">{room.description}</p> : null}{room.amenities?.length ? <div className="mt-3 flex flex-wrap gap-2">{room.amenities.map((item) => <span key={item} className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-sm text-[var(--wh-text-secondary)]">{item}</span>)}</div> : null}<div className="mt-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold">Bookable packages</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Room-only, breakfast, VIP or other clear choices.</p></div>{canManageRates ? <button type="button" onClick={() => onRate()} className="text-sm font-semibold text-violet-300">Add package</button> : null}</div><div className="mt-2 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{plans.map((plan) => <button type="button" key={plan.rate_plan_id} disabled={!canManageRates} onClick={() => onRate(plan)} className="flex w-full items-start justify-between gap-3 py-3 text-left disabled:cursor-default"><span><span className="block text-sm font-semibold">{plan.name}</span><span className="mt-1 block text-sm text-[var(--wh-text-secondary)]">{mealLabel(plan.meal_plan)} · {plan.refundable ? `${plan.cancellation_hours || 0}h cancellation` : "Non-refundable"}</span>{plan.included_features?.length ? <span className="mt-1 block text-sm text-emerald-300">{plan.included_features.join(" · ")}</span> : null}</span><span className="shrink-0 text-right"><span className="block text-sm font-bold text-violet-200">{money(plan.price_per_night)}</span><span className={`mt-1 block text-sm ${plan.active ? "text-emerald-300" : "text-[var(--wh-text-secondary)]"}`}>{plan.active ? "Bookable" : "Hidden"}</span></span></button>)}{plans.length === 0 ? <Empty text="No package is available for this room." /> : null}</div></div></article>;
+  return <article className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[0_8px_25px_rgba(0,0,0,.08)]"><div className="flex items-start justify-between gap-3"><div><p className="text-base font-semibold">{room.room_type}</p><p className="mt-1 text-sm text-[var(--wh-text-muted)]">{room.total_rooms} units · up to {room.max_guests} guests · {room.bed_type || "Bed not specified"}</p></div>{canEditRoom ? <button onClick={onEdit} className="rounded-full border border-violet-500/20 px-3 py-2 text-sm font-semibold text-violet-300">Edit room type</button> : null}</div>{room.images?.length ? <div className="-mx-4 mt-4 sm:mx-0"><PropertyMediaCarousel images={room.images} title={room.room_type} /></div> : <div className="mt-4 grid aspect-[16/8] place-items-center rounded-2xl border border-dashed border-[var(--wh-border-subtle)] text-sm text-[var(--wh-text-muted)]">No approved room photos</div>}{room.description ? <p className="mt-4 text-sm leading-5 text-[var(--wh-text-secondary)]">{room.description}</p> : null}{room.amenities?.length ? <div className="mt-3 flex flex-wrap gap-2">{room.amenities.map((item) => <span key={item} className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-sm text-[var(--wh-text-secondary)]">{item}</span>)}</div> : null}<div className="mt-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold">Bookable packages</p><p className="mt-1 text-sm text-[var(--wh-text-secondary)]">Room-only, breakfast, VIP or other clear choices.</p></div>{canManageRates ? <button type="button" onClick={() => onRate()} className="text-sm font-semibold text-violet-300">Add package</button> : null}</div><div className="mt-2 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{plans.map((plan) => <button type="button" key={plan.rate_plan_id} disabled={!canManageRates} onClick={() => onRate(plan)} className="flex w-full items-start justify-between gap-3 py-3 text-left disabled:cursor-default"><span><span className="block text-sm font-semibold">{plan.name}</span><span className="mt-1 block text-sm text-[var(--wh-text-secondary)]">{mealLabel(plan.meal_plan)} · {plan.refundable ? `${plan.cancellation_hours || 0}h cancellation` : "Non-refundable"}</span>{plan.included_features?.length ? <span className="mt-1 block text-sm text-emerald-300">{plan.included_features.join(" · ")}</span> : null}</span><span className="shrink-0 text-right"><span className="block text-sm font-bold text-violet-200">{money(plan.price_per_night)}</span><span className={`mt-1 block text-sm ${plan.active ? "text-emerald-300" : "text-[var(--wh-text-secondary)]"}`}>{plan.active ? "Bookable" : "Hidden"}</span></span></button>)}{plans.length === 0 ? <Empty text="No package is available for this room." /> : null}</div></div></article>;
 }
 
 function AvailabilityRow({ room, inventory, onSaved }: { room: Room; inventory?: Inventory; onSaved: () => Promise<void> }) {
@@ -706,7 +710,7 @@ function VenueEditor({ hotelId, venue, factsLocked, close, saved }: { hotelId: n
 function ReservationRow({ hotelName, hotel, row, busy, readyRoomAvailable, chat, canMessage, canCheckIn: hasCheckInCapability, canCheckOut: hasCheckOutCapability, onChat, transition }: { hotelName: string; hotel: any; row: Booking; busy: boolean; readyRoomAvailable: boolean; chat?: HotelConversation; canMessage: boolean; canCheckIn: boolean; canCheckOut: boolean; onChat: (chat: ActiveHotelChat) => void; transition: (row: Booking, status: "checked_in" | "checked_out") => void }) {
   const holdExpired = row.status === "pending" && new Date(row.payment_expires_at || 0).getTime() <= Date.now();
   const effectiveStatus = holdExpired ? "expired" : row.status;
-  const timeZone = hotel.timezone || "Africa/Lagos";
+  const timeZone = propertyTimeZone(hotel.timezone);
   const arrivalTime = hotelMoment(row.check_in, hotel.check_in_time || "14:00", timeZone);
   const departureTime = hotelMoment(row.check_out, hotel.check_out_time || "12:00", timeZone);
   const canCheckIn = hasCheckInCapability && effectiveStatus === "confirmed" && row.payment_status === "paid" && Date.now() >= arrivalTime && Date.now() < departureTime && readyRoomAvailable;

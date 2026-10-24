@@ -31,7 +31,8 @@ test('media viewer owns native Back, focus and dynamic opaque viewport',()=>{
  const s=fs.readFileSync('src/components/MediaViewer.tsx','utf8');
  assert.match(s,/useRecordScreenBack\(props.onClose\)/);assert.match(s,/useDialogInteraction\(dismiss\)/);
  assert.match(s,/useVisualViewportFrame\(dialogRoot\)/);assert.match(s,/100dvh/);assert.match(s,/backdrop-blur/);
- assert.match(s,/ZoomablePhoto key=\{`\$\{index\}:\$\{src\}`\}/);
+ assert.match(s,/ZoomablePhoto key=\{`\$\{index\}:\$\{src\}:\$\{retry\}`\}/);
+ assert.match(s,/Try again/);
  assert.doesNotMatch(s,/user-scalable|maximum-scale/);
 });
 
