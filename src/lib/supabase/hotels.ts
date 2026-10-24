@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { withTimeout } from '@/lib/withTimeout';
+import {publicCatalogRead} from '@/lib/publicCatalogRead';
 async function readHotel<T extends { data: unknown; error: unknown }>(request: PromiseLike<T>): Promise<T> {
   try { return await withTimeout(request, 15000, 'Hotel information took too long to load. Please try again.'); }
   catch (cause) { return { data: null, error: { message: cause instanceof Error ? cause.message : 'Hotel information could not be loaded.' } } as T; }
@@ -21,7 +22,7 @@ export async function getHotels(filters?: {
   longitude?: number;
   radiusKm?: number;
 }, cursor: { featured: boolean; createdAt: string; id: number } | null = null) {
-  const { data, error } = await readHotel(supabase.rpc('search_discoverable_hotels', {
+  const body = {
     p_query: filters?.search?.trim() || null,
     p_state: filters?.state || null,
     p_city: filters?.city || null,
@@ -35,7 +36,8 @@ export async function getHotels(filters?: {
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_id: cursor?.id ?? null,
     p_limit: 24,
-  }));
+  };
+  const { data, error } = await readHotel(publicCatalogRead('hotels',body,()=>supabase.rpc('search_discoverable_hotels',body)));
   const rows = (Array.isArray(data?.items) ? data.items : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
   const includes = (value: unknown, query: string) => String(value || '').toLowerCase().includes(query.toLowerCase());
   const hotels = rows.filter((hotel) => {

@@ -3,13 +3,15 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { assessCatalogStage, catalogWarmupComplete, CATALOG_CAPACITY_LIMITS } from './lib/catalog-capacity-gates.mjs';
 import { createCatalogTransport } from './lib/catalog-transport.mjs';
+import { catalogRamp } from './lib/catalog-ramp.mjs';
 
 // Explicit allowlist: this cannot be pointed at the live WeHouse project.
 const origin = new URL('https://qoobnkedfyosnizrlttt.supabase.co');
 const key = process.env.WEHOUSE_TEST_PUBLISHABLE_KEY;
 assert.ok(key?.startsWith('sb_publishable_'), 'Test project publishable key required');
 assert.equal(origin.hostname, 'qoobnkedfyosnizrlttt.supabase.co');
-const transport = createCatalogTransport(origin);
+const stages = catalogRamp(process.env.WEHOUSE_CATALOG_MAX_RPS || '200');
+const transport = createCatalogTransport(origin,{maxSockets:stages.at(-1)[0]>200?256:128});
 process.once('exit', () => transport.close());
 const paths = [
   { name: 'home_feed', rpc: 'search_discoverable_homes', body: { p_limit: 24 }, validate: d => d?.items?.length === 24 },
@@ -54,7 +56,8 @@ async function read(path) {
   return { name: path.name, ms: performance.now() - started, ok: false, status: 'retry-exhausted', retries, retry_status };
 }
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
-  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Thirty-second stages are a catalog smoke benchmark, not sustained whole-product capacity. Staged offered rates: 1, 5, 10, 25, 50, 100 and 200 requests/second; fixed ceiling of 3000 logical requests in flight, each allowing up to three 15-second attempts.',
+  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Thirty-second stages are a catalog smoke benchmark, not sustained whole-product capacity. Fixed ceiling of 3000 logical requests in flight, each allowing up to three 15-second attempts. Stops at the first failed stage.',
+  requested_stages:stages,
   measured_at: new Date().toISOString(),
   transport: { protocol: 'https', keep_alive: true, max_sockets: transport.maxSockets, attempt_deadline_ms: 15000, queued_time_in_deadline: true },
   status: 'running',
@@ -101,7 +104,7 @@ assert.ok(catalogWarmupComplete(result.warmup.successful_paths, paths.map(path =
 console.log(`Hosted Test warm-up ready: ${result.warmup.successful_paths.length}/${paths.length} read contracts validated in ${result.warmup.elapsed_ms}ms (${result.warmup.attempts} attempts)`);
 await new Promise(resolve => setTimeout(resolve, 5000));
 let serial = 0;
-for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [100, 30], [200, 30]]) {
+for (const [rps, seconds] of stages) {
   const samples = [];
   const running = new Set();
   let max_inflight = 0;
@@ -143,7 +146,7 @@ for (const [rps, seconds] of [[1, 30], [5, 30], [10, 30], [25, 30], [50, 30], [1
     break;
   }
 }
-result.passed = result.stages.length === 7 && result.stages.every(stage => stage.assessment.passed);
+result.passed = result.stages.length === stages.length && result.stages.every(stage => stage.assessment.passed);
 result.status = result.passed ? 'passed' : 'failed';
 result.finished_at = new Date().toISOString();
 saveReport();

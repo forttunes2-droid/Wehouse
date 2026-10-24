@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Listing } from '@/types';
+import {publicCatalogRead} from './publicCatalogRead';
 
 export type HomeStayType = 'long_stay' | 'short_let';
 
@@ -17,7 +18,7 @@ export type HomeSearchFilters = {
 export type HomePageCursor = { createdAt: string; id: string };
 
 export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, cursor: HomePageCursor | null = null) {
-  const { data, error } = await supabase.rpc('search_discoverable_homes', {
+  const body = {
     p_query: filters.query?.trim() || null,
     p_state: filters.state || null,
     p_city: filters.city || null,
@@ -30,7 +31,8 @@ export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, curs
     p_cursor_id: cursor?.id || null,
     p_limit: 24,
     p_home_style: filters.homeStyle || null,
-  });
+  };
+  const {data,error}=await publicCatalogRead('homes',body,()=>supabase.rpc('search_discoverable_homes',body));
 
   // The server RPC is the publication/operational boundary. Short Let date
   // occupancy is checked separately for the requested interval; the client must

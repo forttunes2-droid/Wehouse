@@ -6,11 +6,19 @@ on:
       - 'scripts/load-hosted-test-catalog.mjs'
       - 'scripts/lib/catalog-capacity-gates.mjs'
       - 'scripts/lib/catalog-transport.mjs'
+      - 'scripts/lib/catalog-ramp.mjs'
       - 'tests/catalog-capacity-gates.test.mjs'
       - 'tests/catalog-transport.test.mjs'
+      - 'tests/catalog-ramp.test.mjs'
       - 'supabase/tests/hosted_catalog_fixture.sql'
       - 'supabase/migrations/**'
   workflow_dispatch:
+    inputs:
+      max_rps:
+        description: 'Read-only Test ceiling; each lower stage must pass first'
+        type: choice
+        options: ['200', '500', '1000']
+        default: '1000'
 
 permissions:
   contents: read
@@ -29,12 +37,13 @@ jobs:
         with:
           node-version: 24
       - name: Check capacity report gates
-        run: node --test tests/catalog-capacity-gates.test.mjs tests/catalog-transport.test.mjs
-      - name: Read-only Test project catalog ramp from 1 to 200 requests per second
+        run: node --test tests/catalog-capacity-gates.test.mjs tests/catalog-transport.test.mjs tests/catalog-ramp.test.mjs
+      - name: Read-only Test project catalog ramp
         env:
           # A browser-safe publishable key for the dedicated Test project. RLS
           # protects underlying tables; the runner never receives a secret key.
           WEHOUSE_TEST_PUBLISHABLE_KEY: sb_publishable_Rv3lT3wV3AVqWIlxM3Dygw_E3q_aSlV
+          WEHOUSE_CATALOG_MAX_RPS: ${{ inputs.max_rps || '1000' }}
         run: node scripts/load-hosted-test-catalog.mjs
       - uses: actions/upload-artifact@v4
         if: always()

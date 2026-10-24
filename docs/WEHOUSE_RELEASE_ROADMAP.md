@@ -2,6 +2,22 @@
 
 **Status date:** 24 October 2026
 
+### 24 October: higher-throughput work continues beyond the 200-RPS test ceiling
+
+200 RPS was a benchmark ceiling, not an established database maximum. Repeat
+ec5f35ef origin testing passed through 100 but failed at 200 (187 errors). Do not
+substitute the earlier passing run for this failure. The staged CI ceiling is now
+1,000 RPS, preserving lower stages, thirty-second holds and all failure gates;
+it stops immediately at a failed stage. A local expanded attempt failed its 1 RPS
+latency/retry gate and did not run the higher stages.
+
+The public-feed gateway, browser wiring, API build checks and negative/concurrency
+tests are implemented; see `capacity-validation.md` for the exact cache boundary
+and exclusions. No payment/booking/session data is cached. Focused tests and
+both-theme browser journeys pass; real preview/CDN verification is blocked by
+Vercel's reported account deployment block and unavailable connector. This does
+not close the broader internal engineering register or establish global capacity.
+
 ### 24 October: repeatable capacity transport
 
 Exact-commit 16519f06 passes seven workflows, including both-theme browser checks,

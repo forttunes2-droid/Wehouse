@@ -1,11 +1,51 @@
 # WeHouse capacity validation
 
+## Public-feed boundary and expanded ramp — 24 October 2026
+
+The working implementation adds `/api/public-catalog` for deployed web Home and
+Hotel feeds. It calls the existing anonymous redacted search RPCs, never a raw
+table, service-role client or arbitrary RPC. Only bounded public feed parameters
+are accepted. Canonical GET queries let Vercel cache a successful response for
+five seconds; browsers must revalidate. There is no stale-on-error extension.
+Identical cold requests share an in-flight origin lookup, and each function
+instance admits at most sixteen distinct misses. These local controls supplement
+the managed CDN; they are not a distributed rate limiter.
+
+Typed text searches, precise coordinates, pagination, detailed property reads,
+personal records, booking/availability quotes, payments, withdrawals and chat do
+not use this shared cache. Native clients retain direct authorized RPCs. A public
+feed can lag a change by up to five seconds; opening a listing or attempting a
+booking still checks the authoritative database. Failed lookups are not cached
+and do not trigger an automatic fallback request storm.
+
+The API shares the existing environment boundary. Preview cannot select Production
+through a supplied Host, token or cookie. It uses only the environment's public
+key. Build/type checks now include the API directory. Gateway security, input
+bounds, request collapse, overload, failure and client-routing tests pass; real
+browser journeys exercise the same-origin route with intercepted synthetic
+responses in both themes at four widths. These are not hosted-CDN performance
+measurements. Vercel reports an account deployment block, and the connector is
+unavailable; real preview routing/cache headers and hit ratios remain unverified.
+The legacy Netlify build remains intentionally ignored in `netlify.toml`.
+
+The Test-only direct-origin benchmark now supports a bounded 1→5→10→25→50→100→
+200→500→1,000 RPS ramp, thirty seconds per stage, stopping at the first failed
+stage. Error, retry, dispatch, drop and p95 limits are unchanged. CI requests the
+expanded ceiling; this is an intended test ceiling, not demonstrated capacity.
+A local attempt on 24 October stopped at 1 RPS (20% retries; 21,139ms p95), so it
+provides no evidence for the higher stages. Report generator/network saturation
+separately from service saturation; do not lower gates to get a green result.
+
+Official implementation references: [Vercel cache headers](https://vercel.com/docs/caching/cache-control-headers)
+and [Node runtime Web handlers](https://vercel.com/docs/functions/runtimes/node-js).
+
 ## Request path and infrastructure boundary - 23 October 2026
 
-The inspected browser client sends API requests directly to its environment's
+At this earlier checkpoint, the browser client sent API requests directly to its environment's
 Supabase URL. Vercel hosts the web build and applies the repository's asset/cache,
-rewrite and security-header configuration. There is no custom WeHouse reverse
-proxy between that browser and Supabase in the current source.
+rewrite and security-header configuration. The new public-feed boundary above
+supersedes this earlier all-direct request-path description; all other requests
+remain direct.
 
 ```mermaid
 flowchart LR

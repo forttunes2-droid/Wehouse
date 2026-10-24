@@ -2,6 +2,7 @@
 No live account, database, provider, payment or published data is changed.
 """
 import asyncio,json,os,subprocess
+from urllib.parse import urlparse,parse_qs
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');B=Path('test-results/shared-discovery-offline')
@@ -10,6 +11,7 @@ RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_pla
 HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
 SCRIPT="""s=>{
  window.__browse=s;
+ window.__browse.gatewayRequests=[];
  window.addEventListener('openSupportChat',event=>{window.__browse.dataRequest=event.detail;});
  for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}
  window.__browseAPI=async(name,args)=>{
@@ -36,11 +38,20 @@ async def main():
   for width,theme in [(w,t) for w in [320,390,768,1440] for t in ['dark','light']]:
    context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(4000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'theme':theme,'passed':False}
    async def route(request):
+    if request.request.url=='https://wehouse-preview.vercel.app/':
+     return await request.fulfill(status=200,content_type='text/html',body=f'<html data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
+    if request.request.url.startswith('https://wehouse-preview.vercel.app/api/public-catalog?'):
+     assert request.request.method=='GET'
+     assert not request.request.headers.get('authorization') and not request.request.headers.get('cookie')
+     kind=parse_qs(urlparse(request.request.url).query)['kind'][0]
+     assert kind in ['homes','hotels']
+     await page.evaluate('(kind)=>window.__browse.gatewayRequests.push(kind)',kind)
+     return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':[HOME if kind=='homes' else HOTEL],'has_more':False}))
     if request.request.url=='https://assets.wehouse.test/interior.jpg':return await request.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await request.abort()
    await page.route('**/*',route)
    try:
-    await page.set_content(f'<html data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
+    await page.goto('https://wehouse-preview.vercel.app/')
     await page.evaluate(SCRIPT,{'mode':'public','calls':[],'unexpected':[],'home':HOME,'hotel':HOTEL})
     await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
@@ -111,6 +122,7 @@ async def main():
     await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}-{theme}.png'))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')
+    assert await page.evaluate('window.__browse.gatewayRequests.length>0'),'Deployed web must exercise the public gateway'
     assert not errors,errors
     row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
