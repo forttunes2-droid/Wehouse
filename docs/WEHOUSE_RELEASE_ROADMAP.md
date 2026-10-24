@@ -25,6 +25,16 @@ filtering can be claimed; free-text fallback is not global-location completion.
 Same-school matching uses the shared theme-aware switch and explains reciprocal
 preferences, self-reported school names and preservation of existing connections.
 
+Shared-payment browser checks pass across four widths with a foreign display
+currency preference: current NGN-only checkout obligations stay labelled NGN.
+The deadline no longer adds WAT after an already zone-labelled viewer timestamp.
+The screen states that late acceptance cannot extend the common payment deadline,
+all assigned shares need verification, and expiry refunds return through original
+payment processing rather than being instantly complete. The existing Short Let
+SQL contract proves one paid share cannot confirm the stay and acceptance cannot
+renew its hold. Scheduler/late-receipt and real-provider reconciliation evidence
+remain distinct from these UI checks.
+
 ### 24 October: browser and privileged-RPC verification follow-through
 
 The hosted rollback sweep now covers 42 contract files, including support reply

@@ -7,11 +7,13 @@ import ShortLetBookingShares from '../../src/components/ShortLetBookingShares';
 import SharedHousingDetails from '../../src/components/SharedHousingDetails';
 import {roommatePreferenceForm,roommatePreferenceError} from '../../src/lib/roommatePreferences';
 import {platformCalendarDate} from '../../src/lib/shortLetQuote';
+import {setRegionalDefaults} from '../../src/lib/regional';
 import './stabilisationClientFixture';
 import '../../src/index.css';
 const w=window as any;
 function Fixture(){
  const mode=w.__practicalMode||'preferences';
+ if(mode==='shared-guest')setRegionalDefaults({currencyCode:'USD'});
  const [form,setForm]=useState(()=>roommatePreferenceForm(null,'Example Polytechnic'));
  const [error,setError]=useState(''),[saved,setSaved]=useState(false),[open,setOpen]=useState(true),[group,setGroup]=useState('');
  w.__getForm=()=>form;
