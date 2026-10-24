@@ -125,7 +125,8 @@ test('Validation workflow runs regression tests before build',()=>{
   assert.match(workflow,/npm run build/);
   assert.match(workflow,/uses: supabase\/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244/);
   assert.equal((workflow.match(/version: 2\.114\.0/g)||[]).length,2);
-  assert.match(workflow,/supabase db reset --local/);
+  assert.match(workflow,/node scripts\/disposable-supabase\.mjs reset/);
+  assert.match(read('scripts/disposable-supabase.mjs'),/\['db','reset','--local','--no-seed'\]/);
   assert.doesNotMatch(workflow,/npx --yes supabase@/);
   assert.match(workflow,/Reject duplicate migration versions/);
 });

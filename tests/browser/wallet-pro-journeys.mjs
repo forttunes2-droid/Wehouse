@@ -221,9 +221,10 @@ try {
   }else if(process.argv.includes('--partner-assets-only')){
     for(const theme of ['light','dark'])for(const width of [320,768,1440]){
       const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
-      await page.goto(base+'/?mode=partner-assets-grouped');await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
+      await page.goto(base+'/?mode=partner-assets-grouped',{waitUntil:'domcontentloaded'});await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       const compound=page.getByRole('region',{name:'Lafia compound',exact:true});await compound.waitFor();
-      assert.equal(await compound.getByRole('button').count(),3);
+      assert.equal(await compound.locator(':scope > div.grid > button').count(),3);
+      await compound.getByRole('button',{name:'View building schedule',exact:true}).waitFor();
       assert.equal(await compound.getByText('Long Let · per year',{exact:true}).count(),2);
       assert.equal(await compound.getByText('Short Let · per night',{exact:true}).count(),1);
       assert.equal(await compound.getByText('Separate home',{exact:true}).count(),0);

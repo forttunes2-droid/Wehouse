@@ -57,9 +57,9 @@ jobs:
           fi
       - name: Start local Supabase and apply migrations
         # Consolidation replay does not use Inbucket; avoid a shared runner port collision.
-        run: supabase start --exclude inbucket
+        run: node scripts/disposable-supabase.mjs start --exclude inbucket
       - name: Replay migrations from an empty database
-        run: supabase db reset --local
+        run: node scripts/disposable-supabase.mjs reset
       - name: Verify canonical schema exists
         shell: bash
         run: |
@@ -244,9 +244,9 @@ jobs:
           version: 2.114.0
       - run: supabase --version
       - name: Start disposable local Supabase
-        run: supabase start
+        run: node scripts/disposable-supabase.mjs start
       - name: Load the current production baseline
-        run: supabase db reset --local --version 20260913181317
+        run: node scripts/disposable-supabase.mjs reset --version 20260913181317
       - name: Seed existing approvals, reviews, private evidence and a wallet
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
       - name: Verify the full upgrade rolls back without changing records or history

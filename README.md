@@ -52,6 +52,22 @@ Start the web app:
 npm run dev
 ```
 
+For a disposable local database (Docker and the pinned Supabase CLI required),
+use the baseline-aware commands:
+
+```sh
+node scripts/disposable-supabase.mjs start
+node scripts/disposable-supabase.mjs reset
+```
+
+The original schema-only snapshot omitted Storage bucket rows. The runner
+starts/resets local platform infrastructure, provisions the reviewed bucket
+metadata without overwriting existing settings, and then applies the original
+migration files. It rejects remote targets and restores migration sources after
+command failures. Bucket configuration is in
+[`supabase/bootstrap/storage-buckets.sql`](./supabase/bootstrap/storage-buckets.sql).
+This does not provision a hosted project or copy any customer data or files.
+
 Run the available automated checks:
 
 ```sh

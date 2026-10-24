@@ -36,9 +36,9 @@ jobs:
       - run: supabase --version
       - run: npm ci
       - name: Start disposable Supabase
-        run: supabase start
+        run: node scripts/disposable-supabase.mjs start
       - name: Apply all migrations to an empty local database
-        run: supabase db reset --local
+        run: node scripts/disposable-supabase.mjs reset
       - name: Seed synthetic catalog and rates
         run: |
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/load_baseline_fixture.sql

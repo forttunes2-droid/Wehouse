@@ -2,6 +2,34 @@
 
 **Status date:** 23 October 2026
 
+### PR integration and actual CI failure repair
+
+The accumulated engineering work was committed in d489194c and pushed to #118;
+ff90075c additionally protects PDF bytes and updates the Experience proposal.
+The work is no longer only local. That exact remote version passed structural
+regression, consolidation source/build checks, hosted catalog capacity and media
+compression, and its Vercel Preview reached READY. It did not pass all CI.
+
+The build audit found DOMPurify <=3.4.16 and Vite <=7.3.6 advisories. Compatible
+updates to DOMPurify 3.4.17 and Vite 7.3.7 produce a production audit with zero
+reported vulnerabilities. Three moderate development-tool advisories remain;
+no forced Tailwind major upgrade was performed. The patched build passes.
+
+CI also exposed stale Account/Pro fixtures and an inventory assertion counting
+the newly connected building-schedule control as a listing. Account's fixture
+now intercepts its actual database-client import paths. Essential arrival tools
+are asserted absent from Pro rather than tested as a paid entitlement. Account
+and Pro preview journeys pass locally after repair.
+
+Fresh/upgrade replay failed because the historical schema-only dump omitted
+Storage bucket rows required by an existing migration guard. The disposable
+runner now provisions explicitly reviewed baseline bucket metadata before
+executing the unchanged original migration files. It never targets a remote
+project, overwrites existing bucket configuration, copies customer data or
+rewrites applied migration history. Four runner tests and the 26 focused CI/
+critical-contract checks pass; full GitHub fresh/upgrade execution of this
+repair remains required. The original guard and all SQL contracts remain active.
+
 ### Subscription receipt replay and revised lawyer brief
 
 Fixed canonical Service Worker Pro subscription-event replay on Test, migration

@@ -37,8 +37,8 @@ jobs:
         run: test "$(df -BG --output=avail / | tail -1 | tr -dc '0-9')" -ge 8
       - name: Start local Supabase and replay migrations
         run: |
-          supabase start --exclude inbucket
-          supabase db reset --local
+          node scripts/disposable-supabase.mjs start --exclude inbucket
+          node scripts/disposable-supabase.mjs reset
       - name: Seed 50k homes, 100k hotels and 50k synthetic profiles
         run: bash scripts/seed-capacity-medium.sh
       - name: Assert public discovery city indexes exist
