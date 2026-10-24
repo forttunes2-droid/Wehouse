@@ -46,7 +46,9 @@ let browser;
 const results = [];
 async function dismissToast(page){
   for(let count=0;count<10;count++){
-    const close=page.locator('[data-sonner-toast]:not([data-removed="true"])').getByRole('button',{name:'Close toast',exact:true});
+    // Sonner keeps covered toasts mounted. Only the front toast is actionable;
+    // selecting an older close button races its expiry beneath the new toast.
+    const close=page.locator('[data-sonner-toast][data-front="true"]:not([data-removed="true"])').getByRole('button',{name:'Close toast',exact:true});
     if(!await close.count())return;
     await close.first().click();
   }
