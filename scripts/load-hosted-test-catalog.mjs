@@ -32,22 +32,25 @@ async function read(path) {
   const started = performance.now();
   let retries = 0;
   let retry_status = null;
+  let wireBytes=0;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await transport.post(`/rest/v1/rpc/${path.rpc}`,
         { apikey: key, authorization: `Bearer ${key}`,'user-agent':`WeHouse-Capacity/1 shard=${shardId}` }, path.body);
       const body = response.body;
+      wireBytes+=response.timing.wire_bytes;
       const data = response.ok ? JSON.parse(body) : null;
       if (response.ok && path.validate(data)) {
-        return { name: path.name, ms: performance.now() - started, ok: true, status: response.status, retries, retry_status,timing:response.timing };
+        return { name: path.name, ms: performance.now() - started, ok: true, status: response.status, retries, retry_status,timing:response.timing,wire_bytes:wireBytes,decoded_bytes:response.decoded_bytes,encoding:response.encoding };
       }
       if ([502, 503, 504].includes(response.status) && attempt < 2) {
         retries++; retry_status = response.status;
         await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
         continue;
       }
-      return { name: path.name, ms: performance.now() - started, ok: false, status: response.status, retries, retry_status,timing:response.timing };
+      return { name: path.name, ms: performance.now() - started, ok: false, status: response.status, retries, retry_status,timing:response.timing,wire_bytes:wireBytes };
     } catch (error) {
+      wireBytes+=error.catalogTiming?.wire_bytes||0;
       const code = error.cause?.code || error.code;
       const retryable = ['AbortError', 'TimeoutError'].includes(error.name) || ['ECONNRESET', 'ECONNREFUSED', 'UND_ERR_SOCKET'].includes(code);
       if (retryable && attempt < 2) {
@@ -55,7 +58,7 @@ async function read(path) {
         await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
         continue;
       }
-      return { name: path.name, ms: performance.now() - started, ok: false, status: String(error.name) + ':' + String(code || error.message), retries, retry_status,timing:error.catalogTiming };
+      return { name: path.name, ms: performance.now() - started, ok: false, status: String(error.name) + ':' + String(code || error.message), retries, retry_status,timing:error.catalogTiming,wire_bytes:wireBytes };
     }
   }
   return { name: path.name, ms: performance.now() - started, ok: false, status: 'retry-exhausted', retries, retry_status };
@@ -65,7 +68,7 @@ const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 
   requested_stages:stages,
   shard_id:shardId,
   measured_at: new Date().toISOString(),
-  transport: { protocol: 'https', keep_alive: true, max_sockets: transport.maxSockets, attempt_deadline_ms: 15000, queued_time_in_deadline: true },
+  transport: { protocol: 'https', keep_alive: true, max_sockets: transport.maxSockets, attempt_deadline_ms: 15000, queued_time_in_deadline: true,accept_encoding:'gzip, deflate, br' },
   status: 'running',
   passed: false,
   reviewed_sha: process.env.GITHUB_SHA || null,
@@ -143,6 +146,9 @@ for (const [rps, seconds] of stages) {
     final_attempt_queue_p95_ms:timingPercentile('queue_ms'),
     final_attempt_response_p95_ms:timingPercentile('response_ms'),
     final_attempt_headers_p95_ms:timingPercentile('headers_ms'),
+    response_wire_bytes:samples.reduce((sum,s)=>sum+(s.wire_bytes||0),0),
+    successful_decoded_bytes:samples.filter(s=>s.ok).reduce((sum,s)=>sum+(s.decoded_bytes||0),0),
+    response_encodings:Object.fromEntries([...new Set(samples.filter(s=>s.ok).map(s=>s.encoding))].map(encoding=>[encoding,samples.filter(s=>s.ok&&s.encoding===encoding).length])),
     retry_statuses: Object.fromEntries([...new Set(retried.map(s => String(s.retry_status)))].map(code => [code, retried.filter(s => String(s.retry_status) === code).length])),
     p50_ms: pct(good, .5), p95_ms: pct(good, .95), p99_ms: pct(good, .99), achieved_rps: Math.round(samples.length / elapsed * 10) / 10,
     errors_by_status: Object.fromEntries([...new Set(errors.map(s => String(s.status)))].map(code => [code, errors.filter(s => String(s.status) === code).length])),

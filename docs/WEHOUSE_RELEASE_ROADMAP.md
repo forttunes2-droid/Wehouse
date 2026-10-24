@@ -4,6 +4,14 @@
 
 ### 24 October: higher-throughput work continues beyond the 200-RPS test ceiling
 
+Benchmark correction: the native transport initially omitted HTTP compression.
+A Test Home feed was 21,650 decoded bytes versus 1,591 on the wire with gzip.
+Compression negotiation/decoding and byte counters are now tested; prior native
+results remain labelled uncompressed, not a compressed-browser/database maximum.
+The initial four-source run failed at 100 RPS each and emitted no 800-RPS pass.
+Vercel's API confirms an overdue team balance prevents preview deployment (402);
+this external blocker is distinct from all remaining internal release work.
+
 200 RPS was a benchmark ceiling, not an established database maximum. Repeat
 ec5f35ef origin testing passed through 100 but failed at 200 (187 errors). Do not
 substitute the earlier passing run for this failure. The staged CI ceiling is now

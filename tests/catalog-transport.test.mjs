@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
+import {gzipSync,brotliCompressSync,deflateSync} from 'node:zlib';
 import { createCatalogTransport } from '../scripts/lib/catalog-transport.mjs';
 
 test('catalog transport reuses a bounded TCP pool without dropping concurrent posts', async () => {
@@ -48,4 +49,23 @@ test('catalog transport keeps remote requests on TLS and validates its socket bu
   assert.throws(() => createCatalogTransport('http://example.com'), /HTTPS/);
   assert.throws(() => createCatalogTransport('https://example.com', { maxSockets: 0 }), /budget/);
   assert.throws(() => createCatalogTransport('https://example.com', { maxSockets: 2049 }), /budget/);
+});
+
+test('catalog transport negotiates browser compression and measures wire versus decoded bytes',async()=>{
+ const payload=JSON.stringify({items:Array.from({length:24},()=>({title:'Public catalog photo and home details '.repeat(20)})),has_more:false});
+ const encoders={gzip:gzipSync,br:brotliCompressSync,deflate:deflateSync};
+ const server=http.createServer((request,response)=>{
+  assert.equal(request.headers['accept-encoding'],'gzip, deflate, br');
+  const encoding=request.url.slice(1);const body=encoders[encoding](payload);
+  response.writeHead(200,{'Content-Type':'application/json','Content-Encoding':encoding});response.end(body);
+ });
+ server.listen(0,'127.0.0.1');await once(server,'listening');
+ const transport=createCatalogTransport(`http://127.0.0.1:${server.address().port}`);
+ try{for(const encoding of Object.keys(encoders)){
+  const result=await transport.post('/'+encoding,{},{});
+  assert.equal(result.body,payload);assert.equal(result.encoding,encoding);
+  assert.equal(result.decoded_bytes,Buffer.byteLength(payload));
+  assert.ok(result.timing.wire_bytes>0);
+  assert.ok(result.timing.wire_bytes<result.decoded_bytes/4);
+ }}finally{transport.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });

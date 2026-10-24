@@ -2,6 +2,25 @@
 
 ## Public-feed boundary and expanded ramp — 24 October 2026
 
+**Benchmark fidelity correction:** the native keep-alive transport introduced on
+24 October did not initially negotiate compressed responses as browsers do.
+A Test feed probe returned 21,650 decoded bytes versus 1,591 gzip bytes; the
+identity attempt timed out on the local network. The transport now negotiates
+gzip/deflate/Brotli and decodes each correctly, recording response-body wire
+bytes, decoded bytes and negotiated encoding alongside latency/queue metrics.
+Earlier native-transport results remain recorded as uncompressed workloads;
+they cannot establish the limit for ordinary compressed browser traffic. No
+latency, retry, drop, completion or dispatch threshold was relaxed.
+
+The first four-generator run on c41b3997 passed 50 RPS per generator, then failed
+100 RPS per generator. All four IDs were observed from four distinct source IPs
+in provider logs. The aggregate summary failed and did not report 800 RPS. Those
+runs also used the uncompressed transport and need a correctly negotiated repeat.
+Vercel's deployment API now confirms HTTP 402 `resource_creation_blocked` because
+the team has an overdue balance. The account owner must resolve that before a
+fresh preview or real CDN measurement can be performed; no billing settings were
+changed. The connector itself has recovered.
+
 Repeat expanded run (`fbcffd6e`) passes 200 RPS (6,000/6,000, zero errors/retries/
 drops; 186ms p95), but fails 500 with 11,240 drops, 3,240 failed logical requests
 and substantial client queue/post-socket delay. 1,000 is not run. Do not call this
