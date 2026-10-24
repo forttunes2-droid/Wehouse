@@ -2,7 +2,7 @@ import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { homeStyleLabel } from '@/lib/homeStyles';
 import { locationLabel } from "@/lib/locationPresentation";
 import type { Listing, ListingStatus } from "@/types";
-import { LISTING_STATUS_LABELS, LISTING_STATUS_COLORS } from "@/types";
+import { LISTING_STATUS_LABELS } from "@/types";
 import { listingDisplayTitle } from "@/lib/listingPresentation";
 import { formatMoney } from "@/lib/regional";
 
@@ -28,8 +28,6 @@ export default function ListingCard({
     "";
   const listingStatus: ListingStatus = listing.status || "available";
   const rawStatus = String(listing.status || "available");
-  const statusColor =
-    LISTING_STATUS_COLORS[listingStatus] || LISTING_STATUS_COLORS.available;
   const statusLabel =
     listing.sub_type === "short_let" && rawStatus === "occupied"
       ? "Booked now"
@@ -43,33 +41,6 @@ export default function ListingCard({
         ? `${listingMoney((price / 1000).toFixed(0))}k`
         : `${listingMoney(price)}`;
   const priceUnit = listing.sub_type === "short_let" ? "/night" : "/year";
-  const statusBg = statusColor.includes("green")
-    ? "bg-green-500/15"
-    : statusColor.includes("amber")
-      ? "bg-amber-500/15"
-      : statusColor.includes("blue")
-        ? "bg-violet-500/15"
-        : statusColor.includes("red")
-          ? "bg-red-500/15"
-          : "bg-gray-500/15";
-  const statusText = statusColor.includes("green")
-    ? "text-green-400"
-    : statusColor.includes("amber")
-      ? "text-amber-400"
-      : statusColor.includes("blue")
-        ? "text-violet-400"
-        : statusColor.includes("red")
-          ? "text-red-400"
-          : "text-gray-400";
-  const statusBorder = statusColor.includes("green")
-    ? "border-green-500/20"
-    : statusColor.includes("amber")
-      ? "border-amber-500/20"
-      : statusColor.includes("blue")
-        ? "border-violet-500/20"
-        : statusColor.includes("red")
-          ? "border-red-500/20"
-          : "border-gray-500/20";
   const media = (listing.images || []).filter(Boolean);
   const primary = media[0] || imageUrl;
   const displayTitle = listingDisplayTitle(listing);
@@ -109,7 +80,7 @@ export default function ListingCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10" />
         <div className="absolute left-2.5 top-2.5 z-10">
           <span
-            className={`rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase backdrop-blur-md ${statusBg} ${statusText} ${statusBorder}`}
+            className="rounded-full border border-white/15 bg-black/75 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md"
           >
             {statusLabel}
           </span>
@@ -154,14 +125,7 @@ export default function ListingCard({
             ) : null}
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-[8px]">
-          {rawStatus === "available" ? (
-            <span className="text-emerald-300">● Verified and available</span>
-          ) : null}
-          {listing.videos?.length > 0 ? (
-            <span className="text-[var(--wh-text-muted)]">▶ Video preview</span>
-          ) : null}
-        </div>
+        {listing.videos?.length > 0 && <p className="mt-3 text-xs text-[var(--wh-text-muted)]">▶ Video preview</p>}
       </div>
     </article>
   );

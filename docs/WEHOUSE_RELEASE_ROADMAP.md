@@ -20,6 +20,17 @@ pass, including 64 concurrent POSTs on four reused connections and queue expiry.
 The next hosted run must determine the result. This is measurement hardening,
 not a claim that application caching or production capacity is complete.
 
+Result: all eight workflows pass on fcc9cc149f2a63a248228f209dda3f21a3cb09b9.
+The unchanged 200 RPS gate completes 6,000/6,000 requests with zero failures,
+retries or drops, 69 maximum logical requests in flight and 234ms p95. Keep the
+earlier failures and distinguish this bounded catalog result from sustained or
+mixed production capacity. The full local suite passes 721 tests.
+
+Follow-up visual review also replaces translucent low-contrast photo status ink
+with white on a dark badge. ListingCard no longer infers a “Verified” claim from
+availability status alone or repeats the same availability message beneath the
+rich card. Both-theme discovery/privacy/location browser journeys pass again.
+
 ### 24 October: shared late receipts and theme evidence
 
 Consolidation on 9ab4777aa919984aa7df0185bca38d27f98ad719 passes the added
