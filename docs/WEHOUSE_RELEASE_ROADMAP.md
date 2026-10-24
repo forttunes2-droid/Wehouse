@@ -2,6 +2,26 @@
 
 **Status date:** 23 October 2026
 
+### 24 October: exact-PR replay and cancellation prerequisite
+
+Pushed CI/bootstrap repairs as 5b752140 and compatible dependency audit updates
+as ba58d723. All 718 local regression tests pass. TypeScript passes and the
+updated production dependency audit reports zero vulnerabilities. Fresh CI on
+5b752140 passed consolidation tests/build and advanced beyond missing buckets,
+then correctly rejected the missing Hotel cancellation policy prerequisite.
+
+The additive 20261023111611 prerequisite is intentionally ordered immediately
+before the already-applied 24-hour update. It creates Hotel and non-refundable
+accommodation policies only when no global history exists, using the approved
+24-hour deadline and the existing published rate protections. It never alters
+an existing draft, schedule, version or booking snapshot. Original migration
+bytes remain unchanged. Existing installations must include this earlier missing
+version in their reviewed deployment migration list (`--include-all` for CLI
+push); do not repair history by falsely marking it applied. Hosted rollback
+checks verified unchanged existing history, empty-table initialization against
+a temporary table with the real constraints, and repeated execution. Added a
+fresh-replay SQL contract. Full fresh/upgrade CI still decides replay readiness.
+
 ### PR integration and actual CI failure repair
 
 The accumulated engineering work was committed in d489194c and pushed to #118;
