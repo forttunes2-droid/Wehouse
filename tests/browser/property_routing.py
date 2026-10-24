@@ -5,7 +5,7 @@ import asyncio, json, os, re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
-BASE = 'http://127.0.0.1:4173'
+BASE = os.environ.get('QA_BASE_URL', 'http://127.0.0.1:4173')
 OUT = Path('test-results/experience')
 CAPS = ['stay.read','stay.message','stay.assign_unit','stay.check_in','stay.check_out','room.mark_ready','hotel.inventory.manage','hotel.rate.manage','hotel.policy.manage','hotel.team.manage']
 HOTEL = {'hotel_id': 7,'name':'Test Lodge','status':'active','city':'Lafia','state':'Nasarawa','address':'Test road','images':[], 'amenities':[], 'room_type_count':2,'total_room_count':3,'starting_rate':30000,'access_role':'owner','capabilities':CAPS,'timezone':'Africa/Lagos'}
@@ -48,8 +48,9 @@ async def main():
      elif name=='get_my_hotel_booking_target': data={'booking_id':42,'hotel_id':7}
      elif name=='inspection_requests': data=[REQUEST]
      elif name=='get_my_workspace_inbox': data=[SUPPORT] if args.get('p_kind')=='wehouse' and mode=='partner' else []
-     elif name=='get_my_canonical_activity_v2': data=[{**EVENT,'workspace':args.get('p_workspace')}]
-     elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
+     elif name=='get_my_canonical_activity_v2': data=[{**EVENT,'resolved_at':None,'workspace':args.get('p_workspace')}]
+     elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0,'latest_at':DATE.isoformat()}
+     elif name=='mark_my_canonical_activity_read': data=True
      elif name=='get_internal_profile_record': data={'account':{},'workspaces':[{'role':'property_partner','status':'active'}],'hotels_owned':[HOTEL], 'apartments':[], 'hotel_team':[], 'wehouse_team':[]}
      elif name=='get_my_property_pipeline_v2':
       if pipeline_mode=='slow': await asyncio.sleep(0.7)
@@ -79,7 +80,7 @@ async def main():
      await page.get_by_role('button',name=re.compile('^Personal')).click()
      assert await page.evaluate('window.__workspaceSwitch')=='personal'
      await page.goto(BASE+'/tests/browser/property-routing.html')
-     await select('Filter by property type','Hotels')
+     await select('Filter by property category','Hotels')
      await page.get_by_role('button',name=re.compile('Test Lodge')).click()
      await expect(page.get_by_role('navigation',name='Hotel sections')).to_be_visible()
      await expect(page.get_by_role('heading',name='Today at the hotel',exact=True)).to_be_visible()

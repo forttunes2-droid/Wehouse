@@ -17,7 +17,12 @@ insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,c
 (-76661,-76661,-76661,'pro-guest',current_date+2,current_date+3,1,20000,'confirmed','paid');
 insert into auth.sessions(id,user_id,created_at,updated_at) values
 ('76667777-0000-4000-8000-000000000001','76666666-0000-4000-8000-000000000001',now(),now()),
+('76667777-0000-4000-8000-000000000002','76666666-0000-4000-8000-000000000002',now(),now()),
 ('76667777-0000-4000-8000-000000000003','76666666-0000-4000-8000-000000000003',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select p.user_id,p.auth_id,s.id::text,'pro-device-'||p.user_id,'Synthetic contract browser',true,'trusted'
+from public.profiles p join auth.sessions s on s.user_id::text=p.auth_id
+where p.user_id in('pro-owner','pro-other','pro-guest');
 select set_config('request.jwt.claims','{"sub":"76666666-0000-4000-8000-000000000001","session_id":"76667777-0000-4000-8000-000000000001"}',true);
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000001',true);
 set local role authenticated;
@@ -105,6 +110,7 @@ end $$;
 reset role;
 set local session_replication_role=replica;
 select set_config('request.jwt.claim.sub','76666666-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"76666666-0000-4000-8000-000000000002","session_id":"76667777-0000-4000-8000-000000000002"}',true);
 set local role authenticated;
 do $$
 declare v jsonb;

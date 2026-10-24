@@ -24,4 +24,24 @@ do $$ begin
   raise exception 'Fresh replay omitted non-refundable provider-failure protection';
  end if;
 end $$;
+-- Atomic deployment can supersede a version before it was ever visible.
+create temporary table policy_interval_fixture
+ (like public.creator_policy_versions including all) on commit drop;
+insert into policy_interval_fixture(policy_key,version,value,status,effective_from,
+ effective_until,reason,checksum)
+values('interval-contract',1,'{}','retired',now(),now(),'Rollback-only fixture','fixture');
+do $$ begin
+ begin
+  insert into policy_interval_fixture(policy_key,version,value,status,effective_from,
+   effective_until,reason,checksum)
+  values('interval-contract',2,'{}','active',now(),now(),'Rollback-only fixture','fixture');
+  raise exception 'An active zero-duration policy was accepted';
+ exception when check_violation then null;end;
+ begin
+  insert into policy_interval_fixture(policy_key,version,value,status,effective_from,
+   effective_until,reason,checksum)
+  values('interval-contract',3,'{}','retired',now(),now()-interval '1 second','Rollback-only fixture','fixture');
+  raise exception 'A negative policy interval was accepted';
+ exception when check_violation then null;end;
+end $$;
 rollback;

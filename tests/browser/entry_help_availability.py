@@ -34,7 +34,7 @@ async def main():
                     await expect(page.get_by_role('button', name='Continue with Google', exact=True)).to_be_enabled()
                     await page.wait_for_timeout(250)
                     await page.screenshot(path=str(OUT/f'welcome-no-preview-{width}.png'), full_page=True)
-                    await page.get_by_role('button', name='Continue with email', exact=True).click()
+                    await page.get_by_role('button', name='Continue with username or email', exact=True).click()
                     await expect(page.get_by_role('heading', name='Welcome back', exact=True)).to_be_visible()
                     await page.get_by_label('Username or email', exact=True).fill('qa@example.invalid')
                     await page.locator('input[autocomplete="current-password"]').fill('Test-only-password')

@@ -2,6 +2,14 @@
 -- Ordered immediately before 20261023111612: its predecessor assumed Creator
 -- had already published Hotel rules. Never rewrite that applied migration or
 -- replace an existing draft, scheduled rule, policy history or booking snapshot.
+-- An atomic upgrade may create and supersede a policy in one transaction:
+-- transaction_timestamp() is identical for those writes. Permit an empty
+-- effective interval only for a retired version, never an active/scheduled
+-- version or a negative interval. Such a version was never externally visible.
+alter table public.creator_policy_versions drop constraint creator_policy_versions_check;
+alter table public.creator_policy_versions add constraint creator_policy_versions_check
+ check(effective_until is null or effective_until>effective_from
+  or (status='retired' and effective_until=effective_from));
 do $$
 declare item record; rollout_at timestamptz:=now();
 begin

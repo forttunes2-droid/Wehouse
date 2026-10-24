@@ -30,7 +30,7 @@ async def main():
     try:
      await page.goto(BASE+'/tests/browser/experience.html?fixture=login&presentation_environment=live')
      await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
-     await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
+     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
      await expect(page.get_by_role('button',name='Explore places first',exact=True)).to_have_count(0)
      await expect(page.get_by_role('dialog')).to_have_count(0)
      nav=page.get_by_role('navigation',name='Main navigation')
@@ -64,11 +64,11 @@ async def main():
      await page.get_by_role('button',name='Save hotel',exact=True).click()
      await expect(page.get_by_role('heading',name='Welcome',exact=True)).to_be_visible()
      await expect(page.locator('.wh-public-entry')).to_have_count(0)
-     await expect(page.get_by_role('button',name='Continue with email',exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name='Continue with username or email',exact=True)).to_be_visible()
      await expect(page.get_by_role('button',name='Continue with Google',exact=True)).to_be_visible()
      assert await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')=={'kind':'hotel','id':'7'}
      await page.screenshot(path=str(OUT/f'landing-signin-options-{width}.png'),full_page=True)
-     await page.get_by_role('button',name='Continue with email',exact=True).click()
+     await page.get_by_role('button',name='Continue with username or email',exact=True).click()
      await expect(page.get_by_label('Username or email',exact=True)).to_be_visible()
      await page.get_by_label('Username or email',exact=True).fill('sample@example.invalid')
      await page.locator('input[autocomplete=current-password]').fill('Only-a-fixture-password')

@@ -58,6 +58,23 @@ idempotent support message RPC as the app. Experience continuity waits for the
 actual submit button to become actionable after save instead of reading a
 transient busy state; 32 application and 10 session browser journeys pass locally.
 
+On b6639ca2, the real Auth/mixed HTTP journey preflight passes, including
+inventory contention and reference uniqueness. The complete upgrade then exposed
+a policy created and retired in the same atomic transaction: `now()` is identical
+for both, so the original strict positive effective interval rejects retirement.
+The still-unreleased prerequisite now permits an empty interval only on a retired
+version. Active/scheduled empty intervals and all negative intervals remain
+rejected; the hosted rollback SQL contract verifies all three cases. Existing
+policy values/history and booking snapshots remain untouched. This is a
+transactional migration fix, not permission to disable the policy guard.
+
+The free arrival-instruction contract now registers trusted synthetic devices for
+its actual owner, unrelated owner and guest; the full hosted rollback contract
+passes without weakening session or ownership checks. Entry browser fixtures now
+use the implemented username-or-email and Homes wording. Login layout (six
+viewport arrangements), enlarged text, reduced motion, welcome composition and
+Help failure/retry checks pass locally on a reachable fixture server.
+
 ### PR integration and actual CI failure repair
 
 The accumulated engineering work was committed in d489194c and pushed to #118;

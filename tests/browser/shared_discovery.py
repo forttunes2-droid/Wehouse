@@ -20,6 +20,7 @@ SCRIPT="""s=>{
   if(name==='getReservationForListing')return{reservation:null,error:null};
   if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
+  if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
   if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
@@ -42,14 +43,14 @@ async def main():
     await page.add_style_tag(path=str(B/'fixture.css'));await page.add_script_tag(path=str(B/'fixture.js'))
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True)).to_be_visible()
-    await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) for c in await page.evaluate('window.__browse.calls'))
     await page.wait_for_function('Array.from(document.querySelectorAll("[data-media-thumbnail] img")).some(img=>img.complete&&img.naturalWidth>0)')
     await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("homes")')
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
-    await expect(page.get_by_placeholder('City, area or apartment')).to_be_visible()
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
