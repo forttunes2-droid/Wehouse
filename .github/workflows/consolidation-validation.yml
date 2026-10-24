@@ -253,6 +253,8 @@ jobs:
         run: node scripts/disposable-supabase.mjs reset --version 20260913181317
       - name: Seed existing approvals, reviews, private evidence and a wallet
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
+      - name: Verify reviewed additions do not hide record changes or row loss
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/release_worker_preservation_contract.sql
       - name: Verify the full upgrade rolls back without changing records or history
         run: python scripts/coordinated-database-release.py check --local-ci
       - name: Verify the full upgrade commits with existing records preserved

@@ -75,6 +75,21 @@ use the implemented username-or-email and Homes wording. Login layout (six
 viewport arrangements), enlarged text, reduced motion, welcome composition and
 Help failure/retry checks pass locally on a reachable fixture server.
 
+The broader baseline-field projection proposal was rejected by automatic review
+and was not applied. The replacement is restricted to the six explicitly reviewed
+credential columns absent before this upgrade. Already deployed credential fields,
+all original fields and every row remain hashed. The new hosted rollback contract
+proves insertion into an empty table, later insertion/deletion, approval/evidence
+mutation, already deployed credential mutation and unrelated schema drift are
+detected. It also proves the reviewed six-column addition alone is not mislabeled
+as data loss. Seven Python release tests and workflow parsing pass. The Hotel
+conversation/media contract now passes with its actual trusted-session fixture.
+
+Partner browser checks pass at 390/768/1440px through Hotel operations, exact
+Activity booking links, access revocation, and internal property-profile navigation.
+Public discovery checks pass at 320/390/768/1440px, including guest read-only access,
+room/rate selection continuity, sign-in return and retained search state.
+
 ### PR integration and actual CI failure repair
 
 The accumulated engineering work was committed in d489194c and pushed to #118;

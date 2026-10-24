@@ -222,7 +222,7 @@ async def main():
       await workflow.get_by_role('button',name='Close property',exact=True).click(trial=True)
       pipeline_mode='normal'; record_denied=True
       await workflow.get_by_role('button',name='Try again',exact=True).click()
-      await expect(workflow.get_by_role('alert')).to_contain_text('unavailable or outside your work coverage')
+      await expect(workflow.get_by_role('alert').filter(has_text='unavailable or outside your work coverage')).to_be_visible()
       await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_have_count(0)
       record_denied=False; await workflow.get_by_role('button',name='Try again',exact=True).click()
       await expect(workflow.get_by_role('heading',name='VIP',exact=True)).to_be_visible()
