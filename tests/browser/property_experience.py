@@ -6,7 +6,7 @@ import asyncio, json, os, re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
-BASE='http://127.0.0.1:4173'; OUT=Path('test-results/experience')
+BASE=os.environ.get('QA_BASE_URL','http://127.0.0.1:4173'); OUT=Path('test-results/experience')
 IMAGE=BASE+'/qa-public-property.svg'
 IMAGE_BODY='<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#2d2244"/><path d="M220 340V220l180-130 180 130v120H220" fill="#644991"/></svg>'
 SHORT={'id':'short-home','listing_id':'short-home','title':'Garden Short Let','sub_type':'short_let','type':'apartment','price':120000,'security_deposit_amount':50000,'max_guests':2,'bedrooms':1,'bathrooms':1,'address':'Test road','city':'Lafia','state':'Nasarawa','images':[IMAGE],'videos':[],'status':'available','is_verified':True,'amenities':['WiFi']}
@@ -49,13 +49,14 @@ class Scenario:
    await asyncio.sleep(.6); self.hotel_sent=True; data='hotel-ack'
   elif name=='mark_hotel_booking_messages_read':
    await asyncio.sleep(1); data=True
-  elif name=='create_short_stay_reservation_idem': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000,'short_stay_cancellation_policy_snapshot':{'full_refund_hours_before_check_in':48,'late_cancel_max_nights':1}}
+  elif name=='create_short_stay_reservation_idem': data={'id':'short-reservation-1','stay_type':'short_let','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','reservation_fee_snapshot':5000,'stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000,'short_stay_cancellation_policy_snapshot':{'standard_full_refund_hours_before_check_in':24,'late_cancellation_requires_review':True,'provider_failure_full_refund':True,'payment_protection_required':True}}
   elif name=='payment-init': data={'success':True,'already_paid':True,'reference':'WHDATE-QA-1','purpose':'apartment_reservation'}
   elif name=='get_my_roommate_peer_details': data=PEERS
   elif name=='get_user_conversations': data=CONNECTIONS
   elif name in ['get_my_e2ee_identity','e2ee_identity','e2ee_identities','user_encryption_identities']: data=None
-  elif name=='get_my_canonical_activity_v2': data=[{'id':f'event-{scope}','workspace':scope,'type':'hotel.confirmed' if scope=='property_partner' else 'search_match','title':'Partner guest update' if scope=='property_partner' else 'Personal saved search must stay Personal','message':'Synthetic update','source_type':'hotel_booking','source_id':'42','destination_route':'hotel_booking','destination_params':{'hotel_id':7,'booking_id':42},'read':False,'created_at':NOW.isoformat(),'action_required':False} for scope in ['personal','property_partner']]
-  elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
+  elif name=='get_my_canonical_activity_v2': data=[{'id':f'event-{scope}','workspace':scope,'type':'hotel.confirmed' if scope=='property_partner' else 'search_match','title':'Partner guest update' if scope=='property_partner' else 'Personal saved search must stay Personal','message':'Synthetic update','source_type':'hotel_booking','source_id':'42','destination_route':'hotel_booking','destination_params':{'hotel_id':7,'booking_id':42},'read':False,'created_at':NOW.isoformat(),'action_required':False,'resolved_at':None} for scope in ['personal','property_partner']]
+  elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0,'latest_at':NOW.isoformat()}
+  elif name=='mark_my_canonical_activity_read': data=True
   elif name=='get_my_legal_status': data={}
   if self.guest_mode and name in ['search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'] and data:
    def mixed_media(record): return {**record,'images':[*record.get('images',[]),'partner/private-unpublished.jpg','https://test.supabase.co/storage/v1/object/sign/listing-candidates/private.jpg?token=not-a-real-token']}
@@ -138,7 +139,7 @@ async def main():
      review=short_page.get_by_role('dialog',name='Review reservation and payment')
      await expect(review).to_be_visible()
      await expect(short_page.get_by_role('heading',name='Review your dates and payment',exact=True)).to_be_visible()
-     await expect(review.get_by_text(re.compile('Cancel at least 48 hours before check-in'))).to_be_visible()
+     await expect(review.get_by_text(re.compile('Cancel at least 24 hours before check-in'))).to_be_visible()
      await expect(review.get_by_text(re.compile('Only the reserve-date fee is paid now'))).to_be_visible()
      await expect(review.get_by_role('button',name='Edit dates and guests',exact=True)).to_be_visible()
      await expect(review.get_by_role('button',name='Accept terms and continue',exact=True)).to_be_enabled()
@@ -163,7 +164,7 @@ async def main():
      await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
      assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
-     allowed={'search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary','get_sponsored_discovery'}
+     allowed={'get_public_discovery_settings','search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary','get_sponsored_discovery'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
      await page.get_by_role('button',name='Save hotel',exact=True).click()
      assert await page.evaluate('window.__guestSignIn') is True
@@ -217,6 +218,13 @@ async def main():
      await cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y-shift}]})
     await cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
+    # Wait for the real touch-scroll momentum to stop before testing a fresh
+    # deliberate tap; a tap during momentum may only stop native scrolling.
+    await page.evaluate('''() => new Promise(resolve => {
+      let previous = scrollY, stable = 0;
+      const frame = () => { const current = scrollY; stable = Math.abs(current - previous) < .1 ? stable + 1 : 0; previous = current; if (stable >= 8) resolve(); else requestAnimationFrame(frame); };
+      requestAnimationFrame(frame);
+    })''')
     before_open=await page.evaluate('scrollY')
     await field.tap()
     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_be_visible()

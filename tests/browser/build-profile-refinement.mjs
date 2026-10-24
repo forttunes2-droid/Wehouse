@@ -8,7 +8,9 @@ const out='test-results/profile-refinement-offline';fs.mkdirSync(out,{recursive:
 const client=path.resolve('tests/browser/profileRefinementClientFixture.ts');
 await build({entryPoints:['tests/browser/profile-refinement.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',plugins:[{name:'profile-refinement-offline-client',setup(api){api.onResolve({filter:/.*/},args=>{
  if(args.path==='@/hooks/useCreatorAuth')return {path:path.resolve('tests/browser/creatorAuthFixture.ts')};
- if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)||(args.path==='./client'&&args.importer.replaceAll('\\','/').includes('/src/lib/supabase/')))return {path:client};
+ if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)
+  ||(args.path==='./client'&&args.importer.replaceAll('\\','/').includes('/src/lib/supabase/'))
+  ||(args.path==='./supabase/client'&&args.importer.replaceAll('\\','/').includes('/src/lib/')))return {path:client};
  if(args.path.startsWith('@/'))return api.resolve(path.resolve('src',args.path.slice(2)),{resolveDir:process.cwd(),kind:args.kind});
 })}}],define:{'import.meta.env.DEV':'false','import.meta.env.PROD':'false'}});
 const componentCss=fs.existsSync(out+'/fixture.css')?fs.readFileSync(out+'/fixture.css','utf8'):'';

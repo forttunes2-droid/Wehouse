@@ -2,6 +2,34 @@
 
 **Status date:** 24 October 2026
 
+### 24 October: browser and privileged-RPC verification follow-through
+
+The hosted rollback sweep now covers 42 contract files, including support reply
+receipts, case routing, inspection authority, Finance receipts, booking arrival,
+Service commands, Experience applications, withdrawal receipts, private calls
+and physical-space identity. These execute synthetic records and roll back;
+they do not initiate provider payments.
+
+The privileged-write audit now recognizes six explicitly reviewed authorization
+helpers only after verifying their definitions and non-browser execution ACLs.
+The full audit passes on Test; fresh replay on the next PR commit remains required.
+No runtime permission was relaxed to satisfy the audit.
+
+Focused browser reruns pass profile refinement, management/security, communication
+draft isolation and the media viewer at four screen widths. The media run exposed
+a real duplicated touch/double-click zoom toggle, now repaired. A separate touch
+trace exposed suppressed compatibility clicks after date-field scrolling; the
+date field now accepts a stationary touch while retaining drag rejection.
+The complete property suite passes, including all four screen widths, guest
+media boundaries, reviewed payment handoff, sharing, workspace Activity, Hotel
+chat, receipts, delayed account loading and retry behavior. TypeScript, focused
+lint and media regression tests pass.
+
+Capacity evidence is mixed: 07039d62 passed the bounded 200 requests/second ramp,
+but 42b9c9ce passed through 100 and failed at 200 (1,253 failed logical requests).
+The earlier passing run does not close this reliability gate. The failure remains
+recorded without lowering the threshold or claiming sustained/global capacity.
+
 ### 24 October: exact-PR replay and cancellation prerequisite
 
 Pushed CI/bootstrap repairs as 5b752140 and compatible dependency audit updates

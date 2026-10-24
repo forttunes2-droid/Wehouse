@@ -49,6 +49,19 @@ export default function BookingDateField({ label, value, min, max, onChange, con
       onPointerDown={event => { pointer.current = { x: event.clientX, y: event.clientY, top: event.currentTarget.getBoundingClientRect().top, at: performance.now(), moved: false }; }}
       onPointerMove={event => { if (pointer.current && Math.hypot(event.clientX - pointer.current.x, event.clientY - pointer.current.y) > 8) pointer.current.moved = true; }}
       onPointerCancel={() => { if (pointer.current) pointer.current.moved = true; }}
+      onPointerUp={event => {
+        if (event.pointerType !== 'touch') return;
+        const gesture = pointer.current;
+        if (gesture && !gesture.moved &&
+          Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) <= 8 &&
+          Math.abs(event.currentTarget.getBoundingClientRect().top - gesture.top) <= 4) {
+          // Native scrolling can suppress the compatibility click. A new,
+          // stationary touch still opens the calendar; a drag never does.
+          event.preventDefault();
+          pointer.current = null;
+          setOpen(true);
+        }
+      }}
       onClick={event => {
         // Some mobile browsers dispatch a click after a finger slides across a
         // control while scrolling. Only a deliberate tap may open the calendar.
