@@ -24,6 +24,25 @@ blocked by Vercel billing. Neither issue excuses leaving independent internal
 work unfinished. Do not purchase infrastructure or run large hosted loads merely
 to make a dashboard number larger.
 
+### 25 October owner correction: Year 1 is always paid in full
+
+One-year Long Let has no monthly option. Accepted shorter terms are full-payment
+terms too. Monthly payments cover only later years of a landlord-approved
+multi-year contract: Year 1 is paid in full before handover, followed by eight
+payments for each later year starting four months into the preceding year.
+Without landlord opt-in the entire multi-year contract is paid upfront. Manual
+or separately consented automatic collection does not change those amounts or
+dates. This supersedes the earlier mistaken one-year monthly interpretation.
+
+Migration `20261025152711` rejects one-year monthly quotes and agreements,
+restricts future payment rows to Year 2 onward, and removes the invalid schedule
+branch. Partner and customer controls, receipt validation and canonical product
+rules use the same restriction. Test contained no invalid saved agreements or
+first-year contribution rows to unwind. The corrected signed-role contract
+passes three-month full payment and a two-year agreement with Year 1 paid in
+full, eight Year 2 payments and actual-handover dates. No Production change is
+part of this correction.
+
 ### 25 October: Service checkout commission and payment retry repair
 
 Test migrations `20261025114934`, `20261025115331` and `20261025120132`
@@ -80,9 +99,9 @@ are integrated into property details.
 Follow-through migrations `20261025141438`, `20261025141825`, `20261025142434`
 and `20261025145336` connect the offer to reviewed tenant acceptance, immutable
 checkout terms, protected first payment and actual-handover schedule anchoring.
-Test's rolled-back signed-role contract passes three-month full-term checkout
-and one-year monthly initial checkout through the canonical verified-charge
-ledger, then handover and eleven dated later obligations. Full-term payment
+The corrected rolled-back signed-role contract passes three-month full-term checkout
+and two-year later-year monthly checkout through the canonical verified-charge
+ledger, with Year 1 paid in full, then handover and eight dated Year 2 obligations. Full-term payment
 creates no unpaid future plan. The accepted three-month term ends in three
 months, rather than becoming a one-year tenancy. Allocated Partner, WeHouse and
 funded-promotion amounts preserve every minor unit and avoid negative shares.

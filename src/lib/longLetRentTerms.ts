@@ -47,7 +47,7 @@ export function longLetAgreementReceipt(value:unknown,reservationId:string,custo
  if(row.schema_version!==1||row.reservation_id!==reservationId||typeof row.listing_id!=='string'||!row.listing_id||
   !Number.isSafeInteger(row.offer_revision)||Number(row.offer_revision)<1||row.currency!=='NGN'||
   typeof row.quote_digest!=='string'||! /^[a-f0-9]{32}$/.test(row.quote_digest)||
-  !LONG_LET_TERMS.some(term=>term===schedule.term_months)||!['full','monthly'].includes(String(schedule.payment_choice))||
+  !LONG_LET_TERMS.some(term=>term===schedule.term_months)||!['full','monthly'].includes(String(schedule.payment_choice))||schedule.payment_choice==='monthly'&&Number(schedule.term_months)<=12||
   !Array.isArray(schedule.payments)||schedule.payments.length<1||schedule.payments.length>33)throw new Error('Rental agreement could not be confirmed. Refresh before continuing.');
  const payments=schedule.payments.map((value,index)=>{
   const p=object(value),amount=minor(p.amount);
@@ -61,6 +61,16 @@ export function longLetAgreementReceipt(value:unknown,reservationId:string,custo
  if(minor(schedule.annual_rent)<=0n||minor(schedule.first_year_rent)<=0n||total<=0n||first<=0n||
   payments.reduce((sum,p)=>sum+minor(p.amount),0n)!==total||minor(payments[0].amount)!==first||total-first!==balance||
   schedule.payment_choice==='full'&&(payments.length!==1||balance!==0n))throw new Error('Rent totals do not match the payment schedule.');
+ if(schedule.payment_choice==='monthly'){
+  const years=Number(schedule.term_months)/12,annual=minor(schedule.annual_rent);
+  if(first!==minor(schedule.first_year_rent)||first>annual||total!==first+annual*BigInt(years-1)||
+   payments[0].target_year!==1||payments.length!==1+8*(years-1))throw new Error('Year 1 must be paid in full before handover.');
+  for(let year=2;year<=years;year++){
+   const group=payments.slice(1+(year-2)*8,1+(year-1)*8);
+   if(group.some((p,index)=>p.target_year!==year||p.month_offset!==12*(year-2)+4+index)||
+    group.reduce((sum,p)=>sum+minor(p.amount),0n)!==annual)throw new Error('Later-year rent must follow the agreed eight-payment schedule.');
+  }
+ }
  if(customerId&&(row.accepted_by!==customerId||typeof row.accepted_at!=='string'||!Number.isFinite(Date.parse(row.accepted_at))))throw new Error('Your agreement acceptance could not be confirmed. Refresh before paying.');
  return {...row,rent_schedule:{...schedule,annual_rent:Number(schedule.annual_rent),first_year_rent:Number(schedule.first_year_rent),contract_total:Number(schedule.contract_total),due_before_handover:Number(schedule.due_before_handover),future_balance:Number(schedule.future_balance),payments}} as LongLetAgreement;
 }

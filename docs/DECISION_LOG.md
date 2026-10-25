@@ -118,6 +118,15 @@ For each open item, record the selected option, owner, date, rationale, affected
 - Money is shown in the currency it was charged in, formatted for the viewer. No ₦, `en-NG` or `Africa/Lagos` literals in `src` outside the regional layer; `tests/regional-layer.test.mjs` enforces this.
 - Still to do: a country-qualified location catalogue, destination-country fields carried through inventory and booking/payment snapshots, service coverage by delivery mode, reviewed app translations and a language preference. See [GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md](./GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md). Also remaining: server-side property time in the Short Let cancel window and the `refund_amount_ngn` naming.
 
+## 25 October owner correction: full Year 1 rent
+
+- One-year Long Let is always paid in full before handover. There is no one-year monthly-payment option. Accepted shorter terms are also full-payment terms.
+- For a multi-year contract, the landlord may accept monthly payments for later years. Year 1 remains paid in full. Each later year's rent is paid in eight amounts during months 5–12 of the preceding year, starting four months after handover.
+- Without landlord opt-in, collect the full multi-year contract amount upfront. Keep the accepted amount, term and schedule together in the existing reservation and rent records.
+- Manual payment or separately consented automatic debit is a collection-method choice for eligible later-year payments; it does not alter the rent schedule. Automatic debit must remain inactive until the provider mandate is verified active.
+- Partners choose approved WeHouse policy options; they do not author arbitrary cancellation or refund rules.
+- This supersedes the earlier mistaken one-year monthly interpretation in this document's linked product rules and implementation history. Migration `20261025152711_require_full_year_one_rent.sql` enforces the corrected scope.
+
 ## 23 October owner confirmation: Experience money policy and legal review pack
 
 - Confirmed by the owner: the standard full-refund deadline is 24 hours before the scheduled start for Experiences, Services, Short Let and Hotel bookings. Provider/host cancellation gives a full refund. Existing bookings retain their accepted policy snapshot; rollout must not silently rewrite them.
