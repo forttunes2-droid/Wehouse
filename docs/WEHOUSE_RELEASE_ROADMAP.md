@@ -68,6 +68,18 @@ Monthly Long Let is part of the existing reservation, rent schedule, canonical
 payment records and Partner operations. It remains the active integration task,
 not a separate product or a request to renegotiate already-agreed rules.
 
+Test migrations `20261025133858` and `20261025134104` add one accepted-term
+offer on the existing listing and reuse its existing monthly opt-in field.
+The common schedule calculates the agreed 3/6/12-month and multi-year full or
+monthly amounts, allocating every minor unit and anchoring calendar dates to
+verified handover. Both rolled-back SQL contracts passed on Test: schedule sums,
+leap/month-end dates, owner access in both management modes, denial for Operations
+co-hosts/outsiders, idempotent saves and stale-update rejection. Partner controls
+are integrated into property details; the production build and light/dark
+browser receipt-failure/recovery checks pass. Tenant agreement acceptance,
+checkout, scheduled payment collection and settlement integration are the next
+connected steps, not completed by the offer control alone.
+
 ### 25 October: Friend reaction delivery and polling investigation
 
 **Verified follow-up:** exact-SHA `d0cf0e81` mixed preflight run

@@ -89,6 +89,10 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_confirmation_routing_contract.sql
       - name: Preserve accepted Service commission through policy changes and receipt retries
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_checkout_commission_contract.sql
+      - name: Verify agreed Long Let monthly and full-term schedules
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_schedule_contract.sql
+      - name: Verify Long Let commercial owner authority and stale-update protection
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_offer_authority_contract.sql
       - name: Bind subscription event retries to the original verified account and receipt
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/subscription_event_replay_contract.sql
       - name: Exercise Creator booking and money policy authority
