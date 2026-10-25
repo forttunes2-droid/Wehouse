@@ -118,7 +118,14 @@ tools entry, both themes, completion and a malformed save receipt with recovery.
 The former screen-only toast timer is removed; business writes require receipts
 and reject overlapping taps. Local evidence: 747 regression tests, production
 build, focused lint, 85 Wallet/Pro browser scenarios and 18 focused management/
-reminder scenarios. Exact-SHA fresh/upgrade and browser CI remain required.
+reminder scenarios. On `47bea57a`, exact-SHA fresh/upgrade, regression/build,
+mixed journeys, Stage 1, disposable medium catalog, Wallet/Pro domain browser
+jobs and media compression pass. The separate document/Pro fixture returned a
+boolean for UUID-returning reminder/package commands; receipt validation caught
+it. Correct the fixture to model the actual RPC receipts, preserving the UI's
+failure check. The 36-width/entitlement/account-switch document scenarios then
+pass locally; their exact-SHA browser rerun remains required. Hosted capacity
+still fails and broader product gates stay open.
 
 ### 25 October: prevent duplicate browser feed work
 
