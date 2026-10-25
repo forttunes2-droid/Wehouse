@@ -2,6 +2,25 @@
 
 **Status date:** 25 October 2026
 
+### 25 October: prevent duplicate browser feed work
+
+Deployed web now shares identical in-flight public Home/Hotel feed reads, keyed
+by origin and canonical public query. Forty simultaneous equivalent reads make
+one fetch; each consumer receives an independent JSON receipt. Completed reads
+are removed immediately, so this adds no stale browser cache. Distinct pending
+feeds are capped at sixteen per tab; overload never falls back to origin RPCs.
+Success and failure both release slots. Typed/private/precise-location searches,
+pagination, native/local clients and payment/account operations retain their
+existing direct paths. Focused gateway/client tests pass 16/16.
+The full local source suite passes 742/742; production build and focused lint pass.
+Discovery/privacy/location browser checks pass at 320, 390, 768 and 1440px in
+both themes using real components and intercepted synthetic public responses.
+
+Read-only provider inspection confirms the organization is currently on the Free
+plan. That is a deployment constraint to include in capacity planning, not proof
+of the cause of the 500-RPS failure and not a fixed database RPS ceiling. No plan,
+billing, compute setting or Production resource was changed.
+
 ### 25 October: measured capacity failures retained; public response memory bounded
 
 The compressed direct-origin run on `1f34cb29` passed 200 RPS (6,000/6,000;

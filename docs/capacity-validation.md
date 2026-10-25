@@ -1,5 +1,19 @@
 # WeHouse capacity validation
 
+## Avoid duplicate browser traffic — 25 October 2026
+
+Public web feed reads now share only in-flight work by deployment origin and
+canonical query, with sixteen distinct requests allowed per tab. Forty identical
+concurrent reads produce one fetch, while returning separate JSON objects to
+consumers. No completed result is retained. Failure and overload do not trigger
+a direct-database fallback. Tests cover canonical equivalence, response mutation
+isolation, bounded distinct work, slot recovery and origin separation. Existing
+private/text/geo/pagination/native exclusions remain unchanged.
+
+Provider organization inspection confirms the current subscription is Free.
+This is relevant infrastructure context; it does not isolate the cause of the
+failed hosted ramp. No paid upgrade or capacity configuration was performed.
+
 ## Compressed repeat and response resource limits — 25 October 2026
 
 Exact commit `1f34cb29be3d83f75dc28938af59fe1a74795064` passed its single-source
