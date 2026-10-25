@@ -26,6 +26,29 @@ to make a dashboard number larger.
 
 ### 25 October: Friend reaction delivery and polling investigation
 
+### 25 October: Service checkout commission and payment retry repair
+
+Test migrations `20261025114934`, `20261025115331` and `20261025120132`
+freeze the existing Service percentage commission on the canonical payment
+record, reuse a pending reference despite optional null fields, and retain
+unresolved verified receipts in the existing Finance recovery queue. A later
+Creator policy change cannot rewrite accepted checkout terms. Existing valid
+unpaid references freeze at migration cutover; paid history is not rewritten.
+No commission rate or fixed fee is activated by these migrations.
+
+`worker_checkout_commission_contract.sql` passed on Test with rolled-back
+fixtures: original/new rate behavior, reference reuse, immutable terms, canonical
+receipt processing, protected balance, duplicate receipt and unresolved legacy
+receipt persistence. It is included in fresh migration CI. The 748 local tests
+pass. This repairs Service payments; it does not implement Experience checkout.
+
+The preceding exact PR head `eb7c505b` passed build, structural, Stage 1,
+consolidation (including fresh/upgrade migration replay), browser, disposable
+capacity and mixed preflight workflows. Hosted catalog capacity still failed;
+these payment migrations require their own exact-head replay before approval.
+
+### Friend reaction delivery evidence
+
 **Verified follow-up:** exact-SHA `d0cf0e81` mixed preflight run
 `40171342520` passed the three-session message/reaction delivery and outsider
 check, then completed 150/150 and 300/300 mixed HTTP journeys without failures
