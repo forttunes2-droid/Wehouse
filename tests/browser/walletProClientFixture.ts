@@ -219,7 +219,7 @@ export const supabase: any = {
     }
     if(mode.startsWith('hosting-controls-')){
       state.rpcCalls.push({name,args});
-      if(name==='listing_discount_breakdown')return{data:{total_percent:0,host_percent:0,ends_on:null},error:null};
+      if(name==='listing_discount_breakdown')return{data:{total_percent:0,host_percent:0,wehouse_percent:0,ends_on:null},error:null};
       if(name==='get_my_property_host_controls'&&mode==='hosting-controls-read-error'&&!state.recover)throw Error('Read unavailable');
       if(name!=='get_my_property_host_controls'){
         if(mode==='hosting-controls-write-error'&&!state.recover)throw Error('Write receipt unavailable');

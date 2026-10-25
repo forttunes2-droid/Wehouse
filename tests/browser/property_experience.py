@@ -16,7 +16,7 @@ CONNECTIONS=[{'id':'chat-ada','participant_a':'qa-personal','participant_b':'qa-
 PEERS=[{'conversation_id':'chat-ada','user_id':'qa-ada','full_name':'Ada Example','username':'ada-example','avatar_url':None,'is_blocked':False}, {'conversation_id':'chat-blocked','user_id':'qa-blocked','full_name':'Blocked Example','username':'blocked','is_blocked':True}]
 NOW=datetime.now(timezone.utc); TOMORROW=(NOW+timedelta(days=2)).date().isoformat(); CHECKOUT=(NOW+timedelta(days=4)).date().isoformat()
 class Scenario:
- def __init__(self): self.calls=[]; self.errors=[]; self.fail_saved=False; self.delay_listing=0; self.delay_account=0; self.hotel_sent=False; self.hotel_reads=0; self.guest_mode=False
+ def __init__(self): self.calls=[]; self.errors=[]; self.fail_saved=False; self.delay_listing=0; self.delay_account=0; self.hotel_sent=False; self.hotel_reads=0; self.guest_mode=False; self.offer_test=False; self.fail_offer=False; self.delay_offer=0
  async def route(self, handler):
   request=handler.request
   if request.url==IMAGE: return await handler.fulfill(status=200,content_type='image/svg+xml',body=IMAGE_BODY)
@@ -32,6 +32,13 @@ class Scenario:
   elif name=='get_public_listing_detail':
    if self.delay_listing: await asyncio.sleep(self.delay_listing)
    data={'short-home':SHORT,'long-home':LONG}.get(args.get('p_listing_id'))
+   if self.offer_test and data and data['id']=='short-home': data={**data,'price':120000.99}
+  elif name=='listing_discount_breakdown':
+   if self.delay_offer: await asyncio.sleep(self.delay_offer)
+   if self.fail_offer: data={'message':'Offers unavailable'}; status=500
+   else:
+    percent=10 if self.offer_test and args.get('p_listing_id')=='short-home' else 0
+    data={'host_percent':percent,'wehouse_percent':0,'total_percent':percent,'ends_on':None}
   elif name=='get_public_hotel_detail': data=HOTEL
   elif name=='get_my_reservation_for_listing':
    if self.delay_account: await asyncio.sleep(self.delay_account)
@@ -88,6 +95,30 @@ async def main():
  async with async_playwright() as p:
   browser=await p.chromium.launch(args=['--no-sandbox'])
   try:
+   for theme in ['light','dark']:
+    scenario=Scenario(); scenario.offer_test=True; context,page=await scenario.open(browser,'short',390)
+    try:
+     await page.evaluate("theme => document.documentElement.dataset.whTheme = theme",theme)
+     await expect(page.get_by_text('₦108,000.89',exact=True)).to_have_count(1)
+     await fits(page)
+     scenario.delay_offer=2
+     await page.evaluate("window.__openListing('long-home')")
+     await expect(page.get_by_role('heading',name='Courtyard Long Let',exact=True)).to_be_visible()
+     await expect(page.get_by_text('₦90,000.00',exact=True)).to_have_count(0)
+     await expect(page.locator('main')).to_contain_text('₦100,000.00')
+     await page.screenshot(path=str(OUT/f'property-offer-switch-{theme}.png'),full_page=True)
+     scenario.delay_offer=0; scenario.fail_offer=True
+     await page.evaluate("window.__openListing('short-home')")
+     await expect(page.get_by_role('button',name='Retry offers',exact=True)).to_be_visible(timeout=20000)
+     scenario.fail_offer=False
+     await page.get_by_role('button',name='Retry offers',exact=True).click()
+     await expect(page.get_by_text('₦108,000.89',exact=True)).to_have_count(1)
+     await expect(page.get_by_role('button',name='Retry offers',exact=True)).to_have_count(0)
+     assert not scenario.errors,scenario.errors
+     results.append({'case':'Property discount precision, navigation and offer recovery '+theme,'passed':True})
+    finally:
+     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   if os.environ.get('QA_OFFERS_ONLY')=='1': return
    for width in [320,390,768,1440]:
     scenario=Scenario(); context,page=await scenario.open(browser,'saved',width)
     try:

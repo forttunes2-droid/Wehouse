@@ -24,8 +24,6 @@ blocked by Vercel billing. Neither issue excuses leaving independent internal
 work unfinished. Do not purchase infrastructure or run large hosted loads merely
 to make a dashboard number larger.
 
-### 25 October: Friend reaction delivery and polling investigation
-
 ### 25 October: Service checkout commission and payment retry repair
 
 Test migrations `20261025114934`, `20261025115331` and `20261025120132`
@@ -47,7 +45,30 @@ consolidation (including fresh/upgrade migration replay), browser, disposable
 capacity and mixed preflight workflows. Hosted catalog capacity still failed;
 these payment migrations require their own exact-head replay before approval.
 
-### Friend reaction delivery evidence
+### 25 October: Booking-offer precision and proportional verification
+
+Home offer display now preserves minor units using decimal half-up rounding,
+binds each offer receipt to its property, resets offers on navigation, validates
+the offer breakdown and provides bounded failure/retry. The production build,
+750 local regressions and property journeys at 320/390/768/1440 passed. Focused
+light/dark browser checks passed for fractional prices, delayed property
+switching and offer failure/recovery. These are synthetic functional checks,
+not real provider transactions.
+
+Owner direction: stop repeating large hosted load ramps for unrelated fixes.
+Hosted capacity is now an explicit manual workflow; a failed single-generator
+stage prevents the distributed load stage. Functional, permission, fresh/upgrade
+migration and isolated browser checks remain automatic. The latest tested head
+`111556e4` passed consolidation including the new payment contract. Its catalog
+ramp passed 200 RPS without errors/retries, then failed at 500 RPS; no 100k-session
+or fixed infrastructure ceiling is established. Those capacity targets do not
+replace completion of the agreed booking flows.
+
+Monthly Long Let is part of the existing reservation, rent schedule, canonical
+payment records and Partner operations. It remains the active integration task,
+not a separate product or a request to renegotiate already-agreed rules.
+
+### 25 October: Friend reaction delivery and polling investigation
 
 **Verified follow-up:** exact-SHA `d0cf0e81` mixed preflight run
 `40171342520` passed the three-session message/reaction delivery and outsider

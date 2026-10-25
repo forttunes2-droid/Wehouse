@@ -1,4 +1,5 @@
 import {submitBookingReview} from '@/lib/propertyReviews';
+import { discountedListingRate, listingDiscountQuote, type ListingDiscountQuote } from '@/lib/listingDiscountQuote';
 import PropertySiteOffers from "@/components/PropertySiteOffers";
 import { homeStyleLabel } from '@/lib/homeStyles';
 import { shortLetRefundHours } from "@/lib/shortLetCancellationPolicy";
@@ -161,8 +162,11 @@ export default function ListingDetail({
   const [listingReviewComment, setListingReviewComment] = useState("");
   const [listingReviewSaving, setListingReviewSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [discountSplit, setDiscountSplit] = useState({ host: 0, wehouse: 0, endsOn: null as string | null });
+  const [discountReceipt, setDiscountReceipt] = useState<{ listingId: string; quote: ListingDiscountQuote } | null>(null);
+  const [discountError, setDiscountError] = useState(false), [discountAttempt, setDiscountAttempt] = useState(0);
+  const discountQuote = discountReceipt?.listingId === String(listing?.id) ? discountReceipt.quote : null;
+  const discountPercent = discountQuote?.total ?? 0;
+  const discountSplit = discountQuote ?? { host: 0, wehouse: 0, endsOn: null };
   const [loadError, setLoadError] = useState("");
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountError, setAccountError] = useState("");
@@ -269,24 +273,23 @@ export default function ListingDetail({
   }, [listing?.id, profile?.user_id, listingReviewAttempt]);
 
   useEffect(() => {
+    setDiscountReceipt(null);
+    setDiscountError(false);
     if (!listing?.id || !["short_let", "long_stay"].includes(String(listing.sub_type))) {
-      setDiscountPercent(0);
-      setDiscountSplit({ host: 0, wehouse: 0, endsOn: null });
       return;
     }
     let active = true;
-    void supabase
-      .rpc("listing_discount_breakdown", { p_listing_id: listing.id })
-      .then(({ data }) => {
+    void withTimeout(supabase.rpc("listing_discount_breakdown", { p_listing_id: listing.id }), 15000, 'Offers took too long.')
+      .then(({ data, error }) => {
         if (!active) return;
-        const row = (data || {}) as { host_percent?: number; wehouse_percent?: number; total_percent?: number; ends_on?: string | null };
-        setDiscountPercent(Number(row.total_percent || 0));
-        setDiscountSplit({ host: Number(row.host_percent || 0), wehouse: Number(row.wehouse_percent || 0), endsOn: row.ends_on || null });
-      });
+        if (error) throw error;
+        const row = listingDiscountQuote(data);
+        setDiscountReceipt({ listingId: String(listing.id), quote: row });
+      }).catch(() => { if (active) setDiscountError(true); });
     return () => {
       active = false;
     };
-  }, [listing?.id, listing?.sub_type]);
+  }, [listing?.id, listing?.sub_type, discountAttempt]);
 
   useEffect(() => {
     setShortCheckIn(""); setShortCheckOut(""); setShortGuests(1);
@@ -832,13 +835,14 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         {formatMoney(Number(listing.price || 0))}
                       </span>
                     ) : null}
-                    {formatMoney(Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)))}
+                    {formatMoney(discountedListingRate(listing.price, discountPercent))}
                     <span className="ml-1 text-sm font-normal text-[var(--wh-text-muted)]">
                       {listing.sub_type === "short_let" ? "/night" : discountPercent > 0 ? "Year 1" : "/year"}
                     </span>
                   </p>
                 </div>
                 <DiscountSourceNote split={discountSplit} />
+                {discountError && <p role="status" className="mt-2 text-sm text-[var(--wh-text-secondary)]">Offers could not be loaded. Your final price is confirmed before payment. <button type="button" className="min-h-11 font-semibold text-[var(--wh-accent-text)]" onClick={() => setDiscountAttempt(n => n + 1)}>Retry offers</button></p>}
               </section>
               <section className="grid grid-cols-3 gap-2">
                 <Fact
@@ -1020,7 +1024,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                       </div>
                       <p className="text-right">
                         <span className="block text-sm font-bold">
-                          {formatMoney(Math.round(Number(listing.price || 0) * (1 - discountPercent / 100)))}
+                          {formatMoney(discountedListingRate(listing.price, discountPercent))}
                         </span>
                         {discountPercent > 0 ? (
                           <span className="block text-xs text-[var(--wh-text-muted)]">

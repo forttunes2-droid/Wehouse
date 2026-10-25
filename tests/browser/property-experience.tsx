@@ -25,6 +25,7 @@ function Fixture() {
  const [, setRenders] = useState(0);
  (window as any).__rerenderHotel = () => setRenders(value => value + 1);
  const [view, setView] = useState(mode), [id, setId] = useState(mode === 'long' ? 'long-home' : 'short-home');
+ (window as any).__openListing = (value: string) => { setId(value); setView('listing'); };
  const [savedIds, setSavedIds] = useState(new Set(['short-home', 'long-home', 'unavailable-home']));
  const [conversationId, setConversationId] = useState('');
  const navigate = (page: string, record?: string) => {
