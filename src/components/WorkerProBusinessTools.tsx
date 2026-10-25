@@ -37,7 +37,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
   const [reminderAt, setReminderAt] = useState('');
   const [reminderNote, setReminderNote] = useState('');
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
-  const alerted = useRef(new Set<string>());
+  const mutating=useRef(false);
   const load = useCallback(async () => {
     setLoading(true);
     let data: Book | null = null;
@@ -59,31 +59,21 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load, profile.user_id]);
-  useEffect(() => {
-    const showDue = () => {
-      for (const reminder of book.reminders) {
-        if (!reminder.done_at && new Date(reminder.due_at).getTime() <= Date.now() && !alerted.current.has(reminder.id)) {
-          alerted.current.add(reminder.id);
-          toast.message('Work reminder', { description: reminder.note });
-        }
-      }
-    };
-    showDue();
-    const timer = window.setInterval(showDue, 60_000);
-    return () => window.clearInterval(timer);
-  }, [book.reminders]);
   async function write(name: string, args: Record<string, unknown>, success: string) {
-    if (busy) return false;
-    setBusy(true);
+    if (mutating.current) return false;
+    mutating.current=true;setBusy(true);
     try {
       const result = await supabase.rpc(name, args);
       if (result.error) throw result.error;
+      const identifierReceipt=['save_my_worker_pro_reminder','save_my_worker_pro_package'].includes(name);
+      if(identifierReceipt?typeof result.data!=='string'||!result.data.trim():result.data!==true)
+        throw new Error('The saved result could not be confirmed. Refresh your business tools before trying again.');
       toast.success(success); await load();
       return true;
     } catch (failure) {
       toast.error(failure instanceof Error ? failure.message : 'Could not save. Try again.');
       return false;
-    } finally { setBusy(false); }
+    } finally { mutating.current=false;setBusy(false); }
   }
   function editPackage(pkg: Package) {
     setEditingPackage(pkg.id); setTitle(pkg.title); setDescription(pkg.description); setPrice(String(pkg.price_ngn));
@@ -122,7 +112,7 @@ export default function WorkerProBusinessTools({ profile }: { profile: Profile }
       <div role="alert" className={card}>Business tools could not load. <button type="button" onClick={() => void load()} className="ml-2 underline">Try again</button></div> : <>
       {tab==='costs' && <WorkerProJobCosts key={profile.user_id} />}
       {tab==='schedule' && <div className="space-y-4">
-        <div className={card}><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-semibold">Upcoming work</h3><button type="button" disabled={!book.schedule.length} onClick={()=>downloadCalendar(book.schedule.map(job=>({id:`worker-${job.id}`,title:`${job.service_type || 'Service job'} · #${job.booking_code || job.id.slice(0,8)}`,start:job.scheduled_date})),'wehouse-work-calendar.ics')} className="min-h-11 rounded-xl border px-3 text-sm disabled:opacity-40">Export calendar</button></div><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Confirmed jobs use their existing scheduled date. Reminders appear while this business-tools screen is open. They are not background, email or push notifications.</p>
+        <div className={card}><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-semibold">Upcoming work</h3><button type="button" disabled={!book.schedule.length} onClick={()=>downloadCalendar(book.schedule.map(job=>({id:`worker-${job.id}`,title:`${job.service_type || 'Service job'} · #${job.booking_code || job.id.slice(0,8)}`,start:job.scheduled_date})),'wehouse-work-calendar.ics')} className="min-h-11 rounded-xl border px-3 text-sm disabled:opacity-40">Export calendar</button></div><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Confirmed jobs use their existing scheduled date. Saved reminders appear in Activity when due, even when this screen is closed. Phone alerts depend on your notification settings and delivery availability.</p>
           {book.schedule.length ? <div className="mt-3 divide-y divide-[var(--wh-border-subtle)]">{book.schedule.map(job => <div key={job.id} className="py-3 text-sm"><strong>{job.service_type || 'Service job'} · #{job.booking_code || job.id.slice(0,8)}</strong><p className="text-[var(--wh-text-secondary)]">{job.customer_name} · {label(job.scheduled_date)} · {job.status.replaceAll('_',' ')}</p></div>)}</div> : <p className="mt-4 text-sm text-[var(--wh-text-secondary)]">No scheduled jobs in this period.</p>}</div>
         <form onSubmit={event => { event.preventDefault(); if (!Number.isFinite(new Date(reminderAt).getTime())) return; void write('save_my_worker_pro_reminder',{p_booking_id:reminderJob,p_due_at:new Date(reminderAt).toISOString(),p_note:reminderNote,p_done:false},'Reminder saved').then(saved=>{ if (saved) { setReminderAt(''); setReminderNote(''); } }); }} className={card}>
           <h3 className="text-base font-semibold">Set a work reminder</h3><div className="mt-3 grid gap-3">

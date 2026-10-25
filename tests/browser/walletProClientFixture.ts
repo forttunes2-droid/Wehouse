@@ -1,5 +1,5 @@
 const mode = new URLSearchParams(location.search).get('mode') || 'worker';
-const state = { mode, recover: false, failActivity:false, rpcCalls: [] as Array<{ name: string; args: any }>, queries: [] as any[], invokeCalls: [] as any[] };
+const state = { mode, recover: false, failActivity:false, failReminderReceipt:false, rpcCalls: [] as Array<{ name: string; args: any }>, queries: [] as any[], invokeCalls: [] as any[] };
 let propertyReview:any=null;
 let experienceSessionRows:any[]=[];
 const activityPhotoRows:any[]=(mode.includes('photo-review')||mode.includes('approval-'))?[{id:'10000000-0000-4000-8000-000000000002',activity_id:'10100000-0000-4000-8000-000000000091',revision:2,object_path:'10100000-0000-4000-8000-000000000091/10000000-0000-4000-8000-000000000002.jpg',byte_size:9,caption:'Guided orientation route',context_current:true,status:mode.includes('approval-')?'approved':'submitted'}]:[];
@@ -7,6 +7,7 @@ let activityEvidence:any={configured:mode.includes('approval-')||mode.includes('
 let hotelDiscountRows:any[]=[];
 let hostControlsAccepting=true;let hostControlsPrice=25000;
 let refundResolved=false;let hotelCancelled=false;
+let reminderDone=false;
 let privateCallStatus=mode==='private-call-media'?'accepted':'ringing';
 const privateCall=()=>({id:'10100000-0000-4000-8000-000000000081',context_type:'roommate',context_id:'10100000-0000-4000-8000-000000000082',caller_id:'call-peer',callee_id:'wallet-qa-owner',call_type:'audio',status:privateCallStatus,created_at:now,peer_name:'Call test member',incoming:true});
 (window as any).__walletPro = state;
@@ -430,10 +431,11 @@ export const supabase: any = {
     if (name === 'get_my_worker_pro') {
       if (mode === 'worker-pro-timeout' && !state.recover) return never();
       if (mode === 'worker-pro-rejected' && !state.recover) throw new Error('Synthetic worker plan failure');
-      return { data: { ...plan, active: mode === 'worker-pro-active', provider: 'paystack', features: [], plans: [] }, error: null };
+      return { data: { ...plan, active: ['worker-pro-active','worker-pro-reminder'].includes(mode), provider: 'paystack', features: [], plans: [] }, error: null };
     }
     if (name === 'get_my_worker_work_insights') return { data: { completed_jobs: 1, released_earnings_ngn: 25000, active_jobs: 1, review_count: 0, repeat_customers: 0, worker_cancelled_jobs: 0, definitions: {}, generated_at: now }, error: null };
-    if (name === 'get_my_worker_pro_business') return { data: { schedule: [], customers: [], packages: [], reminders: [], receipts: [] }, error: null };
+    if(name==='save_my_worker_pro_reminder'&&mode==='worker-pro-reminder'){if(state.failReminderReceipt)return{data:null,error:null};reminderDone=args.p_done===true;return{data:'reminder-id',error:null};}
+    if (name === 'get_my_worker_pro_business') return { data: { schedule: [], customers: [], packages: [], reminders: mode==='worker-pro-reminder'?[{id:'reminder-id',booking_id:'reminder-booking',note:'Bring the supplies',due_at:now,done_at:reminderDone?now:null}]:[], receipts: [] }, error: null };
     if (name === 'get_my_worker_pro_job_costs') return { data: [{ id: '10100000-0000-4000-8000-000000000051', booking_code: 'JOB-51', service_type: 'Cleaning', scheduled_date: '2026-10-19', status: 'approved_released', released_earnings_ngn: 25000, cost_ngn: cost, note: 'Materials' }], error: null };
     if (name === 'save_my_worker_pro_job_cost') {
       if (!('p_amount' in args)) throw new Error('Cost RPC parameter does not match the database');

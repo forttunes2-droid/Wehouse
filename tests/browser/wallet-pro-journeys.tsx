@@ -55,7 +55,7 @@ const mode = new URLSearchParams(location.search).get('mode') || 'worker';
 const profile = { user_id: 'wallet-qa-owner', email: 'wallet-owner@example.invalid', role: 'worker' } as Profile;
 function WorkerTools() {
   const pro = useWorkerPro(profile.user_id);
-  return <WorkerProPanel profile={profile} pro={pro.pro} loading={pro.loading} error={pro.error} onRefresh={pro.refresh} />;
+  return <WorkerProPanel profile={profile} pro={pro.pro} loading={pro.loading} error={pro.error} onRefresh={pro.refresh} initialBusinessTools={mode==='worker-pro-reminder'} />;
 }
 function PriceControls() {
   const [min, setMin] = useState<number | ''>(2000);

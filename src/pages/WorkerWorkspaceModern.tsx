@@ -78,6 +78,7 @@ function WorkerWorkspaceContent({
   const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
   const [experienceTarget,setExperienceTarget]=useState<{id:string;sequence:number}|null>(null);
+  const [reminderTarget,setReminderTarget]=useState<string|null>(null);
   const [accountView, setAccountView] = useState<
     "account" | "profile" | "paid_tools" | "sponsored"
   >("account");
@@ -104,6 +105,7 @@ function WorkerWorkspaceContent({
       setExperienceTarget({id,sequence:Date.now()});setConversation(null);setTab('experiences');return;
     }
     if (route === "worker_paid_tools") {
+      setReminderTarget(id||null);
       setConversation(null);
       setAccountView("paid_tools");
       setTab("account");
@@ -136,8 +138,10 @@ function WorkerWorkspaceContent({
     if (accountView === "paid_tools")
       return (
         <ServiceProviderPaidToolsAccount
+          key={reminderTarget||'paid-tools'}
           profile={profile}
-          onBack={() => setAccountView("account")}
+          initialBusinessTools={Boolean(reminderTarget)}
+          onBack={() => {setReminderTarget(null);setAccountView("account");}}
         />
       );
     if (accountView === "sponsored")
@@ -298,9 +302,11 @@ function ApplicantInbox({profile,unread,onNavigate,onUnreadChange}:{
 function ServiceProviderPaidToolsAccount({
   profile,
   onBack,
+  initialBusinessTools=false,
 }: {
   profile: Profile;
   onBack: () => void;
+  initialBusinessTools?:boolean;
 }) {
   const workerPro = useWorkerPro(profile.user_id);
   return (
@@ -311,6 +317,7 @@ function ServiceProviderPaidToolsAccount({
       onBack={onBack}
     >
       <WorkerProPanel
+        initialBusinessTools={initialBusinessTools}
         profile={profile}
         pro={workerPro.pro}
         loading={workerPro.loading}

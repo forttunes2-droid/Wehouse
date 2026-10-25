@@ -15,9 +15,10 @@ type Props = {
   error: string;
   onRefresh: () => Promise<void>;
   profile: Profile;
+  initialBusinessTools?: boolean;
 };
 
-export default function WorkerProPanel({ pro, loading, error, onRefresh, profile }: Props) {
+export default function WorkerProPanel({ pro, loading, error, onRefresh, profile, initialBusinessTools=false }: Props) {
   const [busy, setBusy] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<WorkerProBillingPeriod>('monthly');
@@ -116,7 +117,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
 
   // Ownership of existing records does not end with the subscription. Unknown
   // entitlement permits read/export only; all writes stay server-authorised.
-  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} />;
+  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} initialBusinessTools={initialBusinessTools} />;
   if (loading) return <div className="space-y-4"><State text="Loading WeHouse Pro…" />{tools}</div>;
   if (error || !pro) return <div className="space-y-4"><State text={error || 'WeHouse Pro is unavailable'} retry={onRefresh} />{tools}</div>;
   const storeName = isIOS() ? 'App Store' : isAndroid() ? 'Google Play' : 'Paystack';

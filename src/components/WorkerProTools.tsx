@@ -33,8 +33,8 @@ const EMPTY_LINE: DraftLine = {
   unitPrice: "",
 };
 
-export default function WorkerProTools({ profile, canUsePaidTools }: { profile: Profile; canUsePaidTools: boolean }) {
-  const [view, setView] = useState<"insights" | "documents" | "business">("insights");
+export default function WorkerProTools({ profile, canUsePaidTools, initialBusinessTools=false }: { profile: Profile; canUsePaidTools: boolean; initialBusinessTools?:boolean }) {
+  const [view, setView] = useState<"insights" | "documents" | "business">(initialBusinessTools?"business":"insights");
   return (
     <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
       {canUsePaidTools && <div className="flex flex-wrap gap-2" role="group" aria-label="Paid Worker tools">

@@ -721,6 +721,25 @@ try {
     await page.evaluate(()=>{window.__walletPro.recover=true});await page.getByRole('button',{name:'Find person',exact:true}).click();
     await page.getByLabel('Confirm Friend request',{exact:true}).waitFor();results.push('Friend lookup error recovers');await page.close();
   } else {
+  for(const theme of ['light','dark']) {
+    const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(base+'/?mode=worker-pro-reminder');
+    await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
+    await page.getByRole('heading',{name:'Set a work reminder',exact:true}).waitFor();
+    await page.getByText('Bring the supplies',{exact:true}).waitFor();
+    await page.getByText(/Saved reminders appear in Activity when due/).waitFor();
+    await page.evaluate(()=>{window.__walletPro.failReminderReceipt=true;});
+    await page.getByRole('button',{name:'Mark done',exact:true}).click();
+    await page.getByText('The saved result could not be confirmed. Refresh your business tools before trying again.',{exact:true}).waitFor();
+    assert.equal(await page.getByText('Bring the supplies',{exact:true}).count(),1);
+    assert.equal(await page.getByText('Reminder completed',{exact:true}).count(),0);
+    await page.evaluate(()=>{window.__walletPro.failReminderReceipt=false;});
+    await page.getByRole('button',{name:'Mark done',exact:true}).click();
+    await page.getByText('Reminder completed',{exact:true}).waitFor();
+    assert.equal(await page.getByText('Bring the supplies',{exact:true}).count(),0);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
+    results.push('Work reminder opens business tools and completes '+theme);await page.close();
+  }
   for(const mode of ['host-arrival-short-error','host-arrival-long-error','host-arrival-short-malformed','host-arrival-long-malformed']) {
     const page=await browser.newPage();await page.goto(base+'/?mode='+mode);await page.getByLabel('Guest booking code',{exact:true}).fill('TESTCODE');
     const confirm=page.getByRole('button',{name:'Confirm',exact:true});await confirm.click();await page.getByText('Synthetic arrival failure',{exact:true}).waitFor();

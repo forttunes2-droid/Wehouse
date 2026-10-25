@@ -65,6 +65,12 @@ Activity item. Existing non-Friend live listeners still need two-device evidence
 
 ### 25 October: restore skipped browser checks and cover FK lookups
 
+Exact-SHA `eb28d8c1` verification completed: build, structural regression,
+all browser workflow jobs, fresh migration replay, existing-account upgrade,
+Stage 1, disposable medium catalog and mixed journeys passed. Hosted Test
+catalog capacity still failed; none of these passes close the whole-product
+capacity or unfinished feature gates.
+
 The `d0cf0e81` Wallet/Pro browser job failed before its first screen because a
 relative import from the new Friend live helper bypassed the test's enumerated
 client substitutes. Resolve the canonical client path instead of enumerating
@@ -92,6 +98,27 @@ that 200 RPS is a dependable current limit. Provider logs for 07:06–07:08 UTC
 contain 3,722 matching catalog responses, all HTTP 200, with approximately 901 ms
 origin-time p95; they do not account for every attempted request and do not
 identify the transport/API/database bottleneck. The failure remains open.
+
+### 25 October: durable custom work reminders
+
+Test migration `20261025083745_deliver_worker_pro_reminders` stores delivery
+revision/time in the existing reminder row, dispatches up to 200 due rows per
+minute with row locks and `SKIP LOCKED`, and creates one canonical Activity
+event/audience per revision. No competing notification table is introduced.
+Reminder notes remain in the private worker Activity; native push uses the
+existing generic payload, preference/session checks and queue. Credentials and
+actual signed-device delivery remain separate activation/verification gates.
+
+Identical save retries retain the revision; rescheduling resolves the old alert,
+completion resolves its action, and leaving an eligible job status closes its
+unfinished reminders. Future, done, suspended/banned/deleted-account reminders
+are not dispatched. The private dispatcher is unavailable to ordinary clients.
+The rollback SQL contract passes on Test. Browser checks cover direct business
+tools entry, both themes, completion and a malformed save receipt with recovery.
+The former screen-only toast timer is removed; business writes require receipts
+and reject overlapping taps. Local evidence: 747 regression tests, production
+build, focused lint, 85 Wallet/Pro browser scenarios and 18 focused management/
+reminder scenarios. Exact-SHA fresh/upgrade and browser CI remain required.
 
 ### 25 October: prevent duplicate browser feed work
 
@@ -2220,7 +2247,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Area | Item | Status |
 |---|---|---|
 | Payments | Canonical wallet, withdrawal receipts and payout-account recovery | Test schema/RPC repairs applied; shared Worker/Partner withdrawal intent and activity model implemented. Isolated browser checks passed; real provider settlement remains unverified. Payout-account recovery now retains its reference across reloads, checks once a minute, distinguishes load errors and opens support with request/workspace context. Internal finance reads fail visibly and uncertain actions reload authoritative state. Isolated browser checks pass; Test payout-account v5 now bounds provider requests/whole paginated lookup to 12 seconds, preserving unknown outcomes without a repeated recipient POST; deployed file parity and JWT checks pass. Real provider reconciliation, actual support resolution and secure bank replacement remain gates |
-| Paid tools | Worker and Partner Pro contracts and practical features | Worker has twelve described workflows; Partner has fourteen paid workflows after removing essential guest arrival instructions from Pro, including property operating costs, recorded margin, export and retained void/correction history. New costs use current entitlement/ownership checks, idempotent records, 50-row keyset pages and explicit NGN/UTC reporting; mixed currencies suppress income/margin. Test SQL and isolated browser journeys pass. Research baseline: Jobber scheduling/customer/quote/invoice/cost workflows and Guesty portfolio/operations/reporting. Willingness to pay is not established by a feature count. Worker custom reminders currently alert only while the business-tools screen is open; durable delivery remains internal work, alongside billing/recovery and real-user value verification |
+| Paid tools | Worker and Partner Pro contracts and practical features | Worker has twelve described workflows; Partner has fourteen paid workflows after removing essential guest arrival instructions from Pro, including property operating costs, recorded margin, export and retained void/correction history. New costs use current entitlement/ownership checks, idempotent records, 50-row keyset pages and explicit NGN/UTC reporting; mixed currencies suppress income/margin. Test SQL and isolated browser journeys pass. Research baseline: Jobber scheduling/customer/quote/invoice/cost workflows and Guesty portfolio/operations/reporting. Willingness to pay is not established by a feature count. Custom work reminders now use a bounded, locked server dispatcher and canonical Activity, with reschedule/completion/cancellation resolution and deduplicated revision delivery. Test SQL and both-theme UI recovery checks pass; exact-SHA rollout, phone delivery, billing/recovery and real-user value verification remain gates |
 | Product quality | All-role control, layout, wording and theme review | Active: Partner, Worker, Creator/Admin/Staff, personal journeys, search/discovery/maps and hotel/listing controls. Verify actionable totals, loading/errors, keyboard access, responsive widths and both themes; record remaining defects here |
 | Operations | Creator can operate launch without employees | Active review: prove access to every mandatory queue/action under Creator permissions, audit sensitive actions and preserve scoped roles for later hires |
 | Security | Hotel data exposure fix | Done |

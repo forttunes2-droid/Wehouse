@@ -32,6 +32,16 @@ const event = (id, minutesAgo, extra = {}) => ({
 });
 const ids = rows => Array.from(currentActivityRows(rows, now), row => row.id);
 
+test('a due work reminder stays actionable and opens business tools with its booking context',()=>{
+ const row={id:'reminder-activity',type:'worker.reminder.due',source_type:'worker_pro_reminder',source_id:'reminder-1',
+  destination_route:'worker_paid_tools',destination_params:{reminder_id:'reminder-1',booking_id:'job-1'},
+  created_at:at(10),read:false,action_required:true,workspace:'worker'};
+ assert.deepEqual(ids([row]),['reminder-activity']);
+ const destination=resolveActivityDestination(row);assert.equal(destination.route,'worker_paid_tools');assert.equal(destination.id,'job-1');
+ assert.equal(exports.activityNeedsAction(row),true);
+ assert.equal(exports.activityNeedsAction({...row,resolved_at:at(1)}),false);
+});
+
 test('support case routing follows the selected workspace rather than profile role',()=>{
  for(const scope of ['creator','admin','staff','property_operations','field_operations','worker_operations','finance_operations','security_operations','support'])assert.equal(workspaceExports.isInternalActivityWorkspace(scope),true);
  for(const scope of ['personal','account','worker','partner','property_partner','hotel'])assert.equal(workspaceExports.isInternalActivityWorkspace(scope),false);

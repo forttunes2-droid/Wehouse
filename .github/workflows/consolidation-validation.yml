@@ -229,6 +229,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
       - name: Verify account, booking, notification and audit FK lookup coverage
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/readiness_fk_index_contract.sql
+      - name: Verify durable Pro reminders, revisions and job cancellation
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_pro_reminder_delivery_contract.sql
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup
