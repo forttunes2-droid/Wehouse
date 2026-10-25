@@ -30,4 +30,24 @@ begin
  perform pg_temp.expect(not has_function_privilege('anon','public.set_my_long_let_rent_terms(uuid,integer,integer[],boolean)','EXECUTE'),'anonymous account cannot edit Partner terms');
 end $$;
 select 'Accepted Long Let term, monthly/full schedule, exact totals and calendar checks passed' as result;
+do $$
+declare q jsonb;p jsonb;partner jsonb;i integer;tenant_total numeric;partner_total numeric;platform_total numeric;
+begin
+ -- A tiny configured rate with a funded promotion exposes independent-rounding
+ -- errors: no payment may require a negative platform share or overpay cash.
+ q:=private.allocate_long_let_payment_splits(100.08,100.08,100.07,12,'monthly',0.01);
+ tenant_total:=0;partner_total:=0;platform_total:=0;
+ for i in 0..11 loop
+  p:=q->'rent_schedule'->'payments'->i;partner:=q->'partner_schedule'->'payments'->i;
+  if (p->>'amount')::numeric<>(partner->>'net_amount')::numeric+(partner->>'wehouse_amount')::numeric
+   or (partner->>'net_amount')::numeric<0 or (partner->>'wehouse_amount')::numeric<0
+   or (partner->>'promotion_amount')::numeric<0 then raise exception 'FAIL: unbalanced monthly allocation';end if;
+  tenant_total:=tenant_total+(p->>'amount')::numeric;
+  partner_total:=partner_total+(partner->>'net_amount')::numeric;
+  platform_total:=platform_total+(partner->>'wehouse_amount')::numeric;
+ end loop;
+ if tenant_total<>100.07 or partner_total<>100.07 or platform_total<>0 then raise exception 'FAIL: funded monthly pennies were lost';end if;
+ q:=private.allocate_long_let_payment_splits(1200000.07,1200000.07,1140000.07,24,'monthly',10);
+ if (select sum((item->>'amount')::numeric) from jsonb_array_elements(q->'rent_schedule'->'payments') item)<>(q->'rent_schedule'->>'contract_total')::numeric then raise exception 'FAIL: multi-year allocation changed contract total';end if;
+end $$;
 rollback;

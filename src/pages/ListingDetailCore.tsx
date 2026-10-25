@@ -1467,7 +1467,7 @@ export function ReservationPanel({
         <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">A viewing is optional. Request a visit before paying rent, or continue if you are satisfied with the home. Your reservation fee is not rent.</p>
         <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-12 w-full rounded-xl bg-violet-600 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Sending request?' : 'Request a viewing'}</button>
       </>}
-      {(journey.action === 'choose_inspection_or_rent' || journey.action === 'rent_payment') && <button type="button" disabled={busy} onClick={onOpenBooking} className="mt-3 min-h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold disabled:opacity-50">{busy ? 'Opening secure payment?' : 'Review Year 1 rent payment'}</button>}
+      {(journey.action === 'choose_inspection_or_rent' || journey.action === 'rent_payment') && <button type="button" disabled={busy} onClick={onOpenBooking} className="mt-3 min-h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold disabled:opacity-50">{busy ? 'Opening booking…' : 'Review rental agreement and payment'}</button>}
       {journey.action !== 'reservation_payment' && <button type="button" onClick={onOpenBooking} className="mt-3 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold">Open booking details</button>}
       <button type="button" onClick={onSupport} className="mt-2 min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">Message WeHouse about this booking</button>
     </div>

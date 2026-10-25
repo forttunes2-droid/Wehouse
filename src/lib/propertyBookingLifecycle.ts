@@ -220,13 +220,13 @@ export function getPropertyBookingJourney(
       : rentStatus !== "not_started" || rentPaid || status === "ready_for_move_in" || status === "occupied" || status === "completed"
         ? complete("Property viewing", "Not requested · customer continued directly to rent.", true)
         : feePaid
-          ? current("Choose next step", "Request a viewing, or continue directly to Year 1 rent.")
+          ? current("Choose next step", "Request a viewing, or review your rental agreement and payment.")
           : upcoming("Choose next step", "Available after the reservation fee.");
   const rentStep = rentPaid
-    ? complete("Year 1 rent", "Required move-in rent is confirmed.")
+    ? complete("Rent payment", "The agreed payment before handover is confirmed.")
     : action === "rent_payment"
-      ? current("Year 1 rent", rentStatus === "payment_pending" ? "Secure checkout started; payment is not confirmed yet." : "The required Year 1 rent is ready for payment.")
-      : upcoming("Year 1 rent", inspectionActive ? "Available after the requested viewing is completed." : "Required before handover.");
+      ? current("Rent payment", rentStatus === "payment_pending" ? "Secure checkout started; payment is not confirmed yet." : "Review the agreed rent amount before paying.")
+      : upcoming("Rent payment", inspectionActive ? "Available after the requested viewing is completed." : "The agreed amount is required before handover.");
   const operations = audience === "operations";
   const handoverStep = status === "occupied" || status === "completed"
     ? complete("Property handover", "Booking code verified and access handed over.")
@@ -243,7 +243,7 @@ export function getPropertyBookingJourney(
             ? operations
               ? "No action yet · wait for the customer to choose a move-in time."
               : "Available after you choose a move-in time."
-            : "Available after Year 1 rent is confirmed.",
+            : "Available after the agreed rent payment is confirmed.",
         );
   const arrivalStep = status === "occupied" || status === "completed"
     ? complete(
@@ -262,7 +262,7 @@ export function getPropertyBookingJourney(
               ? "No move-in time has been submitted. Operations has no handover action yet."
               : `Choose when you can meet ${arrivalHandler} within the next 3 days.`,
           )
-        : upcoming("Move-in time", "Available after Year 1 rent is confirmed.");
+        : upcoming("Move-in time", "Available after the agreed rent payment is confirmed.");
   const tenancyStep = status === "completed"
     ? complete("Tenancy", "Tenancy completed.")
     : status === "occupied"
@@ -291,7 +291,7 @@ export function propertyBookingStatusLabel(
 
   if (status === "ready_for_move_in") {
     if (shortStay) return rentPaid ? "Stay confirmed" : "Stay payment required";
-    if (!rentPaid) return "Year 1 rent required";
+    if (!rentPaid) return "Agreed rent payment required";
     return row.requested_move_in_at
       ? "Move-in scheduled"
       : audience === "operations"
@@ -324,23 +324,23 @@ function longStayCopy(
   };
   if (action === "choose_inspection_or_rent") return {
     title: operations ? "Customer is choosing the next step" : "Choose what happens next",
-    detail: operations ? "The property is reserved. The customer can request a Field Operations viewing or continue directly to Year 1 rent." : "Request a viewing first, or continue directly to Year 1 rent if you are satisfied with it.",
+    detail: operations ? "The property is reserved. The customer can request a Field Operations viewing or review their rental agreement and payment." : "Request a viewing first, or review your rental agreement and payment if you are satisfied with the home.",
   };
   if (action === "inspection") return {
     title: operations ? "Complete the requested viewing" : "Your viewing is being arranged",
     detail: operations ? `Continue the assigned Field Operations visit (${inspectionStatus || "pending"}). Rent remains blocked until the viewing finishes.` : "WeHouse will update this booking when the assigned Field Operations visit is completed. You do not need to pay rent while it is in progress.",
   };
   if (action === "rent_payment") return {
-    title: operations ? "Waiting for verified Year 1 rent" : rentStatus === "payment_pending" ? "Finish Year 1 rent payment" : "Pay the required Year 1 rent",
-    detail: operations ? "Do not hand over access until the payment is verified and the booking becomes ready for move-in." : `Year 1 rent is required before ${arrivalHandler} can hand over the apartment.`,
+    title: operations ? "Waiting for verified rent payment" : rentStatus === "payment_pending" ? "Finish rent payment" : "Pay the agreed rent amount",
+    detail: operations ? "Do not hand over access until the payment is verified and the booking becomes ready for move-in." : `The payment in your rental agreement is required before ${arrivalHandler} can hand over the home.`,
   };
   if (action === "move_in_request") return {
     title: operations ? "Waiting for the customer’s move-in time" : "Choose your move-in time",
-    detail: operations ? "Year 1 rent is verified. The customer must choose an arrival time before handover can be confirmed." : `Your rent is confirmed, but your tenancy has not started. Choose a time within the next 3 days to meet ${arrivalHandler} for handover.`,
+    detail: operations ? "The agreed rent payment is verified. The customer must choose an arrival time before handover can be confirmed." : `Your required rent payment is confirmed, but your tenancy has not started. Choose a time within the next 3 days to meet ${arrivalHandler} for handover.`,
   };
   if (action === "handover") return {
     title: operations ? "Verify code and hand over access" : "Move-in requested · awaiting handover",
-    detail: operations ? "Match the move-in code, customer, property, verified rent and requested time before handing over access and activating the tenancy." : `Your rent is paid, but your tenancy starts only when ${arrivalHandler} hands over access and verifies your move-in code.`,
+    detail: operations ? "Match the move-in code, customer, property, verified rent and requested time before handing over access and activating the tenancy." : `Your required rent payment is confirmed. Your tenancy starts when ${arrivalHandler} hands over access and verifies your move-in code.`,
   };
   if (action === "tenancy") return {
     title: "Tenancy active",

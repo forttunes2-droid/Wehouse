@@ -75,10 +75,32 @@ monthly amounts, allocating every minor unit and anchoring calendar dates to
 verified handover. Both rolled-back SQL contracts passed on Test: schedule sums,
 leap/month-end dates, owner access in both management modes, denial for Operations
 co-hosts/outsiders, idempotent saves and stale-update rejection. Partner controls
-are integrated into property details; the production build and light/dark
-browser receipt-failure/recovery checks pass. Tenant agreement acceptance,
-checkout, scheduled payment collection and settlement integration are the next
-connected steps, not completed by the offer control alone.
+are integrated into property details.
+
+Follow-through migrations `20261025141438`, `20261025141825`, `20261025142434`
+and `20261025145336` connect the offer to reviewed tenant acceptance, immutable
+checkout terms, protected first payment and actual-handover schedule anchoring.
+Test's rolled-back signed-role contract passes three-month full-term checkout
+and one-year monthly initial checkout through the canonical verified-charge
+ledger, then handover and eleven dated later obligations. Full-term payment
+creates no unpaid future plan. The accepted three-month term ends in three
+months, rather than becoming a one-year tenancy. Allocated Partner, WeHouse and
+funded-promotion amounts preserve every minor unit and avoid negative shares.
+
+The null handling in the existing arrival guard was repaired without allowing
+unpaid handover; the existing negative handover contract passes. The unused
+legacy rent-plan cancellation RPC was revoked because it recorded claimed
+refund/paid-out amounts without a verified provider refund. Historical records
+are preserved; actual tenancy exit and refunds use booking Help/Finance review.
+
+The customer agreement is connected inside My Bookings. Payment stays blocked
+while terms differ, a quote is under review or acceptance is unconfirmed.
+Wording now describes the agreed required rent payment instead of calling every
+term a Year 1 payment. Partner and customer light/dark browser checks, malformed
+receipt recovery, production build and 750 regressions pass. Later scheduled
+collection and provider split/settlement reconciliation remain active internal
+integration work. The initial-payment contract is not proof that the later
+monthly payments or real Paystack settlement already work.
 
 ### 25 October: Friend reaction delivery and polling investigation
 

@@ -72,11 +72,11 @@ try {
       const page=await browser.newPage({viewport:{width:390,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/?mode=viewing-journey-'+state);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       await page.getByText('Reservation fee',{exact:true}).last().waitFor();
       assert.equal(await page.getByRole('button',{name:'Request a viewing',exact:true}).count(),state==='reserved'?1:0);
-      assert.equal(await page.getByRole('button',{name:'Review Year 1 rent payment',exact:true}).count(),['reserved','completed'].includes(state)?1:0);
+      assert.equal(await page.getByRole('button',{name:'Review rental agreement and payment',exact:true}).count(),['reserved','completed'].includes(state)?1:0);
       if(state==='scheduled')await page.getByText('Viewing scheduled: 1 Nov 2026',{exact:true}).waitFor();
       if(state==='unprotected')await page.getByRole('heading',{name:'Payment needs WeHouse review'}).waitFor();
       if(state==='reserved'){await page.getByRole('button',{name:'Request a viewing',exact:true}).click();assert.equal(await page.evaluate(()=>window.__viewingAction),'viewing');}
-      if(state==='completed'){await page.getByRole('button',{name:'Review Year 1 rent payment',exact:true}).click();assert.equal(await page.evaluate(()=>window.__viewingAction),'booking');}
+      if(state==='completed'){await page.getByRole('button',{name:'Review rental agreement and payment',exact:true}).click();assert.equal(await page.evaluate(()=>window.__viewingAction),'booking');}
       assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/viewing-'+state+'-'+theme+'.png',fullPage:true});results.push(state+' '+theme);await page.close();
     }
   }else if(process.argv.includes('--share-journeys-only')){

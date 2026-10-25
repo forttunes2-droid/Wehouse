@@ -1,4 +1,6 @@
 import PropertyBookingReview from '@/components/PropertyBookingReview';
+import LongLetBookingAgreement from '@/components/LongLetBookingAgreement';
+import { rentTermLabel } from '@/lib/longLetRentTerms';
 import ShortLetPaymentSummary from "@/components/ShortLetPaymentSummary";
 import { createBookingActionRunner } from "@/lib/bookingActionRunner";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -523,7 +525,7 @@ export default function MyReservations({
         toast.success(
           row.stay_type === "short_let"
             ? "Stay payment confirmed"
-            : "Year 1 rent confirmed",
+            : "Rent payment confirmed",
         );
         await load(true);
         return;
@@ -550,7 +552,7 @@ export default function MyReservations({
       toast.success(
         row.stay_type === "short_let"
           ? "Stay payment already confirmed"
-          : "Year 1 rent already confirmed",
+          : "Rent payment already confirmed",
       );
       await load();
       return;
@@ -759,8 +761,10 @@ export default function MyReservations({
     return (
       <>
         <PropertyBookingDetail
+          key={`${profile.user_id}:${activeHousing.id}`}
           row={activeHousing}
           userId={profile.user_id}
+          onTermsSaved={()=>void load(true)}
           onShareCreated={group=>{setActiveHousing((current:any)=>current?{...current,shared_payment_group_id:group.id}:current);setActiveShared(group.id);void load(true);}}
           onOpenShared={id=>setActiveShared(id)}
           inspection={
@@ -1257,10 +1261,10 @@ function HousingCard({ row, onOpen, compact = false }: { row: any; onOpen: () =>
           ? row.rent_payment_status === "payment_pending"
             ? short
               ? "Finish stay payment"
-              : "Finish Year 1 rent payment"
+              : "Finish rent payment"
             : short
               ? "Pay for your stay"
-              : "Choose a viewing or Year 1 rent"
+              : "Choose a viewing or review rental terms"
           : row.status === "inspection_pending"
             ? "Your viewing request is being arranged"
             : row.status === "ready_for_move_in" && rentPaid
@@ -1403,6 +1407,7 @@ function formatStayTime(value: unknown, fallback: string) {
 function PropertyBookingDetail({
   row,
   userId,
+  onTermsSaved,
   onShareCreated,
   onOpenShared,
   inspection,
@@ -1419,6 +1424,7 @@ function PropertyBookingDetail({
 }: {
   row: any;
   userId: string;
+  onTermsSaved:()=>void;
   onShareCreated:(group:SharedHousingGroup)=>void;
   onOpenShared:(id:string)=>void;
   inspection: any;
@@ -1435,6 +1441,7 @@ function PropertyBookingDetail({
 }) {
   const money=(value:unknown)=>formatRecordedMoney(value,row.currency);
   const short = row.stay_type === "short_let";
+  const [agreementReady,setAgreementReady]=useState(Boolean(short||row.shared_payment_group_id||row.rent_terms_snapshot));
   const status = propertyBookingStatusLabel(row);
   const title =
     row.status === "occupied"
@@ -1557,11 +1564,11 @@ function PropertyBookingDetail({
               <>
                 <Info
                   label="Tenure"
-                  value={`${Number(row.rental_plan_years || 1)} year${
+                  value={row.lease_term_months?rentTermLabel(Number(row.lease_term_months)):`${Number(row.rental_plan_years || 1)} year${
                     Number(row.rental_plan_years || 1) === 1 ? "" : "s"
                   }`}
                 />
-                <Info label="Year 1 rent" value={money(rentAmount)} />
+                <Info label="Required rent payment" value={money(rentAmount)} />
               </>
             )}
           </div>
@@ -1583,6 +1590,7 @@ function PropertyBookingDetail({
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
           <PropertyBookingJourney row={row} inspection={inspection} />
+          {!short&&!row.shared_payment_group_id&&!['cancelled','expired','refunded','payment_conflict'].includes(String(row.status))&&<LongLetBookingAgreement reservationId={String(row.id)} customerId={userId} onSaved={onTermsSaved} onCanPayChange={setAgreementReady}/>}
           <ShortLetBookingShares row={row} userId={userId} onCreated={onShareCreated}/>
           {short && row.stay_payment_protection_id && !["cancelled", "completed", "expired"].includes(String(row.status)) && journey.action !== "reservation_payment" ? (
             <button type="button" disabled={busy} onClick={onCancel} className="mt-4 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
@@ -1611,23 +1619,23 @@ function PropertyBookingDetail({
               <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Sending request…" : "Request a viewing"}
               </button>
-              <button type="button" disabled={busy} onClick={onRent} className="mt-2 min-h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.06] text-xs font-semibold text-emerald-300 disabled:opacity-50">
-                {busy ? "Opening secure payment…" : `Proceed with Year 1 rent · ${money(rentAmount)}`}
+              <button type="button" disabled={busy||!agreementReady} onClick={onRent} className="mt-2 min-h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.06] text-xs font-semibold text-emerald-300 disabled:opacity-50">
+                {busy ? "Opening secure payment…" : `Pay agreed rent · ${money(rentAmount)}`}
               </button>
             </section>
           ) : null}
 
           {journey.action === "rent_payment" && !row.shared_payment_group_id ? (
-            <button type="button" disabled={busy || (short && !shortPrice)} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
+            <button type="button" disabled={busy || (short && !shortPrice) || (!short&&!agreementReady)} onClick={onRent} className="mt-5 min-h-12 w-full rounded-xl bg-emerald-500 text-xs font-semibold text-[#03100B] disabled:opacity-50">
               {busy
                 ? "Checking payment…"
                 : row.rent_payment_status === "payment_pending"
                   ? short
                     ? "Check or continue stay payment"
-                    : "Check Year 1 rent payment"
+                    : "Check rent payment"
                   : short
                     ? `Pay ${money(rentAmount)} securely`
-                    : `Pay Year 1 rent · ${money(rentAmount)}`}
+                    : `Pay agreed rent · ${money(rentAmount)}`}
             </button>
           ) : null}
 
