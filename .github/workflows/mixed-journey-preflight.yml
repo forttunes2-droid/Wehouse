@@ -4,6 +4,7 @@ on:
     paths:
       - .github/workflows/mixed-journey-preflight.yml
       - scripts/load-mixed-journeys-local.mjs
+      - scripts/lib/friend-live-probe.mjs
       - supabase/tests/mixed_journey_fixture.sql
       - supabase/migrations/**
       - src/lib/supabase/**

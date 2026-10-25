@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
+import {checkFriendLiveDelivery} from './lib/friend-live-probe.mjs';
 
 // Never accept a hosted URL or a caller-supplied target. This is disposable CI only.
 const status = JSON.parse(execFileSync('npx', ['--yes', 'supabase@2.114.0', 'status', '-o', 'json'], {
@@ -149,9 +150,16 @@ async function stage(rate, seconds, offset) {
     })) };
 }
 
-const report = { scope: 'Disposable local Supabase; 10 synthetic Auth users; HTTP RPCs; no Vercel, media, Realtime sockets or Paystack callback',
+const report = { scope: 'Disposable local Supabase; 10 synthetic Auth users; HTTP RPCs plus a three-session Friend live-signal preflight; no Vercel, media or Paystack callback',
   warning: 'Payment bootstrap creates a pending reference. No provider sandbox charge or verified webhook is exercised.',
   mix: Object.fromEntries(journeys.map(journey => [journey.name, journey.weight])), stages: [] };
+try{report.friend_live_delivery=await checkFriendLiveDelivery(actors);}
+catch(error){
+  report.friend_live_delivery={passed:false,error:String(error.message||error).slice(0,180)};
+  mkdirSync('test-results',{recursive:true});
+  writeFileSync('test-results/mixed-journeys-local.json',JSON.stringify(report,null,2)+'\n');
+  throw error;
+}
 for (const [rate, seconds] of [[5, 30], [10, 30]]) {
   const result = await stage(rate, seconds, report.stages.reduce((sum, item) => sum + item.offered, 0));
   report.stages.push(result);

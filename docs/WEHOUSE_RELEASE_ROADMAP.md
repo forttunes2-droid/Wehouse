@@ -2,6 +2,53 @@
 
 **Status date:** 25 October 2026
 
+## Execution order and release decisions
+
+The open work register below remains the single task inventory. Dated entries
+are implementation history, not current release approval. Use this order to
+close release gates; independent repairs continue while another gate is blocked.
+Small component checks do not close a missing customer/operator journey.
+
+| Order | Outcome required | Closure evidence |
+|---|---|---|
+| 1 | Reconcile the exact PR baseline, migrations and enabled feature boundaries | Fresh/upgrade replay, permission checks and exact-SHA CI; retain failed gates |
+| 2 | Finish enabled money and booking journeys, then the agreed unfinished marketplace flows | Customer and operator success/failure/recovery journeys, inventory races and reconciled sandbox money |
+| 3 | Replace expensive chat fan-out/polling and complete recipient delivery | Authorized live changes, reconnect/block/account-switch checks, unread and notification behavior for each chat type |
+| 4 | Validate the requested 100,000-concurrent-session target | Isolated mixed traffic, 100k connection evidence, sustained/soak/recovery tests, measured resource/cost headroom; see capacity-validation.md |
+| 5 | Close whole-app role, privacy, design and device gaps | Route/control inventory, actual data-rights operations, both themes and signed-device evidence on the reviewed SHA |
+| 6 | Decide merge/promotion separately from public launch | All applicable internal gates pass; external credentials, commercial/legal and store approvals are explicitly identified |
+
+**Current decision: not ready for a 100k-user capacity claim or public launch.**
+The 500-RPS direct-origin failure remains open. The public-feed CDN check is
+blocked by Vercel billing. Neither issue excuses leaving independent internal
+work unfinished. Do not purchase infrastructure or run large hosted loads merely
+to make a dashboard number larger.
+
+### 25 October: Friend reaction delivery and polling investigation
+
+Traced reaction setters and active-chat listeners across Friend, Roommate,
+Service and Hotel. Friend had no live listener and reloaded/decrypted its full
+thread every eight seconds. Its repair uses recipient-owned private Broadcast
+signals, visible coalesced reads, join/reconnect/focus reconciliation and a
+60-second recovery check only while live delivery is unavailable. Healthy live
+channels do not periodically reread the thread. The signals contain IDs and a change
+kind, never message text, ciphertext or a reaction map. Source tables remain
+RPC-only; there is no client publish policy or competing notification table.
+
+Test migration `20261025060525_friend_chat_private_delivery` is applied. The first
+SQL test exposed absent provider-owned broadcast partitions. A diagnostic Test
+Realtime connection initialized the service; no application DDL touched its
+tables. The rollback contract then passed: both recipients, outsider denial,
+same-reaction deduplication, removal synchronization and closed direct grants.
+CI now initializes its disposable Realtime service before this contract.
+Four client/lifecycle tests and the 746-test regression pass; focused lint and
+build pass. A three-session disposable WebSocket/RPC check is added to mixed
+preflight; its exact-SHA CI result is pending. Hosted two-device delivery remains
+unverified. Friend history pagination/delta reads and wider app message fan-out
+remain internal scale work; this repair alone does not meet the 100k target.
+This does not add a background reaction push alert, a new unread message or an
+Activity item. Existing non-Friend live listeners still need two-device evidence.
+
 ### 25 October: prevent duplicate browser feed work
 
 Deployed web now shares identical in-flight public Home/Hotel feed reads, keyed
@@ -2167,7 +2214,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | UX | Back, refresh, offline, sign-in/out audit | Open |
 | Journeys | Listing detail action-to-result verification (save, share, report, booking, shared booking cost, review, inspection and support) | Open; static pass found handlers and feedback; report migration is applied on Test, but real-role browser evidence and deployed rollout remain |
 | Scale | Measured performance, caching, background work and rate limits | Internal review open: define release latency/error/resource budgets, verify indexes/pagination, bound expensive work, check public/private cache separation, durable retries and abuse limits. Add replicas or queues only where the measured workload requires them; no architecture purchase is itself a release gate |
-| Scale | Catalog capacity evidence | Latest recorded exact-SHA catalog evidence in Phase F passed through 200 RPS, including 6,000/6,000 requests at 200 RPS and 221ms p95. This supersedes the earlier failed run; mixed transactional capacity, agreed release budgets and recovery remain unverified. 1,000 RPS was not run |
+| Scale | Catalog and 100k-session capacity evidence | Failed/open. Recorded compressed run `1f34cb29` passed 200 RPS then failed 500; distributed latency gates also failed. Historical passes do not supersede later failures. CDN verification is blocked by Vercel billing. The 100k concurrent-session target requires separate connection, sustained mixed-journey, resource/cost and recovery evidence; none is established by catalog row counts or a thirty-second burst |
 | Release | Two-device E2EE evidence | Earlier owner check recorded. Current Friend schema, plan cards, recovery/revocation and all enabled chat types need scoped evidence. Group encryption is not implemented |
 | Release | Phone light/dark check | Engineering journey/visual pass remains internal work; physical-device owner review supplements it |
 | Coverage | Route and nested-control inventory | Current source count: 36 declared navigation keys including aliases, 47 page modules and 225 component modules (19 Oct). Map nested tabs/dialogs and role-specific actions to their server authority, persisted result, operator action and journey evidence. Cover signed-out/Personal/Partner/Hosting/Hotel Team/Worker/Staff/Admin/Creator, including Creator-only operation. Full coverage is not established |

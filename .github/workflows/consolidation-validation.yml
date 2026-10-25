@@ -153,6 +153,10 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_request_limits_contract.sql
       - name: Friend chat key exchange
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_key_exchange_contract.sql
+      - name: Friend private live delivery and reaction isolation
+        run: |
+          node scripts/prime-local-realtime.mjs
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_live_contract.sql
       - name: Long Let shared booking cost with Roommate or Friend
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_friend_contract.sql
       - name: Wallet withdrawal receipts and payout destination isolation

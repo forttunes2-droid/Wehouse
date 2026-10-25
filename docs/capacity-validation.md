@@ -1,5 +1,44 @@
 # WeHouse capacity validation
 
+## Requested target: 100,000 concurrent sessions and headroom
+
+This is a target, not an existing supported capacity. Registered users,
+concurrent foreground sessions, live sockets, journeys/second and underlying
+database requests must be reported separately. At one action per foreground
+session every thirty seconds, 100,000 sessions offer about 3,333 journeys/second,
+before each journey's downstream requests, media and background work. Use the
+mixed journey proportions and latency/integrity gates below, rather than calling
+one catalog HTTP request a whole customer journey.
+
+Validate two explicit scenarios: 100,000 connected sessions with their measured
+idle/session-guard cost, and the same session count with the stated active mix.
+Measure chat message/reaction fan-out, reconnect storms and joins separately.
+The engineering headroom target is a further 50% on the accepted workload;
+it is not permission to incur provider charges or launch a large hosted load.
+
+After isolated 10/100/1,000-actor preflights, progress through measured 10k/25k/
+50k/100k connection and mixed-work stages only when the prior stage passes.
+Use ten-minute holds and a one-hour target soak, followed by interrupted-service
+recovery. Before larger stages, secure provider quotas, resource/cost budgets
+and multi-region generators. Record exact versions, traffic mix, DB CPU/IO,
+pool waits, Realtime fan-out/limits, queues, cache hits, p95/p99, failures and cost.
+No double booking, duplicate settlement or cross-account disclosure is acceptable.
+
+Current evidence does not close this gate. Hosted 500-RPS direct-origin tests
+fail, current CDN measurement is blocked, authenticated large-scale/soak and
+100k connection tests have not been performed. Scaling beyond the target needs
+the same measured process; adding a load balancer label is not evidence.
+
+Friend chat previously reloaded its full thread every eight seconds, including
+hidden tabs. If 100,000 sessions all had that screen open, that alone would
+schedule 12,500 reloads/second before the multiple requests within each reload.
+The current repair replaces this with private recipient signals and coalesced,
+visibility-aware reconciliation. Whole-app message-table subscriptions and the
+rest of the authenticated idle workload remain separate internal scale gates.
+Healthy Friend live channels no longer poll; a visible disconnected channel gets
+a one-minute recovery check. Friend history is still loaded as a full thread;
+bounded older-history pages/delta reads remain required before a large chat load.
+
 ## Avoid duplicate browser traffic — 25 October 2026
 
 Public web feed reads now share only in-flight work by deployment origin and

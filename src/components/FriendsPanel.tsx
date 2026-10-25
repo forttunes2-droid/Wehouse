@@ -128,7 +128,7 @@ function FriendsPanelContent({ myUserId, initialChatId, onInitialChatOpened, onN
           <button type="button" disabled={busy} onClick={() => setRecipient(null)} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-sm">Cancel</button>
         </div>
       </div>}
-      {chat && <FriendChat friend={chat} myUserId={myUserId} onClose={() => setChat(null)} onNavigate={onNavigate} />}
+      {chat && <FriendChat key={`${myUserId}:${chat.friend_id}`} friend={chat} myUserId={myUserId} onClose={() => setChat(null)} onNavigate={onNavigate} />}
       {report && <ReportDialog subjectType="friend_chat" subjectUserId={report.user_id} subjectName={nameOf(report)} onClose={() => setReport(null)} />}
     </section>
   );

@@ -5,6 +5,8 @@ import { useMessagePins } from "@/hooks/useMessagePins";
 import { createFriendPlanMessage } from "@/lib/friendPlans";
 import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {createRefreshScheduler} from '@/lib/refreshScheduler';
+import {subscribeToFriendChatChanges} from '@/lib/friendChatLive';
 import { toast } from "sonner";
 import { CalendarPlus, Mic } from "lucide-react";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
@@ -56,36 +58,60 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
   const bottom = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
   const media = useRef(new Map<string, { url: string; type: string }>());
+  const loadVersion=useRef(0);
   const blocked = friend.status === "blocked";
 
   useEffect(() => { const worker = pendingWorkerShare(myUserId, friend.friend_id); setWorkerDraft(worker); setPropertyDraft(worker ? null : pendingPropertyShare(myUserId, friend.friend_id)); }, [myUserId, friend.friend_id]);
 
-  useEffect(() => { const cache = media.current; return () => { for (const item of cache.values()) URL.revokeObjectURL(item.url); cache.clear(); }; }, []);
+  useEffect(() => { const cache = media.current; return () => { for (const item of cache.values()) URL.revokeObjectURL(item.url); cache.clear(); }; }, [friend.friend_id,myUserId]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isActive:()=>boolean=()=>true):Promise<void> => {
+    const version=++loadVersion.current;
+    const current=()=>isActive()&&version===loadVersion.current;
     const state = await privateConversationReadiness("friend", friend.friend_id, friend.user_id);
+    if(!current())return;
     setReadiness(state);
     if (state.state !== "ready") return;
     const { messages, error } = await getFriendEncryptedMessages(friend.friend_id);
-    if (error) return toast.error(error.message || "Could not load messages");
+    if(!current())return;
+    if (error) { toast.error(error.message || "Could not load messages"); return; }
     const decoded = await Promise.all(messages.map(async (m): Promise<Line> => {
       let content = "Message could not be decrypted on this device.";
       try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
       const attachments: string[] = [], types: string[] = [];
       let failed = false;
       for (const item of (m.encrypted_attachments || []) as EncryptedAttachment[]) {
+        if(!current())break;
         let hit = media.current.get(item.path);
         if (!hit) {
-          try { const clear = await openFriendChatAttachment(friend.friend_id, friend.user_id, item); hit = { url: clear.url, type: clear.type }; media.current.set(item.path, hit); } catch { failed = true; }
+          try {
+            const clear = await openFriendChatAttachment(friend.friend_id, friend.user_id, item);
+            if(!current()){URL.revokeObjectURL(clear.url);break;}
+            hit = { url: clear.url, type: clear.type }; media.current.set(item.path, hit);
+          } catch { failed = true; }
         }
         if (hit) { attachments.push(hit.url); types.push(hit.type); }
       }
       return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: failed };
     }));
-    setLines(decoded);
+    if(current())setLines(decoded);
   }, [friend.friend_id, friend.user_id]);
 
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 8000); return () => window.clearInterval(timer); }, [load]);
+  useEffect(() => {
+    let live=false;
+    const scheduler=createRefreshScheduler(load,()=>document.visibilityState==='visible');
+    const refresh=()=>scheduler.request();
+    refresh();
+    const unsubscribe=subscribeToFriendChatChanges(friend.friend_id,refresh,healthy=>{live=healthy;});
+    window.addEventListener('focus',refresh);
+    document.addEventListener('visibilitychange',refresh);
+    // Recovery only; hidden tabs do no reads, and event bursts cannot overlap loads.
+    const timer=window.setInterval(()=>{if(!live)refresh();},60_000);
+    return()=>{
+      loadVersion.current++;scheduler.dispose();unsubscribe();window.clearInterval(timer);
+      window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);
+    };
+  }, [friend.friend_id,load]);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lines.length]);
 
   async function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
