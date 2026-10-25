@@ -35,8 +35,9 @@ schedule 12,500 reloads/second before the multiple requests within each reload.
 The current repair replaces this with private recipient signals and coalesced,
 visibility-aware reconciliation. Whole-app message-table subscriptions and the
 rest of the authenticated idle workload remain separate internal scale gates.
-Healthy Friend live channels no longer poll; a visible disconnected channel gets
-a one-minute recovery check. Friend history is still loaded as a full thread;
+Friend reconciliation is event-driven with visible recovery snapshots: once a
+minute before confirmed signals, then at most once in five quiet minutes. A joined
+socket alone is not database-delivery proof. Friend history is still a full thread;
 bounded older-history pages/delta reads remain required before a large chat load.
 
 ## Avoid duplicate browser traffic — 25 October 2026

@@ -18,10 +18,11 @@ test('Friend chat joins its own private topic and filters thread/kind hints',asy
  const close=subscribeToFriendChatChanges('thread-a',()=>changes++,value=>health.push(value));await flush();
  assert.deepEqual(state.channels,[{topic:'wehouse:friend:my-auth-id',options:{config:{private:true}}}]);
  state.status('SUBSCRIBED');assert.equal(changes,1);
- state.status('CHANNEL_ERROR');assert.deepEqual(health,[true,false]);
+ state.status('CHANNEL_ERROR');assert.deepEqual(health,[false,false]);
  for(const payload of [{friend_id:'other',kind:'reaction'},{friend_id:'thread-a',kind:'unknown'},null])state.callback({payload});
  assert.equal(changes,1);
  for(const kind of ['reaction','message'])state.callback({payload:{friend_id:'thread-a',kind}});
+ assert.deepEqual(health,[false,false,true,true]);
  assert.equal(changes,3);close();assert.equal(state.removed,1);
  state.callback({payload:{friend_id:'thread-a',kind:'reaction'}});assert.equal(changes,3);
 });
@@ -38,6 +39,6 @@ test('signed-out Friend chat never joins a public fallback',async()=>{
 test('Friend chat reconciles visibly without eight-second full-thread polling',()=>{
  const source=readFileSync('src/components/FriendChat.tsx','utf8');
  assert.match(source,/createRefreshScheduler\(load,\(\)=>document.visibilityState==='visible'\)/);
- assert.match(source,/setInterval\(\(\)=>\{if\(!live\)refresh\(\);\},60_000\)/);assert.doesNotMatch(source,/setInterval\([^;]+8000/);
+ assert.match(source,/if\(!live\|\|Date.now\(\)-lastRecovery>=300_000\)refresh\(\)/);assert.doesNotMatch(source,/setInterval\([^;]+8000/);
  assert.match(source,/loadVersion.current\+\+;scheduler.dispose\(\);unsubscribe\(\)/);
 });

@@ -12,10 +12,11 @@ export function subscribeToFriendChatChanges(friendId:string,onChange:()=>void,o
       if(disposed)return;
       channel=supabase.channel(`wehouse:friend:${data.session.user.id}`,{config:{private:true}})
         .on('broadcast',{event:'friend_chat_changed'},({payload})=>{
-          if(!disposed&&payload?.friend_id===friendId&&['message','reaction'].includes(payload.kind))onChange();
+          if(!disposed&&payload?.friend_id===friendId&&['message','reaction'].includes(payload.kind)){onHealth(true);onChange();}
         }).subscribe(status=>{
           if(disposed)return;
-          onHealth(status==='SUBSCRIBED');
+          // Joining alone does not prove the database broadcast stream is live.
+          onHealth(false);
           if(status==='SUBSCRIBED')onChange();
         });
     }catch{if(!disposed)onHealth(false);/* Visible/focus reconciliation remains available. */}

@@ -40,10 +40,8 @@ jobs:
         run: node scripts/disposable-supabase.mjs start
       - name: Apply all migrations to an empty local database
         run: node scripts/disposable-supabase.mjs reset
-      - name: Reconnect disposable Realtime after database reset
-        # Re-establish the replication process against the recreated database.
-        # This exact container belongs to this job's isolated wehouse stack.
-        run: docker restart supabase_realtime_wehouse
+      - name: Verify disposable database broadcast readiness
+        run: node scripts/prime-local-realtime.mjs
       - name: Seed synthetic catalog and rates
         run: |
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/load_baseline_fixture.sql

@@ -30,8 +30,9 @@ Traced reaction setters and active-chat listeners across Friend, Roommate,
 Service and Hotel. Friend had no live listener and reloaded/decrypted its full
 thread every eight seconds. Its repair uses recipient-owned private Broadcast
 signals, visible coalesced reads, join/reconnect/focus reconciliation and a
-60-second recovery check only while live delivery is unavailable. Healthy live
-channels do not periodically reread the thread. The signals contain IDs and a change
+60-second visible recovery check until actual signals establish delivery, plus
+a five-minute visible recovery snapshot to cover silent event loss. Joining a
+socket alone is not delivery proof. The signals contain IDs and a change
 kind, never message text, ciphertext or a reaction map. Source tables remain
 RPC-only; there is no client publish policy or competing notification table.
 
@@ -43,7 +44,11 @@ same-reaction deduplication, removal synchronization and closed direct grants.
 CI now initializes its disposable Realtime service before this contract.
 Four client/lifecycle tests and the 746-test regression pass; focused lint and
 build pass. A three-session disposable WebSocket/RPC check is added to mixed
-preflight; its exact-SHA CI result is pending. Hosted two-device delivery remains
+preflight; initial runs failed despite stored broadcasts and active replication
+slots. Service readiness now requires the broadcast replication stream before
+business assertions; exact-SHA CI is pending. A synthetic hosted Test broadcast
+reached a live listener, and provider authorization confirmed own read/no publish
+and outsider denial. Hosted two-device delivery remains
 unverified. Friend history pagination/delta reads and wider app message fan-out
 remain internal scale work; this repair alone does not meet the 100k target.
 This does not add a background reaction push alert, a new unread message or an

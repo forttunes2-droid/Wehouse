@@ -98,15 +98,15 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
   }, [friend.friend_id, friend.user_id]);
 
   useEffect(() => {
-    let live=false;
+    let live=false,lastRecovery=Date.now();
     const scheduler=createRefreshScheduler(load,()=>document.visibilityState==='visible');
-    const refresh=()=>scheduler.request();
+    const refresh=()=>{lastRecovery=Date.now();scheduler.request();};
     refresh();
     const unsubscribe=subscribeToFriendChatChanges(friend.friend_id,refresh,healthy=>{live=healthy;});
     window.addEventListener('focus',refresh);
     document.addEventListener('visibilitychange',refresh);
     // Recovery only; hidden tabs do no reads, and event bursts cannot overlap loads.
-    const timer=window.setInterval(()=>{if(!live)refresh();},60_000);
+    const timer=window.setInterval(()=>{if(!live||Date.now()-lastRecovery>=300_000)refresh();},60_000);
     return()=>{
       loadVersion.current++;scheduler.dispose();unsubscribe();window.clearInterval(timer);
       window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);

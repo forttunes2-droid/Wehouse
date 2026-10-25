@@ -16,9 +16,21 @@ await new Promise((resolve,reject)=>{
  const finish=error=>{clearTimeout(timer);socket.close();error?reject(error):resolve();};
  const timer=setTimeout(()=>finish(Error('Local Realtime join deadline')),20000);
  socket.addEventListener('open',()=>socket.send(JSON.stringify({topic:'realtime:wehouse-local-readiness',event:'phx_join',ref:'1',payload:{config:{broadcast:{ack:false,self:false},presence:{enabled:false},postgres_changes:[],private:false}}})));
- socket.addEventListener('message',event=>{
-  try{const reply=JSON.parse(String(event.data));if(reply.event==='phx_reply'&&reply.ref==='1')finish(reply.payload?.status==='ok'?null:Error('Local Realtime join rejected'));}catch{finish(Error('Invalid local Realtime response'));}
+ socket.addEventListener('message',async event=>{
+  try{
+   const reply=JSON.parse(String(event.data));
+   if(reply.event!=='phx_reply'||reply.ref!=='1')return;
+   if(reply.payload?.status!=='ok')return finish(Error('Local Realtime join rejected'));
+   const deadline=Date.now()+10000;
+   while(Date.now()<deadline){
+    const ready=execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-At','-c',
+     "select exists(select 1 from pg_replication_slots s join pg_stat_replication r on r.pid=s.active_pid where s.slot_name like 'supabase_realtime_messages%' and s.active and r.state='streaming')"],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+    if(ready==='t')return finish();
+    await new Promise(done=>setTimeout(done,250));
+   }
+   finish(Error('Local database broadcast replication not streaming'));
+  }catch{finish(Error('Local Realtime readiness check failed'));}
  });
  socket.addEventListener('error',()=>finish(Error('Local Realtime connection failed')));
 });
-console.log('Disposable Realtime service joined successfully');
+console.log('Disposable Realtime socket joined and database broadcast replication is streaming');
