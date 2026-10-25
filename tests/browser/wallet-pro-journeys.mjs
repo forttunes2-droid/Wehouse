@@ -48,13 +48,20 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 let browser;
 const results = [];
-async function dismissToast(page){
+async function dismissToast(page,{clocked=false}={}){
   for(let count=0;count<10;count++){
     // Sonner keeps covered toasts mounted. Only the front toast is actionable;
     // selecting an older close button races its expiry beneath the new toast.
     const close=page.locator('[data-sonner-toast][data-front="true"]:not([data-removed="true"])').getByRole('button',{name:'Close toast',exact:true});
     if(!await close.count())return;
-    await close.first().click();
+    try {await close.first().click({timeout:1000});}
+    catch {
+      // A new toast can replace the front item during its entrance. Leaving
+      // the stack resumes Sonner's expiry timer; never force a covered click.
+      const size=page.viewportSize()||{width:800,height:600};await page.mouse.move(size.width-2,size.height-2);
+      if(clocked)await page.clock.runFor(4000);
+      await page.locator('[data-sonner-toast]:not([data-removed="true"]):not([data-visible="false"])').first().waitFor({state:'hidden',timeout:10000});
+    }
   }
   throw new Error('Toast queue did not dismiss');
 }
@@ -997,7 +1004,7 @@ try {
     if (mode === 'payout-banks-timeout') {
       await page.clock.fastForward(16_000);
       await page.getByText('Banks could not be loaded. Try again.', { exact: true }).waitFor();
-      await dismissToast(page);await page.getByRole('button', { name: 'Close payout account setup' }).click();
+      await dismissToast(page,{clocked:true});await page.getByRole('button', { name: 'Close payout account setup' }).click();
       await page.evaluate(() => { window.__walletPro.recover = true; });
       await page.getByRole('button', { name: 'Add account', exact: true }).click();
     }
@@ -1072,7 +1079,7 @@ try {
     await page.getByPlaceholder('10-digit account number').fill('0123456789');
     await page.getByRole('button', { name: 'Verify account', exact: true }).click();
     await page.getByRole('button', { name: 'Save verified account', exact: true }).click();
-    await dismissToast(page);await page.getByRole('button', { name: 'Close payout account setup' }).click();
+    await dismissToast(page,{clocked:true});await page.getByRole('button', { name: 'Close payout account setup' }).click();
     const reference = await page.evaluate(() => JSON.parse(localStorage.getItem('wehouse:payout-account-change:wallet-qa-owner')).request_id);
     await page.clock.fastForward(180_000);
     assert.equal(await page.getByRole('button', { name: 'Add account', exact: true }).isDisabled(), true);

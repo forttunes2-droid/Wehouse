@@ -124,7 +124,7 @@ async def main():
      short_page=await context.new_page();short_page.on('pageerror',lambda error:scenario.errors.append(str(error)));await short_page.route('**/*',scenario.route)
      await short_page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
      await expect(short_page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=15000)
-     reserve=short_page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+$'))
+     reserve=short_page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+\.[0-9]{2}$'))
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
      await expect(short_page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
      await expect(short_page.get_by_text('Estimated total',exact=True)).to_have_count(0)
@@ -306,9 +306,9 @@ async def main():
    try:
     await expect(page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=1500)
     await expect(page.get_by_role('status',name='Checking your booking status',exact=True)).to_be_visible()
-    await expect(page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+$'),exact=True)).to_have_count(0)
+    await expect(page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+\.[0-9]{2}$'),exact=True)).to_have_count(0)
     await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
-    await expect(page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+$'))).to_be_visible(timeout=5000)
+    await expect(page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+\.[0-9]{2}$'))).to_be_visible(timeout=5000)
     assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
     assert not scenario.errors,scenario.errors
     results.append({'case':'Public property before account check','passed':True})
