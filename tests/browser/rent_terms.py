@@ -98,7 +98,10 @@ async def main():
      await expect(page.get_by_role('alert')).to_contain_text('Rent totals do not match')
      await expect(pay).to_be_disabled();await expect(accept).to_have_count(0)
      state['bad_quote']=False
-     await page.get_by_role('button',name='Refresh agreement',exact=True).click()
+     async with page.expect_response(lambda response:response.url.endswith('/get_my_long_let_terms_offer')) as refreshed:
+      await page.get_by_role('button',name='Refresh agreement',exact=True).click()
+     await refreshed.value
+     await expect(page.get_by_role('status').filter(has_text='Loading your rental terms')).to_have_count(0)
      await page.get_by_role('combobox',name='Length of stay',exact=True).select_option('24')
      await page.get_by_role('combobox',name='How you pay rent',exact=True).select_option('monthly')
      await page.get_by_role('button',name='Review selected agreement',exact=True).click()
