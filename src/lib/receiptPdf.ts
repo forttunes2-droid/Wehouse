@@ -1,4 +1,4 @@
-import { getRegionalDefaults } from "@/lib/regional";
+import { formatRecordedMoney } from "@/lib/regional";
 import { jsPDF } from "jspdf";
 import font from "./receiptFont";
 import { displayDate, displayMoment } from "./displayDate";
@@ -12,7 +12,7 @@ export function buildReceiptPdf(r: PaymentReceipt) {
   const PAGE_WIDTH = 90;
   const MARGIN = 8;
   const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-  const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency || getRegionalDefaults().currencyCode }).format(value);
+  const money = (value: number) => formatRecordedMoney(value,r.currency);
   const makeDocument = (height: number) => {
     const doc = new jsPDF({ unit: "mm", format: [PAGE_WIDTH, height], orientation: "portrait", compress: true });
     doc.addFileToVFS("WeHouseReceipt.ttf", font);

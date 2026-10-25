@@ -23,6 +23,18 @@ test('money uses the charged currency', () => {
   assert.notEqual(regional.formatMoney(1500, { currency: 'USD' }), regional.formatMoney(1500, { currency: 'NGN' }));
 });
 
+test('recorded booking amounts survive region changes without currency conversion',()=>{
+ const original=regional.formatRecordedMoney(1500,'NGN');
+ regional.setRegionalDefaults({currencyCode:'USD',countryCode:'US'});
+ assert.equal(regional.formatRecordedMoney(1500,'NGN'),original);
+ assert.equal(regional.formatRecordedMoney(1500),original);
+ assert.notEqual(regional.formatRecordedMoney(1500,'USD'),original);
+ assert.match(regional.formatRecordedMoney(1.234,'KWD'),/1\.234/);
+ assert.equal(regional.formatRecordedMoney(1500,'bad-code'),'Currency unavailable');
+ for(const value of [null,undefined,{},false,'',NaN,Infinity])assert.equal(regional.formatRecordedMoney(value,'NGN'),'Amount unavailable');
+ regional.setRegionalDefaults({currencyCode:'NGN',countryCode:'NG'});
+});
+
 test('country, zone and currency literals live only in the regional layer', () => {
   const offenders = [];
   const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).forEach(entry => {

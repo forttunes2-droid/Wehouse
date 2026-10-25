@@ -1,4 +1,4 @@
-import {formatMoney} from '@/lib/regional';
+import {formatRecordedMoney} from '@/lib/regional';
 import {hasProtectedAccommodationPayment} from '@/lib/propertyBookingLifecycle';
 import {shortLetBookingPrice,type ShortLetBill} from '@/lib/shortLetPayment';
 
@@ -9,7 +9,7 @@ export default function ShortLetPaymentSummary({row,bill}:{row:Record<string,any
  const fee=price?.fee||0;
  const reservePaid=row.reservation_fee_status==='paid'||['paid','completed'].includes(String(row.manual_payment_status||''));
  const paid=hasProtectedAccommodationPayment(row);
- const money=(amount:number)=>formatMoney(amount,{currency:row.currency});
+ const money=(amount:number)=>formatRecordedMoney(amount,row.currency);
  return <section aria-label="Short Let payment" className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
   <h3 className="text-sm font-semibold">Your booking price</h3>
   {price&&bill?<>

@@ -58,7 +58,7 @@ import {
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
-import { formatMoney, currencySymbol } from "@/lib/regional";
+import { formatRecordedMoney, currencySymbol } from "@/lib/regional";
 
 type Props = {
   conversationId: string;
@@ -93,6 +93,7 @@ type Booking = {
   booking_code?: string | null;
   service_type?: string | null;
   scheduled_date?: string | null;
+  currency?: string | null;
   negotiated_amount?: number | null;
   agreed_amount?: number | null;
   address?: string | null;
@@ -640,7 +641,7 @@ export default function BookingNegotiationChat({
         return toast.error(cancelError?.message || "Booking could not be cancelled");
       toast.success(
         result.refund_amount
-          ? `Booking cancelled. ${formatMoney(Number(result.refund_amount))} is being refunded.`
+          ? `Booking cancelled. ${formatRecordedMoney(Number(result.refund_amount))} is being refunded.`
           : "Booking cancelled",
       );
       setShowCancelForm(false);
@@ -810,7 +811,7 @@ export default function BookingNegotiationChat({
               </div>
               {Number(booking.negotiated_amount || 0) > 0 && (
                 <p className="shrink-0 text-xs font-bold">
-                  {formatMoney(Number(booking.negotiated_amount))}
+                  {formatRecordedMoney(Number(booking.negotiated_amount),booking.currency)}
                 </p>
               )}
             </div>
@@ -894,7 +895,7 @@ export default function BookingNegotiationChat({
                     onClick={() => setShowPaymentReview(true)}
                     className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                   >
-                    {`Review payment · ${formatMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0))}`}
+                    {`Review payment · ${formatRecordedMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),booking.currency)}`}
                   </button>
                 )}
               {!isWorker && !paymentReview && !completionConfirmed && booking.status === "completed_pending_approval" && (
@@ -936,7 +937,7 @@ export default function BookingNegotiationChat({
             {showAcceptForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
                 <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-                  Your price ({currencySymbol()})
+                  Your price ({currencySymbol(booking.currency||'NGN')})
                   <input
                     inputMode="decimal"
                     value={acceptAmount}
@@ -1532,7 +1533,7 @@ export default function BookingNegotiationChat({
                 { label: "Booking reference", value: booking.booking_code || bookingId },
               ]}
               amountLabel="Total due now"
-              amount={`${formatMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0))}`}
+              amount={`${formatRecordedMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),booking.currency)}`}
               checkoutLabel="Payment paused until approved cancellation terms are saved"
               termsTitle="Cancellation and refund terms"
               terms={
@@ -1684,7 +1685,7 @@ function ConversationIdentitySheet({
               />
               <CaseFact
                 label="Agreed price"
-                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `${formatMoney(Number(booking.agreed_amount || booking.negotiated_amount))}` : "Not agreed"}
+                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `${formatRecordedMoney(Number(booking.agreed_amount || booking.negotiated_amount),booking.currency)}` : "Not agreed"}
               />
             </div>
             {booking.address ? (

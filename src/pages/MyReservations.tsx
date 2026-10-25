@@ -14,7 +14,7 @@ import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsen
 import { shortLetPayment,shortLetBookingPrice } from "@/lib/shortLetPayment";
 import ReceiptAccess from "@/components/PaymentReceipt";
 import { displayDate, displayDateTime, displayDateTimeAtProperty, propertyDateTimeInput, propertyInputToISO } from "@/lib/displayDate";
-import { formatMoney, getRegionalDefaults, propertyTimeZone, timeZoneLabel } from "@/lib/regional";
+import { formatRecordedMoney, getRegionalDefaults, propertyTimeZone, timeZoneLabel } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -89,7 +89,6 @@ const STATUS_OPTIONS = [
   { value: "active", label: "Upcoming" },
   { value: "history", label: "History" },
 ] as const;
-const money = (value: unknown) => formatMoney(value);
 const date = displayDate;
 function bookingMonth(value: string) {
   const parsed = new Date(value);
@@ -425,7 +424,7 @@ export default function MyReservations({
       }
       return toast.error(error.message);
     }
-    toast.success(`Stay cancelled. Refund requested for ${formatMoney(refundAmount)} to your original payment method. It is complete only when the payment provider confirms it.`);
+    toast.success(`Stay cancelled. Refund requested for ${formatRecordedMoney(refundAmount)} to your original payment method. It is complete only when the payment provider confirms it.`);
     await load();
     });
   }
@@ -1065,6 +1064,7 @@ function BookingSourceNotice({
 }
 
 function ServiceCard({ row, onOpen, compact = false }: { row: any; onOpen: () => void; compact?: boolean }) {
+  const money=(value:unknown)=>formatRecordedMoney(value,row.currency);
   const amount = Number(row.negotiated_amount || 0);
   const status = serviceStatusLabel(String(row.booking_status || ""));
   return (
@@ -1124,6 +1124,7 @@ function ServiceBookingDetail({
     };
   }, [row.booking_id]);
 
+  const money=(value:unknown)=>formatRecordedMoney(value,detail.currency??row.currency);
   const status = String(detail.booking_status || detail.status || "booking_requested");
   const amount = Number(detail.agreed_amount || detail.negotiated_amount || 0);
   const workerName = detail.worker_name || row.other_person_name || "WeHouse Worker";
@@ -1432,6 +1433,7 @@ function PropertyBookingDetail({
   onRent: () => void;
   onMoveIn: (requestedAt: string) => void;
 }) {
+  const money=(value:unknown)=>formatRecordedMoney(value,row.currency);
   const short = row.stay_type === "short_let";
   const status = propertyBookingStatusLabel(row);
   const title =
@@ -1721,6 +1723,7 @@ function HotelBookingDetail({
   onCancel: () => void;
   onChanged:()=>void|Promise<void>;
 }) {
+  const money=(value:unknown)=>formatRecordedMoney(value,row.currency);
   const name =
     row.hotels?.name || row.hotel?.name || row.hotel_name || "Hotel stay";
   const status = HOTEL_STATUS[String(row.status || "")] || "Status unavailable";
@@ -1846,10 +1849,10 @@ function HotelBookingDetail({
 
           <HotelSpecialRequest request={row.special_requests} />
           {row.cancellation_snapshot && <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5">
-            <p>{row.cancellation_snapshot.refundable ? `Full refund ${money(row.cancellation_snapshot.refund_amount_ngn)} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
+            <p>{row.cancellation_snapshot.refundable ? `Full refund ${formatRecordedMoney(row.cancellation_snapshot.refund_amount_ngn,'NGN')} when cancelled by ${new Date(row.cancellation_snapshot.deadline).toLocaleString(undefined,{timeZone:row.cancellation_snapshot.timezone})} (${row.cancellation_snapshot.timezone}).` : 'This booking is non-refundable for ordinary cancellation.'}</p>
             <p className="mt-1 text-[var(--wh-text-secondary)]">These booked terms remain fixed if the hotel later changes its rate. Exceptions can be sent to WeHouse for review.</p>
           </div>}
-          {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {money(row.refund_amount_ngn)} · {row.refund_status==='completed'?'Provider processed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status==='completed'?'Your bank or payment method may take additional time to show the refund.':'The stay is cancelled; the provider has not yet confirmed processing the refund.'}</p>}
+          {row.refund_status && <p role="status" className="mt-3 rounded-xl bg-[var(--wh-interactive)] p-3 text-xs leading-5">Refund {formatRecordedMoney(row.refund_amount_ngn,'NGN')} · {row.refund_status==='completed'?'Provider processed':row.refund_status==='pending'?'Requested':row.refund_status==='manual_review'||row.refund_status==='failed'||row.refund_status==='provider_attention'?'Needs Finance review':'Processing'}. {row.refund_status==='completed'?'Your bank or payment method may take additional time to show the refund.':'The stay is cancelled; the provider has not yet confirmed processing the refund.'}</p>}
           {row.status==='confirmed' && row.payment_status==='paid' && <HotelCancellationPanel key={row.booking_id} bookingId={Number(row.booking_id)} onChanged={onChanged} onReview={onDesk}/>}
           {row.payment_status === 'paid' && <StayArrivalInstructions kind="hotel" bookingId={String(row.booking_id)} />}
 

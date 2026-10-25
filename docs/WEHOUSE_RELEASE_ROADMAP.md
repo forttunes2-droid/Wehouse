@@ -127,7 +127,39 @@ failure check. The 36-width/entitlement/account-switch document scenarios then
 pass locally; their exact-SHA browser rerun remains required. Hosted capacity
 still fails and broader product gates stay open.
 
-### 25 October: prevent duplicate browser feed work
+### 25 October: booking currency and one Short Let price summary
+
+Exact-SHA `7d3fc23a` passed all workflows except hosted Test catalog capacity.
+This closes the prior document-browser fixture failure; it does not close
+capacity or the missing booking implementations below.
+
+Tracing current booking checkout exposed use of the viewer's selected currency
+for stored amounts. Financial presentation now uses recorded currency across
+property reservation/payment reviews, Hotel checkout, Service negotiation,
+booking history, on-screen receipts and receipt PDFs. Historical Hotel/Service
+records without a currency are known NGN records; that compatibility rule is
+centralized and does not choose a currency for new charges. Explicit invalid
+currencies and invalid/missing amounts fail visibly instead of becoming another
+currency or zero. Currency precision follows the currency, including three-digit
+minor units. Existing NGN-only settlement boundaries remain enforced.
+
+The unused `ShortLetPaymentReview` had no application consumer and retained
+different disclosure from the live `ShortLetPaymentSummary`; remove it and test
+the live summary. Its saved fee, stay charge, refundable caution, full booking
+total and remaining balance are now verified together. Offline browser fixtures
+resolve the real client path consistently on Windows/Linux and reject accidental
+live-client imports; receipt image loading is asserted rather than ignored.
+
+Local evidence: 748 regression tests, production build and focused lint;
+87 Wallet/Pro browser scenarios, 20 focused management/currency scenarios and
+10 Long Let viewing/rent-action scenarios pass. NGN summaries and receipts remain
+NGN in a USD region in both themes. The booking-workspace suite additionally
+checks legacy currency fallback, itemized total/balance, workspace switching and
+Hotel reply/follow-up behavior. Exact pushed-SHA CI remains required. This repair
+does not implement optional monthly settlement, Experiences checkout or shared
+Hotel costs; their existing register rows remain open.
+
+### 25 October: prevent duplicate browser feed work (implementation history)
 
 Deployed web now shares identical in-flight public Home/Hotel feed reads, keyed
 by origin and canonical public query. Forty simultaneous equivalent reads make

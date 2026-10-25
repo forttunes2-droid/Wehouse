@@ -10,7 +10,7 @@ import {
 } from "@/lib/supabase";
 import type { Hotel, HotelRatePlan, HotelRoom } from "@/types";
 import { toast } from "sonner";
-import { formatMoney, propertyTimeZone } from "@/lib/regional";
+import { formatRecordedMoney, propertyTimeZone } from "@/lib/regional";
 import BackButton from "@/components/BackButton";
 import BookingPaymentReview from "@/components/BookingPaymentReview";
 
@@ -27,6 +27,7 @@ interface HotelBookingProps {
 
 type RoomContext = HotelRoom & { hotels: Hotel };
 type PendingHotelBooking = {
+  currency?: string;
   booking_id: number;
   total_price: number;
   rate_plan_name?: string | null;
@@ -40,6 +41,7 @@ type PendingHotelBooking = {
   cancellation_snapshot?: { refundable: boolean; deadline: string; timezone: string; refund_amount_ngn: number };
 };
 type Quote = {
+  currency?: string;
   available: boolean;
   nights?: number;
   total_price?: number;
@@ -54,7 +56,7 @@ type Quote = {
   wehouse_discount_percent?: number;
 };
 
-const money = (value: number) => formatMoney(value);
+const money = (value: number) => formatRecordedMoney(value);
 const mealLabels: Record<HotelRatePlan["meal_plan"], string> = {
   room_only: "Room only",
   breakfast: "Breakfast included",
@@ -232,7 +234,7 @@ export default function HotelBooking({
       { label: "Guest name", value: pendingBooking.guest_name },
       { label: "Guest phone", value: pendingBooking.guest_phone },
       ...(pendingBooking.special_requests ? [{ label: "Special request", value: pendingBooking.special_requests }] : []),
-      { label: "Stay total", value: money(Number(pendingBooking.total_price)) },
+      { label: "Stay total", value: formatRecordedMoney(Number(pendingBooking.total_price),pendingBooking.currency) },
       ...(pendingBooking.payment_expires_at ? [{ label: "Room hold expires", value: formatDeadline(pendingBooking.payment_expires_at) }] : []),
     ];
     return (
@@ -246,7 +248,7 @@ export default function HotelBooking({
               subtitle="Check the hotel, room, package, dates, guest details and saved cancellation terms before paying."
               rows={pendingRows}
               amountLabel="Total due now"
-              amount={money(Number(pendingBooking.total_price))}
+              amount={formatRecordedMoney(Number(pendingBooking.total_price),pendingBooking.currency)}
               termsTitle="Cancellation and arrival"
               terms={cancellationTerms}
               note="Eligible refunds go to the original payment method and remain processing until Paystack confirms them. WeHouse confirms your booking only after verified payment."
@@ -298,7 +300,7 @@ export default function HotelBooking({
           <div className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div><h2 className="text-base font-bold">{room.room_type}</h2><p className="mt-1 text-xs text-[var(--wh-text-muted)]">Up to {room.max_guests} guests{room.bed_type ? ` · ${room.bed_type}` : ""}</p></div>
-              <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{formatMoney(Number(ratePlan.price_per_night))}<span className="block text-right text-[11px] font-normal text-[var(--wh-text-muted)]">per night</span></p>
+              <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{formatRecordedMoney(Number(ratePlan.price_per_night),quote?.currency)}<span className="block text-right text-[11px] font-normal text-[var(--wh-text-muted)]">per night</span></p>
             </div>
             <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
               <p className="text-xs font-semibold">{ratePlan.name}</p>
@@ -318,7 +320,7 @@ export default function HotelBooking({
           {quoteLoading ? <p className="mt-3 text-xs text-violet-700 dark:text-violet-300">Checking live room inventory…</p> : null}
           {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-700 dark:text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
           {quote?.available && quote.nights && quote.total_price ? (
-            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">{formatMoney(Number(quote.original_price))}</span> · {quote.discount_percent}% off{quote.wehouse_discount_percent ? ` · includes ${quote.wehouse_discount_percent}% from WeHouse` : " from the hotel"}</p> : null}<p className="text-lg font-bold">{formatMoney(Number(quote.total_price))}</p></div></div>
+            <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">{formatRecordedMoney(Number(quote.original_price),quote.currency)}</span> · {quote.discount_percent}% off{quote.wehouse_discount_percent ? ` · includes ${quote.wehouse_discount_percent}% from WeHouse` : " from the hotel"}</p> : null}<p className="text-lg font-bold">{formatRecordedMoney(Number(quote.total_price),quote.currency)}</p></div></div>
           ) : null}
         </section>
 
@@ -352,7 +354,7 @@ export default function HotelBooking({
         </section>
 
         <button type="button" onClick={() => void book()} disabled={submitting || quoteLoading || !quote?.available} className="h-12 w-full rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">
-          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ${formatMoney(Number(quote.total_price))}` : "Choose available dates"}
+          {submitting ? "Opening secure payment…" : quote?.available && quote.total_price ? `Review booking · ${formatRecordedMoney(Number(quote.total_price),quote.currency)}` : "Choose available dates"}
         </button>
         <p className="text-center text-xs leading-4 text-[var(--wh-text-muted)]">Your room, package, dates, guest and payment stay attached to one WeHouse booking record.</p>
       </main>

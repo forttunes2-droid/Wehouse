@@ -63,6 +63,17 @@ export function formatMoney(
   }
 }
 
+/** Financial records never change currency when the viewer changes region.
+ * Pre-currency Hotel/Service records were charged in NGN. This compatibility
+ * fallback must not be used to select the currency for a new charge.
+ */
+export function formatRecordedMoney(amount:unknown, currency:unknown='NGN'):string {
+  const code=currency==null||currency===''?'NGN':typeof currency==='string'?currency.trim().toUpperCase():'';
+  if(!/^[A-Z]{3}$/.test(code))return 'Currency unavailable';
+  if(!['number','string'].includes(typeof amount)||String(amount).trim()===''||!Number.isFinite(Number(amount)))return 'Amount unavailable';
+  return new Intl.NumberFormat(viewerLocale(),{style:'currency',currency:code,currencyDisplay:'narrowSymbol'}).format(Number(amount));
+}
+
 /** Symbol of the platform's default currency (or the given one), formatted for the viewer. */
 export function currencySymbol(currency?: string | null): string {
   const code = currency && /^[A-Za-z]{3}$/.test(currency) ? currency.toUpperCase() : defaults.currencyCode;

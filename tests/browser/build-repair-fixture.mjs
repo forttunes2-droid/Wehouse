@@ -1,4 +1,5 @@
 import {build} from 'esbuild';
+import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import postcss from 'postcss';
@@ -6,7 +7,8 @@ import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 const out='test-results/repair-offline';fs.mkdirSync(out,{recursive:true});
 const client=path.resolve('tests/browser/repairClientFixture.ts');
-await build({entryPoints:['tests/browser/repair-interactions.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',plugins:[{name:'offline-client',setup(api){api.onResolve({filter:/.*/},args=>{if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)|| (args.path==='./client' && args.importer.includes('/src/lib/supabase/')))return {path:client};if(args.path.startsWith('@/'))return api.resolve(path.resolve('src',args.path.slice(2)),{resolveDir:process.cwd(),kind:args.kind});})}}],define:{'import.meta.env.DEV':'false','import.meta.env.PROD':'false'}});
+const result=await build({metafile:true,entryPoints:['tests/browser/repair-interactions.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',plugins:[{name:'offline-client',setup(api){api.onResolve({filter:/.*/},args=>{if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)|| (args.path.startsWith('.') && path.resolve(args.resolveDir,args.path).replace(/\.ts$/, '')===path.resolve('src/lib/supabase/client')))return {path:client};if(args.path.startsWith('@/'))return api.resolve(path.resolve('src',args.path.slice(2)),{resolveDir:process.cwd(),kind:args.kind});})}}],define:{'import.meta.env.DEV':'false','import.meta.env.PROD':'false'}});
+assert.ok(!Object.keys(result.metafile.inputs).some(file=>file.replaceAll('\\','/').endsWith('src/lib/supabase/client.ts')),'Offline fixture loaded the real Supabase client');
 const componentCss=fs.existsSync(out+'/fixture.css')?fs.readFileSync(out+'/fixture.css','utf8'):'';
 const css=await postcss([tailwindcss(),autoprefixer()]).process(fs.readFileSync('src/index.css','utf8')+'\n'+componentCss,{from:'src/index.css'});
 fs.writeFileSync(out+'/fixture.css',css.css);

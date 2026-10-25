@@ -55,7 +55,7 @@ import PropertyBookingJourney from "@/components/PropertyBookingJourney";
 import { getPropertyBookingJourney, hasProtectedAccommodationPayment } from "@/lib/propertyBookingLifecycle";
 import BackButton from "@/components/BackButton";
 import BookingPaymentReview from "@/components/BookingPaymentReview";
-import { formatMoney } from "@/lib/regional";
+import { formatRecordedMoney, formatRecordedMoney as formatMoney } from "@/lib/regional";
 
 type Props = {
   listingId: string;
@@ -170,6 +170,7 @@ export default function ListingDetail({
   const reservationInFlight = useRef(false);
   const viewingInFlight = useRef(false);
   const [reservation, setReservation] = useState<any>(null);
+  const formatMoney=(value:unknown)=>formatRecordedMoney(value,reservation?.currency??listing?.currency);
   const [inspection, setInspection] = useState<any>(null);
   const [reservationOptionsOpen, setReservationOptionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1449,6 +1450,7 @@ export function ReservationPanel({
   onOpenBooking: () => void;
   onSupport: () => void;
 }) {
+  const formatMoney=(value:unknown)=>formatRecordedMoney(value,reservation?.currency);
   if (shortStay) return <ShortStayReservationPanel reservation={reservation} busy={busy} onPay={onRentPay} onSupport={onSupport} />;
   const journey = getPropertyBookingJourney(reservation, inspection);
   return <section className="space-y-3">
@@ -1479,6 +1481,7 @@ function ShortStayReservationPanel({
   onPay: () => void;
   onSupport: () => void;
 }) {
+  const formatMoney=(value:unknown)=>formatRecordedMoney(value,reservation?.currency);
   const status = String(reservation.status || "reserved");
   const paid = ["paid", "upfront_paid"].includes(
     String(reservation.rent_payment_status || ""),

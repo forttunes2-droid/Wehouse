@@ -1,7 +1,8 @@
 import { StrictMode, useState } from 'react';
+import {setRegionalDefaults} from '../../src/lib/regional';
 import { createRoot } from 'react-dom/client';
 import HotelBookingChat from '../../src/components/HotelBookingChat';
-import ShortLetPaymentReview from '../../src/components/ShortLetPaymentReview';
+import ShortLetPaymentSummary from '../../src/components/ShortLetPaymentSummary';
 import NativeSelectBridge from '../../src/components/NativeSelectBridge';
 import { useWorkspaceAccess } from '../../src/hooks/useWorkspaceAccess';
 import { useDialogInteraction } from '../../src/hooks/useDialogInteraction';
@@ -31,5 +32,6 @@ function ChatFixture(){
  return <main><p>Underlying Account {revision}</p><button onClick={()=>setOpen(true)}>Open chat</button>{open&&<HotelBookingChat key={booking} bookingId={booking} conversationId={booking===1?'alpha':'beta'} profile={actor} title={booking===1?'Guest Example':'Other guest'} subtitle="Garden Lodge · Deluxe · 24–26 Sep" onClose={()=>setOpen(false)} onUpdated={()=>setRevision(n=>n+1)}/>}</main>
 }
 const mode=(window as any).__mode;
-createRoot(document.getElementById('root')!).render(<StrictMode><NativeSelectBridge/>{['chat','guest-chat'].includes(mode)?<ChatFixture/>:mode==='bill'?<main className="p-6 text-white"><ShortLetPaymentReview row={{stay_type:'short_let',status:'reserved',reservation_fee_status:'paid',manual_payment_status:'paid',reservation_fee_snapshot:10000,short_stay_balance_due_at:new Date(Date.now()+24*60*60*1000).toISOString(),stay_rent_total:240000,security_deposit_snapshot:50000}}/></main>:<WorkspaceFixture/>}</StrictMode>);
+if(mode==='bill')setRegionalDefaults({currencyCode:'USD',countryCode:'US'});
+createRoot(document.getElementById('root')!).render(<StrictMode><NativeSelectBridge/>{['chat','guest-chat'].includes(mode)?<ChatFixture/>:mode==='bill'?<main className="p-6 text-white"><ShortLetPaymentSummary bill={{rent:240000,deposit:50000,total:290000}} row={{stay_type:'short_let',status:'reserved',reservation_fee_status:'paid',manual_payment_status:'paid',reservation_fee_snapshot:10000,short_stay_balance_due_at:new Date(Date.now()+24*60*60*1000).toISOString(),stay_rent_total:240000,security_deposit_snapshot:50000}}/></main>:<WorkspaceFixture/>}</StrictMode>);
 void control;

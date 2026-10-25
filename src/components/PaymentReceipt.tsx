@@ -1,4 +1,4 @@
-import { getRegionalDefaults } from "@/lib/regional";
+import { formatRecordedMoney } from "@/lib/regional";
 import BackButton from "@/components/BackButton";
 import { useEffect, useRef, useState } from "react";
 import { paymentReceiptStatus } from "@/lib/paymentReceiptContract";
@@ -8,7 +8,7 @@ import { getPaymentReceipts, type PaymentReceipt as Receipt } from "@/lib/supaba
 
 export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
   const status = paymentReceiptStatus(r.status);
-  const money = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: r.currency || getRegionalDefaults().currencyCode }).format(value);
+  const money = (value: number) => formatRecordedMoney(value,r.currency);
   return <article className="wehouse-receipt mx-auto max-w-md overflow-hidden rounded-2xl bg-white text-[#24212B] shadow-xl shadow-black/20">
     <div className="h-1 bg-violet-600" />
     <header className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
@@ -151,10 +151,7 @@ function ReceiptAccessContent({
                   {receipt.description || receipt.merchant_name}
                 </span>
                 <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">
-                  {new Intl.NumberFormat(undefined, {
-                    style: "currency",
-                    currency: receipt.currency || getRegionalDefaults().currencyCode,
-                  }).format(receipt.amount)}
+                  {formatRecordedMoney(receipt.amount,receipt.currency)}
                   {" · "}
                   {displayDate(receipt.paid_at)}
                 </span>

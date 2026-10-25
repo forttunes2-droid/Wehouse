@@ -13,7 +13,7 @@ fs.mkdirSync(output, { recursive: true });
 // Concurrent suites must not overwrite one another's JS or generated Tailwind CSS.
 const assets = process.argv.includes('--build-only') ? output : fs.mkdtempSync(path.join(output, 'run-'));
 const client = path.resolve('tests/browser/walletProClientFixture.ts');
-const fixtureBuild=await build({ entryPoints: ['tests/browser/wallet-pro-journeys.tsx'], bundle: true, format: 'iife', jsx: 'automatic', metafile:true,
+const fixtureBuild=await build({ entryPoints: ['tests/browser/wallet-pro-journeys.tsx'], bundle: true, format: 'iife', jsx: 'automatic', metafile:true,loader:{'.png':'dataurl'},
   outfile: `${assets}/fixture.js`, plugins: [{ name: 'isolated-wallet-client', setup(api) {
     api.onResolve({ filter: /.*/ }, args => {
       if(args.importer.endsWith('PhoneNotificationSettings.tsx')&&args.path==='@/lib/nativePush')return{path:args.path,namespace:'phone-settings-adapter'};
@@ -37,6 +37,9 @@ fs.writeFileSync(`${assets}/fixture.css`, css.css);
 // Reuse the actual component bundle for the local, sample-data product preview.
 if (process.argv.includes('--build-only')) process.exit(0);
 const server = http.createServer((req, res) => {
+  if(['/brand-mark-light.svg','/brand-mark-dark.svg'].includes(req.url)){
+    res.setHeader('Content-Type','image/svg+xml');res.end(fs.readFileSync('public'+req.url));return;
+  }
   const file = req.url === '/fixture.js' ? 'fixture.js' : req.url === '/fixture.css' ? 'fixture.css' : null;
   res.setHeader('Content-Type', file?.endsWith('.js') ? 'application/javascript' : file ? 'text/css' : 'text/html');
   res.end(file ? fs.readFileSync(`${assets}/${file}`) : '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>');
@@ -721,6 +724,18 @@ try {
     await page.evaluate(()=>{window.__walletPro.recover=true});await page.getByRole('button',{name:'Find person',exact:true}).click();
     await page.getByLabel('Confirm Friend request',{exact:true}).waitFor();results.push('Friend lookup error recovers');await page.close();
   } else {
+  for(const theme of ['light','dark']) {
+    const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(base+'/?mode=recorded-money');
+    await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
+    const saved=page.getByRole('region',{name:'Saved NGN booking',exact:true});
+    await saved.getByText('CURRENCY-RECEIPT',{exact:true}).waitFor();
+    await page.waitForFunction(()=>Array.from(document.querySelectorAll('section[aria-label="Saved NGN booking"] img')).every(img=>img.complete&&img.naturalWidth>0));
+    assert.match(await saved.innerText(),/₦12,000\.00/);assert.doesNotMatch(await saved.innerText(),/\$[\d,]/);
+    assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.screenshot({path:output+'/recorded-currency-'+theme+'.png',fullPage:true});
+    results.push('NGN booking and receipt remain NGN in a USD region '+theme);await page.close();
+  }
   for(const theme of ['light','dark']) {
     const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.goto(base+'/?mode=worker-pro-reminder');

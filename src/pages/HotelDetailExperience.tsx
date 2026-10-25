@@ -34,7 +34,7 @@ import {
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
 import { locationLabel } from "@/lib/locationPresentation";
-import { formatMoney } from "@/lib/regional";
+import { formatRecordedMoney as formatMoney } from "@/lib/regional";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
