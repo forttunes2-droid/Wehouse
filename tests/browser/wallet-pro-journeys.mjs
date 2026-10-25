@@ -13,14 +13,13 @@ fs.mkdirSync(output, { recursive: true });
 // Concurrent suites must not overwrite one another's JS or generated Tailwind CSS.
 const assets = process.argv.includes('--build-only') ? output : fs.mkdtempSync(path.join(output, 'run-'));
 const client = path.resolve('tests/browser/walletProClientFixture.ts');
-await build({ entryPoints: ['tests/browser/wallet-pro-journeys.tsx'], bundle: true, format: 'iife', jsx: 'automatic',
+const fixtureBuild=await build({ entryPoints: ['tests/browser/wallet-pro-journeys.tsx'], bundle: true, format: 'iife', jsx: 'automatic', metafile:true,
   outfile: `${assets}/fixture.js`, plugins: [{ name: 'isolated-wallet-client', setup(api) {
     api.onResolve({ filter: /.*/ }, args => {
       if(args.importer.endsWith('PhoneNotificationSettings.tsx')&&args.path==='@/lib/nativePush')return{path:args.path,namespace:'phone-settings-adapter'};
       if(args.importer.endsWith('AccountCenter.tsx')&&['@/pages/PrivacySecuritySettings','@/components/AccountHelpCenter'].includes(args.path))return{path:args.path,namespace:'account-peripheral'};
       if (['@/lib/supabase', '@/lib/supabase/client', '@/hooks/useCreatorAuth', '@/hooks/useDiscoveryLocation'].includes(args.path)
-        || args.path === './supabase/client' && ['/src/lib/experienceActivities.ts','/src/lib/experienceSessions.ts','/src/lib/experiencePhotos.ts','/src/lib/propertyReviews.ts'].some(file=>args.importer.replaceAll('\\', '/').endsWith(file))
-        || args.path === './client' && args.importer.replaceAll('\\', '/').includes('/src/lib/supabase/')) return { path: client };
+        || args.path.startsWith('.') && path.resolve(args.resolveDir,args.path).replace(/\.ts$/, '') === path.resolve('src/lib/supabase/client')) return { path: client };
       if (args.path.startsWith('@/')) return api.resolve(path.resolve('src', args.path.slice(2)), { resolveDir: process.cwd(), kind: args.kind });
     });
     api.onLoad({filter:/.*/,namespace:'account-peripheral'},()=>({loader:'jsx',contents:'export default function Peripheral(){return null;}'}));
@@ -31,6 +30,8 @@ await build({ entryPoints: ['tests/browser/wallet-pro-journeys.tsx'], bundle: tr
       export const setPhonePush=async(_user,value)=>{if(mode==='phone-missing')throw new Error('Notification settings could not be confirmed. Refresh before retrying.');if(mode==='phone-denied')throw new Error('Allow notifications in your phone settings, then try again.');enabled=value;};
     `}));
   } }], define: { 'import.meta.env.DEV': 'false', 'import.meta.env.PROD': 'false', 'import.meta.env.VITE_NATIVE_BILLING_ENABLED': '"false"' } });
+assert.ok(!Object.keys(fixtureBuild.metafile.inputs).some(file=>file.replaceAll('\\','/').endsWith('src/lib/supabase/client.ts')),
+  'Isolated browser journeys must never load the real Supabase client');
 const css = await postcss([tailwindcss(), autoprefixer()]).process(fs.readFileSync('src/index.css', 'utf8')+'\n'+fs.readFileSync('src/pages/login.css','utf8'), { from: 'src/index.css' });
 fs.writeFileSync(`${assets}/fixture.css`, css.css);
 // Reuse the actual component bundle for the local, sample-data product preview.

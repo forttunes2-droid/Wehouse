@@ -26,6 +26,15 @@ to make a dashboard number larger.
 
 ### 25 October: Friend reaction delivery and polling investigation
 
+**Verified follow-up:** exact-SHA `d0cf0e81` mixed preflight run
+`40171342520` passed the three-session message/reaction delivery and outsider
+check, then completed 150/150 and 300/300 mixed HTTP journeys without failures
+or drops. Consolidation run `40171342560` passed fresh and existing-account
+upgrade replay. Requiring the disposable database broadcast stream before
+assertions resolved the recorded local delivery failure. This proves the
+synthetic WebSocket/RPC contract; hosted two-device encryption and phone push
+remain separate checks.
+
 Traced reaction setters and active-chat listeners across Friend, Roommate,
 Service and Hotel. Friend had no live listener and reloaded/decrypted its full
 thread every eight seconds. Its repair uses recipient-owned private Broadcast
@@ -46,13 +55,43 @@ Four client/lifecycle tests and the 746-test regression pass; focused lint and
 build pass. A three-session disposable WebSocket/RPC check is added to mixed
 preflight; initial runs failed despite stored broadcasts and active replication
 slots. Service readiness now requires the broadcast replication stream before
-business assertions; exact-SHA CI is pending. A synthetic hosted Test broadcast
+business assertions; the exact-SHA result is recorded above. A synthetic hosted Test broadcast
 reached a live listener, and provider authorization confirmed own read/no publish
 and outsider denial. Hosted two-device delivery remains
 unverified. Friend history pagination/delta reads and wider app message fan-out
 remain internal scale work; this repair alone does not meet the 100k target.
 This does not add a background reaction push alert, a new unread message or an
 Activity item. Existing non-Friend live listeners still need two-device evidence.
+
+### 25 October: restore skipped browser checks and cover FK lookups
+
+The `d0cf0e81` Wallet/Pro browser job failed before its first screen because a
+relative import from the new Friend live helper bypassed the test's enumerated
+client substitutes. Resolve the canonical client path instead of enumerating
+importers, and reject any isolated fixture bundle containing the real client.
+The repaired local Wallet/Pro suite passes 83 scenarios, management/arrival 16,
+Experience applications/review 32, sessions 10, property submission 13, Hotel
+cancellation 36 and Friend/Roommate sharing 12. The source regression passes
+746/746. Independent browser domain steps now continue after another domain
+fails, retaining a failed overall job. Exact pushed-SHA CI must pass before
+closing the browser gate.
+
+Test migration `20261025082141_cover_readiness_foreign_keys` adds 31 confirmed
+missing reverse-lookup indexes across account challenges, notification jobs,
+Hotel discounts, booking-policy references, chat replies, document reviewers
+and Pro records. Current Test relations were inspected before apply; the largest
+affected table was below 0.5 MB. The migration uses bounded lock/statement waits.
+The schema coverage contract passes on Test, and its performance advisor now
+reports no missing-FK-index findings. Fresh/upgrade replay is still required on
+the new SHA. These indexes do not establish the cause of hosted overload.
+
+Latest hosted catalog run `40171342548` on `d0cf0e81` passed through 100 RPS,
+then failed 200 RPS (3,332/6,000 completed; 3,000 errors; 2,668 drops; 13,774 ms
+p95). The 500 stage was not attempted. This later failure supersedes any claim
+that 200 RPS is a dependable current limit. Provider logs for 07:06–07:08 UTC
+contain 3,722 matching catalog responses, all HTTP 200, with approximately 901 ms
+origin-time p95; they do not account for every attempted request and do not
+identify the transport/API/database bottleneck. The failure remains open.
 
 ### 25 October: prevent duplicate browser feed work
 
