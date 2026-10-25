@@ -161,6 +161,13 @@ catch(error){
     report.friend_live_delivery.database=JSON.parse(execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-At','-c',
       "select jsonb_build_object('friend_message_count',(select count(*) from public.friend_messages),'broadcast_count',(select count(*) from realtime.messages where event='friend_chat_changed'),'broadcast_partitions',(select count(*) from pg_inherits where inhparent='realtime.messages'::regclass),'replication_slots',(select jsonb_agg(jsonb_build_object('plugin',plugin,'active',active,'wal_status',wal_status)) from pg_replication_slots))"],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
   }catch{report.friend_live_delivery.database={diagnostics_unavailable:true};}
+  try{
+    const logs=execFileSync('docker',['logs','--tail','600','supabase_realtime_wehouse'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+    report.friend_live_delivery.service_errors=logs.split('\n').filter(line=>/UnableToBroadcastChanges|RlsPolicyError|ErrorAuthorizing|Replication.*error/i.test(line)).slice(-12).map(line=>line
+      .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/g,'[redacted-token]')
+      .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi,'[redacted-id]')
+      .replace(/[^\s"'<>]+@[^\s"'<>]+/g,'[redacted-email]').slice(0,280));
+  }catch{report.friend_live_delivery.service_errors=['Service log diagnostics unavailable'];}
   console.error('Friend delivery diagnostics',JSON.stringify(report.friend_live_delivery));
   mkdirSync('test-results',{recursive:true});
   writeFileSync('test-results/mixed-journeys-local.json',JSON.stringify(report,null,2)+'\n');
