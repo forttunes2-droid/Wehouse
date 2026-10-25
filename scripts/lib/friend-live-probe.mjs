@@ -36,5 +36,9 @@ export async function checkFriendLiveDelivery(actors){
   assert.ok(received.flat().every(payload=>Object.keys(payload).every(key=>['id','friend_id','message_id','kind'].includes(key))),'Friend signal exposed message content');
   return {passed:true,authenticated_participants:2,authenticated_outsiders:1,message_delivery:true,reaction_delivery:true,
    scope:'Disposable WebSocket signals and authorized RPCs; synthetic ciphertext, not a two-device encryption or push test'};
+ }catch(error){
+  error.friendLiveDiagnostics={received_counts:received.map(rows=>rows.length),
+   received_kinds:received.map(rows=>[...new Set(rows.map(row=>typeof row?.kind==='string'?row.kind:'missing-kind'))])};
+  throw error;
  }finally{await Promise.all(clients.map(actor=>actor.client.removeAllChannels()));}
 }

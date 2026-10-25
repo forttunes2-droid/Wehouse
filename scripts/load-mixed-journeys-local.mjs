@@ -155,7 +155,13 @@ const report = { scope: 'Disposable local Supabase; 10 synthetic Auth users; HTT
   mix: Object.fromEntries(journeys.map(journey => [journey.name, journey.weight])), stages: [] };
 try{report.friend_live_delivery=await checkFriendLiveDelivery(actors);}
 catch(error){
-  report.friend_live_delivery={passed:false,error:String(error.message||error).slice(0,180)};
+  report.friend_live_delivery={passed:false,error:String(error.message||error).slice(0,180),diagnostics:error.friendLiveDiagnostics};
+  // Aggregate disposable service evidence only: never output tokens or profiles.
+  try{
+    report.friend_live_delivery.database=JSON.parse(execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-At','-c',
+      "select jsonb_build_object('friend_message_count',(select count(*) from public.friend_messages),'broadcast_count',(select count(*) from realtime.messages where event='friend_chat_changed'),'broadcast_partitions',(select count(*) from pg_inherits where inhparent='realtime.messages'::regclass),'replication_slots',(select jsonb_agg(jsonb_build_object('plugin',plugin,'active',active,'wal_status',wal_status)) from pg_replication_slots))"],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+  }catch{report.friend_live_delivery.database={diagnostics_unavailable:true};}
+  console.error('Friend delivery diagnostics',JSON.stringify(report.friend_live_delivery));
   mkdirSync('test-results',{recursive:true});
   writeFileSync('test-results/mixed-journeys-local.json',JSON.stringify(report,null,2)+'\n');
   throw error;
