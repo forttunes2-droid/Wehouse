@@ -5,9 +5,15 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 function command(root, program, args, input) {
-  const result=spawnSync(program,args,{cwd:root,stdio:input===undefined?'inherit':['pipe','inherit','inherit'],input,shell:false});
+  const startup=program==='supabase'&&args[0]==='start';
+  const result=spawnSync(program,args,{cwd:root,stdio:startup?'pipe':input===undefined?'inherit':['pipe','inherit','inherit'],input,shell:false,maxBuffer:16*1024*1024});
+  if(startup){if(result.stdout?.length)process.stdout.write(result.stdout);if(result.stderr?.length)process.stderr.write(result.stderr);}
   if(result.error)throw result.error;
-  if(result.status!==0)throw new Error(`${program} ${args.join(' ')} failed (${result.status??result.signal}).`);
+  if(result.status!==0){
+    const error=new Error(`${program} ${args.join(' ')} failed (${result.status??result.signal}).`);
+    if(startup)error.startupOutput=String(result.stdout||'')+String(result.stderr||'');
+    throw error;
+  }
 }
 
 /** Keep historical migration bytes intact while provisioning an empty local DB. */
@@ -34,7 +40,7 @@ function selectedMigrations(root, selected, action) {
   }
 }
 
-export function disposableSupabase(args,{root=process.cwd(),run=command}={}) {
+export function disposableSupabase(args,{root=process.cwd(),run=command,wait=ms=>Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms)}={}) {
   root=fs.realpathSync(root);
   const config=fs.readFileSync(path.join(root,'supabase','config.toml'),'utf8');
   if(!/^project_id\s*=\s*"wehouse"\s*$/m.test(config))throw new Error('Only the disposable wehouse local project is supported.');
@@ -53,7 +59,21 @@ export function disposableSupabase(args,{root=process.cwd(),run=command}={}) {
   // Supabase's schema-only dump omits storage.buckets data. Start/reset only
   // platform infrastructure first, then restore its declared bucket metadata,
   // then execute the exact original application migration files in order.
-  selectedMigrations(root,[],()=>run(root,'supabase',mode==='start'?['start',...excludes]:['db','reset','--local','--no-seed']));
+  selectedMigrations(root,[],()=>{
+    if(mode!=='start')return run(root,'supabase',['db','reset','--local','--no-seed']);
+    // Keep database, Auth, REST, Storage and Realtime real. Administrative UI,
+    // telemetry and unused Edge/pooler containers do not participate in these CI stories.
+    const omitted=new Set(['studio','postgres-meta','edge-runtime','logflare','vector','supavisor','mailpit',...(excludes[1]||'').split(',').filter(Boolean).map(name=>name==='inbucket'?'mailpit':name)]);
+    for(let attempt=0;;attempt++){
+      try{return run(root,'supabase',['start','--exclude',[...omitted].join(',')]);}
+      catch(error){
+        if(attempt>=2||!/toomanyrequests|too many requests|429|failed to pull docker image/i.test(error.startupOutput||''))throw error;
+        const pause=attempt===0?20_000:40_000;
+        console.warn(`Container registry download failed; retrying platform startup after ${pause/1000}s. Application migrations have not run.`);
+        wait(pause);
+      }
+    }
+  });
   run(root,'docker',['exec','-i','supabase_db_wehouse','psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],bootstrap);
   const migrate=()=>run(root,'supabase',['migration','up','--local']);
   if(version)selectedMigrations(root,names.filter(name=>name.split('_',1)[0]<=version),migrate);else migrate();

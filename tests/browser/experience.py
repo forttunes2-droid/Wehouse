@@ -181,7 +181,7 @@ async def run(browser):
             await page.wait_for_timeout(350)
             size=await page.evaluate('({width:innerWidth,body:document.documentElement.scrollWidth})')
             assert size['body']<=size['width']+1,(width,size)
-            for selector in ['.wh-auth-wordmark','.wh-auth-form']:
+            for selector in ['.wh-auth-brand [role="img"][aria-label="WeHouse"]','.wh-auth-form']:
                 rect=await page.locator(selector).bounding_box()
                 assert rect and rect['x']>=-1 and rect['x']+rect['width']<=width+1,(width,selector,rect)
             await page.screenshot(path=str(OUT/f'login-{width}.png'))

@@ -4,6 +4,23 @@
 
 ## Current engineering checkpoints
 
+### Exact-commit release recovery — 26 October
+
+The four database workflow failures on `44bed152` occurred during GHCR image
+downloads (`toomanyrequests`), before application migrations. Disposable startup
+now omits unused administrative/telemetry/Edge containers while retaining real
+Postgres, Auth, REST, Storage, Realtime and gateway services. Registry download
+failures receive at most three startup attempts; application SQL is never retried
+or ignored. Six focused tests cover restoration, bounded retries and SQL ordering.
+The pinned Supabase 2.114.0 CLI confirms the supported exclusion names.
+
+The same commit exposed two stale browser harness references after the original
+V4 brand import: the isolated receipt server did not serve the new SVG path, and
+the welcome layout check selected the replaced wordmark class. Both are corrected;
+all 87 Wallet/Pro journeys and the welcome/operator browser suite pass locally.
+The encoder and actual public-video compression jobs already passed in CI.
+These local results do not substitute for fresh exact-commit CI replay results.
+
 ### Owner corrections: guest gates, original brand and Home catalogue — 26 October
 
 The separate signed-out Roommates/Services marketing pages are removed. All four

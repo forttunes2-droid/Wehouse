@@ -37,7 +37,7 @@ fs.writeFileSync(`${assets}/fixture.css`, css.css);
 // Reuse the actual component bundle for the local, sample-data product preview.
 if (process.argv.includes('--build-only')) process.exit(0);
 const server = http.createServer((req, res) => {
-  if(['/brand-mark-light.svg','/brand-mark-dark.svg'].includes(req.url)){
+  if(['/brand-mark-light.svg','/brand-mark-dark.svg','/brand/v4/micro-purple.svg','/brand/v4/micro-purple-white.svg','/brand/v4/wehouse-lockup-light.svg','/brand/v4/wehouse-lockup-dark.svg'].includes(req.url)){
     res.setHeader('Content-Type','image/svg+xml');res.end(fs.readFileSync('public'+req.url));return;
   }
   const file = req.url === '/fixture.js' ? 'fixture.js' : req.url === '/fixture.css' ? 'fixture.css' : null;
