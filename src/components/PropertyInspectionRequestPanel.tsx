@@ -4,7 +4,7 @@ import {PUBLIC_PHOTO_MAX_INPUT_BYTES} from '@/lib/publicPhotoPolicy';
 import {uploadInParallel} from '@/lib/uploadBatch';
 import { copyHomeUnit, patchHomeDraft, physicalHomeError, physicalHomePayload, type PhysicalHomeDraft } from '@/lib/propertySpaces';
 import PropertySpaceDetails from '@/components/PropertySpaceDetails';
-import { HOME_STYLES, type HomeStyle } from '@/lib/homeStyles';
+import { type HomeStyle } from '@/lib/homeStyles';
 import PropertyRegionFields from '@/components/PropertyRegionFields';
 import { submitPropertyBatch } from '@/lib/submitPropertyBatch';
 import { toast } from "sonner";
@@ -742,7 +742,7 @@ export default function PropertyInspectionRequestPanel({
           property_city: d.propertyCity.trim(),
           property_state: d.propertyState.trim(),
           property_type: d.propertyType,
-          ...(d.propertyType==='apartment'?{home_style:d.homeStyle||null}:{}),
+          ...(d.propertyType==='apartment'?{home_style:d.homeStyle==='penthouse'?'penthouse':null}:{}),
           ...(d.propertyType==='apartment'&&d.physicalSpace?{physical_space:physicalHomePayload(d.physicalSpace)}:{}),
           sub_type: d.propertyType === "apartment" ? d.subType : null,
           ...(d.propertyType === "apartment" ? { management_mode: d.managementMode as "host" | "wehouse" } : {}),
@@ -986,9 +986,8 @@ export default function PropertyInspectionRequestPanel({
                 {current.propertyType === "apartment" && (
                   <>
                     <section className="space-y-2 md:col-span-2">
-                      <p className="text-sm font-semibold">Home type</p>
-                      <WeHouseSelect ariaLabel="Home type" title="Choose the type of this unit" value={current.homeStyle} options={[{value:'',label:'Choose home type'},...HOME_STYLES]} onChange={value=>patch(active,{homeStyle:value as HomeStyle | ''})}/>
-                      <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Choose Apartment / flat for a studio or self-contained unit, then enter 0 separate bedrooms. A penthouse can have any bedroom count; it does not automatically receive a luxury rating.</p>
+                      <label className="flex min-h-12 items-center gap-3 text-sm text-[var(--wh-text)]"><input type="checkbox" checked={current.homeStyle==='penthouse'} onChange={event=>patch(active,{homeStyle:event.target.checked?'penthouse':''})} className="h-5 w-5 accent-violet-600"/>This home is a penthouse</label>
+                      <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Enter 0 separate bedrooms for a studio or self-contained home. A penthouse can have any bedroom count.</p>
                     </section>
 
                     <section className="md:col-span-2">

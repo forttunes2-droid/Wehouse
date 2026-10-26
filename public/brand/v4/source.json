@@ -1,0 +1,30 @@
+{
+  "source": "wehouse-brand-v4-complete.zip",
+  "archive_sha256": "9557309e7bbb790a4569987118e537e37bcabac49d76473c8cd545d637c0dafd",
+  "original_files": {
+    "micro-purple.svg": "fea2e9675e92f1928046caa5839188801360a49203cec0d4b2b62376d8a84f56",
+    "micro-black.svg": "d78ea4f03cd02af1d9f2cc2e36e67a692a5f8469899fbd880706a10911ef6c47",
+    "micro-purple-white.svg": "2cfe274723d3e1a536055262d1eaa94abe8ca9e8961502d083cce2f9611f74a2",
+    "micro-white.svg": "09b3cacb3974b5be28042e284ddcd0725c771ae8cbd0e3d09ef85010fe8fd548",
+    "wehouse-symbol-black.svg": "7617274b65fd503256f06755ac20b3ac1f5a878f82d44fb4166da63842d41a43",
+    "wehouse-app-icon.svg": "738f7c4b88a74b0e870d5250fde9a7e075d7cb903755b50a2b696bc803522c8a",
+    "app-icon-48.png": "9385c252e45b616b23c70ffbf119c931fea452a25e01209d73308af81935401f",
+    "app-icon-64.png": "cf8caeb2460e48c2d1c1ac2c41b0aebf3a738fde732dcedbd091bc4ffe1698e7",
+    "wehouse-lockup-tagline-dark.svg": "e81d6221bf31f9fc5dc0663acf4ac64758242875224cce1ea2c9029845012dc0",
+    "wehouse-symbol-primary.svg": "336d7079706917cfebde8459e02c0b013928444d1912c1aa3e4f9c27b9b25da4",
+    "app-icon-512.png": "efe297edd9afa194f0025f15255bbf8d00308390fb4bb26354e61f120e44aadf",
+    "app-icon-16.png": "59c5bbd71028c8d05c83f36e16e934623c947f1a7af604fdc78bce3b50021407",
+    "app-icon-128.png": "773d14bc258928bb76feb36c7f5b88f4cdedcd7c9a31f3ce768e98fa62270a71",
+    "app-icon-32.png": "63b8c172c73e06d5615247e779f377841f6e63b70e12e41209e41123a1df4cd2",
+    "app-icon-24.png": "16f08f20c07772f0b24d9e92cf1b4fabd6aa969ef5bcd122129c244a176235e5",
+    "wehouse-app-icon-micro.svg": "3d8acac28c0dc070415ffe5ded23e068690dbc301793507ff2885177e9207464",
+    "app-icon-256.png": "290e95d60ffaba0bb7fb94565ba7be7a7f082e1ae25b9849fca179650935772a",
+    "wehouse-lockup-tagline-light.svg": "a2ba7e5a922c8f90d68767c21ad1ad4b8a77de2630bc23314c873a7a28d30a1d",
+    "wehouse-lockup-light.svg": "a50bcad8de493cd61f5e323638f149a589336fe62b1c3feb368f4423be52e673",
+    "wehouse-symbol-purple.svg": "26e1650c60035f69a4e312512801a922b6d2afad71c82fd7285a8fdcdc39df9a",
+    "wehouse-lockup-dark.svg": "a9b2d92e6407d50c89f73c5434cb5e5fa00f09fb33b66e4d506334d102151f31",
+    "app-icon-1024.png": "7e8910420a8a96df516a8afefbd9d683fbbb03edf3374867b5b0ef4f913d6a79",
+    "wehouse-symbol-white.svg": "a34a24325c834a4a352247e0c2623b41d6cfd1304b66217b98a89d8e9cb80c66"
+  },
+  "platform_wrapper": "wehouse-maskable.svg"
+}

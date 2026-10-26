@@ -23,7 +23,9 @@ async def main():
       if fail['workers']:return await handler.fulfill(status=503,headers=headers,content_type='application/json',body=json.dumps({'message':'Synthetic discovery outage'}))
       data=PROVIDERS
      elif name=='get_public_discovery_settings':data=[{'key':'worker_marketplace_launch_enabled','value':'true'}]
-     elif name in ['get_my_workspace_inbox','service_categories','service_subcategories']:data=[]
+     elif name=='service_categories':data=[{'id':'cleaning-category','name':'Home care','is_active':True,'sort_order':1}]
+     elif name=='service_subcategories':data=[{'id':'cleaning-skill','category_id':'cleaning-category','name':'Cleaning','is_active':True,'sort_order':1}]
+     elif name=='get_my_workspace_inbox':data=[]
      else:raise AssertionError('Unexpected API '+name)
      return await handler.fulfill(status=200,headers=headers,content_type='application/json',body=json.dumps(data))
     await page.route('**/*',route)
@@ -33,6 +35,13 @@ async def main():
      await expect(page.get_by_role('heading',name='Base-only provider',exact=True)).to_have_count(0)
      await expect(page.get_by_text('Base: Lafia, Nasarawa',exact=True)).to_be_visible()
      await expect(page.get_by_text('Serves Keffi, Nasarawa',exact=True)).to_be_visible()
+     await page.get_by_role('button',name='Open filters',exact=True).click()
+     await page.get_by_role('button',name='Work category Any category',exact=True).click()
+     await page.get_by_role('option',name='Home care',exact=True).click()
+     await page.get_by_role('button',name='Service Any service',exact=True).click()
+     await page.get_by_role('option',name='Cleaning',exact=True).click()
+     await page.get_by_role('button',name='Show results',exact=True).click()
+     await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
      await page.get_by_placeholder('Search service, skill or name').fill('Keffi cleaner')
      await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
      await page.get_by_role('button',name='Open filters',exact=True).click()

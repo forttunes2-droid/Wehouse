@@ -47,7 +47,12 @@ async def main():
      kind=parse_qs(urlparse(request.request.url).query)['kind'][0]
      assert kind in ['homes','hotels']
      await page.evaluate('(kind)=>window.__browse.gatewayRequests.push(kind)',kind)
-     return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':[HOME if kind=='homes' else HOTEL],'has_more':False}))
+     count=await page.evaluate('window.__browse.homeCount||1') if kind=='homes' else 1
+     homes=[HOME]+[{**HOME,'id':f'public-home-{n}','title':f'Courtyard apartment {n}'} for n in range(2,count+1)]
+     return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':homes if kind=='homes' else [HOTEL],'has_more':False}))
+    if request.request.url.startswith('https://wehouse-preview.vercel.app/brand/v4/'):
+     name=urlparse(request.request.url).path.rsplit('/',1)[-1]
+     return await request.fulfill(status=200,content_type='image/svg+xml',body=Path('public/brand/v4',name).read_bytes())
     if request.request.url=='https://assets.wehouse.test/interior.jpg':return await request.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await request.abort()
    media_requests=[]
@@ -60,14 +65,35 @@ async def main():
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Sign in',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
+    await page.get_by_role('button',name='Open filters',exact=True).click()
+    await expect(page.get_by_role('button',name='Filter home type',exact=True)).to_have_count(0)
+    await expect(page.get_by_text('Bungalow',exact=True)).to_have_count(0)
+    await expect(page.get_by_text('Apartment / flat',exact=True)).to_have_count(0)
+    await expect(page.get_by_role('checkbox',name='Penthouse',exact=True)).to_be_visible()
+    await expect(page.get_by_role('button',name='Studio / self-contained',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Close filters',exact=True).click()
+    await page.get_by_role('button',name='Services',exact=True).click()
+    await expect(page.get_by_role('heading',name='Sign in to find a professional',exact=True)).to_be_visible()
+    await expect(page.get_by_role('listitem')).to_have_count(0)
+    await page.get_by_role('button',name='Sign in to continue',exact=True).click()
+    assert await page.evaluate("sessionStorage.getItem('wh_guest_return_tab_v1')")=='services'
+    await page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Explore',exact=True).click()
+    await page.get_by_role('button',name='Roommates',exact=True).click()
+    await expect(page.get_by_role('heading',name='Sign in to find a roommate',exact=True)).to_be_visible()
+    await expect(page.get_by_role('listitem')).to_have_count(0)
+    await page.get_by_role('button',name='Sign in to continue',exact=True).click()
+    assert await page.evaluate("sessionStorage.getItem('wh_guest_return_tab_v1')")=='roommate'
+    await page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Explore',exact=True).click()
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) for c in await page.evaluate('window.__browse.calls'))
     await page.wait_for_function('Array.from(document.querySelectorAll("[data-media-thumbnail] img")).some(img=>img.complete&&img.naturalWidth>0)')
-    await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}-{theme}.png'),full_page=True)
-    await page.evaluate('window.__switchBrowseMode("homes")')
+    await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}-{theme}.png'),full_page=True,timeout=15000)
+    await page.evaluate('window.__browse.homeCount=4;window.__switchBrowseMode("homes")')
+    await expect(page.locator('[data-home-card]')).to_have_count(4)
+    assert await page.locator('[data-home-card]').first.get_by_role('button',name='View Courtyard apartment',exact=True).is_visible()
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
-    await expect(page.get_by_text('₦400k',exact=True)).to_have_css('color','rgb(255, 255, 255)')
+    await expect(page.locator('[data-home-card]').first).to_contain_text('₦400,000')
     await page.evaluate('window.__switchBrowseMode("locations")')
     await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
     await page.get_by_role('button',name='State Any region',exact=True).click()
@@ -87,7 +113,8 @@ async def main():
     assert request['category']=='account_access' and request['contextSnapshot']=={'source_type':'privacy_request','source_id':'qa-viewer'}
     await expect(page.get_by_text('Choose what you need in the message and send it to submit your request.',exact=False)).to_be_visible()
     await page.evaluate('window.__switchBrowseMode("homes")')
-    await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True)
+    await expect(page.locator('[data-home-card] [data-media-thumbnail]').first).to_have_attribute('data-media-state','ready')
+    await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True,timeout=15000)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
     await page.get_by_placeholder('Search hotel name or location').fill('Keffi Garden')
@@ -149,7 +176,7 @@ async def main():
     assert not errors,errors
     row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
-    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True)
+    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True,timeout=15000)
    finally:results.append(row);print(json.dumps(row),flush=True);await context.close()
   await browser.close()
  (OUT/'shared-discovery-results.json').write_text(json.dumps(results,indent=2));assert all(row['passed'] for row in results)

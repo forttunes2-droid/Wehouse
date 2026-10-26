@@ -1,4 +1,5 @@
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
+import BrandIdentity from '@/components/BrandIdentity';
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { type ReactNode } from 'react';
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
@@ -35,7 +36,7 @@ export default function DiscoveryShell({ active, onNavigate, children }: ShellPr
   const guest = useDiscoveryAccess();
   return <div className="wh-discovery-shell min-h-[100dvh] bg-[var(--wh-bg)] pb-24 text-[var(--wh-text)] lg:pb-12">
     <section className="mx-auto max-w-7xl px-4 pb-3 pt-5 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4"><p className="text-xs font-bold uppercase tracking-[.18em] text-violet-300">WEHOUSE</p></div>
+      <div className="flex items-center justify-between gap-4"><BrandIdentity className="h-10 w-[134px]"/></div>
       <h1 className="mt-2 text-2xl font-bold">Find what you need</h1>
     </section>
     {guest?.notice}

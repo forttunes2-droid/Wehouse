@@ -30,13 +30,14 @@ test('guest public sign-in screens use the canonical shell copy and one action',
  const guest=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
  assert.match(guest,/Sign in to continue/);
  assert.match(guest,/Privacy Policy|Terms of Service/);
- assert.doesNotMatch(guest,/Sign in to find a roommate|Sign in to find a professional/);
+ assert.doesNotMatch(guest,/GuestProductPreview|guestProductCopy|content\.steps\.map/);
  assert.doesNotMatch(guest,/The summary returned no data\.|Your matching preferences stay private\./);
 });
 
 test('signed-out roommate and home-service prompts stay concise',()=>{
  const guest=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
- assert.match(guest,/Find a roommate who fits your plans/);
- assert.match(guest,/Sign in to browse local providers, review their work and request a job/);
+ assert.match(guest,/Sign in to find a roommate/);
+ assert.match(guest,/Sign in to find a professional/);
+ assert.doesNotMatch(guest,/Payment stays paused|plan a Long Let together/);
  assert.doesNotMatch(guest,/content\.points\.map/);
 });

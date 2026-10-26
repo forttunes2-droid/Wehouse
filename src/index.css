@@ -681,3 +681,8 @@ input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
 
 /* One readable floor for small text: nothing in the app renders below 12px. */
 .text-\[7px\], .text-\[8px\], .text-\[9px\], .text-\[10px\] { font-size: 12px; }
+/* The supplied brand pack provides separate artwork for each surface. */
+.wh-brand-on-light { display: none; }
+.wh-brand-on-dark { display: block; }
+:root[data-wh-theme="light"] .wh-brand-on-light { display: block; }
+:root[data-wh-theme="light"] .wh-brand-on-dark { display: none; }

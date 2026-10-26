@@ -1,208 +1,35 @@
-import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
-import { homeStyleLabel } from '@/lib/homeStyles';
-import { locationLabel } from "@/lib/locationPresentation";
-import type { Listing, ListingStatus } from "@/types";
-import { LISTING_STATUS_LABELS } from "@/types";
-import { listingDisplayTitle } from "@/lib/listingPresentation";
-import { formatMoney } from "@/lib/regional";
+import {Heart,ImageOff} from 'lucide-react';
+import ShowcaseMediaThumbnail from '@/components/ShowcaseMediaThumbnail';
+import {homeStyleLabel} from '@/lib/homeStyles';
+import {locationLabel} from '@/lib/locationPresentation';
+import {listingDisplayTitle} from '@/lib/listingPresentation';
+import {formatMoney} from '@/lib/regional';
+import {LISTING_STATUS_LABELS,type Listing,type ListingStatus} from '@/types';
 
-interface ListingCardProps {
-  listing: Listing;
-  onClick: () => void;
-  isSaved?: boolean;
-  onToggleSave?: (event: React.MouseEvent) => void;
-  distanceKm?: number | null;
-  compactMobile?: boolean;
-}
+type Props={listing:Listing;onClick:()=>void;isSaved?:boolean;onToggleSave?:(event:React.MouseEvent)=>void;distanceKm?:number|null};
 
-export default function ListingCard({
-  listing,
-  onClick,
-  isSaved,
-  onToggleSave,
-  distanceKm,
-  compactMobile = false,
-}: ListingCardProps) {
-  const imageUrl =
-    listing.images?.[0] ||
-    "";
-  const listingStatus: ListingStatus = listing.status || "available";
-  const rawStatus = String(listing.status || "available");
-  const statusLabel =
-    listing.sub_type === "short_let" && rawStatus === "occupied"
-      ? "Booked now"
-      : LISTING_STATUS_LABELS[listingStatus] || "Available";
-  const price = listing.price || 0;
-  const listingMoney = (amount: unknown) => formatMoney(amount,{currency:listing.currency||'NGN'});
-  const priceDisplay =
-    price >= 1000000
-      ? `${listingMoney((price / 1000000).toFixed(1))}M`
-      : price >= 1000
-        ? `${listingMoney((price / 1000).toFixed(0))}k`
-        : `${listingMoney(price)}`;
-  const priceUnit = listing.sub_type === "short_let" ? "/night" : "/year";
-  const media = (listing.images || []).filter(Boolean);
-  const primary = media[0] || imageUrl;
-  const displayTitle = listingDisplayTitle(listing);
-  const distanceLabel =
-    distanceKm != null && Number.isFinite(distanceKm)
-      ? distanceKm < 1
-        ? `${Math.max(1, Math.round(distanceKm * 1000))} m away`
-        : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km away`
-      : "";
-
-  const saveButton = onToggleSave ? (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onToggleSave(event);
-      }}
-      aria-label={isSaved ? "Remove apartment from Saved" : "Save apartment"}
-      aria-pressed={isSaved}
-      className="grid h-10 w-10 place-items-center rounded-full bg-black/45 backdrop-blur-md active:scale-95"
-    >
-      <Heart filled={Boolean(isSaved)} />
-    </button>
-  ) : null;
-
-  const richCard = (
-    <article
-      onClick={onClick}
-      className="group cursor-pointer border-b border-[var(--wh-border-subtle)] pb-5"
-    >
-      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-white ${primary ? "aspect-[4/3]" : "h-40"}`}>
-        <ShowcaseMediaThumbnail src={primary} mediaType="image"
-          alt={displayTitle}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/10" />
-        <div className="absolute left-2.5 top-2.5 z-10">
-          <span
-            className="rounded-full border border-white/15 bg-black/75 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md"
-          >
-            {statusLabel}
-          </span>
-        </div>
-        {onToggleSave ? (
-          <div className="absolute right-2.5 top-2.5 z-10">{saveButton}</div>
-        ) : null}
-        <div className="absolute bottom-2.5 left-2.5 z-10">
-          <span className="text-base font-bold">{priceDisplay}</span>
-          <span className="ml-1 text-[9px] text-white/65">{priceUnit}</span>
-        </div>
-        {media.length + Number(listing.videos?.length || 0) > 1 ? (
-          <span className="absolute bottom-2.5 right-2.5 z-10 rounded-full bg-black/55 px-2 py-1 text-[8px] font-semibold">
-            {media.length} photos
-            {listing.videos?.length
-              ? ` · ${listing.videos.length} video${listing.videos.length === 1 ? "" : "s"}`
-              : ""}
-          </span>
-        ) : null}
-      </div>
-      <div className="px-1 pt-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[8px] font-bold uppercase tracking-[.14em] text-violet-300">
-              {listing.sub_type === "short_let" ? "Short Let" : "Long Let"}
-            </p>
-            <h3 className="mt-1 truncate text-[15px] font-bold">{displayTitle}</h3>
-            {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</p>}
-            <p className="mt-1 truncate text-[10px] text-[var(--wh-text-muted)]">
-              {locationLabel(listing.address, listing.city, listing.state) ||
-                "Location unavailable"}
-            </p>
-          </div>
-          <div className="shrink-0 text-right text-[9px] text-[var(--wh-text-secondary)]">
-            {listing.bedrooms != null ? (
-              <p>
-                {homeStyleLabel(listing.home_style) ? `${homeStyleLabel(listing.home_style)} · ` : ''}{listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`} · {listing.bathrooms ?? '—'} bath
-              </p>
-            ) : null}
-            {distanceLabel ? (
-              <p className="mt-1 text-violet-300">{distanceLabel}</p>
-            ) : null}
-          </div>
-        </div>
-        {listing.videos?.length > 0 && <p className="mt-3 text-xs text-[var(--wh-text-muted)]">▶ Video preview</p>}
-      </div>
-    </article>
-  );
-
-  if (!compactMobile) return richCard;
-
-  return (
-    <>
-      <article
-        onClick={onClick}
-        className="flex cursor-pointer gap-3 border-b border-[var(--wh-border-subtle)] py-3 sm:hidden"
-      >
-        <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-white">
-          <ShowcaseMediaThumbnail src={primary} mediaType="image"
-            alt={displayTitle}
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <div className="absolute bottom-2 left-2">
-            <span className="text-sm font-bold">{priceDisplay}</span>
-            <span className="ml-1 text-[8px] text-white/65">{priceUnit}</span>
-          </div>
-          {onToggleSave ? (
-            <div className="absolute right-1.5 top-1.5">{saveButton}</div>
-          ) : null}
-        </div>
-        <div className="min-w-0 flex-1 py-0.5">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[8px] font-bold uppercase tracking-[.12em] text-violet-300">
-              {listing.sub_type === "short_let" ? "Short Let" : "Long Let"}
-            </p>
-            {rawStatus === "available" ? (
-              <span className="text-[8px] text-emerald-300">Available</span>
-            ) : null}
-          </div>
-          <h3 className="mt-1 line-clamp-2 text-[13px] font-bold leading-4">
-            {displayTitle}
-          </h3>
-          {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?` · ${listing.space_label}`:''}</p>}
-          <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
-            {locationLabel(listing.address, listing.city, listing.state) ||
-              "Location unavailable"}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] text-[var(--wh-text-secondary)]">
-            {listing.bedrooms != null ? (
-              <span>
-                {homeStyleLabel(listing.home_style) ? `${homeStyleLabel(listing.home_style)} · ` : ''}{listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`} · {listing.bathrooms ?? '—'} bath
-              </span>
-            ) : null}
-            {distanceLabel ? (
-              <span className="text-violet-300">{distanceLabel}</span>
-            ) : null}
-            {media.length + Number(listing.videos?.length || 0) > 1 ? (
-              <span>{media.length} photos</span>
-            ) : null}
-          </div>
-        </div>
-      </article>
-      <div className="hidden sm:block">{richCard}</div>
-    </>
-  );
-}
-
-function Heart({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill={filled ? "#A78BFA" : "none"}
-      stroke={filled ? "#A78BFA" : "white"}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z" />
-    </svg>
-  );
+/** The same readable photo card at every result count; no count-triggered layout swap. */
+export default function ListingCard({listing,onClick,isSaved,onToggleSave,distanceKm}:Props){
+ const title=listingDisplayTitle(listing),photos=(listing.images||[]).filter(Boolean),primary=photos[0];
+ const status=LISTING_STATUS_LABELS[(listing.status||'available') as ListingStatus]||'Available';
+ const short=listing.sub_type==='short_let';
+ const distance=distanceKm!=null&&Number.isFinite(distanceKm)?distanceKm<1?Math.max(1,Math.round(distanceKm*1000))+' m away':distanceKm.toFixed(distanceKm<10?1:0)+' km away':'';
+ const specifications=[homeStyleLabel(listing.home_style),listing.bedrooms==null?'':listing.bedrooms===0?(listing.space_scope==='private_room'?'':'Studio / self-contained'):listing.bedrooms+' bed'+(listing.bedrooms===1?'':'s'),listing.bathrooms==null?'':listing.bathrooms+' bath'+(listing.bathrooms===1?'':'s')].filter(Boolean).join(' · ');
+ return <article data-home-card className="relative min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2.5 pb-4">
+  <button type="button" onClick={onClick} aria-label={'View '+title} className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--wh-violet)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wh-bg)]"/>
+  <div className={'relative overflow-hidden rounded-xl bg-[var(--wh-elevated)] '+(primary?'aspect-[4/3]':'h-36')}>
+   {primary?<ShowcaseMediaThumbnail src={primary} mediaType="image" alt={title} className="h-full w-full object-cover"/>:<div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--wh-text-muted)]"><ImageOff size={24} aria-hidden="true"/><span className="text-xs">Photos not available</span></div>}
+   {onToggleSave&&<button type="button" aria-label={isSaved?'Remove home from Saved':'Save home'} aria-pressed={Boolean(isSaved)} onClick={event=>{event.preventDefault();event.stopPropagation();onToggleSave(event);}} className={'absolute right-2 top-2 z-20 grid h-11 w-11 place-items-center rounded-full border shadow-sm '+(primary?'border-white/20 bg-black/55 text-white':'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text)]')}><Heart size={19} fill={isSaved?'currentColor':'none'}/></button>}
+   {photos.length>1&&<span className="absolute bottom-2 right-2 rounded-full bg-black/65 px-2.5 py-1 text-xs font-medium text-white">{photos.length} photos</span>}
+  </div>
+  <div className="px-1 pt-3">
+   <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-semibold text-[var(--wh-accent-text)]">{short?'Short Let':'Long Let'}</span><span className="text-[var(--wh-text-secondary)]">{status}</span></div>
+   <h3 className="mt-2 line-clamp-2 text-base font-semibold leading-snug text-[var(--wh-text)]">{title}</h3>
+   <p className="mt-1 truncate text-sm text-[var(--wh-text-secondary)]">{locationLabel(listing.address,listing.city,listing.state)||'Location unavailable'}</p>
+   {listing.space_scope&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{listing.space_scope==='private_room'?'Private room':'Entire home'}{listing.space_label?' · '+listing.space_label:''}</p>}
+   {specifications&&<p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{specifications}</p>}
+   <p className="mt-3 text-base font-semibold text-[var(--wh-text)]">{formatMoney(listing.price||0,{currency:listing.currency||'NGN'})}<span className="ml-1.5 text-xs font-normal text-[var(--wh-text-secondary)]">{short?'per night':'per year'}</span></p>
+   {(distance||listing.videos?.length>0)&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{[distance,listing.videos?.length>0?'Walkthrough available':''].filter(Boolean).join(' · ')}</p>}
+  </div>
+ </article>;
 }

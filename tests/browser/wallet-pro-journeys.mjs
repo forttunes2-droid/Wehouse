@@ -286,7 +286,7 @@ try {
         await page.getByRole('button',{name:'Choose home or unit',exact:true}).click();
         await page.getByRole('button',{name:'Home A',exact:true}).click();
         assert.equal(await page.getByLabel('Unit label (for example Flat A or House 1) *',{exact:true}).isDisabled(),true);
-        assert.equal(await page.getByLabel('Layout (optional, for example studio, flat or bungalow)',{exact:true}).inputValue(),'Bungalow');
+        assert.equal(await page.getByLabel('Layout description (optional)',{exact:true}).inputValue(),'Bungalow');
         await page.getByRole('button',{name:'What will the customer rent?',exact:true}).click();await page.getByRole('button',{name:/^Private bedroom/}).click();
         await page.getByRole('button',{name:'Choose private room',exact:true}).click();await page.getByRole('button',{name:'Room 1',exact:true}).click();
         assert.equal(await page.getByLabel('Room label *',{exact:true}).isDisabled(),true);
@@ -294,7 +294,7 @@ try {
       }else{
         await page.getByLabel('Compound or building name *',{exact:true}).fill('Lafia compound');
         await page.getByLabel('Unit label (for example Flat A or House 1) *',{exact:true}).fill('Home A');
-        await page.getByLabel('Layout (optional, for example studio, flat or bungalow)',{exact:true}).fill('Self-contained');
+        await page.getByLabel('Layout description (optional)',{exact:true}).fill('Self-contained');
         await page.getByLabel('Bedrooms (0 for a studio)',{exact:true}).fill('0');
         await page.getByRole('button',{name:'Add another unit',exact:true}).click();
         assert.equal(await page.getByLabel('Compound or building name *',{exact:true}).inputValue(),'Lafia compound');

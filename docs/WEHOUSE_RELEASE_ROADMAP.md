@@ -4,6 +4,64 @@
 
 ## Current engineering checkpoints
 
+### Owner corrections: guest gates, original brand and Home catalogue — 26 October
+
+The separate signed-out Roommates/Services marketing pages are removed. All four
+signed-out sections use the same GuestAccess renderer as Inbox and Bookings:
+one heading, one sentence and one sign-in action. The selected Roommates or
+Services destination is retained through authentication. No workflow steps or
+temporary payment-paused copy remains in those screens.
+
+Imported the owner's original `wehouse-brand-v4-complete.zip` from Downloads;
+all 23 duplicate downloads had the same hash. `public/brand/v4/source.json`
+records the archive and original-file hashes. Original vectors now supply the
+theme-aware brand in sign-in/discovery/guest/payment screens and web install
+icons. The maskable asset only insets the supplied artwork into a safe area.
+No raster tracing or invented replacement logo was used.
+
+Home cards no longer switch to a separate compact layout when the result count
+reaches three. They use the same photo card, exact recorded-currency price,
+readable specifications, keyboard action and missing-photo state at every
+count. Save remains a separate action. A private room is not labelled a Studio
+merely because its record has zero separate bedrooms.
+
+The owner explicitly rejected the added Apartment/flat, Bungalow, House and
+Other-home catalogue. It is removed from submission and discovery controls;
+Short Let/Long Let, actual unit/privacy scope and bedroom layout remain the
+organization. Penthouse is the previously agreed optional feature, independent
+of bedroom count. Test migration `20261026170318` rejects unsupported new
+features and retired feature-filter API values, preserving existing records.
+The full physical-space SQL contract passes, including ordinary units without
+an invented classification, Penthouse, Studio, mixed terms, private rooms,
+customer booking conflicts, protected arrival and authority isolation. All 13
+compound/unit browser journeys pass. No inventory-facet API was added: the
+owner's correction was to the catalogue itself, not a missing result counter.
+
+Service category filtering now uses the configured category's actual child
+services and published offered services, rather than guessing from the parent
+category name. Both-theme search, coverage, reset and read-recovery browser
+journeys pass. The latest source suite passes 788 tests; build and focused lint
+pass. Responsive brand/guest/card checks pass in all eight size/theme combinations,
+including loaded photographs, the removed catalogue, shared guest gates and
+sign-in return intent. Exact new-head CI remains pending.
+
+The preceding hosted `4e8a75dd` repair served the actual Test Home feed with HTTP
+200 after fixing Node ESM imports. A later fresh hosted request returned HTTP
+402 `DEPLOYMENT_DISABLED`. This is current external deployment evidence; no
+successful CDN cache-hit or new hosted account journey is claimed. A local
+Test-only build is served on `http://127.0.0.1:4174/` while hosted access is
+restricted. Production code, database and financial transactions are unchanged.
+Vercel Hobby is restricted to non-commercial personal use; commercial use needs
+Pro or Enterprise ([commercial-use rules](https://vercel.com/docs/limits/fair-use-guidelines)).
+The connected team read does not expose the current billing
+plan, so the exact account restriction must be checked in Billing.
+
+The location audit confirms another internal gap: listing, Hotel, submission and
+workspace coverage still rely on State/City text without a complete shared
+country/region/local-area identifier model. The Nigerian dataset and generic
+free-text fallback do not close global rollout. Do not activate another market
+without its location, scoped permissions, currency/payment and document paths.
+
 ### Connected discovery, shared links and gallery position — 26 October
 
 The latest follow-through makes Friend chat navigation required, passes it

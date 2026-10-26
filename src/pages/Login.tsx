@@ -1,4 +1,5 @@
 import EmailSignupConfirmation from '@/components/EmailSignupConfirmation';
+import BrandIdentity from '@/components/BrandIdentity';
 import GuestBrowseEntry from "@/components/GuestBrowseEntry";
 import type { SharedProperty } from "@/lib/propertyShare";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -1010,11 +1011,8 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
 function Brand() {
   return (
     <div className="wh-auth-brand">
-      <div className="wh-auth-wordmark">
-        <img src="/app-icon.svg?v=3" alt="" width={52} height={52} className="h-[52px] w-[52px]" />
-        <p className="text-[30px] font-semibold tracking-tight">WeHouse</p>
-      </div>
-      <p className="wh-auth-tagline">Find. Connect. Live better.</p>
+      <BrandIdentity className="h-16 w-[215px]"/>
+      <p className="wh-auth-tagline">find · connect · live better</p>
     </div>
   );
 }

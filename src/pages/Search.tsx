@@ -1,8 +1,7 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import {matchesDiscoveryText, homeDiscoveryFields} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
-import WeHouseSelect from '@/components/WeHouseSelect';
-import { HOME_STYLES, homeStyleValue } from '@/lib/homeStyles';
+import { homeStyleValue } from '@/lib/homeStyles';
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -420,7 +419,7 @@ export default function Search({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {sponsoredHomes.map(({ campaignId, entry: { listing, distance } }) => <SponsoredPlacement key={campaignId} campaignId={campaignId} context="home_discovery">
               <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
-              <ListingCard listing={listing} distanceKm={distance} compactMobile
+              <ListingCard listing={listing} distanceKm={distance}
                 onClick={() => { recordSponsoredOpen(campaignId); onNavigate('detail', listing.id); }}
                 isSaved={savedIds.has(listing.id)}
                 onToggleSave={event => { event.preventDefault(); event.stopPropagation(); onToggleSave(listing.id); }} />
@@ -497,7 +496,6 @@ export default function Search({
                 key={listing.id}
                 listing={listing}
                 distanceKm={distance}
-                compactMobile={filtered.length >= 3}
                 onClick={() => onNavigate("detail", listing.id)}
                 isSaved={savedIds.has(listing.id)}
                 onToggleSave={(event) => {
@@ -562,8 +560,7 @@ export default function Search({
           ) : null}
 
           <section>
-            <p className="mb-2 text-sm font-medium text-[var(--wh-text-secondary)]">Home type</p>
-            <WeHouseSelect ariaLabel="Filter home type" title="Home type" value={homeStyle} options={[{value:'',label:'Any home type'},...HOME_STYLES]} onChange={setHomeStyle}/>
+            <label className="flex min-h-12 items-center gap-3 text-sm text-[var(--wh-text)]"><input type="checkbox" checked={homeStyle==='penthouse'} onChange={event=>setHomeStyle(event.target.checked?'penthouse':'')} className="h-5 w-5 accent-violet-600"/>Penthouse</label>
             <p className="mb-2 mt-5 text-sm font-medium text-[var(--wh-text-secondary)]">Bedrooms</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {(

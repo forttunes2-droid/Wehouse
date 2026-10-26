@@ -7,7 +7,7 @@ import { isTestEnvironment } from '@/lib/supabase/client';
 import PersonalBottomNav, { type PersonalNavPage } from '@/components/PersonalBottomNav';
 import { PublicInvitationPreview } from '@/components/ResourceInvitationAction';
 import { clearInvitationIntent, readInvitationIntent, saveInvitationIntent } from '@/lib/resourceInvitation';
-import BackButton from '@/components/BackButton';
+import BrandIdentity from '@/components/BrandIdentity';
 
 const Search = lazy(() => import('@/pages/Search'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
@@ -33,7 +33,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     setTarget(null);
     if (sharedProperty && sharedProperty.kind === target?.kind && sharedProperty.id === target.id) onDismissSharedProperty?.();
   }, active && Boolean(target));
-  function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account') {
+  function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account' | 'roommate' | 'services') {
     if (busy) return;
     if (destination) {
       try { sessionStorage.setItem('wh_guest_return_tab_v1', destination); } catch {}
@@ -90,7 +90,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
         {target ? target.kind === 'listing'
           ? <ListingDetail key={target.id} listingId={target.id} onOpenListing={id=>setTarget({kind:"listing",id})} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />
-          : publicProduct ? <GuestProductPreview product={publicProduct} busy={busy} onBack={() => setPublicProduct(null)} onSignIn={() => requireSignIn(null)} />
+          : publicProduct ? <GuestAccess section={publicProduct} busy={busy} onOpenLegal={onOpenLegal} onSignIn={() => requireSignIn(null,publicProduct||undefined)} />
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
       </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
       <PersonalBottomNav
@@ -109,7 +109,10 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   </DiscoveryAccessContext.Provider>;
 }
 
-export function guestAccessCopy(section: 'bookings' | 'inbox') {
+type GuestSection='bookings'|'inbox'|'roommate'|'services';
+export function guestAccessCopy(section: GuestSection) {
+  if(section==='roommate')return {title:'Sign in to find a roommate',body:'Set your location, budget and living preferences to find compatible people.'};
+  if(section==='services')return {title:'Sign in to find a professional',body:'Browse services, compare work and agree the details before you pay.'};
   return section === 'bookings'
     ? {
         title: 'Sign in to view your bookings',
@@ -121,28 +124,12 @@ export function guestAccessCopy(section: 'bookings' | 'inbox') {
       };
 }
 
-export function guestProductCopy(product: 'roommate' | 'services') {
-  return product === 'roommate'
-    ? {
-        eyebrow: 'ROOMMATE MATCHING',
-        title: 'Find a roommate who fits your plans.',
-        body: 'Sign in to set your location, budget and living preferences.',
-        steps: ['Tell us your area, budget and living habits.', 'See people whose plans fit yours, with how well you match.', 'When you both show interest, chat privately and plan a Long Let together.'],
-      }
-    : {
-        eyebrow: 'HOME SERVICES',
-        title: 'Find a professional for your home.',
-        body: 'Sign in to browse local providers, review their work and request a job.',
-        steps: ['Browse service workers near you and see their past work and reviews.', 'Send a request and agree the price in a private chat.', 'Review the agreed scope, price and cancellation terms before checkout. Payment stays paused until approved terms are saved for the job.'],
-      };
-}
-
-function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: 'bookings' | 'inbox'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
+function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: GuestSection; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
   const content = guestAccessCopy(section);
   return <main className="mx-auto max-w-lg px-4 pb-28 pt-6 sm:px-6" aria-labelledby={`guest-${section}-title`}>
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-xs font-bold text-violet-300">WH</div>
+        <BrandIdentity mark className="h-10 w-10"/>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p>
           <p className="text-sm font-semibold text-[var(--wh-text)]">Explore</p>
@@ -159,26 +146,5 @@ function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: 'booki
         </div>
       </section>
     </div>
-  </main>;
-}
-
-function GuestProductPreview({ product, busy, onBack, onSignIn }: { product: 'roommate' | 'services'; busy: boolean; onBack: () => void; onSignIn: () => void }) {
-  const content = guestProductCopy(product);
-  return <main className="mx-auto max-w-2xl px-4 py-4 pb-28 sm:px-6" aria-labelledby="guest-product-title">
-    <div className="flex items-center gap-3">
-      <BackButton onClick={onBack} ariaLabel="Back to Explore" />
-      <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p><p className="text-sm font-semibold">Explore</p></div>
-    </div>
-    <section className="mt-5 rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-[0_18px_50px_rgba(17,24,39,0.12)]" aria-describedby="guest-product-body">
-      <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">{content.eyebrow}</p>
-      <h1 id="guest-product-title" className="mt-2 max-w-xl text-2xl font-bold tracking-tight text-[var(--wh-text)] sm:text-3xl">{content.title}</h1>
-      <p id="guest-product-body" className="mt-3 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
-      <ol className="mt-5 space-y-3">
-        {content.steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
-          <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-bold text-violet-300">{index + 1}</span>{step}
-        </li>)}
-      </ol>
-      <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
-    </section>
   </main>;
 }

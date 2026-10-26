@@ -89,10 +89,13 @@ async def main():
         }''')
         edited_path=Path(f'test-results/experience/work-post-edited.{edited["extension"]}')
         edited_path.write_bytes(base64.b64decode(edited['encoded']))
-        probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration:stream=codec_type','-of','json',str(edited_path)]))
-        assert 2.4 < float(probe['format']['duration']) < 4.0,probe
-        assert {'video','audio'}.issubset({stream['codec_type'] for stream in probe['streams']}),probe
-        print('work-post trim and owned audio browser edit:',{'bytes':edited['size'],'duration':probe['format']['duration']})
+        # Decode both streams, rather than trusting container metadata alone.
+        decoded=subprocess.run(['ffmpeg','-hide_banner','-i',str(edited_path),'-map','0:v:0','-map','0:a:0',
+            '-progress','pipe:1','-nostats','-f','null','-'],check=True,capture_output=True,text=True,timeout=60)
+        decoded_times=[int(line.split('=',1)[1])/1_000_000 for line in decoded.stdout.splitlines() if line.startswith('out_time_us=') and line.split('=',1)[1].isdigit()]
+        duration=decoded_times[-1] if decoded_times else 0
+        assert 2.4 < duration < 4.0,decoded.stdout
+        print('work-post trim and owned audio browser edit:',{'bytes':edited['size'],'decoded_duration':duration})
         await browser.close()
 
 

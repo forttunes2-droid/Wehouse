@@ -855,7 +855,7 @@ if (loadError) return <main className="flex min-h-[70dvh] flex-col items-center 
                         : listing.property_type === "hotel" ? "Hotel" : "Home"
                   }
                 />
-                {homeStyleLabel(listing.home_style) && <Fact label="Home type" value={homeStyleLabel(listing.home_style)} />}
+                {homeStyleLabel(listing.home_style) && <Fact label="Home feature" value={homeStyleLabel(listing.home_style)} />}
                 <Fact label="Bedrooms" value={listing.bedrooms === 0 ? "Studio" : listing.bedrooms ?? "—"} />
                 <Fact label="Bathrooms" value={listing.bathrooms || "—"} />
               </section>

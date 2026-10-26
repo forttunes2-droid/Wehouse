@@ -46,17 +46,15 @@ test("Admin and Creator expose one canonical Worker surface", async () => {
   assert.match(migration, /p_role='user'[\s\S]*not public\.user_has_active_workspace\(p\.user_id,'worker'\)/);
 });
 
-test("growing home results become compact on phones without a tiny grid", async () => {
+test("home results retain one readable card layout as the result count grows", async () => {
   const [search, card] = await Promise.all([
     read("src/pages/Search.tsx"),
     read("src/components/ListingCard.tsx"),
   ]);
 
-  assert.match(search, /compactMobile=\{filtered\.length >= 3\}/);
-  assert.match(card, /if \(!compactMobile\) return richCard/);
-  assert.match(card, /sm:hidden/);
-  assert.match(card, /hidden sm:block/);
-  assert.match(card, /h-28 w-32 shrink-0/);
+  assert.doesNotMatch(search, /compactMobile/);
+  assert.doesNotMatch(card, /compactMobile|sm:hidden|hidden sm:block/);
+  assert.match(card, /aria-label=\{'View '\+title\}/);
   assert.doesNotMatch(search, /grid-cols-2[^"\n]*max-sm/);
 });
 

@@ -45,6 +45,7 @@ function workerMatchesFilters(worker: Profile, filters: {
   search: string;
   category: string;
   specialty: string;
+  categoryServices: string[];
   state: string;
   city: string;
 }) {
@@ -56,15 +57,13 @@ function workerMatchesFilters(worker: Profile, filters: {
     worker.local_government || "",
     worker.state || "",
     workerCoverageSearchText(worker),
-    ...((worker.worker_skills as string[]) || []),
+    ...workerServiceNames(worker),
   ].join(" ").toLowerCase();
   if (!matchesDiscoveryText([hay], filters.search)) return false;
-  if (filters.category && ![
-    worker.worker_occupation || "",
-    ...((worker.worker_skills as string[]) || []),
-  ].join(" ").toLowerCase().includes(filters.category.toLowerCase())) return false;
-  if (filters.specialty && !((worker.worker_skills as string[]) || []).some(
-    (skill) => skill.toLowerCase() === filters.specialty.toLowerCase(),
+  const offered=[worker.worker_occupation||'',...workerServiceNames(worker)].map(name=>name.trim().toLowerCase());
+  if (filters.category && ![filters.category,...filters.categoryServices].some(name=>offered.includes(name.trim().toLowerCase()))) return false;
+  if (filters.specialty && !workerServiceNames(worker).some(
+    (skill) => skill.trim().toLowerCase() === filters.specialty.trim().toLowerCase(),
   )) return false;
   if (!workerServesLocation(worker,filters.state,filters.city)) return false;
   return true;
@@ -202,6 +201,7 @@ export default function WorkerDiscovery({
       })),
     [selected],
   );
+  const categoryServices=useMemo(()=>(selected?.subcategories||[]).map(item=>item.name),[selected]);
   const liveWorkers = useMemo(
     () =>
       workers.filter(
@@ -215,7 +215,7 @@ export default function WorkerDiscovery({
   const shown = useMemo(
     () =>
       liveWorkers
-        .filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city }))
+        .filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city,categoryServices }))
         .sort((a, b) => {
           const rating = Number(b.rating || 0) - Number(a.rating || 0);
           return (
@@ -223,14 +223,14 @@ export default function WorkerDiscovery({
             workerDisplayName(a).localeCompare(workerDisplayName(b))
           );
         }),
-    [liveWorkers, search, category, specialty, state, city],
+    [liveWorkers, search, category, specialty, state, city,categoryServices],
   );
   const visibleFeaturedWorkers = useMemo(
     () => sponsoredResults.map(item => ({ campaignId: item.campaign_id,
       worker: liveWorkers.find(worker => worker.user_id === item.resource_id) }))
       .filter((item): item is { campaignId: string; worker: Profile } =>
-        Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city }))),
-    [sponsoredResults, liveWorkers, search, category, specialty, state, city],
+        Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city,categoryServices }))),
+    [sponsoredResults, liveWorkers, search, category, specialty, state, city,categoryServices],
   );
 
   const filterCount = [category, specialty, state, city].filter(Boolean).length;

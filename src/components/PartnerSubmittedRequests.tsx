@@ -423,7 +423,7 @@ function RequestDetail({
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
             <Info label="Property type" value={PROPERTY_TYPE_LABELS[request.property_type as PropertyType] || "Not specified"} />
             {request.property_type === 'apartment' ? <>
-              {homeStyleLabel(request.home_style) && <Info label="Home type" value={homeStyleLabel(request.home_style)} />}
+              {homeStyleLabel(request.home_style) && <Info label="Home feature" value={homeStyleLabel(request.home_style)} />}
               <Info label="Let type" value={APARTMENT_SUB_LABELS[request.sub_type as ApartmentSubType] || "Not specified"} />
               {request.space_scope&&<Info label="Bookable space" value={`${request.space_scope==='private_room'?'Private room':'Entire home'} · ${request.space_label||'Label unavailable'}`}/>}
               <Info label="Bedrooms" value={request.bedrooms === 0 ? "Studio" : request.bedrooms ?? "—"} />

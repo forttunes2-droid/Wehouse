@@ -648,7 +648,7 @@ export function SubmissionSummary({ row, stage }: { row: any; stage: string }) {
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
           <Info label="Type" value="Home" />
-          {homeStyleLabel(row.home_style) && <Info label="Home type" value={homeStyleLabel(row.home_style)} />}
+          {homeStyleLabel(row.home_style) && <Info label="Home feature" value={homeStyleLabel(row.home_style)} />}
           <Info
             label={row.sub_type==='short_let'?'Nightly price':'Annual rent'}
             value={row.expected_rent ? money(row.expected_rent) : "—"}

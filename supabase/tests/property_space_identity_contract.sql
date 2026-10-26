@@ -26,7 +26,7 @@ begin
    'unit_label',case when i in(1,4)then 'Home A' else 'Home B' end,'scope',case when i=3 then 'private_room' else 'entire_unit' end,
    'space_id',case when i=3 then room when i in(1,4)then unit_a else unit_b end,'space_label',case when i=3 then 'Room 1' else '' end,
    'layout_name',case when i in(1,4)then 'Self-contained' else 'Duplex' end,'shared_areas',case when i=3 then '["Kitchen","Entrance"]'::jsonb else '[]'::jsonb end);
-  item:=jsonb_build_object('property_type','apartment','home_style',case when i in(1,4) then 'apartment' else 'penthouse' end,'property_address','Contract address','property_city','Lafia','property_state','Nasarawa',
+  item:=jsonb_build_object('property_type','apartment','home_style',case when i in(1,4) then null else 'penthouse' end,'property_address','Contract address','property_city','Lafia','property_state','Nasarawa',
    'sub_type',case when i=1 then 'long_stay' else 'short_let' end,'bedrooms',case when i in(1,4)then 0 when i=2 then 3 else 1 end,
    'bathrooms',1,'expected_rent',600000,'max_guests',2,'property_display_name','Contract homes','management_mode','host','authority_relationship','owner',
    'access_challenge_id',challenge,'photo_urls','["contract-1","contract-2","contract-3","contract-4"]'::jsonb,'physical_space',spec);
@@ -35,6 +35,7 @@ begin
  end loop;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',au,'session_id',sid,'role','authenticated')::text,true);
  execute 'set local role authenticated';
+ perform pg_temp.expect(pg_temp.rejects(format('select public.create_my_property_inspection_batch_v4(%L,%L::jsonb)',batch,jsonb_set(items,'{0,home_style}','"bungalow"'::jsonb)::text)),'removed property catalogue cannot enter through the submission API');
  receipt:=public.create_my_property_inspection_batch_v4(batch,items);
  perform pg_temp.expect(receipt->>'batch_id'=batch::text and (receipt->>'count')::integer=4,'one existing batch submits mixed layouts and terms');
  perform pg_temp.expect((public.get_my_property_submission_receipt(batch,items)->>'count')::integer=4,'a lost submission response can recover its existing receipt');
@@ -54,9 +55,9 @@ begin
  req:=(receipt->'requests'->0->>'id')::uuid;
  insert into public.listings(id,listing_id,title,price,sub_type,state,city,status,availability_status,inspection_request_id,partner_id)
  values(listing,listing::text,'Contract home',600000,'long_stay','Nasarawa','Lafia','pending_approval','pending_approval',req,person);
- perform pg_temp.expect((select home_style='apartment' from public.listings where id=listing),'listing inherits home type from its submitted review');
+ perform pg_temp.expect((select home_style is null from public.listings where id=listing),'ordinary home does not acquire an invented catalogue type');
  update public.listings set home_style='penthouse' where id=listing;
- perform pg_temp.expect((select home_style='apartment' from public.listings where id=listing),'listing cannot invent a classification outside its submission');
+ perform pg_temp.expect((select home_style is null from public.listings where id=listing),'listing cannot invent a feature outside its submission');
  perform pg_temp.expect((select owner_id=person and partner_id=person from public.listings where id=listing),'canonical Partner grant works while the main profile role is Personal');
  perform pg_temp.expect(pg_temp.rejects(format('update public.listings set partner_id=%L where id=%L','space-outsider-'||outsider,listing)),'a person without the Partner workspace cannot be assigned a listing');
  perform pg_temp.expect((select physical_space_id=unit_a and space_scope='entire_unit' and space_label='Home A' from public.listings where id=listing),'draft publication receives the reviewed physical identity');
@@ -166,8 +167,8 @@ begin
  perform pg_temp.expect(pg_temp.rejects(format('select public.get_my_property_site_schedule(%L,current_date,current_date+31)',site)),'outsider cannot read the building schedule');
  perform pg_temp.expect(pg_temp.rejects(format('select public.clear_my_listing_discount(%L)',booking_ids[1])),'outsider discount removal rejects rather than silently succeeding');
  perform pg_temp.expect((public.get_public_listing_detail(listing::text)->>'status')='available','available Long Let exposes the same unit before another offer is held');
- perform pg_temp.expect((public.get_public_listing_detail(listing::text)->>'home_style')='apartment','public detail exposes the submitted home classification');
- perform pg_temp.expect(jsonb_array_length(public.search_discoverable_homes(p_query=>'Physical Long Let '||au,p_home_style=>'apartment')->'items')=1,'classified search matches the correct home type');
+ perform pg_temp.expect((public.get_public_listing_detail(listing::text)->>'home_style') is null,'public detail keeps an ordinary home without an invented class');
+ perform pg_temp.expect(pg_temp.rejects('select public.search_discoverable_homes(p_home_style=>''apartment'')'),'retired property catalogue filters are not an alternate API');
  perform pg_temp.expect(jsonb_array_length(public.search_discoverable_homes(p_query=>'Physical Long Let '||au,p_home_style=>'penthouse')->'items')=0,'Penthouse filter excludes a classified ordinary apartment');
  perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.search_discoverable_homes(p_query=>'Contract stay',p_home_style=>'penthouse')->'items') as matched_home(value) where matched_home.value->>'id'=booking_ids[1]::text),'Penthouse search returns the published reviewed unit');
  perform pg_temp.expect(jsonb_array_length(public.search_discoverable_homes(p_query=>'Physical Long Let '||au,p_stay_type=>'long_stay')->'items')=1,'public search includes a free Long Let physical home');

@@ -201,6 +201,18 @@ A building may contain only Long Lets, only Short Lets, or a mixture. The custom
 
 Management responsibility is independent of property layout and let type. Existing management is recorded per listing: Host manages uses the named responsible host and scoped co-host permissions; WeHouse manages requires accepted Operations responsibility before new WeHouse-managed bookings. Ownership, commercial controls, operational access, earnings and support are separate capabilities. A future building default must not grant authority over separately owned spaces or change existing booking snapshots without a reviewed handoff. Customer operator wording must come from approved space/booking state, not a marketing label or the current viewer role.
 
+## 26 October owner correction: Home organization and filters
+
+Homes use Short Let or Long Let, the actual unit/private-room scope and bedroom
+layout. Studio / self-contained means 0 separate bedrooms for an entire unit.
+Compound or apartment building is the Partner's container for its individual
+units, not another customer rental product. Remove the added Apartment / flat,
+Bungalow, House and Other-home catalogue from submission and discovery controls.
+The already agreed Penthouse option remains an optional property feature, never
+an automatic luxury rating. Existing stored records and booking agreements are
+preserved; new submitted features and public feature filters accept only that
+supported option or no feature.
+
 ## 23 October owner confirmation: Experience money policy and legal review pack
 
 - Confirmed by the owner: the standard full-refund deadline is 24 hours before the scheduled start for Experiences, Services, Short Let and Hotel bookings. Provider/host cancellation gives a full refund. Existing bookings retain their accepted policy snapshot; rollout must not silently rewrite them.

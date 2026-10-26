@@ -1,4 +1,5 @@
 import { withTimeout } from "@/lib/withTimeout";
+import BrandIdentity from '@/components/BrandIdentity';
 import { ReceiptDocument, ReceiptPrintButton } from "@/components/PaymentReceipt";
 import { getPaymentReceipts, type PaymentReceipt } from "@/lib/supabase/receipts";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -123,7 +124,7 @@ function PaymentReturnContent({ profile, onNavigate }: Props) {
   const successPurpose = state.kind === 'success' ? state.purpose : undefined;
 
   return <div className="min-h-[100dvh] bg-[var(--wh-bg)] px-4 py-8 text-[var(--wh-text)]"><div className="mx-auto max-w-md">
-    <div className="mb-8 flex items-center gap-3"><img src="/brand-mark-dark.svg" alt="WeHouse" className="h-11 w-11" /><div><p className="text-xs font-bold uppercase tracking-[.2em] text-[var(--wh-accent-text)]">WEHOUSE PAYMENTS</p><h1 className="mt-1 text-lg font-bold">Payment confirmation</h1></div></div>
+    <div className="mb-8 flex items-center gap-3"><BrandIdentity mark className="h-11 w-11"/><div><p className="text-xs font-bold uppercase tracking-[.2em] text-[var(--wh-accent-text)]">WEHOUSE PAYMENTS</p><h1 className="mt-1 text-lg font-bold">Payment confirmation</h1></div></div>
     <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-2xl">
       <div className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold ${state.kind === 'success' ? 'bg-emerald-500 text-[#04100B]' : state.kind === 'error' ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-violet-500/10 text-[var(--wh-accent-text)]'}`}>{state.kind === 'success' ? '✓' : state.kind === 'error' ? '!' : <span aria-hidden="true" className="h-6 w-6 animate-spin rounded-full border-2 border-violet-300 border-t-transparent motion-reduce:animate-none" />}</div>
       <h2 className="mt-5 text-xl font-bold">{state.kind === 'success' ? paymentHeading(successPurpose) : state.kind === 'error' ? 'Confirmation needs attention' : 'Verifying with Paystack'}</h2>

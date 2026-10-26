@@ -29,6 +29,7 @@ supabase/.temp/
 
 # Generated verification artifacts
 test-results/
+__pycache__/
 
 # Local PDF tooling and rendered review pages
 /tmp/pdf-runtime/

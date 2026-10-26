@@ -1305,7 +1305,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     }
     let destination = "";
     try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
-    const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : "";
+    const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : destination === 'roommate' ? 'roommate' : destination === 'services' ? 'worker_discovery' : "";
     if (!route) return;
     try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
     goTo(route as NavPage);

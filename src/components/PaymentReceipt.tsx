@@ -12,7 +12,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
   return <article className="wehouse-receipt mx-auto max-w-md overflow-hidden rounded-2xl bg-white text-[#24212B] shadow-xl shadow-black/20">
     <div className="h-1 bg-violet-600" />
     <header className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
-      <div className="flex items-center gap-2.5"><img src="/brand-mark-light.svg" alt="WeHouse" className="h-10 w-10 rounded-xl" /><div><p className="text-base font-bold tracking-tight">WeHouse</p><p className="text-xs text-[var(--wh-text-muted)]">wehouse.com.ng</p></div></div>
+      <div className="flex items-center gap-2.5"><img src="/brand/v4/micro-purple.svg" alt="WeHouse" className="h-10 w-10" /><div><p className="text-base font-bold tracking-tight">WeHouse</p><p className="text-xs text-[var(--wh-text-muted)]">wehouse.com.ng</p></div></div>
       <span className={`rounded-full px-3 py-1 text-xs font-bold ${status.refunded ? "bg-amber-50 text-amber-900" : status.label === "Paid" ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{status.label}</span>
     </header>
     <div className="px-5 pb-5 pt-6 sm:px-6">
