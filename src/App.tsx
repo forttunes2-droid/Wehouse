@@ -1682,7 +1682,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         );
       case "hotels":
         return isUserRole ? (
-          <HotelsHome onNavigate={openUserDestination} />
+          <HotelsHome key={profile.user_id} sessionKey={profile.user_id} onNavigate={openUserDestination} />
         ) : (
           renderRoleRoot()
         );

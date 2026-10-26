@@ -19,7 +19,7 @@ async def main():
       headers={'access-control-allow-origin':'*','access-control-allow-headers':'*'}
       if handler.request.method=='OPTIONS':return await handler.fulfill(status=204,headers=headers)
       name=url.split('?')[0].split('/')[-1]
-      if name=='get_public_listing_detail':data={'id':'shared-home','title':'Shared home','sub_type':'short_let','city':'Lafia','state':'Nasarawa','images':[]}
+      if name=='get_public_listing_detail':data={'id':'shared-home','listing_id':'public-home-reference','title':'Shared home','sub_type':'short_let','city':'Lafia','state':'Nasarawa','images':[]}
       elif name=='get_public_hotel_detail':data={'hotel_id':42,'name':'Shared Hotel','city':'Lafia','state':'Nasarawa','images':[]}
       else:raise AssertionError('Unexpected API '+name)
       return await handler.fulfill(content_type='application/json',body=json.dumps(data),headers=headers)
@@ -51,7 +51,7 @@ async def main():
       for kind in ['listing','hotel']:
        card=page.get_by_test_id(side+'-'+kind).get_by_role('button',name='View ',exact=False)
        await card.tap()
-       await expect(page.get_by_label('Opened shared item',exact=True)).to_have_text(json.dumps({'kind':kind,'page':'hotel_detail' if kind=='hotel' else 'detail','id':42 if kind=='hotel' else 'shared-home'},separators=(',',':')))
+       await expect(page.get_by_label('Opened shared item',exact=True)).to_have_text(json.dumps({'kind':kind,'page':'hotel_detail' if kind=='hotel' else 'detail','id':42 if kind=='hotel' else 'shared-home' if side=='sent' else 'public-home-reference'},separators=(',',':')))
      assert not errors,errors
      await page.screenshot(path=str(OUT/f'gallery-sharing-{theme}.png'))
      results.append({'theme':theme,'passed':True,'checks':['fullscreen close sync','resize preserves position','browser Back sync','new property resets index','sent and received Home/Hotel touch navigation']})

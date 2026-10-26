@@ -24,6 +24,7 @@ SCRIPT="""s=>{
   if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
   if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
+  if(name==='rpc:get_my_page_distances')return{data:[{subject_type:'hotel',subject_id:'7',distance_km:2}],error:null};
   if(name==='rpc:get_my_workspace_access')return{data:{identity:{user_id:'qa-viewer'},personal_workspace:true,privileged_workspaces:[]},error:null};
   if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
@@ -123,6 +124,24 @@ async def main():
     await expect(page.get_by_text('Open video',exact=True)).to_be_visible()
     await expect(page.locator('[data-media-thumbnail] video')).to_have_count(0)
     assert not any(url.endswith('.mp4') for url in media_requests),'Browsing thumbnails downloaded a video'
+    # A followed radius remains bound to its origin when returning from detail.
+    await page.evaluate("sessionStorage.setItem('wehouse:open-followed-search',JSON.stringify({kind:'hotels',criteria:{query:'Keffi Garden',latitude:8.8,longitude:7.8,radius_km:5}}));window.__switchBrowseMode('hotels')")
+    await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Keffi Garden')
+    await page.wait_for_function("window.__browse.calls.filter(c=>c.name==='getHotels').at(-1)?.args[0]?.latitude===8.8")
+    await page.evaluate("window.__switchBrowseMode('thumbnail')")
+    await expect(page.get_by_text('Open video',exact=True)).to_be_visible()
+    await page.evaluate("window.__switchBrowseMode('hotels')")
+    await expect(page.get_by_role('button',name='Using followed search location',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Open filters',exact=True).click()
+    await expect(page.get_by_text('Distance from followed search location',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Close filters',exact=True).click()
+    # Another identity starts with its own query, radius and saved-search origin.
+    await page.evaluate("window.__switchBrowseMode('thumbnail')")
+    await expect(page.get_by_text('Open video',exact=True)).to_be_visible()
+    await page.evaluate("window.__browse.sessionKey='another-account';window.__switchBrowseMode('hotels')")
+    await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('')
+    await expect(page.get_by_role('button',name='Use my location',exact=True)).to_be_visible()
+    await page.wait_for_function("(()=>{const f=window.__browse.calls.filter(c=>c.name==='getHotels').at(-1)?.args[0];return f?.search===''&&f?.radiusKm===undefined&&f?.latitude===undefined})()")
     await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}-{theme}.png'))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')

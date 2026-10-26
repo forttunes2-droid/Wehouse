@@ -6,9 +6,11 @@
 
 ### Connected discovery, shared links and gallery position — 26 October
 
-The latest local follow-through makes Friend chat navigation required, passes it
+The latest follow-through makes Friend chat navigation required, passes it
 from the older Activity renderer and closes the conversation overlay before
-opening a shared Home, Hotel or Service Provider. The active Inbox already
+opening a shared Home, Hotel or Service Provider. Home card previews now accept
+the public listing reference as well as the internal identifier, matching the
+detail API. Sender/receiver touch checks cover both forms. The active Inbox already
 passed navigation; this is not a claim that the legacy callback explains every
 reported live failure. Synthetic sent/received Home and Hotel touch journeys
 resolve their typed destinations. Hosted two-device delivery remains unverified.
@@ -42,8 +44,25 @@ Friend history, gallery/sharing and location-race browser checks pass. The
 earlier `8e3bdc28` replay progressed through Service booking and policy checks,
 then exposed a team fixture assuming the old default-closed marketplace. That
 fixture now explicitly pauses discovery before testing pause permissions; it
-passes on Test without restoring a normal Creator opening requirement. Exact
-published-head replay and CI must still pass before a merge recommendation.
+passes on Test without restoring a normal Creator opening requirement. All seven
+workflows now pass on published commit `708c0f7e`, including fresh migration replay,
+existing-account upgrade, browser journeys and isolated mixed/medium checks.
+
+Further Home/Hotel sharing and saved Hotel search checks cover a second defect:
+the public Home reference was rejected by the preview despite being accepted by
+the detail RPC. Hotel filters now retain a followed-search origin together with
+its radius, sort loaded results using that origin and expose the corresponding
+distance control. A radius without a location does not become an empty-search
+constraint. Account-specific filter state prevents another account inheriting
+the previous query or saved-search origin. Eight responsive/theme journeys and
+both touch-sharing journeys pass; 787 regression tests pass.
+
+The actual `708c0f7e` deployed browser exposed a missing preview backend, despite
+its successful HTML/build check. Added branch-specific Preview-only Test URL and
+publishable-key configuration in Vercel; Production settings are unchanged. A
+new build must visibly open the app before the preview is usable for account
+testing. This checkpoint supersedes any inference that HTTP 200 alone proves a
+connected preview. The next exact commit must pass CI again.
 
 ### Pushed verification and replay repair — 26 October
 

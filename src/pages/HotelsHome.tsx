@@ -47,7 +47,7 @@ type HotelRow = Hotel & {
   gps_latitude?: number | null;
   gps_longitude?: number | null;
 };
-type Props = { onNavigate: (page: string, id?: string) => void };
+type Props = { onNavigate: (page: string, id?: string) => void; sessionKey?: string };
 const HOTEL_PRICE_FLOOR = 1000;
 const HOTEL_PRICE_CEILING = 1000000;
 const HOTEL_PRICE_STEP = 1000;
@@ -55,8 +55,10 @@ const HOTEL_PRICE_STEP = 1000;
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
-let hotelFilters = { query: '', state: '', city: '', amenities: [] as string[], minPrice: '' as number | '', maxPrice: '' as number | '', radius: '' as number | '' };
-export default function HotelsHome({ onNavigate }: Props) {
+const emptyHotelFilters = { query: '', state: '', city: '', amenities: [] as string[], minPrice: '' as number | '', maxPrice: '' as number | '', radius: '' as number | '', followedOrigin: null as {lat:number;lng:number}|null };
+const filtersBySession = new Map<string,typeof emptyHotelFilters>();
+export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
+  const initialFilters=filtersBySession.get(sessionKey)||emptyHotelFilters;
   const guest = useDiscoveryAccess();
   const [attempt, setAttempt] = useState(0);
   const [loadError, setLoadError] = useState(false);
@@ -66,20 +68,20 @@ export default function HotelsHome({ onNavigate }: Props) {
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<{ featured: boolean; createdAt: string; id: number } | null>(null);
   const requestGeneration = useRef(0);
-  const [query, setQuery] = useState(() => hotelFilters.query);
-  const [state, setState] = useState(() => hotelFilters.state);
-  const [city, setCity] = useState(() => hotelFilters.city);
+  const [query, setQuery] = useState(() => initialFilters.query);
+  const [state, setState] = useState(() => initialFilters.state);
+  const [city, setCity] = useState(() => initialFilters.city);
   const sponsoredResults = useSponsoredDiscovery('hotel', state, city);
-  const [amenities, setAmenities] = useState<string[]>(() => hotelFilters.amenities);
-  const [minPrice, setMinPrice] = useState<number | "">(() => hotelFilters.minPrice);
-  const [maxPrice, setMaxPrice] = useState<number | "">(() => hotelFilters.maxPrice);
+  const [amenities, setAmenities] = useState<string[]>(() => initialFilters.amenities);
+  const [minPrice, setMinPrice] = useState<number | "">(() => initialFilters.minPrice);
+  const [maxPrice, setMaxPrice] = useState<number | "">(() => initialFilters.maxPrice);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [radius, setRadius] = useState<number | "">(() => hotelFilters.radius);
+  const [radius, setRadius] = useState<number | "">(() => initialFilters.radius);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
   const [savingHotelId, setSavingHotelId] = useState<number | null>(null);
-  const [followedOrigin, setFollowedOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [followedOrigin, setFollowedOrigin] = useState<{ lat: number; lng: number } | null>(()=>initialFilters.followedOrigin);
   useEffect(() => {
     const criteria = takeFollowedSearchIntent('hotels');
     if (!criteria) return;
@@ -105,7 +107,8 @@ export default function HotelsHome({ onNavigate }: Props) {
     requestLocation,
     clearLocation,
   } = useDiscoveryLocation();
-  useEffect(() => { hotelFilters = { query, state, city, amenities, minPrice, maxPrice, radius }; }, [query, state, city, amenities, minPrice, maxPrice, radius]);
+  const activeRadius=followedOrigin||userLocation ? radius : '';
+  useEffect(() => { filtersBySession.set(sessionKey,{ query, state, city, amenities, minPrice, maxPrice, radius:activeRadius, followedOrigin }); }, [sessionKey,query, state, city, amenities, minPrice, maxPrice, activeRadius,followedOrigin]);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -126,10 +129,10 @@ export default function HotelsHome({ onNavigate }: Props) {
     search: query, state, city, amenities,
     minPrice: minPrice === '' ? undefined : minPrice,
     maxPrice: maxPrice === '' ? undefined : maxPrice,
-    latitude: radius === '' ? undefined : (followedOrigin || userLocation)?.lat,
-    longitude: radius === '' ? undefined : (followedOrigin || userLocation)?.lng,
-    radiusKm: radius === '' ? undefined : radius,
-  }), [query, state, city, amenities, minPrice, maxPrice, radius, followedOrigin, userLocation]);
+    latitude: activeRadius === '' ? undefined : (followedOrigin || userLocation)?.lat,
+    longitude: activeRadius === '' ? undefined : (followedOrigin || userLocation)?.lng,
+    radiusKm: activeRadius === '' ? undefined : activeRadius,
+  }), [query, state, city, amenities, minPrice, maxPrice, activeRadius, followedOrigin, userLocation]);
   useEffect(() => {
     let live = true;
     const generation = ++requestGeneration.current;
@@ -224,11 +227,11 @@ export default function HotelsHome({ onNavigate }: Props) {
           return true;
         })
         .sort((a, b) =>
-          userLocation
+          (followedOrigin || userLocation)
             ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
             : Number(Boolean(b.hotel.featured)) - Number(Boolean(a.hotel.featured)),
         ),
-    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap],
+    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap,userLocation,followedOrigin],
   );
   const sponsoredHotels = useMemo(() => sponsoredResults.map(item => ({
     campaignId: item.campaign_id,
@@ -239,7 +242,7 @@ export default function HotelsHome({ onNavigate }: Props) {
 
   const priceActive = minPrice !== "" || maxPrice !== "";
   const filterCount =
-    [state, city, radius].filter(Boolean).length +
+    [state, city, activeRadius].filter(Boolean).length +
     amenities.length +
     (priceActive ? 1 : 0);
   const currentSearchCriteria = useMemo(
@@ -250,11 +253,11 @@ export default function HotelsHome({ onNavigate }: Props) {
       min_price: minPrice === "" ? null : minPrice,
       max_price: maxPrice === "" ? null : maxPrice,
       amenities,
-      radius_km: radius === "" ? null : radius,
-      latitude: radius === "" ? null : (followedOrigin || userLocation)?.lat,
-      longitude: radius === "" ? null : (followedOrigin || userLocation)?.lng,
+      radius_km: activeRadius === "" ? null : activeRadius,
+      latitude: activeRadius === "" ? null : (followedOrigin || userLocation)?.lat,
+      longitude: activeRadius === "" ? null : (followedOrigin || userLocation)?.lng,
     }),
-    [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng, followedOrigin],
+    [amenities, city, maxPrice, minPrice, query, activeRadius, state, userLocation?.lat, userLocation?.lng, followedOrigin],
   );
   const currentSearchKey = savedSearchKey("hotels", currentSearchCriteria);
   const followedSearch = followedSearches.find(
@@ -359,7 +362,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           locationLabel={followedOrigin ? "Using followed search location" : userLocation ? "Using current location" : "Use my location"}
           locationActive={Boolean(followedOrigin || userLocation)}
           locationBusy={locating}
-          onLocation={() => { setFollowedOrigin(null); requestLocation(); }}
+          onLocation={() => { setFollowedOrigin(null); setRadius(''); requestLocation(); }}
           onClearLocation={() => { setFollowedOrigin(null); clearLocation(); setRadius(''); }}
         />
         {sponsoredHotels.length > 0 && <section aria-label="Sponsored hotels" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
@@ -483,9 +486,9 @@ export default function HotelsHome({ onNavigate }: Props) {
               ))}
             </div>
           </div>
-          {userLocation ? (
+          {followedOrigin || userLocation ? (
             <SearchableSelect
-              label="Distance from your current location"
+              label={followedOrigin ? 'Distance from followed search location' : 'Distance from your current location'}
               value={radius === "" ? "" : String(radius)}
               onChange={(value) => setRadius(value ? Number(value) : "")}
               options={[
