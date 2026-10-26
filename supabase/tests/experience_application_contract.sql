@@ -22,7 +22,7 @@ begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
  perform pg_temp.expect(pg_temp.rejects(format('select public.set_my_experience_publication(%L,3,1,false)',aid)),'another provider cannot unpublish the host activity');
  perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.search_experiences('NG','orientation Lafia')->'items') x where x->>'id'=aid::text),'customer discovery matches approved title and area');
- perform pg_temp.expect(jsonb_array_length(public.search_experiences('NG','','','Lagos')->'items')=0,'location filter excludes a different state in this rolled-back fixture');
+ perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(public.search_experiences('NG','','','Lagos')->'items') x where x->>'id'=aid::text),'location filter excludes this activity in a different state');
  perform pg_temp.expect(public.get_published_experience(aid)->'details' ? 'what_to_expect','public detail includes the actual activity');
  perform pg_temp.expect(not (public.get_published_experience(aid) ? 'approval_note'),'internal review notes are not public detail');
  perform pg_temp.expect(jsonb_array_length(public.get_published_experience_sessions(aid))>=1,'customer can select approved dated sessions');

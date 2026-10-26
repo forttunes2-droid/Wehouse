@@ -261,7 +261,7 @@ begin
    or encode(pg_catalog.sha256(convert_to(b.contract::text,'UTF8')),'hex')<>p_contract_hash then raise exception 'Booking reference belongs to different accepted terms' using errcode='42501';end if;
   return to_jsonb(b);
  end if;
- select a.* into a from public.experience_activities a join public.experience_sessions s on s.activity_id=a.id where s.id=p_session_id for update of a;
+ select activity_row.* into a from public.experience_activities activity_row join public.experience_sessions session_row on session_row.activity_id=activity_row.id where session_row.id=p_session_id for update of activity_row;
  select * into s from public.experience_sessions where id=p_session_id for update;
  contract:=private.experience_quote(p_session_id,p_participants);
  if a.host_user_id=actor then raise exception 'Hosts cannot book their own activity';end if;
