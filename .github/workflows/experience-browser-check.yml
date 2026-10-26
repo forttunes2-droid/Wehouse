@@ -93,7 +93,9 @@ jobs:
           retention-days: 7
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Chromium/OS provisioning took over 16 minutes on a hosted runner.
+    # Leave room for every sequential journey and artifact upload afterward.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:

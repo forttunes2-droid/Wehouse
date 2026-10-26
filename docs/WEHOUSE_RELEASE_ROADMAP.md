@@ -21,6 +21,19 @@ all 87 Wallet/Pro journeys and the welcome/operator browser suite pass locally.
 The encoder and actual public-video compression jobs already passed in CI.
 These local results do not substitute for fresh exact-commit CI replay results.
 
+On `865bf931`, fresh replay, existing-account upgrade, build, structural,
+disposable baseline, mixed journeys, medium catalogue, Wallet/Pro and media
+compression checks pass. The main browser runner spent over 16 minutes on
+Chromium/OS provisioning, then reached passing gallery/property checks before
+the 20-minute job cancellation. Its bounded allowance is increased to 35 minutes
+without dropping, skipping or changing the journey assertions.
+
+The exact `865bf931` hosted Test deployment is accessible. Its actual Home filter
+shows no retired catalogue; Short Let + Nasarawa + Lafia returns matching nightly
+NGN results. Protected connector requests to its anonymous catalog return HTTP
+200 and consecutive CDN MISS then HIT. Prior deployment-disabled observations
+are historical, not a current inability to open this particular preview.
+
 ### Owner corrections: guest gates, original brand and Home catalogue — 26 October
 
 The separate signed-out Roommates/Services marketing pages are removed. All four
