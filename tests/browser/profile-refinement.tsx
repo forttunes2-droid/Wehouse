@@ -17,7 +17,7 @@ function Fixture(){
  if(mode==='media-error')state.failMedia=true;
  if(mode==='stale')state.delayWorker='worker-a';
  if(mode==='pending-media')state.delaySigning=true;
- const publicMode=!['owner','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
+ const publicMode=!['owner','owner-new','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
  if(mode==='help-error')state.failHelp=true;if(mode==='help-wrong-user')state.wrongAccount=true;
  return <><div className="mx-auto min-h-screen max-w-3xl bg-[#090B10] p-5 text-white"><h1 className="mb-5 text-xl font-semibold">{mode.startsWith('owner')?'Your showcase':'WeHouse'}</h1>
  {open&&(publicMode||mode==='private')&&<WorkerPublicProfile worker={person(worker)} onBack={()=>setOpen(false)} onBook={()=>w.__booked=true} showBookingAction={mode!=='private'} previewMode={mode==='preview'} communicationActions={mode==='private'?<button type="button">Call</button>:undefined}/>}

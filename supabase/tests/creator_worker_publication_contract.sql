@@ -2,14 +2,14 @@
 begin;
 create function pg_temp.expect(value boolean, description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description; end if;end$$;
 grant execute on function pg_temp.expect(boolean,text) to authenticated,anon,service_role;
-select pg_temp.expect((select value='false' and coalesce(is_active,false) and data_type='boolean' and editable=false from public.platform_settings where key='worker_marketplace_launch_enabled'),'Migrations seed Creator publication control closed and protected from generic edits');
+select pg_temp.expect((select value='true' and coalesce(is_active,false) and data_type='boolean' and editable=false and label='Service discovery availability' from public.platform_settings where key='worker_marketplace_launch_enabled'),'Migrations allow ordinary reviewed discovery without a separate Creator opening step');
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_kind,full_name,state,city,local_government,worker_occupation,worker_skills,worker_status,worker_verified,available) values
 ('93000000-0000-4000-8000-000000000001','pub-creator@example.invalid','pub-creator','creator',true,'consumer','Creator','Nasarawa','Lafia','Lafia',null,null,null,false,false),
 ('93000000-0000-4000-8000-000000000002','pub-worker@example.invalid','pub-worker','user',true,'consumer','Plumber','Nasarawa','Lafia','Lafia','Plumber','["Plumbing"]','verified',true,true),
 ('93000000-0000-4000-8000-000000000003','pub-customer@example.invalid','pub-customer','user',true,'consumer','Customer','Nasarawa','Lafia','Lafia',null,null,null,false,false);
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values('pub-creator','creator','global','active'),('pub-worker','worker','global','active');
-insert into public.worker_service_coverage(worker_id,state,lga,areas) values('pub-worker','Nasarawa','Lafia','{}');
+insert into public.worker_service_coverage(worker_id,state,lga,areas) values('pub-worker','Nasarawa','Keffi','{}');
 insert into public.worker_verifications(worker_id,status,credential_requirements,
  credential_revision,credential_requirements_set_by,credential_requirements_set_at)
 values('pub-worker','verified','[{"code":"trade","label":"Plumbing credential","requires_expiry":false}]',
@@ -33,8 +33,13 @@ select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-00000000
 set local role authenticated;
 do $$begin
  begin perform public.creator_get_worker_publication('pub-worker');raise exception 'FAIL: Customer received Creator controls';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
- perform pg_temp.expect((select count(*)=0 from public.get_public_workers() where user_id='pub-worker'),'Closed marketplace is hidden to ordinary customers');
+ perform pg_temp.expect((select count(*)=1 from public.get_public_workers() where user_id='pub-worker'),'Approved provider appears automatically for an ordinary customer');
 end$$;
+reset role;
+-- A deliberate operational pause is still respected, separate from onboarding.
+update public.platform_settings set value='false',updated_at=now() where key='worker_marketplace_launch_enabled';
+set local role authenticated;
+select pg_temp.expect((select count(*)=0 from public.get_public_workers() where user_id='pub-worker'),'Explicit incident pause hides new discovery');
 reset role;
 select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-000000000001","role":"authenticated","session_id":"publication-session"}',true);
 set local role authenticated;
@@ -47,6 +52,12 @@ reset role;
 select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 set local role authenticated;
 select pg_temp.expect((select count(*)=1 from public.get_public_workers() where user_id='pub-worker'),'Eligible free Worker is public after deliberate Creator opening');
+reset role;
+-- Public matching uses declared travel/service coverage, not the home/base LGA.
+set local role authenticated;
+select pg_temp.expect((select count(*)=1 from public.get_public_workers('Nasarawa','Keffi') where user_id='pub-worker'),'provider based in Lafia can serve a declared Keffi area');
+select pg_temp.expect((select count(*)=0 from public.get_public_workers('Nasarawa','Ikeja') where user_id='pub-worker'),'State and LGA must match the same declared coverage row');
+select pg_temp.expect((select count(*)=0 from public.get_public_workers('Nasarawa','Akwanga') where user_id='pub-worker'),'undeclared service area is excluded');
 reset role;
 select set_config('request.jwt.claims','{"sub":"93000000-0000-4000-8000-000000000001","role":"authenticated","session_id":"publication-session"}',true);
 set local role authenticated;

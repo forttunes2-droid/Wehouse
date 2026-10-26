@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { assessCatalogStage, catalogWarmupComplete, CATALOG_CAPACITY_LIMITS } from './lib/catalog-capacity-gates.mjs';
 import { createCatalogTransport } from './lib/catalog-transport.mjs';
-import { catalogRamp } from './lib/catalog-ramp.mjs';
+import { freePlanCatalogRamp } from './lib/catalog-ramp.mjs';
 
 // Explicit allowlist: this cannot be pointed at the live WeHouse project.
 const origin = new URL('https://qoobnkedfyosnizrlttt.supabase.co');
@@ -12,11 +12,8 @@ const shardId=process.env.WEHOUSE_CATALOG_SHARD_ID||'single';
 assert.ok(['single','0','1','2','3'].includes(shardId),'Invalid catalog generator identity');
 assert.ok(key?.startsWith('sb_publishable_'), 'Test project publishable key required');
 assert.equal(origin.hostname, 'qoobnkedfyosnizrlttt.supabase.co');
-const stages = catalogRamp(process.env.WEHOUSE_CATALOG_MAX_RPS || '200');
-// 1,000 RPS at the 2-second latency ceiling needs up to 2,000 live sockets.
-// Keep the generator above that budget and record queueing rather than mistake
-// a small client pool for the service's capacity. Logical in-flight stays 3,000.
-const transport = createCatalogTransport(origin,{maxSockets:stages.at(-1)[0]>200?2048:128});
+const stages = freePlanCatalogRamp(process.env.WEHOUSE_CATALOG_MAX_RPS || '1',shardId);
+const transport = createCatalogTransport(origin,{maxSockets:32});
 process.once('exit', () => transport.close());
 const paths = [
   { name: 'home_feed', rpc: 'search_discoverable_homes', body: { p_limit: 24 }, validate: d => d?.items?.length === 24 },
@@ -64,7 +61,7 @@ async function read(path) {
   return { name: path.name, ms: performance.now() - started, ok: false, status: 'retry-exhausted', retries, retry_status };
 }
 const result = { project: 'WeHouse Test (qoobnkedfyosnizrlttt)', fixture: '1000 synthetic homes + 1000 synthetic hotels/rooms',
-  scope: 'Anonymous public discovery reads only on the dedicated Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. Thirty-second stages are a catalog smoke benchmark, not sustained whole-product capacity. Fixed ceiling of 3000 logical requests in flight, each allowing up to three 15-second attempts. Stops at the first failed stage.',
+  scope: 'Manual low-rate anonymous discovery check on the shared Free Test project. No auth, booking, payment, messaging, Realtime, media, or Vercel CDN. One generator, at most 10 requests/second and 32 logical requests in flight. Each allows up to three 15-second attempts. Stops at the first failed stage; this is not sustained whole-product capacity evidence.',
   requested_stages:stages,
   shard_id:shardId,
   measured_at: new Date().toISOString(),
@@ -126,7 +123,7 @@ for (const [rps, seconds] of stages) {
     // Size the ceiling to the offered rate and request timeout, rather than
     // dropping valid arrivals at 500 in-flight and confusing generator saturation
     // with service saturation. Errors, latency, retries and dispatch timing are gated below.
-    if (running.size >= 3000) { dropped++; continue; }
+    if (running.size >= 32) { dropped++; continue; }
     const task = read(paths[serial++ % paths.length]).then(sample => samples.push(sample));
     running.add(task); max_inflight = Math.max(max_inflight, running.size); void task.finally(() => running.delete(task));
   }

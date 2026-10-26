@@ -32,7 +32,7 @@ async def main():
   if os.getenv('CHROMIUM_PATH'):opts['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**opts)
   for width in [320,390,768,1440]:
-   for mode in ['public','preview','creator-list','owner','owner-link','private','error','media-error','pending-media','stale','help','help-error','help-wrong-user']:
+   for mode in [m for m in ['public','preview','creator-list','owner','owner-new','owner-link','private','error','media-error','pending-media','stale','help','help-error','help-wrong-user'] if not os.getenv('WEHOUSE_PROFILE_QA_MODES') or m in os.environ['WEHOUSE_PROFILE_QA_MODES'].split(',')]:
     context=await browser.new_context(viewport={'width':width,'height':844},has_touch=True,service_workers='block');page=await context.new_page();page.set_default_timeout(6000)
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'case':mode,'width':width,'passed':False,'page_errors':errors}
     async def route(handler):
@@ -109,6 +109,11 @@ async def main():
       await tiles.nth(0).click();await page.get_by_label('Post options',exact=True).click();await page.get_by_role('button',name='Hide from profile',exact=True).click()
       await expect(page.get_by_role('dialog',name='Sani Example work post')).to_have_count(0)
       assert len([x for x in await page.evaluate('window.__fixtureState.calls') if x['name']=='set_my_worker_work_post_hidden'])==1
+      await page.locator('input[type=file][accept^="image/"]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
+      await expect(page.get_by_text('Your showcase has 12 work samples. Remove an old sample before adding another.',exact=True)).to_be_visible()
+      await expect(page.get_by_role('dialog',name='New work post')).to_have_count(0)
+     elif mode=='owner-new':
+      await expect(tiles).to_have_count(3)
       await page.locator('input[type=file][accept^="image/"]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
       await expect(page.get_by_role('dialog',name='New work post')).to_be_visible()
       await page.get_by_placeholder('Describe this work').fill('Sample cabinet fitting')

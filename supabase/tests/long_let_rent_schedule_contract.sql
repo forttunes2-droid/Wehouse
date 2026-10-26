@@ -38,6 +38,25 @@ begin
  perform pg_temp.expect(not has_function_privilege('anon','private.long_let_rent_schedule(numeric,numeric,integer,text,date)','EXECUTE'),'private calculator is not an anonymous RPC');
  perform pg_temp.expect(not has_function_privilege('anon','public.set_my_long_let_rent_terms(uuid,integer,integer[],boolean)','EXECUTE'),'anonymous account cannot edit Partner terms');
 end $$;
+do $$
+declare q jsonb;term integer;year_no integer;year_gross numeric;year_fee numeric;year_net numeric;rate numeric;
+begin
+ foreach term in array array[24,36,48,60] loop
+  foreach rate in array array[0::numeric,10::numeric,12.37::numeric,50::numeric] loop
+   q:=private.allocate_long_let_payment_splits(1200000,1200000,1200000,term,'monthly',rate);
+   for year_no in 2..term/12 loop
+    select sum((p->>'amount')::numeric),sum((p->>'wehouse_amount')::numeric),sum((p->>'net_amount')::numeric)
+    into year_gross,year_fee,year_net from jsonb_array_elements(q->'partner_schedule'->'payments') p
+    where (p->>'target_year')::integer=year_no;
+    perform pg_temp.expect(year_gross=1200000,'eight payments fund exactly one later year');
+    perform pg_temp.expect(year_fee=round(1200000*rate/100,2),'annual commission is allocated once, not charged eight times');
+    perform pg_temp.expect(year_net=year_gross-year_fee,'Partner net plus commission equals collected rent');
+   end loop;
+  end loop;
+ end loop;
+ q:=private.allocate_long_let_payment_splits(1200000,1200000,1200000,24,'monthly',10);
+ perform pg_temp.expect((select bool_and((p->>'amount')::numeric=150000 and (p->>'wehouse_amount')::numeric=15000 and (p->>'net_amount')::numeric=135000) from jsonb_array_elements(q->'partner_schedule'->'payments') p where (p->>'target_year')::integer=2),'10 percent example is 15000 per 150000 payment, not an annual fee per month');
+end $$;
 select 'Accepted Long Let term, monthly/full schedule, exact totals and calendar checks passed' as result;
 do $$
 declare q jsonb;p jsonb;partner jsonb;i integer;tenant_total numeric;partner_total numeric;platform_total numeric;

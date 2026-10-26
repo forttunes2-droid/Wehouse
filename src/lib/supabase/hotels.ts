@@ -7,6 +7,7 @@ async function readHotel<T extends { data: unknown; error: unknown }>(request: P
 }
 import type { Hotel, HotelRoom, HotelBooking, HotelReview, HotelRatePlan, HotelVenue } from '@/types';
 import { compressImageFile } from './utils';
+import {PUBLIC_PHOTO_MAX_INPUT_BYTES,PUBLIC_PHOTO_TARGET_BYTES} from '../publicPhotoPolicy';
 
 // ── Browse Hotels ──────────────────────────────────────
 
@@ -273,8 +274,9 @@ export async function deleteHotelRoom(roomId: number) {
 
 export async function uploadHotelImage(file: File, hotelId: number) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image' } as any };
+  if(file.size>PUBLIC_PHOTO_MAX_INPUT_BYTES)return {url:null,error:{message:'Choose a photo under 12 MB before compression'}};
   try {
-    const compressed = await compressImageFile(file, 1200, 0.8);
+    const compressed = await compressImageFile(file, 2560, 0.86,PUBLIC_PHOTO_TARGET_BYTES);
     const path = `hotels/${hotelId}/${crypto.randomUUID()}.jpg`;
     const { error: uploadError } = await supabase.storage.from('listing-images').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
     if (uploadError) return { url: null, error: uploadError };
@@ -287,8 +289,9 @@ export async function uploadHotelImage(file: File, hotelId: number) {
 
 export async function uploadRoomImage(file: File, hotelId: number, roomId: number) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image' } as any };
+  if(file.size>PUBLIC_PHOTO_MAX_INPUT_BYTES)return {url:null,error:{message:'Choose a photo under 12 MB before compression'}};
   try {
-    const compressed = await compressImageFile(file, 1200, 0.8);
+    const compressed = await compressImageFile(file, 2560, 0.86,PUBLIC_PHOTO_TARGET_BYTES);
     const path = `hotels/${hotelId}/rooms/${roomId}/${crypto.randomUUID()}.jpg`;
     const { error: uploadError } = await supabase.storage.from('listing-images').upload(path, compressed, { contentType: 'image/jpeg', cacheControl: '3600' });
     if (uploadError) return { url: null, error: uploadError };

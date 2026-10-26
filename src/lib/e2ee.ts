@@ -1,5 +1,6 @@
 import { validateMessageMedia, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
+import { ByteCache } from './byteCache';
 
 export type PrivateConversationKind = "roommate" | "worker" | "friend";
 export type EncryptedAttachment = {
@@ -413,9 +414,13 @@ export async function encryptPrivateAttachment(
   };
 }
 
-const encryptedAttachmentCache = new Map<string, { buffer: ArrayBuffer; expiresAt: number }>();
 const ENCRYPTED_ATTACHMENT_MEMORY_TTL = 30 * 60_000;
+const MAX_ENCRYPTED_ATTACHMENT_BYTES = 25 * 1024 * 1024 + 16; // AES-GCM authentication tag
+const encryptedAttachmentCache = new ByteCache(32 * 1024 * 1024, ENCRYPTED_ATTACHMENT_MEMORY_TTL);
 const ENCRYPTED_ATTACHMENT_CACHE_NAME = "wehouse-e2ee-media-v1";
+const ENCRYPTED_ATTACHMENT_DISK_BYTES = 64 * 1024 * 1024;
+const ENCRYPTED_ATTACHMENT_DISK_TTL = 7 * 24 * 60 * 60_000;
+let attachmentCacheWriteInFlight = false;
 
 function encryptedAttachmentCacheKey(kind: PrivateConversationKind, conversationId: string, path: string) {
   return new Request(`https://wehouse.invalid/e2ee-media/${encodeURIComponent(kind)}/${encodeURIComponent(conversationId)}/${encodeURIComponent(path)}`);
@@ -427,21 +432,46 @@ async function readPersistentEncryptedAttachment(kind: PrivateConversationKind, 
     const cache = await window.caches.open(ENCRYPTED_ATTACHMENT_CACHE_NAME);
     const response = await cache.match(encryptedAttachmentCacheKey(kind, conversationId, path));
     if (!response) return null;
+    const expires = Number(response.headers.get('x-wehouse-expires'));
+    const size = Number(response.headers.get('content-length'));
+    if (!Number.isFinite(expires) || expires <= Date.now() || size <= 0 || size > MAX_ENCRYPTED_ATTACHMENT_BYTES) {
+      await cache.delete(encryptedAttachmentCacheKey(kind, conversationId, path));
+      return null;
+    }
     const bytes = await response.arrayBuffer();
-    return bytes.byteLength > 0 && bytes.byteLength <= 25 * 1024 * 1024 ? bytes : null;
+    return bytes.byteLength === size ? bytes : null;
   } catch {
     return null;
   }
 }
 
 async function writePersistentEncryptedAttachment(kind: PrivateConversationKind, conversationId: string, path: string, bytes: ArrayBuffer) {
-  if (typeof window === "undefined" || !("caches" in window) || bytes.byteLength > 25 * 1024 * 1024) return;
+  if (typeof window === "undefined" || !("caches" in window) || !window.navigator.locks || bytes.byteLength > MAX_ENCRYPTED_ATTACHMENT_BYTES || attachmentCacheWriteInFlight) return;
+  // Caching is optional. Skip concurrent writes rather than queueing large
+  // buffers in memory or allowing overlapping trims to exceed the disk budget.
+  attachmentCacheWriteInFlight = true;
   try {
+    await window.navigator.locks.request('wehouse-e2ee-media-cache', async () => {
     const cache = await window.caches.open(ENCRYPTED_ATTACHMENT_CACHE_NAME);
-    await cache.put(encryptedAttachmentCacheKey(kind, conversationId, path), new Response(new Blob([bytes], { type: "application/octet-stream" }), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private" } }));
+    const target = encryptedAttachmentCacheKey(kind, conversationId, path);
+    await cache.delete(target);
+    const kept: {request: Request; size: number}[] = [];
+    let used = 0;
+    for (const request of await cache.keys()) {
+      const item = await cache.match(request);
+      const size = Number(item?.headers.get('content-length'));
+      const expires = Number(item?.headers.get('x-wehouse-expires'));
+      if (!Number.isFinite(size) || size <= 0 || size > MAX_ENCRYPTED_ATTACHMENT_BYTES || !Number.isFinite(expires) || expires <= Date.now()) await cache.delete(request);
+      else { used += size; kept.push({request, size}); }
+    }
+    while (kept.length && (used + bytes.byteLength > ENCRYPTED_ATTACHMENT_DISK_BYTES || kept.length >= 40)) {
+      const oldest = kept.shift()!; await cache.delete(oldest.request); used -= oldest.size;
+    }
+    await cache.put(target, new Response(new Blob([bytes], { type: "application/octet-stream" }), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private", 'Content-Length': String(bytes.byteLength), 'x-wehouse-expires': String(Date.now() + ENCRYPTED_ATTACHMENT_DISK_TTL) } }));
+    });
   } catch {
     // Persistent media cache is an optimisation; memory cache and Storage remain authoritative.
-  }
+  } finally { attachmentCacheWriteInFlight = false; }
 }
 
 export async function decryptPrivateAttachment(
@@ -451,31 +481,18 @@ export async function decryptPrivateAttachment(
   attachment: EncryptedAttachment,
 ) {
   const key = await conversationKey(kind, conversationId, peerUserId);
-  const cached = encryptedAttachmentCache.get(attachment.path);
-  let encryptedBytes: ArrayBuffer | null = cached && cached.expiresAt > Date.now() ? cached.buffer.slice(0) : null;
+  let encryptedBytes: ArrayBuffer | null = encryptedAttachmentCache.get(attachment.path);
   if (!encryptedBytes) encryptedBytes = await readPersistentEncryptedAttachment(kind, conversationId, attachment.path);
   if (!encryptedBytes) {
     const { data, error } = await supabase.storage.from("chat-files").createSignedUrl(attachment.path, 3600);
     if (error || !data?.signedUrl) throw error || new Error("Encrypted attachment is unavailable");
-    const response = await fetch(data.signedUrl);
+    const response = await fetch(data.signedUrl,{signal:typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(30_000):undefined});
     if (!response.ok) throw new Error("Encrypted attachment could not be downloaded");
     encryptedBytes = await response.arrayBuffer();
-    if (!encryptedBytes.byteLength || encryptedBytes.byteLength > 25 * 1024 * 1024) throw new Error("Encrypted attachment is too large");
-    encryptedAttachmentCache.set(attachment.path, {
-      buffer: encryptedBytes.slice(0),
-      expiresAt: Date.now() + ENCRYPTED_ATTACHMENT_MEMORY_TTL,
-    });
+    if (!encryptedBytes.byteLength || encryptedBytes.byteLength > MAX_ENCRYPTED_ATTACHMENT_BYTES) throw new Error("Encrypted attachment is too large");
     void writePersistentEncryptedAttachment(kind, conversationId, attachment.path, encryptedBytes);
-    if (encryptedAttachmentCache.size > 40) {
-      const oldest = encryptedAttachmentCache.keys().next().value;
-      if (oldest) encryptedAttachmentCache.delete(oldest);
-    }
-  } else {
-    encryptedAttachmentCache.set(attachment.path, {
-      buffer: encryptedBytes.slice(0),
-      expiresAt: Date.now() + ENCRYPTED_ATTACHMENT_MEMORY_TTL,
-    });
   }
+  encryptedAttachmentCache.set(attachment.path, encryptedBytes);
   const [clear, metadataClear] = await Promise.all([
     crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(attachment.file_iv) }, key, encryptedBytes),
     crypto.subtle.decrypt(

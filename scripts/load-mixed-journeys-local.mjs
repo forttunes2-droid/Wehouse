@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 import {checkFriendLiveDelivery} from './lib/friend-live-probe.mjs';
+import {checkMediaUploadReservations} from './lib/media-upload-probe.mjs';
 
 // Never accept a hosted URL or a caller-supplied target. This is disposable CI only.
 const status = JSON.parse(execFileSync('npx', ['--yes', 'supabase@2.114.0', 'status', '-o', 'json'], {
@@ -74,6 +75,8 @@ for (let i = 0; i < 10; i++) {
   actors.push(actor);
 }
 
+const mediaUploadProof=await checkMediaUploadReservations(origin.href,actors);
+mkdirSync('test-results',{recursive:true});writeFileSync('test-results/media-upload-local.json',JSON.stringify(mediaUploadProof,null,2));
 const journeys = [
   { name: 'browse', weight: 50, run: async (actor, i) => {
     const hotel = i % 2 === 0;

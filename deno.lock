@@ -105,9 +105,12 @@
         "npm:typescript@~5.9.3",
         "npm:vaul@^1.1.2",
         "npm:vite-plugin-pwa@^1.3.0",
-        "npm:vite@^7.3.6",
+        "npm:vite@7.3.7",
         "npm:zod@^4.3.5"
-      ]
+      ],
+      "overrides": {
+        "dompurify": "3.4.17"
+      }
     }
   }
 }

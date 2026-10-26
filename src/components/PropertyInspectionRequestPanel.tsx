@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { propertySubmissionFactsError } from '@/lib/propertySubmissionFacts';
+import { propertySubmissionFactsError,MAX_PROPERTY_PHOTOS } from '@/lib/propertySubmissionFacts';
+import {PUBLIC_PHOTO_MAX_INPUT_BYTES} from '@/lib/publicPhotoPolicy';
+import {uploadInParallel} from '@/lib/uploadBatch';
 import { copyHomeUnit, patchHomeDraft, physicalHomeError, physicalHomePayload, type PhysicalHomeDraft } from '@/lib/propertySpaces';
 import PropertySpaceDetails from '@/components/PropertySpaceDetails';
 import { HOME_STYLES, type HomeStyle } from '@/lib/homeStyles';
@@ -29,7 +31,7 @@ import {
   type Profile,
 } from "@/types";
 import MediaViewer from "./MediaViewer";
-import { prepareEvidenceVideo } from "@/lib/mediaVideo";
+import { prepareEvidenceVideo,EVIDENCE_VIDEO_MAX_INPUT_BYTES } from "@/lib/mediaVideo";
 
 type Location = {
   lat: number;
@@ -190,29 +192,6 @@ const words = (value: string) =>
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-async function uploadInParallel(
-  files: File[],
-  task: (file: File) => Promise<string>,
-) {
-  const results = Array<string>(files.length);
-  let next = 0,
-    failure: unknown = null;
-  const worker = async () => {
-    while (!failure) {
-      const index = next;
-      next += 1;
-      if (index >= files.length) return;
-      try {
-        results[index] = await task(files[index]);
-      } catch (error) {
-        failure = error;
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(2, files.length) }, worker));
-  if (failure) throw failure;
-  return results;
-}
 function useObjectUrl(file: File | null) {
   const [url, setUrl] = useState("");
   useEffect(() => {
@@ -505,6 +484,11 @@ export default function PropertyInspectionRequestPanel({
     setDrafts((rows) => patchHomeDraft(rows,index,next));
   }
   function addPhotos(index: number, incoming: File[]) {
+    const allowed=incoming.filter(file=>['image/jpeg','image/png','image/webp'].includes(file.type)&&file.size>0&&file.size<=PUBLIC_PHOTO_MAX_INPUT_BYTES);
+    if(allowed.length!==incoming.length)toast.error('Choose JPG, PNG or WebP photos under 12 MB before compression.');
+    if(!allowed.length)return;
+    incoming=allowed;
+    if((drafts[index]?.files.length||0)+incoming.length>MAX_PROPERTY_PHOTOS)toast.error(`Choose up to ${MAX_PROPERTY_PHOTOS} property photos.`);
     changed();
     setDrafts((rows) =>
       rows.map((row, i) => {
@@ -520,7 +504,7 @@ export default function PropertyInspectionRequestPanel({
           seen.add(key);
           return true;
         });
-        return { ...row, files: [...row.files, ...additions] };
+        return { ...row, files: [...row.files, ...additions.slice(0,Math.max(0,MAX_PROPERTY_PHOTOS-row.files.length))] };
       }),
     );
   }
@@ -657,7 +641,7 @@ export default function PropertyInspectionRequestPanel({
           throw new Error(
             `Property ${i + 1}: complete the live property access recording`,
           );
-        if (d.accessVideo.size > 100 * 1024 * 1024)
+        if (d.accessVideo.size > EVIDENCE_VIDEO_MAX_INPUT_BYTES)
           throw new Error(
             `Property ${i + 1}: access recording must be under 100MB`,
           );
@@ -1518,8 +1502,15 @@ function HotelProgramEditor({
     });
   }
   function addRoomPhotos(index: number, incoming: File[]) {
+    const allowed=incoming.filter(file=>['image/jpeg','image/png','image/webp'].includes(file.type)&&file.size>0&&file.size<=PUBLIC_PHOTO_MAX_INPUT_BYTES);
+    if(allowed.length!==incoming.length)toast.error('Choose JPG, PNG or WebP photos under 12 MB before compression.');
+    if(!allowed.length)return;
+    incoming=allowed;
     const room = draft.hotelRooms[index];
-    updateRoom(index, { files: [...room.files, ...incoming] });
+    if(room.files.length+incoming.length>MAX_PROPERTY_PHOTOS)toast.error(`Choose up to ${MAX_PROPERTY_PHOTOS} photos for each room type.`);
+    const seen=new Set(room.files.map(file=>`${file.name}:${file.size}:${file.lastModified}`));
+    const additions=incoming.filter(file=>{const key=`${file.name}:${file.size}:${file.lastModified}`;if(seen.has(key))return false;seen.add(key);return true;});
+    updateRoom(index, { files: [...room.files, ...additions.slice(0,Math.max(0,MAX_PROPERTY_PHOTOS-room.files.length))] });
   }
   function addRoom() {
     onChange({ hotelRooms: [...draft.hotelRooms, newRoom()] });

@@ -4,6 +4,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
+import {serviceCheckoutContractMatches} from '../_shared/service-quote.ts';
 
 const cors={
  'Access-Control-Allow-Origin':'*',
@@ -122,10 +123,11 @@ serve(async(req)=>{
 
   if(payment.purpose==='worker_booking'){
    const workerBookingId=String(payment.worker_booking_id??meta.booking_id??'').trim();if(!workerBookingId)return json({success:false,error:'Worker booking link is missing'},409);
-   const{data:booking,error:bookingError}=await db.from('worker_bookings').select('id,user_id,status,negotiated_amount,agreed_amount').eq('id',workerBookingId).maybeSingle();
+   const{data:booking,error:bookingError}=await db.from('worker_bookings').select('id,user_id,worker_id,status,negotiated_amount,agreed_amount,service_quote,service_quote_revision,service_quote_accepted_revision,service_quote_accepted_at').eq('id',workerBookingId).maybeSingle();
    if(bookingError)return json({success:false,error:bookingError.message},500);if(!booking||booking.user_id!==profile.user_id)return json({success:false,error:'Worker booking does not belong to this account'},403);
    if(booking.status!=='waiting_payment')return json({success:false,error:'This job is no longer waiting for payment'},409);
    const required=Number(booking.negotiated_amount??booking.agreed_amount??0);if(!sameMoney(required,amount))return json({success:false,error:'Worker payment amount does not match the accepted price'},409);
+   if(!serviceCheckoutContractMatches(booking,meta,amount))return json({success:false,code:'SERVICE_CHECKOUT_CONTRACT_REQUIRED',error:'Review and accept the current Service schedule, work, price and cancellation terms before payment.'},409);
   }
 
   const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';if(existingUrl&&existingCode)return json({success:true,reference,purpose:payment.purpose,authorization_url:existingUrl,access_code:existingCode,existing:true});

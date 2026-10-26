@@ -28,11 +28,12 @@ from public.profiles where user_id in('dc-a','dc-b','dc-c','dc-lagos-admin','dc-
 -- real baseline policies. The complete fixture is rolled back below.
 update public.creator_policy_versions set status='retired',
  effective_until=greatest(clock_timestamp(),effective_from+interval '1 microsecond')
-where policy_key in('commission_short_let_wehouse_managed','commission_long_let_wehouse_managed')
+where policy_key in('commission_short_let_wehouse_managed','commission_long_let_wehouse_managed','commission_hotel')
  and scope_type='global' and scope_key='*' and status='active';
 insert into public.creator_policy_versions(policy_key,scope_type,scope_key,version,value,value_schema,status,effective_from,public_disclosure,disclosure_text,legal_review_state,reason,checksum,published_at)
 values('commission_short_let_wehouse_managed','global','*',999997,'{"percent":12}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','discount cap fixture','discount-cap-fixture',now()),
-('commission_long_let_wehouse_managed','global','*',999996,'{"percent":5}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','long let cap fixture','long-let-cap-fixture',now());
+('commission_long_let_wehouse_managed','global','*',999996,'{"percent":5}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','long let cap fixture','long-let-cap-fixture',now()),
+('commission_hotel','global','*',999995,'{"percent":10}'::jsonb,'{"type":"percent"}'::jsonb,'active',now()-interval '1 minute',true,'fixture','pending','hotel cap fixture','hotel-cap-fixture',now());
 insert into public.listings(id,listing_id,title,price,state,owner_id) values
 ('98000000-0000-4000-8000-0000000000e1','dc-home-1','Home 1',100000,'Lagos','dc-a'),
 ('98000000-0000-4000-8000-0000000000e2','dc-home-2','Home 2',100000,'Lagos','dc-b');
@@ -87,6 +88,16 @@ select pg_temp.expect((select amount_payee from public.short_let_payout_split(
   (select payable from public.long_let_year_one_quote('98000000-0000-4000-8000-0000000000e3',1000000)),1000000,10))=900000,'Long Let partner keeps Year 1 rent minus commission');
 set local role authenticated;
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=1,'Creator lists the active WeHouse discount');
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount(null,'Lagos',10,current_date-1)$$),'past Home offer end date is refused');
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_discount(null,'Lagos',10,'infinity'::date)$$),'non-finite Home offer end date is refused');
+select set_config('test.home_discount',public.creator_set_wehouse_discount(null,'Lagos',10,current_date+2)::text,true);
+select pg_temp.expect(public.creator_set_wehouse_discount(null,'Lagos',10,current_date+2)::text=current_setting('test.home_discount'),'retry of same dated Home campaign returns the original receipt');
+select pg_temp.expect((select ends_on=current_date+2 from public.creator_list_wehouse_discounts() where id::text=current_setting('test.home_discount')),'Home campaign stores its duration');
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_hotel_discount(null,null,null,5,current_date-1)$$),'past Hotel offer end date is refused');
+select pg_temp.expect(pg_temp.rejects($$select public.creator_set_wehouse_hotel_discount(null,null,null,5,'infinity'::date)$$),'non-finite Hotel offer end date is refused');
+select set_config('test.hotel_discount',public.creator_set_wehouse_hotel_discount(null,null,null,5,current_date+2)::text,true);
+select pg_temp.expect(public.creator_set_wehouse_hotel_discount(null,null,null,5,current_date+2)::text=current_setting('test.hotel_discount'),'retry of same dated Hotel campaign returns the original receipt');
+select pg_temp.expect((select ends_on=current_date+2 from public.creator_list_wehouse_hotel_discounts() where id::text=current_setting('test.hotel_discount')),'Hotel campaign stores its duration');
 select public.creator_stop_wehouse_discount((select id from public.creator_list_wehouse_discounts() limit 1));
 select pg_temp.expect((select count(*) from public.creator_list_wehouse_discounts())=0,'Creator can stop it');
 select set_config('request.jwt.claims','{"sub":"98000000-0000-4000-8000-000000000004","session_id":"98000000-0000-4000-8000-000000000004","role":"authenticated"}',true);

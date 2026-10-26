@@ -27,8 +27,8 @@ insert into public.listings(id,listing_id,title,sub_type,state,city,status,avail
  values('b7990000-2000-4000-8000-000000000003','rent-monthly-home','Monthly rent home','long_stay','Rent Contract Region','Rent Contract Town','reserved','reserved','rent-owner','rent-owner',now(),'host',now(),'rent-owner',1200000,'NGN',true,array[12,24]);
 insert into public.property_host_assignments(listing_id,user_id,assignment_role,status,invited_by,accepted_at,access_level)
  values('b7990000-2000-4000-8000-000000000003','rent-owner','owner','active','rent-owner',now(),'full_hosting');
-insert into public.bank_accounts(id,user_id,account_number,bank_code,bank_name,account_name,is_default,is_active,verified_at,rent_subaccount_code,rent_subaccount_provider_id,rent_subaccount_environment,rent_subaccount_verified_at)
- values('b7990000-5000-4000-8000-000000000001','rent-owner','0000000000','000','Synthetic Bank','Synthetic Owner',true,true,now(),'ACCT_contractbank','12345','test',now());
+insert into public.bank_accounts(id,user_id,account_number,bank_code,bank_name,account_name,is_default,is_active,verified_at)
+ values('b7990000-5000-4000-8000-000000000001','rent-owner','0000000000','000','Synthetic Bank','Synthetic Owner',true,true,now());
 insert into public.reservations(id,listing_id,user_id,status,manual_payment_status,paid_at,rent_payment_status,stay_type,rental_plan_years,annual_rent_snapshot,upfront_rent_required,contract_rent_total,installment_balance,installment_count,management_mode_snapshot,responsible_host_user_id,commission_policy_version_id,requested_move_in_at)
  values('rent-agreement-full','b7990000-2000-4000-8000-000000000001','rent-customer','reserved','completed',now(),'not_started','long_stay',1,1200000,1200000,1200000,0,0,'host','rent-owner','b7990000-4000-4000-8000-000000000001',null),
  ('rent-agreement-monthly','b7990000-2000-4000-8000-000000000003','rent-customer','reserved','completed',now(),'not_started','long_stay',1,1200000,1200000,1200000,0,0,'host','rent-owner','b7990000-4000-4000-8000-000000000001',null);
@@ -138,5 +138,27 @@ begin
  if (select sum(amount) from public.rent_plan_contributions where reservation_id='rent-agreement-monthly')<>1200000 then raise exception 'FAIL: remaining monthly amounts drifted';end if;
 end $contract$;
 
-select 'Long Let commercial authority, reviewed agreement, checkout, protected receipt and handover checks passed' as result;
+-- A later-year schedule is not permission to bypass Payment Protection.
+select set_config('request.jwt.claim.sub','',true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+do $contract$
+declare receipt jsonb;contribution uuid;ref text:='WH-PROTECTED-LATER-RENT-CONTRACT';
+begin
+ select id into contribution from public.rent_plan_contributions where reservation_id='rent-agreement-monthly' and agreement_sequence=2;
+ begin
+  perform public.create_rent_plan_contribution_payment(contribution);
+  raise exception 'FAIL: later rent bypassed protected collection';
+ exception when raise_exception then
+  if sqlerrm not like 'Later-year rent collection is paused until its Payment Protection%' then raise;end if;
+ end;
+ insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,type,booking_type,listing_id,amount,amount_total,currency,status,purpose,metadata)
+ values(ref,ref,'rent-customer','rent-customer','apartment','apartment','b7990000-2000-4000-8000-000000000003',150000,150000,'NGN','pending','rent_plan_contribution',jsonb_build_object('contribution_id',contribution));
+ receipt:=public.process_verified_paystack_charge('charge.success:protected-rent-contract','charge.success',ref,repeat('e',64),now(),15000000,'NGN','protected-rent-contract');
+ if receipt->>'success'<>'false' or not exists(select 1 from public.verified_provider_events where provider_reference=ref and processing_status='failed' and processing_error like 'Later-year rent collection is paused%') then
+  raise exception 'FAIL: unsafe later rent receipt did not enter durable Finance recovery';end if;
+ if exists(select 1 from public.booking_payments where paystack_reference=ref and status in('paid','completed'))
+  or exists(select 1 from public.ledger_transactions where idempotency_key='paystack-charge:'||ref) then
+  raise exception 'FAIL: unprotected later rent became paid or credited';end if;
+end $contract$;
+select 'Long Let agreement, protected initial payment, handover and later-rent guard checks passed' as result;
 rollback;

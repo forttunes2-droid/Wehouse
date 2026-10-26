@@ -89,10 +89,14 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_confirmation_routing_contract.sql
       - name: Preserve accepted Service commission through policy changes and receipt retries
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_checkout_commission_contract.sql
+      - name: Verify complete Service quote, consent, protection and cancellation lifecycle
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_quote_lifecycle_contract.sql
       - name: Verify agreed Long Let monthly and full-term schedules
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_schedule_contract.sql
       - name: Verify Long Let commercial owner authority and stale-update protection
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_offer_authority_contract.sql
+      - name: Verify private service quote updates and outsider denial
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_booking_live_contract.sql
       - name: Bind subscription event retries to the original verified account and receipt
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/subscription_event_replay_contract.sql
       - name: Exercise Creator booking and money policy authority
@@ -127,6 +131,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/partner_pro_payment_contract.sql
       - name: Exercise work-post comment pagination and hidden-post isolation
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_showcase_comment_pages_contract.sql
+      - name: Verify showcase limits and durable upload admission
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/showcase_upload_budget_contract.sql
       - name: Hotel conversation context and recipient receipts
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
       - name: Hotel base tables are not directly readable or writable by browser roles

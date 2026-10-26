@@ -13,6 +13,8 @@ vm.runInNewContext(compile(await read("supabase/functions/_shared/payment-return
 const resolveReturn = exports.resolvePaymentReturnUrl;
 const sessionExports = {};
 const marketExports = {};
+const quoteExports = {};
+vm.runInNewContext(compile(await read('supabase/functions/_shared/service-quote.ts')), {exports:quoteExports,Intl,Date});
 vm.runInNewContext(compile(await read('supabase/functions/_shared/payment-market.ts')), { exports: marketExports });
 vm.runInNewContext(compile(await read("supabase/functions/_shared/liveSession.ts")), { exports: sessionExports, atob });
 const authId = "90000000-0000-4000-8000-000000000001";
@@ -99,6 +101,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
     resolvePaymentReturnUrl: resolveReturn,
     paymentMinorUnits: marketExports.paymentMinorUnits,
     resolvePaymentMarket: marketExports.resolvePaymentMarket,
+    serviceCheckoutContractMatches:quoteExports.serviceCheckoutContractMatches,
     hasLiveSession: sessionExports.hasLiveSession,
     consumeUserAction: async (...args) => {if(name==='payment-init')assert.equal(args[5],true);return { allowed: !extraRows.rateDenied, retryAfterSeconds: 30 };},
     hasActiveWorkspace: sessionExports.hasActiveWorkspace,
@@ -148,7 +151,7 @@ for (const name of ["payment-init", "worker-pro-payment-init"]) {
   });
 
   test(`${name}: checkout uses server-owned amount and test return URL despite caller overrides`, async () => {
-    const checkout = await checkoutHarness(name);
+    const checkout = await checkoutHarness(name,{},true,name==='payment-init'?hotelRows():{});
     assert.equal((await checkout.request()).status, 200);
     assert.equal(checkout.initialized.length, 1);
     assert.equal(checkout.initialized[0].amount, "4200");
@@ -156,6 +159,37 @@ for (const name of ["payment-init", "worker-pro-payment-init"]) {
   });
 }
 
+function hotelRows(overrides = {}) {
+  const reference='WHP-00000000-0000-0000-0000-000000000001';
+  return {
+    booking_payments:{id:'hotel-payment',user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:'hotel_booking',hotel_booking_id:1,metadata:{}},
+    hotel_bookings:{booking_id:1,user_id:'fixture-worker',status:'pending',payment_status:'payment_pending',payment_reference:reference,total_price:42,payment_expires_at:new Date(Date.now()+3600000).toISOString(),...overrides},
+  };
+}
+test('paused Service checkout cannot bypass the app through a direct API request or cached provider URL',async()=>{
+ for(const metadata of [{},{paystack_authorization_url:'https://checkout.paystack.com/old',paystack_access_code:'old'}]){
+  const checkout=await checkoutHarness('payment-init',{},true,{booking_payments:{id:'service-payment',user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:'worker_booking',worker_booking_id:'fixture-job',metadata}});
+  const response=await checkout.request();assert.equal(response.status,409);
+  assert.equal((await response.json()).code,'SERVICE_CHECKOUT_CONTRACT_REQUIRED');assert.equal(checkout.initialized.length,0);
+ }
+});
+test('paid Service receipts remain readable while new Service checkout is paused',async()=>{
+ const checkout=await checkoutHarness('payment-init',{},true,{booking_payments:{id:'service-payment',user_id:'fixture-worker',status:'paid',amount_total:42,currency:'NGN',purpose:'worker_booking',worker_booking_id:'fixture-job'}});
+ const response=await checkout.request();assert.equal(response.status,200);assert.equal((await response.json()).already_paid,true);assert.equal(checkout.initialized.length,0);
+});
+function acceptedServiceRows(){
+ const quote={revision:1,booking_id:'fixture-job',customer_id:'fixture-worker',provider_id:'fixture-provider',amount:42,currency:'NGN',customer_service_charge:0,scope:'Clean the agreed rooms',address:'Agreed service location',starts_at:'2027-06-02T09:00:00Z',timezone:'Africa/Lagos',cancellation:{version:'service-standard-24h-v1',full_refund_until:'2027-06-01T09:00:00Z',late_cancellation:'wehouse_review',provider_cancellation:'full_refund'}};
+ const accepted='2026-10-26T12:00:00Z';
+ return {booking_payments:{id:'service-payment',user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:'worker_booking',worker_booking_id:'fixture-job',metadata:{service_quote:quote,service_quote_accepted_at:accepted}},worker_bookings:{id:'fixture-job',user_id:'fixture-worker',worker_id:'fixture-provider',status:'waiting_payment',agreed_amount:42,service_quote:quote,service_quote_revision:1,service_quote_accepted_revision:1,service_quote_accepted_at:accepted}};
+}
+test('accepted exact Service contract initializes the recorded total; stale or replaced acceptance cannot',async()=>{
+ const rows=acceptedServiceRows(),valid=await checkoutHarness('payment-init',{},true,rows);
+ assert.equal((await valid.request()).status,200);assert.equal(valid.initialized[0].amount,'4200');
+ for(const change of [{service_quote_accepted_revision:null},{service_quote_revision:2},{service_quote_accepted_at:null},{worker_id:'different-provider'}]){
+  const checkout=await checkoutHarness('payment-init',{},true,{...rows,worker_bookings:{...rows.worker_bookings,...change}});
+  assert.equal((await checkout.request()).status,409);assert.equal(checkout.initialized.length,0);
+ }
+});
 function stayRows(overrides = {}) {
   const reference = "WHP-00000000-0000-0000-0000-000000000001";
   return {
@@ -220,8 +254,8 @@ test('plan synchronization validates exact prices, environment and its saved rec
 
 test('checkout requires throttling and a persisted pending session before success',async()=>{
  const limited=await checkoutHarness('payment-init',{},true,{rateDenied:true});assert.equal((await limited.request()).status,429);assert.equal(limited.initialized.length,0);
- const lost=await checkoutHarness('payment-init',{},true,{noPersistenceReceipt:true});const response=await lost.request();assert.equal(response.status,409);assert.equal((await response.json()).success,false);
+ const lost=await checkoutHarness('payment-init',{},true,{...hotelRows(),noPersistenceReceipt:true});const response=await lost.request();assert.equal(response.status,409);assert.equal((await response.json()).success,false);assert.equal(lost.initialized.length,1);
 });
 test('checkout rejects provider initialization belonging to another reference',async()=>{
- const checkout=await checkoutHarness('payment-init',{},true,{providerInitialization:{reference:'another-payment'}});assert.equal((await checkout.request()).status,400);
+ const checkout=await checkoutHarness('payment-init',{},true,{...hotelRows(),providerInitialization:{reference:'another-payment'}});assert.equal((await checkout.request()).status,400);assert.equal(checkout.initialized.length,1);
 });

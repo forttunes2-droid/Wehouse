@@ -7,6 +7,7 @@ import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesB
 import { useCallback, useEffect, useRef, useState } from "react";
 import {createRefreshScheduler} from '@/lib/refreshScheduler';
 import {subscribeToFriendChatChanges} from '@/lib/friendChatLive';
+import {withTimeout} from '@/lib/withTimeout';
 import { toast } from "sonner";
 import { CalendarPlus, Mic } from "lucide-react";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
@@ -24,8 +25,8 @@ import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE
 import { decryptPrivateMessage, encryptPrivateMessage, privateConversationReadiness, type EncryptedAttachment, type PrivateConversationReadiness } from "@/lib/e2ee";
 import type { MessageMenuAnchor } from "@/lib/messageMenuPosition";
 import {
-  getFriendEncryptedMessages, blockFriend, sendFriendEncryptedMessage,
-  uploadFriendChatAttachment, openFriendChatAttachment, reactToFriendMessage, deleteFriendMessageForMe, type Friend,
+  getFriendEncryptedMessages, getFriendMessageHistoryCursor, blockFriend, sendFriendEncryptedMessage,
+  uploadFriendChatAttachment, openFriendChatAttachment, reactToFriendMessage, deleteFriendMessageForMe, type Friend, type FriendMessageCursor,
 } from "@/lib/supabase/friends";
 
 const MAX_FILES = 6;
@@ -34,12 +35,22 @@ type Line = {
   id: string; sender_id: string; content: string; created_at: string; seen: boolean;
   attachments: string[]; attachment_types: string[]; reply_to_id: string | null;
   reactions: Record<string, string>; media_error?: boolean;
+  private_attachment_refs?: EncryptedAttachment[]; media_pending?: boolean;
 };
 
 export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
+  return <FriendConversation key={`${myUserId}:${friend.friend_id}`} friend={friend} myUserId={myUserId} onClose={onClose} onNavigate={onNavigate}/>;
+}
+function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
   const name = friend.full_name || friend.username || "Friend";
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
+  const [history,setHistory]=useState<(FriendMessageCursor|null)[]>([null]);
+  const before=history[history.length-1];
+  const [older,setOlder]=useState<FriendMessageCursor|null>(null);
+  const [loadingHistory,setLoadingHistory]=useState(false);
+  const [historyError,setHistoryError]=useState(false);
+  const [loadingAttachments,setLoadingAttachments]=useState<string|null>(null);
   const [draft, setDraft] = useState("");
   const [planOpen, setPlanOpen] = useState(false);
   const [planActivity, setPlanActivity] = useState("Dinner or coffee");
@@ -59,6 +70,8 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
   const voice = useVoiceRecorder();
   const media = useRef(new Map<string, { url: string; type: string }>());
   const loadVersion=useRef(0);
+  const jumpTarget=useRef<string|null>(null);
+  const attachmentRequest=useRef(false);
   const blocked = friend.status === "blocked";
 
   useEffect(() => { const worker = pendingWorkerShare(myUserId, friend.friend_id); setWorkerDraft(worker); setPropertyDraft(worker ? null : pendingPropertyShare(myUserId, friend.friend_id)); }, [myUserId, friend.friend_id]);
@@ -68,34 +81,34 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
   const load = useCallback(async (isActive:()=>boolean=()=>true):Promise<void> => {
     const version=++loadVersion.current;
     const current=()=>isActive()&&version===loadVersion.current;
-    const state = await privateConversationReadiness("friend", friend.friend_id, friend.user_id);
+    setLoadingHistory(true);setHistoryError(false);
+    try {
+    const state = await withTimeout(privateConversationReadiness("friend", friend.friend_id, friend.user_id),15000,'Secure chat took too long to open. Try again.');
     if(!current())return;
     setReadiness(state);
     if (state.state !== "ready") return;
-    const { messages, error } = await getFriendEncryptedMessages(friend.friend_id);
+    const { messages, older:nextOlder, error } = await withTimeout(getFriendEncryptedMessages(friend.friend_id,before),15000,'Message history took too long to load. Try again.');
     if(!current())return;
-    if (error) { toast.error(error.message || "Could not load messages"); return; }
+    if (error) { setHistoryError(true);toast.error(error.message || "Could not load messages"); return; }
     const decoded = await Promise.all(messages.map(async (m): Promise<Line> => {
       let content = "Message could not be decrypted on this device.";
       try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
       const attachments: string[] = [], types: string[] = [];
-      let failed = false;
       for (const item of (m.encrypted_attachments || []) as EncryptedAttachment[]) {
         if(!current())break;
-        let hit = media.current.get(item.path);
-        if (!hit) {
-          try {
-            const clear = await openFriendChatAttachment(friend.friend_id, friend.user_id, item);
-            if(!current()){URL.revokeObjectURL(clear.url);break;}
-            hit = { url: clear.url, type: clear.type }; media.current.set(item.path, hit);
-          } catch { failed = true; }
-        }
+        const hit = media.current.get(item.path);
         if (hit) { attachments.push(hit.url); types.push(hit.type); }
       }
-      return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: failed };
+      return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: false, private_attachment_refs:m.encrypted_attachments as EncryptedAttachment[],media_pending:attachments.length<(m.encrypted_attachments||[]).length };
     }));
-    if(current())setLines(decoded);
-  }, [friend.friend_id, friend.user_id]);
+    if(current()) {
+      const retained=new Set(messages.flatMap(m=>(m.encrypted_attachments||[]).map(item=>(item as EncryptedAttachment).path)));
+      for(const [path,item] of media.current)if(!retained.has(path)){URL.revokeObjectURL(item.url);media.current.delete(path);}
+      setLines(decoded);setOlder(nextOlder);
+    }
+    } catch(error) { if(current()){setHistoryError(true);toast.error(error instanceof Error?error.message:'Could not load messages');} }
+    finally { if(current())setLoadingHistory(false); }
+  }, [friend.friend_id, friend.user_id,before]);
 
   useEffect(() => {
     let live=false,lastRecovery=Date.now();
@@ -113,6 +126,37 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
     };
   }, [friend.friend_id,load]);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lines.length]);
+  useEffect(()=>{if(jumpTarget.current&&lines.some(line=>line.id===jumpTarget.current)){scrollToMessage(jumpTarget.current);jumpTarget.current=null;}},[lines]);
+  function changeHistory(next:(FriendMessageCursor|null)[]) {
+    loadVersion.current++;setLines([]);setOlder(null);setHistoryError(false);setHistory(next);
+  }
+  async function jumpToMessage(id:string) {
+    if(lines.some(line=>line.id===id)){scrollToMessage(id);return;}
+    const version=loadVersion.current;
+    try {
+      const cursor=await withTimeout(getFriendMessageHistoryCursor(friend.friend_id,id),15000,'Pinned message took too long to locate. Try again.');
+      if(version!==loadVersion.current)return;
+      jumpTarget.current=id;changeHistory(cursor?[null,cursor]:[null]);
+    }catch(error){toast.error((error as Error)?.message||'Message is unavailable');}
+  }
+  async function loadAttachments(line:Line) {
+    if(attachmentRequest.current)return;attachmentRequest.current=true;
+    const version=loadVersion.current;setLoadingAttachments(line.id);
+    const attachments:string[]=[],types:string[]=[];
+    try {
+      for(const item of line.private_attachment_refs||[]) {
+        let hit=media.current.get(item.path);
+        if(!hit) {
+          const clear=await openFriendChatAttachment(friend.friend_id,friend.user_id,item);
+          if(version!==loadVersion.current){URL.revokeObjectURL(clear.url);return;}
+          hit={url:clear.url,type:clear.type};media.current.set(item.path,hit);
+        }
+        attachments.push(hit.url);types.push(hit.type);
+      }
+      if(version===loadVersion.current)setLines(all=>all.map(row=>row.id===line.id?{...row,attachments,attachment_types:types,media_pending:false,media_error:false}:row));
+    }catch(error){if(version===loadVersion.current)toast.error(error instanceof Error?error.message:'Attachment could not be opened. Try again.');}
+    finally{attachmentRequest.current=false;setLoadingAttachments(null);}
+  }
 
   async function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
@@ -156,7 +200,7 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
         if (propertyDraft) clearPropertyShare(myUserId, friend.friend_id);
         setPropertyDraft(null); setWorkerDraft(null); setDraft(""); setFiles([]); setReplyingTo(null);
       }
-      await load();
+      if(before)changeHistory([null]);else await load();
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Message was not sent");
@@ -204,8 +248,8 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
         <button type="button" onClick={() => setInfo(true)} aria-label="Friend info" className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Friend · end-to-end encrypted</p></button>
       </header>
       <PinnedMessagesBar
-        items={pins.pinned.map((id) => lines.find((l) => l.id === id)).filter((l): l is Line => Boolean(l)).map((l) => ({ id: l.id, text: l.content || (l.attachments.length ? "Attachment" : "Message") }))}
-        onJump={scrollToMessage}
+        items={pins.pinned.map(id=>{const line=lines.find(row=>row.id===id);return {id,text:line?(line.content||(line.private_attachment_refs?.length?'Attachment':'Message')):'Open pinned message in history'};})}
+        onJump={id=>void jumpToMessage(id)}
         onUnpin={(id) => void pins.toggle(id)}
       />
       {readiness && readiness.state !== "ready" ? (
@@ -213,9 +257,17 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
       ) : (
         <>
           <div className="flex-1 space-y-2 overflow-y-auto p-4">
-            {!lines.length && <p className="text-center text-xs text-[var(--wh-text-secondary)]">No messages yet. Say hello.</p>}
+            <nav aria-label="Message history" className="flex flex-wrap justify-center gap-2 pb-3">
+              {older&&<button type="button" disabled={loadingHistory} onClick={()=>changeHistory([...history,older])} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs disabled:opacity-40">Earlier messages</button>}
+              {before&&<><button type="button" disabled={loadingHistory} onClick={()=>changeHistory(history.slice(0,-1))} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs disabled:opacity-40">Newer messages</button><button type="button" onClick={()=>changeHistory([null])} className="min-h-11 px-3 text-xs underline">Return to latest</button></>}
+            </nav>
+            {before&&<p className="text-center text-xs text-[var(--wh-text-secondary)]">Viewing earlier messages. Return to latest to see new messages.</p>}
+            {historyError&&<p role="alert" className="text-center text-xs">Messages could not be loaded. <button type="button" onClick={()=>void load()} className="min-h-11 underline">Try again</button></p>}
+            {loadingHistory&&!lines.length&&<p role="status" className="text-center text-xs">Loading messages…</p>}
+            {!loadingHistory&&!historyError&&!lines.length && <p className="text-center text-xs text-[var(--wh-text-secondary)]">{before?'No earlier messages on this page.':'No messages yet. Say hello.'}</p>}
             {lines.map((line) => (
               <div key={line.id}>
+                {line.media_pending&&<button type="button" disabled={Boolean(loadingAttachments)} onClick={()=>void loadAttachments(line)} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-xs disabled:opacity-40">{loadingAttachments===line.id?'Opening attachments…':`Load ${line.private_attachment_refs?.length||''} attachment${line.private_attachment_refs?.length===1?'':'s'}`}</button>}
                 <RoommateBubble
                   msg={line as never}
                   mine={line.sender_id === myUserId}

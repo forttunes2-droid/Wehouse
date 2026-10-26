@@ -5,7 +5,7 @@ Deno.serve(() =>
     JSON.stringify({
       success: false,
       retired: true,
-      error: 'Government/external identity verification is no longer used by WeHouse. Use the WeHouse professional verification flow instead.',
+      error: 'This retired endpoint cannot verify identity. Government ID verification is not connected. Use the current WeHouse provider verification flow; do not send identity documents to this endpoint.',
     }),
     {
       status: 410,

@@ -4,9 +4,9 @@ import type { Profile } from '@/types';
 // Public worker discovery must use the backend projection instead of reading
 // arbitrary profile rows. The RPC exposes only the fields intended for the
 // worker marketplace and applies verified + available account rules server-side.
-export async function getWorkers(filters?: { city?: string; occupation?: string; status?: string }) {
+export async function getWorkers(filters?: { state?: string; city?: string; occupation?: string; status?: string }) {
   const { data, error } = await supabase.rpc('get_public_workers', {
-    p_state: null,
+    p_state: filters?.state || null,
     p_city: filters?.city || null,
     p_occupation: filters?.occupation || null,
   });

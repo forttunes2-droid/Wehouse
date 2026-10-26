@@ -1,4 +1,6 @@
 import { createBookingActionRunner } from "@/lib/bookingActionRunner";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
+import { subscribeToServiceBookingChanges } from "@/lib/serviceBookingLive";
 import { parseWorkerQuotePrice } from "@/lib/workerBookingContract";
 import { withTimeout } from "@/lib/withTimeout";
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
@@ -13,13 +15,13 @@ import {
   getBookingMessages,
   sendBookingMessage,
   uploadBookingChatAttachment,
-  workerAcceptBooking,
   workerStartJob,
   workerMarkComplete,
   customerConfirmCompletion,
   customerRaiseDispute,
   cancelBooking,
   cancelPaidBookingBeforeStart,
+  providerCancelPaidService,
   requestWorkerRefundReview,
   getBookingDetails,
   BOOKING_STATUS_LABELS,
@@ -29,6 +31,7 @@ import {
   submitWorkerBookingReview,
   reactToBookingMessage,
 } from "@/lib/supabase/worker-bookings";
+import {sendServiceQuote,acceptServiceQuoteAndCheckout} from '@/lib/supabase/service-checkout';
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import { supabase } from "@/lib/supabase";
@@ -58,7 +61,9 @@ import {
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
-import { formatRecordedMoney, currencySymbol } from "@/lib/regional";
+import { formatRecordedMoney, currencySymbol, getRegionalDefaults, zonedInputToISO } from "@/lib/regional";
+import {parseServiceQuote} from '@/lib/serviceQuote';
+import {displayDateTimeAtProperty} from '@/lib/displayDate';
 
 type Props = {
   conversationId: string;
@@ -93,6 +98,10 @@ type Booking = {
   booking_code?: string | null;
   service_type?: string | null;
   scheduled_date?: string | null;
+  service_quote?: unknown;
+  service_quote_revision?:number;
+  service_quote_accepted_revision?:number|null;
+  service_quote_accepted_at?:string|null;
   currency?: string | null;
   negotiated_amount?: number | null;
   agreed_amount?: number | null;
@@ -123,7 +132,10 @@ type ConversationProfile = Partial<Profile> & {
 };
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
-export default function BookingNegotiationChat({
+export default function BookingNegotiationChat(props:Props){
+ return <BookingNegotiationChatSession key={`${props.profile.user_id}:${props.bookingId}:${props.conversationId}`} {...props}/>;
+}
+function BookingNegotiationChatSession({
   conversationId,
   bookingId,
   profile,
@@ -142,10 +154,12 @@ export default function BookingNegotiationChat({
     [loading, setLoading] = useState(true),
     [acceptAmount, setAcceptAmount] = useState(""),
     [acceptDate, setAcceptDate] = useState(""),
+    [acceptTime,setAcceptTime]=useState(''),
+    [acceptScope,setAcceptScope]=useState(''),
     [showAcceptForm, setShowAcceptForm] = useState(false),
     [disputeReason, setDisputeReason] = useState(""),
     [showDisputeForm, setShowDisputeForm] = useState(false),
-    [reviewKind, setReviewKind] = useState<"customer_cancel_after_start" | "worker_no_show" | "worker_not_delivered">("worker_not_delivered"),
+    [reviewKind, setReviewKind] = useState<"customer_cancel_after_start" | "worker_no_show" | "worker_not_delivered" | "customer_late_cancellation">("worker_not_delivered"),
     [cancelReason, setCancelReason] = useState(""),
     [showCancelForm, setShowCancelForm] = useState(false),
     [reportOpen, setReportOpen] = useState(false),
@@ -173,6 +187,15 @@ export default function BookingNegotiationChat({
     [reviewOpen, setReviewOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [showPaymentReview, setShowPaymentReview] = useState(false);
+  const [quoteConsent,setQuoteConsent]=useState(false);
+  const [quoteCheckoutError,setQuoteCheckoutError]=useState('');
+  const quoteCandidate=parseServiceQuote(booking?.service_quote);
+  const currentQuote=quoteCandidate&&booking&&quoteCandidate.booking_id===bookingId
+    &&quoteCandidate.customer_id===booking.user_id&&quoteCandidate.provider_id===booking.worker_id
+    &&quoteCandidate.revision===booking.service_quote_revision
+    &&quoteCandidate.amount===Number(booking.negotiated_amount??booking.agreed_amount)?quoteCandidate:null;
+  const [bookingError,setBookingError]=useState('');
+  const bookingReadVersion=useRef(0),quoteVersion=useRef('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
   const messageById = useMemo(
@@ -208,16 +231,25 @@ export default function BookingNegotiationChat({
     },
     [conversationId],
   );
+  const loadBooking=useCallback(async()=>{
+    const request=++bookingReadVersion.current;
+    const result=await withTimeout(getBookingDetails(bookingId),15000,'Booking details could not be confirmed.').catch(()=>({booking:null,error:{message:'Booking details could not be confirmed.'}}));
+    if(request!==bookingReadVersion.current)return null;
+    const next=(result.booking||null) as Booking|null;
+    if(result.error||!next||(next.user_id!==profile.user_id&&next.worker_id!==profile.user_id)){
+      setBookingError('The current price and booking status could not be confirmed. Retry before taking an action.');
+      return null;
+    }
+    const fingerprint=JSON.stringify([next.negotiated_amount,next.agreed_amount,next.scheduled_date,next.status,next.service_quote]);
+    if(quoteVersion.current&&quoteVersion.current!==fingerprint){setShowPaymentReview(false);setQuoteConsent(false);setQuoteCheckoutError('');}
+    quoteVersion.current=fingerprint;
+    setBookingError('');setBooking(next);setPeerBlocked(Boolean(next.blocked_by_me));setBlockedByPeer(Boolean(next.blocked_me));
+    return next;
+  },[bookingId,profile.user_id]);
   const loadAll = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const bookingRes = await getBookingDetails(bookingId);
-      const loadedBooking = (bookingRes.booking || null) as Booking | null;
-      if (!bookingRes.error) {
-        setBooking(loadedBooking);
-        setPeerBlocked(Boolean(loadedBooking?.blocked_by_me));
-        setBlockedByPeer(Boolean(loadedBooking?.blocked_me));
-      }
+      const loadedBooking = await loadBooking();
       const loadedPeerId = loadedBooking
         ? isWorker
           ? loadedBooking.user_id
@@ -234,7 +266,7 @@ export default function BookingNegotiationChat({
           }
         });
     },
-    [bookingId, isWorker, loadMessages],
+    [bookingId, isWorker, loadMessages,loadBooking],
   );
   const finishSecureUnlock = useCallback(async () => {
     if (!peerId) return;
@@ -304,16 +336,6 @@ export default function BookingNegotiationChat({
             ? loadMessages(peerId, true)
             : loadAll(true)),
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "worker_bookings",
-          filter: `id=eq.${bookingId}`,
-        },
-        () => void loadAll(true),
-      )
       .subscribe();
     const refresh = () => {
       if (document.visibilityState === "visible") void loadAll(true);
@@ -326,6 +348,16 @@ export default function BookingNegotiationChat({
       void supabase.removeChannel(channel);
     };
   }, [bookingId, conversationId, loadAll, loadMessages, peerId]);
+  useEffect(()=>{
+    let live=false,lastRecovery=Date.now();
+    const scheduler=createRefreshScheduler(async()=>{await loadBooking();},()=>document.visibilityState==='visible');
+    const refresh=()=>{lastRecovery=Date.now();scheduler.request();};
+    const unsubscribe=subscribeToServiceBookingChanges(bookingId,refresh,healthy=>{live=healthy;});
+    const timer=window.setInterval(()=>{if(!live||Date.now()-lastRecovery>=300_000)refresh();},60_000);
+    window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
+    return()=>{bookingReadVersion.current++;scheduler.dispose();unsubscribe();window.clearInterval(timer);
+      window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
+  },[bookingId,loadBooking]);
   function openSupport() {
     setMenuOpen(false);
     window.dispatchEvent(
@@ -562,17 +594,34 @@ export default function BookingNegotiationChat({
     return runJobAction(async()=>{
     const amount = parseWorkerQuotePrice(acceptAmount);
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
-    if (!acceptDate) return toast.error("Pick a schedule date");
-    const { success, error } = await workerAcceptBooking(
+    if (!acceptDate||!acceptTime) return toast.error("Pick a date and start time");
+    const zone=getRegionalDefaults().timeZone;
+    const startsAt=zonedInputToISO(`${acceptDate}T${acceptTime}`,zone);
+    const { quote, error } = await sendServiceQuote(
       bookingId,
       amount,
-      acceptDate,
+      startsAt,zone,acceptScope,
     );
-    if (error || !success)
-      return toast.error(error?.message || "Booking could not be accepted");
-    toast.success("Booking accepted. The customer can now pay.");
+    if (error || !quote)
+      return toast.error(error?.message || "The quote could not be confirmed");
+    toast.success("Quote sent. The customer can review your work, price and schedule.");
     setShowAcceptForm(false);
 
+    });
+  }
+  async function handleQuoteCheckout(){
+    if(!currentQuote||!quoteConsent||!booking||isWorker)return;
+    return runJobAction(async()=>{
+      setQuoteCheckoutError('');
+      try{
+      const {result,error}=await acceptServiceQuoteAndCheckout(bookingId,currentQuote.revision);
+      if(error||result?.success!==true)throw new Error(error?.message||result?.error||'Checkout could not be confirmed. Refresh before retrying.');
+      if(result.already_paid){setShowPaymentReview(false);return toast.success('Payment is already recorded. Refreshing the booking.');}
+      if(typeof result.authorization_url!=='string')throw new Error('The checkout address could not be confirmed.');
+      const url=new URL(result.authorization_url);
+      if(url.protocol!=='https:'||url.hostname!=='checkout.paystack.com')throw new Error('The checkout address could not be confirmed.');
+      window.location.assign(url.href);
+      }catch(error){const message=error instanceof Error?error.message:'Checkout could not be confirmed. Refresh before retrying.';setQuoteCheckoutError(message);toast.error(message);}
     });
   }
   async function handleWorkerStart() {
@@ -608,7 +657,7 @@ export default function BookingNegotiationChat({
     if (booking?.status === "in_progress" || booking?.status === "confirmed") {
       const { reviewId, error: reviewError } = await requestWorkerRefundReview(
         bookingId,
-        booking.status === "confirmed" ? "worker_no_show" : reviewKind,
+        reviewKind,
         disputeReason.trim(),
       );
       if (reviewError || !reviewId)
@@ -632,8 +681,12 @@ export default function BookingNegotiationChat({
   async function handleCancel() {
     return runJobAction(async()=>{
     if (!cancelReason.trim()) return toast.error("Enter a reason");
-    if (booking?.status === "confirmed") {
-      const { result, error: cancelError } = await cancelPaidBookingBeforeStart(
+    if (booking?.status === "confirmed" || isWorker&&booking?.status==='in_progress') {
+      if(!isWorker&&currentQuote&&Date.now()>Date.parse(currentQuote.cancellation.full_refund_until)){
+        setReviewKind('customer_late_cancellation');setDisputeReason(cancelReason);setShowCancelForm(false);setShowDisputeForm(true);
+        toast.info('The free-cancellation deadline has passed. Describe your cancellation request for WeHouse review.');return;
+      }
+      const { result, error: cancelError } = await (isWorker?providerCancelPaidService:cancelPaidBookingBeforeStart)(
         bookingId,
         cancelReason.trim(),
       );
@@ -860,16 +913,17 @@ export default function BookingNegotiationChat({
                 </p>
               </div>
             )}
+            {currentQuote&&<p className="mt-2 text-xs text-[var(--wh-text-secondary)]">Start time: {displayDateTimeAtProperty(currentQuote.starts_at,currentQuote.timezone)}</p>}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {isWorker &&
-                ["booking_requested", "negotiating"].includes(
+                ["booking_requested", "negotiating", "waiting_payment"].includes(
                   booking.status,
                 ) && (
                   <button
-                    onClick={() => setShowAcceptForm((v) => !v)}
+                    onClick={() => {if(!showAcceptForm)setAcceptScope(booking.description||booking.customer_message||'');setShowAcceptForm(v=>!v);}}
                     className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                   >
-                    Set price &amp; accept
+                    {booking.status==='waiting_payment'?'Update quote':'Send a quote'}
                   </button>
                 )}
               {isWorker && !paymentReview && booking.status === "confirmed" && (
@@ -892,10 +946,10 @@ export default function BookingNegotiationChat({
                 !paymentReview &&
                 booking.status === "waiting_payment" && (
                   <button
-                    onClick={() => setShowPaymentReview(true)}
+                    disabled={Boolean(bookingError)} onClick={() => setShowPaymentReview(true)}
                     className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                   >
-                    {`Review payment · ${formatRecordedMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),booking.currency)}`}
+                    {`Review quote · ${formatRecordedMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),booking.currency)}`}
                   </button>
                 )}
               {!isWorker && !paymentReview && !completionConfirmed && booking.status === "completed_pending_approval" && (
@@ -913,19 +967,19 @@ export default function BookingNegotiationChat({
                   "completed_pending_approval",
                 ].includes(booking.status) && (
                   <button
-                    onClick={() => setShowDisputeForm((v) => !v)}
+                    onClick={() => {setReviewKind(booking.status==='confirmed'?'worker_no_show':'worker_not_delivered');setShowDisputeForm(v=>!v);}}
                     className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] font-semibold text-red-300"
                   >
                     {booking.status === "in_progress" || booking.status === "confirmed" ? "Ask for a refund review" : "Raise dispute"}
                   </button>
                 )}
               {!paymentReview &&
-                [
+                ([
                   "booking_requested",
                   "negotiating",
                   "waiting_payment",
                   "confirmed",
-                ].includes(booking.status) && (
+                ].includes(booking.status) || isWorker&&booking.status==='in_progress') && (
                   <button
                     onClick={() => setShowCancelForm((v) => !v)}
                     className="rounded-lg bg-[var(--wh-interactive)] px-3 py-1.5 text-[9px] text-[var(--wh-text-secondary)]"
@@ -937,30 +991,32 @@ export default function BookingNegotiationChat({
             {showAcceptForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
                 <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-                  Your price ({currencySymbol(booking.currency||'NGN')})
+                  Proposed price ({currencySymbol(booking.currency||'NGN')})
                   <input
                     inputMode="decimal"
                     value={acceptAmount}
                     onChange={(e) =>
                       setAcceptAmount(e.target.value)
                     }
-                    placeholder="Enter the final price"
+                    placeholder="Enter the price for this job"
                     className="mt-1 h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
                   />
                 </label>
                 <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
+                <label className="block text-sm font-medium">Start time ({getRegionalDefaults().timeZone})<input aria-label="Service start time" type="time" value={acceptTime} onChange={event=>setAcceptTime(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"/></label>
+                <label className="block text-sm font-medium">Work included<textarea aria-label="Work included in quote" minLength={10} maxLength={4000} rows={3} value={acceptScope} onChange={event=>setAcceptScope(event.target.value)} className="mt-1 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm"/></label>
                 <button
-                  disabled={jobActionBusy || parseWorkerQuotePrice(acceptAmount)===null || !acceptDate}
+                  disabled={jobActionBusy || parseWorkerQuotePrice(acceptAmount)===null || !acceptDate || !acceptTime || acceptScope.trim().length<10}
                   onClick={() => void handleWorkerAccept()}
                   className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                 >
-                  Confirm price &amp; accept booking
+                  Send quote to customer
                 </button>
               </div>
             )}
             {showDisputeForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-red-500/15 bg-red-500/[.035] p-2">
-                {booking.status === "in_progress" && (
+                {["in_progress","confirmed"].includes(booking.status) && (
                   <select
                     value={reviewKind}
                     onChange={(e) => setReviewKind(e.target.value as typeof reviewKind)}
@@ -970,6 +1026,7 @@ export default function BookingNegotiationChat({
                     <option value="worker_not_delivered">The work was not delivered or is not what we agreed</option>
                     <option value="worker_no_show">The Worker stopped showing up</option>
                     <option value="customer_cancel_after_start">I no longer want the job</option>
+                    {booking.status==='confirmed'&&currentQuote&&Date.now()>Date.parse(currentQuote.cancellation.full_refund_until)&&<option value="customer_late_cancellation">I need to cancel after the free-cancellation deadline</option>}
                   </select>
                 )}
                 <textarea
@@ -1031,6 +1088,7 @@ export default function BookingNegotiationChat({
       )}
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
+          {bookingError&&<div role="alert" className="rounded-xl border border-amber-500/25 bg-[var(--wh-surface)] p-3 text-sm"><p>{bookingError}</p><button type="button" className="mt-2 min-h-10 underline" onClick={()=>void loadBooking()}>Retry booking details</button></div>}
           {messages.some((message) => message.decryption_failed) ? (
             <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
               <div>
@@ -1523,30 +1581,30 @@ export default function BookingNegotiationChat({
             <BookingPaymentReview
               eyebrow="Service booking"
               title="Review before payment"
-              subtitle="Check the agreed service, provider, schedule and total before continuing."
+              subtitle="Review the proposed work, provider, date and price. Receiving a quote does not commit you to paying."
               rows={[
                 { label: "Service", value: booking.service_type || "Service request" },
                 { label: "Service provider", value: booking.worker_name || peerName },
-                { label: "Scheduled date", value: formatServiceBookingDate(booking.scheduled_date) },
-                { label: "Agreed work", value: booking.description || booking.customer_message || "No work description saved" },
-                { label: "Service location", value: booking.address || "Not saved" },
+                { label: "Scheduled start", value: currentQuote?`${displayDateTimeAtProperty(currentQuote.starts_at,currentQuote.timezone)} (${currentQuote.timezone})`:formatServiceBookingDate(booking.scheduled_date) },
+                { label: "Work included", value: currentQuote?.scope || booking.description || booking.customer_message || "No work description saved" },
+                { label: "Service location", value: currentQuote?.address || booking.address || "Not saved" },
                 { label: "Booking reference", value: booking.booking_code || bookingId },
               ]}
               amountLabel="Total due now"
-              amount={`${formatRecordedMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),booking.currency)}`}
-              checkoutLabel="Payment paused until approved cancellation terms are saved"
+              amount={`${formatRecordedMoney(currentQuote?.amount??Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),currentQuote?.currency??booking.currency)}`}
+              checkoutLabel={currentQuote?'Secure checkout by Paystack':'Payment paused until the provider sends a complete quote'}
               termsTitle="Cancellation and refund terms"
               terms={
-                <p>
-                  No Service Worker cancellation or refund policy is attached to this booking. WeHouse must save and show the approved terms before payment can continue.
-                </p>
+                currentQuote?<div className="space-y-3"><p>{Date.now()>Date.parse(currentQuote.cancellation.full_refund_until)?<>The free-cancellation deadline has passed for this start time. Cancellation requests require WeHouse review.</>:<>Cancel by {displayDateTimeAtProperty(currentQuote.cancellation.full_refund_until,currentQuote.timezone)} ({currentQuote.timezone}) for a full refund of what you paid. Later cancellations require WeHouse review.</>} If the provider cancels, you receive a full refund.</p><p>There is no additional customer service charge on this quote. Payment stays protected until completion is confirmed and release is authorised.</p><label className="flex items-start gap-3"><input type="checkbox" aria-label="Accept Service quote and cancellation terms" checked={quoteConsent} disabled={jobActionBusy} onChange={event=>setQuoteConsent(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I accept this work, location, start time, total price and cancellation terms.</span></label></div>:<p>The provider needs to send an exact start time, work description and cancellation terms. Your existing conversation stays available.</p>
               }
-              note="You can return to the conversation to raise a correction to the agreed scope, date or price. No payment will be taken from this screen."
+              note={<>{quoteCheckoutError&&<span role="alert" className="mb-2 block text-red-700 dark:text-red-300">{quoteCheckoutError}</span>}Return to the conversation if any detail needs correcting. Accepting a quote records your agreement; only verified payment confirms the booking.</>}
               editLabel="Back to conversation"
-              confirmLabel="Payment unavailable"
-              confirmDisabled
+              confirmLabel={currentQuote?'Accept quote and continue to payment':'Payment unavailable'}
+              busy={jobActionBusy}
+              busyLabel="Confirming quote and opening checkout…"
+              confirmDisabled={!currentQuote||!quoteConsent||Date.parse(currentQuote.starts_at)<=Date.now()}
               onEdit={() => setShowPaymentReview(false)}
-              onConfirm={() => undefined}
+              onConfirm={() => void handleQuoteCheckout()}
             />
           </div>
         </div>
@@ -1977,7 +2035,7 @@ function workerNextStep(status: string, isWorker: boolean) {
   const copy: Record<string, [string, string]> = {
     booking_requested: ["Review the request, set the full price and confirm the work date.", "The professional is reviewing your request and will set the full price and work date."],
     negotiating: ["Agree the work details, full price and date with the customer.", "Agree the work details, full price and date with the professional."],
-    waiting_payment: ["Wait for the customer to approve the agreement and pay through WeHouse.", "Review the final price and date, then pay through WeHouse to confirm the job."],
+    waiting_payment: ["Your quote is with the customer for review. Payment stays protected until the work is completed and release is authorized.", "Review the proposed work, date and price. A quote does not commit you to paying."],
     confirmed: ["Payment is secured. Start the job only when you arrive and begin the agreed work.", "Payment is secured. The professional can start the job when the agreed work begins."],
     in_progress: ["Complete the agreed work, then mark it ready for the customer to review.", "The work is in progress. Do not confirm completion until you have checked the result."],
     completed_pending_approval: ["Wait for the customer to confirm the work or open a problem report.", "Check the finished work. Confirm it only if the agreed work is complete, or report a problem."],

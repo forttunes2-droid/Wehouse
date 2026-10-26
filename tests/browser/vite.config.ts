@@ -6,6 +6,7 @@ export default defineConfig({
   root,
   plugins: [react()],
   resolve: { alias: [
+    { find: '@/lib/serviceBookingLive', replacement: path.resolve(__dirname, 'serviceSignalFixture.ts') },
     { find: '@/hooks/useAuth', replacement: path.resolve(__dirname, 'authFixture.tsx') },
     { find: '@/lib/supabase/client', replacement: path.resolve(__dirname, 'environmentPresentationFixture.ts') },
     { find: '@', replacement: path.resolve(root, 'src') },

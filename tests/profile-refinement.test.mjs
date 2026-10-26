@@ -57,7 +57,7 @@ test('Worker viewer keeps media and controls separate and supports navigation wi
  assert.match(viewer,/inert=\{commentsOpen\}/);assert.match(viewer,/touch-pan-x/);
  assert.match(viewer,/useMediaSwipe/);assert.match(viewer,/axis: "vertical"/);
  assert.match(viewer,/bg-\[#090B10\]/);assert.match(viewer,/current.current === id/);
- assert.match(read('src/components/ShowcaseMediaThumbnail.tsx'),/preload="metadata"/);
+ assert.doesNotMatch(read('src/components/ShowcaseMediaThumbnail.tsx'),/<video\b/);
 });
 test('Coordinated release accepts verified boundary but rejects gaps and unapproved states',()=>{
  const python=process.platform==='win32'?'python':'python3';

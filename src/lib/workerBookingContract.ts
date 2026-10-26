@@ -35,7 +35,7 @@ const CANONICAL_BOOKING_STATUS_LABELS: Record<WorkerJobStatus,WorkerJobStatusInf
   unavailable:{label:'Status unavailable',color:'bg-gray-500/10 text-[var(--wh-text-secondary)]',description:'Refresh this booking to confirm its current status before taking another action'},
   booking_requested:{label:'Booking requested',color:'bg-amber-500/10 text-amber-700 dark:text-amber-400',description:'Waiting for the Service Worker to respond'},
   negotiating:{label:'Negotiating',color:'bg-blue-500/10 text-blue-700 dark:text-blue-400',description:'Discussing the job, schedule and price'},
-  waiting_payment:{label:'Waiting for payment',color:'bg-purple-500/10 text-purple-700 dark:text-purple-400',description:'The job terms are agreed and payment is required'},
+  waiting_payment:{label:'Quote ready',color:'bg-purple-500/10 text-purple-700 dark:text-purple-400',description:'The customer can review the proposed work, date and price before accepting and paying'},
   confirmed:{label:'Confirmed',color:'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',description:'Payment Protection is active and the job can start'},
   in_progress:{label:'In progress',color:'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400',description:'The job is underway'},
   completed_pending_approval:{label:'Awaiting confirmation',color:'bg-orange-500/10 text-orange-700 dark:text-orange-400',description:'The Service Worker marked the job complete; customer confirmation is pending'},

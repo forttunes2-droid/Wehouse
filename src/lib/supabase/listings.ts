@@ -1,6 +1,7 @@
 import { supabase, uploadStorageObjectWithProgress } from './client';
 import type { Listing } from '@/types';
 import { compressImageFile } from './utils';
+import {PUBLIC_PHOTO_MAX_INPUT_BYTES} from '../publicPhotoPolicy';
 import { preparePublicVideo } from '@/lib/mediaVideo';
 import { ROLE_RANK } from '@/types';
 
@@ -129,7 +130,7 @@ function calculateSimilarity(a: string, b: string) {
 
 export async function uploadListingImage(file: File, listingId: string, onProgress: (percent: number) => void = () => {}) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image file' } as any };
-  if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
+  if (file.size > PUBLIC_PHOTO_MAX_INPUT_BYTES) return { url: null, error: { message: 'Choose a photo under 12 MB before compression' } as any };
   try {
     const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
     const body = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);
@@ -190,7 +191,7 @@ export async function getListingMediaUrls(references: string[], expiresIn = 3600
 
 export async function uploadListingCandidateImage(file: File, scope: CandidateScope, onProgress: (percent: number) => void = () => {}) {
   if (!file.type.startsWith('image/')) return { url: null, error: { message: 'Please select an image file' } as any };
-  if (file.size > 10 * 1024 * 1024) return { url: null, error: { message: 'Image must be under 10MB' } as any };
+  if (file.size > PUBLIC_PHOTO_MAX_INPUT_BYTES) return { url: null, error: { message: 'Choose a photo under 12 MB before compression' } as any };
   try {
     const preserveOriginal = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
     const body = preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024);

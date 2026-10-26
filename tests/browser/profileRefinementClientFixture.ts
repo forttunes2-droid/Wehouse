@@ -7,7 +7,7 @@ export const state = w.__profileFixture = {
 const ok = (data: any) => ({ data, error: null });
 const bad = () => ({ data: null, error: { message: 'Fixture unavailable' } });
 function dataPosts(worker: string) {
- return Array.from({length:28}, (_, index) => ({id:`${worker}-p${index}`,worker_id:worker,kind:'work_post',media_type:index===1?'video':'image',storage_path:index===1?'demo-video':`work-${index}.jpg`,caption:index===0?'Kitchen fitting':index===1?'A closer look at the finish':`Work sample ${index+1}`,booking_id:null,verified_job:index===0,job_confirmation_status:index===0?'confirmed':'not_linked',hidden_at:index===2||state.hidden.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,deleted_at:state.deleted.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,expires_at:null,created_at:new Date(Date.UTC(2026,8,23,12,0,0)-index*3600000).toISOString()}));
+ return Array.from({length:w.__refinementMode==='owner-new'?3:28}, (_, index) => ({id:`${worker}-p${index}`,worker_id:worker,kind:'work_post',media_type:index===1?'video':'image',storage_path:index===1?'demo-video':`work-${index}.jpg`,caption:index===0?'Kitchen fitting':index===1?'A closer look at the finish':`Work sample ${index+1}`,booking_id:null,verified_job:index===0,job_confirmation_status:index===0?'confirmed':'not_linked',hidden_at:index===2||state.hidden.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,deleted_at:state.deleted.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,expires_at:null,created_at:new Date(Date.UTC(2026,8,23,12,0,0)-index*3600000).toISOString()}));
 }
 function query(table: string) {
  const conditions:any[]=[];let start=0,end=49,single=false;
@@ -35,6 +35,7 @@ export const supabase:any={
  from:query,
   rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
+  if(name==='get_my_worker_showcase_capacity'){const posts=dataPosts('worker-a').filter(row=>!row.deleted_at);return ok({posts:posts.length,videos:posts.filter(row=>row.media_type==='video').length,post_limit:12,video_limit:3,photo_bytes:2000000,video_bytes:13000000});}
   if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true}]);
   if(name==='creator_get_worker_publication')return ok({enabled:false,launch_approved:false,worker:null});
   if(name==='get_my_workspace_help_targets')return state.failHelp?bad():ok(help());

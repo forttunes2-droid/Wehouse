@@ -1,5 +1,5 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -12,6 +12,8 @@ import VideoPlayer from "@/components/VideoPlayer";
 import WorkerShowcaseGrid from "@/components/WorkerShowcaseGrid";
 import { useWorkerShowcase, type ShowcasePost } from "@/hooks/useWorkerShowcase";
 import { withTimeout } from "@/lib/withTimeout";
+import {parseShowcaseCapacity,showcaseCapacityError,type ShowcaseCapacity} from '@/lib/showcaseCapacity';
+import {PUBLIC_PHOTO_MAX_INPUT_BYTES} from '@/lib/publicPhotoPolicy';
 import { workerDisplayName, workerAvatarUrl } from "@/lib/workerIdentity";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -67,6 +69,16 @@ function WorkerShowcaseContent({
   const [busy, setBusy] = useState(false);
   const [publishStage, setPublishStage] = useState<"idle" | "preparing" | "uploading" | "saving">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [capacity,setCapacity]=useState<ShowcaseCapacity|null>(null);
+  const [capacityError,setCapacityError]=useState('');
+  const refreshCapacity=useCallback(async()=>{
+    try {
+      const {data,error}=await withTimeout(supabase.rpc('get_my_worker_showcase_capacity'),12000,'Showcase limits took too long to load. Try again.');
+      if(error)throw error;
+      const next=parseShowcaseCapacity(data);setCapacity(next);setCapacityError('');return next;
+    }catch(error){setCapacityError((error as Error)?.message||'Showcase limits could not be confirmed.');return null;}
+  },[]);
+  useEffect(()=>{void refreshCapacity();},[refreshCapacity]);
   const [viewer, setViewer] = useState<Post | null>(null);
   const [mediaFailed, setMediaFailed] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -157,11 +169,15 @@ function WorkerShowcaseContent({
     const isVideo = selected.type.startsWith("video/");
     const isImage = selected.type.startsWith("image/");
     if (!isVideo && !isImage) return toast.error("Choose an image or video");
-    if (selected.size > (isVideo ? 50_000_000 : 12 * 1024 * 1024)) {
+    if (selected.size > (isVideo ? 50_000_000 : PUBLIC_PHOTO_MAX_INPUT_BYTES)) {
       return toast.error(
         isVideo ? "Video must be under 50MB" : "Image must be under 12MB",
       );
     }
+    const currentCapacity=await refreshCapacity();
+    if(!currentCapacity)return toast.error('Showcase limits could not be confirmed. Try again before uploading.');
+    const limitError=showcaseCapacityError(currentCapacity,isVideo);
+    if(limitError)return toast.error(limitError);
     if (preview) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview("");
@@ -223,11 +239,16 @@ function WorkerShowcaseContent({
     setPublishStage("preparing");
     setUploadProgress(0);
     let path = "";
+    let postAttempted=false;
     try {
+      const currentCapacity=await refreshCapacity();
+      if(!currentCapacity)throw new Error('Showcase limits could not be confirmed. Try again before uploading.');
+      const limitError=showcaseCapacityError(currentCapacity,isVideo);
+      if(limitError)throw new Error(limitError);
       const preserveOriginal = ['image/jpeg','image/png','image/webp'].includes(file.type) && file.size <= 1.5 * 1024 * 1024;
       const preparedVideo = isVideo ? await preparePublicVideo(file) : null;
       const uploadBody = preparedVideo?.body || (preserveOriginal ? file : await compressImageFile(file, 2560, 0.86, 1.8 * 1024 * 1024));
-      if (uploadBody.size > (isVideo ? PUBLIC_VIDEO_MAX_BYTES : 2_000_000)) throw new Error("This work post is too large. Trim the video or choose a smaller photo.");
+      if (uploadBody.size > (isVideo ? Math.min(PUBLIC_VIDEO_MAX_BYTES,currentCapacity.video_bytes) : currentCapacity.photo_bytes)) throw new Error("This work post is too large. Trim the video or choose a smaller photo.");
       const ext = preparedVideo?.extension || (preserveOriginal ? ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type] || 'jpg') : 'jpg');
       path = `${profile.user_id}/${kind}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       setPublishStage("uploading");
@@ -240,26 +261,32 @@ function WorkerShowcaseContent({
       );
 
       setPublishStage("saving");
-      const { error } = await supabase.rpc("create_my_worker_showcase_post", {
+      postAttempted=true;
+      const { data,error } = await withTimeout(supabase.rpc("create_my_worker_showcase_post", {
         p_kind: kind,
         p_media_type: isVideo ? "video" : "image",
         p_storage_path: path,
         p_caption: caption.trim() || null,
         p_booking_id: bookingId || null,
-      });
+      }),15000,'Publication could not be confirmed. Refresh your work samples before retrying.');
       if (error) throw error;
+      const saved=Array.isArray(data)&&data.length===1?data[0]:data;
+      if(typeof saved?.id!=='string'||saved.worker_id!==profile.user_id||saved.storage_path!==path||saved.media_type!==(isVideo?'video':'image'))throw new Error('Publication could not be confirmed. Refresh your work samples before retrying.');
 
       toast.success(bookingId ? "Work post saved · customer confirmation requested" : "Work post saved");
       clearComposer();
       await load();
+      await refreshCapacity();
     } catch (error: unknown) {
-      if (path)
+      // A lost publication response can follow a committed post. Preserve its
+      // media; deleting it here would break an already published work sample.
+      if (path&&!postAttempted)
         await supabase.storage
           .from("worker-showcase")
           .remove([path])
           .catch(() => {});
       toast.error(
-        error instanceof Error ? error.message : "Could not publish work",
+        (error as Error)?.message || "Could not publish work",
       );
     } finally {
       saving.current = false;
@@ -293,6 +320,7 @@ function WorkerShowcaseContent({
     setBusy(false);
     setViewer(null);
     await load();
+    await refreshCapacity();
   }
 
   async function setHidden(post:Post,hidden:boolean){
@@ -348,6 +376,10 @@ function WorkerShowcaseContent({
       }}/>
 
       {preparingVideo && <p role="status" className="text-sm text-violet-200">Preparing video preview…</p>}
+      <div className="text-xs leading-5 text-[var(--wh-text-secondary)]">
+        {capacity?<p>{capacity.posts} of {capacity.post_limit} work samples · {capacity.videos} of {capacity.video_limit} videos. Photos up to {capacity.photo_bytes/1_000_000} MB; videos up to {capacity.video_bytes/1_000_000} MB and 90 seconds. Large files are compressed before upload.</p>:<p>Checking showcase limits…</p>}
+        {capacityError&&<p role="alert">{capacityError} <button type="button" onClick={()=>void refreshCapacity()} className="min-h-11 underline">Check limits again</button></p>}
+      </div>
 
       {file && (
         <ShowcaseComposer onClose={clearComposer} busy={busy}><div className="fixed inset-0 z-[100100] flex h-[100dvh] flex-col bg-[var(--wh-bg)]">

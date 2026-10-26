@@ -133,9 +133,24 @@ export async function getPublicWorkerReviews(workerId:string){const{data,error}=
 export async function customerRaiseDispute(bookingId:string,reason:string){return bookingBooleanCommand('customer_raise_dispute',{p_booking_id:bookingId,p_reason:reason})}
 export async function cancelBooking(bookingId:string,reason:string){return bookingBooleanCommand('cancel_booking',{p_booking_id:bookingId,p_reason:reason})}
 
-export async function cancelPaidBookingBeforeStart(bookingId:string,reason:string){const{data,error}=await supabase.rpc('cancel_my_worker_booking',{p_booking_id:bookingId,p_reason:reason});return{result:data as {cancelled?:boolean;refund_amount?:number}|null,error}}
+export async function cancelPaidBookingBeforeStart(bookingId:string,reason:string){
+  const{data,error}=await supabase.rpc('cancel_my_worker_booking',{p_booking_id:bookingId,p_reason:reason});
+  if(error)return{result:null,error};
+  if(data?.cancelled!==true||(data.refund_amount!==undefined&&(!Number.isFinite(data.refund_amount)||data.refund_amount<0)))return{result:null,error:{message:'Cancellation and refund could not be confirmed. Refresh this booking before retrying.'}};
+  return{result:data as {cancelled:true;refund_amount?:number},error:null};
+}
+export async function providerCancelPaidService(bookingId:string,reason:string){
+ const {data,error}=await supabase.rpc('provider_cancel_my_service_booking',{p_booking_id:bookingId,p_reason:reason});
+ if(error||data?.cancelled!==true||(data.refund_amount!==undefined&&(!Number.isFinite(data.refund_amount)||data.refund_amount<0)))return {result:null,error:error||new Error('Cancellation could not be confirmed. Refresh before retrying.')};
+ return {result:data as {cancelled:true;refund_amount?:number},error:null};
+}
 
-export async function requestWorkerRefundReview(bookingId:string,kind:'customer_cancel_after_start'|'worker_no_show'|'worker_not_delivered',reason:string){const{data,error}=await supabase.rpc('request_worker_refund_review',{p_booking_id:bookingId,p_kind:kind,p_reason:reason});return{reviewId:data as string|null,error}}
+export async function requestWorkerRefundReview(bookingId:string,kind:'customer_cancel_after_start'|'worker_no_show'|'worker_not_delivered'|'customer_late_cancellation',reason:string){
+  const{data,error}=await supabase.rpc('request_worker_refund_review',{p_booking_id:bookingId,p_kind:kind,p_reason:reason});
+  if(error)return{reviewId:null,error};
+  if(typeof data!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data))return{reviewId:null,error:{message:'Your refund review could not be confirmed. Refresh this booking before retrying.'}};
+  return{reviewId:data,error:null};
+}
 
 export async function getBookingDetails(bookingId:string){
   const{data,error}=await supabase.rpc('get_my_worker_booking_details',{p_booking_id:bookingId});

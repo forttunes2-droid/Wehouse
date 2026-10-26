@@ -49,6 +49,8 @@ async def main():
      return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':[HOME if kind=='homes' else HOTEL],'has_more':False}))
     if request.request.url=='https://assets.wehouse.test/interior.jpg':return await request.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await request.abort()
+   media_requests=[]
+   page.on('request',lambda request:media_requests.append(request.url))
    await page.route('**/*',route)
    try:
     await page.goto('https://wehouse-preview.vercel.app/')
@@ -118,7 +120,9 @@ async def main():
     # An unsigned URL is still loading; a decoded failure is unavailable.
     await expect(page.get_by_text('Photo unavailable',exact=True)).to_have_count(1)
     await expect(page.locator('[data-media-thumbnail]').first).to_have_attribute('data-media-state','loading')
-    await expect(page.get_by_text('Preview unavailable · open video',exact=True)).to_be_visible()
+    await expect(page.get_by_text('Open video',exact=True)).to_be_visible()
+    await expect(page.locator('[data-media-thumbnail] video')).to_have_count(0)
+    assert not any(url.endswith('.mp4') for url in media_requests),'Browsing thumbnails downloaded a video'
     await page.screenshot(path=str(OUT/f'thumbnail-unavailable-states-{width}-{theme}.png'))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')

@@ -45,9 +45,20 @@ export async function sendFriendEncryptedMessage(friendId:string,ciphertext:stri
   const {data,error}=await supabase.rpc('send_friend_encrypted_message',{p_friend_id:friendId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId??null,p_client_message_id:clientMessageId??null});
   return {id:data as string|null,error};
 }
-export async function getFriendEncryptedMessages(friendId:string){
-  const {data,error}=await supabase.rpc('get_friend_encrypted_messages',{p_friend_id:friendId});
-  return {messages:(Array.isArray(data)?data:[]) as {id:string;sender_id:string;ciphertext:string;encryption_iv:string;encryption_version:number;encrypted_attachments:unknown[];reply_to_id:string|null;created_at:string;reactions?:Record<string,string>}[],error};
+export type FriendMessageCursor={at:string;id:string};
+export async function getFriendMessageHistoryCursor(friendId:string,messageId:string){
+  const {data,error}=await supabase.rpc('get_friend_message_history_cursor',{p_friend_id:friendId,p_message_id:messageId});
+  if(error)throw error;
+  if(!data||!Object.hasOwn(data,'before')||(data.before!==null&&(typeof data.before?.at!=='string'||typeof data.before?.id!=='string')))throw new Error('Message history could not be located. Try again.');
+  return data.before as FriendMessageCursor|null;
+}
+type FriendMessageRow={id:string;sender_id:string;ciphertext:string;encryption_iv:string;encryption_version:number;encrypted_attachments:unknown[];reply_to_id:string|null;created_at:string;reactions?:Record<string,string>};
+export async function getFriendEncryptedMessages(friendId:string,before:FriendMessageCursor|null=null){
+  const {data,error}=await supabase.rpc('get_friend_encrypted_messages_page',{p_friend_id:friendId,p_before_at:before?.at??null,p_before_id:before?.id??null,p_limit:51});
+  if(!error&&(!Array.isArray(data)||data.length>51||data.some(row=>typeof row?.id!=='string'||typeof row.created_at!=='string'||!Array.isArray(row.encrypted_attachments))))return {messages:[],older:null,error:new Error('Message history could not be confirmed. Try again.')};
+  const rows=(Array.isArray(data)?data:[]) as FriendMessageRow[];
+  const page=rows.slice(0,50),oldest=page[page.length-1];
+  return {messages:page.reverse(),older:rows.length>50&&oldest?{at:oldest.created_at,id:oldest.id}:null,error};
 }
 
 export async function uploadFriendChatAttachment(file:File,friendId:string,peerUserId:string){

@@ -11,7 +11,7 @@ type PaymentInitResult = {
   error?: string;
 };
 
-async function initializePaymentReference(reference: string) {
+export async function initializePaymentReference(reference: string) {
   const { data, error } = await supabase.functions.invoke("payment-init", {
     body: { reference },
   });

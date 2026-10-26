@@ -1,6 +1,328 @@
 # WeHouse release roadmap
 
-**Status date:** 25 October 2026
+**Status date:** 26 October 2026
+
+## Current engineering checkpoints
+
+### Service agreement and checkout follow-through — 26 October
+
+The owner has now explicitly reauthorised the interrupted Test check and
+commit/push to PR #118. The final expanded media admission/gallery contract
+passes on Test, including destination ownership before reservation, retained
+legacy galleries and gallery limits on Homes/Hotels/room types. The separate
+real Storage API/concurrency probe still requires disposable CI.
+
+Test migrations `20261026125152`, `20261026130437`, `20261026131457` and
+`20261026132650` connect the Service quote, customer acceptance and checkout.
+The existing worker_bookings record now stores a versioned work/schedule/price
+contract, exact start instant, IANA timezone and saved 24-hour cancellation
+deadline. Acceptance is a separate customer-authorized receipt, not user_approved
+(which remains the completion signal). Repeating the same quote/acceptance is
+idempotent. Changes invalidate acceptance; an active checkout prevents changing
+the contract. The payment record copies the accepted contract and protects it
+against rewriting. Provider/private-reference/account data stay participant-only.
+
+The shared payment validator binds booking/customer/provider/version/price/start/
+timezone/cancellation and acceptance timestamp to the frozen payment contract.
+Test payment-init v7 replaces the blanket Service pause **only for valid accepted
+contracts**. Legacy date/price-only unpaid bookings still need a complete quote;
+previously paid history, verification, release and refund paths are retained.
+The six retrieved deployed files match the reviewed source; JWT verification
+remains enabled. No external charge was initiated.
+
+The existing Creator commission policy is snapshotted through the existing
+commission/protection/ledger path. No percentage was invented or activated. The
+new quote has no additional customer service charge (zero is explicitly saved
+and displayed). A configurable optional customer-charge formula remains separate
+engineering work under C-040; it must not silently change accepted quotes.
+
+Provider cancellation before completion queues a full refund of protected money
+once. If money has already been released/refunded or is under review, Finance
+must resolve the full refund rather than inventing available funds. Customer
+cancellation by the saved 24-hour deadline queues a full refund. Late customer
+cancellation has an explicit protected review kind; no late deduction was
+invented. Legacy paid bookings keep their existing rule. Starting new quoted
+work before its accepted start time is blocked so a provider cannot defeat the
+customer's cancellation window by prematurely starting the job.
+
+The complete rollback SQL contract passes on Test: participant/outsider authority,
+stale acceptance, idempotent quote/checkout, frozen terms, canonical verified
+receipt to Payment Protection, provider cancellation, early-customer refund and
+late review. The separate commission policy-change/retry contract passes. The
+private-change contract passes price, work-only and acceptance invalidation for
+both participants, recipient RLS and identifiers-only payloads (Realtime adds a
+delivery ID). The source suite passes 785/785 tests, focused lint and the build
+pass; Deno checks pass with frozen dependencies. The actual chat review passes
+light/390px and dark/1280px browser checks for required consent, acceptance before
+checkout, failed-checkout persistent feedback/retained agreement, live quote
+changes, stale response protection and account switching. Both screenshots were
+visually inspected. These are synthetic browser/Test SQL proofs, not a hosted
+two-device or real PSP sandbox charge/refund proof. Both SQL contracts and the
+discovery browser check are included in CI for the version being pushed.
+
+This closes the missing exact-schedule/accepted-contract implementation identified
+in sequence 1; it does not close all Money/Pro/provider recovery, Experiences,
+property inventory/tenancy/shared Hotel costs, privacy or release evidence. Those
+rows remain open and cannot be described as external-only dependencies.
+
+### Current publication and release facts — 26 October follow-through
+
+PR #118 is open and technically mergeable at `03219c51`; it does not yet contain
+the local changes below. Vercel's PR-branch preview for that commit is READY
+(`dpl_F3c38HsjrfSSYRd8UGG2n3bQikyg`), so the historical HTTP 402 is not a
+current blanket preview blocker. The public domain resolves to a production
+deployment from `main` at `f990fc4a`, not that preview. Do not call a main merge
+a Test-only update or assume it cannot affect the public app. No promotion,
+Production migration or merge was performed.
+
+The owner challenged the unnecessary separate service-discovery opening step.
+Test's false setting was an untouched legacy seed (created_at=updated_at), with
+an obsolete labour/recruiter approval description and no recorded Creator
+publication action. Migration `20261026123401` corrects that untouched default
+to open and renames it Service discovery availability. Fresh projects also seed
+open. A changed setting or audited deliberate pause is preserved. Individual
+professional review, active workspace, credential/coverage context, availability,
+required identity, account restrictions, blocks and provider-specific moderation
+remain authoritative. This does not activate Pro sales or new payment paths.
+The existing Creator workspace retains an optional incident pause; no new
+dashboard or routine opening task is required. The rollback SQL contract passes
+automatic eligible-provider visibility and explicit-pause/outsider/revocation
+checks. Light/390px and dark/1280px service-discovery rendering passes.
+
+The Service review UI paused payment, but payment-init could still initialize
+an unpaid Service charge without the missing exact-start/accepted cancellation
+contract. Test payment-init v6 now rejects that path before cached provider URLs
+or provider initialization. Existing paid receipts and verification/refund/release
+handlers are preserved. Twenty-eight focused payment/environment/gate checks
+pass, including direct-call and cached-URL bypass refusal and readable paid
+receipts. The generic success, persistence and provider-reference checks now use
+an enabled Hotel fixture, so they still exercise provider initialization instead
+of accidentally passing at the new Service boundary. Deno type-check passes.
+No charge was initiated. Completing the accepted Service contract/checkout
+remains engineering work, rather than relabelling the paused flow as complete.
+The combined source suite passes 781/781 tests; final build evidence is tracked
+in `test-results/service-discovery-final-build.log`.
+
+This table is the current execution view. The open register remains the detailed
+inventory; dated entries below are evidence/history, not a declaration that the
+whole feature or product is complete. Do not reopen settled owner policies.
+
+| Sequence | Current work | Required result before closure |
+|---|---|---|
+| 1 | Money and accepted agreements: mandatory Payment Protection for every collected rent payment; Service proposal/review/payment; refunds, payout recovery and Pro billing | The exact accepted amount/currency/policy survives charge, protection, authorized release/refund, wallet credit and provider reconciliation; no double credit or silent success |
+| 2 | Finish Experiences in the existing provider workspace | Approved public activity/session, capacity, customer booking/payment, cancellation/refund, attendance, review, sharing and optional promotion/discount journeys |
+| 3 | Complete connected accommodation operations | Grouped unit availability/calendars, protected later-year rent collection and Hotel shared costs; actual customer and Partner fulfillment/recovery |
+| 4 | Close account, privacy and operator journeys | Recovery/email/device proof, real access/export/deletion processing, scoped Team/Admin/Creator authority, support/report resolution and retention |
+| 5 | Verify complete product behavior and appropriate scale | Route/role/device/light-dark checks, search/maps/location, chat delivery, native/Pro lifecycle, bounded jobs/cache and realistic isolated workload/recovery evidence |
+| 6 | Verify the version proposed for merge | Exact-SHA CI and preview, fresh/upgrade replay, hosted-role smoke checks, feature boundaries and rollback; separate Test merge from public launch/Production promotion |
+
+Current evidence: `03219c51` passed build, structural, consolidation/replay,
+isolated mixed preflight and disposable capacity workflows. Its main browser
+and Wallet/Pro jobs passed; the cancelled media job was requested for rerun.
+The media rerun then passed, so all seven workflows completed successfully on
+`03219c51`. The new 26 October changes below still require their own exact-SHA CI.
+
+### 26 October: realistic launch resource boundaries
+
+The owner confirmed a Free-plan launch. The current acceptance target is bounded
+resource use and complete enabled journeys, not 100k concurrent users or a
+500-RPS hosted ramp. See `capacity-validation.md` for verified plan limits and
+the measured Production/Test data-size baselines. Historical failed checks stay
+recorded, without treating their offered rate as a database hard limit.
+
+Roommate results already use 24-row client pages (maximum 48) and score the
+hard-compatible candidate pool before retaining the top 120. Requirements include
+location, annual-budget overlap, mutual gender preferences, room arrangement,
+move-in overlap, smoking boundaries, optional school matching, blocks and search
+visibility. The optional lifestyle score compares answered preferences; it is
+not a success probability. Current matching still uses Nigeria-specific location
+fields/timezone; global location identity remains separate implementation work.
+
+Work-sample posts use 24-row pages plus one lookahead. Video thumbnails previously
+fetched and sought actual video media while scrolling. The local repair uses an
+explicit Open video tile; playback remains in the post viewer. Chat encrypted
+attachments have a local encrypted cache, but several full-thread reads and
+aggregate upload/retention budgets still need implementation and verification.
+No new hosted load was initiated, no plan purchased, and Production was only
+queried for aggregate resource sizes.
+
+Follow-through: migration `20261026081344` is applied to Test. Friend history
+now reads at most 51 encrypted records (50 displayed plus one lookahead), uses a
+stable `(created_at,id)` cursor and keeps earlier/newer navigation. The old RPC
+is bounded too. Pinned messages outside the current page have an authorized
+cursor lookup. Test's rollback contract reaches 122 visible records exactly
+once, including tied timestamps; rejects oversized/partial cursors and outsider
+reads/lookups; and preserves blocked/cancelled-chat authority. Browser checks
+pass in light/390px and dark/1280px for earlier/newer history, older pins,
+read failure/retry and no attachment download merely from reading messages.
+
+Friend attachments load explicitly rather than decrypting/downloading an entire
+page's media. Object URLs from departed pages are released. The shared encrypted
+media cache now has a 32 MiB memory budget and a 64 MiB persistent budget with
+seven-day expiry. Cross-tab Web Locks serialize persistent writes; browsers
+without those locks skip persistent writes. Four cache tests pass, including
+byte-based eviction, expired/legacy entries and unsupported-browser fallback.
+This cache is encrypted local media, not additional Supabase storage capacity.
+
+The eight-width/theme shared-discovery checks pass without fetching videos for
+thumbnails. Video paths are signed when a post opens; only photos are batch
+signed for grid previews. Practical Roommate SQL contracts also pass on Test.
+The final local suite passes all 762 tests, including page receipts, cache
+budgets and the hosted Free-load guard. The production build and focused lint
+pass; changed workflow YAML parses successfully. Exact-SHA CI and
+fresh/upgrade replay for these local changes remain pending push permission.
+
+### Traced customer/provider paths and remaining resource work
+
+| Journey | Connected implementation inspected | Current boundary |
+|---|---|---|
+| Work sample publication | Verified provider and current identity; choose/preview photo or video; bounded preparation; private Storage upload; server checks owned path and completed-job ownership; optional customer job confirmation; paged public/owner grid; authorized selected-post viewer | Aggregate upload reservations, per-account allocation, orphan recovery and actual egress monitoring still need completion. A 13 MB file limit cannot protect a 1 GB project by itself |
+| Friend conversation | Accepted relationship and encrypted identity; server-authorized 50-message pages; explicit older history; pin lookup; private live hints; visible recovery; explicit cached media opening | Other chat surfaces still need equivalent bounded-history and on-demand-media verification. This is not whole-app two-device proof |
+| Roommate discovery | Practical hard requirements before lifestyle ranking; blocked/paused visibility; candidate ranking before top-120 retention; 24-row results; review profile then explicit request/acceptance | Similarity is not a prediction or guaranteed household fit. Global country-qualified location/currency identifiers remain open |
+| Booking and money | Existing accepted quote, payment reference, protection, authorized release/refund and recovery authorities remain the required path | Experiences checkout, later-year protected rent collection and Hotel shared costs remain implementation work. Existing locks/tests do not establish every booking flow complete |
+
+The manual hosted workflow now defaults to 1 RPS, offers only 1/5/10 RPS,
+and has no distributed job. Its script rejects larger ceilings and shards even
+when called directly, caps transport/in-flight work at 32, and retains the
+existing latency/error/integrity checks. The guard tests pass. No hosted check
+was run. Disposable CI migration/booking checks remain separate from hosted
+Free usage; their synthetic data does not occupy the hosted database.
+
+Migration `20261026083524` adds a 30-second reuse window to unchanged Roommate
+rankings, under the existing preference-row lock. Preference changes invalidate
+reuse. The practical-match contract confirms unchanged refreshes keep their
+prior ranking timestamp, changes invalidate it, and required matching/privacy
+rules still pass. This reduces repeated computation; it is not a complete abuse
+rate limiter or proof of 100k concurrent-user capacity.
+
+Creator Home/Hotel funded offers now carry the optional end date through their
+existing RPCs and confirm the saved receipt before reporting success. Test's
+rollback discount contract passes finite/future date validation, retry receipt
+reuse, saved duration and unchanged commission/Partner-net rules. Experiences
+funded discounts and a consistent booking-date/arrival-date definition still
+need completion; the existing resolvers use arrival dates for stay offers and
+current-date Year 1 quoting for Long Let. Do not silently present these as one
+universal campaign-expiry rule.
+
+The launch resource gate therefore remains open for real Storage API admission
+proof/recovery, other chat pagination, measured egress/socket monitoring and enabled-flow
+verification. It does not require another oversized hosted Free-plan ramp.
+
+### 26 October: bounded media, service areas and identity receipt recovery
+
+Test migrations `20261026092158`, `20261026100543`, `20261026102713`
+and `20261026115828` add bounded publication and durable upload admission.
+Provider showcases allow 12 work samples, including at most 3 videos; stored
+photos must be at most 2,000,000 bytes and videos at most 13,000,000 bytes.
+The visible allowance is read from the server. Repeating the same publication
+returns its existing receipt rather than consuming a second slot.
+Property/Hotel/room galleries accept up to 12 photos. Existing unchanged
+galleries are retained. New photo sources are capped at 12,000,000 bytes before
+compression; the final shared photo limit is 2,000,000 bytes. Browser proof
+compressed an actual generated 11,678,045-byte JPEG to 1,838,094 bytes and
+decoded it successfully. Selected preparation and transfers share two slots.
+
+The initial RLS lock-and-sum design was insufficient: Storage permission probes
+can roll back their savepoint, releasing a transaction lock. The forward
+correction reserves capacity in a committed RPC before transferring bytes.
+Private configurable defaults reserve headroom at 800,000,000 project bytes
+and 80,000,000 showcase bytes per provider. Pending allocations count even
+after expiry until completion is verified or an operator safely recovers them.
+Clients cannot enlarge or release allocations. Reservations now reuse actual
+authenticated INSERT authorities before holding capacity; permission changes
+fail closed until the migration refreshes that authority projection. The Hotel
+media policy also now correlates the Storage object path rather than Hotel name.
+
+The earlier Test rollback contract passed sample/video limits, idempotent
+publication, photo metadata admission, quota boundaries and rollback-safe
+reservations. The expanded final contract adds destination authority and all
+three gallery triggers, but its execution was cancelled: **that final contract
+has not passed**. A real Storage API/concurrent-allocation probe is added to
+disposable mixed preflight; Docker is unavailable locally, so this probe still
+needs exact-SHA CI. Storage metadata fixtures are not real upload proof.
+Expired failed-upload recovery, per-bucket retention, usage warnings and billed
+Storage/egress evidence remain internal work. No actual assets were deleted to
+recover quota. The source suite passed 777 tests before the identity receipt
+follow-through below; the media build and focused lint passed.
+
+Migration `20261026111609` makes public service filtering use declared approved
+coverage, keeping credential-context review and existing publication authority.
+A provider based in Lafia but approved for Keffi appears for Keffi; an undeclared
+area does not match. The Test publication contract and light/390px, dark/1280px
+browser checks passed. Public cards distinguish Base from Serves. The obsolete
+24-hour story reader, signing loop and viewer were removed from discovery;
+existing portfolio samples remain. Service discovery still needs bounded server
+paging and true consented distance/radius search. This is not GPS-nearest ranking
+or a personal browsing-history recommendation system. The new browser runner
+is local; adding it to the CI loop was rejected and remains pending permission.
+
+Service cancellation/refund-review adapters now reject malformed receipts instead
+of reporting success. New Service checkout still lacks accepted exact start and
+versioned cancellation terms; existing paid-booking terms are not rewritten.
+Identity capture likewise now validates a pending independent-review receipt and
+retains its private uploaded reference after uncertain submission responses. It
+does not delete a potentially committed review's reference on response loss.
+Eight focused upload/identity receipt tests and the final combined source suite
+(779/779) pass; focused lint and the identity/media production build pass.
+These do not replace the cancelled final SQL check or pending real Storage API
+probe. The retired external-identity endpoint's message now states that it
+cannot verify identity; no provider adapter or verification was invented.
+
+NIN is not a signup requirement and no NIN entry screen, live provider adapter,
+receipt repository or endpoint is connected. The prepared server boundary is
+restricted to Partner/Service Provider purposes, requires consent and an active
+session, and is designed not to retain raw NIN. This is preparation, not a live
+identity implementation. Existing optional policy-gated face screening requests
+independent review; browser scores do not approve identity. Property authority
+documents attach to each submission; Service credentials attach to the provider's
+service/coverage context; Experience evidence attaches to the activity. These
+private document journeys explicitly exclude NIN, passports and bank details.
+Required-document configurations and legal approval for each jurisdiction still
+need verification before enabling that market.
+
+Country/currency/timezone rows and a closed payment-market adapter boundary exist.
+Only NG/NGN/Paystack is enabled for money movement; a country catalogue row cannot
+enable payment/refund/settlement. Property submission still selects Nigerian
+locations explicitly. Global country-qualified locations, jurisdiction-specific
+identity/document rules and end-to-end market activation are not complete.
+There is no claim of all-country or all-continent readiness. Production is unchanged.
+
+
+### 26 October: restore mandatory rent protection and trace live Service quotes
+
+The attempted direct-subaccount model was an incorrect exception to the owner's
+Payment Protection rule. It was prepared/applied only on Test, remained behind
+an unconfigured rollout gate, created no actual later-rent payments, and was
+replaced by migration `20261026055031`. Historical migration `20261026053058`
+is retained as applied audit history; it is superseded, not an active product
+path. Active checkout/webhook/verification handlers contain no new direct-rent
+split exception. The retired experimental provider-proof RPC/trigger were
+removed. No real charge or Production change was made.
+
+Later-year collection cannot bypass protection even through a verified provider
+receipt: it remains paused until its protected collection and authorized-release
+journey is completed. Invalid later-rent charges enter the canonical durable
+Finance-recovery event queue without becoming paid or creating ledger/wallet
+credit. The existing signed-role Long Let contract passes that negative case,
+as well as the accepted term, upfront payment, handover and future schedule.
+
+Service quote delivery had a real configuration defect: the client listened for
+Postgres changes on `worker_bookings`, which is absent from Test's Realtime
+publication. Migration `20261026055951` sends private ID-only signals to the two
+booking participants, without publishing raw booking rows or price/scope data.
+The client coalesces signals into participant-authorized booking reads, recovers
+on reconnect/focus, prevents older reads from overwriting a new quote, and keeps
+editing input intact. Identity changes remount the conversation. UI labels say
+proposed quote rather than implying the provider alone creates customer consent.
+The participant/outsider SQL signal contract and focused client subscription
+tests pass. The actual chat also passed isolated light/390px and dark/1280px
+browser checks: a new price appeared without manual refresh; a price signal did
+not reload/decrypt the conversation; a delayed older response did not restore an
+old amount; changing accounts cleared the previous quote. These are synthetic
+presentation/transport checks, not hosted two-device encryption proof. All 755
+regressions and the production build pass. Service payment is still blocked by the missing attached cancellation
+contract in the current review screen; completing that reviewed checkout remains
+part of sequence 1, not an external dependency.
 
 ## Execution order and release decisions
 
@@ -14,11 +336,11 @@ Small component checks do not close a missing customer/operator journey.
 | 1 | Reconcile the exact PR baseline, migrations and enabled feature boundaries | Fresh/upgrade replay, permission checks and exact-SHA CI; retain failed gates |
 | 2 | Finish enabled money and booking journeys, then the agreed unfinished marketplace flows | Customer and operator success/failure/recovery journeys, inventory races and reconciled sandbox money |
 | 3 | Replace expensive chat fan-out/polling and complete recipient delivery | Authorized live changes, reconnect/block/account-switch checks, unread and notification behavior for each chat type |
-| 4 | Validate the requested 100,000-concurrent-session target | Isolated mixed traffic, 100k connection evidence, sustained/soak/recovery tests, measured resource/cost headroom; see capacity-validation.md |
+| 4 | Validate a realistic workload for the enabled release; track expansion claims separately | Free-plan budgets, bounded reads/media/uploads and representative isolated recovery checks. Larger concurrency claims are future expansion work; no oversized hosted Free-plan ramps |
 | 5 | Close whole-app role, privacy, design and device gaps | Route/control inventory, actual data-rights operations, both themes and signed-device evidence on the reviewed SHA |
 | 6 | Decide merge/promotion separately from public launch | All applicable internal gates pass; external credentials, commercial/legal and store approvals are explicitly identified |
 
-**Current decision: not ready for a 100k-user capacity claim or public launch.**
+**Current decision: finish and verify the controlled Free-plan release; no 100k-user capacity claim.**
 The 500-RPS direct-origin failure remains open. The public-feed CDN check is
 blocked by Vercel billing. Neither issue excuses leaving independent internal
 work unfinished. Do not purchase infrastructure or run large hosted loads merely
@@ -2408,7 +2730,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
 | Pricing | Hotel discount/rate-plan pipeline | Rate-plan/discount source exists; verify current display, checkout, Partner earnings and refund behavior against the approved rule. No second price authority; hosted evidence pending |
 | Payments | Hotel shared booking cost with accepted Friend | Product rule confirmed 19 Oct; implementation and complete Paystack Test charge/verify/refund/reconciliation flow remain open |
-| Long Let | Partner-approved terms and optional later-year monthly rent | **Partly implemented; release blocker remains.** Test and PR #118 connect accepted 3/6/12-month and multi-year terms, reviewed tenant agreement, immutable upfront checkout, protected initial payment and handover-anchored schedules. One-year and shorter terms are paid in full. Monthly payments are only for later years of a landlord-approved multi-year contract, with Year 1 fully upfront and eight payments for each later year. Without opt-in the full contract is upfront. Later collection, verified Partner split settlement, optional active-mandate automatic debit, reconciliation and arrears/exit/refund recovery remain internal work. See the 25 October correction and `PRODUCT_RULES.md` |
+| Long Let | Partner-approved terms and optional later-year monthly rent | **Partly implemented; release blocker remains.** Test and PR #118 connect accepted 3/6/12-month and multi-year terms, reviewed tenant agreement, immutable upfront checkout, protected initial payment and handover-anchored schedules. One-year and shorter terms are paid in full. Monthly payments are only for later years of a landlord-approved multi-year contract, with Year 1 fully upfront and eight payments for each later year. Without opt-in the full contract is upfront. Later collection through mandatory Payment Protection and authorized release, optional active-mandate automatic debit, reconciliation and arrears/exit/refund recovery remain internal work. See the 25 October correction and `PRODUCT_RULES.md` |
 | Property supply | Submission authority and evidence completeness for apartments and Hotels | **Implemented/Test verified for private documents and new publication; wider supply work remains open.** Existing request/operations records now own accepted requirements, private uploads, incomplete-upload recovery, corrections, versioned replacement, independent scoped decisions, expiry and publication enforcement. Canonical Inbox carries actionable review/correction/outcome records and resolves superseded work. Actual apartment/Hotel publish contracts pass using additive Admin/Creator grants; owner self-approval is denied. Test operating-choice column/commands and 13 MB media limits were restored after contracts exposed missing parity. Open: live person KYC, structured guest/tenancy term capture and booking snapshots, already-live-property recertification, advance expiry reminders, appeal/retention/deletion operations and hosted real-role/file journeys. Worker credential enforcement is implemented in the 20 October checkpoint above; live recertification and hosted journey proof remain open. Local legal forms and provider approvals remain external. Access footage is not ownership proof |
 | Property supply | Buildings and bookable spaces across Short Let and Long Let | **C-064 in progress; not release ready.** Supports several independent apartments in one building and separately let private bedrooms with shared areas disclosed. Retain current listings/reservations and Hotel inventory; submission batches are not buildings. Implement shared property/space identity, scoped review/evidence, per-space terms/calendar, Partner management and atomic whole-unit/room and Short Let/Long Let overlap prevention. Creating/managing spaces and normal bookings stay core features; optional consolidated analytics can remain Pro. Do not enable mixed whole-unit/room selling before concurrency and recovery pass |
 | Worker supply | Category-specific credential and licensing requirements | Private context-bound requirements, uploads, independent review, expiry and new-publication/new-job enforcement are implemented on Test (20 October checkpoint). The accepted service/location requirements are not a universal legal matrix. Current market requirements, existing-live-provider recertification and hosted role/file verification remain open; retain the public Services launch gate until those requirements are accepted and verified |
@@ -2421,7 +2743,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | UX | Back, refresh, offline, sign-in/out audit | Open |
 | Journeys | Listing detail action-to-result verification (save, share, report, booking, shared booking cost, review, inspection and support) | Open; static pass found handlers and feedback; report migration is applied on Test, but real-role browser evidence and deployed rollout remain |
 | Scale | Measured performance, caching, background work and rate limits | Internal review open: define release latency/error/resource budgets, verify indexes/pagination, bound expensive work, check public/private cache separation, durable retries and abuse limits. Add replicas or queues only where the measured workload requires them; no architecture purchase is itself a release gate |
-| Scale | Catalog and 100k-session capacity evidence | Failed/open. Recorded compressed run `1f34cb29` passed 200 RPS then failed 500; distributed latency gates also failed. Historical passes do not supersede later failures. CDN verification is blocked by Vercel billing. The 100k concurrent-session target requires separate connection, sustained mixed-journey, resource/cost and recovery evidence; none is established by catalog row counts or a thirty-second burst |
+| Scale | Controlled Free-plan release and future expansion | Current: enforce bounded reads/media/uploads, observe actual storage/egress/socket use and verify enabled journeys with isolated tests. Historical hosted 500-RPS failures remain diagnostic evidence, not the current merge throughput requirement. The 100k concurrent-session ambition requires separately provisioned infrastructure and measured evidence before making that claim. CDN verification remains blocked by Vercel billing |
 | Release | Two-device E2EE evidence | Earlier owner check recorded. Current Friend schema, plan cards, recovery/revocation and all enabled chat types need scoped evidence. Group encryption is not implemented |
 | Release | Phone light/dark check | Engineering journey/visual pass remains internal work; physical-device owner review supplements it |
 | Coverage | Route and nested-control inventory | Current source count: 36 declared navigation keys including aliases, 47 page modules and 225 component modules (19 Oct). Map nested tabs/dialogs and role-specific actions to their server authority, persisted result, operator action and journey evidence. Cover signed-out/Personal/Partner/Hosting/Hotel Team/Worker/Staff/Admin/Creator, including Creator-only operation. Full coverage is not established |

@@ -8,9 +8,18 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,worker_s
  ('b7888888-0000-4000-8000-000000000002','commission-provider@example.invalid','commission-provider','user',true,'verified',true);
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
  values('commission-provider','worker','global','active');
+insert into auth.sessions(id,user_id,created_at,updated_at) values
+ ('b7888888-0000-4000-8000-000000000001','b7888888-0000-4000-8000-000000000001',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+ values('commission-customer','b7888888-0000-4000-8000-000000000001','b7888888-0000-4000-8000-000000000001','commission-contract','Synthetic contract browser',true,'trusted');
 insert into public.worker_bookings(id,user_id,worker_id,status,agreed_amount,service_type) values
  ('b7888888-0000-4000-8000-000000000011','commission-customer','commission-provider','waiting_payment',10000,'Cleaning'),
  ('b7888888-0000-4000-8000-000000000012','commission-customer','commission-provider','waiting_payment',10000,'Cleaning');
+update public.worker_bookings set service_quote_revision=1,service_quote_accepted_revision=1,service_quote_accepted_at=now(),
+ service_quote=jsonb_build_object('revision',1,'booking_id',id,'customer_id',user_id,'provider_id',worker_id,'amount',10000,'currency','NGN','customer_service_charge',0,
+ 'scope','Clean the agreed rooms','address','Synthetic service location','starts_at',now()+interval '14 days','timezone','Africa/Lagos',
+ 'cancellation',jsonb_build_object('version','service-standard-24h-v1','full_refund_until',now()+interval '13 days','late_cancellation','wehouse_review','provider_cancellation','full_refund'))
+ where id in('b7888888-0000-4000-8000-000000000011','b7888888-0000-4000-8000-000000000012');
 update public.creator_policy_versions set status='retired' where policy_key='commission_worker' and status='active';
 insert into public.creator_policy_versions(policy_version_id,policy_key,version,value,status,effective_from,reason,checksum) values
  ('b7888888-0000-4000-8000-000000000021','commission_worker',910001,'{"percent":10}','active',now()-interval '1 minute','Rollback contract','synthetic10');
@@ -19,7 +28,7 @@ create temp table checkout_reference(reference text);
 do $$
 declare first_receipt jsonb;second_receipt jsonb;receipt jsonb;ref text;before_setting text;changed boolean:=false;
 begin
- perform set_config('request.jwt.claims','{"sub":"b7888888-0000-4000-8000-000000000001","role":"authenticated"}',true);
+ perform set_config('request.jwt.claims','{"sub":"b7888888-0000-4000-8000-000000000001","session_id":"b7888888-0000-4000-8000-000000000001","role":"authenticated"}',true);
  first_receipt:=public.create_worker_booking_payment('b7888888-0000-4000-8000-000000000011');
  perform pg_temp.expect(first_receipt->>'success'='true','customer can open checkout');
  ref:=first_receipt->>'reference';
@@ -37,7 +46,7 @@ do $$
 declare second_receipt jsonb;receipt jsonb;ref text;before_setting text;changed boolean:=false;
 begin
  select reference into ref from checkout_reference;
- perform set_config('request.jwt.claims','{"sub":"b7888888-0000-4000-8000-000000000001","role":"authenticated"}',true);
+ perform set_config('request.jwt.claims','{"sub":"b7888888-0000-4000-8000-000000000001","session_id":"b7888888-0000-4000-8000-000000000001","role":"authenticated"}',true);
  receipt:=public.create_worker_booking_payment('b7888888-0000-4000-8000-000000000011');
  perform pg_temp.expect(receipt->>'reference'=ref and (receipt->>'existing')::boolean,'retry retains accepted checkout: '||receipt::text);
  second_receipt:=public.create_worker_booking_payment('b7888888-0000-4000-8000-000000000012');

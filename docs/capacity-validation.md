@@ -1,44 +1,86 @@
 # WeHouse capacity validation
 
-## Requested target: 100,000 concurrent sessions and headroom
+## Current release: measured Free-plan launch
 
-This is a target, not an existing supported capacity. Registered users,
-concurrent foreground sessions, live sockets, journeys/second and underlying
-database requests must be reported separately. At one action per foreground
-session every thirty seconds, 100,000 sessions offer about 3,333 journeys/second,
-before each journey's downstream requests, media and background work. Use the
-mixed journey proportions and latency/integrity gates below, rather than calling
-one catalog HTTP request a whole customer journey.
+The owner confirmed on 26 October 2026 that initial launch uses Supabase Free.
+100,000 concurrent sessions is a future expansion goal, not a merge requirement
+for this setup. Do not run hosted 200/500-RPS ramps, connection storms or soak
+loads against the shared Free project. Historical failed runs below remain
+historical evidence; they do not prove a fixed database RPS ceiling.
 
-Validate two explicit scenarios: 100,000 connected sessions with their measured
-idle/session-guard cost, and the same session count with the stated active mix.
-Measure chat message/reaction fan-out, reconnect storms and joins separately.
-The engineering headroom target is a further 50% on the accepted workload;
-it is not permission to incur provider charges or launch a large hosted load.
+Official allowances checked 26 October: 500 MB database, 1 GB file storage,
+5 GB egress and a separate 5 GB cached-egress allowance. Realtime Free permits
+200 connections and 100 messages/second. These are distinct resources, not a
+promise of a particular concurrent-user or booking throughput. A browser can
+share a socket between channels; multiple devices/tabs can consume more sockets.
+Sources: https://supabase.com/pricing and
+https://supabase.com/docs/guides/realtime/limits.
 
-After isolated 10/100/1,000-actor preflights, progress through measured 10k/25k/
-50k/100k connection and mixed-work stages only when the prior stage passes.
-Use ten-minute holds and a one-hour target soak, followed by interrupted-service
-recovery. Before larger stages, secure provider quotas, resource/cost budgets
-and multi-region generators. Record exact versions, traffic mix, DB CPU/IO,
-pool waits, Realtime fan-out/limits, queues, cache hits, p95/p99, failures and cost.
-No double booking, duplicate settlement or cross-account disclosure is acceptable.
+Production read-only aggregate, 26 October: 52,948,115 database bytes;
+114,555,976 Storage object bytes across 148 objects. Test: 53,161,107 database
+bytes, zero Storage objects at inspection. These figures are point-in-time data
+sizes, not monthly egress, peak connections or an assurance that limits cannot
+be exhausted. Media bytes reside in Storage; inspected database post records
+carry paths and metadata. Storage metadata totals exclude any provider-side
+unfinished uploads and are not a substitute for the billing usage dashboard.
 
-Current evidence does not close this gate. Hosted 500-RPS direct-origin tests
-fail, current CDN measurement is blocked, authenticated large-scale/soak and
-100k connection tests have not been performed. Scaling beyond the target needs
-the same measured process; adding a load balancer label is not evidence.
+Required current work and verification:
 
-Friend chat previously reloaded its full thread every eight seconds, including
-hidden tabs. If 100,000 sessions all had that screen open, that alone would
-schedule 12,500 reloads/second before the multiple requests within each reload.
-The current repair replaces this with private recipient signals and coalesced,
-visibility-aware reconciliation. Whole-app message-table subscriptions and the
-rest of the authenticated idle workload remain separate internal scale gates.
-Friend reconciliation is event-driven with visible recovery snapshots: once a
-minute before confirmed signals, then at most once in five quiet minutes. A joined
-socket alone is not database-delivery proof. Friend history is still a full thread;
-bounded older-history pages/delta reads remain required before a large chat load.
+- Bound chat, catalog, provider-post and operator history reads on the server;
+  preserve access to older history with explicit pagination.
+- Fetch video only after opening a post; browsing a work-sample grid must not
+  fetch videos to manufacture previews. Lazy-load photos and retain private
+  encrypted attachment caching without unbounded browser memory/disk growth.
+- Enforce aggregate upload reservations and per-account budgets before accepting
+  uploads; per-file compression and bucket limits alone cannot protect 1 GB.
+  Account for concurrent uploads, abandoned reservations and orphan objects.
+  Do not delete payment, identity or dispute evidence to reclaim space blindly.
+- Measure actual egress and connection usage, with operational warnings and an
+  upgrade/pause decision before exhaustion. Do not silently stop existing paid
+  booking support or label an unavailable live channel as connected delivery.
+- Use disposable database/isolated browser fixtures for inventory races,
+  authorization, idempotency, pagination, quota boundaries and recovery. Hosted
+  checks are a small number of representative Test-role journeys. Never run a
+  live financial charge or costly ramp merely to satisfy a capacity number.
+
+26 October implementation follow-through: Test now has durable pre-upload
+reservations, ownership-gated allocation and conservative project/provider
+budgets. The server limits showcases to 12 samples/3 videos and published
+property galleries to 12 photos. The browser compresses eligible source photos
+before transfer; final photo admission is capped at 2,000,000 bytes. Client
+preparation/transfers are bounded to two shared slots. These are configurable
+resource safeguards, not a new paid product tier or capacity guarantee.
+
+The expanded authority/gallery SQL check initially was cancelled; after renewed
+owner approval it passes on Test. Real Storage API plus concurrent-reservation
+proof remains pending disposable CI. Failed/expired
+reservation recovery and actual usage monitoring remain required. Do not free
+unfinished tickets merely because their timestamp expires; a late upload may
+still commit. Existing uploaded evidence and gallery contents are preserved.
+
+These are acceptance checks, not claims that all safeguards already exist.
+Free can support a controlled initial audience; it cannot guarantee unbounded
+public demand. Infrastructure expansion needs an explicit budget, provider
+quotas and measured traffic before any larger capacity claim.
+
+### Enforced hosted-test boundary
+
+The manual workflow defaults to 1 RPS and exposes only 1/5/10 RPS choices.
+The hosted script independently rejects higher ceilings and distributed shards
+before opening its transport, and caps concurrent work at 32. The distributed
+jobs were removed from this Free-project workflow. Existing failure thresholds
+remain unchanged. This is a safeguard for future deliberately dispatched small
+checks; no hosted load was run as part of the 26 October repairs.
+
+## Future expansion evidence
+
+Track foreground sessions, active journeys/second, open sockets, fan-out and
+media bytes separately. Test larger workloads only in a provisioned environment
+with approved cost/resource budgets. Start at a measured representative mix,
+then increase in bounded stages with latency, failure, queue and integrity
+thresholds. Preserve zero double booking, duplicate settlement or cross-account
+disclosure. Historical 100k targets and failed high-rate runs do not block a
+small launch merely because that future target has not been proven.
 
 ## Avoid duplicate browser traffic — 25 October 2026
 

@@ -50,6 +50,41 @@ select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages
 select pg_temp.expect(pg_temp.rejects('select 1 from public.friend_messages'),'no direct table read');
 
 -- Cancel: either side can end it; the chat closes; a new request waits 30 days.
+-- Exercise history with tied timestamps, hidden rows and cursor traversal.
+reset role;
+set local session_replication_role=replica;
+insert into public.friend_messages(friend_id,sender_id,ciphertext,encryption_iv,created_at)
+select current_setting('test.cid')::uuid,'cb-a','ZmFrZQ==','aXY=',now()-interval '2 days'
+from generate_series(1,120);
+insert into public.friend_messages(friend_id,sender_id,ciphertext,encryption_iv,created_at,hidden_for)
+values(current_setting('test.cid')::uuid,'cb-a','ZmFrZQ==','aXY=',now()-interval '1 day',array['cb-a']);
+set local session_replication_role=origin;
+set local role authenticated;
+select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages(current_setting('test.cid')::uuid))=50,'legacy read is bounded');
+select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages_page(current_setting('test.cid')::uuid))=51,'page includes one lookahead');
+select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid,null,null,1000)',current_setting('test.cid'))),'oversized page is rejected');
+select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid,now(),null,50)',current_setting('test.cid'))),'partial cursor is rejected');
+do $$declare before_at timestamptz;before_id uuid;page record;ids uuid[]:='{}';n integer:=0;seen integer;cursor jsonb;target uuid;
+begin
+ loop
+  seen:=0;
+  for page in select * from public.get_friend_encrypted_messages_page(current_setting('test.cid')::uuid,before_at,before_id,50) loop
+   if page.id=any(ids) then raise exception 'Duplicate message across pages';end if;
+   ids:=array_append(ids,page.id);before_at:=page.created_at;before_id:=page.id;seen:=seen+1;
+  end loop;
+  n:=n+1;exit when seen<50;
+  if n>4 then raise exception 'Cursor did not advance';end if;
+ end loop;
+ perform pg_temp.expect(cardinality(ids)=122,'all visible messages are reachable exactly once, including tied timestamps');
+ target:=ids[100];
+ cursor:=public.get_friend_message_history_cursor(current_setting('test.cid')::uuid,target)->'before';
+ perform pg_temp.expect(exists(select 1 from public.get_friend_encrypted_messages_page(current_setting('test.cid')::uuid,(cursor->>'at')::timestamptz,(cursor->>'id')::uuid,50) m where m.id=target),'pinned message can be located outside latest page');
+ perform set_config('test.history_target',target::text,true);
+end $$;
+select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid)',current_setting('test.cid'))),'outsider cannot read a page');
+select pg_temp.expect(pg_temp.rejects(format('select public.get_friend_message_history_cursor(%L::uuid,%L::uuid)',current_setting('test.cid'),current_setting('test.history_target'))),'outsider cannot locate a pinned message');
+select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select public.remove_friend('cb-b');
 select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages(%L::uuid)',current_setting('test.cid'))),'cancelled chat is closed');
 select pg_temp.expect(pg_temp.rejects(format('select public.send_friend_encrypted_message(%L::uuid,%L,%L)',current_setting('test.cid'),'a','b')),'cannot send after cancelling');

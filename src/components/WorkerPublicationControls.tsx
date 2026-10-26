@@ -9,7 +9,7 @@ type Publication = {
   worker?: { publicly_visible: boolean; eligible: boolean; publication_paused: boolean; identity_required: boolean; identity_current: boolean; reasons: string[] } | null;
 };
 
-/** Creator controls discovery; the server still checks each Worker's eligibility. */
+/** Operational pause controls; individual provider review remains authoritative. */
 export default function WorkerPublicationControls({ userId, workerId }: { userId: string; workerId?: string }) {
   const { requestElevation } = useCreatorAuth();
   const [state, setState] = useState<Publication | null>(null);
@@ -54,9 +54,9 @@ export default function WorkerPublicationControls({ userId, workerId }: { userId
   }
 
   const worker = state?.worker;
-  return <section className="space-y-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-[var(--wh-text)] sm:p-5" aria-label={workerId ? 'Worker publication' : 'Worker marketplace controls'}>
-    <header><h3 className="text-base font-semibold">{workerId ? 'Public visibility' : 'Worker marketplace'}</h3>
-      <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{workerId ? 'Publication is separate from this person’s Personal account and optional paid tools.' : 'Control customer discovery here. Each Worker still has to qualify to appear.'}</p></header>
+  return <section className="space-y-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-[var(--wh-text)] sm:p-5" aria-label={workerId ? 'Provider publication' : 'Service discovery availability'}>
+    <header><h3 className="text-base font-semibold">{workerId ? 'Public visibility' : 'Service discovery availability'}</h3>
+      <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">{workerId ? 'Publication is separate from this person’s Personal account and optional paid tools.' : 'Approved, available Service Providers appear automatically. Use these controls only when an operational incident requires discovery to pause.'}</p></header>
     {error && <div role="alert" className="text-sm leading-6 text-amber-200"><p>{error}</p><button type="button" disabled={busy} onClick={() => setAttempt(n => n + 1)} className="min-h-11 font-semibold underline">Refresh controls</button></div>}
     {notice && <p role="status" className="text-sm leading-6 text-violet-200">{notice}</p>}
     {!state && !error ? <WeHouseLoadingState compact label="Loading publication state" /> : state && <>
@@ -65,7 +65,7 @@ export default function WorkerPublicationControls({ userId, workerId }: { userId
         {worker?.reasons.map(item => <p key={item} className="text-sm leading-6 text-[var(--wh-text-secondary)]">{item}</p>)}
         {!worker?.identity_required && <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">Identity checks are currently disabled by platform policy. This is not a passed face check.</p>}
         <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">Service coverage and account blocks still apply to customer discovery.</p>
-      </> : <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">Workers need an approved professional profile, availability and service coverage. Identity checks apply when enabled; opening discovery does not approve any Worker.</p>}
+      </> : <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">Each provider still needs an approved professional profile, availability and service coverage. Any required identity check must be current. Discovery access does not enable unfinished payment flows.</p>}
       <div><label className="block text-sm">Reason for this change<textarea rows={2} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-2 text-base text-[var(--wh-text)]" /></label>
         <button type="button" disabled={busy || reason.trim().length < 3} onClick={change} className="mt-3 min-h-11 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">
           {busy ? 'Saving…' : workerId ? worker?.publication_paused ? 'Restore publication eligibility' : 'Pause publication' : state.enabled ? 'Pause customer discovery' : 'Open customer discovery'}

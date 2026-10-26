@@ -48,6 +48,16 @@ select pg_temp.expect((select state='FCT' from public.profiles where user_id='rm
 select set_config('request.jwt.claims','{"sub":"91000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select public.refresh_my_roommate_search();
+reset role;
+select set_config('test.roommate_refresh_at',(select last_match_refresh_at::text from public.roommate_preferences where user_id='rm-practical-a'),true);
+set local role authenticated;
+select public.refresh_my_roommate_search();
+reset role;
+select pg_temp.expect((select last_match_refresh_at::text=current_setting('test.roommate_refresh_at') from public.roommate_preferences where user_id='rm-practical-a'),'unchanged rapid refresh reuses prior ranking');
+update public.roommate_preferences set bio='Updated moving plans' where user_id='rm-practical-a';
+select pg_temp.expect((select last_match_refresh_at is null from public.roommate_preferences where user_id='rm-practical-a'),'changed preferences invalidate reuse');
+set local role authenticated;
+select public.refresh_my_roommate_search();
 do $$declare results jsonb;begin
  select jsonb_agg(row) into results from public.get_my_roommate_matches_page_v2() row;
  perform pg_temp.expect(jsonb_array_length(results)=1 and results->0->>'matched_user_id'='rm-practical-b','One-sided same school requirement excludes the wrong school');
