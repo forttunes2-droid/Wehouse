@@ -64,6 +64,15 @@ new build must visibly open the app before the preview is usable for account
 testing. This checkpoint supersedes any inference that HTTP 200 alone proves a
 connected preview. The next exact commit must pass CI again.
 
+The next `05a03aae` preview opens the real Test app, but its public catalog
+function returned HTTP 500. Runtime logs identify Node ESM extensionless imports
+(`ERR_MODULE_NOT_FOUND`), which bundled unit checks had hidden. The function now
+imports emitted `.js` module paths. A new regression compiles without bundling,
+loads the emitted entry in native Node and executes its fetch contract. That
+check and the existing gateway suite pass. Hosted feed success/cache evidence
+must be recorded after deploying this repair; do not bypass the gateway to hide
+a server failure or reconnect the preview to Production.
+
 ### Pushed verification and replay repair — 26 October
 
 Commit `7692b787` is pushed to PR #118. Its exact preview deployment

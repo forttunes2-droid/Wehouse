@@ -1,5 +1,5 @@
-import {parsePublicCatalogQuery} from '../src/lib/publicCatalogContract';
-import {resolveSupabaseEnvironment} from '../src/lib/supabase/environment';
+import {parsePublicCatalogQuery} from '../src/lib/publicCatalogContract.js';
+import {resolveSupabaseEnvironment} from '../src/lib/supabase/environment.js';
 
 type Environment = Record<string,string|undefined>;
 type CatalogDiagnostic={event:'public_catalog_unavailable';kind:'homes'|'hotels';stage:string;status?:number};
