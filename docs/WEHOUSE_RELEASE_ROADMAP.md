@@ -4,6 +4,25 @@
 
 ## Current engineering checkpoints
 
+### Pushed verification and replay repair — 26 October
+
+Commit `7692b787` is pushed to PR #118. Its exact preview deployment
+`dpl_Ejb7jsEMXZaRMEfET3v5VfQpTZMt` is READY and returns the application HTML
+with HTTP 200 through protected deployment access. Six of seven workflows pass:
+build, structural checks, browser checks, both disposable capacity workflows and
+isolated mixed journeys. The existing-account upgrade job also passes record
+preservation, rollback, committed upgrade and repeat-release checks.
+
+The remaining consolidation failure occurred in a rollback Hotel fixture that
+inserted document metadata as an authenticated user without the new reservation.
+Corrected those Hotel/property/credential/Experience/inspection/chat fixtures to
+reserve first and supply a Storage version, preserving all RLS and publication
+checks. All six affected contracts now pass on Test. Missing tickets now return
+false from the restrictive Storage policy, producing the standard policy denial;
+they do not become upload permission. The real disposable mixed-journey job
+passes its actual Storage upload and reservation-race probe. Public Production
+and its records remain unchanged. Full replay must pass on the repaired head.
+
 ### Service agreement and checkout follow-through — 26 October
 
 The owner has now explicitly reauthorised the interrupted Test check and

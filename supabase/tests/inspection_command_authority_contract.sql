@@ -44,7 +44,8 @@ begin
  perform pg_temp.expect(public.field_officer_update_inspection_location(request_id,8.5,8.5,10),'valid location saved');
  perform pg_temp.expect(pg_temp.rejects(format('select public.field_officer_add_inspection_media(%L,%L::text[])',request_id,photos)),'unuploaded evidence paths denied');
  execute 'reset role';
- insert into storage.objects(bucket_id,name,metadata) select 'listing-candidates',path,'{"size":12,"mimetype":"image/jpeg"}'::jsonb from unnest(photos)path;
+ perform public.reserve_my_media_upload('listing-candidates',path) from unnest(photos)path;
+ insert into storage.objects(bucket_id,name,metadata,version) select 'listing-candidates',path,'{"size":12,"mimetype":"image/jpeg"}'::jsonb,gen_random_uuid()::text from unnest(photos)path;
  execute 'set local role authenticated';
  perform pg_temp.expect(public.field_officer_add_inspection_media(request_id,photos),'uploaded evidence registered');
  perform pg_temp.expect(public.update_inspection_status(request_id,'completed','partner','Verified inspection report'),'report submitted');

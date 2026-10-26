@@ -55,7 +55,8 @@ begin
  receipt:=public.begin_experience_activity_photo(aid,photo_id,1,9,'Orientation route and meeting area');
  perform pg_temp.expect(public.begin_experience_activity_photo(aid,photo_id,1,9,'Orientation route and meeting area')=receipt,'photo reservation retry keeps the same object');
  perform pg_temp.expect(pg_temp.rejects(format('select public.finish_experience_activity_photo(%L)',photo_id)),'missing photo object cannot become submitted');
- insert into storage.objects(bucket_id,name,metadata) values('experience-photos',receipt->>'object_path','{"size":9,"mimetype":"image/jpeg"}');
+ perform public.reserve_my_media_upload('experience-photos',receipt->>'object_path');
+ insert into storage.objects(bucket_id,name,metadata,version) values('experience-photos',receipt->>'object_path','{"size":9,"mimetype":"image/jpeg"}',gen_random_uuid()::text);
  receipt:=public.finish_experience_activity_photo(photo_id);
  perform pg_temp.expect(public.finish_experience_activity_photo(photo_id)=receipt,'lost photo finish receipt is recoverable');
  perform pg_temp.expect(pg_temp.rejects(format('select public.change_experience_activity_photo(%L,2,%L,%L)',photo_id,'approved','Host cannot self-approve')),'host cannot approve an activity photo');
@@ -103,7 +104,8 @@ begin
   document_id:=(evidence->>'id')::uuid;object_name:=evidence->>'object_path';
   perform pg_temp.expect(public.begin_experience_evidence_upload(aid,'venue_permission',key,'application/pdf',9,'permission.pdf')=evidence,'upload reservation retry preserves exact version');
   perform pg_temp.expect(pg_temp.rejects(format('select public.finish_experience_evidence_upload(%L)',document_id)),'missing storage object cannot become submitted evidence');
-  insert into storage.objects(bucket_id,name,metadata) values('experience-evidence',object_name,'{"size":9,"mimetype":"application/pdf"}');
+  perform public.reserve_my_media_upload('experience-evidence',object_name);
+  insert into storage.objects(bucket_id,name,metadata,version) values('experience-evidence',object_name,'{"size":9,"mimetype":"application/pdf"}',gen_random_uuid()::text);
   evidence:=public.finish_experience_evidence_upload(document_id);
   perform pg_temp.expect(exists(select 1 from public.activity_event_audiences a join public.activity_events e using(activity_event_id) where e.subject_id=document_id::text and e.event_type='experience.evidence.submitted' and a.recipient_user_id=cid and a.workspace='creator' and a.action_required and a.resolved_at is null),'evidence reaches independent Creator review');
   perform pg_temp.expect(evidence->>'status'='submitted','confirmed storage metadata permits submission');

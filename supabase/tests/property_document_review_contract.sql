@@ -80,7 +80,8 @@ create temp table pdr_upload as select public.begin_property_document_upload('97
 select pg_temp.expect((public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf')->>'id')=(select doc->>'id' from pdr_upload),'retries return the same document receipt');
 select pg_temp.expect(pg_temp.rejects($$select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','address','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf')$$),'receipt cannot be reused for another requirement');
 select pg_temp.expect(pg_temp.rejects($$select public.finish_property_document_upload((select (doc->>'id')::uuid from pdr_upload),false)$$),'missing file never becomes submitted');
-insert into storage.objects(bucket_id,name,metadata) select 'property-documents',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb from pdr_upload;
+select public.reserve_my_media_upload('property-documents',doc->>'object_path') from pdr_upload;
+insert into storage.objects(bucket_id,name,metadata,version) select 'property-documents',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text from pdr_upload;
 select public.finish_property_document_upload((select (doc->>'id')::uuid from pdr_upload),false);
 select pg_temp.expect((public.finish_property_document_upload((select (doc->>'id')::uuid from pdr_upload),false)->>'status')='submitted','submission receipt is replayable');
 select pg_temp.expect(pg_temp.rejects($$update public.property_submission_documents set status='approved' where id=(select (doc->>'id')::uuid from pdr_upload)$$),'owner cannot write approval directly');
@@ -93,12 +94,14 @@ select public.review_property_document((select (doc->>'id')::uuid from pdr_uploa
 select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select pg_temp.expect(public.get_property_document_review('97220000-0000-4000-8000-000000000001')->'documents'->0->>'review_note'='Upload the current signed authorization.','Partner sees a persistent correction reason');
 create temp table pdr_replacement as select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000002','application/pdf',12,'authority-current.pdf') as doc;
-insert into storage.objects(bucket_id,name,metadata) select 'property-documents',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb from pdr_replacement;
+select public.reserve_my_media_upload('property-documents',doc->>'object_path') from pdr_replacement;
+insert into storage.objects(bucket_id,name,metadata,version) select 'property-documents',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text from pdr_replacement;
 select public.finish_property_document_upload((select (doc->>'id')::uuid from pdr_replacement),false);
 do $$declare rule jsonb; d jsonb; begin
   for rule in select value from jsonb_array_elements((select rules from pdr_rules)) where value->>'code'<>'authority' loop
     d:=public.begin_property_document_upload('97220000-0000-4000-8000-000000000001',rule->>'code',gen_random_uuid(),'application/pdf',12,'evidence.pdf');
-    insert into storage.objects(bucket_id,name,metadata) values('property-documents',d->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb);
+    perform public.reserve_my_media_upload('property-documents',d->>'object_path');
+    insert into storage.objects(bucket_id,name,metadata,version) values('property-documents',d->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text);
     perform public.finish_property_document_upload((d->>'id')::uuid,false);
   end loop;
 end $$;
@@ -119,7 +122,8 @@ select pg_temp.expect(pg_temp.rejects($$select public.admin_publish_inspected_li
 do $$declare rule jsonb; d jsonb; begin
   for rule in select value from jsonb_array_elements(public.get_property_document_review('97220000-0000-4000-8000-000000000002')->'requirements') loop
     d:=public.begin_property_document_upload('97220000-0000-4000-8000-000000000002',rule->>'code',gen_random_uuid(),'application/pdf',12,'hotel-evidence.pdf');
-    insert into storage.objects(bucket_id,name,metadata) values('property-documents',d->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb);
+    perform public.reserve_my_media_upload('property-documents',d->>'object_path');
+    insert into storage.objects(bucket_id,name,metadata,version) values('property-documents',d->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text);
     perform public.finish_property_document_upload((d->>'id')::uuid,false);
   end loop;
 end $$;

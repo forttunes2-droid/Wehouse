@@ -30,7 +30,8 @@ select pg_temp.sign_in('79666666-0000-4000-8000-000000000001');
 do $$declare rule jsonb; doc jsonb; begin
  for rule in select value from jsonb_array_elements(public.get_property_document_review('79666666-3000-4000-8000-000000000001')->'requirements') loop
   doc:=public.begin_property_document_upload('79666666-3000-4000-8000-000000000001',rule->>'code',gen_random_uuid(),'application/pdf',12,'contract-evidence.pdf');
-  insert into storage.objects(bucket_id,name,metadata) values('property-documents',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb);
+  perform public.reserve_my_media_upload('property-documents',doc->>'object_path');
+  insert into storage.objects(bucket_id,name,metadata,version) values('property-documents',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text);
   perform public.finish_property_document_upload((doc->>'id')::uuid,false);
  end loop;
 end $$;

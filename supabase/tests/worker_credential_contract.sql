@@ -39,7 +39,8 @@ select pg_temp.expect(pg_temp.rejects($$select public.configure_worker_credentia
 select set_config('request.jwt.claims','{"sub":"f8610000-0000-4000-8000-000000000001","session_id":"f8610000-1000-4000-8000-000000000001","role":"authenticated"}',true);
 create temp table credential_upload as select public.begin_worker_credential_upload('credential-worker','licence','f8610000-3000-4000-8000-000000000001','application/pdf',12,'licence.pdf') as doc;
 select pg_temp.expect(pg_temp.rejects($$select public.finish_worker_credential_upload((select (doc->>'id')::uuid from credential_upload))$$),'absent storage object is not a submitted credential');
-insert into storage.objects(bucket_id,name,metadata) select 'worker-credentials',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb from credential_upload;
+select public.reserve_my_media_upload('worker-credentials',doc->>'object_path') from credential_upload;
+insert into storage.objects(bucket_id,name,metadata,version) select 'worker-credentials',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text from credential_upload;
 select public.finish_worker_credential_upload((select (doc->>'id')::uuid from credential_upload));
 select pg_temp.expect(pg_temp.rejects($$select public.review_worker_credential((select (doc->>'id')::uuid from credential_upload),'approved','Self approval is forbidden',now()+interval '1 year')$$),'Worker cannot self-approve credential');
 select set_config('request.jwt.claims','{"sub":"f8610000-0000-4000-8000-000000000002","session_id":"f8610000-1000-4000-8000-000000000002","role":"authenticated"}',true);
@@ -48,7 +49,8 @@ select public.review_worker_credential((select (doc->>'id')::uuid from credentia
 select set_config('request.jwt.claims','{"sub":"f8610000-0000-4000-8000-000000000001","session_id":"f8610000-1000-4000-8000-000000000001","role":"authenticated"}',true);
 select pg_temp.expect(public.get_worker_credential_review('credential-worker')->'documents'->0->>'review_note'='Provide a clear current licence.','correction reason persists for Worker');
 create temp table credential_replacement as select public.begin_worker_credential_upload('credential-worker','licence','f8610000-3000-4000-8000-000000000002','application/pdf',12,'current-licence.pdf') as doc;
-insert into storage.objects(bucket_id,name,metadata) select 'worker-credentials',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb from credential_replacement;
+select public.reserve_my_media_upload('worker-credentials',doc->>'object_path') from credential_replacement;
+insert into storage.objects(bucket_id,name,metadata,version) select 'worker-credentials',doc->>'object_path','{"size":12,"mimetype":"application/pdf"}'::jsonb,gen_random_uuid()::text from credential_replacement;
 select public.finish_worker_credential_upload((select (doc->>'id')::uuid from credential_replacement));
 select set_config('request.jwt.claims','{"sub":"f8610000-0000-4000-8000-000000000002","session_id":"f8610000-1000-4000-8000-000000000002","role":"authenticated"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.review_worker_credential((select (doc->>'id')::uuid from credential_upload),'approved','Old version cannot be approved',now()+interval '1 year')$$),'superseded evidence denied');
