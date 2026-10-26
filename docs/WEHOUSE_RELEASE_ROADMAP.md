@@ -4,6 +4,24 @@
 
 ## Current engineering checkpoints
 
+### Experience publication and capacity continuation — 26 October
+
+All seven workflows pass on `3a31201f`, including the complete browser matrix,
+fresh migration replay and existing-account upgrade. That is the current verified
+baseline, not closure of unfinished marketplace flows.
+
+The next additive migration introduces explicit host publication of independently
+approved activities, current identity/evidence/photo/session/policy checks,
+bounded customer discovery, approved-photo access and atomic participant holds.
+Quotes snapshot the existing Creator commission, fixed per-participant price,
+schedule, approved customer details and agreed 24-hour refund rule. Holds are
+unpaid and expire; they are not manufactured payment confirmations. The existing
+application contract now exercises owner isolation, publish retry, public/private
+projection, stale quotes, capacity exhaustion, expiration and preserved history.
+These new SQL checks require disposable CI verification. The hosted Test apply
+returned cancelled; no hosted application of this migration is claimed. Customer
+checkout and fulfillment are still being connected before the feature is exposed.
+
 ### Exact-commit release recovery — 26 October
 
 The four database workflow failures on `44bed152` occurred during GHCR image

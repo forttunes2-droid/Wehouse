@@ -2,6 +2,57 @@ begin;
 create function pg_temp.expect(value boolean,description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description;end if;end$$;
 create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$begin execute statement;return false;exception when others then return true;end$$;
 grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to authenticated;
+
+-- Invoked inside the independently approved fixture below; the surrounding
+-- transaction rolls every policy, publication and hold back afterward.
+create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
+declare eg uuid;ep integer;pub jsonb;q jsonb;held jsonb;bid uuid:=gen_random_uuid();other_id uuid:=gen_random_uuid();before_contract jsonb;
+begin
+ update public.creator_elevation_grants set action_classes=array['private_evidence','policy_publish'] where creator_user_id=cid returning creator_elevation_id into eg;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ ep:=coalesce((public.creator_get_experience_commission()->'policy'->>'version')::integer,0);
+ perform public.creator_publish_experience_commission(eg,ep,0,'Disposable publication and booking contract; rolled back.');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ pub:=public.get_my_experience_publication(aid);
+ perform pg_temp.expect((pub->>'can_publish')::boolean and not (pub->>'published')::boolean,'approval is distinct from host publication');
+ pub:=public.set_my_experience_publication(aid,3,0,true);
+ perform pg_temp.expect((pub->>'visible')::boolean and (pub->>'revision')::integer=1,'host explicitly publishes the approved revision');
+ perform pg_temp.expect(public.set_my_experience_publication(aid,3,0,true)=pub,'lost publish response returns the same publication');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_booking_quote(%L,1)',session_id)),'host cannot book their own session');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.set_my_experience_publication(%L,3,1,false)',aid)),'another provider cannot unpublish the host activity');
+ perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.search_experiences('NG','orientation Lafia')->'items') x where x->>'id'=aid::text),'customer discovery matches approved title and area');
+ perform pg_temp.expect(jsonb_array_length(public.search_experiences('NG','','','Lagos')->'items')=0,'location filter excludes a different state in this rolled-back fixture');
+ perform pg_temp.expect(public.get_published_experience(aid)->'details' ? 'what_to_expect','public detail includes the actual activity');
+ perform pg_temp.expect(not (public.get_published_experience(aid) ? 'approval_note'),'internal review notes are not public detail');
+ perform pg_temp.expect(jsonb_array_length(public.get_published_experience_sessions(aid))>=1,'customer can select approved dated sessions');
+ q:=public.get_experience_booking_quote(session_id,8);
+ perform pg_temp.expect((q->'contract'->>'total_minor')::bigint=2000000 and q->'contract'->>'customer_cancellation_before_deadline'='full_refund','server quote calculates participants and agreed refund rule');
+ held:=public.hold_experience_booking(bid,session_id,8,q->>'contract_hash');before_contract:=held->'contract';
+ perform pg_temp.expect(held->>'status'='pending_payment' and held->>'payment_id' is null,'capacity hold never manufactures payment');
+ perform pg_temp.expect(public.hold_experience_booking(bid,session_id,8,q->>'contract_hash')=held,'retry cannot reserve capacity twice');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.hold_experience_booking(%L,%L,1,%L)',bid,session_id,q->>'contract_hash')),'idempotency key is bound to exact participant count');
+ q:=public.get_experience_booking_quote(session_id,1);
+ perform pg_temp.expect((q->>'remaining')::integer=0,'held participants exhaust the actual session capacity');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.hold_experience_booking(%L,%L,1,%L)',other_id,session_id,q->>'contract_hash')),'oversell is rejected rather than acknowledging another hold');
+ execute 'set local role authenticated';
+ perform pg_temp.expect(pg_temp.rejects('select * from public.experience_bookings'),'browser cannot bypass the booking projection');
+ perform pg_temp.expect(pg_temp.rejects('select * from public.experience_publications'),'browser cannot mutate publication tables directly');
+ execute 'reset role';
+ update public.experience_bookings set expires_at=now()-interval '1 second' where id=bid;
+ held:=public.hold_experience_booking(other_id,session_id,1,q->>'contract_hash');
+ perform pg_temp.expect(held->>'status'='pending_payment','expired unpaid hold releases capacity');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_my_experience_booking(%L)',bid)),'unrelated account cannot read private customer booking');
+ perform public.creator_publish_experience_commission(eg,ep+1,10,'Changed commission for new quotes only; rolled back.');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(public.get_my_experience_booking(bid)->'contract'=before_contract,'accepted booking snapshot survives later commission changes');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.hold_experience_booking(%L,%L,1,%L)',gen_random_uuid(),session_id,q->>'contract_hash')),'stale commission quote cannot be accepted');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ pub:=public.set_my_experience_publication(aid,3,1,false);
+ perform pg_temp.expect(not (pub->>'visible')::boolean and public.get_published_experience(aid) is null,'unpublish removes the customer projection');
+ perform pg_temp.expect(public.get_my_experience_booking(bid)->'contract'=before_contract,'unpublish preserves customer and host booking history');
+end $$;
 do $$
 declare h uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); s uuid:=gen_random_uuid();
  hs uuid:=gen_random_uuid(); cs uuid:=gen_random_uuid(); ss uuid:=gen_random_uuid();
@@ -149,6 +200,7 @@ begin
   perform pg_temp.expect(public.get_experience_activity(aid,true)->>'status'='approved','reviewer can reopen the approved record');
   perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(public.get_experience_activity_review_queue()) row where row->>'id'=aid::text),'approved activity leaves the pending review queue');
   perform pg_temp.expect(exists(select 1 from public.activity_event_audiences a join public.activity_events e using(activity_event_id) where e.subject_id=aid::text and e.event_type='experience.application.approved' and a.recipient_user_id=hid and a.workspace='worker'),'approval reaches host Activity');
+  perform pg_temp.exercise_experience_publication(aid,review_session,h,c,s,hs,cs,ss,hid,cid,sid);
   perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
   perform pg_temp.expect(not (public.get_experience_evidence_review(aid)->>'can_submit')::boolean,'approved evidence is read-only until revision');
   perform pg_temp.expect(pg_temp.rejects(format('select public.archive_my_experience_session(%L,%L,1)',aid,review_session)),'approved dated sessions cannot be changed silently');
