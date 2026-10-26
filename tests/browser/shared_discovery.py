@@ -89,7 +89,7 @@ async def main():
     await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
-    await page.get_by_placeholder('Search hotel name').fill('Garden')
+    await page.get_by_placeholder('Search hotel name or location').fill('Keffi Garden')
     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
     gallery=page.get_by_role('region',name='Garden Lodge media',exact=True)
@@ -112,7 +112,7 @@ async def main():
     assert await page.locator('[data-room-choice="9"] > button').get_attribute('aria-expanded')=='true'
     assert not await page.evaluate('Boolean(window.__browse.booking)')
     await page.get_by_role('button',name='Back to hotels',exact=True).click()
-    await expect(page.get_by_placeholder('Search hotel name')).to_have_value('Garden')
+    await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Keffi Garden')
     await page.evaluate('window.__switchBrowseMode("thumbnail")')
     # Explicit load failures never produce an empty tile or endless skeleton.
     await page.locator('img').evaluate_all('(nodes)=>nodes.forEach(node=>node.dispatchEvent(new Event("error")))')

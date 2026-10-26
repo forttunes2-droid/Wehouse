@@ -1,5 +1,8 @@
 \set ON_ERROR_STOP on
 begin;
+-- Exercise an explicit operational pause, not the ordinary open discovery default.
+update public.platform_settings set value='false',updated_at=now()
+ where key='worker_marketplace_launch_enabled';
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,assigned_state,assigned_lga,state,city,local_government) values
 ('77777777-0000-4000-8000-000000000001','team-creator@example.invalid','team-creator','creator',true,null,null,'Nasarawa','Lafia','Lafia'),

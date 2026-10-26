@@ -1,4 +1,5 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
+import {matchesDiscoveryText, homeDiscoveryFields} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WeHouseSelect from '@/components/WeHouseSelect';
 import { HOME_STYLES, homeStyleValue } from '@/lib/homeStyles';
@@ -84,7 +85,7 @@ function matchesHome(listing: Listing, filters: {
   homeStyle: string;
 }) {
   if (filters.homeStyle && listing.home_style !== filters.homeStyle) return false;
-  if (filters.query.trim() && !normalize([listing.title, listing.address, listing.city, listing.state].filter(Boolean).join(" ")).includes(normalize(filters.query))) return false;
+  if (!matchesDiscoveryText(homeDiscoveryFields(listing), filters.query)) return false;
   if (filters.stayType !== "all" && listing.sub_type !== filters.stayType) return false;
   const price = Number(listing.price || 0);
   if (filters.minPrice !== "" && (price <= 0 || price < filters.minPrice)) return false;

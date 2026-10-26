@@ -57,7 +57,7 @@ async def main():
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
      assert not any(name.startswith(('create_','initialize_','send_','get_my_')) for name,_ in scenario.calls if name not in ('get_my_legal_status','get_my_pending_device_login_alert'))
      await page.screenshot(path=str(OUT/f'public-landing-{width}.png'))
-     await page.get_by_placeholder('Search hotel name').fill('Garden')
+     await page.get_by_placeholder('Search hotel name or location').fill('Garden')
      await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
      await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
      row['hotel_opened_before_signin']=True
@@ -80,7 +80,7 @@ async def main():
      row['hotel_restored_after_native_back']=True
      await expect(page.locator('.wh-auth-form')).to_have_count(0)
      await page.get_by_role('button',name='Back to hotels',exact=True).click()
-     await expect(page.get_by_placeholder('Search hotel name')).to_have_value('Garden')
+     await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Garden')
      await expect(page.get_by_role('button',name='View Garden Lodge',exact=True)).to_be_visible()
      assert not await page.evaluate('document.getElementById("root").inert')
      assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')

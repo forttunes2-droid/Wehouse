@@ -1,4 +1,5 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
+import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
@@ -199,8 +200,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           distance: distanceMap.get(`hotel:${hotel.hotel_id}`) ?? null,
         }))
         .filter(({ hotel }) => {
-          const needle = normalize(query);
-          if (needle && !normalize(hotel.name).includes(needle)) return false;
+          if (!matchesDiscoveryText([hotel.name, hotel.city, hotel.state], query)) return false;
           if (state && normalize(hotel.state) !== normalize(state)) return false;
           if (city && normalize(hotel.city) !== normalize(city)) return false;
           if (
@@ -352,7 +352,7 @@ export default function HotelsHome({ onNavigate }: Props) {
       <DiscoveryToolbar
           value={query}
           onChange={setQuery}
-          placeholder="Search hotel name"
+          placeholder="Search hotel name or location"
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
           locationDetail={locationError || undefined}

@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import {matchesDiscoveryText} from '@/lib/discoveryText';
 import { withTimeout } from '@/lib/withTimeout';
 import {publicCatalogRead} from '@/lib/publicCatalogRead';
 async function readHotel<T extends { data: unknown; error: unknown }>(request: PromiseLike<T>): Promise<T> {
@@ -45,7 +46,7 @@ export async function getHotels(filters?: {
     if (filters?.state && !includes(hotel.state, filters.state)) return false;
     if (filters?.city && !includes(hotel.city, filters.city)) return false;
     if (filters?.featured && !hotel.featured) return false;
-    if (filters?.search && !includes(hotel.name, filters.search)) return false;
+    if (!matchesDiscoveryText([hotel.name, hotel.city, hotel.state], filters?.search || '')) return false;
     if (filters?.amenities?.length && !filters.amenities.every((item) => hotel.amenities?.includes(item))) return false;
     if (filters?.minPrice != null || filters?.maxPrice != null) {
       const prices = (hotel.hotel_rooms || []).map((room) => Number(room.price_per_night || 0));

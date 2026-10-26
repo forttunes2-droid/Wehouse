@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ListingMediaImage, useListingMediaUrl } from "./ListingCandidateMedia";
 import MediaPagingActions from "./MediaPagingActions";
@@ -14,7 +14,15 @@ type Props = {
   children?: React.ReactNode;
 };
 
-export default function PropertyMediaCarousel({
+export default function PropertyMediaCarousel(props:Props){
+  return <PropertyMediaRecord key={JSON.stringify([props.title,props.images,props.videos||[]])} {...props}/>;
+}
+
+function positionRail(rail:HTMLDivElement|null,index:number,smooth=false){
+  rail?.scrollTo({left:index*(rail.clientWidth||1),behavior:smooth&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches?'smooth':'instant'});
+}
+
+function PropertyMediaRecord({
   images,
   videos = [],
   title,
@@ -23,29 +31,54 @@ export default function PropertyMediaCarousel({
   const railRef = useRef<HTMLDivElement>(null);
   const fullscreenRailRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const activeIndexRef=useRef(0);
+  const scrollTarget=useRef<number|null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const items = [
     ...images.map((reference) => ({ reference, kind: "image" as const })),
     ...videos.map((reference) => ({ reference, kind: "video" as const })),
   ];
 
-  const closeFullscreen = useRecordScreenBack(() => setFullscreen(false), fullscreen);
+  const closeFullscreen = useRecordScreenBack(() => {
+    scrollTarget.current=null;
+    positionRail(railRef.current,activeIndexRef.current);
+    setFullscreen(false);
+  }, fullscreen);
   const dialogRef = useDialogInteraction(closeFullscreen, fullscreen);
+
+  useEffect(()=>{
+    const align=()=>{positionRail(railRef.current,activeIndexRef.current);positionRail(fullscreenRailRef.current,activeIndexRef.current);};
+    if(typeof ResizeObserver==='undefined'){window.addEventListener('resize',align);return()=>window.removeEventListener('resize',align);}
+    const observer=new ResizeObserver(align);
+    if(railRef.current)observer.observe(railRef.current);
+    if(fullscreenRailRef.current)observer.observe(fullscreenRailRef.current);
+    return()=>observer.disconnect();
+  },[fullscreen]);
+
+  function selectIndex(index:number){
+    const next=Math.max(0,Math.min(items.length-1,index));
+    activeIndexRef.current=next;setActiveIndex(next);
+  }
 
   function moveTo(index: number) {
     if (!items.length) return;
     const normalized = (index + items.length) % items.length;
-    railRef.current?.scrollTo({
-      left: normalized * (railRef.current.clientWidth || 1),
-      behavior: "smooth",
-    });
-    setActiveIndex(normalized);
+    scrollTarget.current=normalized;
+    selectIndex(normalized);
+    positionRail(railRef.current,normalized,true);
   }
 
   function updateIndex() {
     const rail = railRef.current;
-    if (!rail || !rail.clientWidth) return;
-    setActiveIndex(
+    if (!rail || !rail.clientWidth || fullscreen) return;
+    readRail(rail);
+  }
+
+  function readRail(rail:HTMLDivElement){
+    if(!rail.clientWidth)return;
+    if(scrollTarget.current!==null&&Math.abs(rail.scrollLeft-scrollTarget.current*rail.clientWidth)>1)return;
+    scrollTarget.current=null;
+    selectIndex(
       Math.min(
         items.length - 1,
         Math.max(0, Math.round(rail.scrollLeft / rail.clientWidth)),
@@ -53,21 +86,19 @@ export default function PropertyMediaCarousel({
     );
   }
 
-  function openFullscreen() {
+  function openFullscreen(index:number) {
+    scrollTarget.current=index;
+    selectIndex(index);
     setFullscreen(true);
     window.requestAnimationFrame(() =>
-      fullscreenRailRef.current?.scrollTo({
-        left: activeIndex * (fullscreenRailRef.current.clientWidth || 1),
-      }),
+      positionRail(fullscreenRailRef.current,index),
     );
   }
 
   function moveFullscreenTo(index: number) {
-    fullscreenRailRef.current?.scrollTo({
-      left: index * (fullscreenRailRef.current.clientWidth || 1),
-      behavior: "smooth",
-    });
-    setActiveIndex(index);
+    scrollTarget.current=index;
+    selectIndex(index);
+    positionRail(fullscreenRailRef.current,index,true);
   }
 
   if (!items.length) return <section className="relative min-h-28 w-full bg-[#11141C] px-4 pb-4 pt-16" aria-label={`${title} media`}>
@@ -79,6 +110,8 @@ export default function PropertyMediaCarousel({
       <section className="relative w-full overflow-hidden bg-[#11141C]" aria-label={`${title} media`}>
         <div
           ref={railRef}
+          onPointerDown={()=>{scrollTarget.current=null;}}
+          onWheel={()=>{scrollTarget.current=null;}}
           onScroll={updateIndex}
           className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide"
         >
@@ -86,7 +119,7 @@ export default function PropertyMediaCarousel({
             <button
               key={`${item.reference}-${index}`}
               type="button"
-              onClick={openFullscreen}
+              onClick={() => openFullscreen(index)}
               className="w-full min-w-full flex-none shrink-0 snap-center"
               aria-label={`View ${item.kind} ${index + 1} of ${items.length} full screen`}
             >
@@ -157,15 +190,11 @@ export default function PropertyMediaCarousel({
           </header>
           <div
             ref={fullscreenRailRef}
+            onPointerDown={()=>{scrollTarget.current=null;}}
+            onWheel={()=>{scrollTarget.current=null;}}
             onScroll={(event) => {
               const rail = event.currentTarget;
-              if (rail.clientWidth)
-                setActiveIndex(
-                  Math.min(
-                    items.length - 1,
-                    Math.max(0, Math.round(rail.scrollLeft / rail.clientWidth)),
-                  ),
-                );
+              readRail(rail);
             }}
             className="wh-media-stage flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain bg-black scrollbar-hide"
           >
@@ -183,6 +212,7 @@ export default function PropertyMediaCarousel({
                   <ListingMediaImage
                     reference={item.reference}
                     alt={`${title} · photo ${index + 1}`}
+                      loading={index===activeIndex?'eager':'lazy'}
                     className="relative block max-h-full w-full object-contain"
                   />
                 )}

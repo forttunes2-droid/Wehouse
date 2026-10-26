@@ -216,7 +216,7 @@ test('Homes and Hotels connect accepted Friends to encrypted chat drafts and act
  const chat=fs.readFileSync('src/components/FriendChat.tsx','utf8');
  assert.match(chat,/pendingPropertyShare\(myUserId, friend.friend_id\)/);
  assert.match(chat,/propertyShareMessage\(propertyDraft, text\)/);
- assert.match(chat,/onOpenProperty=\{\(page, id\) => onNavigate\?\.\(page, id\)\}/);
+ assert.match(chat,/onOpenProperty=\{\(page, id\) => \{onClose\(\);onNavigate\(page,id\);\}\}/);
  assert.match(chat,/typeof id !== 'string'/);
  for(const kind of ['listing','hotel']){const property={kind,id:kind==='hotel'?'42':'home-one'};sharing.queuePropertyShare('me','friend-one',property,1000);assert.deepEqual(plain(sharing.pendingPropertyShare('me','friend-one',1001)),property);assert.equal(sharing.pendingPropertyShare('me','other-friend',1001),null);sharing.clearPropertyShare('me','friend-one');}
 });

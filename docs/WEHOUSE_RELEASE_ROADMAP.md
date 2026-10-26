@@ -4,6 +4,47 @@
 
 ## Current engineering checkpoints
 
+### Connected discovery, shared links and gallery position — 26 October
+
+The latest local follow-through makes Friend chat navigation required, passes it
+from the older Activity renderer and closes the conversation overlay before
+opening a shared Home, Hotel or Service Provider. The active Inbox already
+passed navigation; this is not a claim that the legacy callback explains every
+reported live failure. Synthetic sent/received Home and Hotel touch journeys
+resolve their typed destinations. Hosted two-device delivery remains unverified.
+
+The gallery now opens the selected image, preserves fullscreen position when
+closing or using Back, aligns on resize and resets for a different property.
+Both-theme browser checks cover those transitions and sent/received shared cards.
+
+Test migration `20261026144839` matches literal query words across public Home
+title/location/layout/rental labels and Hotel name/city/region, in any order.
+Client and server predicates agree; budgets, bedrooms, publication, availability
+and cursor limits remain separate authoritative filters. SQL checks cover a
+mixed-field query with price bounds, Studio/0-bedroom matching, unpublished
+isolation and literal wildcard characters. This is bounded word matching, not
+natural-language interpretation or typo correction.
+
+Service search matches words across name/skills/base/declared coverage. Reset
+and Clear no longer silently reapply the saved area. Failed discovery now has
+an explicit retry state and does not consume a shared profile intent as though
+the provider were unavailable. Both-theme browser checks cover coverage versus
+base, word matching, reset/clear and a failed read followed by recovery.
+
+Clearing a location invalidates pending GPS and reverse-geocode replies; browser
+checks verify it stays cleared in memory and session storage. A successful
+address lookup and denied device permission are also checked. This does not add
+precise GPS-distance filtering for Services or global location identifiers.
+
+Verification: 787 source tests pass; responsive Home/Hotel discovery passes at
+320/390/768/1440 in both themes, including the mixed Hotel name/location query.
+Friend history, gallery/sharing and location-race browser checks pass. The
+earlier `8e3bdc28` replay progressed through Service booking and policy checks,
+then exposed a team fixture assuming the old default-closed marketplace. That
+fixture now explicitly pauses discovery before testing pause permissions; it
+passes on Test without restoring a normal Creator opening requirement. Exact
+published-head replay and CI must still pass before a merge recommendation.
+
 ### Pushed verification and replay repair — 26 October
 
 Commit `7692b787` is pushed to PR #118. Its exact preview deployment
@@ -360,10 +401,12 @@ Small component checks do not close a missing customer/operator journey.
 | 6 | Decide merge/promotion separately from public launch | All applicable internal gates pass; external credentials, commercial/legal and store approvals are explicitly identified |
 
 **Current decision: finish and verify the controlled Free-plan release; no 100k-user capacity claim.**
-The 500-RPS direct-origin failure remains open. The public-feed CDN check is
-blocked by Vercel billing. Neither issue excuses leaving independent internal
-work unfinished. Do not purchase infrastructure or run large hosted loads merely
-to make a dashboard number larger.
+The historical 500-RPS direct-origin failure remains expansion evidence, not a
+target for load testing the hosted Free-plan database. The current PR preview
+builds and serves application HTML; a fresh cache-hit verification is still
+needed. The earlier billing failure must not be treated as a confirmed current
+blocker without rechecking it. Do not purchase infrastructure or run large hosted
+loads merely to make a dashboard number larger.
 
 ### 25 October owner correction: Year 1 is always paid in full
 

@@ -54,12 +54,12 @@ export function DiscoveryToolbar({ value = '', onChange, placeholder = 'Search',
   return <section className="border-y border-[var(--wh-border)] py-3 sm:py-4">
     <div className="flex items-center gap-2">
       {showSearch ? <label className="relative min-w-0 flex-1"><SearchIcon /><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} className="h-12 w-full rounded-full border border-[var(--wh-border)] bg-[var(--wh-surface)] pl-10 pr-4 text-sm text-[var(--wh-text)] outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-400/50" /></label> : <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--wh-text-secondary)]">{toolbarLabel || 'Choose location'}</p></div>}
-      {onFilters && <button type="button" aria-label="Open filters" onClick={onFilters} className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-full border transition ${filterCount ? 'border-violet-400/35 bg-violet-500/[.12] text-violet-200' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}><FilterIcon />{filterCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{filterCount}</span>}</button>}
+      {onFilters && <button type="button" aria-label="Open filters" onClick={onFilters} className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-full border transition ${filterCount ? 'border-violet-400/35 bg-violet-500/[.12] text-[var(--wh-accent-text)]' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}><FilterIcon />{filterCount > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[8px] font-bold text-white">{filterCount}</span>}</button>}
     </div>
     {(onLocation || children) && <div className="mt-3 flex flex-wrap items-end gap-2">
       {children}
-      {onLocation && locationLabel && <button type="button" onClick={onLocation} disabled={locationBusy} className={`flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition disabled:opacity-50 ${locationActive ? 'border-violet-500/25 bg-violet-500/10 text-violet-200' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text-secondary)]'}`}><LocationIcon />{locationBusy ? 'Finding location…' : locationLabel}</button>}
-      {locationActive && onClearLocation && <button type="button" onClick={onClearLocation} className="rounded-xl px-2 py-2.5 text-xs font-semibold text-[var(--wh-text-secondary)] hover:text-white">Clear</button>}
+      {onLocation && locationLabel && <button type="button" onClick={onLocation} disabled={locationBusy} className={`flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition disabled:opacity-50 ${locationActive ? 'border-violet-500/25 bg-violet-500/10 text-[var(--wh-accent-text)]' : 'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text-secondary)]'}`}><LocationIcon />{locationBusy ? 'Finding location…' : locationLabel}</button>}
+      {locationActive && onClearLocation && <button type="button" onClick={onClearLocation} className="rounded-xl px-2 py-2.5 text-xs font-semibold text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]">Clear</button>}
     </div>}
     {locationDetail && <p className="mt-2 text-xs leading-relaxed text-[var(--wh-text-secondary)]">{locationDetail}</p>}
   </section>;
@@ -73,7 +73,7 @@ export function DiscoveryFilterSheet({ title = 'Filters', onClose, onClear, chil
     <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100000] isolate h-[100dvh] w-full overflow-hidden bg-black/70 text-[var(--wh-text)] overscroll-none touch-none" role="presentation">
     <div aria-hidden="true" className="absolute inset-0 bg-black/70" />
     <section className="relative z-10 flex h-[100dvh] w-full flex-col overflow-hidden border-t border-[var(--wh-border)] bg-[var(--wh-bg)] shadow-[0_-24px_80px_rgba(0,0,0,.65)]" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
-      <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-white/15" />
+      <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-[var(--wh-border)]" />
       <div className="shrink-0 border-b border-[var(--wh-border)] bg-[var(--wh-bg)] px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><h2 className="text-xl font-bold">{title}</h2><button type="button" onClick={dismiss} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--wh-border)] bg-[var(--wh-elevated)] text-xl text-[var(--wh-text-secondary)]" aria-label="Close filters">×</button></div>
       </div>

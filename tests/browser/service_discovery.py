@@ -10,7 +10,7 @@ async def main():
   browser=await p.chromium.launch(args=['--no-sandbox'])
   try:
    for theme,width in [('light',390),('dark',1280)]:
-    context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block');page=await context.new_page();calls=[];errors=[]
+    context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block');page=await context.new_page();calls=[];errors=[];fail={'workers':False}
     page.on('pageerror',lambda error:errors.append(str(error)))
     async def route(handler):
      request=handler.request
@@ -19,7 +19,9 @@ async def main():
      headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}
      if request.method=='OPTIONS':return await handler.fulfill(status=204,headers=headers)
      name=request.url.split('?')[0].split('/')[-1];calls.append(name)
-     if name=='get_public_workers':data=PROVIDERS
+     if name=='get_public_workers':
+      if fail['workers']:return await handler.fulfill(status=503,headers=headers,content_type='application/json',body=json.dumps({'message':'Synthetic discovery outage'}))
+      data=PROVIDERS
      elif name=='get_public_discovery_settings':data=[{'key':'worker_marketplace_launch_enabled','value':'true'}]
      elif name in ['get_my_workspace_inbox','service_categories','service_subcategories']:data=[]
      else:raise AssertionError('Unexpected API '+name)
@@ -31,11 +33,24 @@ async def main():
      await expect(page.get_by_role('heading',name='Base-only provider',exact=True)).to_have_count(0)
      await expect(page.get_by_text('Base: Lafia, Nasarawa',exact=True)).to_be_visible()
      await expect(page.get_by_text('Serves Keffi, Nasarawa',exact=True)).to_be_visible()
+     await page.get_by_placeholder('Search service, skill or name').fill('Keffi cleaner')
+     await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
+     await page.get_by_role('button',name='Open filters',exact=True).click()
+     await page.get_by_role('button',name='Reset',exact=True).click()
+     await page.get_by_role('button',name='Show results',exact=True).click()
+     await expect(page.get_by_role('heading',name='Base-only provider',exact=True)).to_be_visible()
+     await page.get_by_role('button',name='Clear',exact=True).click()
+     await expect(page.get_by_role('heading',name='Base-only provider',exact=True)).to_be_visible()
+     await expect(page.get_by_placeholder('Search service, skill or name')).to_have_value('')
      assert 'worker_showcase_posts' not in calls,'Discovery still reads retired stories'
      assert not errors,errors
      assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
      await page.screenshot(path=str(out/f'service-coverage-{theme}.png'))
-     results.append({'theme':theme,'width':width,'passed':True,'checks':['declared service area rather than base LGA','base and service area explained','retired story read removed']})
+     fail['workers']=True;await page.reload()
+     await expect(page.get_by_role('alert')).to_contain_text('Service Providers could not be loaded.')
+     fail['workers']=False;await page.get_by_role('button',name='Try again',exact=True).click()
+     await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
+     results.append({'theme':theme,'width':width,'passed':True,'checks':['declared service area rather than base LGA','base and service area explained','retired story read removed','query words across name/skill/area','reset does not reapply saved area']})
     finally:await context.close()
   finally:await browser.close()
  (out/'service-coverage-results.json').write_text(json.dumps(results,indent=2));print(json.dumps(results))

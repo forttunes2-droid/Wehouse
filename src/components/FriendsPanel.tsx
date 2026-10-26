@@ -8,7 +8,7 @@ import ReportDialog from "@/components/ReportDialog";
 import { blockFriend, unblockFriend, listMyFriends, removeFriend, respondToFriendRequest, previewFriendRecipient, sendFriendRequest, type FriendRecipient, type Friend } from "@/lib/supabase/friends";
 
 // Friends: people you already know, used for chatting and paying together. Not Roommates.
-type FriendsPanelProps = { myUserId: string; initialChatId?: string | null; onInitialChatOpened?: () => void; onNavigate?: (page: string, id?: string) => void };
+type FriendsPanelProps = { myUserId: string; initialChatId?: string | null; onInitialChatOpened?: () => void; onNavigate: (page: string, id?: string) => void };
 export default function FriendsPanel(props: FriendsPanelProps) {
   return <FriendsPanelContent key={props.myUserId} {...props} />;
 }

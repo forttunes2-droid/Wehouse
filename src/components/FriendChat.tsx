@@ -38,10 +38,10 @@ type Line = {
   private_attachment_refs?: EncryptedAttachment[]; media_pending?: boolean;
 };
 
-export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
+export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate: (page: string, id?: string) => void }) {
   return <FriendConversation key={`${myUserId}:${friend.friend_id}`} friend={friend} myUserId={myUserId} onClose={onClose} onNavigate={onNavigate}/>;
 }
-function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate?: (page: string, id?: string) => void }) {
+function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate: (page: string, id?: string) => void }) {
   const name = friend.full_name || friend.username || "Friend";
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -279,8 +279,8 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
                   onOpenActions={(anchor) => setActions({ line, mode: "actions", anchor })}
                   onTapReaction={(anchor) => setActions({ line, mode: "reactions", anchor })}
                   onReply={() => setReplyingTo(line)}
-                  onOpenProperty={(page, id) => onNavigate?.(page, id)}
-                  onOpenWorker={(id) => onNavigate?.("worker_discovery", id)}
+                  onOpenProperty={(page, id) => {onClose();onNavigate(page,id);}}
+                  onOpenWorker={(id) => {onClose();onNavigate("worker_discovery",id);}}
                 />
               </div>
             ))}

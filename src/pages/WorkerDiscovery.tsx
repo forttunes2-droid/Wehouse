@@ -1,4 +1,5 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
+import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -57,8 +58,7 @@ function workerMatchesFilters(worker: Profile, filters: {
     workerCoverageSearchText(worker),
     ...((worker.worker_skills as string[]) || []),
   ].join(" ").toLowerCase();
-  const needle = filters.search.trim().toLowerCase();
-  if (needle && !hay.includes(needle)) return false;
+  if (!matchesDiscoveryText([hay], filters.search)) return false;
   if (filters.category && ![
     worker.worker_occupation || "",
     ...((worker.worker_skills as string[]) || []),
@@ -85,6 +85,8 @@ export default function WorkerDiscovery({
   const [workers, setWorkers] = useState<Profile[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
     [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState(''),
+    [reload, setReload] = useState(0),
     [search, setSearch] = useState(""),
     [category, setCategory] = useState(""),
     [specialty, setSpecialty] = useState(""),
@@ -106,6 +108,8 @@ export default function WorkerDiscovery({
   const sponsoredResults = useSponsoredDiscovery('worker', state, city, category);
   useEffect(() => {
     let live = true;
+    setLoading(true);
+    setLoadError('');
     void (async () => {
       try {
         const [{ workers: rows, error }, { categories: cats }] =
@@ -114,17 +118,14 @@ export default function WorkerDiscovery({
             getCategoryWithSubcategories().catch(() => ({ categories: [], error: null })),
           ]);
         if (!live) return;
-        if (error)
-          toast.error(
-            error.message || "Unable to load Workers",
-          );
+        if (error) setLoadError(error.message || 'Service Providers could not be loaded.');
         setWorkers(rows || []);
         setCategories((cats || []) as Category[]);
       } catch (error: unknown) {
         if (live) {
           setWorkers([]);
           setCategories([]);
-          toast.error(error instanceof Error ? error.message : "Unable to load home services");
+          setLoadError(error instanceof Error ? error.message : 'Service Providers could not be loaded.');
         }
       } finally {
         if (live) setLoading(false);
@@ -133,7 +134,7 @@ export default function WorkerDiscovery({
     return () => {
       live = false;
     };
-  }, []);
+  }, [reload]);
   useEffect(() => {
     if (!profile?.user_id) return;
     void getUserActiveBookings(profile.user_id).then(({ bookings }) =>
@@ -161,11 +162,12 @@ export default function WorkerDiscovery({
     };
   }, [active, viewWorker]);
   useEffect(() => {
-    if (!initialWorkerId || loading) return;
+    if (!initialWorkerId || loading || loadError) return;
     const found = workers.find(worker => worker.user_id === initialWorkerId);
     if (found) setViewWorker(found);
+    else toast.error('This Service Provider is unavailable. You can search for another provider.');
     onInitialWorkerOpened?.();
-  }, [initialWorkerId, loading, workers, onInitialWorkerOpened]);
+  }, [initialWorkerId, loading, loadError, workers, onInitialWorkerOpened]);
   useEffect(() => {
     if (!preSelectedCategory || !categories.length) return;
     const direct = categories.find((item) => item.name === preSelectedCategory);
@@ -184,12 +186,6 @@ export default function WorkerDiscovery({
       setSpecialty(preSelectedCategory);
     }
   }, [preSelectedCategory, categories]);
-  useEffect(() => {
-    if (!state && savedState) {
-      setState(savedState);
-      setCity(savedCity);
-    }
-  }, [savedState, savedCity, state]);
   const selected = useMemo(
     () => categories.find((item) => item.name === category) || null,
     [categories, category],
@@ -248,8 +244,8 @@ export default function WorkerDiscovery({
   function resetStructured() {
     setCategory("");
     setSpecialty("");
-    setState(savedState);
-    setCity(savedCity);
+    setState("");
+    setCity("");
   }
   function created(
     workerId: string,
@@ -368,7 +364,7 @@ export default function WorkerDiscovery({
         {visibleFeaturedWorkers.length > 0 && (
           <section
             aria-labelledby="featured-workers-title"
-            className="overflow-hidden rounded-3xl border border-amber-300/15 bg-[radial-gradient(circle_at_top_right,rgba(245,190,48,.09),transparent_42%),#10131B] px-4 py-4"
+            className="overflow-hidden rounded-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-4 py-4"
           >
             <div className="mb-2">
               <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-300">
@@ -426,6 +422,11 @@ export default function WorkerDiscovery({
         </div>
         {loading || settingsLoading ? (
           <WeHouseLoadingState compact label="Loading" />
+        ) : loadError ? (
+          <section role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-5">
+            <p className="text-sm text-[var(--wh-text-secondary)]">Service Providers could not be loaded. Try again to continue your search.</p>
+            <button type="button" onClick={()=>setReload(value=>value+1)} className="mt-3 min-h-11 rounded-full bg-[var(--wh-violet)] px-5 text-sm font-semibold text-white">Try again</button>
+          </section>
         ) : !marketplaceEnabled ? (
           <DiscoveryEmpty
             title="Service discovery is temporarily paused"
