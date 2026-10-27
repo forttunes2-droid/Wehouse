@@ -42,6 +42,21 @@ function minor(value:unknown):bigint {
  if(!match)throw new Error('Rent amount could not be confirmed.');
  return BigInt(match[1])*100n+BigInt((match[2]||'').padEnd(2,'0'));
 }
+
+/** Gross verified rent only: fees, pending charges and failed payments are not rent credit.
+ * Round cumulative month boundaries up to the currency's smallest unit so a
+ * rounded monthly price cannot over-credit occupancy or lose the final cent. */
+export function rentCreditCoverage(annualRent:number|string, verifiedRentPaid:number|string) {
+ const annual=minor(annualRent),paid=minor(verifiedRentPaid);
+ if(annual<=0n||paid>annual)throw new Error('Rent credit must belong to one contract year.');
+ const boundary=(months:bigint)=>(annual*months+11n)/12n;
+ let months=0n;
+ while(months<12n&&paid>=boundary(months+1n))months++;
+ const partial=paid-boundary(months);
+ return {completedMonths:Number(months),partialMonthCredit:Number(partial)/100,
+  nextMonthBalance:months===12n?0:Number(boundary(months+1n)-paid)/100,
+  remainingYearRent:Number(annual-paid)/100,grossRentPaid:Number(paid)/100};
+}
 export function longLetAgreementReceipt(value:unknown,reservationId:string,customerId?:string):LongLetAgreement {
  const row=object(value),schedule=object(row.rent_schedule);
  if(row.schema_version!==1||row.reservation_id!==reservationId||typeof row.listing_id!=='string'||!row.listing_id||

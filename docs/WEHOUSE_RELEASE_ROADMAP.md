@@ -4,6 +4,26 @@
 
 ## Current engineering checkpoints
 
+### Latest owner decision: later-year rent settlement — 27 October
+
+This supersedes earlier entries requiring protection for every later-year
+contribution. Initial upfront rent, including an upfront multi-year contract,
+keeps its accepted Payment Protection. Later-year monthly rent has no new hold:
+require tenant acceptance, verified charge, disclosed fee, Partner settlement
+and gross rent-credit records. Commission edits must not activate collection.
+Track each target year separately: complete months, partial-month rent credit,
+amount to complete the next month and annual balance. Eight equal contributions
+fund twelve months. This is advance rent credit, not current occupancy or a
+refundable wallet. Contact/exit handling must use the agreement and lawful
+process, without automatic forfeiture or eviction.
+
+The policy metadata, Partner/customer disclosures and exact minor-unit rent
+coverage calculator are updated locally. Collection and the connected actual
+payment-history/settlement view are still paused/pending integration; the
+calculator is not evidence of a completed financial journey. The owner-requested
+eight-page policy handbook is generated and visually checked at
+`output/pdf/WeHouse_Platform_Policies.pdf`, without release checklists.
+
 ### Managed-rate control and explicit fee acceptance — verification in progress
 
 The existing managed commission policies/resolver are reused. The proposed
@@ -15,9 +35,10 @@ with explicit acceptance before submission. Existing requests/listings have a
 rate-acceptance recovery control. Publication/new reservation guards and an
 immutable booking fee snapshot are included; no Partner fee rate was invented.
 
-The old bundle's unprotected later-rent metadata is corrected without enabling
-collection. An active/scheduled rent rollout must require Payment Protection and
-authorized release. Already accepted booking terms remain unchanged.
+The rent metadata now follows the latest explicit no-new-hold decision above,
+without enabling collection or changing accepted booking terms. Independent
+commission publication no longer depends on missing operating timing policies;
+operating-rule publication preserves the server's current commission rates.
 
 Local evidence: 799 source tests pass, production build and focused lint pass,
 and 16 actual Creator/Partner browser cases pass, including stale-rate reset and
@@ -416,9 +437,9 @@ whole feature or product is complete. Do not reopen settled owner policies.
 
 | Sequence | Current work | Required result before closure |
 |---|---|---|
-| 1 | Money and accepted agreements: mandatory Payment Protection for every collected rent payment; Service proposal/review/payment; refunds, payout recovery and Pro billing | The exact accepted amount/currency/policy survives charge, protection, authorized release/refund, wallet credit and provider reconciliation; no double credit or silent success |
+| 1 | Money and accepted agreements: protected initial rent; explicit direct settlement for later-year monthly rent; Service proposal/review/payment; refunds, payout recovery and Pro billing | The exact accepted amount/currency/policy survives verified charge and the applicable protection or direct-settlement path, rent credit and reconciliation; no double credit or silent success |
 | 2 | Finish Experiences in the existing provider workspace | Approved public activity/session, capacity, customer booking/payment, cancellation/refund, attendance, review, sharing and optional promotion/discount journeys |
-| 3 | Complete connected accommodation operations | Grouped unit availability/calendars, protected later-year rent collection and Hotel shared costs; actual customer and Partner fulfillment/recovery |
+| 3 | Complete connected accommodation operations | Grouped unit availability/calendars, consented later-year direct rent collection and Hotel shared costs; actual customer and Partner fulfillment/recovery |
 | 4 | Close account, privacy and operator journeys | Recovery/email/device proof, real access/export/deletion processing, scoped Team/Admin/Creator authority, support/report resolution and retention |
 | 5 | Verify complete product behavior and appropriate scale | Route/role/device/light-dark checks, search/maps/location, chat delivery, native/Pro lifecycle, bounded jobs/cache and realistic isolated workload/recovery evidence |
 | 6 | Verify the version proposed for merge | Exact-SHA CI and preview, fresh/upgrade replay, hosted-role smoke checks, feature boundaries and rollback; separate Test merge from public launch/Production promotion |

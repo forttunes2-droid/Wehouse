@@ -22,30 +22,39 @@ async def main():
      await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#090B10;color:white"><div id="root"></div></body></html>')
      await page.evaluate('([mode,policy])=>window.__moneyTest={mode,policy,calls:[],elevations:[]}',[mode,policy])
      await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
+     operating=page.get_by_role('region',name='Booking operating rules',exact=True)
      if mode!='valid':
-      await expect(page.get_by_role('alert')).to_contain_text('Your saved money rules could not be loaded')
-      await expect(page.get_by_role('spinbutton')).to_have_count(0)
-      await expect(page.get_by_role('button',name='Review & publish')).to_have_count(0)
+      await expect(operating.get_by_role('alert')).to_contain_text('Your saved money rules could not be loaded')
+      await expect(operating.get_by_role('spinbutton')).to_have_count(0)
+      await expect(operating.get_by_role('button',name='Review & publish')).to_have_count(0)
       assert not await page.evaluate('window.__moneyTest.elevations.length')
       await page.evaluate('window.__moneyTest.mode="valid"')
-      await page.get_by_role('button',name='Try again',exact=True).click()
-     await expect(page.get_by_role('alert')).to_have_count(0)
-     fee=page.get_by_label('Reservation payment',exact=False)
+      await operating.get_by_role('button',name='Try again',exact=True).click()
+     await expect(operating.get_by_role('alert')).to_have_count(0)
+     fee=operating.get_by_label('Reservation payment',exact=False)
      await expect(fee).to_have_value('12345')
      await expect(page.get_by_role('button',name='Review & publish',exact=True)).to_be_disabled()
      assert not [c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules_v4']
      # A successful Retry allows the normal explicit, protected publication path.
-     await page.get_by_label('Short Let additional management',exact=False).fill('3')
      await fee.fill('13000')
      await page.get_by_placeholder('Why are these rules changing?').fill('Fixture-only policy review')
      await page.get_by_role('button',name='Review & publish',exact=True).click()
      await expect(fee).to_have_value('12345')
      assert await page.evaluate('window.__moneyTest.elevations')==['policy_publish']
-     published=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules_v4']
+     published=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_operating_money_rules']
      assert len(published)==1 and published[0]['args']['p_rules']['long_let']['reservation_amount']==13000
      assert published[0]['args']['p_creator_elevation_id']=='test-only-elevation'
      assert published[0]['args']['p_expected_digest']=='a'*64
-     assert published[0]['args']['p_rules']['commissions']['short_let_wehouse_percent']==policy['active']['commission_short_let']['value']['percent']+3
+     # Commission controls publish without requiring unrelated timing policies.
+     commissions=page.get_by_role('region',name='Platform commissions',exact=True)
+     await commissions.get_by_role('button',name='Refresh commissions',exact=True).click()
+     await commissions.get_by_label('Short Let additional management',exact=False).fill('3')
+     await commissions.get_by_label('Commission change reason',exact=True).fill('Fixture-only fee decision')
+     await commissions.get_by_role('button',name='Confirm and publish commissions',exact=True).click()
+     await expect(commissions.get_by_role('status')).to_contain_text('Commission changes recorded')
+     fee_commands=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules_v4']
+     assert len(fee_commands)==1 and list(fee_commands[0]['args']['p_rules'])==['commissions']
+     assert fee_commands[0]['args']['p_rules']['commissions']['short_let_wehouse_percent']==policy['active']['commission_short_let']['value']['percent']+3
      experience=page.get_by_role('region',name='Experience commission',exact=True)
      await expect(experience.get_by_text('Not configured. No commission rate has been assumed.',exact=True)).to_be_visible()
      await experience.get_by_label('WeHouse commission (%)',exact=True).fill('9.25')

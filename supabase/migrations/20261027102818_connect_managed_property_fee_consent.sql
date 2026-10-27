@@ -16,7 +16,7 @@ begin
 end $repair$;
 
 -- The fee editor must not reset unrelated metadata or the rent rollout. In
--- particular, no later-year rent policy may describe unprotected settlement.
+-- particular, a commission edit must never enable later-year rent collection.
 do $base_bundle$
 declare definition text;needle text;
 begin
@@ -26,7 +26,6 @@ begin
  definition:=replace(definition,needle,$new$    if v_key='future_long_let_installments' then continue;end if;
     v_value:=coalesce(v_current,'{}'::jsonb)||v_value;
     if v_current is distinct from v_value then$new$);
- definition:=replace(definition,'''payment_protection_hold'',false','''payment_protection_hold'',true,''authorized_release_required'',true');
  execute definition;
 end $base_bundle$;
 
@@ -37,25 +36,37 @@ begin
  select * into policy from public.creator_policy_versions where policy_key='future_long_let_installments' and scope_type='global' and scope_key='*'
   and status='active' and effective_from<=stamp and (effective_until is null or effective_until>stamp) order by effective_from desc,version desc limit 1;
  if policy.policy_version_id is null then return;end if;
- replacement:=policy.value||jsonb_build_object('payment_protection_hold',true,'authorized_release_required',true);
+ replacement:=policy.value||jsonb_build_object('payment_protection_hold',false,'authorized_release_required',false,'tenant_settlement_consent_required',true,'verified_rent_credit_required',true);
  if replacement=policy.value then return;end if;
  select max(version)+1 into next_version from public.creator_policy_versions where policy_key=policy.policy_key and scope_type='global' and scope_key='*';
  update public.creator_policy_versions set status='retired',effective_until=stamp,retired_at=stamp where policy_version_id=policy.policy_version_id;
  insert into public.creator_policy_versions(policy_key,scope_type,scope_key,version,value,value_schema,status,effective_from,public_disclosure,disclosure_text,legal_review_state,reason,checksum,published_at)
  values(policy.policy_key,'global','*',next_version,replacement,policy.value_schema,'active',stamp,policy.public_disclosure,
-  'Each later-year rent payment requires canonical Payment Protection and authorized release. Collection availability is controlled separately.',
-  policy.legal_review_state,'Correct mandatory rent protection metadata; preserve collection enablement and all accepted booking terms.',md5(replacement::text),stamp);
+  'Later-year monthly rent has no new protection hold. Require tenant acceptance, verified payment, disclosed fee, Partner settlement and gross rent-credit records. Initial upfront rent keeps its accepted protection.',
+  policy.legal_review_state,'Owner-confirmed later-year direct settlement; preserve collection enablement and existing accepted agreements.',md5(policy.policy_key||'global'||'*'||next_version::text||replacement::text),stamp);
 end $rent_metadata$;
 
-create function private.require_rent_policy_protection() returns trigger language plpgsql set search_path='' as $$
+create function private.require_rent_policy_settlement_consent() returns trigger language plpgsql set search_path='' as $$
 begin
  if new.policy_key='future_long_let_installments' and new.status in('active','scheduled')
-  and (new.value->>'payment_protection_hold' is distinct from 'true' or new.value->>'authorized_release_required' is distinct from 'true') then
-  raise exception 'Later-year rent always requires Payment Protection and authorized release';end if;
+  and (new.value->>'payment_protection_hold' is distinct from 'false' or new.value->>'authorized_release_required' is distinct from 'false'
+   or new.value->>'tenant_settlement_consent_required' is distinct from 'true' or new.value->>'verified_rent_credit_required' is distinct from 'true') then
+  raise exception 'Later-year rent requires explicit direct-settlement consent and verified rent-credit records';end if;
  return new;
 end $$;
-revoke all on function private.require_rent_policy_protection() from public,anon,authenticated,service_role;
-create trigger require_rent_policy_protection before insert or update of value,status on public.creator_policy_versions for each row execute function private.require_rent_policy_protection();
+revoke all on function private.require_rent_policy_settlement_consent() from public,anon,authenticated,service_role;
+create trigger require_rent_policy_settlement_consent before insert or update of value,status on public.creator_policy_versions for each row execute function private.require_rent_policy_settlement_consent();
+
+-- Keep collection paused while the approved direct-settlement path is verified.
+-- Correct the old pause explanation without enabling a charge or changing an
+-- already accepted payment agreement.
+create or replace function public.create_rent_plan_contribution_payment(p_contribution_id uuid)
+returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+ raise exception 'Later-year rent collection is paused until tenant consent, direct settlement and verified rent-credit tracking are connected and verified';
+end $$;
+revoke all on function public.create_rent_plan_contribution_payment(uuid) from public,anon,service_role;
+grant execute on function public.create_rent_plan_contribution_payment(uuid) to authenticated;
 
 create function public.creator_get_booking_money_rules_v4() returns jsonb
 language plpgsql stable security definer set search_path='' as $$
@@ -73,27 +84,57 @@ grant execute on function public.creator_get_booking_money_rules_v4() to authent
 
 create function public.creator_publish_booking_money_rules_v4(p_creator_elevation_id uuid,p_rules jsonb,p_effective_from timestamptz,p_reason text,p_expected_digest text)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare actor text:=public.current_profile_user_id();receipt jsonb;c jsonb:=p_rules->'commissions';
+declare actor text:=public.current_profile_user_id();receipt jsonb;c jsonb:=p_rules->'commissions';item jsonb;current_value jsonb;desired jsonb;published public.creator_policy_versions;
+ result jsonb:='{}';changed integer:=0;effective timestamptz:=coalesce(p_effective_from,now());
+begin
+ if actor is null or not public._property_document_session_active() or not public.current_actor_has_workspace('creator',null)
+  or not exists(select 1 from public.profiles where user_id=actor and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false))
+  or not public.creator_has_elevation(p_creator_elevation_id,'policy_publish') then raise exception 'Fresh Creator policy confirmation is required' using errcode='42501';end if;
+ if length(btrim(coalesce(p_reason,''))) not between 5 and 2000 or effective<now()-interval '5 minutes' or effective>now()+interval '366 days' then raise exception 'Choose a valid effective time and record a reason';end if;
+ if c is null or jsonb_typeof(c)<>'object' or exists(select 1 from jsonb_each(c) rate where case when jsonb_typeof(rate.value)='number' then
+  (rate.value::text)::numeric not between 0 and 50 or (rate.value::text)::numeric<>round((rate.value::text)::numeric,2) else true end) then
+  raise exception 'Commission rates must be numbers from 0 to 50 with at most two decimal places';end if;
+ if not(c ?& array['short_let_percent','long_let_percent','hotel_percent','service_worker_percent','short_let_wehouse_percent','long_let_wehouse_percent'])
+  or (c->>'short_let_wehouse_percent')::numeric<(c->>'short_let_percent')::numeric or (c->>'long_let_wehouse_percent')::numeric<(c->>'long_let_percent')::numeric then
+  raise exception 'Choose all commission rates; managed totals include the base rate and a non-negative management percentage';end if;
+ lock table public.creator_policy_versions in share row exclusive mode;
+ receipt:=public.creator_get_booking_money_rules_v4();
+ if p_expected_digest is distinct from receipt->>'etag' then raise exception 'Money rules changed. Refresh before publishing';end if;
+ for item in select value from jsonb_array_elements(jsonb_build_array(
+  jsonb_build_object('key','commission_short_let','percent',c->'short_let_percent'),jsonb_build_object('key','commission_long_let','percent',c->'long_let_percent'),
+  jsonb_build_object('key','commission_hotel','percent',c->'hotel_percent'),jsonb_build_object('key','commission_worker','percent',c->'service_worker_percent'),
+  jsonb_build_object('key','commission_short_let_wehouse_managed','percent',c->'short_let_wehouse_percent'),jsonb_build_object('key','commission_long_let_wehouse_managed','percent',c->'long_let_wehouse_percent'))) loop
+  select value into current_value from public.creator_policy_versions where policy_key=item->>'key' and scope_type='global' and scope_key='*'
+   and status=case when effective>now() then 'scheduled' else 'active' end order by effective_from desc,version desc limit 1;
+  desired:=coalesce(current_value,'{}')||jsonb_build_object('percent',item->'percent');
+  if desired is distinct from current_value then
+   select * into published from public.creator_publish_policy(p_creator_elevation_id,item->>'key','global','*',desired,jsonb_build_object('type','percentage'),effective,true,
+    'Commission is deducted from eligible Provider earnings under the accepted protection or later-year direct-settlement arrangement. Managed Home commission includes the base rate and additional management share.','pending',btrim(p_reason));
+   result:=result||jsonb_build_object(item->>'key',jsonb_build_object('policy_version_id',published.policy_version_id,'version',published.version,'status',published.status,'effective_from',published.effective_from));changed:=changed+1;
+  end if;
+ end loop;
+ return jsonb_build_object('changed_policy_count',changed,'published',result);
+end $$;
+revoke all on function public.creator_publish_booking_money_rules_v4(uuid,jsonb,timestamptz,text,text) from public,anon;
+grant execute on function public.creator_publish_booking_money_rules_v4(uuid,jsonb,timestamptz,text,text) to authenticated;
+
+-- Operating-rule edits cannot reprice commissions from an old browser tab.
+create function public.creator_publish_operating_money_rules(p_creator_elevation_id uuid,p_rules jsonb,p_effective_from timestamptz,p_reason text,p_expected_digest text)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor text:=public.current_profile_user_id();receipt jsonb;active jsonb;
 begin
  if actor is null or not public._property_document_session_active() or not public.current_actor_has_workspace('creator',null)
   or not exists(select 1 from public.profiles where user_id=actor and not coalesce(deleted,false) and not coalesce(suspended,false) and not coalesce(banned,false))
   or not public.creator_has_elevation(p_creator_elevation_id,'policy_publish') then raise exception 'Fresh Creator policy confirmation is required' using errcode='42501';end if;
  lock table public.creator_policy_versions in share row exclusive mode;
- if exists(select 1 from jsonb_each(c) rate where case when jsonb_typeof(rate.value)='number' then
-  (rate.value::text)::numeric not between 0 and 50 or (rate.value::text)::numeric<>round((rate.value::text)::numeric,2) else true end) then
-  raise exception 'Commission rates must be numbers from 0 to 50 with at most two decimal places';end if;
- receipt:=public.creator_get_booking_money_rules_v4();
+ receipt:=public.creator_get_booking_money_rules_v4();active:=receipt->'active';
  if p_expected_digest is distinct from receipt->>'etag' then raise exception 'Money rules changed. Refresh before publishing';end if;
- if p_rules#>'{long_let,installments_enabled}' is null then
-  p_rules:=jsonb_set(p_rules,'{long_let,installments_enabled}',receipt#>'{active,future_long_let_installments,value,enabled}');end if;
- if c is null or (c->>'short_let_wehouse_percent')::numeric is null or (c->>'long_let_wehouse_percent')::numeric is null
-  or (c->>'short_let_wehouse_percent')::numeric<(c->>'short_let_percent')::numeric
-  or (c->>'long_let_wehouse_percent')::numeric<(c->>'long_let_percent')::numeric then
-  raise exception 'WeHouse-managed totals must include the base commission and a non-negative management percentage';end if;
- return public.creator_publish_booking_money_rules_v2(p_creator_elevation_id,p_rules,p_effective_from,p_reason);
+ p_rules:=jsonb_set(p_rules,'{commissions}',jsonb_build_object('short_let_percent',active#>'{commission_short_let,value,percent}',
+  'long_let_percent',active#>'{commission_long_let,value,percent}','hotel_percent',active#>'{commission_hotel,value,percent}','service_worker_percent',active#>'{commission_worker,value,percent}'));
+ return public.creator_publish_booking_money_rules(p_creator_elevation_id,p_rules,p_effective_from,p_reason);
 end $$;
-revoke all on function public.creator_publish_booking_money_rules_v4(uuid,jsonb,timestamptz,text,text) from public,anon;
-grant execute on function public.creator_publish_booking_money_rules_v4(uuid,jsonb,timestamptz,text,text) to authenticated;
+revoke all on function public.creator_publish_operating_money_rules(uuid,jsonb,timestamptz,text,text) from public,anon;
+grant execute on function public.creator_publish_operating_money_rules(uuid,jsonb,timestamptz,text,text) to authenticated;
 
 create function private.provider_fee_disclosure(p_product text,p_management_mode text) returns jsonb
 language plpgsql stable security definer set search_path='' as $$

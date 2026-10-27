@@ -1,3 +1,4 @@
+import CreatorCommissionRules from '@/components/CreatorCommissionRules';
 import {withTimeout} from '@/lib/withTimeout';
 import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -32,8 +33,6 @@ type Rules = {
     long_let_percent: number;
     hotel_percent: number;
     service_worker_percent: number;
-    short_let_wehouse_percent: number|null;
-    long_let_wehouse_percent: number|null;
   };
   service_worker: {
     completion_reminder_hours: number;
@@ -65,8 +64,6 @@ const DEFAULTS: Rules = {
     long_let_percent: 5,
     hotel_percent: 12,
     service_worker_percent: 8,
-    short_let_wehouse_percent: null,
-    long_let_wehouse_percent: null,
   },
   service_worker: {
     completion_reminder_hours: 12,
@@ -164,8 +161,6 @@ function readRules(response: PolicyResponse | null): Rules {
       security_deposit_enabled: false,
     },
     commissions: {
-      short_let_wehouse_percent: typeof value("commission_short_let_wehouse_managed").percent === "number" ? Number(value("commission_short_let_wehouse_managed").percent) : null,
-      long_let_wehouse_percent: typeof value("commission_long_let_wehouse_managed").percent === "number" ? Number(value("commission_long_let_wehouse_managed").percent) : null,
       short_let_percent: numberValue(
         value("commission_short_let").percent,
         DEFAULTS.commissions.short_let_percent,
@@ -196,7 +191,9 @@ function readRules(response: PolicyResponse | null): Rules {
   };
 }
 
-export default function CreatorBookingMoneyRules() {
+export default function CreatorBookingMoneyRules(){return <div className="space-y-6"><CreatorCommissionRules/><CreatorExperienceCommission/><ShortLetReserveDateRule/><section aria-label="Booking operating rules"><CreatorOperatingMoneyRules/></section></div>;}
+
+function CreatorOperatingMoneyRules() {
   const { requestElevation } = useCreatorAuth();
   const [rules, setRules] = useState<Rules>(DEFAULTS);
   const [saved, setSaved] = useState<Rules>(DEFAULTS);
@@ -209,7 +206,6 @@ export default function CreatorBookingMoneyRules() {
   const [reason, setReason] = useState("");
   const [effectiveAt, setEffectiveAt] = useState("");
 
-  const managedRulesValid=rules.commissions.short_let_wehouse_percent!==null&&rules.commissions.long_let_wehouse_percent!==null&&rules.commissions.short_let_wehouse_percent>=rules.commissions.short_let_percent&&rules.commissions.long_let_wehouse_percent>=rules.commissions.long_let_percent&&rules.commissions.short_let_wehouse_percent<=50&&rules.commissions.long_let_wehouse_percent<=50;
 
   const dirty = useMemo(
     () => JSON.stringify(rules) !== JSON.stringify(saved),
@@ -263,16 +259,6 @@ export default function CreatorBookingMoneyRules() {
     }));
   }
 
-  function setCommission<K extends keyof Rules["commissions"]>(
-    key: K,
-    value: Rules["commissions"][K],
-  ) {
-    setRules(current=>{const commissions={...current.commissions,[key]:value};
-      if(key==='short_let_percent'&&value!==null&&current.commissions.short_let_wehouse_percent!==null)commissions.short_let_wehouse_percent=value+current.commissions.short_let_wehouse_percent-current.commissions.short_let_percent;
-      if(key==='long_let_percent'&&value!==null&&current.commissions.long_let_wehouse_percent!==null)commissions.long_let_wehouse_percent=value+current.commissions.long_let_wehouse_percent-current.commissions.long_let_percent;
-      return {...current,commissions};});
-  }
-
   function setWorker<K extends keyof Rules["service_worker"]>(
     key: K,
     value: Rules["service_worker"][K],
@@ -284,12 +270,12 @@ export default function CreatorBookingMoneyRules() {
   }
 
   async function publish(elevationId: string) {
-    if (publishLock.current || loading || loadError || !policy || publishing || !dirty || !managedRulesValid) return;
+    if (publishLock.current || loading || loadError || !policy || publishing || !dirty) return;
     if (reason.trim().length < 5) return toast.error("Add a short reason for this policy change");
     publishLock.current=true;setPublishing(true);const generation=loadGeneration.current;
     try{
       const effective=effectiveAt?new Date(effectiveAt).toISOString():new Date().toISOString();
-      const {data,error}=await withTimeout(supabase.rpc('creator_publish_booking_money_rules_v4',{
+      const {data,error}=await withTimeout(supabase.rpc('creator_publish_operating_money_rules',{
         p_creator_elevation_id:elevationId,p_rules:rules,p_effective_from:effective,p_reason:reason.trim(),p_expected_digest:policy.etag,
       }),20000,'Publication result is unknown. Reloading the saved rules.');
       if(error)throw error;
@@ -302,7 +288,7 @@ export default function CreatorBookingMoneyRules() {
   }
 
   function requestPublish() {
-    if (loading || loadError || !policy || publishing || !dirty || !managedRulesValid) return;
+    if (loading || loadError || !policy || publishing || !dirty) return;
     const generation = loadGeneration.current;
     requestElevation("policy_publish", (elevationId) => {
       if (generation === loadGeneration.current) void publish(elevationId);
@@ -338,7 +324,7 @@ export default function CreatorBookingMoneyRules() {
             <h3 className="text-sm font-semibold">Booking & money rules</h3>
             <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
               One versioned source of truth for reservations, cancellations,
-              deposits, commissions and protected-payment timing. Existing
+              deposits and protected-payment timing. Existing
               bookings keep the rules they accepted.
             </p>
           </div>
@@ -353,7 +339,6 @@ export default function CreatorBookingMoneyRules() {
         ) : null}
       </header>
 
-      <ShortLetReserveDateRule />
       <fieldset disabled={publishing} className="min-w-0 space-y-5 border-0 p-0" aria-label="Booking and money policy fields">
       <RuleSection
         title="Short Let"
@@ -385,23 +370,6 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Early full-refund window" suffix="hours, if material process has not begun" value={rules.long_let.full_refund_hours} min={0} max={168} onChange={(value) => setLong("full_refund_hours", value)} />
         <LockedRule label="Security deposit" value="Off at launch" />
       </RuleSection>
-
-      <RuleSection
-        title="Commissions"
-        note="Commission is calculated from eligible commercial value. Refundable Short Let security deposits are excluded."
-      >
-        <NumberRule label="Short Let" suffix="%" value={rules.commissions.short_let_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("short_let_percent", value)} />
-        <NumberRule label="Long Let" suffix="%" value={rules.commissions.long_let_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("long_let_percent", value)} />
-        <NumberRule label="Hotel" suffix="%" value={rules.commissions.hotel_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("hotel_percent", value)} />
-        <NumberRule label="Service Worker" suffix="%" value={rules.commissions.service_worker_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("service_worker_percent", value)} />
-      </RuleSection>
-
-      <RuleSection title="WeHouse management" note="Additional management commission comes from Partner earnings. The managed total includes the base rate above. Partners must see and accept their actual rates before new bookings.">
-        <NumberRule label="Short Let additional management" suffix="% extra" value={rules.commissions.short_let_wehouse_percent===null?null:rules.commissions.short_let_wehouse_percent-rules.commissions.short_let_percent} min={0} max={50-rules.commissions.short_let_percent} step={0.1} onChange={extra=>setCommission('short_let_wehouse_percent',rules.commissions.short_let_percent+extra)}/>
-        <NumberRule label="Long Let additional management" suffix="% extra" value={rules.commissions.long_let_wehouse_percent===null?null:rules.commissions.long_let_wehouse_percent-rules.commissions.long_let_percent} min={0} max={50-rules.commissions.long_let_percent} step={0.1} onChange={extra=>setCommission('long_let_wehouse_percent',rules.commissions.long_let_percent+extra)}/>
-        <p className="text-sm text-[var(--wh-text-secondary)] sm:col-span-2">{rules.commissions.short_let_wehouse_percent===null?'Short Let managed rate is not configured.':`Short Let managed total: ${rules.commissions.short_let_wehouse_percent}% (${rules.commissions.short_let_percent}% base).`} {rules.commissions.long_let_wehouse_percent===null?'Long Let managed rate is not configured.':`Long Let managed total: ${rules.commissions.long_let_wehouse_percent}% (${rules.commissions.long_let_percent}% base).`} Existing accepted bookings retain their saved commission.</p>
-      </RuleSection>
-      <CreatorExperienceCommission />
 
       <RuleSection
         title="Service Worker completion"
@@ -446,7 +414,7 @@ export default function CreatorBookingMoneyRules() {
           </p>
           <button
             type="button"
-            disabled={!dirty || publishing || !managedRulesValid}
+            disabled={!dirty || publishing}
             onClick={requestPublish}
             className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white transition duration-200 active:scale-[.98] disabled:opacity-40"
           >
@@ -468,11 +436,13 @@ function ShortLetReserveDateRule() {
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
+  const reserveGeneration=useRef(0),reserveLock=useRef(false);
   const dirty=Boolean(rule&&draft&&(rule.amount!==draft.amount||rule.payment_hold_minutes!==draft.payment_hold_minutes||rule.balance_due_hours!==draft.balance_due_hours));
   async function loadReserveRule(){
-    setLoading(true);setError('');
-    const {data,error:readError}=await supabase.rpc('creator_get_short_let_reservation_rule');
-    setLoading(false);
+    const generation=++reserveGeneration.current;setLoading(true);setError('');
+    try {
+    const {data,error:readError}=await withTimeout(supabase.rpc('creator_get_short_let_reservation_rule'),15000,'Reserve date settings took too long to load.');
+    if(generation!==reserveGeneration.current)return;
     if(readError||!data?.value){
       setRule(null);setDraft(null);setError('Short Let Reserve date pricing could not be verified.');
       return;
@@ -484,23 +454,27 @@ function ShortLetReserveDateRule() {
       return;
     }
     setRule(next);setDraft({amount:next.amount,payment_hold_minutes:next.payment_hold_minutes,balance_due_hours:next.balance_due_hours});
+    } catch {if(generation===reserveGeneration.current){setRule(null);setDraft(null);setError('Short Let Reserve date pricing could not be verified. Try again.');}}
+    finally{if(generation===reserveGeneration.current)setLoading(false);}
   }
-  useEffect(()=>{void loadReserveRule()},[]);
+  useEffect(()=>{void loadReserveRule();return()=>{reserveGeneration.current++;}},[]);
   async function publish(elevationId:string){
-    if(!draft||!dirty||reason.trim().length<5)return;
-    setSaving(true);
-    const {data,error:saveError}=await supabase.rpc('creator_publish_short_let_reservation_rule',{
+    if(!draft||!dirty||reason.trim().length<5||reserveLock.current)return;
+    reserveLock.current=true;setSaving(true);
+    try {
+    const {data,error:saveError}=await withTimeout(supabase.rpc('creator_publish_short_let_reservation_rule',{
       p_creator_elevation_id:elevationId,
       p_amount:draft.amount,
       p_payment_hold_minutes:draft.payment_hold_minutes,
       p_balance_due_hours:draft.balance_due_hours,
       p_effective_from:effectiveAt?new Date(effectiveAt).toISOString():new Date().toISOString(),
       p_reason:reason.trim(),
-    });
-    setSaving(false);
+    }),20000,'Publication result is unknown. Refresh the saved rule before retrying.');
     if(saveError||!data?.success)return toast.error(saveError?.message||'Short Let rule could not be published');
     toast.success(effectiveAt?'Reserve date rule scheduled':'Reserve date rule published');
     setReason('');setEffectiveAt('');await loadReserveRule();
+    }catch{setError('Publication result could not be confirmed. Refresh the saved rule before retrying.');}
+    finally{reserveLock.current=false;setSaving(false);}
   }
   if(loading)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><p className="text-sm text-[var(--wh-text-secondary)]">Loading Short Let Reserve date rule…</p></section>;
   if(error||!rule||!draft)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><h4 className="text-xs font-semibold">Short Let · Reserve date</h4><p className="mt-2 text-sm text-amber-200">{error||'Reserve date rule unavailable.'}</p><button type="button" onClick={()=>void loadReserveRule()} className="mt-3 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-xs font-semibold">Try again</button></section>;

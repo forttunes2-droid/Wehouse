@@ -7,6 +7,22 @@ const api={};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/longLetRentTerms.ts','utf8'),{
  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022},
 }).outputText,{exports:api,require:()=>({})});
+test('gross rent credit funds months independently of Partner fee deductions',()=>{
+ const first=api.rentCreditCoverage(1200000,150000);
+ assert.equal(first.completedMonths,1);assert.equal(first.partialMonthCredit,50000);
+ assert.equal(first.nextMonthBalance,50000);assert.equal(first.remainingYearRent,1050000);
+ assert.equal(api.rentCreditCoverage(1200000,300000).completedMonths,3);
+ const complete=api.rentCreditCoverage(1200000,1200000);
+ assert.equal(complete.completedMonths,12);assert.equal(complete.nextMonthBalance,0);
+ assert.equal(api.rentCreditCoverage(1200000,0).nextMonthBalance,100000);
+});
+test('rent month boundaries preserve the final minor unit and reject over-allocation',()=>{
+ assert.equal(api.rentCreditCoverage('100.01','8.33').completedMonths,0);
+ assert.equal(api.rentCreditCoverage('100.01','8.33').nextMonthBalance,0.01);
+ assert.equal(api.rentCreditCoverage('100.01','8.34').completedMonths,1);
+ assert.equal(api.rentCreditCoverage('100.01','100.01').completedMonths,12);
+ for(const [annual,paid] of [[0,1],[100,101],[100,-1],[100,'1.001'],[100,NaN]])assert.throws(()=>api.rentCreditCoverage(annual,paid));
+});
 function agreement(years=2){
  const annual=1200000,first=1080000;
  return {schema_version:1,reservation_id:'rental',listing_id:'home',offer_revision:1,currency:'NGN',quote_digest:'a'.repeat(32),

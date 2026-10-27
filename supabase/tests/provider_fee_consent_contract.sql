@@ -21,20 +21,12 @@ begin
  values(elevation,cid,creator,cs::text,array['policy_publish'],now()+interval '5 minutes','password');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',creator,'session_id',cs,'role','authenticated')::text,true);
  initial_rules:=public.creator_get_booking_money_rules_v4();active:=initial_rules->'active';
- perform pg_temp.expect(initial_rules#>>'{active,future_long_let_installments,value,payment_protection_hold}'='true' and initial_rules#>>'{active,future_long_let_installments,value,authorized_release_required}'='true','later-year rent policy requires protection and authorized release');
+ perform pg_temp.expect(initial_rules#>>'{active,future_long_let_installments,value,payment_protection_hold}'='false' and initial_rules#>>'{active,future_long_let_installments,value,tenant_settlement_consent_required}'='true','later-year direct settlement requires tenant consent without activating collection');
  perform pg_temp.expect(length(initial_rules->>'etag')=64,'Creator rules have a complete version digest');
  rules:=jsonb_build_object(
-  'short_let',jsonb_build_object('reservation_hold_minutes',active#>'{short_let_reservation_hold,value,minutes}',
-   'full_refund_hours_before_check_in',active#>'{short_let_cancellation,value,full_refund_hours_before_check_in}',
-   'late_cancel_max_nights',active#>'{short_let_cancellation,value,late_cancel_max_nights}','no_show_max_nights',active#>'{short_let_cancellation,value,no_show_max_nights}',
-   'security_deposit_enabled',active#>'{short_let_caution_cap,value,enabled}','security_deposit_max_nights',active#>'{short_let_caution_cap,value,maximum_nights}',
-   'partner_claim_hours',active#>'{caution_claim_windows,value,partner_claim_hours}','guest_response_hours',active#>'{caution_claim_windows,value,guest_response_hours}','arrival_issue_hours',active#>'{accommodation_arrival_issue_window,value,default_hours}'),
-  'long_let',jsonb_build_object('reservation_amount',active#>'{long_let_reservation_fee,value,amount}','payment_hold_minutes',active#>'{long_let_reservation_fee,value,payment_hold_minutes}',
-   'hold_hours',active#>'{long_let_reservation_hold,value,hours}','full_refund_hours',active#>'{long_let_reservation_hold,value,full_refund_hours}','security_deposit_enabled',false),
   'commissions',jsonb_build_object('short_let_percent',active#>'{commission_short_let,value,percent}','long_let_percent',active#>'{commission_long_let,value,percent}',
    'hotel_percent',active#>'{commission_hotel,value,percent}','service_worker_percent',active#>'{commission_worker,value,percent}',
-   'short_let_wehouse_percent',(active#>>'{commission_short_let,value,percent}')::numeric+3,'long_let_wehouse_percent',(active#>>'{commission_long_let,value,percent}')::numeric+2),
-  'service_worker',jsonb_build_object('completion_reminder_hours',active#>'{worker_completion_release,value,reminder_hours}','release_eligible_hours',active#>'{worker_completion_release,value,release_eligible_hours}'));
+   'short_let_wehouse_percent',(active#>>'{commission_short_let,value,percent}')::numeric+3,'long_let_wehouse_percent',(active#>>'{commission_long_let,value,percent}')::numeric+2));
  command_result:=public.creator_publish_booking_money_rules_v4(elevation,rules,now(),'Synthetic managed fee decision; all changes roll back',initial_rules->>'etag');
  perform pg_temp.expect((command_result->>'changed_policy_count')::integer>=2,'existing publisher records both managed rates without a second authority');
  receipt:=public.creator_get_booking_money_rules_v4();
