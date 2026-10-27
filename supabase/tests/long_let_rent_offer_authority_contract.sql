@@ -138,7 +138,7 @@ begin
  if (select sum(amount) from public.rent_plan_contributions where reservation_id='rent-agreement-monthly')<>1200000 then raise exception 'FAIL: remaining monthly amounts drifted';end if;
 end $contract$;
 
--- A later-year schedule is not permission to bypass Payment Protection.
+-- A later-year schedule alone cannot enable the unverified direct-settlement journey.
 select set_config('request.jwt.claim.sub','',true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 do $contract$
@@ -149,7 +149,7 @@ begin
   perform public.create_rent_plan_contribution_payment(contribution);
   raise exception 'FAIL: later rent bypassed protected collection';
  exception when raise_exception then
-  if sqlerrm not like 'Later-year rent collection is paused until its Payment Protection%' then raise;end if;
+  if sqlerrm not like 'Later-year rent collection is paused until tenant consent, direct settlement%' then raise;end if;
  end;
  insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,type,booking_type,listing_id,amount,amount_total,currency,status,purpose,metadata)
  values(ref,ref,'rent-customer','rent-customer','apartment','apartment','b7990000-2000-4000-8000-000000000003',150000,150000,'NGN','pending','rent_plan_contribution',jsonb_build_object('contribution_id',contribution));
