@@ -207,7 +207,7 @@ function WorkerProfileContent({
       reportUserId={previewMode ? null : worker.user_id}
       actions={communicationActions}
       badges={<>{trust?.reviewed ? <WorkerTrustBadge trusted={trust.trusted} /> : null}{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}</>}
-      bottomAction={previewMode ? <button type="button" disabled className="h-12 w-full rounded-2xl bg-violet-500/40 text-sm font-semibold text-white/70">Request service · preview only</button> : showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request service"}</button> : undefined}
+      bottomAction={previewMode ? <button type="button" disabled className="h-12 w-full rounded-2xl bg-violet-500/40 text-sm font-semibold text-white/70">Request a service · preview only</button> : showBookingAction ? <button onClick={bookingActive ? onOpenBooking : onBook} className={`h-12 w-full rounded-2xl text-sm font-semibold ${bookingActive ? "border border-amber-500/20 bg-amber-500/[.07] text-amber-300" : "bg-violet-500 text-white"}`}>{bookingActive ? "Open service booking" : "Request a service"}</button> : undefined}
     >
       {fullProfile && safetyAction ? <section>{safetyAction}</section> : null}
       {viewerUserId && viewerUserId !== worker.user_id && !previewMode && showBookingAction && onGoToChat ? <section><button type="button" onClick={() => setShareOpen(true)} className="min-h-11 rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-4 text-sm font-semibold text-[var(--wh-text)]">Recommend to a connection</button></section> : null}
@@ -270,7 +270,7 @@ function WorkerProfileContent({
           onRetry={async () => { setMediaFailed(false); const ready = await showcase.refreshPost(viewer); setViewer(current => current?.id === ready.id ? ready : current); }}
           onOpenProfile={() => setViewer(null)}
           onRequestService={showBookingAction && !previewMode ? () => { setViewer(null); (bookingActive ? onOpenBooking || onBook : onBook)(); } : undefined}
-          requestActionLabel={bookingActive ? "Open service booking" : "Request service"}
+          requestActionLabel={bookingActive ? "Open service booking" : "Request a service"}
           onLike={previewMode ? undefined : async () => {
             const previous = postReactions[viewer.id]?.mine;
             const next = previous ? null : "♥";

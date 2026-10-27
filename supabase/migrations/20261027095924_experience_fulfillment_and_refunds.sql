@@ -41,17 +41,20 @@ insert into public.case_reason_registry(reason_code,label,owning_domain,allowed_
 do $patch$
 declare definition text;needle text;
 begin
- definition:=pg_get_functiondef('public.actor_can_open_case_for_subject(text,text,text)'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.actor_can_open_case_for_subject(text,text,text)'::regprocedure),chr(13),'');
  needle:=$find$(p_subject_type='account' and p_subject_id=p_user_id)$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect case subject authority before adding Experience bookings';end if;
  execute replace(definition,needle,$new$(p_subject_type='experience_booking' and exists(select 1 from public.experience_bookings experience_booking
    where experience_booking.id::text=p_subject_id and p_user_id in(experience_booking.customer_user_id,experience_booking.host_user_id)))
     or (p_subject_type='account' and p_subject_id=p_user_id)$new$);
- definition:=pg_get_functiondef('public.open_contextual_case(text,text,text,text)'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.open_contextual_case(text,text,text,text)'::regprocedure),chr(13),'');
  needle:='select coalesce(l.state,h.state,p.state) into v_state';
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect operational case location authority';end if;
  definition:=replace(definition,needle,$new$select coalesce(experience_activity.details->>'state',l.state,h.state,p.state) into v_state$new$);
  needle:='left join public.profiles p on p.user_id=v_user';
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect operational case subject joins';end if;
  definition:=replace(definition,needle,$new$left join public.experience_bookings experience_booking on p_subject_type='experience_booking' and experience_booking.id::text=p_subject_id
   left join public.experience_activities experience_activity on experience_activity.id=experience_booking.activity_id
@@ -278,8 +281,9 @@ create trigger experience_booking_activity after insert or update of status,host
 do $patch$
 declare definition text;needle text;
 begin
- definition:=pg_get_functiondef('public.get_my_payment_receipts(text,text,text)'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.get_my_payment_receipts(text,text,text)'::regprocedure),chr(13),'');
  needle:=$find$left join public.worker_bookings wb on wb.id=bp.worker_booking_id$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect shared receipt joins before adding Experiences';end if;
  definition:=replace(definition,needle,$new$left join public.experience_bookings experience_booking on experience_booking.id=bp.experience_booking_id
     left join public.profiles experience_host on experience_host.user_id=experience_booking.host_user_id
@@ -296,6 +300,7 @@ begin
  definition:=replace(definition,$find$'booking_type',case when hb.booking_id is not null$find$,
   $new$'booking_type',case when experience_booking.id is not null then 'experience' when hb.booking_id is not null$new$);
  needle:=$find$or (p_subject_type='service' and wb.id::text=p_subject_id)$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect shared receipt subject authority';end if;
  definition:=replace(definition,needle,$new$or (p_subject_type='experience' and experience_booking.id::text=p_subject_id)
         or (p_subject_type='service' and wb.id::text=p_subject_id)$new$);

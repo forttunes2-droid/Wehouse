@@ -219,3 +219,10 @@ supported option or no feature.
 - Experience commission is configurable by the Creator. No numerical percentage was approved in this decision. Checkout must require a published, valid commission policy rather than inventing a default. Changes apply to new quotes/bookings, with the policy version and calculated amount saved alongside the booking currency and total.
 - Customer screens must show the exact cancellation deadline and relevant booking/session timezone before payment. The 24-hour threshold alone does not decide every late-cancellation deduction, no-show, dispute or statutory exception; do not invent those terms.
 - After the internal implementation is complete, produce one shareable PDF for lawyer review covering all agreed WeHouse policies. Derive it from confirmed decisions and implemented behavior; separate unresolved decisions and jurisdiction-dependent review questions. Do not present it as lawyer-approved terms or draft the pack prematurely.
+
+
+### Owner clarifications — 27 October 2026
+
+- Customer actions use **Request a service** for work agreed through chat and **Book an activity** for a dated Experience. Both belong to Services and the same provider workspace.
+- Each later-year rent contribution follows canonical Payment Protection and authorized release. WeHouse takes the accepted fee and the Partner receives the net; the customer's gross rent contribution remains their rent credit. Eight scheduled payments funding a complete later year represent twelve months of rent value. Released rent is not shown as money still held by WeHouse for automatic refunds. This clarification does not create an automatic forfeiture or eviction rule.
+- WeHouse-managed Homes carry a Creator-configured additional management percentage deducted from Partner earnings alongside base commission. Show the actual base rate, additional rate, combined deduction and expected net when choosing WeHouse management and submitting for inspection, and require Partner acceptance. Existing accepted bookings retain their saved rates. No numeric rate was approved by this clarification.

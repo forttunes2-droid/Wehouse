@@ -33,7 +33,7 @@ import { formatRecordedMoney } from "@/lib/regional";
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
 const ExperienceDiscovery=lazy(()=>import('@/components/ExperienceDiscovery'));
 function OfferingChoice({value,onChange}:{value:'services'|'experiences';onChange:(value:'services'|'experiences')=>void}){
- return <div aria-label="Service offering" className="inline-flex gap-1 rounded-full border border-[var(--wh-border)] bg-[var(--wh-surface)] p-1">{(['services','experiences'] as const).map(kind=><button key={kind} type="button" aria-pressed={value===kind} onClick={()=>onChange(kind)} className={`min-h-11 rounded-full px-5 text-sm font-medium ${value===kind?'bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]':'text-[var(--wh-text-secondary)]'}`}>{kind==='services'?'Requested services':'Experiences'}</button>)}</div>;
+ return <div aria-label="Service offering" className="inline-flex gap-1 rounded-full border border-[var(--wh-border)] bg-[var(--wh-surface)] p-1">{(['services','experiences'] as const).map(kind=><button key={kind} type="button" aria-pressed={value===kind} onClick={()=>onChange(kind)} className={`min-h-11 rounded-full px-5 text-sm font-medium ${value===kind?'bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]':'text-[var(--wh-text-secondary)]'}`}>{kind==='services'?'Request a service':'Book an activity'}</button>)}</div>;
 }
 type ActiveBooking = { worker_id?: string | null };
 type Props = {

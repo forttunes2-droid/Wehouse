@@ -116,20 +116,23 @@ grant execute on function public.confirm_experience_booking_payment(uuid,text,nu
 do $patch$
 declare definition text;needle text;
 begin
- definition:=pg_get_functiondef('public.process_verified_paystack_charge(text,text,text,text,timestamptz,bigint,text,text)'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.process_verified_paystack_charge(text,text,text,text,timestamptz,bigint,text,text)'::regprocedure),chr(13),'');
  needle:=$find$  if v_payment.purpose='worker_booking' then
     v_rate:=$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect the canonical commission guard before adding Experience checkout';end if;
  definition:=replace(definition,needle,$new$  if v_payment.purpose in ('worker_booking','experience_booking') then
     v_rate:=$new$);
  needle:=$find$    if v_payment.purpose='worker_booking' then
       if v_payment.worker_booking_id is null then$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect the canonical fulfillment branch before adding Experiences';end if;
  definition:=replace(definition,needle,$new$    if v_payment.purpose='experience_booking' then
       v_result:=public.confirm_experience_booking_payment(v_payment.experience_booking_id,p_provider_reference,v_amount,'NGN',p_transaction_id);
     elsif v_payment.purpose='worker_booking' then
       if v_payment.worker_booking_id is null then$new$);
  needle:=$find$'worker_booking','long_let_year_one','short_let_stay'$find$;
+ needle:=replace(needle,chr(13),'');
  if (length(definition)-length(replace(definition,needle,'')))/length(needle)<>2 then raise exception 'Inspect both canonical protected-ledger loops';end if;
  definition:=replace(definition,needle,$new$'experience_booking','worker_booking','long_let_year_one','short_let_stay'$new$);
  execute definition;
@@ -140,29 +143,34 @@ end $patch$;
 do $patch$
 declare definition text;needle text;
 begin
- definition:=pg_get_functiondef('public.attribute_wallet_transaction()'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.attribute_wallet_transaction()'::regprocedure),chr(13),'');
  needle:=$find$subject_type = 'worker_booking'$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect wallet attribution before adding Experience earnings';end if;
  execute replace(definition,needle,$new$subject_type in ('worker_booking','experience_booking')$new$);
 
- definition:=pg_get_functiondef('public.project_completed_release_to_wallet()'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.project_completed_release_to_wallet()'::regprocedure),chr(13),'');
  needle:=$find$v_protection.subject_type='worker_booking'$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect canonical wallet projection';end if;
  definition:=replace(definition,$find$v_wallet_type:=case when v_protection.subject_type='worker_booking'$find$,
   $new$v_wallet_type:=case when v_protection.subject_type in ('worker_booking','experience_booking')$new$);
  needle:=$find$amount_commission=coalesce(amount_commission,0)+v_commission,
       net_amount=coalesce(net_amount,0)+v_payee_amount$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect frozen checkout fields before release projection';end if;
  definition:=replace(definition,needle,$new$amount_commission=case when commission_frozen_at is null then coalesce(amount_commission,0)+v_commission else amount_commission end,
       net_amount=case when commission_frozen_at is null then coalesce(net_amount,0)+v_payee_amount else net_amount end$new$);
  needle:=$find$when v_protection.subject_type='worker_booking' then 'worker'$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect commission reporting classification';end if;
  definition:=replace(definition,needle,$new$when v_protection.subject_type='experience_booking' then 'experience'
           when v_protection.subject_type='worker_booking' then 'worker'$new$);
  execute definition;
 
- definition:=pg_get_functiondef('public.normalize_canonical_partner_earning()'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.normalize_canonical_partner_earning()'::regprocedure),chr(13),'');
  needle:=$find$v_protection.subject_type = 'worker_booking'$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect Partner earning normalization';end if;
  execute replace(definition,needle,$new$v_protection.subject_type in ('worker_booking','experience_booking')$new$);
 end $patch$;

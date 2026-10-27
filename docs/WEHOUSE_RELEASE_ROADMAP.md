@@ -4,6 +4,53 @@
 
 ## Current engineering checkpoints
 
+### Hosted Test money verification and owner decisions — 27 October
+
+All seven workflows passed on `a10ec625`. After explicit owner authorization,
+Test received the Experience publication/capacity, checkout, fulfillment/refund
+and shared Service release repairs. Source filenames now match the actual
+recorded Test migration versions `20261027095539`, `20261027095845`,
+`20261027095924` and `20261027095925`. Guarded function replacements normalize
+line endings so Windows-authored SQL can match Unix-authored function bodies.
+
+Hosted tests exposed the older policy-history interval constraint. Additive
+`20261027100614` aligns it with the already-replayed prerequisite: only a retired
+version may have an empty interval. Existing policy values were not changed.
+The full Experience application/publication/capacity/charge/protection/refund/
+Finance/release contract then passed on hosted Test, as did the Service
+commission/dispute/release contract and privileged write-guard audit. Fixtures
+rolled back; zero fixture people, Experience bookings or invented Experience
+commission policies remained. Browser table writes and anonymous confirmation
+are denied. Payment-init v8 is active on Test with JWT verification enabled;
+all six deployed files match source. No external provider charge was initiated.
+The current local suite passes 795 tests, production build and 24 isolated
+Experience browser journeys; the updated Service profile browser check passes.
+
+The owner approved customer actions **Request a service** and **Book an
+activity**. A service request retains work/date/price agreement and customer
+acceptance before checkout; an activity retains dated sessions and capacity.
+These remain in the same Services/provider product.
+
+The owner reconfirmed that every later-year rent payment must go through
+Payment Protection, then the agreed WeHouse deduction and Partner net release.
+Rent credit is based on the customer's gross contractual rent payment, not the
+Partner's net. Eight scheduled contributions fund a complete later year, not
+eight months of occupancy. Released money is not cash held by WeHouse for an
+automatic refund. Early exit/dispute treatment must use the accepted agreement
+and actual settlement records; no automatic forfeiture/eviction policy was added.
+Later-year collection remains paused and is still substantive internal work.
+
+The owner approved an additional Creator-set WeHouse-management percentage
+**deducted from Partner earnings**, with the actual base/additional/combined
+rate and expected net disclosed when choosing management and submitting for
+inspection. Existing separate managed commission policy keys/resolver already
+exist; the active Creator screen calls the older base-only publisher. Connect
+that existing authority, Partner acceptance and frozen booking/payment records
+rather than creating a second commission system. No extra rate was invented.
+Experience Creator commission exists but no active rate is configured on Test;
+publication remains unavailable until the actual rate is configured.
+
+
 ### Canonical Service release recovery — 27 October
 
 `2928e65e` passed fresh migration replay and the existing-account upgrade,
@@ -2960,11 +3007,12 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Connections | Private two-person plan card inside Friend chat | Production build passes on working tree; exact-SHA CI, real-account/browser, refresh, block/delete, pin/reaction and two-device encryption checks remain |
 | Connections | Roommate and Friend relationship overlap | Product contract documented: one account, independent relationship edges, permissions and conversations; code/UI cross-context review remains |
 | Connections | Private Friend Groups and group plan card | Deferred by owner on 20 October: do not build yet. Excluded from current release requirements; retain one-to-one Friend plans. Any later group proposal needs a separate reviewed encryption, membership and safety contract |
-| Marketplace | Provider-led Experiences | Private applications, categories, dated session preparation/prices, activity-specific documents and photos, independent approval, revision and host Activity are implemented and checked on Test. Public discovery/publication, atomic participant holds, accepted quotes, canonical protected checkout/receipts, attendance/completion controls, full cancellation/refund processing and Provider earnings are now implemented in PR #118. On 27 October, disposable SQL on `2928e65e` passed actual charge, full refund and release assertions; local isolated browser checks passed 24 journeys across widths/themes, including gallery renewal. Exact-commit elevated partial Finance review and retained-commission assertions are running on `b4be15d7`. Booking-bound reviews, sharing, discounts, sponsorship, hosted schema/Edge parity and real role/provider verification remain open. Shows, parties and nightlife are excluded |
+| Marketplace | Provider-led Experiences | Private applications, categories, dated session preparation/prices, activity-specific documents and photos, independent approval, revision and host Activity are implemented and checked on Test. Public discovery/publication, atomic participant holds, accepted quotes, canonical protected checkout/receipts, attendance/completion controls, full cancellation/refund processing and Provider earnings are now implemented in PR #118. On 27 October, disposable SQL on `2928e65e` passed actual charge, full refund and release assertions; local isolated browser checks passed 24 journeys across widths/themes, including gallery renewal. Elevated partial Finance review and retained-commission assertions passed in CI and on hosted Test. Booking-bound reviews, sharing, discounts, sponsorship, full hosted browser/two-device and external provider verification remain open; the named hosted SQL contracts and payment-init parity passed on 27 October. Shows, parties and nightlife are excluded |
 | Connections | Friend naming across product, API and schema | Canonical names implemented across active source, UI, API and contract fixtures. The forward migration renamed empty legacy Test objects and created Friend-first schema there; Production remains untouched. Only historical migration records, the migration-history register, and explicit upgrade references retain the retired term. Production rollout and role/browser checks remain |
 | Connections | Hotel and Friend conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount during property submission and Hosting control | Reconcile the canonical submission/Hosting path after retiring the internal posting form. Earlier internal-form-only evidence is obsolete; verify saved discounts, approval boundaries and final charged price |
+| Pricing | Managed-property fee control and Partner disclosure | Owner approved additional management percentage deducted from Partner earnings on 27 October. Existing managed policy keys/resolver and v2 publisher must be connected to Creator controls, actual rate disclosure during submission/management choice, Partner acceptance, accepted quote snapshots and canonical settlement. Preserve existing booking rates; do not invent a launch percentage. |
 | Pricing | Creator WeHouse-funded discount control | Built and commission-capped in current migration; docs still conflict on whether the campaign cap is 15% or commission-only—reconcile before campaigns |
 | Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
 | Pricing | Hotel discount/rate-plan pipeline | Rate-plan/discount source exists; verify current display, checkout, Partner earnings and refund behavior against the approved rule. No second price authority; hosted evidence pending |

@@ -3,7 +3,7 @@
 do $repair$
 declare definition text;needle text;signature text;
 begin
- definition:=pg_get_functiondef('public.sync_worker_release_completion()'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.sync_worker_release_completion()'::regprocedure),chr(13),'');
  needle:=$find$    -- Legacy record is a compatibility projection and changes only after the
     -- canonical ledger release and wallet projection both succeeded.
     update public.escrow_transactions set status='released',released_at=now(),
@@ -11,12 +11,14 @@ begin
     where booking_id=v_protection.subject_id::uuid
       and booking_type='worker_booking'
       and status not in('released','refunded','disputed');$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect Service release completion before retiring the escrow write';end if;
  execute replace(definition,needle,'');
- definition:=pg_get_functiondef('public.customer_raise_dispute(uuid,text)'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.customer_raise_dispute(uuid,text)'::regprocedure),chr(13),'');
  needle:=$find$  update public.escrow_transactions set status='disputed',updated_at=now()
   where booking_id=p_booking_id and booking_type='worker_booking'
     and status not in('released','refunded');$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect Service dispute before retiring the escrow write';end if;
  execute replace(definition,needle,'');
  -- Preserve the existing trusted-session/ownership checks, canonical protection
@@ -32,7 +34,7 @@ end $repair$;
 do $commission$
 declare definition text;needle text;
 begin
- definition:=pg_get_functiondef('public.complete_internal_release_action(uuid)'::regprocedure);
+ definition:=replace(pg_get_functiondef('public.complete_internal_release_action(uuid)'::regprocedure),chr(13),'');
  needle:=$find$  v_commission:=least(
     v_protection.amount_commission-v_protection.commission_recognized_amount,
     round(v_action.amount*v_protection.commission_rate/100,2)
@@ -42,6 +44,7 @@ begin
     v_commission:=least(v_action.amount,
       v_protection.amount_commission-v_protection.commission_recognized_amount);
   end if;$find$;
+ needle:=replace(needle,chr(13),'');
  if strpos(definition,needle)=0 then raise exception 'Inspect shared release commission before changing refund allocation';end if;
  execute replace(definition,needle,$new$  v_commission:=least(
     v_protection.amount_commission-v_protection.commission_recognized_amount,

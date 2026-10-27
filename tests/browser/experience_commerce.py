@@ -69,7 +69,7 @@ async def main():
    for width in (320,390,768,1440):
     s,ctx,p,errors=await page_for(browser,'discovery',theme,width)
     await p.get_by_role('button',name='View activity and dates',exact=False).click();await p.get_by_role('heading',name='Choose a date',exact=True).wait_for()
-    await p.get_by_role('button',name='per participant',exact=False).click();await p.get_by_label('Participants',exact=True).fill('2');await p.get_by_role('button',name='Review booking',exact=True).click();await expect(p.get_by_role('heading',name='Review your booking',exact=True)).to_be_visible()
+    await p.get_by_role('button',name='per participant',exact=False).click();await p.get_by_label('Participants',exact=True).fill('2');await p.get_by_role('button',name='Book an activity',exact=True).click();await expect(p.get_by_role('heading',name='Review your booking',exact=True)).to_be_visible()
     await p.locator('section[aria-label$=" media"] img').first.wait_for()
     await p.wait_for_function("Array.from(document.querySelectorAll('section[aria-label$=\" media\"] img')).some(i=>i.complete&&i.naturalWidth>0)")
     await p.screenshot(path=str(OUT/f'quote-{width}-{theme}.png'),full_page=True)

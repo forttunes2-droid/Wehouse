@@ -49,7 +49,7 @@ async def main():
       assert 'Hidden' not in await page.locator('[data-showcase-grid]').inner_text()
       assert await page.locator('video').evaluate_all('(v)=>v.every(e=>e.paused)')
       # A sticky action must be opaque; blurred grid tiles must not show through.
-      assert await page.get_by_role('button',name='Request service',exact=True).evaluate('(button)=>getComputedStyle(button.parentElement.parentElement).backgroundColor')=='rgb(9, 11, 16)'
+      assert await page.get_by_role('button',name='Request a service',exact=True).evaluate('(button)=>getComputedStyle(button.parentElement.parentElement).backgroundColor')=='rgb(9, 11, 16)'
       await settled_capture(page,f'worker-public-profile-{width}.png',media=True)
       await page.get_by_role('tab',name='Reviews',exact=True).click();await expect(page.get_by_text('Careful work and a tidy finish.',exact=True)).to_be_visible()
       assert await page.locator('[data-showcase-grid]').count()==0
@@ -77,7 +77,7 @@ async def main():
       assert len(set(await tiles.evaluate_all('(els)=>els.map(e=>e.getAttribute("aria-label"))')))==27
      elif mode=='preview':
       await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
-      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await expect(page.get_by_role('button',name='Request a service · preview only')).to_be_disabled()
       await expect(tiles).to_have_count(24)
       await settled_capture(page,f'worker-creator-preview-{width}.png',media=True)
       await tiles.nth(0).click()
@@ -97,7 +97,7 @@ async def main():
       await expect(opener).to_be_visible();await opener.click()
       await expect(page.get_by_role('dialog',name='Sani Example profile')).to_be_visible()
       await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
-      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await expect(page.get_by_role('button',name='Request a service · preview only')).to_be_disabled()
       await page.screenshot(path=str(OUT/f'worker-creator-list-preview-{width}.png'))
       await page.get_by_role('button',name='Back',exact=True).click()
       await expect(opener).to_be_visible();await expect(opener).to_be_focused()
