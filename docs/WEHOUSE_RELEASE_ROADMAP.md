@@ -52,6 +52,9 @@ real owner acceptance before publication. Test migration `20261027130407` also
 closes the stale-fee republication bypass; changed fees require renewed owner
 acceptance even within the same transaction, and publication retries add no
 audit event. The full hosted document-review/expiry/renewal contract passes.
+The shared Short Let fixture also records real owner acceptance; its complete
+hosted contract passes, including staggered acceptance/payment, duplicate
+checkout, stranger denial and a late final receipt requiring refund recovery.
 Source filenames match Test history. Full replay on the final source commit is
 pending; earlier replay failed on the now-corrected document fixture. Security
 advisors report the authenticated commands as intentional privileged endpoints;

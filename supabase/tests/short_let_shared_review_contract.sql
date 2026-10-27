@@ -18,10 +18,10 @@ insert into public.workspace_role_assignments(user_id,workspace_role,scope_type)
 values('short-split-owner','property_partner','global'),('short-split-reviewer','creator','global');
 insert into auth.sessions(id,user_id,created_at,updated_at)
 select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles
-where user_id in('short-split-a','short-split-b','short-split-c','short-split-d');
+where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner');
 insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
 select user_id,auth_id,auth_id,'short-split-contract-'||user_id,'Synthetic contract browser',true,'trusted'
-from public.profiles where user_id in('short-split-a','short-split-b','short-split-c','short-split-d');
+from public.profiles where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner');
 -- Short Let splits use friends. A Roommate conversation alone must not qualify (short-split-d).
 insert into public.friends(user_low,user_high,requested_by,status) values
 ('short-split-a','short-split-b','short-split-a','accepted'),
@@ -78,6 +78,10 @@ select 'commission_short_let_wehouse_managed',99004,'{"percent":10}',
  'active',now()-interval '1 minute','reviewed','Rollback-only Short Let commission fixture','short-split-commission'
 where not exists(select 1 from public.creator_policy_versions where policy_key='commission_short_let_wehouse_managed' and scope_type='global' and scope_key='*' and status='active');
 set local session_replication_role=origin;
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000005","session_id":"94000000-0000-4000-8000-000000000005","role":"authenticated"}',true);
+set local role authenticated;
+select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_let','wehouse')->>'digest',null,'94000000-0000-4000-8000-000000000020');
+reset role;
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","session_id":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select id as reservation from public.create_short_stay_reservation('94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3) \gset
