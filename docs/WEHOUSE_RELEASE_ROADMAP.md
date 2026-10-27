@@ -55,6 +55,9 @@ audit event. The full hosted document-review/expiry/renewal contract passes.
 The shared Short Let fixture also records real owner acceptance; its complete
 hosted contract passes, including staggered acceptance/payment, duplicate
 checkout, stranger denial and a late final receipt requiring refund recovery.
+The management/publication fixture also uses a trusted owner session and actual
+fee acceptance. Its hosted contract and the remaining co-host, Sponsored,
+FK-index and durable Pro reminder contracts pass on Test.
 Source filenames match Test history. Full replay on the final source commit is
 pending; earlier replay failed on the now-corrected document fixture. Security
 advisors report the authenticated commands as intentional privileged endpoints;
