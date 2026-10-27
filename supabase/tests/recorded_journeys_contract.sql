@@ -5,6 +5,11 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,assigned
 ('88888888-1111-4111-8111-000000000001','journey-creator@example.invalid','journey-creator','creator',true,null,null),
 ('88888888-1111-4111-8111-000000000002','journey-admin@example.invalid','journey-admin','admin',true,'Nasarawa','Lafia'),
 ('88888888-1111-4111-8111-000000000003','journey-user@example.invalid','journey-user','user',true,null,null);
+insert into auth.sessions(id,user_id,created_at,updated_at)
+ select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in('journey-creator','journey-admin','journey-user');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,trust_status,is_active)
+ select user_id,auth_id,auth_id,'journey-'||user_id,'Recorded journey fixture','trusted',true
+ from public.profiles where user_id in('journey-creator','journey-admin','journey-user');
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state,scope_lga,status) values
 ('journey-creator','creator','global',null,null,'active'),
 ('journey-admin','admin','branch','Nasarawa','Lafia','active');
@@ -28,17 +33,24 @@ declare rows jsonb; receipt jsonb;
 begin
   if has_function_privilege('authenticated','public.record_verified_payment_mode(text,text,text)','execute') then raise exception 'Customer can modify provider receipt mode'; end if;
   perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000001',true);
+  perform set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-000000000001","session_id":"88888888-1111-4111-8111-000000000001","role":"authenticated"}',true);
   rows:=public.get_my_property_pipeline_v2('all');
   if not rows @> '[{"id":"88888888-2222-4222-8222-000000000001"},{"id":"88888888-2222-4222-8222-000000000002"}]'::jsonb then raise exception 'Creator property pipeline lost records'; end if;
   if rows->0 ? 'gps_latitude' then raise exception 'Pipeline exposed private coordinates'; end if;
   if public.get_my_payment_receipts('JOURNEY-PAID')<>'[]'::jsonb then raise exception 'Creator read another payer receipt'; end if;
   perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000002',true);
+  perform set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-000000000002","session_id":"88888888-1111-4111-8111-000000000002","role":"authenticated"}',true);
   rows:=public.get_my_property_pipeline_v2('all');
   if not rows @> '[{"id":"88888888-2222-4222-8222-000000000001"}]'::jsonb or rows @> '[{"id":"88888888-2222-4222-8222-000000000002"}]'::jsonb then raise exception 'Branch pipeline scope is incorrect'; end if;
   perform set_config('request.jwt.claim.sub','88888888-1111-4111-8111-000000000003',true);
+  perform set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-000000000003","session_id":"88888888-1111-4111-8111-000000000003","role":"authenticated"}',true);
   receipt:=public.get_my_payment_receipts(null,'hotel','-8888');
   if jsonb_array_length(receipt)<>1 or receipt->0->>'merchant_name'<>'Contract Hotel' or (receipt->0->>'amount')::numeric<>180000 or receipt->0->>'booking_id'<>'-8888' or receipt->0->>'package_name'<>'Room only' or receipt->0->>'environment'<>'test' then raise exception 'Receipt has incorrect owner, merchant, amount or booking'; end if;
   if public.get_my_payment_receipts('JOURNEY-PENDING')<>'[]'::jsonb then raise exception 'Pending payment received a receipt'; end if;
+  perform set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-000000000003","role":"authenticated"}',true);
+  begin
+    perform public.get_my_payment_receipts('JOURNEY-PAID');raise exception 'Receipt opened without its trusted session';
+  exception when raise_exception then if sqlerrm<>'Active account required' then raise;end if;end;
   begin
     perform public.get_my_property_pipeline_v2('all');
     raise exception 'Ordinary user reached operations pipeline';
