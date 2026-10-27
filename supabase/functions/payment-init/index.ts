@@ -13,7 +13,7 @@ const cors={
  'Content-Type':'application/json',
  'Cache-Control':'no-store',
 };
-const SUPPORTED_PURPOSES=new Set(['apartment_reservation','apartment_rent','rent_plan_contribution','hotel_booking','worker_booking','shared_housing_share']);
+const SUPPORTED_PURPOSES=new Set(['apartment_reservation','apartment_rent','rent_plan_contribution','hotel_booking','worker_booking','shared_housing_share','experience_booking']);
 const LIVE_MARKETPLACE_PAYMENT_GATE='payments_protection_payouts';
 function json(body:Record<string,unknown>,status=200){return new Response(JSON.stringify(body),{status,headers:cors})}
 function sameMoney(a:unknown,b:unknown){const left=Number(a??0),right=Number(b??0);return Number.isFinite(left)&&Number.isFinite(right)&&Math.round(left*100)===Math.round(right*100)}
@@ -130,6 +130,10 @@ serve(async(req)=>{
    if(!serviceCheckoutContractMatches(booking,meta,amount))return json({success:false,code:'SERVICE_CHECKOUT_CONTRACT_REQUIRED',error:'Review and accept the current Service schedule, work, price and cancellation terms before payment.'},409);
   }
 
+  if(payment.purpose==='experience_booking'){
+   const{data:valid,error:validationError}=await db.rpc('validate_experience_checkout',{p_payment_id:payment.id,p_customer_user_id:profile.user_id});
+   if(validationError||valid?.valid!==true||valid.booking_id!==meta.experience_booking_id)return json({success:false,error:'Experience checkout expired or no longer matches the accepted session. Refresh before paying.'},409);
+  }
   const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';if(existingUrl&&existingCode)return json({success:true,reference,purpose:payment.purpose,authorization_url:existingUrl,access_code:existingCode,existing:true});
   const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({email:user.email,amount:String(amountMinor),currency:market.currency,reference,callback_url:paymentReturnUrl,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
   let initialized:any=null;try{initialized=await response.json()}catch{initialized=null}if(!response.ok||initialized?.status!==true||typeof initialized?.data?.authorization_url!=='string'||typeof initialized?.data?.access_code!=='string'||!initialized.data.access_code||initialized?.data?.reference!==reference){const upstreamMessage=String(initialized?.message||'Paystack could not initialize this payment');console.error('[payment-init] Paystack initialization rejected',{reference,purpose:payment.purpose,status:response.status,message:upstreamMessage});return json({success:false,error:upstreamMessage,retryable:response.status>=500},response.status>=500?502:400)}

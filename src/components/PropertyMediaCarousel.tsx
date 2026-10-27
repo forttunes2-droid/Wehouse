@@ -11,11 +11,12 @@ type Props = {
   images: string[];
   videos?: string[];
   title: string;
+  mediaIdentity?: string;
   children?: React.ReactNode;
 };
 
 export default function PropertyMediaCarousel(props:Props){
-  return <PropertyMediaRecord key={JSON.stringify([props.title,props.images,props.videos||[]])} {...props}/>;
+  return <PropertyMediaRecord key={props.mediaIdentity ?? JSON.stringify([props.title,props.images,props.videos||[]])} {...props}/>;
 }
 
 function positionRail(rail:HTMLDivElement|null,index:number,smooth=false){

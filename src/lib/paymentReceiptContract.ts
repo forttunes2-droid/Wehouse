@@ -18,6 +18,11 @@ export function assertPaymentReceipt(value: unknown): asserts value is PaymentRe
     const amount = row[key];
     if (amount != null && (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0)) throw invalid();
   }
+  if(row.booking_type==='experience'){
+    if(!Number.isInteger(row.participants)||Number(row.participants)<1||Number(row.participants)>100||typeof row.session_timezone!=='string'||
+      typeof row.session_starts_at!=='string'||!Number.isFinite(Date.parse(row.session_starts_at))||typeof row.session_ends_at!=='string'||Date.parse(row.session_ends_at)<=Date.parse(row.session_starts_at)||!Number.isFinite(Date.parse(row.session_ends_at)))throw invalid();
+    try{new Intl.DateTimeFormat(undefined,{timeZone:row.session_timezone});}catch{throw invalid();}
+  }
   if (row.cancellation_snapshot != null) {
     const terms = row.cancellation_snapshot as Record<string, unknown>;
     if (typeof terms !== 'object' || Array.isArray(terms) ||

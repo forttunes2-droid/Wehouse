@@ -15,6 +15,8 @@ begin
   with reviewed_helpers(signature,call_name,required_checks) as (values
    ('private.experience_host_actor()','private.experience_host_actor',
     array['current_profile_user_id','_property_document_session_active','user_has_active_workspace','raise exception']),
+   ('private.experience_customer_actor()','private.experience_customer_actor',
+    array['current_profile_user_id','_property_document_session_active','deleted','suspended','banned','raise exception']),
    ('private.experience_creator_actor()','private.experience_creator_actor',
     array['current_profile_user_id','_property_document_session_active','current_actor_has_workspace','creator_has_elevation','raise exception']),
    ('public._property_document_reviewer(uuid)','public._property_document_reviewer',

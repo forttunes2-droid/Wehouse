@@ -1,8 +1,34 @@
 # WeHouse release roadmap
 
-**Status date:** 26 October 2026
+**Status date:** 27 October 2026
 
 ## Current engineering checkpoints
+
+### Connected Experience checkout and fulfillment — 27 October
+
+The publication/capacity contract passed disposable SQL on `1d091080`.
+Replay subsequently identified an unregistered authorization helper in the
+SECURITY DEFINER guard audit. The helper is now explicitly reviewed for trusted,
+active customer authorization rather than weakening the global audit.
+
+The current batch connects published activities, participant quotes/holds,
+canonical protected checkout, receipts, customer/host booking controls,
+cancellation/refund outbox, completion release and elevated Creator review.
+Experience earnings reuse the Provider wallet and existing financial ledger.
+The shared release projection now preserves frozen Service/Experience commission
+instead of adding that commission a second time. New SQL contracts exercise
+payment retry, late charge recovery, release and customer/host full refunds.
+These new money-path assertions require disposable database replay; they are
+not represented as passing hosted financial verification.
+
+Local checks before the latest presentation refinements: 795 tests, production
+build, payment-init type check and 23 isolated browser journeys passed. The
+browser matrix covers four widths in both themes, Bookings/Provider navigation
+and Finance lost-response recovery. It uses synthetic API/provider responses.
+Photo renewal now retains gallery position and skips refresh while hidden.
+The hosted Test schema apply was cancelled and remains unapplied. No Production
+change, real provider transaction or whole-product merge approval is implied.
+
 
 ### Experience publication and capacity continuation — 26 October
 

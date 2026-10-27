@@ -34,6 +34,7 @@ import CreatorFixedFees from "@/components/CreatorFixedFees";
 import CreatorWithdrawalControls from "@/components/CreatorWithdrawalControls";
 import CreatorWorkerRefundRules from "@/components/CreatorWorkerRefundRules";
 import AdminRefundReviews from "@/components/AdminRefundReviews";
+import ExperienceFinanceReviews from '@/components/ExperienceFinanceReviews';
 import CreatorWeHouseDiscounts from "@/components/CreatorWeHouseDiscounts";
 import CreatorHotelDiscounts from "@/components/CreatorHotelDiscounts";
 import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue";
@@ -133,8 +134,8 @@ const OPS: Array<{
   },
   {
     id: "refunds",
-    label: "Service Worker refunds",
-    note: "Review protected Service Worker refunds and decisions.",
+    label: "Service and Experience refunds",
+    note: "Review protected Service and Experience refunds and decisions.",
     group: "Platform",
   },
   {
@@ -197,6 +198,7 @@ export default function CreatorDashboard({
   function openCreatorDestination(page: string, id?: string) {
     const route = String(page || "").toLowerCase().replace(/-/g, "_");
     if(route==='experience_review'&&id){openOperation('workers',`experience:${id}`);return;}
+    if(route==='experience_finance_review'&&id){openOperation('refunds',id);return;}
     if (["conversation", "messages", "chat", "operations_inbox"].includes(route)) {
       setInboxTargetId(id); setTab("inbox"); return;
     }
@@ -347,7 +349,7 @@ function Operations({
       {active === "people" && <People userId={profile.user_id} initialRole={target?.operation === 'people' && target.id === 'property_partner' ? 'property_partner' : 'all'} onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
       {active === "reports" && <AdminReports />}
-      {active === "refunds" && <AdminRefundReviews />}
+      {active === "refunds" && <div className="space-y-6"><ExperienceFinanceReviews key={target?.id||'all-experience-reviews'} initialBookingId={target?.id}/><AdminRefundReviews /></div>}
       {active === "properties" && (
         <div className="space-y-5">
           <AccountIdentityReviewQueue accountRole="property_partner" />

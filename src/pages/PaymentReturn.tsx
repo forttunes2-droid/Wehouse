@@ -134,7 +134,7 @@ function PaymentReturnContent({ profile, onNavigate }: Props) {
           if (successPurpose === 'partner_pro_access') {
             try { sessionStorage.setItem('wh_partner_return_tab', 'pro'); } catch { /* Navigation still works. */ }
           }
-          onNavigate(destination, state.receipt?.booking_id || undefined);
+          onNavigate(destination, state.receipt?.booking_id ? (successPurpose==='experience_booking'?`experience:${state.receipt.booking_id}`:state.receipt.booking_id) : undefined);
         }} className="wh-motion-control h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{successActionLabel(successPurpose)}</button>}
         {state.kind === 'error' && reference && <button type="button" onClick={() => void retry()} className="wh-motion-control h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">Check payment again</button>}
         {state.kind === 'error' && <button type="button" onClick={() => onNavigate('my_reservations')} className="wh-motion-control h-12 w-full rounded-2xl border border-violet-400/25 bg-violet-500/[.08] text-sm font-semibold text-[var(--wh-accent-text)]">Open my bookings</button>}

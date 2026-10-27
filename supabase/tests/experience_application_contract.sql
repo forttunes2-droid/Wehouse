@@ -7,11 +7,12 @@ grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to 
 -- transaction rolls every policy, publication and hold back afterward.
 create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
 declare eg uuid;ep integer;pub jsonb;q jsonb;held jsonb;bid uuid:=gen_random_uuid();other_id uuid:=gen_random_uuid();before_contract jsonb;
+ checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;
 begin
  update public.creator_elevation_grants set action_classes=array['private_evidence','policy_publish'] where creator_user_id=cid returning creator_elevation_id into eg;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
  ep:=coalesce((public.creator_get_experience_commission()->'policy'->>'version')::integer,0);
- perform public.creator_publish_experience_commission(eg,ep,0,'Disposable publication and booking contract; rolled back.');
+ perform public.creator_publish_experience_commission(eg,ep,10,'Disposable publication and booking contract; rolled back.');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
  pub:=public.get_my_experience_publication(aid);
  perform pg_temp.expect((pub->>'can_publish')::boolean and not (pub->>'published')::boolean,'approval is distinct from host publication');
@@ -31,6 +32,8 @@ begin
  held:=public.hold_experience_booking(bid,session_id,8,q->>'contract_hash');before_contract:=held->'contract';
  perform pg_temp.expect(held->>'status'='pending_payment' and held->>'payment_id' is null,'capacity hold never manufactures payment');
  perform pg_temp.expect(public.hold_experience_booking(bid,session_id,8,q->>'contract_hash')=held,'retry cannot reserve capacity twice');
+ checkout:=public.create_experience_checkout(bid);
+ perform pg_temp.expect(public.create_experience_checkout(bid)=checkout,'checkout retry returns one canonical payment reference');
  perform pg_temp.expect(pg_temp.rejects(format('select public.hold_experience_booking(%L,%L,1,%L)',bid,session_id,q->>'contract_hash')),'idempotency key is bound to exact participant count');
  q:=public.get_experience_booking_quote(session_id,1);
  perform pg_temp.expect((q->>'remaining')::integer=0,'held participants exhaust the actual session capacity');
@@ -40,14 +43,68 @@ begin
  perform pg_temp.expect(pg_temp.rejects('select * from public.experience_publications'),'browser cannot mutate publication tables directly');
  execute 'reset role';
  update public.experience_bookings set expires_at=now()-interval '1 second' where id=bid;
+ perform pg_temp.expect(pg_temp.rejects(format('select public.create_experience_checkout(%L)',bid)),'expired checkout cannot initialize another charge');
  held:=public.hold_experience_booking(other_id,session_id,1,q->>'contract_hash');
  perform pg_temp.expect(held->>'status'='pending_payment','expired unpaid hold releases capacity');
+ paid_checkout:=public.create_experience_checkout(other_id);
  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
  perform pg_temp.expect(pg_temp.rejects(format('select public.get_my_experience_booking(%L)',bid)),'unrelated account cannot read private customer booking');
- perform public.creator_publish_experience_commission(eg,ep+1,10,'Changed commission for new quotes only; rolled back.');
+ perform public.creator_publish_experience_commission(eg,ep+1,20,'Changed commission for new quotes only; rolled back.');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
  perform pg_temp.expect(public.get_my_experience_booking(bid)->'contract'=before_contract,'accepted booking snapshot survives later commission changes');
  perform pg_temp.expect(pg_temp.rejects(format('select public.hold_experience_booking(%L,%L,1,%L)',gen_random_uuid(),session_id,q->>'contract_hash')),'stale commission quote cannot be accepted');
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ confirmation:=public.process_verified_paystack_charge('charge.success:'||(checkout->>'reference'),'charge.success',checkout->>'reference',repeat('e',64),now(),2000000,'NGN','test-expired-charge');
+ perform pg_temp.expect(confirmation->>'success'='false','late verified charge cannot reclaim expired session capacity');
+ perform pg_temp.expect(exists(select 1 from public.verified_provider_events where provider_reference=checkout->>'reference' and processing_status='failed'),'late verified charge remains durable for Finance reconciliation');
+ confirmation:=public.process_verified_paystack_charge('charge.success:'||(paid_checkout->>'reference'),'charge.success',paid_checkout->>'reference',repeat('f',64),now(),250000,'NGN','test-current-charge');
+ perform pg_temp.expect(confirmation->>'success'='true','canonical gateway confirms the valid Experience charge: '||confirmation::text);
+ select payment_protection_id into protection from public.experience_bookings where id=other_id;
+ perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and protection_state='protected' and amount_total=2500 and amount_commission=250 and amount_payee=2250 and protected_ledger_transaction_id is not null),'original accepted commission enters the canonical protected ledger');
+ confirmation:=public.process_verified_paystack_charge('charge.success:'||(paid_checkout->>'reference'),'charge.success',paid_checkout->>'reference',repeat('f',64),now(),250000,'NGN','test-current-charge');
+ perform pg_temp.expect((confirmation->>'already_processed')::boolean,'provider receipt retry cannot duplicate payment');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.progress_experience_booking(%L,%L)',other_id,'attend')),'customer cannot report attendance before the accepted session starts');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.progress_experience_booking(%L,%L)',other_id,'complete')),'customer cannot release funds before attendance and completion');
+ perform pg_temp.expect(public.get_my_payment_receipts(paid_checkout->>'reference')->0->>'booking_type'='experience','shared receipt identifies the actual Experience');
+ perform pg_temp.expect((public.get_my_payment_receipts(paid_checkout->>'reference')->0->>'participants')::integer=1,'shared receipt retains the booked participant count');
+ -- Exercise the shared release processor with a service-authorized fixture action.
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ perform public.transition_payment_protection(protection,'release_eligible','contract_release_authorized','experience-release-authorized:'||protection,null,'contract_fixture',null,null,'{}');
+ insert into public.financial_action_outbox(action_type,subject_type,subject_id,payment_protection_id,amount,idempotency_key,status)
+ values('release_experience_payment','experience_booking',other_id::text,protection,2500,'experience-contract-release:'||protection,'processing') returning financial_action_id into action_id;
+ confirmation:=public.complete_internal_release_action(action_id);
+ perform pg_temp.expect(confirmation->>'success'='true','Experience net earnings release through the existing outbox');
+ perform pg_temp.expect(exists(select 1 from public.wallets where owner_id=hid and owner_type='worker' and available_balance=2250),'Experience earnings use the existing Provider wallet');
+ perform pg_temp.expect(not exists(select 1 from public.property_partner_earning_releases where payment_id=(paid_checkout->>'payment_id')::uuid),'Experience release does not manufacture property earnings');
+ perform pg_temp.expect(exists(select 1 from public.booking_payments where id=(paid_checkout->>'payment_id')::uuid and amount_commission=250 and net_amount=2250),'release preserves accepted Experience commission and net');
+ confirmation:=public.complete_internal_release_action(action_id);
+ perform pg_temp.expect((confirmation->>'already_completed')::boolean,'Experience release retry credits the wallet once');
+ -- Both customer deadline cancellation and host cancellation return the full
+ -- accepted charge through the real shared refund processor, never wallet credit.
+ for ep in 1..2 loop
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  refund_booking:=gen_random_uuid();q:=public.get_experience_booking_quote(session_id,1);
+  perform public.hold_experience_booking(refund_booking,session_id,1,q->>'contract_hash');
+  checkout:=public.create_experience_checkout(refund_booking);refund_reference:='experience-refund-'||refund_booking;
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  confirmation:=public.process_verified_paystack_charge('charge.success:'||(checkout->>'reference'),'charge.success',checkout->>'reference',repeat('b',64),now(),250000,'NGN','test-refund-charge');
+  perform pg_temp.expect(confirmation->>'success'='true','refundable Experience charge confirmed: '||confirmation::text);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',case when ep=1 then s else h end,'session_id',case when ep=1 then ss else hs end,'role','authenticated')::text,true);
+  held:=public.cancel_experience_booking(refund_booking,'Disposable agreed cancellation contract');
+  perform pg_temp.expect(held->>'status'='refund_pending','cancellation queues refund without claiming provider completion');
+  perform public.cancel_experience_booking(refund_booking,'Disposable agreed cancellation contract');
+  perform pg_temp.expect((select count(*)=1 from public.financial_action_outbox where idempotency_key='experience-cancel-refund:'||refund_booking),'cancel retry creates one refund');
+  select financial_action_id,payment_protection_id into action_id,protection from public.financial_action_outbox where idempotency_key='experience-cancel-refund:'||refund_booking;
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  update public.financial_action_outbox set status='processing',attempt_count=1 where financial_action_id=action_id;
+  perform public.record_refund_provider_submission(action_id,refund_reference,'pending',repeat('c',64));
+  confirmation:=public.process_verified_paystack_refund_event('refund.processed:'||refund_reference,'refund.processed',checkout->>'reference',refund_reference,refund_reference,repeat('d',64),now(),250000,'NGN');
+  perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and refunded_amount=2500 and released_amount=0),'customer receives full original amount without a host release');
+  perform pg_temp.expect(exists(select 1 from public.experience_bookings where id=refund_booking and status='cancelled'),'provider refund completion reaches actual booking');
+  perform public.process_verified_paystack_refund_event('refund.processed:'||refund_reference,'refund.processed',checkout->>'reference',refund_reference,refund_reference,repeat('d',64),now(),250000,'NGN');
+  perform pg_temp.expect(exists(select 1 from public.wallets where owner_id=hid and owner_type='worker' and available_balance=2250),'refund and provider retry do not credit the host again');
+ end loop;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
  pub:=public.set_my_experience_publication(aid,3,1,false);
  perform pg_temp.expect(not (pub->>'visible')::boolean and public.get_published_experience(aid) is null,'unpublish removes the customer projection');

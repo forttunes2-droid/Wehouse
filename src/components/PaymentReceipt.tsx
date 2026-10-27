@@ -3,20 +3,20 @@ import BackButton from "@/components/BackButton";
 import { useEffect, useRef, useState } from "react";
 import { paymentReceiptStatus } from "@/lib/paymentReceiptContract";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { displayDate, displayMoment } from "@/lib/displayDate";
+import { displayDate, displayMoment, displayDateTimeAtProperty } from "@/lib/displayDate";
 import { getPaymentReceipts, type PaymentReceipt as Receipt } from "@/lib/supabase/receipts";
 
 export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
   const status = paymentReceiptStatus(r.status);
   const money = (value: number) => formatRecordedMoney(value,r.currency);
-  return <article className="wehouse-receipt mx-auto max-w-md overflow-hidden rounded-2xl bg-white text-[#24212B] shadow-xl shadow-black/20">
+  return <article className="wehouse-receipt mx-auto max-w-md overflow-hidden rounded-2xl bg-white text-[#24212B] shadow-xl shadow-black/20 [--wh-text-muted:#655C70]">
     <div className="h-1 bg-violet-600" />
     <header className="flex items-start justify-between gap-3 px-5 pt-5 sm:px-6">
       <div className="flex items-center gap-2.5"><img src="/brand/v4/micro-purple.svg" alt="WeHouse" className="h-10 w-10" /><div><p className="text-base font-bold tracking-tight">WeHouse</p><p className="text-xs text-[var(--wh-text-muted)]">wehouse.com.ng</p></div></div>
       <span className={`rounded-full px-3 py-1 text-xs font-bold ${status.refunded ? "bg-amber-50 text-amber-900" : status.label === "Paid" ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>{status.label}</span>
     </header>
     <div className="px-5 pb-5 pt-6 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">{r.booking_type === "hotel" ? "Hotel receipt" : r.booking_type === "housing" ? "Home receipt" : r.booking_type === "service" ? "Service receipt" : "Payment receipt"}</p>
+      <p className="text-xs font-semibold uppercase tracking-[.12em] text-[var(--wh-text-muted)]">{r.booking_type === 'experience' ? 'Experience receipt' : r.booking_type === "hotel" ? "Hotel receipt" : r.booking_type === "housing" ? "Home receipt" : r.booking_type === "service" ? "Service receipt" : "Payment receipt"}</p>
       <p className="mt-2 text-xs text-[var(--wh-text-muted)]">{displayMoment(r.paid_at)}</p>
       <div className="mt-5 rounded-2xl bg-[#F6F3FC] px-4 py-4">
         <p className="text-xs font-semibold text-[var(--wh-text-muted)]">Amount paid</p>
@@ -31,6 +31,7 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
       </div>
       <dl className="mt-5 space-y-3 text-sm">
         <ReceiptLine label="For" value={[r.description, r.package_name].filter(Boolean).join(" · ")} />
+        {r.booking_type==='experience'&&<><ReceiptLine label="Session" value={`${displayDateTimeAtProperty(r.session_starts_at,r.session_timezone)} – ${displayDateTimeAtProperty(r.session_ends_at,r.session_timezone)}`}/><ReceiptLine label="Participants" value={String(r.participants)}/></>}
         {r.check_in && <ReceiptLine label="Check-in" value={displayDate(r.check_in)} />}
         {r.check_out && <ReceiptLine label="Check-out" value={displayDate(r.check_out)} />}
         {r.nights && <ReceiptLine label="Stay" value={`${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`} />}
@@ -174,7 +175,7 @@ export function ReceiptViewer({ open, onClose, receipt, onList, children }: { op
     <DialogContent showCloseButton={false} overlayClassName="!z-[100400]" className="!z-[100410] !left-0 !top-0 !flex h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 flex-col !gap-0 !rounded-none border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] !p-0 text-[var(--wh-text)] sm:!left-1/2 sm:!top-1/2 sm:h-[min(90dvh,850px)] sm:!max-w-xl sm:!-translate-x-1/2 sm:!-translate-y-1/2 sm:!rounded-2xl">
       <header className="flex shrink-0 items-center gap-2 border-b border-[var(--wh-border-subtle)] px-2 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]">
         <BackButton onClick={receipt && onList ? onList : onClose} ariaLabel={receipt && onList ? "All receipts" : "Close receipts"} />
-        <div className="min-w-0 flex-1"><DialogTitle className="break-words text-sm">{receipt ? (receipt.booking_type === "hotel" ? `${receipt.merchant_name} · Hotel receipt` : receipt.booking_type === "housing" ? "Home receipt" : receipt.booking_type === "service" ? "Service receipt" : "Payment receipt") : "Payment receipts"}</DialogTitle><DialogDescription className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">Verified payments through WeHouse</DialogDescription></div>
+        <div className="min-w-0 flex-1"><DialogTitle className="break-words text-sm">{receipt ? (receipt.booking_type === "hotel" ? `${receipt.merchant_name} · Hotel receipt` : receipt.booking_type === "housing" ? "Home receipt" : receipt.booking_type === "service" ? "Service receipt" : receipt.booking_type === "experience" ? "Experience receipt" : "Payment receipt") : "Payment receipts"}</DialogTitle><DialogDescription className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">Verified payments through WeHouse</DialogDescription></div>
         {receipt && onList && <button type="button" onClick={onClose} className="wh-motion-control ml-auto min-h-11 shrink-0 px-3 text-sm" aria-label="Close receipts">Close</button>}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">{receipt ? <ReceiptDocument receipt={receipt} /> : children}</div>

@@ -1259,6 +1259,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         setBookingContextId(id || null);
         return goTo("my_reservations", undefined, { bookingId: id });
       }
+      if(route==='experience_booking'&&id){const target=`experience:${id}`;setBookingContextId(target);return goTo('my_reservations',undefined,{bookingId:target});}
       if (route === "roommate") {
         setRoommateContextId(id || null);
         return goTo("roommate", undefined, { roommateId: id });

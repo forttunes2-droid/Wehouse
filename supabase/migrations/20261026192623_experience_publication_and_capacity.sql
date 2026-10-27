@@ -216,7 +216,9 @@ begin
  if s.id is null or not private.experience_is_published(a.id) or s.status<>'draft' or s.starts_at<=now()
   or p_participants is null or p_participants not between 1 and s.capacity then raise exception 'This session or participant count is unavailable';end if;
  if s.currency<>'NGN' or a.details->>'country_code'<>'NG' then raise exception 'Payments are not available for this activity country and currency';end if;
- if s.price_minor::numeric*p_participants>9007199254740991 then raise exception 'Booking total exceeds supported precision';end if;
+ -- Existing canonical financial processors use numeric(12,2); do not accept a
+ -- total which those release/refund records cannot represent exactly.
+ if s.price_minor::numeric*p_participants>999999999999 then raise exception 'Booking total exceeds supported settlement precision';end if;
  total:=s.price_minor*p_participants;
  select * into policy from public.creator_policy_versions p where p.policy_key='commission_experience'
   and p.scope_type='global' and p.scope_key='*' and p.status='active' and p.effective_from<=now()

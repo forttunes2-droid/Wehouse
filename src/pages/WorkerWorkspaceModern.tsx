@@ -2,6 +2,7 @@
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import WorkerActivationHome from "@/components/WorkerActivationHome";
 import ExperienceActivitiesPanel from "@/components/ExperienceActivitiesPanel";
+import ExperienceHostBookings from '@/components/ExperienceHostBookings';
 import WorkerJobsPanelV2, {
   WorkerInboxPanel,
 } from "@/components/WorkerJobsPanelV2";
@@ -78,6 +79,7 @@ function WorkerWorkspaceContent({
   const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
   const [experienceTarget,setExperienceTarget]=useState<{id:string;sequence:number}|null>(null);
+  const [experienceBookingTarget,setExperienceBookingTarget]=useState<{id:string;sequence:number}|null>(null);
   const [reminderTarget,setReminderTarget]=useState<string|null>(null);
   const [accountView, setAccountView] = useState<
     "account" | "profile" | "paid_tools" | "sponsored"
@@ -102,8 +104,9 @@ function WorkerWorkspaceContent({
   function openActivityDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
     if(route==='experience_application'&&id){
-      setExperienceTarget({id,sequence:Date.now()});setConversation(null);setTab('experiences');return;
+      setExperienceBookingTarget(null);setExperienceTarget({id,sequence:Date.now()});setConversation(null);setTab('experiences');return;
     }
+    if(route==='experience_booking'&&id){setExperienceBookingTarget({id,sequence:Date.now()});setConversation(null);setTab('experiences');return;}
     if (route === "worker_paid_tools") {
       setReminderTarget(id||null);
       setConversation(null);
@@ -167,7 +170,7 @@ function WorkerWorkspaceContent({
 
   let content: React.ReactNode;
   if (safeTab === "experiences") {
-    content = <ExperienceActivitiesPanel profile={profile} initialApplication={experienceTarget} />;
+    content = experienceBookingTarget?<ExperienceHostBookings key={experienceBookingTarget.sequence} userId={profile.user_id} initialBookingId={experienceBookingTarget.id} onBack={()=>setExperienceBookingTarget(null)}/>:<ExperienceActivitiesPanel profile={profile} initialApplication={experienceTarget} />;
   } else if (canManageJobs && safeTab === "jobs") {
     content = (
       <div className="space-y-4">

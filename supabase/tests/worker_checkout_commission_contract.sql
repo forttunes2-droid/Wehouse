@@ -72,6 +72,26 @@ begin
  perform pg_temp.expect(not has_function_privilege('authenticated','public.confirm_worker_booking_payment(uuid,text,numeric,text,text)','EXECUTE'),'customer cannot directly confirm payment');
  perform pg_temp.expect(not has_function_privilege('anon','private.freeze_worker_checkout_commission()','EXECUTE'),'snapshot trigger is private');
 end $$;
+-- Exercise the real release projector as well as the verified-charge path.
+-- The service-role fixture supplies an already authorized release action.
+do $$
+declare protection uuid;action_id uuid;receipt jsonb;before_balance numeric;
+begin
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ select id into protection from public.payment_protection_transactions where paystack_reference=(select reference from checkout_reference);
+ select coalesce(available_balance,0) into before_balance from public.wallets where owner_id=(select payee_user_id from public.payment_protection_transactions where id=protection) and owner_type='worker';
+ before_balance:=coalesce(before_balance,0);
+ perform public.transition_payment_protection(protection,'release_eligible','contract_release_authorized','checkout-release-authorized:'||protection,null,'contract_fixture',null,null,'{}');
+ insert into public.financial_action_outbox(action_type,subject_type,subject_id,payment_protection_id,amount,idempotency_key,status)
+ values('release_worker_payment','worker_job','b7888888-0000-4000-8000-000000000011',protection,10000,'checkout-release:'||protection,'processing') returning financial_action_id into action_id;
+ receipt:=public.complete_internal_release_action(action_id);
+ perform pg_temp.expect(receipt->>'success'='true','frozen Service checkout can release through the canonical projector');
+ perform pg_temp.expect(exists(select 1 from public.booking_payments where paystack_reference=(select reference from checkout_reference) and amount_commission=1000 and net_amount=9000),'release preserves the accepted commission and net snapshot');
+ perform pg_temp.expect(exists(select 1 from public.wallets w join public.payment_protection_transactions p on p.payee_user_id=w.owner_id where p.id=protection and w.owner_type='worker' and w.available_balance=before_balance+9000),'provider receives the accepted net in the existing Worker wallet');
+ receipt:=public.complete_internal_release_action(action_id);
+ perform pg_temp.expect((receipt->>'already_completed')::boolean,'release replay is a no-op');
+ perform pg_temp.expect((select count(*)=1 from public.canonical_wallet_release_receipts where financial_action_id=action_id),'release retry creates one wallet receipt');
+end $$;
 -- A pre-cutover receipt without an accepted snapshot remains visible for Finance.
 set local session_replication_role=replica;
 update public.booking_payments set commission_frozen_at=null,commission_policy_version_id=null

@@ -225,6 +225,7 @@ export function resolveActivityDestination(
   }
 
   if (route === "conversation") return { route, id: conversationId || fallbackId };
+  if(route==='experience_booking'||route==='experience_finance_review')return {route,id:bookingId||fallbackId};
   if (route === "experience_application" || route === "experience_review")
     return { route, id: value(params, ["context_id", "activity_id"]) || row.source_id || undefined };
   if (/propert|listing|inspection|hotel_detail/.test(route))
@@ -247,6 +248,8 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   if (route === "detail") return "View home";
   if (route === "hotel_detail") return "View hotel";
   if (route === "experience_application") return "Open Experience application";
+  if(route==='experience_booking')return 'Open Experience booking';
+  if(route==='experience_finance_review')return 'Review Experience booking';
   if (route === "experience_review") return "Review Experience application";
   if (type === "hotel_team_invitation_response") return "View team access";
   if (type === "resource_invitation_response") return "View team access";

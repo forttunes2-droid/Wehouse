@@ -1,7 +1,7 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   getCategoryWithSubcategories,
@@ -31,6 +31,10 @@ import { usePlatformSettings } from "@/hooks/usePlatformSettings";
 import { formatRecordedMoney } from "@/lib/regional";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
+const ExperienceDiscovery=lazy(()=>import('@/components/ExperienceDiscovery'));
+function OfferingChoice({value,onChange}:{value:'services'|'experiences';onChange:(value:'services'|'experiences')=>void}){
+ return <div aria-label="Service offering" className="inline-flex gap-1 rounded-full border border-[var(--wh-border)] bg-[var(--wh-surface)] p-1">{(['services','experiences'] as const).map(kind=><button key={kind} type="button" aria-pressed={value===kind} onClick={()=>onChange(kind)} className={`min-h-11 rounded-full px-5 text-sm font-medium ${value===kind?'bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]':'text-[var(--wh-text-secondary)]'}`}>{kind==='services'?'Requested services':'Experiences'}</button>)}</div>;
+}
 type ActiveBooking = { worker_id?: string | null };
 type Props = {
   userCity?: string | null;
@@ -77,6 +81,7 @@ export default function WorkerDiscovery({
   initialWorkerId,
   onInitialWorkerOpened,
 }: Props) {
+  const [offering,setOffering]=useState<'services'|'experiences'>('services');
   const { getBoolean, loading: settingsLoading } = usePlatformSettings();
   const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
   const savedState = profile?.state || "",
@@ -347,6 +352,7 @@ export default function WorkerDiscovery({
       </>
     );
     }
+  if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Experiences...</p>}><ExperienceDiscovery onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
   return (
     <DiscoveryShell
       active="services"
@@ -354,6 +360,7 @@ export default function WorkerDiscovery({
     >
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+        <OfferingChoice value={offering} onChange={setOffering}/>
         <DiscoveryToolbar
           value={search}
           onChange={setSearch}

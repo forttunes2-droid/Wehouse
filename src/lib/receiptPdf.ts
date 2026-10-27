@@ -1,7 +1,7 @@
 import { formatRecordedMoney } from "@/lib/regional";
 import { jsPDF } from "jspdf";
 import font from "./receiptFont";
-import { displayDate, displayMoment } from "./displayDate";
+import { displayDate, displayMoment, displayDateTimeAtProperty } from "./displayDate";
 import type { PaymentReceipt } from "./supabase/receipts";
 import receiptMark from "@/assets/receipt-mark.png?inline";
 import { assertPaymentReceipt } from './paymentReceiptContract';
@@ -66,6 +66,10 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     field("Paid to", r.merchant_name);
     field("Paid by", r.payer_name);
     field("For", [r.description, r.package_name].filter(Boolean).join(" · "));
+    if(r.booking_type==='experience'){
+      field('Session',`${displayDateTimeAtProperty(r.session_starts_at,r.session_timezone)} – ${displayDateTimeAtProperty(r.session_ends_at,r.session_timezone)}`);
+      field('Participants',String(r.participants));
+    }
     if (r.check_in || r.check_out) field("Stay dates", `${displayDate(r.check_in)} – ${displayDate(r.check_out)}`);
     if (r.nights) field("Stay", `${r.nights} night${r.nights === 1 ? "" : "s"}${r.guests ? ` · ${r.guests} guest${r.guests === 1 ? "" : "s"}` : ""}`);
     if (r.stay_amount != null) field("Stay price", money(r.stay_amount));

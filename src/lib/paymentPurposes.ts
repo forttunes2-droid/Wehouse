@@ -7,6 +7,7 @@ export type PaymentPurpose =
   | 'shared_housing_share'
   | 'hotel_booking'
   | 'worker_booking'
+  | 'experience_booking'
   | 'worker_pro_subscription'
   | 'partner_pro_access'
   | 'sponsored_campaign';
@@ -21,6 +22,7 @@ const BOOKING_PURPOSES: Record<string, PurposeCopy> = {
   shared_housing_share: { heading: 'Your share is confirmed', action: 'Open my booking' },
   hotel_booking: { heading: 'Hotel booking confirmed', action: 'Open my booking' },
   worker_booking: { heading: 'Service payment confirmed', action: 'Open my booking' },
+  experience_booking: { heading: 'Experience booking confirmed', action: 'Open my booking' },
 };
 
 const BUSINESS_PURPOSES: Record<string, PurposeCopy> = {
