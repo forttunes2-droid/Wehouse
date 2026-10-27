@@ -2,7 +2,7 @@ begin;
 create function pg_temp.expect(value boolean, description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAILED: %',description; end if; end $$;
 create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$begin execute statement; return false; exception when others then return true; end $$;
 create function pg_temp.rejects_with(statement text, expected text) returns boolean language plpgsql as $$begin execute statement;return false;exception when others then return position(expected in sqlerrm)>0;end $$;
-grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to authenticated,anon;
+grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text),pg_temp.rejects_with(text,text) to authenticated,anon;
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_kind,full_name,state,city) values
 ('97200000-0000-4000-8000-000000000001','pdr-owner@example.invalid','pdr-owner','user',true,'consumer','Document Owner','Lagos','Ikeja'),
@@ -63,6 +63,9 @@ end $policies$;
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
+-- A document approval is not commercial consent. The synthetic owner accepts
+-- the actual current fee through the same command used by the Partner screen.
+select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_let','host')->>'digest','97220000-0000-4000-8000-000000000001',null);
 select pg_temp.expect((public.get_property_document_review('97220000-0000-4000-8000-000000000001')->>'configured')::boolean=false,'requirements start unconfirmed, not a fake approval');
 select pg_temp.expect(pg_temp.rejects($$select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf')$$),'collection waits for accepted requirements');
 create temp table pdr_rules as select public.get_property_document_review('97220000-0000-4000-8000-000000000001')->'requirements' as rules;
@@ -114,6 +117,19 @@ do $$declare doc jsonb; begin
 end $$;
 select pg_temp.expect((public.get_property_document_review('97220000-0000-4000-8000-000000000001')->>'ready')::boolean,'all current approved documents satisfy the document gate');
 select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001');
+-- Rollback-only fee change: republication must not reuse the old acceptance,
+-- even when now() is unchanged within this transaction.
+reset role;
+set local session_replication_role=replica;
+update public.creator_policy_versions set value=value||'{"percent":11}'::jsonb where policy_key='commission_short_let' and status='active' and scope_type='global' and scope_key='*';
+set local session_replication_role=origin;
+update public.listings set status='pending_approval',availability_status='pending_approval' where id='97240000-0000-4000-8000-000000000001';
+set local role authenticated;
+select pg_temp.expect(pg_temp.rejects_with($$select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001')$$,'accept the current fees'),'republication cannot bypass changed fees using an older approval');
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_let','host')->>'digest','97220000-0000-4000-8000-000000000001',null);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001');
 select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001');
 select public.configure_property_document_requirements('97220000-0000-4000-8000-000000000002',0,
   public.get_property_document_review('97220000-0000-4000-8000-000000000002')->'requirements','Accepted Hotel operator and local operating evidence for this test.');
@@ -140,7 +156,7 @@ select pg_temp.expect(pg_temp.rejects($$select public.get_property_document_revi
 reset role;
 select pg_temp.expect((select status='available' and bedrooms=0 from public.listings where id='97240000-0000-4000-8000-000000000001'),'additive Admin grant publishes the studio without changing zero bedrooms');
 select pg_temp.expect((select status='active' from public.hotels where hotel_id=-97201),'additive Creator grant publishes the reviewed Hotel');
-select pg_temp.expect((select count(*) from public.audit_logs where action='PROPERTY_PUBLICATION_APPROVED' and target_id='97240000-0000-4000-8000-000000000001')=1,'repeat publication retains one approval event');
+select pg_temp.expect((select count(*) from public.audit_logs where action='PROPERTY_PUBLICATION_APPROVED' and target_id='97240000-0000-4000-8000-000000000001')=2,'initial publication and actual republication each have one approval; retry adds none');
 select public._assert_property_documents_ready('97220000-0000-4000-8000-000000000001');
 insert into public.reservations(id,listing_id,user_id,status,canonical_state,stay_type,stay_check_in,stay_check_out,stay_nights,stay_rent_total,tenancy_start_date)
  values('pdr-existing-stay','pdr-public-home','pdr-outsider','payment_pending','payment_pending','short_let',current_date+20,current_date+21,1,25000,null);

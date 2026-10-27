@@ -18,7 +18,7 @@ refundable wallet. Contact/exit handling must use the agreement and lawful
 process, without automatic forfeiture or eviction.
 
 The policy metadata, Partner/customer disclosures and exact minor-unit rent
-coverage calculator are updated locally. Collection and the connected actual
+coverage calculator are implemented and pushed. Collection and the connected actual
 payment-history/settlement view are still paused/pending integration; the
 calculator is not evidence of a completed financial journey. The owner-requested
 eight-page policy handbook is generated and visually checked at
@@ -40,12 +40,23 @@ without enabling collection or changing accepted booking terms. Independent
 commission publication no longer depends on missing operating timing policies;
 operating-rule publication preserves the server's current commission rates.
 
-Local evidence: 799 source tests pass, production build and focused lint pass,
+Local evidence: 801 source tests pass, production build and focused lint pass,
 and 16 actual Creator/Partner browser cases pass, including stale-rate reset and
 lost-acceptance read recovery in both themes. New provider-fee SQL, submission,
 publication and booking assertions are added to disposable replay. That new
-migration has NOT been applied to hosted Test; its database/integration checks
-must pass first. All seven workflows on the preceding `582c1931` pass.
+migration passed fresh replay's fee contract and the existing-account upgrade.
+It is applied to Test as `20261027125137`; the hosted fee contract passes with
+fixtures rolled back, zero leftover fixture profiles and anonymous acceptance
+denied. Collection remains disabled. The document-review fixture now obtains
+real owner acceptance before publication. Test migration `20261027130407` also
+closes the stale-fee republication bypass; changed fees require renewed owner
+acceptance even within the same transaction, and publication retries add no
+audit event. The full hosted document-review/expiry/renewal contract passes.
+Source filenames match Test history. Full replay on the final source commit is
+pending; earlier replay failed on the now-corrected document fixture. Security
+advisors report the authenticated commands as intentional privileged endpoints;
+their actual trusted-session, role, ownership and stale-update checks are tested.
+All seven workflows on the preceding `582c1931` pass.
 
 
 ### Hosted Test money verification and owner decisions — 27 October
