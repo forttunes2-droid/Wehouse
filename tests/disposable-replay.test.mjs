@@ -44,11 +44,12 @@ test('remote flags, unknown versions and another project are rejected before any
 });
 
 test('registry throttling retries only platform startup, preserving migration order',t=>{
- const root=workspace(t),calls=[],waits=[];let starts=0;
- disposableSupabase(['start'],{root,wait:ms=>waits.push(ms),run:(_r,program,args)=>{
-  calls.push([program,...args]);if(args[0]==='start'&&++starts<3)throw Object.assign(Error('download failed'),{startupOutput:'toomanyrequests: failed to pull docker image'});
+ const root=workspace(t),calls=[],waits=[],registries=[];let starts=0;
+ disposableSupabase(['start'],{root,wait:ms=>waits.push(ms),run:(_r,program,args,_input,environment)=>{
+  calls.push([program,...args]);if(args[0]==='start'){registries.push(environment.SUPABASE_INTERNAL_IMAGE_REGISTRY);if(++starts<3)throw Object.assign(Error('download failed'),{startupOutput:'toomanyrequests: failed to pull docker image'});}
  }});
  assert.deepEqual(waits,[20000,40000]);assert.equal(starts,3);
+ assert.equal(new Set(registries).size,3);assert.ok(registries.every(r=>['public.ecr.aws','docker.io','ghcr.io'].includes(r)));
  assert.equal(calls.filter(c=>c[0]==='docker').length,1);assert.equal(calls.filter(c=>c[1]==='migration').length,1);
 });
 

@@ -4,9 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-function command(root, program, args, input) {
+function command(root, program, args, input, environment) {
   const startup=program==='supabase'&&args[0]==='start';
-  const result=spawnSync(program,args,{cwd:root,stdio:startup?'pipe':input===undefined?'inherit':['pipe','inherit','inherit'],input,shell:false,maxBuffer:16*1024*1024});
+  const result=spawnSync(program,args,{cwd:root,stdio:startup?'pipe':input===undefined?'inherit':['pipe','inherit','inherit'],input,env:environment?{...process.env,...environment}:process.env,shell:false,maxBuffer:16*1024*1024});
   if(startup){if(result.stdout?.length)process.stdout.write(result.stdout);if(result.stderr?.length)process.stderr.write(result.stderr);}
   if(result.error)throw result.error;
   if(result.status!==0){
@@ -64,12 +64,16 @@ export function disposableSupabase(args,{root=process.cwd(),run=command,wait=ms=
     // Keep database, Auth, REST, Storage and Realtime real. Administrative UI,
     // telemetry and unused Edge/pooler containers do not participate in these CI stories.
     const omitted=new Set(['studio','postgres-meta','edge-runtime','logflare','vector','supavisor','mailpit',...(excludes[1]||'').split(',').filter(Boolean).map(name=>name==='inbucket'?'mailpit':name)]);
+    // setup-cli pins GHCR. Retry throttled downloads through Supabase's other
+    // official registries with the same pinned CLI/image versions. Never retry
+    // application migration failures or change the target database.
+    const registries=[...new Set([process.env.SUPABASE_INTERNAL_IMAGE_REGISTRY||'public.ecr.aws','public.ecr.aws','docker.io','ghcr.io'])].slice(0,3);
     for(let attempt=0;;attempt++){
-      try{return run(root,'supabase',['start','--exclude',[...omitted].join(',')]);}
+      try{return run(root,'supabase',['start','--exclude',[...omitted].join(',')],undefined,{SUPABASE_INTERNAL_IMAGE_REGISTRY:registries[attempt]});}
       catch(error){
         if(attempt>=2||!/toomanyrequests|too many requests|429|failed to pull docker image/i.test(error.startupOutput||''))throw error;
         const pause=attempt===0?20_000:40_000;
-        console.warn(`Container registry download failed; retrying platform startup after ${pause/1000}s. Application migrations have not run.`);
+        console.warn(`Container registry download failed; retrying platform startup through ${registries[attempt+1]} after ${pause/1000}s. Application migrations have not run.`);
         wait(pause);
       }
     }

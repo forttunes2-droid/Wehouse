@@ -46,6 +46,20 @@ async def main():
      assert published[0]['args']['p_creator_elevation_id']=='test-only-elevation'
      assert published[0]['args']['p_expected_digest']=='a'*64
      # Commission controls publish without requiring unrelated timing policies.
+     rent=page.get_by_role('region',name='Later-year rent collection policy',exact=True)
+     await expect(rent.get_by_role('checkbox')).not_to_be_checked()
+     await rent.get_by_role('checkbox').check()
+     await expect(rent.get_by_role('button',name='Confirm rent collection policy',exact=True)).to_be_disabled()
+     await rent.get_by_label('Collection policy reason',exact=True).fill('Synthetic Test collection verification')
+     await page.evaluate('window.__moneyTest.loseRent=true')
+     await rent.get_by_role('button',name='Confirm rent collection policy',exact=True).click()
+     await expect(rent.get_by_role('alert')).to_contain_text('Synthetic lost rent policy response')
+     await expect(rent.get_by_role('button',name='Confirm rent collection policy',exact=True)).to_be_disabled()
+     await rent.get_by_role('button',name='Refresh collection policy',exact=True).click()
+     await expect(rent.get_by_role('alert')).to_have_count(0)
+     await expect(rent.get_by_role('checkbox')).to_be_checked()
+     rent_calls=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_set_later_rent_collection']
+     assert len(rent_calls)==1 and rent_calls[0]['args']['p_expected_policy_version_id']=='b7990000-4000-4000-8000-000000000099' and rent_calls[0]['args']['p_enabled'] is True
      commissions=page.get_by_role('region',name='Platform commissions',exact=True)
      await commissions.get_by_role('button',name='Refresh commissions',exact=True).click()
      await commissions.get_by_label('Short Let additional management',exact=False).fill('3')
