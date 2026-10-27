@@ -1,6 +1,7 @@
 /** Isolated API boundary. Production components and their query/permission paths are not mocked. */
 const w = window as any;
 export const state = w.__profileFixture = {
+  accountSuspended:false,loseAccessResponse:true,
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
   wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
 };
@@ -15,6 +16,7 @@ function query(table: string) {
   const worker=conditions.find(row=>row[1]==='worker_id')?.[2]||'worker-a';
   state.calls.push({name:table,conditions:[...conditions],start,end,worker});
   const result=()=>{
+   if(table==='profiles'){const id=conditions.find(row=>row[1]==='user_id')?.[2]||'worker-a';return ok({user_id:id,suspended:state.accountSuspended});}
    if(table==='worker_bookings')return ok([{id:'job-complete',booking_code:'WH-JOB-123',service_type:'Carpentry'}]);
    if(table==='worker_services')return ok([{service_name:'Carpentry',price:15000,price_type:'fixed'}]);
    if(state.failPosts)return bad();
@@ -36,7 +38,9 @@ export const supabase:any={
   rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
   if(name==='get_my_worker_showcase_capacity'){const posts=dataPosts('worker-a').filter(row=>!row.deleted_at);return ok({posts:posts.length,videos:posts.filter(row=>row.media_type==='video').length,post_limit:12,video_limit:3,photo_bytes:2000000,video_bytes:13000000});}
-  if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true}]);
+  if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,suspended:state.accountSuspended}]);
+  if(name==='admin_get_worker_review_trust_status')return ok({profile_ready:true,identity_captured:true,identity_passed:true,readiness_passed:true,evidence_saved:true,submitted:true,review_status:'approved'});
+  if(name==='creator_set_account_suspension'){state.accountSuspended=args.p_suspended;return state.loseAccessResponse?bad():ok(null);}
   if(name==='creator_get_worker_publication')return ok({enabled:false,launch_approved:false,worker:null});
   if(name==='get_my_workspace_help_targets')return state.failHelp?bad():ok(help());
   if(name==='get_worker_marketplace_trust')return state.failTrust?bad():ok({reviewed:true,trusted:false,completed_jobs:7,rating:4.8,review_count:1});

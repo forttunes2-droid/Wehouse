@@ -4,6 +4,37 @@
 
 ## Current engineering checkpoints
 
+### Account misconduct and error recovery — 27 October
+
+Test migration `20261027182836` connects account restrictions to ending all
+existing Auth/device sessions; already restricted accounts are also covered.
+Restoring access does not resurrect ended sessions. Bookings, payment records,
+rent credit and evidence remain. Both ordinary-caller and out-of-branch sanctions
+are denied. Creator protection now uses the actual workspace grant as well as
+legacy profile role. Decisions require reasons; security cases must be escalated,
+read from a trusted Admin session and match their expected saved version.
+The old three-argument case mutation cannot bypass these checks.
+
+The rolled-back Test contract and privileged-write audit pass. It proves role,
+branch, stale-case, investigation-state, Creator-workspace and session boundaries,
+preserved financial records, explicit restoration and anonymous published-contact
+access without exposing account details. Creator UI now clearly states that
+suspension affects the whole person across WeHouse, requires its own reason and
+fresh confirmation, verifies saved state and blocks retry after an uncertain
+result until the account is refreshed. Review rejection and account restriction
+have separate reasons. Admin queue failures cannot masquerade as an empty queue;
+lost decisions require a refresh before another action.
+
+React and application errors share one V4-branded, theme-aware recovery screen.
+It hides raw diagnostics, does not request cache deletion, and never reloads in
+a loop. Four actual phone/light and desktop/dark error cases pass, including
+heading contrast above 15:1 and explicit refresh. Both-theme Admin recovery,
+Creator access and signed-out review-contact journeys pass. The sign-in review
+contact reads only Creator's published support email; an absent address is shown
+honestly and still needs the owner's real contact publication. No address was
+invented. These checks do not close the separate broader Admin step-up or full
+route/role error-state inventory in the release register.
+
 ### Latest owner decision: later-year rent settlement — 27 October
 
 This supersedes earlier entries requiring protection for every later-year
@@ -3112,7 +3143,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
 | Pricing | Hotel discount/rate-plan pipeline | Rate-plan/discount source exists; verify current display, checkout, Partner earnings and refund behavior against the approved rule. No second price authority; hosted evidence pending |
 | Payments | Hotel shared booking cost with accepted Friend | Product rule confirmed 19 Oct; implementation and complete Paystack Test charge/verify/refund/reconciliation flow remain open |
-| Long Let | Partner-approved terms and optional later-year monthly rent | Manual collection/history implemented on Test and PR #118: accepted terms, full protected Year 1, handover-anchored later-year schedule, explicit no-new-hold acceptance, frozen per-payment fee/net, verified provider split and settlement, paged gross rent credit, target-year receipts and payment Help. Eight later-year payments fund twelve months; one-year/shorter contracts remain fully upfront. The latest owner decision supersedes the historical requirement to protect every contribution. Optional active-mandate automatic debit and additional arrears/exit operational verification remain open; actual provider settlement evidence is pending. See the current checkpoint and `PRODUCT_RULES.md` |
+| Long Let | Partner-approved terms and optional later-year monthly rent | Manual collection/history implemented on Test and PR #118: accepted terms, full protected Year 1, handover-anchored later-year schedule, explicit no-new-hold acceptance, frozen per-payment fee/net, verified provider split and settlement, paged gross rent credit, target-year receipts and payment Help. Eight later-year payments fund twelve months; one-year/shorter contracts remain fully upfront. The latest owner decision supersedes the historical requirement to protect every contribution. Separately consented automatic payment now uses a private verified reusable card, one canonical obligation and durable dispatch/recovery controls. Additional arrears/exit operational and actual provider card/debit/settlement verification remain open. See the current checkpoint and `PRODUCT_RULES.md` |
 | Property supply | Submission authority and evidence completeness for apartments and Hotels | **Implemented/Test verified for private documents and new publication; wider supply work remains open.** Existing request/operations records now own accepted requirements, private uploads, incomplete-upload recovery, corrections, versioned replacement, independent scoped decisions, expiry and publication enforcement. Canonical Inbox carries actionable review/correction/outcome records and resolves superseded work. Actual apartment/Hotel publish contracts pass using additive Admin/Creator grants; owner self-approval is denied. Test operating-choice column/commands and 13 MB media limits were restored after contracts exposed missing parity. Open: live person KYC, structured guest/tenancy term capture and booking snapshots, already-live-property recertification, advance expiry reminders, appeal/retention/deletion operations and hosted real-role/file journeys. Worker credential enforcement is implemented in the 20 October checkpoint above; live recertification and hosted journey proof remain open. Local legal forms and provider approvals remain external. Access footage is not ownership proof |
 | Property supply | Buildings and bookable spaces across Short Let and Long Let | **C-064 in progress; not release ready.** Supports several independent apartments in one building and separately let private bedrooms with shared areas disclosed. Retain current listings/reservations and Hotel inventory; submission batches are not buildings. Implement shared property/space identity, scoped review/evidence, per-space terms/calendar, Partner management and atomic whole-unit/room and Short Let/Long Let overlap prevention. Creating/managing spaces and normal bookings stay core features; optional consolidated analytics can remain Pro. Do not enable mixed whole-unit/room selling before concurrency and recovery pass |
 | Worker supply | Category-specific credential and licensing requirements | Private context-bound requirements, uploads, independent review, expiry and new-publication/new-job enforcement are implemented on Test (20 October checkpoint). The accepted service/location requirements are not a universal legal matrix. Current market requirements, existing-live-provider recertification and hosted role/file verification remain open; retain the public Services launch gate until those requirements are accepted and verified |

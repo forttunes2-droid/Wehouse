@@ -1,5 +1,6 @@
 import EmailSignupConfirmation from '@/components/EmailSignupConfirmation';
 import BrandIdentity from '@/components/BrandIdentity';
+import SignedOutAccountHelp from '@/components/SignedOutAccountHelp';
 import GuestBrowseEntry from "@/components/GuestBrowseEntry";
 import type { SharedProperty } from "@/lib/propertyShare";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -125,9 +126,9 @@ function friendlyError(raw: string) {
   if (msg.includes('provider') && (msg.includes('not enabled') || msg.includes('disabled') || msg.includes('unsupported')))
     return isTestEnvironment ? 'This sign-in provider is not ready on this test preview yet.' : 'This sign-in provider is temporarily unavailable. Please try again later.';
   if (msg.includes("banned"))
-    return "Your account has been permanently banned. Contact WeHouse for assistance.";
+    return "Your account is banned. Use account access help to request a review.";
   if (msg.includes("suspended"))
-    return "Your account has been suspended. Contact WeHouse for assistance.";
+    return "Your account has been suspended. Use account access help to request a review.";
   if (msg.includes("deleted"))
     return "This account has been deleted. Contact WeHouse if you believe this is an error.";
   if (msg.includes("invalid login credentials") || msg.includes("invalid credentials"))
@@ -135,7 +136,7 @@ function friendlyError(raw: string) {
   if (msg.includes("review the current") || msg.includes("registration is unavailable") || msg.includes("choose create account") || msg.includes("registrations are currently closed") || msg.includes("under maintenance"))
     return raw;
   if (msg.includes("email not confirmed") || msg.includes("not confirmed"))
-    return "Finish the Google email verification for this account.";
+    return "Confirm your email, then sign in again.";
   if (msg.includes("already registered"))
     return "An account with this email already exists. Try signing in instead.";
   if (msg.includes("network") || msg.includes("fetch") || msg.includes("connection"))
@@ -776,6 +777,7 @@ export default function Login({
           </Notice>
         ) : null}
         {displayError ? <Notice tone="error">{displayError}</Notice> : null}
+        {/bann|suspend|deleted|account.*unavailable|account.*access/i.test(displayError)&&<SignedOutAccountHelp/>}
         {info ? <Notice tone="info">{info}</Notice> : null}
 
         {mode === "choose" ? (

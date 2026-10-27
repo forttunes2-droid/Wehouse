@@ -8,6 +8,7 @@ import AccountHelpCenter from '@/components/AccountHelpCenter';
 import {state} from './profileRefinementClientFixture';
 import '@/index.css';
 const w=window as any;
+document.documentElement.dataset.whTheme=w.__refinementTheme==='light'?'light':'dark';
 const person=(id:string)=>({user_id:id,full_name:id==='worker-a'?'Sani Example':'Chika Example',username:id==='worker-a'?'sani-carpentry':'chika-fittings',worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_bio:'Furniture fitting and repairs. Based in Lafia.',worker_status:'verified',worker_verified:true,worker_price:15000,city:'Lafia',state:'Nasarawa',role:'worker'} as any);
 function Fixture(){
  const mode=w.__refinementMode||'public';
@@ -19,7 +20,7 @@ function Fixture(){
  if(mode==='pending-media')state.delaySigning=true;
  const publicMode=!['owner','owner-new','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
  if(mode==='help-error')state.failHelp=true;if(mode==='help-wrong-user')state.wrongAccount=true;
- return <><div className="mx-auto min-h-screen max-w-3xl bg-[#090B10] p-5 text-white"><h1 className="mb-5 text-xl font-semibold">{mode.startsWith('owner')?'Your showcase':'WeHouse'}</h1>
+ return <><div className="mx-auto min-h-screen max-w-3xl bg-[var(--wh-bg)] p-5 text-[var(--wh-text)]"><h1 className="mb-5 text-xl font-semibold">{mode.startsWith('owner')?'Your showcase':'WeHouse'}</h1>
  {open&&(publicMode||mode==='private')&&<WorkerPublicProfile worker={person(worker)} onBack={()=>setOpen(false)} onBook={()=>w.__booked=true} showBookingAction={mode!=='private'} previewMode={mode==='preview'} communicationActions={mode==='private'?<button type="button">Call</button>:undefined}/>}
  {mode.startsWith('owner')&&<WorkerShowcaseManager profile={person(worker)} initialPostId={mode==='owner-link'?'worker-a-p26':undefined}/>}
  {mode==='creator-list'&&<CreatorWorkerOversight userId="creator-example"/>}

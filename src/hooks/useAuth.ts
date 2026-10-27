@@ -306,9 +306,9 @@ export function useAuth() {
         profile: null,
         isLoading: false,
         error: p.banned
-          ? "Your account has been permanently banned. Contact WeHouse from the sign-in screen."
+          ? "Your account is banned. Use account access help on the sign-in screen to request a review."
           : p.suspended
-            ? "Your account has been suspended. Contact WeHouse from the sign-in screen."
+            ? "Your account has been suspended. Use account access help on the sign-in screen to request a review."
             : "This account has been deleted.",
       });
       return false;

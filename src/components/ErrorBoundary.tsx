@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import AppErrorState from '@/components/AppErrorState';
 
 interface Props { children: ReactNode; }
 interface State { hasError: boolean; error?: Error; isChunkError: boolean; }
@@ -7,8 +8,7 @@ function isChunkError(error: Error): boolean {
   const msg = error?.message || '';
   return msg.includes('Loading chunk') ||
          msg.includes('Failed to fetch dynamically imported module') ||
-         msg.includes('dynamically imported module') ||
-         msg.includes('Failed to fetch');
+         msg.includes('dynamically imported module');
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
@@ -26,40 +26,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    if (this.state.isChunkError) {
-      return (
-        <div className="min-h-screen bg-[var(--wh-bg)] flex flex-col items-center justify-center gap-4 px-6">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/10 text-lg font-black text-violet-300">WH</div>
-          <h2 className="text-lg font-bold text-white">A fresh app version is ready</h2>
-          <p className="max-w-xs text-center text-sm text-[var(--wh-text-muted)]">Refresh once to load the current WeHouse code. The app will not reload repeatedly.</p>
-          <button onClick={() => window.location.reload()} className="h-11 rounded-xl bg-[#8B5CF6] px-6 text-sm font-semibold text-white">Refresh WeHouse</button>
-        </div>
-      );
-    }
-
     if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-[var(--wh-bg)] flex flex-col items-center justify-center gap-4 px-6">
-          <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
-          </div>
-          <h2 className="text-lg font-bold text-white">Something went wrong</h2>
-          <p className="text-sm text-[var(--wh-text-muted)] text-center">
-            Please refresh the page or clear your browser cache.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="h-11 px-6 rounded-xl bg-[#8B5CF6] text-white text-sm font-semibold"
-          >
-            Refresh Page
-          </button>
-          {this.state.error && (
-            <p className="text-[10px] text-[var(--wh-text-muted)] mt-4 max-w-xs break-all text-center">
-              {this.state.error.message}
-            </p>
-          )}
-        </div>
-      );
+      return <AppErrorState loadFailure={this.state.isChunkError} onRetry={()=>window.location.reload()}/>;
     }
     return this.props.children;
   }

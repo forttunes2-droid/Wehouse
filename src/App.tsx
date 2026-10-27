@@ -1,5 +1,6 @@
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
 import EmailChangeFinisher from "@/components/EmailChangeFinisher";
+import AppErrorState from '@/components/AppErrorState';
 import { parsePropertyShareUrl, type SharedProperty } from "@/lib/propertyShare";
 import SharedPropertyWorkspaceView from "@/components/SharedPropertyWorkspaceView";
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
@@ -157,24 +158,7 @@ function RouteTransitionFallback() {
     </div>
   );
 }
-function ErrorFallback({ reset }: { reset: () => void }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
-      <div className="max-w-sm text-center">
-        <h2 className="text-lg font-semibold">Something went wrong</h2>
-        <p className="mb-6 mt-2 text-sm text-[var(--wh-text-secondary)]">
-          The app encountered an error. Please try again.
-        </p>
-        <button
-          onClick={reset}
-          className="h-11 rounded-xl bg-violet-500 px-6 text-sm font-semibold"
-        >
-          Reload App
-        </button>
-      </div>
-    </div>
-  );
-}
+function ErrorFallback({ reset }: { reset: () => void }) {return <AppErrorState onRetry={reset}/>;}
 
 const NAV_STORAGE_KEY = "wh_navpage";
 const ACCOUNT_PAGES = new Set<NavPage>([
