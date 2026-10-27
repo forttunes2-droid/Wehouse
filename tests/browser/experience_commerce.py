@@ -10,7 +10,7 @@ DETAILS={'title':'Campus guided walk','category':'culture_tours','what_to_expect
 def iso(dt):return dt.isoformat().replace('+00:00','Z')
 def contract(quantity=2,past=False):
  start=datetime.now(timezone.utc).replace(microsecond=0)+(timedelta(days=-3) if past else timedelta(days=7));total=250000*quantity
- return {'activity_id':A,'activity_revision':3,'session_id':S,'session_revision':1,'host_user_id':'host','title':DETAILS['title'],'activity_details':DETAILS,'starts_at':iso(start),'ends_at':iso(start+timedelta(hours=1)),'timezone':'Africa/Lagos','participants':quantity,'price_per_participant_minor':250000,'total_minor':total,'currency':'NGN','commission_policy_version_id':P,'commission_percent':10,'commission_minor':total//10,'host_receives_minor':total-total//10,'cancellation_policy':'experience_standard_24h_v1','cancellation_deadline':iso(start-timedelta(hours=24)),'customer_cancellation_before_deadline':'full_refund','customer_late_cancellation':'review_required','host_cancellation':'full_refund'}
+ return {'activity_id':A,'activity_revision':3,'session_id':S,'session_revision':1,'host_user_id':'host','title':DETAILS['title'],'activity_details':copy.deepcopy(DETAILS),'starts_at':iso(start),'ends_at':iso(start+timedelta(hours=1)),'timezone':'Africa/Lagos','participants':quantity,'price_per_participant_minor':250000,'total_minor':total,'currency':'NGN','commission_policy_version_id':P,'commission_percent':10,'commission_minor':total//10,'host_receives_minor':total-total//10,'cancellation_policy':'experience_standard_24h_v1','cancellation_deadline':iso(start-timedelta(hours=24)),'customer_cancellation_before_deadline':'full_refund','customer_late_cancellation':'review_required','host_cancellation':'full_refund'}
 class Scenario:
  def __init__(self,mode):
   self.mode=mode;self.calls=[];self.fail=False;self.decided=False;self.lose_decision=False;self.published=False;self.q=contract(past=mode in ('customer-complete','host-ready','customer-late'))
@@ -85,6 +85,8 @@ async def main():
     elif mode=='publication':await p.get_by_role('button',name='Publish activity and dates',exact=True).click();await expect(p.get_by_text('Published · Customers can view dates',exact=True)).to_be_visible()
     elif mode=='host-list':await p.get_by_role('button',name=DETAILS['title'],exact=False).click();await expect(p.get_by_text('Your accepted net earnings',exact=True)).to_be_visible()
     else:await p.get_by_role('button',name='Experiences',exact=True).click();await p.get_by_role('button',name='Open Experience booking for '+DETAILS['title'],exact=True).click();await expect(p.get_by_role('heading',name=DETAILS['title'],exact=True)).to_be_visible()
+    if mode in ('customer-paid','customer-late','customer-complete','host-ready','host-list','bookings'):
+     await p.get_by_text('Your booked activity',exact=True).click();await expect(p.get_by_text(DETAILS['what_to_expect'],exact=True)).to_be_visible();await expect(p.get_by_role('heading',name='Included',exact=True)).to_be_visible()
     await p.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True);assert not errors,errors;results.append(mode+' '+theme);await ctx.close()
   s,ctx,p,errors=await page_for(browser,'discovery')
   await p.get_by_role('button',name='View activity and dates',exact=False).click()
