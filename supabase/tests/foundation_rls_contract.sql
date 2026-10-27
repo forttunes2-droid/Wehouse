@@ -23,6 +23,9 @@ begin
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
       -- Explicit setting-key allowlist and published-only, 12-offer site page.
       'get_public_discovery_settings()',
+      -- Published support address only; no arguments or account lookup.
+      -- account_sanction_session_contract verifies its anonymous projection.
+      'get_public_account_support()',
       'get_property_site_offers(uuid,text,date,date,uuid)',
       'get_hotel_review_summary(integer)',
       'get_accommodation_rate_terms()',
