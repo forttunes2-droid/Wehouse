@@ -45,6 +45,13 @@ The new public-contact reader is registered by exact signature in the anonymous
 RPC audit; hosted cross-user RLS passes. Fresh and upgrade replay pass on
 `3040fa66`; full checks rerun on the report follow-through commit.
 
+The independent pre-React startup error shell now uses V4 branding, accessible
+alert semantics and the shared startup theme colours instead of dark-only muted
+text. Four actual built-bundle scenarios pass invalid-preview configuration and
+missing application chunks in both themes; body contrast is 5.70:1 light and
+7.96:1 dark, with zero Production database requests. Its independent classic
+script and eight-second stalled-start guard remain intact.
+
 ### Latest owner decision: later-year rent settlement — 27 October
 
 This supersedes earlier entries requiring protection for every later-year

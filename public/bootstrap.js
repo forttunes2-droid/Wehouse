@@ -43,13 +43,14 @@ function renderStartupFailure(reason) {
     const previewConfigurationProblem = /configuration is incomplete|Supabase URL is invalid|preview configuration is missing|non-production WeHouse host cannot connect to the production Supabase project/i.test(message);
     root.replaceChildren();
     const shell = document.createElement("main");
+    shell.setAttribute("role", "alert");
     shell.style.cssText =
         "min-height:100dvh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:var(--wh-startup-bg);color:var(--wh-startup-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
     const card = document.createElement("section");
     card.style.cssText =
         "width:min(100%,380px);text-align:center";
     const mark = document.createElement("img");
-    mark.src = "/app-icon.svg?v=3";
+    mark.src = "/brand/v4/wehouse-app-icon.svg";
     mark.alt = "";
     mark.width = 46;
     mark.height = 46;
@@ -65,7 +66,7 @@ function renderStartupFailure(reason) {
         ? "This preview is intentionally blocked from using production data. Connect a safe test Supabase environment, then reload."
         : "Check your connection, then try again.";
     body.style.cssText =
-        "margin:12px auto 0;max-width:310px;color:#AAA3B3;font-size:14px;line-height:1.7";
+        "margin:12px auto 0;max-width:310px;color:var(--wh-startup-muted);font-size:14px;line-height:1.7";
     const reload = document.createElement("button");
     reload.type = "button";
     reload.textContent = "Reload WeHouse";
@@ -77,7 +78,7 @@ function renderStartupFailure(reason) {
         ? "Production remains isolated and untouched."
         : "";
     detail.style.cssText =
-        "margin:14px 0 0;color:#AAA3B3;font-size:12px;line-height:1.5";
+        "margin:14px 0 0;color:var(--wh-startup-muted);font-size:12px;line-height:1.5";
     card.append(mark, title, body, reload, detail);
     shell.append(card);
     root.append(shell);

@@ -11,8 +11,9 @@ async def main():
  async with async_playwright() as p:
   browser=await p.chromium.launch(args=['--no-sandbox'])
   try:
-   for mode in ['unsafe-preview','missing-app-chunk']:
+   for mode,theme in [(mode,theme) for mode in ['unsafe-preview','missing-app-chunk'] for theme in ['light','dark']]:
     context=await browser.new_context(viewport={'width':390,'height':844},service_workers='block'); page=await context.new_page(); external=[]
+    await context.add_init_script(f"localStorage.setItem('wehouse:appearance',{json.dumps(theme)})")
     async def route(handler):
      request=handler.request
      if not request.url.startswith(BASE): external.append(request.url); return await handler.abort()
@@ -25,10 +26,14 @@ async def main():
      await expect(page.get_by_role('heading',name=heading,exact=True)).to_be_visible(timeout=15000)
      await expect(page.get_by_role('button',name='Reload WeHouse',exact=True)).to_be_visible()
      await expect(page.locator('#wh-bootstrap')).to_have_count(0)
+     await expect(page.get_by_role('alert')).to_be_visible()
+     await expect(page.locator('main img')).to_have_attribute('src','/brand/v4/wehouse-app-icon.svg')
+     contrast=await page.locator('main section > p').first.evaluate(r'''node=>{const lum=s=>{const c=s.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return .2126*c[0]+.7152*c[1]+.0722*c[2]};const a=lum(getComputedStyle(node).color),b=lum(getComputedStyle(node.closest('main')).backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)}''')
+     assert contrast>=4.5,contrast
      assert not any('.supabase.co' in url for url in external), external
      assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth+1')
-     await page.screenshot(path=str(OUT/f'startup-{mode}.png'))
-     results.append({'mode':mode,'passed':True,'production_requests':0})
+     await page.screenshot(path=str(OUT/f'startup-{mode}-{theme}.png'))
+     results.append({'mode':mode,'theme':theme,'contrast':round(contrast,2),'passed':True,'production_requests':0})
     except Exception as error:
      results.append({'mode':mode,'passed':False,'error':str(error),'external':external}); await page.screenshot(path=str(OUT/f'startup-failure-{mode}.png')); raise
     finally:
