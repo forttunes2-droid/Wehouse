@@ -5,7 +5,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright,expect
 BASE='http://127.0.0.1:4173'
 OUT=Path('test-results/experience-commerce');OUT.mkdir(parents=True,exist_ok=True)
-A='91000000-0000-4000-8000-000000000001';S='91000000-0000-4000-8000-000000000002';B='91000000-0000-4000-8000-000000000003';P='91000000-0000-4000-8000-000000000004'
+A='91000000-0000-4000-8000-000000000001';S='91000000-0000-4000-8000-000000000002';B='91000000-0000-4000-8000-000000000003';P='91000000-0000-4000-8000-000000000004';P2='91000000-0000-4000-8000-000000000005'
 DETAILS={'title':'Campus guided walk','category':'culture_tours','what_to_expect':'Walk through local landmarks and learn the stories, practical routes and meeting places with an experienced local guide.','host_expertise':'I lead local orientation walks and know the planned route and its landmarks.','country_code':'NG','state':'Nasarawa','local_area':'Lafia','city':'Lafia','meeting_area':'Public library entrance','timezone':'Africa/Lagos','participation_requirements':'Comfortable shoes. Adults able to walk the route.','accessibility_information':'Step-free route. Ask about assistance before joining.','duration_minutes':60,'max_group_size':8,'inclusions':['Guided route'],'exclusions':['Transport']}
 def iso(dt):return dt.isoformat().replace('+00:00','Z')
 def contract(quantity=2,past=False):
@@ -24,15 +24,15 @@ class Scenario:
   name=req.url.split('/')[-1].split('?')[0];args=req.post_data_json if req.post_data else {};self.calls.append({'name':name,'args':args});data=[];status=200
   if '/storage/v1/object/sign/' in req.url and req.method=='GET':return await route.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-city.jpg').read_bytes())
   if '/storage/v1/object/sign/' in req.url:
-   data=[{'path':p,'signedURL':'/object/sign/experience-photos/'+p+'?token=synthetic'} for p in args.get('paths',[])]
+   data=[{'path':p,'signedURL':'/object/sign/experience-photos/'+p+'?token=synthetic'+str(len(self.calls))} for p in args.get('paths',[])]
   elif '/storage/v1/object/sign/' in req.url and req.method=='GET':return await route.fulfill(status=404)
   elif name=='get_experience_categories':data=[{'code':'culture_tours','name':'Culture and tours','description':'Guided local activities','examples':['Orientation walks']}]
   elif name=='search_experiences':
    if self.fail:status=503;data={'message':'Synthetic discovery failure'}
    else:
     d={k:v for k,v in DETAILS.items() if k!='host_expertise'}
-    data={'items':[{'id':A,'revision':3,'details':d,'host_expertise':DETAILS['host_expertise'],'host_user_id':'host','category_name':'Culture and tours','cursor_at':'2026-10-26T10:00:00Z','photos':[{'id':P,'object_path':A+'/'+P+'.jpg','caption':'Synthetic activity photo'}],'next_session':{'id':S,'starts_at':self.q['starts_at'],'ends_at':self.q['ends_at'],'timezone':'Africa/Lagos','price_minor':250000,'currency':'NGN','remaining':8}}],'has_more':False}
-  elif name=='get_published_experience':data={'id':A,'revision':3,'details':{k:v for k,v in DETAILS.items() if k!='host_expertise'},'host_expertise':DETAILS['host_expertise'],'host_user_id':'host','category_name':'Culture and tours','photos':[{'id':P,'object_path':A+'/'+P+'.jpg','caption':'Synthetic activity photo'}],'next_session':None}
+    data={'items':[{'id':A,'revision':3,'details':d,'host_expertise':DETAILS['host_expertise'],'host_user_id':'host','category_name':'Culture and tours','cursor_at':'2026-10-26T10:00:00Z','photos':[{'id':photo,'object_path':A+'/'+photo+'.jpg','caption':'Synthetic activity photo'} for photo in (P,P2)],'next_session':{'id':S,'starts_at':self.q['starts_at'],'ends_at':self.q['ends_at'],'timezone':'Africa/Lagos','price_minor':250000,'currency':'NGN','remaining':8}}],'has_more':False}
+  elif name=='get_published_experience':data={'id':A,'revision':3,'details':{k:v for k,v in DETAILS.items() if k!='host_expertise'},'host_expertise':DETAILS['host_expertise'],'host_user_id':'host','category_name':'Culture and tours','photos':[{'id':photo,'object_path':A+'/'+photo+'.jpg','caption':'Synthetic activity photo'} for photo in (P,P2)],'next_session':None}
   elif name=='get_published_experience_sessions':data=[{'id':S,'activity_id':A,'revision':1,'starts_at':self.q['starts_at'],'ends_at':self.q['ends_at'],'timezone':'Africa/Lagos','capacity':8,'remaining':8,'price_minor':250000,'currency':'NGN'}]
   elif name=='get_experience_booking_quote':self.q=contract(args['p_participants']);data={'contract':self.q,'contract_hash':'a'*64,'remaining':8}
   elif name=='hold_experience_booking':self.booking.update(id=args['p_booking_id'],participants=args['p_participants'],contract=self.q);data=self.booking
@@ -86,6 +86,23 @@ async def main():
     elif mode=='host-list':await p.get_by_role('button',name=DETAILS['title'],exact=False).click();await expect(p.get_by_text('Your accepted net earnings',exact=True)).to_be_visible()
     else:await p.get_by_role('button',name='Experiences',exact=True).click();await p.get_by_role('button',name='Open Experience booking for '+DETAILS['title'],exact=True).click();await expect(p.get_by_role('heading',name=DETAILS['title'],exact=True)).to_be_visible()
     await p.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True);assert not errors,errors;results.append(mode+' '+theme);await ctx.close()
+  s,ctx,p,errors=await page_for(browser,'discovery')
+  await p.get_by_role('button',name='View activity and dates',exact=False).click()
+  gallery=p.get_by_role('region',name=DETAILS['title']+' media',exact=True)
+  await gallery.get_by_role('button',name='Go to image 2',exact=True).click()
+  await expect(gallery.get_by_text('2 / 2',exact=True)).to_be_visible()
+  await gallery.get_by_role('button',name='View image 2 of 2 full screen',exact=True).click()
+  await expect(p.get_by_role('dialog')).to_be_visible()
+  await p.get_by_role('button',name='Back from media viewer',exact=True).click()
+  await expect(gallery.get_by_text('2 / 2',exact=True)).to_be_visible()
+  count=sum(1 for c in s.calls if c['args'].get('paths'))
+  await p.evaluate('Date.now=(()=>{const original=Date.now;return()=>original()+100000;})();window.dispatchEvent(new Event("focus"));')
+  for _ in range(30):
+   if sum(1 for c in s.calls if c['args'].get('paths'))>count:break
+   await asyncio.sleep(.1)
+  assert sum(1 for c in s.calls if c['args'].get('paths'))>count,'visible-page media renewal missing'
+  await expect(gallery.get_by_text('2 / 2',exact=True)).to_be_visible()
+  assert not errors,errors;results.append('Photo renewal and full-screen Back retain gallery position');await ctx.close()
   s,ctx,p,errors=await page_for(browser,'finance');s.lose_decision=True
   await p.get_by_role('button',name='Confirm access and load reviews',exact=True).click();await p.get_by_label('Creator security password',exact=False).fill('synthetic-test-password');await p.get_by_role('button',name='Confirm and continue',exact=True).click();await p.get_by_label('Refund percentage',exact=True).fill('100');await p.get_by_label('Decision basis',exact=True).fill('Reviewed the accepted cancellation terms and customer evidence.');await p.get_by_role('button',name='Review and record financial decision',exact=True).click();await expect(p.get_by_role('alert')).to_contain_text('Synthetic lost decision response');await p.get_by_role('button',name='Refresh reviews',exact=True).click();await expect(p.get_by_text('A decision is recorded.',exact=False)).to_be_visible();assert len([c for c in s.calls if c['name']=='decide_experience_booking_review'])==1;assert not errors,errors;results.append('Finance lost-response read recovery');await ctx.close()
   await browser.close()

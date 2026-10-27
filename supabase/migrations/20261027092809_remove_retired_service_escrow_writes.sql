@@ -26,3 +26,26 @@ begin
    raise exception 'Retired escrow write remains in %',signature;end if;
  end loop;
 end $repair$;
+
+-- Recognize commission only on the gross amount actually released. Refunding
+-- part of a booking cannot turn the remaining release into the original fee.
+do $commission$
+declare definition text;needle text;
+begin
+ definition:=pg_get_functiondef('public.complete_internal_release_action(uuid)'::regprocedure);
+ needle:=$find$  v_commission:=least(
+    v_protection.amount_commission-v_protection.commission_recognized_amount,
+    round(v_action.amount*v_protection.commission_rate/100,2)
+  );
+  if v_action.amount=
+      v_protection.amount_total-v_protection.released_amount-v_protection.refunded_amount then
+    v_commission:=least(v_action.amount,
+      v_protection.amount_commission-v_protection.commission_recognized_amount);
+  end if;$find$;
+ if strpos(definition,needle)=0 then raise exception 'Inspect shared release commission before changing refund allocation';end if;
+ execute replace(definition,needle,$new$  v_commission:=least(
+    v_protection.amount_commission-v_protection.commission_recognized_amount,
+    greatest(0,round((v_protection.released_amount+v_action.amount)*v_protection.commission_rate/100,2)
+      -v_protection.commission_recognized_amount)
+  );$new$);
+end $commission$;

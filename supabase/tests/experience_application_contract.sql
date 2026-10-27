@@ -7,7 +7,7 @@ grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to 
 -- transaction rolls every policy, publication and hold back afterward.
 create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
 declare eg uuid;ep integer;pub jsonb;q jsonb;held jsonb;bid uuid:=gen_random_uuid();other_id uuid:=gen_random_uuid();before_contract jsonb;
- checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;
+ checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;review_updated timestamptz;
 begin
  update public.creator_elevation_grants set action_classes=array['private_evidence','policy_publish'] where creator_user_id=cid returning creator_elevation_id into eg;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
@@ -105,6 +105,40 @@ begin
   perform public.process_verified_paystack_refund_event('refund.processed:'||refund_reference,'refund.processed',checkout->>'reference',refund_reference,refund_reference,repeat('d',64),now(),250000,'NGN');
   perform pg_temp.expect(exists(select 1 from public.wallets where owner_id=hid and owner_type='worker' and available_balance=2250),'refund and provider retry do not credit the host again');
  end loop;
+ -- A real customer issue retains capacity and needs independent elevated review.
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ refund_booking:=gen_random_uuid();q:=public.get_experience_booking_quote(session_id,1);
+ perform public.hold_experience_booking(refund_booking,session_id,1,q->>'contract_hash');
+ checkout:=public.create_experience_checkout(refund_booking);
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ confirmation:=public.process_verified_paystack_charge('charge.success:'||(checkout->>'reference'),'charge.success',checkout->>'reference',repeat('a',64),now(),250000,'NGN','test-reviewed-charge');
+ perform pg_temp.expect(confirmation->>'success'='true','reviewed booking starts with a genuine confirmed payment');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ held:=public.request_experience_booking_review(refund_booking,'payment_issue','Please review this charged activity payment');
+ perform pg_temp.expect(held->>'status'='review_pending','customer issue reaches real review case');
+ perform pg_temp.expect((public.get_experience_booking_quote(session_id,1)->>'remaining')::integer=6,'reviewed booking retains its accepted capacity');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.decide_experience_booking_review(%L,now(),50,%L,%L)',refund_booking,'Customer cannot decide own financial issue',eg)),'customer cannot authorize a financial decision');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_finance_reviews(%L)',eg)),'policy elevation does not authorize Finance review');
+ update public.creator_elevation_grants set action_classes=array['finance_exception'] where creator_elevation_id=eg;
+ held:=public.get_experience_finance_reviews(eg,null,null,refund_booking)->0;
+ perform pg_temp.expect(held->>'id'=refund_booking::text,'Creator can open the exact review outside the current page');
+ review_updated:=(held->>'updated_at')::timestamptz;
+ held:=public.decide_experience_booking_review(refund_booking,review_updated,50,'Reviewed the actual agreed payment and evidence',eg);
+ perform public.decide_experience_booking_review(refund_booking,review_updated,50,'Reviewed the actual agreed payment and evidence',eg);
+ perform pg_temp.expect((select count(*)=2 from public.financial_action_outbox where subject_id=refund_booking::text),'financial decision retry creates exactly one refund and one release');
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ select financial_action_id,payment_protection_id into action_id,protection from public.financial_action_outbox where subject_id=refund_booking::text and action_type='release_experience_payment';
+ update public.financial_action_outbox set status='processing',attempt_count=1 where financial_action_id=action_id;
+ confirmation:=public.complete_internal_release_action(action_id);
+ perform pg_temp.expect((confirmation->>'commission')::numeric=250 and (confirmation->>'payee_amount')::numeric=1000,'accepted 20 percent applies to retained 1250, not the original 2500');
+ select financial_action_id into action_id from public.financial_action_outbox where subject_id=refund_booking::text and action_type='refund_experience_booking';
+ update public.financial_action_outbox set status='processing',attempt_count=1 where financial_action_id=action_id;
+ refund_reference:='experience-reviewed-refund-'||refund_booking;
+ perform public.record_refund_provider_submission(action_id,refund_reference,'pending',repeat('c',64));
+ perform public.process_verified_paystack_refund_event('refund.processed:'||refund_reference,'refund.processed',checkout->>'reference',refund_reference,refund_reference,repeat('d',64),now(),125000,'NGN');
+ perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and released_amount=1250 and refunded_amount=1250 and commission_recognized_amount=250),'partial decision settles exactly the protected gross');
+ perform pg_temp.expect(exists(select 1 from public.wallets where owner_id=hid and owner_type='worker' and available_balance=3250),'partial decision credits only the retained net');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
  pub:=public.set_my_experience_publication(aid,3,1,false);
  perform pg_temp.expect(not (pub->>'visible')::boolean and public.get_published_experience(aid) is null,'unpublish removes the customer projection');

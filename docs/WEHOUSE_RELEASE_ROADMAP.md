@@ -4,6 +4,23 @@
 
 ## Current engineering checkpoints
 
+### Canonical Service release recovery — 27 October
+
+`2928e65e` passed fresh migration replay and the existing-account upgrade,
+including actual Experience charge/protection, release, customer/host full-refund
+and receipt assertions. This closes the missing retired-table write that the new
+Service release test exposed. Both release completion and customer disputes now
+use the canonical records without trying to write `escrow_transactions`.
+
+The next financial assertion covers a real customer issue, exact Creator case
+lookup, missing-elevation denial, replay-safe partial refund/release decisions,
+and commission on retained gross. The shared processor previously pulled the
+original unrecognized commission on its final smaller release; the repair uses
+cumulative released gross and the accepted rate, preserving rounding and retry
+safety. This additional SQL assertion still needs exact-commit replay. The local
+browser suite now passes 24 journeys, including signed-photo renewal and
+full-screen Back without losing the current photo.
+
 ### Connected Experience checkout and fulfillment — 27 October
 
 The publication/capacity contract passed disposable SQL on `1d091080`.
