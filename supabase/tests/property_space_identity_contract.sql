@@ -34,6 +34,9 @@ begin
   insert into public.property_submission_items(batch_id,position,property_type) values(batch,i-1,'apartment');
  end loop;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',au,'session_id',sid,'role','authenticated')::text,true);
+ for i in 0..3 loop
+  items:=jsonb_set(items,array[i::text,'provider_fee_digest'],to_jsonb(public.get_provider_fee_disclosure(items->i->>'sub_type','host')->>'digest'));
+ end loop;
  execute 'set local role authenticated';
  perform pg_temp.expect(pg_temp.rejects(format('select public.create_my_property_inspection_batch_v4(%L,%L::jsonb)',batch,jsonb_set(items,'{0,home_style}','"bungalow"'::jsonb)::text)),'removed property catalogue cannot enter through the submission API');
  receipt:=public.create_my_property_inspection_batch_v4(batch,items);
@@ -175,6 +178,10 @@ begin
  booking:=public.create_short_stay_reservation_idem(gen_random_uuid(),booking_ids[2]::text,current_date+10,current_date+12,1);
  perform pg_temp.expect(booking->>'physical_space_id'=room::text and booking->>'physical_unit_id'=unit_b::text,'real customer checkout binds private room to its parent home');
  perform pg_temp.expect(booking->>'listing_title' like '%Home B / Room 1','real checkout receipt identifies the private room');
+ execute 'reset role';
+ perform pg_temp.expect(exists(select 1 from public.reservations r join public.listings l on l.id::text=r.listing_id where r.id=booking->>'id' and r.provider_fee_snapshot=l.provider_fee_snapshot and r.provider_fee_snapshot->>'accepted_by'=person),'real booking freezes the accepted Partner fee breakdown');
+ perform pg_temp.expect(pg_temp.rejects(format('update public.reservations set provider_fee_snapshot=%L::jsonb where id=%L','{}',booking->>'id')),'accepted booking fee snapshot is immutable');
+ execute 'set local role authenticated';
  perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(public.get_property_site_offers(booking_ids[3],'short_let',current_date+10,current_date+12)->'items') x where x->>'id' in (booking_ids[1]::text,booking_ids[2]::text)),'grouped availability excludes both held private room and overlapping whole-home offer');
  perform pg_temp.expect(pg_temp.rejects(format('select public.create_short_stay_reservation(%L,current_date+10,current_date+12,1)',booking_ids[1])),'whole home cannot be held over an existing private-room checkout');
  second_booking:=public.create_short_stay_reservation_idem(gen_random_uuid(),booking_ids[3]::text,current_date+10,current_date+12,1);

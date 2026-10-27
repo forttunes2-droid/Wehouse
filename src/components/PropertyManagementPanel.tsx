@@ -1,3 +1,4 @@
+import PropertyFeeAcceptance from '@/components/PropertyFeeAcceptance';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -124,6 +125,8 @@ function PropertyManagementForProperty({listingId,profile,onChanged,onModeChange
       <button type="button" disabled={busy} onClick={()=>void load()} className="min-h-11 rounded-xl border border-[var(--wh-border)] px-3 text-xs font-semibold disabled:opacity-40">Refresh management</button>
       <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${statusLabel==="Active"?"border-emerald-400/15 bg-emerald-400/[.06] text-emerald-700 dark:text-emerald-300":statusLabel==="Pending"?"border-amber-300/15 bg-amber-300/[.06] text-amber-800 dark:text-amber-200":"border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{statusLabel}</span>
     </div>
+
+    {owner&&configured&&<div className="mt-4"><PropertyFeeAcceptance key={listingId+":"+state.management_mode} listingId={listingId}/></div>}
 
     {owner&&!configured?<div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Who manages this property">
       <button type="button" disabled={busy} aria-pressed={configured&&state.management_mode==="host"} onClick={()=>void setMode("host")} className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition active:scale-[.99] disabled:opacity-40 ${configured&&state.management_mode==="host"?"border-violet-400/35 bg-violet-500/[.09]":"border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"}`}><span className="block text-xs font-semibold">Host manages</span><span className="mt-1 block text-[9px] leading-4 text-[var(--wh-text-secondary)]">You or an assigned team member</span></button>

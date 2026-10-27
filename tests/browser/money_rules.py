@@ -33,16 +33,19 @@ async def main():
      fee=page.get_by_label('Reservation payment',exact=False)
      await expect(fee).to_have_value('12345')
      await expect(page.get_by_role('button',name='Review & publish',exact=True)).to_be_disabled()
-     assert not [c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules']
+     assert not [c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules_v4']
      # A successful Retry allows the normal explicit, protected publication path.
+     await page.get_by_label('Short Let additional management',exact=False).fill('3')
      await fee.fill('13000')
      await page.get_by_placeholder('Why are these rules changing?').fill('Fixture-only policy review')
      await page.get_by_role('button',name='Review & publish',exact=True).click()
      await expect(fee).to_have_value('12345')
      assert await page.evaluate('window.__moneyTest.elevations')==['policy_publish']
-     published=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules']
+     published=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules_v4']
      assert len(published)==1 and published[0]['args']['p_rules']['long_let']['reservation_amount']==13000
      assert published[0]['args']['p_creator_elevation_id']=='test-only-elevation'
+     assert published[0]['args']['p_expected_digest']=='a'*64
+     assert published[0]['args']['p_rules']['commissions']['short_let_wehouse_percent']==policy['active']['commission_short_let']['value']['percent']+3
      experience=page.get_by_role('region',name='Experience commission',exact=True)
      await expect(experience.get_by_text('Not configured. No commission rate has been assumed.',exact=True)).to_be_visible()
      await experience.get_by_label('WeHouse commission (%)',exact=True).fill('9.25')
@@ -57,6 +60,19 @@ async def main():
      row['error']=str(e);await page.screenshot(path=str(OUT/f'money-rules-{mode}-{width}-failure.png'))
     finally:
      results.append(row);print(json.dumps(row),flush=True);await context.close()
+  for theme in ('light','dark'):
+   for screen in ('fee-disclosure','fee-existing'):
+    context=await browser.new_context(viewport={'width':390,'height':844},service_workers='block');page=await context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));await page.route('**/*',lambda route:route.abort())
+    fee={'available':True,'product':'short_let','management_mode':'wehouse','base_policy_version_id':'92000000-0000-4000-8000-000000000001','policy_version_id':'92000000-0000-4000-8000-000000000002','base_percent':10,'management_percent':3,'total_percent':13,'deducted_from':'provider_earnings','basis':'accommodation_value','digest':'b'*64}
+    await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div></body></html>')
+    await page.evaluate('([screen,fee,theme])=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle("dark",theme==="dark");window.__moneyTest={screen,fee,calls:[],elevations:[],loseAccept:true}}',[screen,fee,theme]);await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
+    await expect(page.get_by_text('13%',exact=True)).to_be_visible();await expect(page.get_by_role('checkbox')).not_to_be_checked();await page.get_by_role('checkbox').check()
+    if screen=='fee-disclosure':
+     await expect(page.get_by_text('₦87,000.00',exact=True)).to_be_visible();assert await page.evaluate('window.__moneyTest.acceptedDigest')=='b'*64
+     await page.evaluate('Object.assign(window.__moneyTest.fee,{management_percent:4,total_percent:14,digest:"c".repeat(64)})');await page.get_by_role('button',name='Refresh fees',exact=True).click();await expect(page.get_by_text('14%',exact=True)).to_be_visible();await expect(page.get_by_role('checkbox')).not_to_be_checked();assert await page.evaluate('window.__moneyTest.acceptedDigest') is None
+    else:
+     await page.get_by_role('button',name='Accept current property fees',exact=True).click();await expect(page.get_by_role('alert')).to_contain_text('Synthetic lost acceptance response');await page.get_by_role('button',name='Refresh fees',exact=True).click();await expect(page.get_by_text('Your acceptance of these rates is recorded.',exact=False)).to_be_visible();await expect(page.get_by_role('checkbox')).to_be_checked();await expect(page.get_by_role('checkbox')).to_be_disabled();assert len([c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='accept_my_property_fees'])==1
+    assert not errors,errors;await page.screenshot(path=str(OUT/f'{screen}-{theme}.png'),full_page=True);results.append({'screen':screen,'theme':theme,'passed':True,'page_errors':errors});await context.close()
   await browser.close()
  (OUT/'money-rules-results.json').write_text(json.dumps(results,indent=2))
  assert all(r['passed'] for r in results)

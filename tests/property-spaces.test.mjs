@@ -59,6 +59,7 @@ async function submission(options={}){
  const supabase={rpc:async(name,args)=>{
   calls.push({name,args});
   if(name==='create_my_property_inspection_batch_v4'){
+   if(options.feeChanged)return{data:null,error:{code:'P0001',message:'Review and accept the current fees for each home before submission'}};
    if(options.lost)throw Error('Lost response');
    return{data:options.malformed?{}:receipt(),error:null};
   }
@@ -76,4 +77,9 @@ test('lost or malformed submission responses recover the same exact batch withou
 });
 test('an unresolved submission keeps evidence and never reports a guessed count',async()=>{
  const result=await submission({lost:true,unresolved:true});assert.ok(result.error);assert.match(result.error.message,/evidence has been kept/);assert.equal(result.result,undefined);
+});
+
+test('stale property fees remain actionable while the submission receipt is still checked once',async()=>{
+ const rejected=await submission({feeChanged:true,unresolved:true});assert.match(rejected.error.message,/Review and accept the current fees/);assert.equal(rejected.calls.length,2);
+ const recovered=await submission({feeChanged:true});assert.equal(recovered.result.count,1);assert.equal(recovered.calls.length,2);
 });

@@ -1,3 +1,4 @@
+import ProviderFeeDisclosure from '@/components/ProviderFeeDisclosure';
 import { useEffect, useId, useRef, useState } from "react";
 import { propertySubmissionFactsError,MAX_PROPERTY_PHOTOS } from '@/lib/propertySubmissionFacts';
 import {PUBLIC_PHOTO_MAX_INPUT_BYTES} from '@/lib/publicPhotoPolicy';
@@ -81,6 +82,7 @@ type Draft = {
   propertyType: string;
   subType: StayType;
   managementMode: "" | "host" | "wehouse";
+  providerFeeDigest: string|null;
   relationship: AuthorityRelationship;
   bedrooms: string;
   bathrooms: string;
@@ -164,6 +166,7 @@ function fresh(profile: Profile, copy?: Draft): Draft {
     propertyType: copy?.propertyType || "apartment",
     subType: copy?.subType || "long_stay",
     managementMode: "",
+    providerFeeDigest: null,
     relationship: copy?.relationship || "owner",
     bedrooms: "1",
     bathrooms: "1",
@@ -243,7 +246,7 @@ export default function PropertyInspectionRequestPanel({
       draft.propertyType.trim() &&
       draft.files.length >= MIN_PROPERTY_PHOTOS &&
       (draft.propertyType !== "apartment" || Number(draft.expectedRent) > 0) &&
-      (draft.propertyType !== "apartment" || ["host", "wehouse"].includes(draft.managementMode)) &&
+      (draft.propertyType !== "apartment" || ["host", "wehouse"].includes(draft.managementMode)&&Boolean(draft.providerFeeDigest)) &&
       (draft.propertyType !== "apartment" ||
         draft.subType !== "short_let" ||
         (draft.propertyDisplayName.trim() &&
@@ -481,7 +484,7 @@ export default function PropertyInspectionRequestPanel({
   }
   function patch(index: number, next: Partial<Draft>) {
     changed();
-    setDrafts((rows) => patchHomeDraft(rows,index,next));
+    setDrafts((rows) => patchHomeDraft(rows,index,{...next,...(next.managementMode!==undefined||next.subType!==undefined||next.expectedRent!==undefined?{providerFeeDigest:null}:{})}));
   }
   function addPhotos(index: number, incoming: File[]) {
     const allowed=incoming.filter(file=>['image/jpeg','image/png','image/webp'].includes(file.type)&&file.size>0&&file.size<=PUBLIC_PHOTO_MAX_INPUT_BYTES);
@@ -745,7 +748,7 @@ export default function PropertyInspectionRequestPanel({
           ...(d.propertyType==='apartment'?{home_style:d.homeStyle==='penthouse'?'penthouse':null}:{}),
           ...(d.propertyType==='apartment'&&d.physicalSpace?{physical_space:physicalHomePayload(d.physicalSpace)}:{}),
           sub_type: d.propertyType === "apartment" ? d.subType : null,
-          ...(d.propertyType === "apartment" ? { management_mode: d.managementMode as "host" | "wehouse" } : {}),
+          ...(d.propertyType === "apartment" ? { management_mode: d.managementMode as "host" | "wehouse", provider_fee_digest:d.providerFeeDigest } : {}),
           authority_relationship: d.relationship,
           bedrooms: d.propertyType === "hotel" ? null : Number(d.bedrooms || 0),
           bathrooms:
@@ -1030,11 +1033,12 @@ export default function PropertyInspectionRequestPanel({
                       </div>
                     </section>
                     <section className="md:col-span-2" aria-label="Choose who operates this home">
-                      <p className="mb-2 text-xs font-semibold">Who will manage guest stays? *</p>
+                      <p className="mb-2 text-xs font-semibold">Who will manage this home? *</p>
                       <p className="mb-3 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose before publication. Existing bookings keep their assigned operator; a later change requires WeHouse review.</p>
                       <div className="grid grid-cols-2 gap-2">
-                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-[var(--wh-text)]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-xs leading-4 text-[var(--wh-text-secondary)]">{mode === "host" ? "You or your approved co-host handles guests" : "Property Operations reviews and handles stays"}</span></button>)}
+                        {(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" aria-pressed={current.managementMode === mode} onClick={() => patch(active, { managementMode: mode })} className={`min-h-20 rounded-xl border p-3 text-left ${current.managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-[var(--wh-text)]" : "border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] text-[var(--wh-text-secondary)]"}`}><span className="block text-xs font-semibold">{mode === "host" ? "Host manages" : "WeHouse manages"}</span><span className="mt-1 block text-xs leading-4 text-[var(--wh-text-secondary)]">{mode === "host" ? "You or your property team manages the home" : "Request Property Operations to manage the home"}</span></button>)}
                       </div>
+                      {current.managementMode&&<div className="mt-4"><ProviderFeeDisclosure key={current.id+':'+current.subType+':'+current.managementMode} product={current.subType} mode={current.managementMode} amount={Number(current.expectedRent)} acceptedDigest={current.providerFeeDigest||null} onAccepted={digest=>patch(active,{providerFeeDigest:digest})}/></div>}
                     </section>
                     <Field
                       label="Bedrooms (0 for a studio)"

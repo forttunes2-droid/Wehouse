@@ -1,3 +1,4 @@
+import PropertyFeeAcceptance from '@/components/PropertyFeeAcceptance';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { matchesPropertyRecord, propertyRecordKey, propertyRecordTitle } from "@/lib/propertyNavigation";
 import { useEffect, useRef, useState } from "react";
@@ -453,6 +454,7 @@ function RequestDetail({
         </div>
       </section>
       {request.property_type === "apartment" && stage !== "live" && !request.published_at ? <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4"><h3 className="text-sm font-semibold">Who manages this home?</h3><p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">Set this before publication. A live home cannot silently change operator.</p><div className="mt-3 grid grid-cols-2 gap-2">{(["host", "wehouse"] as const).map(mode => <button key={mode} type="button" disabled={managementBusy} aria-pressed={managementMode === mode} onClick={() => void chooseManagement(mode)} className={`min-h-12 rounded-xl border px-3 text-xs font-semibold disabled:opacity-50 ${managementMode === mode ? "border-violet-400/60 bg-violet-500/10 text-violet-100" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{mode === "host" ? "Host manages" : "WeHouse manages"}</button>)}</div></section> : null}
+      {request.property_type==="apartment"&&managementMode&&stage!=="live"&&!request.published_at&&<PropertyFeeAcceptance key={request.id+":"+managementMode} requestId={request.id}/>}
       {request.property_type === "hotel" ? (
         <section className="space-y-3">
           <div className="flex items-start justify-between gap-4">

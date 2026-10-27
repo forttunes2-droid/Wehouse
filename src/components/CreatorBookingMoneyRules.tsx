@@ -1,3 +1,4 @@
+import {withTimeout} from '@/lib/withTimeout';
 import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { currencySymbol } from "@/lib/regional";
@@ -31,6 +32,8 @@ type Rules = {
     long_let_percent: number;
     hotel_percent: number;
     service_worker_percent: number;
+    short_let_wehouse_percent: number|null;
+    long_let_wehouse_percent: number|null;
   };
   service_worker: {
     completion_reminder_hours: number;
@@ -62,6 +65,8 @@ const DEFAULTS: Rules = {
     long_let_percent: 5,
     hotel_percent: 12,
     service_worker_percent: 8,
+    short_let_wehouse_percent: null,
+    long_let_wehouse_percent: null,
   },
   service_worker: {
     completion_reminder_hours: 12,
@@ -76,6 +81,7 @@ type PolicyPayload = {
 };
 
 type PolicyResponse = {
+  etag?: string;
   active?: Record<string, PolicyPayload>;
   scheduled?: Record<string, PolicyPayload>;
 };
@@ -158,6 +164,8 @@ function readRules(response: PolicyResponse | null): Rules {
       security_deposit_enabled: false,
     },
     commissions: {
+      short_let_wehouse_percent: typeof value("commission_short_let_wehouse_managed").percent === "number" ? Number(value("commission_short_let_wehouse_managed").percent) : null,
+      long_let_wehouse_percent: typeof value("commission_long_let_wehouse_managed").percent === "number" ? Number(value("commission_long_let_wehouse_managed").percent) : null,
       short_let_percent: numberValue(
         value("commission_short_let").percent,
         DEFAULTS.commissions.short_let_percent,
@@ -196,9 +204,12 @@ export default function CreatorBookingMoneyRules() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const loadGeneration = useRef(0);
+  const publishLock=useRef(false);
   const [publishing, setPublishing] = useState(false);
   const [reason, setReason] = useState("");
   const [effectiveAt, setEffectiveAt] = useState("");
+
+  const managedRulesValid=rules.commissions.short_let_wehouse_percent!==null&&rules.commissions.long_let_wehouse_percent!==null&&rules.commissions.short_let_wehouse_percent>=rules.commissions.short_let_percent&&rules.commissions.long_let_wehouse_percent>=rules.commissions.long_let_percent&&rules.commissions.short_let_wehouse_percent<=50&&rules.commissions.long_let_wehouse_percent<=50;
 
   const dirty = useMemo(
     () => JSON.stringify(rules) !== JSON.stringify(saved),
@@ -211,9 +222,9 @@ export default function CreatorBookingMoneyRules() {
     setLoadError("");
     setPolicy(null);
     try {
-      const { data, error } = await supabase.rpc("creator_get_booking_money_rules");
+      const { data, error } = await supabase.rpc("creator_get_booking_money_rules_v4");
       if (generation !== loadGeneration.current) return;
-      if (error || !isMoneyPolicyResponse(data)) throw new Error("Policy response is unavailable or incomplete");
+      if (error || !isMoneyPolicyResponse(data) || typeof data.etag!=="string" || !/^[a-f\d]{64}$/.test(data.etag)) throw new Error("Policy response is unavailable or incomplete");
       const next = readRules(data);
       setPolicy(data);
       setRules(next);
@@ -256,10 +267,10 @@ export default function CreatorBookingMoneyRules() {
     key: K,
     value: Rules["commissions"][K],
   ) {
-    setRules((current) => ({
-      ...current,
-      commissions: { ...current.commissions, [key]: value },
-    }));
+    setRules(current=>{const commissions={...current.commissions,[key]:value};
+      if(key==='short_let_percent'&&value!==null&&current.commissions.short_let_wehouse_percent!==null)commissions.short_let_wehouse_percent=value+current.commissions.short_let_wehouse_percent-current.commissions.short_let_percent;
+      if(key==='long_let_percent'&&value!==null&&current.commissions.long_let_wehouse_percent!==null)commissions.long_let_wehouse_percent=value+current.commissions.long_let_wehouse_percent-current.commissions.long_let_percent;
+      return {...current,commissions};});
   }
 
   function setWorker<K extends keyof Rules["service_worker"]>(
@@ -273,38 +284,25 @@ export default function CreatorBookingMoneyRules() {
   }
 
   async function publish(elevationId: string) {
-    if (loading || loadError || !policy || publishing || !dirty) return;
-    if (reason.trim().length < 5)
-      return toast.error("Add a short reason for this policy change");
-
-    setPublishing(true);
-    const effective = effectiveAt
-      ? new Date(effectiveAt).toISOString()
-      : new Date().toISOString();
-    const { data, error } = await supabase.rpc(
-      "creator_publish_booking_money_rules",
-      {
-        p_creator_elevation_id: elevationId,
-        p_rules: rules,
-        p_effective_from: effective,
-        p_reason: reason.trim(),
-      },
-    );
-    setPublishing(false);
-    if (error) return toast.error(error.message);
-    const changed = Number((data as any)?.changed_policy_count || 0);
-    toast.success(
-      effectiveAt
-        ? `Booking & money rules scheduled · ${changed} policy changes`
-        : `Booking & money rules published · ${changed} policy changes`,
-    );
-    setReason("");
-    setEffectiveAt("");
-    await load();
+    if (publishLock.current || loading || loadError || !policy || publishing || !dirty || !managedRulesValid) return;
+    if (reason.trim().length < 5) return toast.error("Add a short reason for this policy change");
+    publishLock.current=true;setPublishing(true);const generation=loadGeneration.current;
+    try{
+      const effective=effectiveAt?new Date(effectiveAt).toISOString():new Date().toISOString();
+      const {data,error}=await withTimeout(supabase.rpc('creator_publish_booking_money_rules_v4',{
+        p_creator_elevation_id:elevationId,p_rules:rules,p_effective_from:effective,p_reason:reason.trim(),p_expected_digest:policy.etag,
+      }),20000,'Publication result is unknown. Reloading the saved rules.');
+      if(error)throw error;
+      if(!data||!Number.isInteger(data.changed_policy_count)||data.changed_policy_count<0||!data.published||typeof data.published!=='object'||Array.isArray(data.published))throw Error('Policy publication receipt could not be confirmed.');
+      if(generation!==loadGeneration.current)return;
+      toast.success(effectiveAt?`Booking & money rules scheduled · ${data.changed_policy_count} policy changes`:`Booking & money rules published · ${data.changed_policy_count} policy changes`);
+      setReason('');setEffectiveAt('');await load();
+    }catch(cause){if(generation===loadGeneration.current){toast.error((cause as {message?:string})?.message||'Publication was not confirmed. Reloading the saved rules.');await load();}}
+    finally{publishLock.current=false;setPublishing(false);}
   }
 
   function requestPublish() {
-    if (loading || loadError || !policy || publishing || !dirty) return;
+    if (loading || loadError || !policy || publishing || !dirty || !managedRulesValid) return;
     const generation = loadGeneration.current;
     requestElevation("policy_publish", (elevationId) => {
       if (generation === loadGeneration.current) void publish(elevationId);
@@ -356,6 +354,7 @@ export default function CreatorBookingMoneyRules() {
       </header>
 
       <ShortLetReserveDateRule />
+      <fieldset disabled={publishing} className="min-w-0 space-y-5 border-0 p-0" aria-label="Booking and money policy fields">
       <RuleSection
         title="Short Let"
         note="Rules for the later stay payment, cancellation, no-show and refundable deposit. The Reserve date fee above is a separate stage."
@@ -397,6 +396,11 @@ export default function CreatorBookingMoneyRules() {
         <NumberRule label="Service Worker" suffix="%" value={rules.commissions.service_worker_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("service_worker_percent", value)} />
       </RuleSection>
 
+      <RuleSection title="WeHouse management" note="Additional management commission comes from Partner earnings. The managed total includes the base rate above. Partners must see and accept their actual rates before new bookings.">
+        <NumberRule label="Short Let additional management" suffix="% extra" value={rules.commissions.short_let_wehouse_percent===null?null:rules.commissions.short_let_wehouse_percent-rules.commissions.short_let_percent} min={0} max={50-rules.commissions.short_let_percent} step={0.1} onChange={extra=>setCommission('short_let_wehouse_percent',rules.commissions.short_let_percent+extra)}/>
+        <NumberRule label="Long Let additional management" suffix="% extra" value={rules.commissions.long_let_wehouse_percent===null?null:rules.commissions.long_let_wehouse_percent-rules.commissions.long_let_percent} min={0} max={50-rules.commissions.long_let_percent} step={0.1} onChange={extra=>setCommission('long_let_wehouse_percent',rules.commissions.long_let_percent+extra)}/>
+        <p className="text-sm text-[var(--wh-text-secondary)] sm:col-span-2">{rules.commissions.short_let_wehouse_percent===null?'Short Let managed rate is not configured.':`Short Let managed total: ${rules.commissions.short_let_wehouse_percent}% (${rules.commissions.short_let_percent}% base).`} {rules.commissions.long_let_wehouse_percent===null?'Long Let managed rate is not configured.':`Long Let managed total: ${rules.commissions.long_let_wehouse_percent}% (${rules.commissions.long_let_percent}% base).`} Existing accepted bookings retain their saved commission.</p>
+      </RuleSection>
       <CreatorExperienceCommission />
 
       <RuleSection
@@ -442,7 +446,7 @@ export default function CreatorBookingMoneyRules() {
           </p>
           <button
             type="button"
-            disabled={!dirty || publishing}
+            disabled={!dirty || publishing || !managedRulesValid}
             onClick={requestPublish}
             className="min-h-11 rounded-xl bg-violet-500 px-5 text-xs font-semibold text-white transition duration-200 active:scale-[.98] disabled:opacity-40"
           >
@@ -450,6 +454,7 @@ export default function CreatorBookingMoneyRules() {
           </button>
         </div>
       </section>
+      </fieldset>
     </section>
   );
 }
@@ -545,7 +550,7 @@ function NumberRule({
   disabled = false,
 }: {
   label: string;
-  value: number;
+  value: number|null;
   onChange: (value: number) => void;
   prefix?: string;
   suffix?: string;
@@ -567,7 +572,7 @@ function NumberRule({
           max={max}
           step={step}
           disabled={disabled}
-          value={value}
+          value={value??""}
           onChange={(event) => onChange(Number(event.target.value))}
           className="h-9 w-20 rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-right text-xs outline-none focus:border-violet-500/40 disabled:opacity-35"
         />

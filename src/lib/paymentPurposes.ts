@@ -18,7 +18,7 @@ type PurposeCopy = { heading: string; action: string };
 const BOOKING_PURPOSES: Record<string, PurposeCopy> = {
   apartment_reservation: { heading: 'Reserve fee confirmed', action: 'Open my booking' },
   apartment_rent: { heading: 'Rent payment confirmed', action: 'Open my booking' },
-  rent_plan_contribution: { heading: 'Rent instalment confirmed', action: 'Open my booking' },
+  rent_plan_contribution: { heading: 'Rent payment confirmed', action: 'Open my booking' },
   shared_housing_share: { heading: 'Your share is confirmed', action: 'Open my booking' },
   hotel_booking: { heading: 'Hotel booking confirmed', action: 'Open my booking' },
   worker_booking: { heading: 'Service payment confirmed', action: 'Open my booking' },

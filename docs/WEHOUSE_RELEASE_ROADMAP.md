@@ -4,6 +4,29 @@
 
 ## Current engineering checkpoints
 
+### Managed-rate control and explicit fee acceptance — verification in progress
+
+The existing managed commission policies/resolver are reused. The proposed
+additive migration repairs the managed publisher audit, preserves unrelated
+policy metadata and the rent rollout during fee edits, adds stale-policy
+protection and connects the Creator base-plus-additional management controls.
+The Partner form shows actual base/additional/combined rates and expected net,
+with explicit acceptance before submission. Existing requests/listings have a
+rate-acceptance recovery control. Publication/new reservation guards and an
+immutable booking fee snapshot are included; no Partner fee rate was invented.
+
+The old bundle's unprotected later-rent metadata is corrected without enabling
+collection. An active/scheduled rent rollout must require Payment Protection and
+authorized release. Already accepted booking terms remain unchanged.
+
+Local evidence: 799 source tests pass, production build and focused lint pass,
+and 16 actual Creator/Partner browser cases pass, including stale-rate reset and
+lost-acceptance read recovery in both themes. New provider-fee SQL, submission,
+publication and booking assertions are added to disposable replay. That new
+migration has NOT been applied to hosted Test; its database/integration checks
+must pass first. All seven workflows on the preceding `582c1931` pass.
+
+
 ### Hosted Test money verification and owner decisions — 27 October
 
 All seven workflows passed on `a10ec625`. After explicit owner authorization,
