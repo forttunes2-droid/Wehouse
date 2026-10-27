@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useDialogInteraction } from "@/hooks/useDialogInteraction";
 import { reportHotel, reportListing, type ReportReason } from "@/lib/supabase/reports";
 import { toast } from "sonner";
+import { withTimeout } from '@/lib/withTimeout';
 
 const REASONS = [
   ["misleading", "Misleading or inaccurate information"],
@@ -46,9 +47,10 @@ export default function ReportListingDialog({
             : reason === "safety" ? "unsafe"
               : "other";
       const fullDetails = [label, details.trim()].filter(Boolean).join("\n\n");
-      const result = targetType === 'hotel'
-        ? await reportHotel(Number(listingId), reasonCode, fullDetails)
-        : await reportListing(listingId, reasonCode, fullDetails);
+      const result = await withTimeout(targetType === 'hotel'
+        ? reportHotel(Number(listingId), reasonCode, fullDetails)
+        : reportListing(listingId, reasonCode, fullDetails), 15000,
+        'Your report is not confirmed. Check Reports you sent before trying again.');
       if (result.error) throw result.error;
       if (!result.reportId) throw new Error("WeHouse could not confirm receipt. Please try again.");
       toast.success(`Report sent to WeHouse for review${result.reportId ? ` · Ref ${result.reportId.slice(0, 8)}` : ""}.`);

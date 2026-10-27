@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { createPortal } from 'react-dom';
 import { useDialogInteraction } from '@/hooks/useDialogInteraction';
 import { toast } from "sonner";
+import { withTimeout } from '@/lib/withTimeout';
 import { REPORT_REASONS, reportContent, type ReportSubject } from "../lib/supabase/reports";
 
 export default function ReportDialog({ subjectType, subjectUserId, subjectName, subjectRef, onClose }: {
@@ -21,7 +22,7 @@ export default function ReportDialog({ subjectType, subjectUserId, subjectName, 
     inFlight.current=true;
     setBusy(true);
     try{
-    const { reportId, error } = await reportContent(subjectType, subjectUserId, reason, details, subjectRef);
+    const { reportId, error } = await withTimeout(reportContent(subjectType, subjectUserId, reason, details, subjectRef), 15000, 'Report receipt took too long.');
     if (error) return toast.error(error.message || "Could not send the report");
     if(!reportId)return toast.error('WeHouse could not confirm receipt. Please try again.');
     toast.success(`Report sent to WeHouse moderation · Ref ${reportId.slice(0,8)}.`);

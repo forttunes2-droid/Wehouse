@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listMyContentReports, type MyContentReport } from '@/lib/supabase/reports';
+import { withTimeout } from '@/lib/withTimeout';
 
 const statusLabel: Record<MyContentReport['status'], string> = {
   open: 'Received',
@@ -24,22 +25,24 @@ export default function MyReports() {
   const [rows, setRows] = useState<MyContentReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const generation = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++generation.current;
     setLoading(true);
     setError(false);
     try {
-      const result = await listMyContentReports();
+      const result = await withTimeout(listMyContentReports(), 15000, 'Report history took too long.');
       if (result.error) throw result.error;
-      setRows(result.data);
+      if (request === generation.current) setRows(result.data);
     } catch {
-      setError(true);
+      if (request === generation.current) setError(true);
     } finally {
-      setLoading(false);
+      if (request === generation.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { generation.current++; }; }, [load]);
 
   return (
     <section aria-label="Reports you sent" className="space-y-3">

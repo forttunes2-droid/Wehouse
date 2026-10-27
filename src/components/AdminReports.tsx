@@ -35,7 +35,7 @@ export default function AdminReports() {
     actionInFlight.current=true;
     setBusy(id);
     try{
-    const { error } = await resolveContentReport(id, next, notes[id]?.trim());
+    const { error } = await withTimeout(resolveContentReport(id, next, notes[id]?.trim()), 15000, 'Report update took too long.');
     if (error) return toast.error(error.message || "Could not update the report");
     toast.success("Report updated");
     await load();

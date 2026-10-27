@@ -35,6 +35,16 @@ honestly and still needs the owner's real contact publication. No address was
 invented. These checks do not close the separate broader Admin step-up or full
 route/role error-state inventory in the release register.
 
+Report follow-through: report submissions for profiles/chats, Properties and Hotels,
+private report history and moderation writes now have bounded waits. A timed-out
+write is uncertain, with saved-status guidance; a late reply does not announce
+success or close the form. History failures are distinct from no reports and
+late reads cannot overwrite a recovered list. Ten actual light/dark browser
+cases pass hung reads/writes, late replies, retry and moderation readback.
+The new public-contact reader is registered by exact signature in the anonymous
+RPC audit; hosted cross-user RLS passes. Fresh and upgrade replay pass on
+`3040fa66`; full checks rerun on the report follow-through commit.
+
 ### Latest owner decision: later-year rent settlement — 27 October
 
 This supersedes earlier entries requiring protection for every later-year
