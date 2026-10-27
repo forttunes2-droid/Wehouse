@@ -23,6 +23,11 @@ export function assertPaymentReceipt(value: unknown): asserts value is PaymentRe
       typeof row.session_starts_at!=='string'||!Number.isFinite(Date.parse(row.session_starts_at))||typeof row.session_ends_at!=='string'||Date.parse(row.session_ends_at)<=Date.parse(row.session_starts_at)||!Number.isFinite(Date.parse(row.session_ends_at)))throw invalid();
     try{new Intl.DateTimeFormat(undefined,{timeZone:row.session_timezone});}catch{throw invalid();}
   }
+  if(row.rent_target_year!=null&&(!Number.isInteger(row.rent_target_year)||Number(row.rent_target_year)<2||Number(row.rent_target_year)>20||row.purpose!=='rent_plan_contribution'))throw invalid();
+  if(row.rent_settlement_status!=null&&!['pending','checking','settled'].includes(String(row.rent_settlement_status)))throw invalid();
+  if(row.rent_payment_protection_hold!=null&&row.rent_payment_protection_hold!==false)throw invalid();
+  if((row.rent_settlement_status!=null||row.rent_payment_protection_hold!=null)&&row.purpose!=='rent_plan_contribution')throw invalid();
+  if(row.rent_payment_protection_hold===false&&row.rent_target_year==null)throw invalid();
   if (row.cancellation_snapshot != null) {
     const terms = row.cancellation_snapshot as Record<string, unknown>;
     if (typeof terms !== 'object' || Array.isArray(terms) ||

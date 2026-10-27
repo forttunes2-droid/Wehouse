@@ -2,6 +2,7 @@ import PropertyBookingReview from '@/components/PropertyBookingReview';
 import ExperienceBookingDetail,{experienceBookingLabel,experienceBookingLane} from '@/components/ExperienceBookingDetail';
 import {getExperienceBookings,type ExperienceBooking} from '@/lib/experienceCommerce';
 import LongLetBookingAgreement from '@/components/LongLetBookingAgreement';
+import LaterRentHistory from '@/components/LaterRentHistory';
 import { rentTermLabel } from '@/lib/longLetRentTerms';
 import ShortLetPaymentSummary from "@/components/ShortLetPaymentSummary";
 import { createBookingActionRunner } from "@/lib/bookingActionRunner";
@@ -644,15 +645,15 @@ export default function MyReservations({
     }finally{arrivalActionPending.current=false;setArrivalBusy(false);}
   }
 
-  function support(row: any) {
+  function support(row: any,category?:'payment') {
     window.dispatchEvent(
       new CustomEvent("openSupportChat", {
         detail: {
-          category:
+          category:category??(
             row.status === "payment_conflict" ||
             row.rent_payment_status === "payment_pending"
               ? "payment"
-              : "apartment_booking",
+              : "apartment_booking"),
           subject: `${
             row.stay_type === "short_let" ? "Short Let" : "Long Let"
           } · ${row.listing_title || "Home"}`,
@@ -803,6 +804,7 @@ export default function MyReservations({
           }}
           onBack={() => setActiveHousing(null)}
           onDesk={() => support(activeHousing)}
+          onRentDiscuss={() => support(activeHousing,'payment')}
           onResume={() => void continueHousing(activeHousing)}
           onCancel={() => {
             setActiveHousing(null);
@@ -1440,6 +1442,7 @@ function PropertyBookingDetail({
   onArrivalIssue,
   onBack,
   onDesk,
+  onRentDiscuss,
   onResume,
   onCancel,
   onInspect,
@@ -1457,6 +1460,7 @@ function PropertyBookingDetail({
   onArrivalIssue: () => void;
   onBack: () => void;
   onDesk: () => void;
+  onRentDiscuss?: () => void;
   onResume: () => void;
   onCancel: () => void;
   onInspect: () => void;
@@ -1614,6 +1618,7 @@ function PropertyBookingDetail({
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
           <PropertyBookingJourney row={row} inspection={inspection} />
+          {!short&&row.rent_payment_choice==='monthly'&&['occupied','completed'].includes(String(row.status))&&<LaterRentHistory reservationId={String(row.id)} userId={userId} onDiscuss={onRentDiscuss||onDesk}/>}
           {!short&&!row.shared_payment_group_id&&!['cancelled','expired','refunded','payment_conflict'].includes(String(row.status))&&<LongLetBookingAgreement reservationId={String(row.id)} customerId={userId} onSaved={onTermsSaved} onCanPayChange={setAgreementReady}/>}
           <ShortLetBookingShares row={row} userId={userId} onCreated={onShareCreated}/>
           {short && row.stay_payment_protection_id && !["cancelled", "completed", "expired"].includes(String(row.status)) && journey.action !== "reservation_payment" ? (

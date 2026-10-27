@@ -14,7 +14,7 @@ export type PaymentPurpose =
 
 type PurposeCopy = { heading: string; action: string };
 
-// Money held by WeHouse until the stay or job is done.
+// Customer booking and rent payments. Their accepted protection/settlement rules differ.
 const BOOKING_PURPOSES: Record<string, PurposeCopy> = {
   apartment_reservation: { heading: 'Reserve fee confirmed', action: 'Open my booking' },
   apartment_rent: { heading: 'Rent payment confirmed', action: 'Open my booking' },
@@ -37,6 +37,12 @@ const LEGACY_PURPOSES: Record<string, PurposeCopy> = {
 };
 
 export const isBookingPurpose = (purpose?: string) => Boolean(purpose && purpose in BOOKING_PURPOSES);
+
+export function paymentSuccessMessage(purpose?:string){
+ if(purpose==='rent_plan_contribution')return 'Your rent payment is confirmed toward the agreed contract year. Later-year monthly rent has no new protection hold. Open your booking for rent credit and Partner settlement status.';
+ if(isBookingPurpose(purpose))return 'Your payment is confirmed. Payment Protection and release follow the terms you accepted.';
+ return 'Your payment is confirmed.';
+}
 
 export function purposeCopy(purpose?: string): PurposeCopy {
   const key = purpose || '';

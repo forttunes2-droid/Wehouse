@@ -1,5 +1,6 @@
 import { hasLiveSession } from "../_shared/liveSession.ts";
 import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
+import {recordRentChargeRoute} from '../_shared/later-rent.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -316,6 +317,7 @@ serve(async (req) => {
           }),
           { status: 200, headers: cors },
         );
+      if(payment.purpose==='rent_plan_contribution')await recordRentChargeRoute(admin,reference,verified.data);
       const receiptHash = await sha256Hex(
         canonicalChargeReceipt(reference, transactionId, amountMinor, "NGN"),
       );
@@ -334,7 +336,7 @@ serve(async (req) => {
           p_transaction_id: transactionId,
         },
       );
-      if (error) throw new Error("Payment was verified but recording its protected-funds receipt failed. Check status before retrying.");
+      if (error) throw new Error("Payment was verified but recording its payment receipt failed. Check status before retrying.");
       if (data?.success !== true || data?.ignored === true) {
         return new Response(
           JSON.stringify({
@@ -344,7 +346,7 @@ serve(async (req) => {
             requires_review: true,
             error:
               data?.error ||
-              "Payment was verified but its protected-funds record needs WeHouse review.",
+              "Payment was verified but its payment record needs WeHouse review.",
             amount: verifiedAmount,
             purpose: payment.purpose,
           }),

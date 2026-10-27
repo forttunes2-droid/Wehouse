@@ -17,10 +17,31 @@ fund twelve months. This is advance rent credit, not current occupancy or a
 refundable wallet. Contact/exit handling must use the agreement and lawful
 process, without automatic forfeiture or eviction.
 
-The policy metadata, Partner/customer disclosures and exact minor-unit rent
-coverage calculator are implemented and pushed. Collection and the connected actual
-payment-history/settlement view are still paused/pending integration; the
-calculator is not evidence of a completed financial journey. The owner-requested
+Manual collection, tenant consent, frozen fee allocation, provider split proof,
+settlement reconciliation and paged Customer/Partner history are implemented.
+Test migration `20261027164647` is applied. Test payment-init/verify v9,
+webhook v7, financial processor v5 and settlement setup v1 are deployed.
+The existing Creator policy controls collection; it remains disabled on Test,
+with no invented rate, provider account creation or real financial transaction.
+Monthly offers now require both enabled collection and eligible verified Partner
+setup. Same-Partner bank changes work for future charges; uncertain existing
+references retain their immutable route and require reconciliation.
+
+The rolled-back hosted contract covers full protected Year 1, eight later-year
+obligations anchored to handover, explicit no-hold consent, gross rent credit,
+frozen per-payment fee/net, wrong/missing provider shares, failed-event recovery,
+duplicate receipts/settlements, bank rotation, owner/stranger permissions,
+target-year receipts and occupied-tenancy cancellation denial. One NGN150,000
+payment toward NGN1,200,000 funds one complete month plus NGN50,000, with
+NGN50,000 needed for the next full month. Charge confirmation does not claim
+provider settlement or credit a second withdrawable wallet. The privileged-write
+audit passes. Actual Customer/Partner UI journeys pass at phone/light and
+desktop/dark sizes, including lost-response recovery and bounded pagination.
+Optional automatic debit is not implemented; manual collection is not proof of
+that separate consent/authorization/retry journey. Provider settlement endpoints
+are checked with isolated responses; actual provider payout proof remains pending.
+
+The owner-requested
 eight-page policy handbook is generated and visually checked at
 `output/pdf/WeHouse_Platform_Policies.pdf`, without release checklists.
 
@@ -59,7 +80,9 @@ The management/publication fixture also uses a trusted owner session and actual
 fee acceptance. Its hosted contract and the remaining co-host, Sponsored,
 FK-index and durable Pro reminder contracts pass on Test.
 Source filenames match Test history. Full replay on the final source commit is
-pending; earlier replay failed on the now-corrected document fixture. Security
+pending; the preceding commit passed database replay and failed only the rental
+agreement browser selector, corrected with the complete no-hold disclosure check.
+Security
 advisors report the authenticated commands as intentional privileged endpoints;
 their actual trusted-session, role, ownership and stale-update checks are tested.
 All seven workflows on the preceding `582c1931` pass.

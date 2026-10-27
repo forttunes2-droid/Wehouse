@@ -1,5 +1,6 @@
 ﻿import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { hotelInventorySummary, matchesPropertyRecord, propertyRecordKey } from "@/lib/propertyNavigation";
+import PartnerRentAccounts from '@/components/PartnerRentAccounts';
 import { propertyAssetGroups } from "@/lib/propertyAssetGroups";
 import PropertySiteSchedule from "@/components/PropertySiteSchedule";
 import type { ActivityDestination } from "@/lib/activityFeed";
@@ -732,6 +733,7 @@ export function PropertyDetails({
       <PropertyManagementPanel listingId={String(property.id)} profile={profile} onContact={contact} onModeChange={(mode) => { setManagementMode(mode); setManagementConfigured(true); }} onChanged={() => { setStayRefresh(value => value + 1); window.dispatchEvent(new Event("wehouse:property-host-changed")); }} />
       {property._assignment_role === 'owner' ? <PropertyArrivalInstructions key={`${profile.user_id}:${property.id}`} kind="home" assetId={String(property.id)} accountId={profile.user_id} /> : null}
       {property.sub_type==='long_stay'&&(property._assignment_role==='owner'||hostManaged&&property._can_control_commercials)?<LongLetRentTermsPanel key={`${profile.user_id}:${property.id}`} listingId={String(property.id)}/>:null}
+      {property.sub_type==='long_stay'&&(property._assignment_role==='owner'||[property.partner_id,property.owner_id].includes(profile.user_id))&&<PartnerRentAccounts listingId={String(property.id)} userId={profile.user_id} onDiscuss={contact}/>}
       {hostManaged&&property._can_control_commercials?<PropertyHostControls listingId={String(property.id)} subType={property.sub_type} onChanged={() => window.dispatchEvent(new Event("wehouse:property-host-changed"))} />:null}
       <section className="border-t border-[var(--wh-border-subtle)] pt-5">
         <div className="flex items-end justify-between gap-3">

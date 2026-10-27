@@ -5,6 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 import {serviceCheckoutContractMatches} from '../_shared/service-quote.ts';
+import {rentCheckoutSplit} from '../_shared/later-rent.ts';
 
 const cors={
  'Access-Control-Allow-Origin':'*',
@@ -91,7 +92,7 @@ serve(async(req)=>{
      if(['maintenance','closed','rejected','pending_approval'].includes(String(listing.status)))return json({success:false,error:'This Short Stay cannot accept payment right now'},409);
     }else{
      if(String(meta.payment_component||'')!=='long_stay_rent')return json({success:false,error:'Long Stay payment component is invalid'},409);
-     if(!sameMoney(reservation.upfront_rent_required,amount))return json({success:false,error:'Year 1 rent amount does not match the reservation terms'},409);
+     if(!sameMoney(reservation.upfront_rent_required,amount))return json({success:false,error:'Rent payment amount does not match the accepted tenancy agreement'},409);
      if(listing.current_reservation_id!==reservation.id||listing.status!=='reserved')return json({success:false,error:'Property is no longer reserved for this contract'},409);
     }
    }
@@ -134,8 +135,14 @@ serve(async(req)=>{
    const{data:valid,error:validationError}=await db.rpc('validate_experience_checkout',{p_payment_id:payment.id,p_customer_user_id:profile.user_id});
    if(validationError||valid?.valid!==true||valid.booking_id!==meta.experience_booking_id)return json({success:false,error:'Experience checkout expired or no longer matches the accepted session. Refresh before paying.'},409);
   }
+  let providerSplit:Record<string,unknown>={};
+  if(payment.purpose==='rent_plan_contribution'){
+   const{data:valid,error:routeError}=await db.rpc('validate_later_rent_checkout',{p_payment_id:payment.id,p_customer_user_id:profile.user_id});
+   if(routeError||valid?.valid!==true)return json({success:false,error:'Rent terms, consent or Partner settlement changed. Refresh before paying.'},409);
+   providerSplit={split:rentCheckoutSplit(meta.rent_settlement_route,amountMinor,isLivePaystackKey(paystackSecret)?'live':'test')};
+  }
   const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';if(existingUrl&&existingCode)return json({success:true,reference,purpose:payment.purpose,authorization_url:existingUrl,access_code:existingCode,existing:true});
-  const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({email:user.email,amount:String(amountMinor),currency:market.currency,reference,callback_url:paymentReturnUrl,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
+  const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({...providerSplit,email:user.email,amount:String(amountMinor),currency:market.currency,reference,callback_url:paymentReturnUrl,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
   let initialized:any=null;try{initialized=await response.json()}catch{initialized=null}if(!response.ok||initialized?.status!==true||typeof initialized?.data?.authorization_url!=='string'||typeof initialized?.data?.access_code!=='string'||!initialized.data.access_code||initialized?.data?.reference!==reference){const upstreamMessage=String(initialized?.message||'Paystack could not initialize this payment');console.error('[payment-init] Paystack initialization rejected',{reference,purpose:payment.purpose,status:response.status,message:upstreamMessage});return json({success:false,error:upstreamMessage,retryable:response.status>=500},response.status>=500?502:400)}
   const authorizationUrl=String(initialized.data.authorization_url),accessCode=String(initialized.data.access_code);const nextMeta={...meta,return_page:returnPage,paystack_access_code:accessCode,paystack_authorization_url:authorizationUrl,paystack_initialized_at:new Date().toISOString()};const{data:savedSession,error:updateError}=await db.from('booking_payments').update({metadata:nextMeta,updated_at:new Date().toISOString()}).eq('id',payment.id).eq('status','pending').select('id').maybeSingle();if(updateError||savedSession?.id!==payment.id)return json({success:false,error:'Checkout status changed or could not be confirmed. Refresh this booking before paying.',reference,retryable:false},409);
   return json({success:true,reference,purpose:payment.purpose,authorization_url:authorizationUrl,access_code:accessCode,existing:false});

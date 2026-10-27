@@ -27,8 +27,10 @@ insert into public.listings(id,listing_id,title,sub_type,state,city,status,avail
  values('b7990000-2000-4000-8000-000000000003','rent-monthly-home','Monthly rent home','long_stay','Rent Contract Region','Rent Contract Town','reserved','reserved','rent-owner','rent-owner',now(),'host',now(),'rent-owner',1200000,'NGN',true,array[12,24]);
 insert into public.property_host_assignments(listing_id,user_id,assignment_role,status,invited_by,accepted_at,access_level)
  values('b7990000-2000-4000-8000-000000000003','rent-owner','owner','active','rent-owner',now(),'full_hosting');
-insert into public.bank_accounts(id,user_id,account_number,bank_code,bank_name,account_name,is_default,is_active,verified_at)
- values('b7990000-5000-4000-8000-000000000001','rent-owner','0000000000','000','Synthetic Bank','Synthetic Owner',true,true,now());
+insert into public.worker_identity_checks(worker_id,account_role,status,captured_at,consent_at,attempt_count,challenge_result)
+ values('rent-owner','property_partner','passed',now(),now(),1,'{}');
+insert into public.bank_accounts(id,user_id,account_number,bank_code,bank_name,account_name,is_default,is_active,verified_at,rent_subaccount_code,rent_subaccount_provider_id,rent_subaccount_environment,rent_subaccount_verified_at)
+ values('b7990000-5000-4000-8000-000000000001','rent-owner','0000000000','000','Synthetic Bank','Synthetic Owner',true,true,now(),'ACCT_RentContract','987123','test',now());
 insert into public.reservations(id,listing_id,user_id,status,manual_payment_status,paid_at,rent_payment_status,stay_type,rental_plan_years,annual_rent_snapshot,upfront_rent_required,contract_rent_total,installment_balance,installment_count,management_mode_snapshot,responsible_host_user_id,commission_policy_version_id,requested_move_in_at)
  values('rent-agreement-full','b7990000-2000-4000-8000-000000000001','rent-customer','reserved','completed',now(),'not_started','long_stay',1,1200000,1200000,1200000,0,0,'host','rent-owner','b7990000-4000-4000-8000-000000000001',null),
  ('rent-agreement-monthly','b7990000-2000-4000-8000-000000000003','rent-customer','reserved','completed',now(),'not_started','long_stay',1,1200000,1200000,1200000,0,0,'host','rent-owner','b7990000-4000-4000-8000-000000000001',null);
@@ -76,6 +78,24 @@ begin
  exception when insufficient_privilege then denied:=true;end;
  if not denied then raise exception 'FAIL: Operations co-host gained commercial control';end if;
 end $$;
+reset role;
+
+set local session_replication_role=replica;
+insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) values('rent-operations','creator','global','active');
+insert into public.creator_elevation_grants(creator_elevation_id,creator_user_id,auth_user_id,auth_session_id,action_classes,expires_at,verification_method)
+ values('b7990000-9000-4000-8000-000000000001','rent-operations','b7990000-0000-4000-8000-000000000002','b7990000-0000-4000-8000-000000000002',array['policy_publish'],now()+interval '5 minutes','password');
+set local session_replication_role=origin;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000002","session_id":"b7990000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+set local role authenticated;
+do $availability$
+declare policy jsonb;published jsonb;
+begin
+ policy:=public.creator_get_later_rent_collection();
+ begin perform public.creator_set_later_rent_collection(gen_random_uuid(),(policy->>'policy_version_id')::uuid,true,'Synthetic collection enablement');raise exception 'FAIL: collection enabled without fresh confirmation';exception when insufficient_privilege then null;end;
+ published:=public.creator_set_later_rent_collection('b7990000-9000-4000-8000-000000000001',(policy->>'policy_version_id')::uuid,true,'Rollback-only verified rent collection contract');
+ if published->>'enabled'<>'true' then raise exception 'FAIL: Creator collection policy was not saved';end if;
+ begin perform public.creator_set_later_rent_collection('b7990000-9000-4000-8000-000000000001',(policy->>'policy_version_id')::uuid,false,'Stale collection tab must not overwrite current policy');raise exception 'FAIL: stale collection update was accepted';exception when raise_exception then if sqlerrm not like '%policy changed%' then raise;end if;end;
+end $availability$;
 reset role;
 
 -- The same reservation owns offer acceptance, checkout and protected payment.
@@ -138,27 +158,123 @@ begin
  if (select sum(amount) from public.rent_plan_contributions where reservation_id='rent-agreement-monthly')<>1200000 then raise exception 'FAIL: remaining monthly amounts drifted';end if;
 end $contract$;
 
--- A later-year schedule alone cannot enable the unverified direct-settlement journey.
+-- A later-year schedule alone is not direct-settlement consent.
+select set_config('request.jwt.claim.sub','b7990000-0000-4000-8000-000000000004',true);
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000004","session_id":"b7990000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+do $contract$
+declare contribution uuid;
+begin
+ select id into contribution from public.rent_plan_contributions where reservation_id='rent-agreement-monthly' and agreement_sequence=2;
+ begin
+  perform public.create_rent_plan_contribution_payment(contribution);
+  raise exception 'FAIL: later rent bypassed tenant consent';
+ exception when raise_exception then
+  if sqlerrm not like 'Review and accept later-year direct settlement%' then raise;end if;
+ end;
+end $contract$;
 select set_config('request.jwt.claim.sub','',true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 do $contract$
 declare receipt jsonb;contribution uuid;ref text:='WH-PROTECTED-LATER-RENT-CONTRACT';
 begin
  select id into contribution from public.rent_plan_contributions where reservation_id='rent-agreement-monthly' and agreement_sequence=2;
- begin
-  perform public.create_rent_plan_contribution_payment(contribution);
-  raise exception 'FAIL: later rent bypassed protected collection';
- exception when raise_exception then
-  if sqlerrm not like 'Later-year rent collection is paused until tenant consent, direct settlement%' then raise;end if;
- end;
  insert into public.booking_payments(payment_reference,paystack_reference,user_id,payer_user_id,type,booking_type,listing_id,amount,amount_total,currency,status,purpose,metadata)
  values(ref,ref,'rent-customer','rent-customer','apartment','apartment','b7990000-2000-4000-8000-000000000003',150000,150000,'NGN','pending','rent_plan_contribution',jsonb_build_object('contribution_id',contribution));
  receipt:=public.process_verified_paystack_charge('charge.success:protected-rent-contract','charge.success',ref,repeat('e',64),now(),15000000,'NGN','protected-rent-contract');
- if receipt->>'success'<>'false' or not exists(select 1 from public.verified_provider_events where provider_reference=ref and processing_status='failed' and processing_error like 'Later-year rent collection is paused%') then
+ if receipt->>'success'<>'false' or not exists(select 1 from public.verified_provider_events where provider_reference=ref and processing_status='failed') then
   raise exception 'FAIL: unsafe later rent receipt did not enter durable Finance recovery';end if;
  if exists(select 1 from public.booking_payments where paystack_reference=ref and status in('paid','completed'))
   or exists(select 1 from public.ledger_transactions where idempotency_key='paystack-charge:'||ref) then
   raise exception 'FAIL: unprotected later rent became paid or credited';end if;
 end $contract$;
-select 'Long Let agreement, protected initial payment, handover and later-rent guard checks passed' as result;
+
+-- Rollback-only time/eligibility fixtures. No PSP request is sent. Move the
+-- verified handover anchor four months back so the first scheduled payment is due.
+set local session_replication_role=replica;
+update public.reservations set tenancy_start_date=((now() at time zone 'Africa/Lagos')::date-interval '4 months')::date where id='rent-agreement-monthly';
+update public.rent_plans set tenancy_start_date=((now() at time zone 'Africa/Lagos')::date-interval '4 months')::date where reservation_id='rent-agreement-monthly';
+update public.rent_plan_contributions c set due_date=(p.tenancy_start_date+make_interval(months=>c.agreement_sequence+2))::date
+ from public.rent_plans p where p.id=c.rent_plan_id and c.reservation_id='rent-agreement-monthly';
+set local session_replication_role=origin;
+
+-- The accepted payee can rotate their default bank before the next charge.
+-- Keep this fixture route unchanged so provider-proof assertions below remain explicit.
+update public.bank_accounts set is_default=false where id='b7990000-5000-4000-8000-000000000001';
+insert into public.bank_accounts(id,user_id,account_number,bank_code,bank_name,account_name,is_default,is_active,verified_at,rent_subaccount_code,rent_subaccount_provider_id,rent_subaccount_environment,rent_subaccount_verified_at)
+ values('b7990000-5000-4000-8000-000000000002','rent-owner','1111111111','000','Synthetic Bank','Synthetic Owner',true,true,now(),'ACCT_RentContract','987123','test',now());
+
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000003","session_id":"b7990000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+do $$begin
+ begin perform public.get_my_later_rent_history('rent-agreement-monthly');raise exception 'FAIL: outsider read tenant rent history';exception when insufficient_privilege then null;end;
+end $$;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000004","session_id":"b7990000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+set local role authenticated;
+do $cycle$
+declare history jsonb;accepted jsonb;checkout jsonb;retry jsonb;contribution uuid;
+begin
+ history:=public.get_my_later_rent_history('rent-agreement-monthly',0,1);
+ if history->>'viewer'<>'customer' or history->>'has_more'<>'true' or jsonb_array_length(history->'items')<>1
+  or history#>>'{years,0,gross_rent_paid}'<>'0' or history#>>'{years,0,completed_months}'<>'0' then raise exception 'FAIL: paged unpaid history invented rent credit';end if;
+ accepted:=public.accept_my_later_rent_settlement('rent-agreement-monthly',history->>'agreement_digest');
+ if accepted is distinct from public.accept_my_later_rent_settlement('rent-agreement-monthly',history->>'agreement_digest') then raise exception 'FAIL: consent retry changed its agreement';end if;
+ contribution:=(history#>>'{items,0,contribution_id}')::uuid;
+ checkout:=public.create_rent_plan_contribution_payment(contribution);retry:=public.create_rent_plan_contribution_payment(contribution);
+ if checkout->>'reference' is distinct from retry->>'reference' or (checkout->>'amount')::numeric<>150000 then raise exception 'FAIL: retry created another charge or charged the wrong amount';end if;
+ perform set_config('test.later_rent_reference',checkout->>'reference',true);
+ begin perform public.record_verified_rent_route(checkout->>'reference','987654',15000000,'NGN','test','ACCT_RentContract','987123',13500000);raise exception 'FAIL: browser forged a provider rent proof';exception when insufficient_privilege then null;end;
+end $cycle$;
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+do $cycle$
+declare ref text:=current_setting('test.later_rent_reference');receipt jsonb;p public.booking_payments;before_count integer;
+begin
+ select * into p from public.booking_payments where paystack_reference=ref;
+ if p.metadata#>>'{rent_settlement_route,bank_account_id}'<>'b7990000-5000-4000-8000-000000000002' then raise exception 'FAIL: future collection did not use the same accepted Partner current verified bank';end if;
+ if p.amount_commission<>15000 or p.net_amount<>135000 then raise exception 'FAIL: monthly payment charged annual commission or changed its saved split';end if;
+ perform public.validate_later_rent_checkout(p.id,'rent-customer');
+ receipt:=public.process_verified_paystack_charge('charge.success:987654','charge.success',ref,repeat('a',64),now(),15000000,'NGN','987654');
+ if receipt->>'success'<>'false' then raise exception 'FAIL: missing provider split was accepted';end if;
+ perform public.record_verified_rent_route(ref,'987654',15000000,'NGN','test','ACCT_WrongBank','987123',13500000);
+ receipt:=public.process_verified_paystack_charge('charge.success:987654','charge.success',ref,repeat('a',64),now(),15000000,'NGN','987654');
+ if receipt->>'success'<>'false' then raise exception 'FAIL: wrong Partner split was accepted';end if;
+ perform public.record_verified_rent_route(ref,'987654',15000000,'NGN','test','ACCT_RentContract','987123',13500000);
+ receipt:=public.process_verified_paystack_charge('charge.success:987654','charge.success',ref,repeat('a',64),now(),15000000,'NGN','987654');
+ if receipt->>'success'<>'true' then raise exception 'FAIL: rent confirmation %, %',receipt,(select processing_error from public.verified_provider_events where provider_reference=ref);end if;
+ if exists(select 1 from public.payment_protection_transactions where paystack_reference=ref) then raise exception 'FAIL: later-year rent created a new protection hold';end if;
+ if not exists(select 1 from public.booking_payments where id=p.id and metadata#>>'{rent_provider_settlement,status}'='pending') then raise exception 'FAIL: charge was falsely reported as a settled payout';end if;
+ if (select total_paid_out<>0 from public.rent_plans where reservation_id='rent-agreement-monthly') then raise exception 'FAIL: charge confirmation counted as paid-out earnings';end if;
+ if exists(select 1 from public.wallets where owner_id='rent-owner' and owner_type='property_partner' and available_balance>0) then raise exception 'FAIL: direct rent also credited a withdrawable wallet';end if;
+ select count(*) into before_count from public.ledger_transactions where idempotency_key in('paystack-charge:'||ref,'rent-route:'||p.id);
+ if before_count<>2 then raise exception 'FAIL: direct rent did not post charge and allocation once';end if;
+ perform public.process_verified_paystack_charge('charge.success:987654','charge.success',ref,repeat('a',64),now(),15000000,'NGN','987654');
+ if (select count(*) from public.ledger_transactions where idempotency_key in('paystack-charge:'||ref,'rent-route:'||p.id))<>before_count then raise exception 'FAIL: duplicate receipt credited rent twice';end if;
+ perform public.record_verified_rent_settlement(p.id,'778899','987654','987123',13500000,'NGN','test',repeat('c',64));
+ perform public.record_verified_rent_settlement(p.id,'778899','987654','987123',13500000,'NGN','test',repeat('c',64));
+ if (select total_contributed<>150000 or total_paid_out<>135000 from public.rent_plans where reservation_id='rent-agreement-monthly') then raise exception 'FAIL: gross rent credit and net paid out do not reconcile';end if;
+ if (select count(*) from public.ledger_transactions where idempotency_key='rent-settlement:'||p.id)<>1 then raise exception 'FAIL: duplicate settlement paid twice';end if;
+end $cycle$;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000004","session_id":"b7990000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+set local role authenticated;
+do $credit$
+declare history jsonb;y jsonb;receipt jsonb;
+begin
+ history:=public.get_my_later_rent_history('rent-agreement-monthly');y:=history#>'{years,0}';
+ if (y->>'completed_months')::integer<>1 or (y->>'partial_month_credit')::numeric<>50000 or (y->>'next_month_balance')::numeric<>50000
+  or (y->>'gross_rent_paid')::numeric<>150000 or (y->>'remaining_year_rent')::numeric<>1050000 then raise exception 'FAIL: one of eight payments did not fund 1.5 months';end if;
+ if history#>>'{items,0,settlement_status}'<>'settled' or history#>>'{items,0,payment_status}'<>'paid' then raise exception 'FAIL: paid/settled history did not reconcile';end if;
+ receipt:=public.get_my_payment_receipts(current_setting('test.later_rent_reference'))->0;
+ if receipt->>'rent_target_year'<>'2' or receipt->>'rent_payment_protection_hold'<>'false' or receipt->>'rent_settlement_status'<>'settled'
+  or receipt->>'description'<>'Later-year rent' or receipt->>'booking_id'<>'rent-agreement-monthly' then raise exception 'FAIL: receipt lost its rent year, settlement rules or exact booking';end if;
+ begin perform public.cancel_my_apartment_reservation('rent-agreement-monthly');raise exception 'FAIL: occupied tenancy cancelled without agreed exit';exception when raise_exception then if sqlerrm not like 'Reservation can no longer%' then raise;end if;end;
+end $credit$;
+reset role;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000001","session_id":"b7990000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+do $$begin
+ if public.get_my_later_rent_history('rent-agreement-monthly')->>'viewer'<>'partner' then raise exception 'FAIL: owner cannot reconcile tenant rent';end if;
+ if jsonb_array_length(public.get_my_property_later_rent_accounts('b7990000-2000-4000-8000-000000000003')->'items')<>1 then raise exception 'FAIL: owner rent account is not connected';end if;
+end $$;
+reset role;
+select 'Long Let agreement, protected initial payment, direct rent collection, rent credit and settlement replay passed' as result;
 rollback;

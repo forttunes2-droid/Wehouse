@@ -1,4 +1,5 @@
 import CreatorCommissionRules from '@/components/CreatorCommissionRules';
+import CreatorRentCollection from '@/components/CreatorRentCollection';
 import {withTimeout} from '@/lib/withTimeout';
 import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -191,7 +192,7 @@ function readRules(response: PolicyResponse | null): Rules {
   };
 }
 
-export default function CreatorBookingMoneyRules(){return <div className="space-y-6"><CreatorCommissionRules/><CreatorExperienceCommission/><ShortLetReserveDateRule/><section aria-label="Booking operating rules"><CreatorOperatingMoneyRules/></section></div>;}
+export default function CreatorBookingMoneyRules(){return <div className="space-y-6"><CreatorCommissionRules/><CreatorExperienceCommission/><CreatorRentCollection/><ShortLetReserveDateRule/><section aria-label="Booking operating rules"><CreatorOperatingMoneyRules/></section></div>;}
 
 function CreatorOperatingMoneyRules() {
   const { requestElevation } = useCreatorAuth();

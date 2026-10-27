@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.106.1";
 import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
+import {recordRentChargeRoute} from '../_shared/later-rent.ts';
 
 type Db = SupabaseClient;
 
@@ -577,6 +578,7 @@ Deno.serve(async (req) => {
     // ledger linkage as one idempotent transaction. Do not return early merely
     // because a legacy path already marked the booking payment paid: replaying
     // here is how an otherwise-valid paid row is reconciled fail closed.
+    if(payment.purpose==='rent_plan_contribution')await recordRentChargeRoute(db,reference,event.data);
     const receiptHash = await sha256Hex(
       canonicalChargeReceipt(reference, transactionId, amountMinor, currency),
     );

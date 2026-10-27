@@ -66,6 +66,8 @@ export function buildReceiptPdf(r: PaymentReceipt) {
     field("Paid to", r.merchant_name);
     field("Paid by", r.payer_name);
     field("For", [r.description, r.package_name].filter(Boolean).join(" · "));
+    if(r.rent_target_year!=null)field('Rent year',`Year ${r.rent_target_year}`);
+    if(r.rent_payment_protection_hold===false)field('Settlement',r.rent_settlement_status==='settled'?'Partner settlement confirmed. No new protection hold.':'Partner settlement pending. No new protection hold.');
     if(r.booking_type==='experience'){
       field('Session',`${displayDateTimeAtProperty(r.session_starts_at,r.session_timezone)} – ${displayDateTimeAtProperty(r.session_ends_at,r.session_timezone)}`);
       field('Participants',String(r.participants));

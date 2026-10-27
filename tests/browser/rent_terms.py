@@ -108,7 +108,9 @@ async def main():
      await expect(page.locator('main')).to_contain_text('₦1,200,000.00')
      await page.get_by_text('View payment schedule',exact=True).click()
      await expect(page.locator('main')).to_contain_text('11 months after handover')
-     await page.get_by_role('checkbox',name='I have reviewed this term, total rent and payment schedule.',exact=True).check()
+     consent=page.get_by_role('checkbox',name='I have reviewed this term, total rent and payment schedule.',exact=False)
+     await expect(consent).to_have_accessible_name('I have reviewed this term, total rent and payment schedule. I accept that later-year monthly rent has no new Payment Protection hold and settles to the Partner after the disclosed WeHouse fee.')
+     await consent.check()
      await accept.click();await expect(pay).to_be_enabled()
      assert state['agreement']['rent_schedule']['payment_choice']=='monthly'
      assert state['agreement']['rent_schedule']['term_months']==24

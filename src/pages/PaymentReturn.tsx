@@ -4,7 +4,7 @@ import { ReceiptDocument, ReceiptPrintButton } from "@/components/PaymentReceipt
 import { getPaymentReceipts, type PaymentReceipt } from "@/lib/supabase/receipts";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { verifyPaymentWithRetry } from '@/lib/supabase/payment-verify';
-import { isBookingPurpose, purposeCopy } from '@/lib/paymentPurposes';
+import { isBookingPurpose, purposeCopy, paymentSuccessMessage } from '@/lib/paymentPurposes';
 import type { Profile } from '@/types';
 import type { NavPage } from '@/types/nav';
 
@@ -46,11 +46,7 @@ function destinationForPurpose(purpose: string | undefined, role: string): NavPa
 
 const successActionLabel = (purpose?: string) => purposeCopy(purpose).action;
 
-function successMessage(purpose?: string) {
-  if (isBookingPurpose(purpose))
-    return 'Your payment is confirmed. WeHouse holds it safely and releases it to the other side only when the release conditions are met.';
-  return 'Your payment is confirmed.';
-}
+const successMessage=paymentSuccessMessage;
 
 const paymentHeading = (purpose?: string) => purposeCopy(purpose).heading;
 

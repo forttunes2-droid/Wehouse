@@ -12,6 +12,7 @@ export type PaymentReceipt = {
   check_in?: string | null; check_out?: string | null; nights?: number | null;
   cancellation_snapshot?: {refundable:boolean;deadline:string|null;timezone:string;refund_amount_ngn:number} | null;
   guests?: number | null; stay_amount?: number | null; deposit_amount?: number | null;
+  rent_target_year?:number|null;rent_settlement_status?:'pending'|'checking'|'settled'|null;rent_payment_protection_hold?:false|null;
 };
 
 export async function getPaymentReceipts(reference?: string, subjectType?: string, subjectId?: string) {

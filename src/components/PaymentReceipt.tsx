@@ -31,6 +31,8 @@ export function ReceiptDocument({ receipt: r }: { receipt: Receipt }) {
       </div>
       <dl className="mt-5 space-y-3 text-sm">
         <ReceiptLine label="For" value={[r.description, r.package_name].filter(Boolean).join(" · ")} />
+        {r.rent_target_year!=null&&<ReceiptLine label="Rent year" value={`Year ${r.rent_target_year}`}/>}
+        {r.rent_payment_protection_hold===false&&<ReceiptLine label="Settlement" value={r.rent_settlement_status==='settled'?'Partner settlement confirmed · No new protection hold':'Partner settlement pending · No new protection hold'}/>}
         {r.booking_type==='experience'&&<><ReceiptLine label="Session" value={`${displayDateTimeAtProperty(r.session_starts_at,r.session_timezone)} – ${displayDateTimeAtProperty(r.session_ends_at,r.session_timezone)}`}/><ReceiptLine label="Participants" value={String(r.participants)}/></>}
         {r.check_in && <ReceiptLine label="Check-in" value={displayDate(r.check_in)} />}
         {r.check_out && <ReceiptLine label="Check-out" value={displayDate(r.check_out)} />}
