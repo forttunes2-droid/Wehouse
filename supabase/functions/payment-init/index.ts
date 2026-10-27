@@ -48,6 +48,7 @@ serve(async(req)=>{
   if(amountMinor===null)return json({success:false,error:'Invalid payment amount or currency precision'},409);
   const meta=payment.metadata&&typeof payment.metadata==='object'?payment.metadata as Record<string,unknown>:{};const returnPage='my_reservations';
 
+  if(meta.rent_automatic_debit===true)return json({success:false,error:'An automatic rent payment is being confirmed. Check its status before paying manually.'},409);
   // Real marketplace money stays fail-closed until WeHouse has a current written
   // PSP/legal approval for the exact Payment Protection, custody, settlement and
   // payout model. Test-mode Paystack remains available for end-to-end QA.

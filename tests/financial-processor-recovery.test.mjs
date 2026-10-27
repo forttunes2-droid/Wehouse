@@ -26,7 +26,7 @@ async function run(options={}) {
   const compile=path=>ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const market={},refund={};vm.runInNewContext(compile('supabase/functions/_shared/payment-market.ts'),{exports:market});
   vm.runInNewContext(compile('supabase/functions/_shared/refund-reconciliation.ts'),{exports:refund,require:()=>market,fetch:provider,AbortSignal:signal});
-  vm.runInNewContext(code,{exports:{},require:name=>name.includes('supabase-js')?({createClient:()=>db}):{verifyRefundPayment:refund.verifyRefundPayment,verifyRefundLookup:async()=>{if(options.lookupFailure)throw Error('Unknown lookup');return{providerId:'42',status:'processed',checksum:'a'.repeat(64),amountMinor:10050,currency:'NGN'};}},crypto:webcrypto,TextEncoder,Response,
+  vm.runInNewContext(code,{exports:{},require:name=>name.includes('supabase-js')?({createClient:()=>db}):name.includes('payment-return')?{resolvePaymentReturnUrl:()=>options.rentEnabled?'https://fixture.invalid':null}:name.includes('later-rent-debit')?{runLaterRentDebit:async()=>{if(options.rentFailure)throw Error('Rent provider unavailable');}}:name.includes('later-rent-settlement')?{reconcileLaterRentSettlements:async()=>{}}:{verifyRefundPayment:refund.verifyRefundPayment,verifyRefundLookup:async()=>{if(options.lookupFailure)throw Error('Unknown lookup');return{providerId:'42',status:'processed',checksum:'a'.repeat(64),amountMinor:10050,currency:'NGN'};}},crypto:webcrypto,TextEncoder,Response,
     AbortSignal:signal,
     Deno:{serve(fn){handler=fn;},env:{get:key=>key==='PAYSTACK_SECRET_KEY'?'sk_test_fixture':'synthetic-fixture'}},
     fetch:provider,
@@ -42,6 +42,12 @@ test('refund processor uses a bounded batch and provider deadline with exact kob
   assert.deepEqual(result.deadlines,[8000,12000]);
   assert.equal(result.posts[0].body.amount,10050);
   assert.ok(result.rpcs.some(x=>x.name==='record_refund_provider_submission'&&x.args.p_provider_action_id==='42'));
+});
+
+test('automatic rent provider failure cannot block the existing refund processor',async()=>{
+ const result=await run({rentEnabled:true,rentFailure:true});
+ assert.equal(result.posts.length,1);
+ assert.ok(result.rpcs.some(x=>x.name==='record_refund_provider_submission'));
 });
 test('uncertain refunds and missing provider receipts require review without resubmission',async()=>{
   for(const options of [{timeout:true},{missingId:true}]){

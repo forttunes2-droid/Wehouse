@@ -16,7 +16,7 @@ async def main():
   for theme,width in [('light',390),('dark',1440)]:
    context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block');page=await context.new_page();errors=[];calls=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
-   state={'paid':False,'consent':None,'lost_acceptance':True,'read_error':True,'bad_credit':False,'setup_ready':False};partner=False
+   state={'paid':False,'consent':None,'lost_acceptance':True,'read_error':True,'bad_credit':False,'setup_ready':False,'auto':'manual'};partner=False
    async def route(h):
     nonlocal partner
     req=h.request
@@ -39,6 +39,9 @@ async def main():
     elif name=='get_my_property_later_rent_accounts':data={'listing_id':args['p_listing_id'],'items':[{'plan_id':PLAN,'reservation_id':'rent-agreement-browser','tenant_name':'Ada','status':'active'}],'has_more':False,'next_id':None}
     elif name=='get_my_rent_settlement_setup':data={'listing_id':args['p_listing_id'],'bank_account_id':BANK,'bank_name':'Synthetic Bank','last4':'0123','ready':state['setup_ready']}
     elif name=='rent-settlement-setup':state['setup_ready']=True;data={'success':True,'ready':True,'bank_account_id':BANK}
+    elif name=='get_my_later_rent_debit':data={'reservation_id':'rent-agreement-browser','status':state['auto'],'last4':'0123' if state['auto']=='active' else None,'card_type':'Visa' if state['auto']=='active' else None,'payment_pending':False,'last_result':None}
+    elif name=='rent-automatic-payment':state['auto']='active';data={'success':True}
+    elif name=='disable_my_later_rent_debit':state['auto']='disabled';data={'reservation_id':'rent-agreement-browser','status':'disabled','last4':None,'card_type':None,'payment_pending':False,'last_result':None}
     return await h.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers=headers)
    await page.route('**/*',route)
    await page.goto(BASE+f'/tests/browser/rent-terms.html?mode=history&theme={theme}')
@@ -49,6 +52,13 @@ async def main():
    await page.get_by_role('button',name='Refresh payments',exact=True).click();await expect(pay).to_be_enabled();assert len([c for c in calls if c[0]=='accept_my_later_rent_settlement'])==1
    await pay.click();await page.wait_for_url('https://checkout.paystack.com/rent-fixture');assert len([c for c in calls if c[0]=='create_rent_plan_contribution_payment'])==1
    state['paid']=True;await page.goto(BASE+f'/tests/browser/rent-terms.html?mode=history&theme={theme}');await expect(page.get_by_text('1 complete month funded',exact=True)).to_be_visible();await expect(page.get_by_text('Partner settlement pending',exact=False)).to_be_visible()
+   auto=page.get_by_role('region',name='Automatic rent payment',exact=True)
+   await auto.get_by_text('Choose optional automatic payment',exact=True).click()
+   await expect(auto.get_by_role('button',name='Check card and enable automatic payment',exact=True)).to_be_disabled()
+   await auto.get_by_role('checkbox').check();await auto.get_by_role('button',name='Check card and enable automatic payment',exact=True).click()
+   await expect(auto.get_by_text('Automatic payment is on',exact=False)).to_contain_text('0123')
+   await auto.get_by_role('button',name='Turn off future automatic payments',exact=True).click();await expect(auto.get_by_text('Manual payment.',exact=False)).to_be_visible()
+   assert len([c for c in calls if c[0]=='rent-automatic-payment'])==1
    await page.get_by_role('button',name='More scheduled payments',exact=True).click();await expect(page.locator('section[aria-label="Later-year rent payments"] ol > li')).to_have_count(3)
    await expect(page.get_by_text('1 complete month funded',exact=True)).to_be_visible();await page.get_by_role('button',name='Get help with rent or early exit',exact=True).click();assert await page.evaluate('window.__rentHelpOpened') is True
    assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1');await page.screenshot(path=str(OUT/f'customer-{theme}.png'),full_page=True)

@@ -19,8 +19,9 @@ process, without automatic forfeiture or eviction.
 
 Manual collection, tenant consent, frozen fee allocation, provider split proof,
 settlement reconciliation and paged Customer/Partner history are implemented.
-Test migration `20261027164647` is applied. Test payment-init/verify v9,
-webhook v7, financial processor v5 and settlement setup v1 are deployed.
+Test migrations `20261027164647` and `20261027174736` are applied. Test
+payment-init v10, verify v9, webhook v7, financial processor v6, settlement
+setup v1 and automatic-payment v1 are deployed.
 The existing Creator policy controls collection; it remains disabled on Test,
 with no invented rate, provider account creation or real financial transaction.
 Monthly offers now require both enabled collection and eligible verified Partner
@@ -37,9 +38,19 @@ NGN50,000 needed for the next full month. Charge confirmation does not claim
 provider settlement or credit a second withdrawable wallet. The privileged-write
 audit passes. Actual Customer/Partner UI journeys pass at phone/light and
 desktop/dark sizes, including lost-response recovery and bounded pagination.
-Optional automatic debit is not implemented; manual collection is not proof of
-that separate consent/authorization/retry journey. Provider settlement endpoints
-are checked with isolated responses; actual provider payout proof remains pending.
+Optional automatic debit now requires separate trusted tenant consent and an
+eligible reusable card from that tenant's provider-verified rent payment.
+Authorization credentials are private. The bounded scheduler reuses the saved
+obligation, reference and exact fee/net; split creation and debit dispatch have
+durable claims. Unknown results are verified without charging again. Disabling
+future debit retains in-flight reconciliation; verified terminal failure adds no
+credit and restores manual payment. Inactive accounts and closed rent plans
+revoke credentials. Activity links to the exact reservation. The rolled-back
+contract, both-theme actual UI, masked-card/privacy and lost-response tests pass;
+810 source tests, production build, focused lint and Deno checks pass.
+All seven workflows passed on the preceding manual-collection `48978cb8`; the
+automatic-payment commit needs its own CI. Provider settlement/debit endpoints
+are checked with isolated responses; actual provider card/debit/payout proof remains pending.
 
 The owner-requested
 eight-page policy handbook is generated and visually checked at

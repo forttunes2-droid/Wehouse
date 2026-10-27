@@ -35,6 +35,12 @@ verify_jwt = false
 [functions.financial-action-reconcile]
 verify_jwt = true
 
+[functions.rent-settlement-setup]
+verify_jwt = true
+
+[functions.rent-automatic-payment]
+verify_jwt = true
+
 # PMS partners use a hashed, scoped connection token, checked on every request.
 [functions.hotel-pms-api]
 verify_jwt = false

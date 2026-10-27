@@ -276,5 +276,69 @@ do $$begin
  if jsonb_array_length(public.get_my_property_later_rent_accounts('b7990000-2000-4000-8000-000000000003')->'items')<>1 then raise exception 'FAIL: owner rent account is not connected';end if;
 end $$;
 reset role;
-select 'Long Let agreement, protected initial payment, direct rent collection, rent credit and settlement replay passed' as result;
+-- Optional automatic debit is a separate tenant choice. Source payment,
+-- canonical obligation, dispatch claim and disabling are exercised without PSP traffic.
+set local session_replication_role=replica;
+update public.reservations set tenancy_start_date=((now() at time zone 'Africa/Lagos')::date-interval '5 months')::date where id='rent-agreement-monthly';
+update public.rent_plans set tenancy_start_date=((now() at time zone 'Africa/Lagos')::date-interval '5 months')::date where reservation_id='rent-agreement-monthly';
+update public.rent_plan_contributions c set due_date=(p.tenancy_start_date+make_interval(months=>c.agreement_sequence+2))::date
+ from public.rent_plans p where p.id=c.rent_plan_id and c.reservation_id='rent-agreement-monthly';
+set local session_replication_role=origin;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000004","session_id":"b7990000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+set local role authenticated;
+do $$declare h jsonb;prepared jsonb;begin
+ h:=public.get_my_later_rent_history('rent-agreement-monthly');
+ if public.get_my_later_rent_debit('rent-agreement-monthly')->>'status'<>'manual' then raise exception 'FAIL: automatic debit enabled by default';end if;
+ if has_table_privilege('authenticated','private.later_rent_debit','select') or has_function_privilege('authenticated','private.create_later_rent_payment(uuid,text)','execute') then raise exception 'FAIL: private debit secrets or constructor exposed';end if;
+ begin perform public.prepare_my_later_rent_debit('rent-agreement-monthly',h->>'agreement_digest',false);raise exception 'FAIL: automatic debit without consent';exception when raise_exception then if sqlerrm not like 'Explicit consent%' then raise;end if;end;
+ prepared:=public.prepare_my_later_rent_debit('rent-agreement-monthly',h->>'agreement_digest',true);
+ perform set_config('test.auto_consent',prepared->>'consent_id',true);
+ if prepared->>'source_reference' is distinct from current_setting('test.later_rent_reference') then raise exception 'FAIL: automatic debit source is not the tenant verified payment';end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+do $$declare job jsonb;consent uuid:=current_setting('test.auto_consent')::uuid;begin
+ perform public.bind_verified_later_rent_debit(consent,current_setting('test.later_rent_reference'),'AUTH_SyntheticOnly','rent-customer@example.invalid','0123','Visa','test',(current_date+interval '1 year')::date);
+ job:=public.claim_due_later_rent_debit();
+ if job->>'attempted'<>'false' or (job->>'amount_minor')::numeric<>15000000 then raise exception 'FAIL: automatic job did not reuse the exact due obligation';end if;
+ perform set_config('test.auto_payment_id',job->>'payment_id',true);
+ if not public.start_later_rent_debit_split(consent,(job->>'payment_id')::uuid) or public.start_later_rent_debit_split(consent,(job->>'payment_id')::uuid) then raise exception 'FAIL: duplicate provider split creation claim';end if;
+ if not public.save_later_rent_debit_split(consent,(job->>'payment_id')::uuid,'SPL_SyntheticOnly') then raise exception 'FAIL: split receipt not saved';end if;
+ if not public.authorize_later_rent_debit_dispatch(consent,(job->>'payment_id')::uuid) or public.authorize_later_rent_debit_dispatch(consent,(job->>'payment_id')::uuid) then raise exception 'FAIL: duplicate debit dispatch grant';end if;
+ update private.later_rent_debit set lease_until=null,next_check_at=now()-interval '1 minute' where consent_id=consent;
+ job:=public.claim_due_later_rent_debit();if job->>'attempted'<>'true' then raise exception 'FAIL: lost response allowed a second debit';end if;
+ if (select count(*) from public.activity_events where event_type='rent.debit.sent' and subject_id='rent-agreement-monthly')<>1 then raise exception 'FAIL: automatic payment Activity repeated or was missing';end if;
+ if not exists(select 1 from public.activity_events where event_type='rent.debit.active' and route='my_reservations' and route_params->>'reservation_id'='rent-agreement-monthly') then raise exception 'FAIL: automatic payment Activity lost the exact reservation';end if;
+end $$;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000004","session_id":"b7990000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+set local role authenticated;
+do $$declare status jsonb;h jsonb;begin
+ status:=public.get_my_later_rent_debit('rent-agreement-monthly');
+ if status->>'status'<>'active' or status->>'last4'<>'0123' or status ? 'authorization_code' or status ? 'email' then raise exception 'FAIL: card mask or private authorization boundary';end if;
+ h:=public.get_my_later_rent_history('rent-agreement-monthly');
+ if h#>>'{items,1,can_pay}'<>'false' then raise exception 'FAIL: automatic in-flight payment also offered manual checkout';end if;
+ status:=public.disable_my_later_rent_debit('rent-agreement-monthly');
+ if status->>'status'<>'disabled' or status->>'payment_pending'<>'true' then raise exception 'FAIL: disabling erased an in-flight charge';end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+do $$declare consent uuid:=current_setting('test.auto_consent')::uuid;payment uuid:=current_setting('test.auto_payment_id')::uuid;begin
+ if public.authorize_later_rent_debit_dispatch(consent,payment) then raise exception 'FAIL: disabled mandate authorized another debit';end if;
+ perform public.finish_later_rent_debit_check(consent,payment,'pending');
+ if (select status from public.booking_payments where id=payment)<>'pending' then raise exception 'FAIL: unknown payment became terminal or paid';end if;
+ perform public.finish_later_rent_debit_check(consent,payment,'failed');
+ if not exists(select 1 from public.booking_payments where id=payment and status='failed') then raise exception 'FAIL: terminal failed payment was not retained';end if;
+ if exists(select 1 from private.later_rent_debit where consent_id=consent and (authorization_code is not null or email is not null)) then raise exception 'FAIL: disabled mandate retained charge credentials';end if;
+end $$;
+select set_config('request.jwt.claims','{"sub":"b7990000-0000-4000-8000-000000000004","session_id":"b7990000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+set local role authenticated;
+do $$declare c uuid;payment jsonb;h jsonb;begin
+ select id into c from public.rent_plan_contributions where reservation_id='rent-agreement-monthly' and agreement_sequence=3;
+ payment:=public.create_rent_plan_contribution_payment(c);
+ if payment->>'success'<>'true' then raise exception 'FAIL: verified failed automatic debit did not restore manual payment';end if;
+ h:=public.get_my_later_rent_history('rent-agreement-monthly');
+ if (h#>>'{years,0,gross_rent_paid}')::numeric<>150000 then raise exception 'FAIL: failed automatic debit created rent credit';end if;
+end $$;
+reset role;
+select 'Long Let agreement, protected initial rent, direct collection, credit, settlement and consented debit recovery passed' as result;
 rollback;

@@ -5,6 +5,30 @@ const terms=module('src/lib/longLetRentTerms.ts');
 const history=module('src/lib/laterRent.ts',{'./longLetRentTerms':terms});
 const receipts=module('src/lib/paymentReceiptContract.ts');
 const purposes=module('src/lib/paymentPurposes.ts');
+const debitImports={'./later-rent.ts':route};
+const debit=module('supabase/functions/_shared/later-rent-debit.ts',debitImports);
+
+test('automatic rent requires a provider-verified reusable card from the exact tenant payment',()=>{
+ const source={source_reference:'rent-paid',transaction_id:'123',amount_minor:15000000,currency:'NGN'};
+ const receipt={reference:'rent-paid',id:123,amount:15000000,currency:'NGN',domain:'test',status:'success',customer:{email:'payer@example.invalid'},authorization:{authorization_code:'AUTH_Synthetic',last4:'0123',exp_month:'12',exp_year:'2050',reusable:true,channel:'card',card_type:'Visa'}};
+ assert.equal(debit.reusableRentCard(receipt,source,'test').p_last4,'0123');
+ for(const change of [{reference:'another-payment'},{id:321},{amount:1},{domain:'live'},{status:'pending'},{authorization:{...receipt.authorization,reusable:false}},{authorization:{...receipt.authorization,exp_year:'2020'}},{authorization:{...receipt.authorization,channel:'bank'}}])assert.throws(()=>debit.reusableRentCard({...receipt,...change},source,'test'));
+});
+
+test('automatic debit verifies a lost charge response without creating another charge or changing rent',async()=>{
+ const p={consent_id:'consent',status:'active',payment_id:'payment',reference:'WHNEXT-TEST',authorization_code:'AUTH_Synthetic',email:'payer@example.invalid',environment:'test',amount_minor:15000000,currency:'NGN',split_started:false,split_code:null,split_lookup_page:1,attempted:false,route:{version:1,environment:'test',amount_minor:15000000,partner_amount_minor:13500000,platform_amount_minor:1500000,subaccount_code:'ACCT_Partner'}};
+ const calls=[],requests=[];let verified=false;
+ const db={rpc:async(name,args)=>{calls.push({name,args});let data=true;if(name==='claim_due_later_rent_debit')data={...p};if(name==='start_later_rent_debit_split'){data=!p.split_started;p.split_started=true;}if(name==='save_later_rent_debit_split')p.split_code=args.p_split_code;if(name==='authorize_later_rent_debit_dispatch'){data=!p.attempted;p.attempted=true;}if(name==='process_verified_paystack_charge')data={success:true};return{data,error:null};}};
+ const split={name:'WeHouse rent WHNEXT-TEST',type:'flat',currency:'NGN',active:true,bearer_type:'account',split_code:'SPL_Synthetic',subaccounts:[{subaccount:{subaccount_code:'ACCT_Partner'},share:13500000}]};
+ const fetch=async(url,options)=>{requests.push({url,options});if(url.includes('/charge_authorization'))throw Error('Provider accepted but connection was lost');if(url.includes('/transaction/verify/')){if(!verified)throw Error('Still unavailable');return{ok:true,json:async()=>({status:true,data:{id:123,reference:p.reference,amount:15000000,currency:'NGN',domain:'test',status:'success',split:{shares:{subaccounts:[{id:45,subaccount_code:'ACCT_Partner',amount:13500000}]}}}})};}return{ok:true,json:async()=>({status:true,data:split})};};
+ const service=module('supabase/functions/_shared/later-rent-debit.ts',debitImports,{fetch});
+ assert.equal((await service.runLaterRentDebit(db,'sk_test_fixture')).status,'pending');verified=true;
+ assert.equal((await service.runLaterRentDebit(db,'sk_test_fixture')).status,'confirmed');
+ assert.equal(requests.filter(r=>r.url.endsWith('/charge_authorization')).length,1);assert.equal(requests.filter(r=>r.url.endsWith('/split')&&r.options.method==='POST').length,1);
+ const charge=JSON.parse(requests.find(r=>r.url.endsWith('/charge_authorization')).options.body);assert.equal(charge.amount,'15000000');assert.equal(charge.reference,'WHNEXT-TEST');assert.equal(charge.split_code,'SPL_Synthetic');
+ assert.equal(calls.filter(c=>c.name==='process_verified_paystack_charge').length,1);assert.equal(calls.find(c=>c.name==='process_verified_paystack_charge').args.p_provider_reference,p.reference);
+ assert.ok(requests.every(r=>!r.url.includes('/transfer')));
+});
 test('direct checkout freezes one flat Partner share and preserves the platform amount',()=>{
  const saved={version:1,environment:'test',amount_minor:15000000,partner_amount_minor:13500000,platform_amount_minor:1500000,subaccount_code:'ACCT_Test'};
  const split=route.rentCheckoutSplit(saved,15000000,'test');assert.equal(split.type,'flat');assert.equal(split.bearer_type,'account');assert.equal(split.subaccounts.length,1);assert.equal(split.subaccounts[0].share,13500000);

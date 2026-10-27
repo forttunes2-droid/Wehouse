@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verifyRefundLookup, verifyRefundPayment } from '../_shared/refund-reconciliation.ts';
 import {reconcileLaterRentSettlements} from '../_shared/later-rent-settlement.ts';
+import {runLaterRentDebit} from '../_shared/later-rent-debit.ts';
+import {resolvePaymentReturnUrl} from '../_shared/payment-return.ts';
 
 const jsonHeaders={'Content-Type':'application/json'};
 const json=(body:Record<string,unknown>,status=200)=>new Response(
@@ -29,6 +31,13 @@ Deno.serve(async(req)=>{
   const paystackSecret=Deno.env.get('PAYSTACK_SECRET_KEY');
   if(!url||!serviceKey||!paystackSecret)return json({success:false,error:'Processor configuration is incomplete'},503);
   const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  try{
+    if(resolvePaymentReturnUrl(url,Deno.env.get('APP_URL'),paystackSecret,'payment-return')){
+      const live=paystackSecret.startsWith('sk_live_');
+      const approval=live?await db.rpc('_legal_launch_gate_is_approved',{p_gate_key:'payments_protection_payouts'}):{data:true,error:null};
+      if(!approval.error&&approval.data===true)await runLaterRentDebit(db,paystackSecret);
+    }
+  }catch{console.error('[financial-action-processor] automatic rent needs reconciliation');}
   // A provider delay in direct rent must not block unrelated refunds/releases.
   try{await reconcileLaterRentSettlements(db,paystackSecret);}catch{console.error('[financial-action-processor] rent settlement queue needs attention');}
   const workerId=`financial-action-processor:${crypto.randomUUID()}`;
