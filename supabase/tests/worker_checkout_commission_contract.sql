@@ -72,6 +72,14 @@ begin
  perform pg_temp.expect(not has_function_privilege('authenticated','public.confirm_worker_booking_payment(uuid,text,numeric,text,text)','EXECUTE'),'customer cannot directly confirm payment');
  perform pg_temp.expect(not has_function_privilege('anon','private.freeze_worker_checkout_commission()','EXECUTE'),'snapshot trigger is private');
 end $$;
+-- Exercise a genuine participant dispute, then restore this paid fixture so the
+-- independent release assertions below retain their original starting state.
+savepoint participant_dispute;
+select set_config('request.jwt.claims','{"sub":"b7888888-0000-4000-8000-000000000001","session_id":"b7888888-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select pg_temp.expect(public.customer_raise_dispute('b7888888-0000-4000-8000-000000000011','The delivered service needs WeHouse review'),'customer can actually raise a paid job dispute');
+select pg_temp.expect(exists(select 1 from public.worker_bookings b join public.payment_protection_transactions p on p.id=b.payment_protection_id where b.id='b7888888-0000-4000-8000-000000000011' and b.status='disputed' and p.protection_state='disputed'),'job and canonical protected balance both enter review');
+rollback to savepoint participant_dispute;
+release savepoint participant_dispute;
 -- Exercise the real release projector as well as the verified-charge path.
 -- The service-role fixture supplies an already authorized release action.
 do $$
