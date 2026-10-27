@@ -139,6 +139,7 @@ begin
  perform public.process_verified_paystack_refund_event('refund.processed:'||refund_reference,'refund.processed',checkout->>'reference',refund_reference,refund_reference,repeat('d',64),now(),125000,'NGN');
  perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and released_amount=1250 and refunded_amount=1250 and commission_recognized_amount=250),'partial decision settles exactly the protected gross');
  perform pg_temp.expect(exists(select 1 from public.wallets where owner_id=hid and owner_type='worker' and available_balance=3250),'partial decision credits only the retained net');
+ update public.creator_elevation_grants set action_classes=array['private_evidence','policy_publish'] where creator_elevation_id=eg;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
  pub:=public.set_my_experience_publication(aid,3,1,false);
  perform pg_temp.expect(not (pub->>'visible')::boolean and public.get_published_experience(aid) is null,'unpublish removes the customer projection');
