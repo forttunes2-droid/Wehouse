@@ -10,6 +10,8 @@ values ('88888888-1111-4111-8111-888888888888','creator-control-a@example.invali
 ('88888888-2222-4222-8222-888888888888','creator-control-b@example.invalid','creator-control-b','user',false,'consumer');
 insert into public.platform_settings(key,value,category,label,data_type,is_active) values('registration_open','true','platform','Registration open','boolean',true),('maintenance_mode','false','platform','Maintenance mode','boolean',true)
 on conflict(key) do update set value=excluded.value,is_active=true;
+insert into auth.sessions(id,user_id,created_at,updated_at) values('88888888-1111-4111-8111-000000000001','88888888-1111-4111-8111-888888888888',now(),now());
+insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values('88888888-1111-4111-8111-000000000002','88888888-1111-4111-8111-888888888888','totp','verified',now(),now());
 set local session_replication_role=origin;
 
 select set_config('request.jwt.claims','{"sub":"88888888-2222-4222-8222-888888888888","role":"authenticated"}',true);
@@ -46,7 +48,7 @@ do $$ begin
 end $$;
 reset role;
 
-select set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-888888888888","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-888888888888","role":"authenticated","session_id":"88888888-1111-4111-8111-000000000001","aal":"aal2"}',true);
 set local role authenticated;
 update public.platform_settings set value='false' where key='registration_open';
 reset role;
@@ -60,7 +62,7 @@ do $$ begin
   if not has_function_privilege('supabase_auth_admin','public.get_signup_availability()','execute')
     or has_function_privilege('anon','public.get_signup_availability()','execute') then raise exception 'Signup access reader grants are incorrect'; end if;
 end $$;
-select set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-888888888888","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"88888888-1111-4111-8111-888888888888","role":"authenticated","session_id":"88888888-1111-4111-8111-000000000001","aal":"aal2"}',true);
 set local role authenticated;
 update public.platform_settings set value='true' where key in('registration_open','maintenance_mode');
 reset role;
