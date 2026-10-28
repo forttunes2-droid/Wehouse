@@ -4,6 +4,28 @@
 
 ## Current engineering checkpoints
 
+### Experience sharing uses the existing Services/chat path — 28 October
+
+Activity references now use the existing Service sharing dialog, bounded in-memory
+draft, chat serializer and sent/received bubble controls. Only the public activity
+ID is sent; recipients fetch its current publication, sessions and quote through
+normal Services discovery. Choosing a recipient prepares a draft without sending
+a message, holding capacity or creating payment. Accepted Friends and unblocked
+Roommates use their existing conversations; this does not grant shared payment
+eligibility to an Experience. Native share/copy uses the same public link.
+
+Services navigation accepts the activity deep link and the existing guest-return
+slot preserves an expiring public reference through sign-in, including provider
+redirects. Personal authority still determines access; a link never switches a
+privileged workspace. Closing the recipient chooser now pops its history layer
+before opening the conversation, fixing a trapped Back action in both Service and
+property sharing. Activity discovery skips unrelated Worker data and campaign
+reads. Focused reference/route tests, TypeScript and lint pass. The new actual-UI
+browser journey is included in CI; local native browser execution was interrupted
+by approval timeouts and then stalled in the sandbox, so browser closure remains
+pending that CI result. Existing payment/provider and remaining integrations are
+unchanged by this UI connection.
+
 ### Consolidation and merge acceptance — 28 October
 
 Owner confirmed that two-device acceptance is performed after merging. It is

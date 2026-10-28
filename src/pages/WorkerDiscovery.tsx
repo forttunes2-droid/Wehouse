@@ -42,6 +42,8 @@ type Props = {
   onNavigate?: (page: string, id?: string) => void;
   preSelectedCategory?: string | null;
   initialWorkerId?: string | null;
+  initialExperienceId?:string|null;
+  onInitialExperienceOpened?:()=>void;
   onInitialWorkerOpened?: () => void;
 };
 
@@ -79,9 +81,11 @@ export default function WorkerDiscovery({
   onNavigate = () => {},
   preSelectedCategory,
   initialWorkerId,
+  initialExperienceId,
+  onInitialExperienceOpened,
   onInitialWorkerOpened,
 }: Props) {
-  const [offering,setOffering]=useState<'services'|'experiences'>('services');
+  const [offering,setOffering]=useState<'services'|'experiences'>(initialExperienceId?'experiences':'services');
   const { getBoolean, loading: settingsLoading } = usePlatformSettings();
   const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
   const savedState = profile?.state || "",
@@ -109,8 +113,10 @@ export default function WorkerDiscovery({
       conversationId: string;
       bookingId: string;
     } | null>(null);
-  const sponsoredResults = useSponsoredDiscovery('worker', state, city, category);
+  const sponsoredResults = useSponsoredDiscovery('worker', state, city, category,offering==='services');
+  useEffect(()=>{if(initialExperienceId){setOffering('experiences');setViewWorker(null);setChat(null);}},[initialExperienceId]);
   useEffect(() => {
+    if(offering!=='services')return;
     let live = true;
     setLoading(true);
     setLoadError('');
@@ -138,13 +144,13 @@ export default function WorkerDiscovery({
     return () => {
       live = false;
     };
-  }, [reload]);
+  }, [reload,offering]);
   useEffect(() => {
-    if (!profile?.user_id) return;
+    if (!profile?.user_id||offering!=='services') return;
     void getUserActiveBookings(profile.user_id).then(({ bookings }) =>
       setActive(new Set(((bookings || []) as ActiveBooking[]).map((row) => row.worker_id).filter((id): id is string => Boolean(id)))),
     );
-  }, [profile?.user_id]);
+  }, [profile?.user_id,offering]);
   useEffect(() => {
     if (!viewWorker || !active.has(viewWorker.user_id)) {
       setProfileBlock({ blockedByMe: false, blockedMe: false, busy: false });
@@ -352,7 +358,7 @@ export default function WorkerDiscovery({
       </>
     );
     }
-  if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Experiences...</p>}><ExperienceDiscovery onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
+  if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Experiences...</p>}><ExperienceDiscovery viewerId={profile?.user_id} onNavigate={onNavigate} initialActivityId={initialExperienceId} onInitialActivityOpened={onInitialExperienceOpened} onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
   return (
     <DiscoveryShell
       active="services"

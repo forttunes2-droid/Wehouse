@@ -1,7 +1,7 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import SharedPropertyCard from "@/components/SharedPropertyCard";
 import { ChevronRight, Copy, Search, Share2, Users } from "lucide-react";
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getRoommateConversationPeople } from '@/lib/supabase/chat';
 import { selectRoommateRecipientsFromPeers, type RoommateRecipient } from '@/lib/roommateRecipients';
@@ -20,7 +20,8 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
   const [recipients, setRecipients] = useState<RoommateRecipient[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0), [query, setQuery] = useState('');
   const [sharing, setSharing] = useState(false);
-  const dismiss = useRecordScreenBack(onClose);
+  const destination=useRef<(()=>void)|null>(null);
+  const dismiss = useRecordScreenBack(()=>{const next=destination.current;destination.current=null;onClose();next?.();});
   const dialogRef = useDialogInteraction(dismiss);
   useEffect(() => {
     let active = true;
@@ -81,9 +82,9 @@ export default function PropertyShareDialog({ userId, property, title, onClose, 
           queuePropertyShare(userId, person.conversationId, property);
           clearWorkerShare(userId, person.conversationId);
           // The normal conversation (and its existing PIN gate) owns Send.
-          onClose();
-          if (audience === 'friends') onFriendConversation?.(person.conversationId);
-          else onConversation(person.conversationId);
+          destination.current=()=>{if (audience === 'friends') onFriendConversation?.(person.conversationId);
+          else onConversation(person.conversationId);};
+          dismiss();
           } catch (error) { toast.error(error instanceof Error ? error.message : 'This property could not be shared.'); }
         }} className="flex min-h-16 w-full items-center gap-3 py-3 text-left">
           <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/15 font-semibold text-violet-200">{person.avatar ? <img src={person.avatar} alt="" className="h-full w-full object-cover" /> : person.name[0]?.toUpperCase()}</span>

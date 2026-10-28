@@ -59,6 +59,7 @@ interface LoginProps {
   kickedOut?: boolean;
   pendingDevice?: DeviceRegistration | null;
   publicProperty?: SharedProperty | null;
+  publicActivityId?:string|null;
   onDismissPublicProperty?: () => void;
 }
 
@@ -162,6 +163,7 @@ export default function Login({
   kickedOut,
   pendingDevice,
   publicProperty,
+  publicActivityId,
   onDismissPublicProperty,
 }: LoginProps) {
   const [storedVerification] = useState(() => readGoogleVerification());
@@ -755,6 +757,7 @@ export default function Login({
   return (
     <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} showSignedOutNav={["choose", "signin", "signup"].includes(mode)} busy={working}
       sharedProperty={publicProperty} onDismissSharedProperty={onDismissPublicProperty}
+      sharedActivityId={publicActivityId}
       onSignIn={(property) => { if (!workingRef.current) { setRestorePropertyOnBack(Boolean(property)); setMode("choose"); clearMessages(); } }}
       onBrowse={() => {
         if (restorePropertyOnBack) onDismissPublicProperty?.();

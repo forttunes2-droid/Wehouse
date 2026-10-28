@@ -1,4 +1,5 @@
 /** A shared property is a public reference, not a reservation or payment invite. */
+import {sharePublicReference} from './publicReferenceShare';
 export type SharedProperty = { kind: 'listing' | 'hotel'; id: string };
 const PREFIX = 'https://wehouse.com.ng/#place/';
 export function propertyReference(kind: unknown, id: unknown): SharedProperty | null {
@@ -62,18 +63,5 @@ export async function sharePropertyExternally(
   property: SharedProperty,
   title = 'WeHouse property',
 ): Promise<'shared' | 'copied' | 'cancelled'> {
-  const url = propertyShareUrl(property);
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    try {
-      await navigator.share({ title, text: `View ${title} on WeHouse`, url });
-      return 'shared';
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
-    }
-  }
-  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(url);
-    return 'copied';
-  }
-  throw new Error('Sharing is not available on this device.');
+  return sharePublicReference(propertyShareUrl(property),title);
 }

@@ -1,4 +1,5 @@
 import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
+import {guestReturnDestination} from '@/lib/navigationRoute';
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
 import EmailChangeFinisher from "@/components/EmailChangeFinisher";
 import AppErrorState from '@/components/AppErrorState';
@@ -317,6 +318,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [roommateContextId, setRoommateContextId] = useState<string | null>(() => initialRoute?.page === "roommate" ? initialParams.roommateId || initialParams.id || null : null),
     [workerCategory, setWorkerCategory] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.category || null : null),
     [workerProfileId, setWorkerProfileId] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.id || null : null),
+    [workerExperienceId, setWorkerExperienceId] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.experienceId || null : null),
     [friendConversationId, setFriendConversationId] = useState<string | null>(() => initialRoute?.page === "activity" ? initialParams.friendId || null : null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
@@ -469,13 +471,13 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "roommate":
         return { roommateId: params.roommateId ?? params.id ?? roommateContextId ?? undefined };
       case "worker_discovery":
-        return { id: params.id ?? workerProfileId ?? undefined, category: params.category ?? workerCategory ?? undefined };
+        return { id: params.id ?? workerProfileId ?? undefined, experienceId:params.experienceId??workerExperienceId??undefined, category: params.category ?? workerCategory ?? undefined };
       case "activity":
         return { friendId: params.friendId ?? friendConversationId ?? undefined };
       default:
         return {};
     }
-  }, [detailId, hotelId, hotelRoomId, hotelRatePlanId, hotelCheckIn, hotelCheckOut, chatConvId, chatPeerId, bookingContextId, roommateContextId, workerCategory, workerProfileId, friendConversationId]);
+  }, [detailId, hotelId, hotelRoomId, hotelRatePlanId, hotelCheckIn, hotelCheckOut, chatConvId, chatPeerId, bookingContextId, roommateContextId, workerCategory, workerProfileId, workerExperienceId, friendConversationId]);
   const restoreRouteParams = useCallback((page: NavPage, value: unknown) => {
     const params = parseNavigationRouteParams(value);
     setDetailId(page === "detail" ? params.id || null : null);
@@ -493,6 +495,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     setBookingContextId(page === "my_reservations" ? params.bookingId || params.id || null : null);
     setRoommateContextId(page === "roommate" ? params.roommateId || params.id || null : null);
     setWorkerProfileId(page === "worker_discovery" ? params.id || null : null);
+    setWorkerExperienceId(page === "worker_discovery" ? params.experienceId || null : null);
     setFriendConversationId(page === "activity" ? params.friendId || null : null);
     setWorkerCategory(page === "worker_discovery" ? params.category || null : null);
   }, []);
@@ -1262,7 +1265,9 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         setRoommateContextId(id || null);
         return goTo("roommate", undefined, { roommateId: id });
       }
-      if (route === "worker_discovery" && id) { setWorkerProfileId(id); return goTo("worker_discovery", undefined, { id }); }
+      if(route==='experience'&&id){setWorkerProfileId(null);setWorkerExperienceId(id);return goTo('worker_discovery',undefined,{id:'',experienceId:id});}
+      if(route==='experience_catalog'){setWorkerExperienceId(null);setWorkerProfileId(null);return goTo('worker_discovery',undefined,{id:'',experienceId:''});}
+      if (route === "worker_discovery" && id) { setWorkerExperienceId(null);setWorkerProfileId(id); return goTo("worker_discovery", undefined, { id,experienceId:'' }); }
       if (route === "activity" && id) { setFriendConversationId(id); return goTo("activity", undefined, { friendId: id }); }
       if (route === "security" && id) return goTo("devices");
       goTo(route as NavPage);
@@ -1304,10 +1309,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     }
     let destination = "";
     try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
-    const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : destination === 'roommate' ? 'roommate' : destination === 'services' ? 'worker_discovery' : "";
-    if (!route) return;
+    const route=guestReturnDestination(destination);
+    if (!route) {try{sessionStorage.removeItem('wh_guest_return_tab_v1');}catch{}return;}
     try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
-    goTo(route as NavPage);
+    goTo(route.page as NavPage,undefined,route.params);
   }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
@@ -1354,6 +1359,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         kickedOut={auth.kickedOut}
         pendingDevice={auth.pendingDevice}
         publicProperty={propertyIntent}
+        publicActivityId={initialRoute?.page==='worker_discovery'?initialParams.experienceId:null}
         onDismissPublicProperty={consumePropertyIntent}
       />
     );
@@ -1657,6 +1663,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             profile={profile}
             preSelectedCategory={workerCategory}
             initialWorkerId={workerProfileId}
+            initialExperienceId={workerExperienceId}
+            onInitialExperienceOpened={()=>setWorkerExperienceId(null)}
             onInitialWorkerOpened={() => setWorkerProfileId(null)}
             onNavigate={(p, id) => openUserDestination(p, id)}
           />

@@ -1237,6 +1237,7 @@ export default function Chat({
                     msg={event.message}
                     onOpenProperty={onNavigate}
                     onOpenWorker={(id) => onNavigate("worker_discovery", id)}
+                    onOpenExperience={id=>onNavigate('experience',id)}
                     mine={event.message.sender_id === profile.user_id}
                     quoted={
                       event.message.reply_to_id
@@ -1299,7 +1300,7 @@ export default function Chat({
             ) : (
               <>
                 {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { if (active) clearPropertyShare(profile.user_id, active.id); setPropertyDraft(null); }} />}
-                {workerDraft && <WorkerDraftAttachment onRemove={() => { if (active) clearWorkerShare(profile.user_id, active.id); setWorkerDraft(null); }} />}
+                {workerDraft && <WorkerDraftAttachment activity={workerDraft.kind==='experience'} onRemove={() => { if (active) clearWorkerShare(profile.user_id, active.id); setWorkerDraft(null); }} />}
                 <PendingMessageMedia files={files} onRemove={index => setFiles(current => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel
                   recording={voice.recording}

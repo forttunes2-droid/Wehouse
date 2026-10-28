@@ -1,5 +1,6 @@
 ﻿import MessagePress from '@/components/MessagePress';
 import SharedPropertyCard from '@/components/SharedPropertyCard';
+import {CalendarDays,UserRound} from 'lucide-react';
 import MessageMedia, { AttachmentState } from '@/components/MessageMedia';
 import { parsePropertyShareMessage, propertyMessagePreview } from '@/lib/propertyShare';
 import { parseWorkerShareMessage, workerMessagePreview } from '@/lib/workerShare';
@@ -19,6 +20,7 @@ export default function RoommateBubble({
   onReply,
   onOpenProperty,
   onOpenWorker,
+  onOpenExperience,
   allowFriendPlans = false,
   friendPlanBusy = false,
   friendPlanReplyState = null,
@@ -26,6 +28,7 @@ export default function RoommateBubble({
 }: {
   onOpenProperty: (page: string, id: string) => void;
   onOpenWorker?: (id: string) => void;
+  onOpenExperience?: (id: string) => void;
   msg: RoommateMessage;
   mine: boolean;
   quoted?: RoommateMessage;
@@ -80,9 +83,9 @@ export default function RoommateBubble({
           <p className="mt-3 text-xs text-[var(--wh-text-secondary)]">A private suggestion. No booking or payment is created.</p>
         </section> : sharedWorker ? <>
           {sharedWorker.text && <p className="mb-2 whitespace-pre-wrap break-words text-sm leading-6">{sharedWorker.text}</p>}
-          <button type="button" data-message-swipe-surface="true" onClick={event => { event.stopPropagation(); onOpenWorker?.(sharedWorker.worker.id); }} className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-left" aria-label="Open recommended Worker profile">
-            <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/15 text-lg font-semibold text-[var(--wh-accent-text)]">W</span>
-            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[var(--wh-accent-text)]">Worker recommendation</span><span className="mt-1 block text-sm font-semibold">View Worker profile</span></span>
+          <button type="button" data-message-swipe-surface="true" onClick={event => { event.stopPropagation(); if(sharedWorker.worker.kind==='experience')onOpenExperience?.(sharedWorker.worker.id);else onOpenWorker?.(sharedWorker.worker.id); }} className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-left" aria-label={sharedWorker.worker.kind==='experience'?'Open shared activity':'Open recommended Worker profile'}>
+            <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]">{sharedWorker.worker.kind==='experience'?<CalendarDays size={22}/>:<UserRound size={22}/>}</span>
+            <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-[var(--wh-accent-text)]">{sharedWorker.worker.kind==='experience'?'Activity suggestion':'Service Worker recommendation'}</span><span className="mt-1 block text-sm font-semibold">{sharedWorker.worker.kind==='experience'?'View activity and dates':'View Service Worker profile'}</span></span>
           </button>
         </> : shared ? <>
           {shared.text && <p className="mb-2 whitespace-pre-wrap break-words text-sm leading-6">{shared.text}</p>}

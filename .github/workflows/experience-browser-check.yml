@@ -150,7 +150,7 @@ jobs:
             sleep 1
           done
           failed=0
-          for test in provider_reviews service_review_link account_authenticator release_six shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience bookings_layout native_choices welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability rent_terms later_rent error_states security_controls workspace_recovery creator_sanction report_recovery service_quote friend_history media_preparation service_discovery gallery_sharing discovery_location experience_commerce experience_help; do
+          for test in provider_reviews service_review_link account_authenticator release_six shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience bookings_layout native_choices welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability rent_terms later_rent error_states security_controls workspace_recovery creator_sanction report_recovery service_quote friend_history media_preparation service_discovery gallery_sharing discovery_location experience_commerce experience_help experience_sharing; do
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0
@@ -181,6 +181,7 @@ jobs:
           path: |
             test-results/experience
             test-results/experience-commerce
+            test-results/experience-sharing
             test-results/later-rent
             test-results/rent-terms
             test-results/error-states

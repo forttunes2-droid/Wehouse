@@ -27,6 +27,48 @@ const plain = data => JSON.parse(JSON.stringify(data));
 const quote = load('src/lib/shortLetQuote.ts');
 const sharing = load('src/lib/propertyShare.ts');
 const workerSharing = load('src/lib/workerShare.ts');
+test('activity shares are unambiguous public references using Services navigation',()=>{
+  const activity={kind:'experience',id:'91000000-0000-4000-8000-000000000001'};
+  const url=workerSharing.workerShareUrl(activity);
+  assert.equal(url,'https://wehouse.com.ng/#worker_discovery?experienceId='+activity.id);
+  assert.deepEqual(plain(workerSharing.parseWorkerShareMessage(workerSharing.workerShareMessage(activity,'Let us try this'))),{worker:activity,text:'Let us try this'});
+  assert.equal(workerSharing.workerMessagePreview(workerSharing.workerShareMessage(activity)),'Shared an activity');
+  for(const bad of [url+'&id='+activity.id,url+'&experienceId='+activity.id,url+'&payment=paid',url+'?payment=paid',url.replace('wehouse.com.ng','evil.invalid'),url.replace('experienceId','bookingId')])assert.equal(workerSharing.parseWorkerShareMessage(bad),null,bad);
+  const routes=load('src/lib/navigationRoute.ts');
+  assert.deepEqual(plain(routes.parseNavigationRoute(new URL(url).hash)),{page:'worker_discovery',params:{experienceId:activity.id}});
+  assert.equal(routes.identityEntryRoute(new URL(url).hash,'search').params.experienceId,activity.id);
+});
+test('activity drafts reuse account/conversation isolation, expiry and explicit cancellation',()=>{
+  const activity={kind:'experience',id:'91000000-0000-4000-8000-000000000001'};
+  workerSharing.queueWorkerShare('alice','conversation',activity,0);
+  assert.equal(workerSharing.pendingWorkerShare('bob','conversation',1),null);
+  assert.equal(workerSharing.pendingWorkerShare('alice','another-conversation',1),null);
+  assert.deepEqual(plain(workerSharing.pendingWorkerShare('alice','conversation',1)),activity);
+  assert.equal(workerSharing.pendingWorkerShare('alice','conversation',900001),null);
+  workerSharing.queueWorkerShare('alice','conversation',activity,0);
+  workerSharing.clearWorkerShare('alice','conversation');
+  assert.equal(workerSharing.pendingWorkerShare('alice','conversation',1),null);
+});
+test('guest activity return survives provider redirects without carrying private state',()=>{
+ const routes=load('src/lib/navigationRoute.ts'),id='91000000-0000-4000-8000-000000000001';
+ const saved=routes.guestActivityReturn(id,0);
+ assert.deepEqual(plain(routes.guestReturnDestination(saved,1)),{page:'worker_discovery',params:{experienceId:id}});
+ assert.equal(routes.guestReturnDestination(saved,600001),null);
+ assert.equal(routes.guestReturnDestination(saved,-1),null);
+ for(const input of ['bad',JSON.stringify({kind:'booking',id,expires:1000}),JSON.stringify({kind:'experience',id:'not-an-id',expires:1000})])assert.equal(routes.guestReturnDestination(input,1),null);
+ assert.deepEqual(plain(routes.guestReturnDestination('services')),{page:'worker_discovery',params:{}});
+});
+test('public sharing handles native cancellation without copying and never shares private routes',async()=>{
+ let calls=0,copies=0;
+ const native=load('src/lib/publicReferenceShare.ts',{}, {DOMException,navigator:{share:async()=>{calls++;throw new DOMException('Cancelled','AbortError');},clipboard:{writeText:async()=>{copies++;}}}});
+ const url='https://wehouse.com.ng/#worker_discovery?experienceId=91000000-0000-4000-8000-000000000001';
+ assert.equal(await native.sharePublicReference(url,'Public activity'),'cancelled');
+ assert.equal(calls,1);assert.equal(copies,0);
+ for(const bad of ['https://evil.invalid/#place/hotel/7','https://wehouse.com.ng/#security?token=secret','https://wehouse.com.ng/storage/private.jpg','https://wehouse.com.ng/?token=secret#place/hotel/7'])await assert.rejects(()=>native.sharePublicReference(bad,'Invalid reference'));
+ assert.equal(calls,1);
+ const fallback=load('src/lib/publicReferenceShare.ts',{}, {navigator:{clipboard:{writeText:async value=>{assert.equal(value,url);copies++;}}}});
+ assert.equal(await fallback.sharePublicReference(url,'Public activity'),'copied');assert.equal(copies,1);
+});
 const defaultStay = { checkIn: '2026-09-24', checkOut: '2026-09-26', today: '2026-09-23', lastDate: '2027-09-23', guests: 2, maxGuests: 2, minNights: 1, maxNights: 90, nightlyRate: 120000, refundableDeposit: 50000 };
 
 test('Short Let has no deposit-only or fabricated total before complete valid dates', () => {

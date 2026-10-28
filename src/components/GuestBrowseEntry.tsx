@@ -8,20 +8,21 @@ import PersonalBottomNav, { type PersonalNavPage } from '@/components/PersonalBo
 import { PublicInvitationPreview } from '@/components/ResourceInvitationAction';
 import { clearInvitationIntent, readInvitationIntent, saveInvitationIntent } from '@/lib/resourceInvitation';
 import BrandIdentity from '@/components/BrandIdentity';
+import {guestActivityReturn} from '@/lib/navigationRoute';
 
 const Search = lazy(() => import('@/pages/Search'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetailCore'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetailExperience'));
 const noSavedHomes = new Set<string>();
-type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; sharedActivityId?:string|null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
 
 /** Only coordinates public navigation. Search, cards and property details are the
  * SAME components as the authenticated routes. No fake Profile or private reads. */
-export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, onDismissSharedProperty, onSignIn, onBrowse, onOpenLegal, notice, children }: Props) {
+export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, sharedActivityId, onDismissSharedProperty, onSignIn, onBrowse, onOpenLegal, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
-  const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(null);
+  const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(sharedActivityId?'services':null);
   const [target, setTarget] = useState<SharedProperty | null>(() => sharedProperty || null);
   useEffect(() => {
     if (sharedProperty) { setSection('explore'); setTarget(sharedProperty); setPublicProduct(null); }
@@ -36,7 +37,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account' | 'roommate' | 'services') {
     if (busy) return;
     if (destination) {
-      try { sessionStorage.setItem('wh_guest_return_tab_v1', destination); } catch {}
+      try { sessionStorage.setItem('wh_guest_return_tab_v1', destination==='services'&&sharedActivityId?guestActivityReturn(sharedActivityId)||destination:destination); } catch {}
     }
     if (property) {
       try { savePropertyLinkIntent(property, sessionStorage); } catch { /* Auth works without storage. */ }

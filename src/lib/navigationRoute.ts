@@ -13,6 +13,7 @@ export type NavigationRouteParams = {
   roommateId?: string;
   category?: string;
   friendId?: string;
+  experienceId?: string;
 };
 
 export type ParsedNavigationRoute = {
@@ -71,6 +72,7 @@ const PARAM_LIMITS: Record<keyof NavigationRouteParams, number> = {
   roommateId: 512,
   category: 100,
   friendId: 512,
+  experienceId: 36,
 };
 
 function cleanParams(value: unknown): NavigationRouteParams {
@@ -119,4 +121,18 @@ export function identityEntryRoute(hash: string, roleRoot: string): ParsedNaviga
   return route && isRestorableNavigationPage(route.page)
     ? route
     : { page: roleRoot, params: {} };
+}
+
+/** Reuse the existing guest return slot across email/Google/Apple redirects.
+ * Only an expiring public activity ID survives; never a booking or recipient. */
+export function guestActivityReturn(id:unknown,now=Date.now()):string|null {
+  return typeof id==='string'&&/^[a-f\d]{8}-[a-f\d]{4}-[1-8][a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i.test(id)
+    ?JSON.stringify({kind:'experience',id,expires:now+10*60_000}):null;
+}
+export function guestReturnDestination(raw:string,now=Date.now()):ParsedNavigationRoute|null {
+  const tabs:Record<string,string>={bookings:'my_reservations',inbox:'conversation',account:'profile',roommate:'roommate',services:'worker_discovery'};
+  if(tabs[raw])return{page:tabs[raw],params:{}};
+  try{const v=JSON.parse(raw);if(v?.kind!=='experience'||!Number.isFinite(v.expires)||v.expires<=now||v.expires>now+10*60_000||!guestActivityReturn(v.id,now))return null;
+    return{page:'worker_discovery',params:{experienceId:v.id}};
+  }catch{return null;}
 }

@@ -281,6 +281,7 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
                   onReply={() => setReplyingTo(line)}
                   onOpenProperty={(page, id) => {onClose();onNavigate(page,id);}}
                   onOpenWorker={(id) => {onClose();onNavigate("worker_discovery",id);}}
+                  onOpenExperience={id=>{onClose();onNavigate('experience',id);}}
                 />
               </div>
             ))}
@@ -292,7 +293,7 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
             ) : (
               <>
                 {propertyDraft && <PropertyDraftAttachment property={propertyDraft} onRemove={() => { clearPropertyShare(myUserId, friend.friend_id); setPropertyDraft(null); }} />}
-                {workerDraft && <WorkerDraftAttachment onRemove={() => { clearWorkerShare(myUserId, friend.friend_id); setWorkerDraft(null); }} />}
+                {workerDraft && <WorkerDraftAttachment activity={workerDraft.kind==='experience'} onRemove={() => { clearWorkerShare(myUserId, friend.friend_id); setWorkerDraft(null); }} />}
                 <PendingMessageMedia files={files} onRemove={(index) => setFiles((current) => current.filter((_, i) => i !== index))} />
                 <VoiceRecorderPanel recording={voice.recording} seconds={voice.seconds} level={voice.level} draft={voice.draft} onCancel={voice.cancel} onFinish={voice.finish} onDiscard={voice.discard}
                   onUse={(file) => { setFiles((current) => [...current, file].slice(0, MAX_FILES)); voice.discard(); }} />

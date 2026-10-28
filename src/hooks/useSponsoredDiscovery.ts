@@ -4,11 +4,12 @@ import { withTimeout } from '@/lib/withTimeout';
 
 export type SponsoredResult = { campaign_id: string; resource_id: string };
 
-export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hotel', state: string, lga: string, category = '') {
+export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hotel', state: string, lga: string, category = '', enabled = true) {
   const [results, setResults] = useState<SponsoredResult[]>([]);
   useEffect(() => {
     let live = true;
     setResults([]);
+    if(!enabled)return;
     const timer = window.setTimeout(() => {
       void withTimeout(supabase.auth.getSession(),15000,'Session lookup timed out').then(({ data: session }) => {
         if (!live) return;
@@ -23,7 +24,7 @@ export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hot
       }).catch(() => { if (live) setResults([]); });
     }, 250);
     return () => { live = false; window.clearTimeout(timer); };
-  }, [resourceType, state, lga, category]);
+  }, [resourceType, state, lga, category, enabled]);
   return results;
 }
 
