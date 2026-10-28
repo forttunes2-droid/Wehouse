@@ -37,7 +37,7 @@ export async function checkAuthenticatorBoundary(admin,makeClient){
   await requirement('ready');assert.ifError((await client.rpc('get_my_workspace_access')).error);
   // The grant is seeded only in this disposable local database. UUID is generated
   // here, not supplied by a browser or accepted as a role claim.
-  execFileSync('docker',['exec','-i','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-c',`insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) select user_id,role,'global','active' from public.profiles cross join (values('admin'),('staff')) r(role) where auth_id='${id}';`],{stdio:['ignore','pipe','pipe']});
+  execFileSync('docker',['exec','-i','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-c',`insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status) select p.user_id,r.role,'global','active' from public.profiles p cross join (values('admin'),('staff')) r(role) where p.auth_id='${id}';`],{stdio:['ignore','pipe','pipe']});
   const internal=await requirement('ready');assert.equal(internal.required,true);assert.equal(internal.enrolled,true);
   assert.equal((await client.auth.mfa.listFactors()).data.totp.filter(f=>f.status==='verified').length,1);
   assert.ifError((await client.auth.mfa.unenroll({factorId:factor})).error);

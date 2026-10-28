@@ -71,6 +71,8 @@ end $policies$;
 do $authority$
 declare permissive text; restrictive text; signature text; definition text;
 begin
+ -- Match the empty search path used when the projection checks its signature.
+ perform pg_catalog.set_config('search_path','',true);
  select string_agg('('||pg_catalog.pg_get_expr(coalesce(polwithcheck,polqual),polrelid)||')',' or ' order by polname)
  filter(where polpermissive),
  string_agg('('||pg_catalog.pg_get_expr(coalesce(polwithcheck,polqual),polrelid)||')',' and ' order by polname)
