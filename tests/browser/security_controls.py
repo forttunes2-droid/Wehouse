@@ -46,6 +46,18 @@ async def main():
    state['support_fail']=False;await page.get_by_role('button',name='Refresh support contact',exact=True).click()
    link=page.get_by_role('link',name='Email WeHouse about account access',exact=True);await expect(link).to_have_attribute('href','mailto:review@example.invalid?subject=WeHouse%20account%20access%20review')
    assert all(c['args']=={} for c in calls if c['name']=='get_public_account_support')
+   await page.get_by_role('button',name='Prepare an account review request',exact=True).click()
+   await expect(page.get_by_role('button',name='Open review request in email',exact=True)).to_be_disabled()
+   await page.get_by_role('textbox',name='Username',exact=False).fill('sample.person')
+   await page.get_by_label('Restriction or booking reference (optional)',exact=True).fill('CASE-123')
+   await page.get_by_role('textbox',name='Why should WeHouse review this restriction?',exact=False).fill('The restriction appears to refer to another booking. Please review the reference.')
+   draft=page.get_by_role('link',name='Open review request in email',exact=True)
+   href=await draft.get_attribute('href')
+   from urllib.parse import urlparse,parse_qs
+   prepared=parse_qs(urlparse(href).query)['body'][0]
+   assert 'sample.person' in prepared and 'CASE-123' in prepared and 'another booking' in prepared
+   await expect(page.get_by_text('This prepares an email on your device.',exact=False)).to_be_visible()
+   await expect(page.get_by_text('A review request does not automatically restore access.',exact=False)).to_be_visible()
    await page.screenshot(path=str(OUT/f'account-review-{theme}.png'),full_page=True)
    state['contact']=False;await page.reload();await page.get_by_text('Account access or suspension help',exact=True).click();await expect(page.get_by_text('The public support address has not been published yet.',exact=True)).to_be_visible();await expect(link).to_have_count(0)
    assert not errors,errors;assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')

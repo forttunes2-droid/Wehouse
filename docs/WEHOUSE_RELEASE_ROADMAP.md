@@ -1,8 +1,25 @@
 # WeHouse release roadmap
 
-**Status date:** 27 October 2026
+**Status date:** 28 October 2026
 
 ## Current engineering checkpoints
+
+### Account review recovery — 28 October
+
+The signed-out account help now prepares a structured review email with a
+username, optional restriction/booking reference and explanation. Required fields
+are validated locally. It explicitly distinguishes preparation from sending or
+receipt, warns against sending credentials/identity numbers, and explains that
+password recovery does not lift a suspension. An authorized decision and fresh
+sign-in are still required for restored access. This is manual email handling;
+a verified, tracked in-app appeal intake, reviewer assignment/status and decision
+notifications remain an internal work item. Do not describe the public contact
+reader or mailto composer as that completed lifecycle. No automatic restoration,
+appeal deadline, review turnaround or new booking/refund policy was invented.
+Focused lint, the production build and actual phone/light and desktop/dark
+browser checks pass required fields, encoded email content, manual-delivery
+disclosure and the existing uncertain-decision recovery. No email was sent.
+
 
 ### Account misconduct and error recovery — 27 October
 
