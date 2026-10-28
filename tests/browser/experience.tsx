@@ -12,6 +12,7 @@ import '../../src/operational-workspaces.css';
 import '../../src/worker-discovery-responsive.css';
 import '../../src/chat-mobile.css';
 const messages = new URLSearchParams(window.location.search).get('fixture') === 'messages';
+const serviceReviewLink = new URLSearchParams(window.location.search).get('fixture') === 'service-review-link';
 const bookings = new URLSearchParams(window.location.search).get('fixture') === 'bookings';
 const bookingCards = new URLSearchParams(window.location.search).get('fixture') === 'booking-cards';
 const inboxActivity = new URLSearchParams(window.location.search).get('fixture') === 'inbox-activity';
@@ -41,6 +42,6 @@ function BookingCardsFixture() {
   </div></main>;
 }
 createRoot(document.getElementById('root')!).render(<StrictMode>
-  {messages ? <main className="min-h-screen bg-[#0A0A0F] p-4 text-white"><h1 className="mb-8">Inbox</h1><CommunicationsWorkspace profile={fixtureProfile} scope="all" forcedView="inbox" hideViewTabs queue="all" onOpenContext={() => {}} /></main> : bookings ? <MyReservations profile={fixtureProfile} /> : bookingCards ? <BookingCardsFixture /> : inboxActivity ? <Chat profile={fixtureProfile} onNavigate={() => {}} /> : choices ? <ChoiceFixture /> : <App />}
+  {messages ? <main className="min-h-screen bg-[#0A0A0F] p-4 text-white"><h1 className="mb-8">Inbox</h1><CommunicationsWorkspace profile={fixtureProfile} scope="all" forcedView="inbox" hideViewTabs queue="all" onOpenContext={() => {}} /></main> : serviceReviewLink ? <MyReservations profile={fixtureProfile} initialBookingId="service:bb290000-0000-4000-8000-000000000002"/> : bookings ? <MyReservations profile={fixtureProfile} /> : bookingCards ? <BookingCardsFixture /> : inboxActivity ? <Chat profile={fixtureProfile} onNavigate={() => {}} /> : choices ? <ChoiceFixture /> : <App />}
   <Toaster />
 </StrictMode>);

@@ -3,6 +3,46 @@ create function pg_temp.expect(value boolean,description text) returns void lang
 create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$begin execute statement;return false;exception when others then return true;end$$;
 grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to authenticated;
 
+-- Review proof uses the real confirmed payment and protected ledger created by
+-- this contract. Only the synthetic booking's clock/fulfillment receipt is moved
+-- into the past; these rows, ratings and moderator decisions are rolled back.
+create function pg_temp.exercise_experience_review(aid uuid,bid uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,sid text) returns void language plpgsql as $$
+declare r public.worker_booking_reviews;receipt uuid;old_stamp timestamptz;result jsonb;
+begin
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(not (public.get_my_experience_review(bid)->>'eligible')::boolean,'paid future session does not earn a review');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.submit_my_experience_review(%L,5,%L)',bid,'Before attending')),'payment alone cannot submit a review');
+ alter table public.experience_bookings disable trigger guard_experience_booking_contract;
+ update public.experience_bookings set contract=contract||jsonb_build_object('starts_at',now()-interval '3 hours','ends_at',now()-interval '2 hours'),
+  attendance_confirmed_at=now()-interval '3 hours',host_finished_at=now()-interval '2 hours',customer_completed_at=now()-interval '1 hour',status='completed' where id=bid;
+ alter table public.experience_bookings enable trigger guard_experience_booking_contract;
+ perform pg_temp.expect((public.get_my_experience_review(bid)->>'eligible')::boolean,'paid confirmed attendance and completion earns a review');
+ r:=public.submit_my_experience_review(bid,4,'Useful orientation with clear instructions.');old_stamp:=r.updated_at;
+ perform pg_temp.expect(public.submit_my_experience_review(bid,4,'Useful orientation with clear instructions.')=r,'uncertain submission retries reuse the same review');
+ r:=public.submit_my_experience_review(bid,5,'Updated after considering the full activity.',old_stamp);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.submit_my_experience_review(%L,3,%L,%L)',bid,'Stale competing edit',old_stamp)),'stale review edit rejected');
+ perform pg_temp.expect((public.get_public_experience_reviews(aid)->'summary'->>'count')::integer=1,'public activity summary includes one earned review');
+ perform pg_temp.expect(exists(select 1 from public.get_public_worker_reviews(hid,20) where id=r.id),'same Provider profile includes activity reviews');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_my_experience_review(%L)',bid)),'host cannot impersonate the reviewing customer');
+ receipt:=public.report_content('provider_review','untrusted-client-subject','inappropriate','Please check this activity review.',r.id::text);
+ perform pg_temp.expect(public.report_provider_review(r.id,'inappropriate','Uncertain response retry')=receipt,'reported review has one tracked receipt');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.moderate_provider_review(%L,true,%L,%L,%L)',receipt,'Host cannot hide a review',r.updated_at,gen_random_uuid())),'reviewed Provider cannot remove customer feedback');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
+ perform pg_temp.expect(public.get_provider_review_moderation(receipt)->'snapshot'->>'comment'='Updated after considering the full activity.','moderator sees reported evidence');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.admin_resolve_content_report(%L,%L,%L)',receipt,'actioned','False removal receipt')),'generic report closure cannot pretend review removal');
+ result:=public.moderate_provider_review(receipt,true,'Contains information requiring a privacy review.',r.updated_at,gen_random_uuid());
+ perform pg_temp.expect(result->'review'->>'hidden_at' is not null,'atomic moderation hides review');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect((public.get_public_experience_reviews(aid)->'summary'->>'count')::integer=0,'hidden feedback removed from activity score');
+ perform pg_temp.expect(exists(select 1 from public.notifications where recipient_id=sid and source_id=bid::text and destination_route='experience_booking' and type='provider_review_moderation'),'reviewer decision reaches exact booking');
+ r:=public.submit_my_experience_review(bid,5,'Edited review remains under moderation.',(result->'review'->>'updated_at')::timestamptz);
+ perform pg_temp.expect(r.hidden_at is not null,'editing cannot restore hidden content');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
+ result:=public.moderate_provider_review(receipt,false,'Reviewed the corrected feedback and restored visibility.',r.updated_at,gen_random_uuid());
+ perform pg_temp.expect(result->'review'->>'hidden_at' is null,'independent moderator can restore retained review');
+end $$;
+
 -- Invoked inside the independently approved fixture below; the surrounding
 -- transaction rolls every policy, publication and hold back afterward.
 create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
@@ -78,6 +118,7 @@ begin
  perform pg_temp.expect(pg_temp.rejects(format('select public.progress_experience_booking(%L,%L)',other_id,'complete')),'customer cannot release funds before attendance and completion');
  perform pg_temp.expect(public.get_my_payment_receipts(paid_checkout->>'reference')->0->>'booking_type'='experience','shared receipt identifies the actual Experience');
  perform pg_temp.expect((public.get_my_payment_receipts(paid_checkout->>'reference')->0->>'participants')::integer=1,'shared receipt retains the booked participant count');
+ perform pg_temp.exercise_experience_review(aid,other_id,h,c,s,hs,cs,ss,hid,sid);
  -- Exercise the shared release processor with a service-authorized fixture action.
  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
  perform public.transition_payment_protection(protection,'release_eligible','contract_release_authorized','experience-release-authorized:'||protection,null,'contract_fixture',null,null,'{}');

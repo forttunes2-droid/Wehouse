@@ -1383,6 +1383,7 @@ function BookingNegotiationChatSession({
             </div>
             {!isWorker && booking?.status === "approved_released" && (
               <section className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
+                {review?.hidden_at&&<div className="mb-3 space-y-2 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5"><p>Your review is hidden from public ratings.</p><p className="whitespace-pre-wrap">{review.moderation_reason}</p><p className="text-[var(--wh-text-secondary)]">Editing does not restore a hidden review. Use Help with this booking reference if you disagree with the moderation decision.</p></div>}
                 {review && !reviewOpen ? (
                   <div className="flex items-center justify-between gap-3">
                     <div>

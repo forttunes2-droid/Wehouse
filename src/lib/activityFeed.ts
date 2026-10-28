@@ -225,6 +225,7 @@ export function resolveActivityDestination(
     };
   }
 
+  if(type==='provider_review_moderation'&&sourceType==='worker_booking'&&route==='my_reservations')return {route:'service_booking',id:bookingId||fallbackId};
   if (route === "conversation") return { route, id: conversationId || fallbackId };
   if(route==='experience_booking'||route==='experience_finance_review')return {route,id:bookingId||fallbackId};
   if (route === "experience_application" || route === "experience_review")
@@ -249,6 +250,7 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   if (route === "detail") return "View home";
   if (route === "hotel_detail") return "View hotel";
   if (route === "experience_application") return "Open Experience application";
+  if(route==='service_booking')return 'Open Service booking';
   if(route==='experience_booking')return 'Open Experience booking';
   if(route==='experience_finance_review')return 'Review Experience booking';
   if (route === "experience_review") return "Review Experience application";

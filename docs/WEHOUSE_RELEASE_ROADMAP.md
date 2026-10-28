@@ -4,6 +4,33 @@
 
 ## Current engineering checkpoints
 
+### Earned Experience reviews and shared moderation — 28 October
+
+Test migration `20261028101305` extends the existing Service review table; no
+second Provider review system, account or wallet was introduced. A review must
+match a confirmed paid activity with retained protected-ledger proof, attendance,
+host completion and customer completion after the accepted session ends. One
+review per booking, exact-receipt retries and stale-edit checks are enforced.
+Public activity reviews use keyset pages; Provider profiles include both services
+and activities. Ordinary Service reviews remain on their existing API.
+
+Reports retain a snapshot in the existing scoped moderation queue. Independent
+moderators can hide/restore feedback with a reason; visibility, report outcome,
+ratings, audit and reviewer notification update atomically. Generic report closure
+cannot pretend removal. Editing a hidden review does not restore visibility.
+Customer and Service chat display the reason; decisions target the actual booking.
+
+The rollback application/publication/payment/review/moderation contract passes on
+Test with synthetic historical completion receipts backed by the contract's real
+verified-payment/protected-ledger path. No live customer booking was changed.
+Ten browser cases pass across light/dark themes for review creation/edit, lost
+responses, read failures, pagination/reporting and operator hide/restore. Seven adapter/routing tests and the final whole suite pass (818/818). Source build and focused
+lint pass. Service decision links outside the loaded inbox now use a protected
+exact-booking read, with unavailable/retry states and retained hidden-review
+reasons; both theme browser checks pass. The App fixture also exposed and fixed
+a lazy-import initialization-order error. Fresh/upgrade CI and complete
+Help/appeal routing verification remain required before this row closes.
+
 ### One account authenticator and mandatory internal access — 28 October
 
 Owner confirmed mandatory 2FA for Creator, Admin and Staff. The same verified
@@ -27,11 +54,16 @@ The first full replay exposed the fail-closed Storage policy fingerprint after
 adding MFA; its authority projection is now regenerated including the new
 restriction. The first real Auth test exposed disabled TOTP in the disposable
 configuration; enrollment and verification are now explicitly enabled there.
-The full replay and real Auth proof require another passing run. This migration
+Real Auth HTTP proof now passes: ordinary primary sessions are rejected after
+enrollment, wrong codes and AAL1 factor replacement/removal fail, a verified
+session succeeds, one Personal factor satisfies Admin and Staff, and removing
+the last factor returns mandatory internal access to setup. Full replay still
+requires the legitimate Creator fixture to carry a verified factor/AAL2. This migration
 and the dependent Edge changes are **not activated on Test or Production yet**:
 activation requires those checks and a coordinated compatible client rollout.
-The Experience review migration and library remain prepared separate work and
-must not be presented as completed reviews/moderation.
+Vercel still reports an account deployment block for the current commit. Existing
+ready Vercel previews predate this MFA client; do not activate the new gate behind
+an incompatible hosted client.
 
 
 ### Scoped restrictions and tracked recovery — 28 October

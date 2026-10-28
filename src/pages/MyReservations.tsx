@@ -1,3 +1,4 @@
+import ServiceReviewDecisionNotice from '@/components/ServiceReviewDecisionNotice';
 import PropertyBookingReview from '@/components/PropertyBookingReview';
 import ExperienceBookingDetail,{experienceBookingLabel,experienceBookingLane} from '@/components/ExperienceBookingDetail';
 import {getExperienceBookings,type ExperienceBooking} from '@/lib/experienceCommerce';
@@ -272,6 +273,7 @@ export default function MyReservations({
     )
       return;
     const sharedMatch=sharedGroups.find(group=>group.id===initialBookingId||group.reservation_id===initialBookingId);
+    if(initialBookingId.startsWith('service:')){openedInitialRef.current=initialBookingId;setActiveService({booking_id:initialBookingId.slice(8)});onInitialBookingConsumed?.();return;}
     if(initialBookingId.startsWith('experience:')){
       openedInitialRef.current=initialBookingId;setActiveExperience(initialBookingId.slice(11));onInitialBookingConsumed?.();return;
     }
@@ -735,11 +737,12 @@ export default function MyReservations({
   if (activeService)
     return (
       <ServiceBookingDetail
+        key={String(activeService.booking_id)}
         row={activeService}
         onBack={() => setActiveService(null)}
-        onConversation={() =>
+        onConversation={(conversationId:string) =>
           setActiveServiceChat({
-            conversationId: activeService.conversation_id,
+            conversationId,
             bookingId: activeService.booking_id,
           })
         }
@@ -1136,24 +1139,28 @@ function ServiceBookingDetail({
 }: {
   row: any;
   onBack: () => void;
-  onConversation: () => void;
+  onConversation: (conversationId:string) => void;
 }) {
   const [detail, setDetail] = useState<any>(row);
   const [loadingDetail, setLoadingDetail] = useState(true);
+  const [detailError,setDetailError]=useState(false),[attempt,setAttempt]=useState(0);
 
   useEffect(() => {
     let current = true;
-    setLoadingDetail(true);
-    void getBookingDetails(String(row.booking_id)).then(({ booking }) => {
-      if (current && booking) setDetail({ ...row, ...booking });
-    }).finally(() => {
+    setLoadingDetail(true);setDetailError(false);
+    void withTimeout(getBookingDetails(String(row.booking_id)),15000,'Booking check timed out.').then(({ booking,error }) => {
+      if(error||!booking||String(booking.id)!==String(row.booking_id))throw Error('Booking unavailable');
+      if (current) setDetail({ ...row, ...booking });
+    }).catch(()=>{if(current)setDetailError(true);}).finally(() => {
       if (current) setLoadingDetail(false);
     });
     return () => {
       current = false;
     };
-  }, [row.booking_id]);
+  }, [row.booking_id,attempt]);
 
+  if(loadingDetail)return <BookingDetailShell title="Service booking" onBack={onBack}><p role="status" className="p-4 text-sm">Checking this booking…</p></BookingDetailShell>;
+  if(detailError)return <BookingDetailShell title="Service booking" onBack={onBack}><div role="alert" className="space-y-3 p-4 text-sm"><p>This booking could not be loaded or is not available to this account.</p><button type="button" onClick={()=>setAttempt(n=>n+1)} className="min-h-11 font-semibold underline">Retry Service booking</button></div></BookingDetailShell>;
   const money=(value:unknown)=>formatRecordedMoney(value,detail.currency??row.currency);
   const status = String(detail.booking_status || detail.status || "booking_requested");
   const amount = Number(detail.agreed_amount || detail.negotiated_amount || 0);
@@ -1216,13 +1223,14 @@ function ServiceBookingDetail({
 
           {status === 'approved_released' && detail.worker_id && <WorkerCustomerRecordConsent workerId={String(detail.worker_id)} />}
 
-          <button
+          {status==='approved_released'&&<ServiceReviewDecisionNotice bookingId={String(row.booking_id)}/>}
+          {(detail.conversation_id||row.conversation_id)&&<button
             type="button"
-            onClick={onConversation}
+            onClick={()=>onConversation(String(detail.conversation_id||row.conversation_id))}
             className="mt-4 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold"
           >
             Open conversation
-          </button>
+          </button>}
         </div>
       </section>
     </BookingDetailShell>

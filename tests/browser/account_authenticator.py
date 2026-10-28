@@ -17,7 +17,7 @@ async def main():
     row={'case':case,'theme':theme,'passed':False}
     try:
      await page.goto('http://mfa.test/'+('?auth=recovery' if case=='recovery' else ''))
-     await page.evaluate("([mode,theme])=>{document.documentElement.className=theme;document.documentElement.setAttribute('data-theme',theme);window.__mfaTest={required:mode==='setup',enrolled:mode!=='setup',aal:'aal1',signed:mode!=='explicit-login',calls:[],fail:mode==='outage',emit:mode==='event'};localStorage.setItem('wh_profile_snapshot_v2:auth-a',JSON.stringify({saved_at:Date.now(),profile:{auth_id:'auth-a',user_id:'person-a',role:'creator'}}));}",[case,theme])
+     await page.evaluate("([mode,theme])=>{document.documentElement.className=theme;document.documentElement.setAttribute('data-wh-theme',theme);window.__mfaTest={required:mode==='setup',enrolled:mode!=='setup',aal:'aal1',signed:mode!=='explicit-login',calls:[],fail:mode==='outage',emit:mode==='event'};localStorage.setItem('wh_profile_snapshot_v2:auth-a',JSON.stringify({saved_at:Date.now(),profile:{auth_id:'auth-a',user_id:'person-a',role:'creator'}}));}",[case,theme])
      await page.add_style_tag(path=str(OUT/'fixture.css'));await page.add_script_tag(path=str(OUT/'fixture.js'))
      if case=='explicit-login':
       await expect(page.get_by_text('Signed out',exact=True)).to_be_visible();await page.evaluate("window.__mfaTest.signed=true;window.__authContinue('auth-a','mfa@example.invalid')")
@@ -40,7 +40,7 @@ async def main():
        calls=await page.evaluate('window.__mfaTest.calls');assert calls.count('enroll')==(1 if setup else 0)
        assert calls.index('verify')<calls.index('profile') if case!='recovery' else 'profile' not in calls
      assert not errors,errors
-     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+     assert await page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--wh-bg').trim().toUpperCase()")==('#F7F8FB' if theme=='light' else '#090B10');assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
      assert 'TEST-ONLY-SECRET' not in await page.evaluate('JSON.stringify(localStorage)+JSON.stringify(sessionStorage)')
      row['passed']=True
     except Exception as e:

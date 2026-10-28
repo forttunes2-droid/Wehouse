@@ -1,4 +1,3 @@
-const AccountAuthenticatorGate = lazy(() => import('@/components/AccountAuthenticatorGate'));
 import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
 import EmailChangeFinisher from "@/components/EmailChangeFinisher";
@@ -99,6 +98,7 @@ function pageScrollSurface(container: HTMLElement | null): HTMLElement | null {
     ? container : document.scrollingElement as HTMLElement | null;
 }
 
+const AccountAuthenticatorGate = lazy(() => import('@/components/AccountAuthenticatorGate'));
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
 const FollowedSearches = lazy(() => import("@/pages/FollowedSearches"));
@@ -1256,6 +1256,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         setBookingContextId(id || null);
         return goTo("my_reservations", undefined, { bookingId: id });
       }
+      if(route==='service_booking'&&id){const target=`service:${id}`;setBookingContextId(target);return goTo('my_reservations',undefined,{bookingId:target});}
       if(route==='experience_booking'&&id){const target=`experience:${id}`;setBookingContextId(target);return goTo('my_reservations',undefined,{bookingId:target});}
       if (route === "roommate") {
         setRoommateContextId(id || null);

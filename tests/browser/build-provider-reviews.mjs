@@ -1,0 +1,16 @@
+import {build} from 'esbuild';import fs from 'node:fs';import path from 'node:path';import postcss from 'postcss';import tailwindcss from 'tailwindcss';import autoprefixer from 'autoprefixer';
+const out='test-results/provider-reviews';fs.mkdirSync(out,{recursive:true});
+const mock=`const s=()=>window.__reviewTest;const stamp='2026-10-28T08:00:00.000Z';
+const saved=()=>({id:'bb290000-0000-4000-8000-000000000001',booking_id:null,experience_booking_id:'bb290000-0000-4000-8000-000000000002',rating:4,comment:'Helpful local activity',created_at:stamp,updated_at:stamp,hidden_at:null,moderation_reason:null});
+const record=()=>({report_id:'bb290000-0000-4000-8000-000000000001',status:s().review?.hidden_at?'actioned':'open',snapshot:{rating:4,comment:'Original reported text',title:'Orientation activity',updated_at:stamp},context:{title:'Orientation activity',state:'Nasarawa',area:'Lafia'},review:s().review||saved(),can_moderate:true});
+export const supabase={rpc:async(name,args)=>{const state=s();state.calls.push({name,args});
+ if(name==='get_my_experience_review'){if(state.failRead)return{error:{message:'Unavailable'}};return{data:{booking_id:args.p_booking_id,eligible:true,review:state.review||null}};}
+ if(name==='submit_my_experience_review'){state.review={...saved(),rating:args.p_rating,comment:args.p_comment};if(state.loseSave){state.loseSave=false;return{error:{message:'Lost response'}};}return{data:state.review};}
+ if(name==='get_public_experience_reviews'){const offset=args.p_before?20:0;return{data:{summary:{count:21,rating:4},items:Array.from({length:offset?1:20},(_,i)=>({id:'bb290000-0000-4000-8000-'+String(offset+i+1).padStart(12,'0'),rating:4,comment:'Activity feedback '+(offset+i+1),created_at:stamp,reviewer_name:i===0&&!offset?'Your review':'Verified participant'}))}};}
+ if(name==='report_content')return{data:'bb290000-0000-4000-8000-000000000001'};
+ if(name==='get_provider_review_moderation')return{data:record()};
+ if(name==='moderate_provider_review'){state.review={...saved(),hidden_at:args.p_hidden?stamp:null,moderation_reason:args.p_note};return{data:record()};}
+ throw Error('Unexpected review RPC '+name);
+}};`;
+await build({entryPoints:['tests/browser/provider-reviews.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',plugins:[{name:'review-transport',setup(api){api.onResolve({filter:/^@\/lib\/supabase\/client$/},()=>({path:'mock',namespace:'fixture'}));api.onResolve({filter:/(^|\/)client(?:\.ts)?$/},args=>path.resolve(args.resolveDir,args.path).replace(/\.ts$/,'')===path.resolve('src/lib/supabase/client')?{path:'mock',namespace:'fixture'}:undefined);api.onLoad({filter:/.*/,namespace:'fixture'},()=>({loader:'js',contents:mock}));api.onResolve({filter:/^@\//},args=>api.resolve(path.resolve('src',args.path.slice(2)),{resolveDir:process.cwd(),kind:args.kind}));}}]});
+const css=await postcss([tailwindcss(),autoprefixer()]).process(fs.readFileSync('src/index.css','utf8'),{from:'src/index.css'});fs.writeFileSync(out+'/fixture.css',css.css);
