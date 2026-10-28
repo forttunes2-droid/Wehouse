@@ -6,6 +6,14 @@
 
 ### Scoped restrictions and tracked recovery — 28 October
 
+The latest UI checks also verify that a same-identity access refresh retains an
+unsent appeal explanation. Different identities still clear the old access
+snapshot. Security Operations now has bounded reads, a visible retry action and
+no zero-valued metrics on a failed read; the overview uses theme surfaces in light
+and dark mode. The workspace-authority fixture now separates its suspended-actor
+assertions from privileged fixture restoration. Its full role/scope/revocation
+contract passes on Test without weakening the active-account write guard.
+
 Test migration `20261028072313` adds the queue's actual decision capability and
 independent server rejection for Admin decisions about internal Team access.
 Admin and Security Operations can investigate and forward those cases; Creator

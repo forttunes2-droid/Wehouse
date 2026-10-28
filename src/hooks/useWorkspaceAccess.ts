@@ -9,6 +9,7 @@ export function useWorkspaceAccess(userId?: string) {
   const [active, setActiveState] = useState<WorkspaceChoice>('personal');
   const [error, setError] = useState('');
   const generation = useRef(0);
+  const accessIdentity = useRef(userId);
   const selection = useRef<{ userId: string; workspace: WorkspaceChoice } | null>(null);
   const setActive = useCallback((workspace: WorkspaceChoice) => {
     if (!userId) return;
@@ -18,7 +19,10 @@ export function useWorkspaceAccess(userId?: string) {
   }, [userId]);
   const reload = useCallback(async () => {
     const request = ++generation.current;
-    setAccess(null);
+    // Refreshing the same identity must not unmount a form with unsaved work.
+    // A different identity still clears the old snapshot before any request.
+    if (accessIdentity.current !== userId || !userId) setAccess(null);
+    accessIdentity.current = userId;
     setError('');
     if (!userId) return;
     try {

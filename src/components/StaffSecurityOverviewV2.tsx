@@ -50,33 +50,27 @@ export default function StaffSecurityOverviewV2({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
+  const generation=useRef(0);
   const load = useCallback(async (quiet = false) => {
+    const request=++generation.current;
     if (!quiet) setLoading(true);
-    const [monitorResult, caseResult] = await Promise.all([
-      supabase.rpc("get_my_staff_security_monitor"),
-      supabase.rpc("get_my_staff_security_cases"),
-    ]);
-    const failure = monitorResult.error?.message || caseResult.error?.message || "";
-    setData((monitorResult.data || {}) as Monitor);
-    const casePayload = (caseResult.data || {}) as {
-      actor_user_id?: string;
-      cases?: SecurityCase[];
-    };
-    setActorUserId(String(casePayload.actor_user_id || ""));
-    setCases((casePayload.cases || []).filter(row=>row.reason_code!=='workspace_access_review'));
-    setError(failure);
-    if (!quiet) setLoading(false);
+    setError('');
+    try {
+      const [monitorResult,caseResult]=await Promise.all([
+        withTimeout(supabase.rpc('get_my_staff_security_monitor'),15000,'Security monitoring took too long.'),
+        withTimeout(supabase.rpc('get_my_staff_security_cases'),15000,'Security cases took too long.'),
+      ]);
+      if(request!==generation.current)return;
+      if(monitorResult.error||caseResult.error)throw Error('Security Operations could not be loaded. Refresh to try again.');
+      const casePayload=caseResult.data as {actor_user_id?:string;cases?:SecurityCase[]}|null;
+      if(!monitorResult.data||!casePayload?.actor_user_id||!Array.isArray(casePayload.cases))throw Error('Security records could not be confirmed. Refresh to try again.');
+      setData(monitorResult.data as Monitor);setActorUserId(casePayload.actor_user_id);
+      setCases(casePayload.cases.filter(row=>row.reason_code!=='workspace_access_review'));
+    }catch{
+      if(request===generation.current){setData({});setCases([]);setActorUserId('');setError('Security Operations could not be loaded. Refresh to try again.');}
+    }finally{if(request===generation.current)setLoading(false);}
   }, []);
-
-  useEffect(() => {
-    let live = true;
-    void load().then(() => {
-      if (!live) return;
-    });
-    return () => {
-      live = false;
-    };
-  }, [load]);
+  useEffect(()=>{void load();return()=>{generation.current++;};},[load]);
 
   async function openSignal(alert: SecurityAlert) {
     if (actionInFlight.current) return;
@@ -145,15 +139,14 @@ export default function StaffSecurityOverviewV2({
   return (
     <div className="space-y-6">
       {actorUserId&&<AccountReviewQueue actorId={actorUserId} actorRole="staff"/>}
-      <section className="rounded-3xl border border-red-500/15 bg-gradient-to-br from-red-500/[.08] via-[#15131A] to-[#0D1118] p-5 sm:p-6 lg:p-8">
-        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-red-300">
+      <section className="rounded-3xl border border-red-500/15 bg-gradient-to-br from-red-500/[.08] via-[var(--wh-surface)] to-[var(--wh-bg)] p-5 sm:p-6 lg:p-8">
+        <p className="text-[9px] font-bold uppercase tracking-[.18em] text-red-800 dark:text-red-300">
           SECURITY OPERATIONS
         </p>
-        <h2 className="mt-3 text-2xl font-bold">Investigate, record and escalate branch security issues.</h2>
+        <h2 className="mt-3 text-2xl font-bold">Security Operations</h2>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--wh-text-secondary)]">
-          Security Operations can review signals, claim a case, keep internal notes,
-          resolve a review or escalate it for an Admin/Creator decision. Security
-          Operations investigates and escalates cases. Admin or Creator decides account access.
+          Review security signals, record evidence and resolve investigations.
+          Send account access decisions to Admin or Creator.
         </p>
         <button
           onClick={onOpenCases}
@@ -163,13 +156,14 @@ export default function StaffSecurityOverviewV2({
         </button>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      {error&&<div role="alert" className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 text-sm"><p>{error}</p><button type="button" onClick={()=>void load()} className="mt-2 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 font-semibold">Refresh Security Operations</button></div>}
+      {!loading&&!error&&<section aria-label="Security metrics" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Metric label="Open cases" value={openCases.length} />
         <Metric label="Active sessions" value={stats.active_sessions || 0} />
         <Metric label="Multiple-location" value={stats.multi_ip_accounts || 0} />
         <Metric label="Login bursts" value={stats.login_bursts || 0} />
         <Metric label="Restricted accounts" value={stats.restricted_accounts || 0} />
-      </section>
+      </section>}
 
       <section>
         <div className="mb-3">
@@ -356,7 +350,7 @@ export default function StaffSecurityOverviewV2({
 
       {!data.auth_audit_available ? (
         <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] p-3 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">
-          Detailed authentication events are not connected yet. WeHouse does not invent failed-login or password alerts when no source event exists.
+          Detailed sign-in audit events are unavailable. Recorded device and case information remains available.
         </p>
       ) : null}
     </div>

@@ -1,7 +1,7 @@
 /** Isolated API boundary. Production components and their query/permission paths are not mocked. */
 const w = window as any;
 export const state = w.__profileFixture = {
-  accountSuspended:false,loseAccessResponse:true,
+  accountSuspended:false,loseAccessResponse:true,staffSecurityFail:true,
   recoveryLost:false,recoveryFail:false,recoveryCanDecide:true,recoveryWorkspace:'worker',recoveryDecision:null as string|null,recoveryAssigned:false,recoveryCase:false,recoveryStatus:'open',recoveryRestrictions:{worker:true,property_partner:true},
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
   wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
@@ -43,6 +43,9 @@ export const supabase:any={
 
   rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
+  if(name==='get_my_staff_security_monitor')return state.staffSecurityFail?bad():ok({stats:{active_sessions:2},alerts:[]});
+  if(name==='get_my_staff_security_cases')return state.staffSecurityFail?bad():ok({actor_user_id:'creator-example',cases:[]});
+  if(name==='get_my_workspace_access')return ok({identity:{user_id:'worker-a'},personal_workspace:true,privileged_workspaces:[{role:'worker'}]});
   if(name==='my_account_reviews'){
    if(state.recoveryFail)return bad();
    if(args.p_workspace){state.recoveryCase=true;if(state.recoveryLost)return bad();}
