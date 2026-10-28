@@ -87,6 +87,14 @@ async def main():
     else:await p.get_by_role('button',name='Experiences',exact=True).click();await p.get_by_role('button',name='Open Experience booking for '+DETAILS['title'],exact=True).click();await expect(p.get_by_role('heading',name=DETAILS['title'],exact=True)).to_be_visible()
     if mode in ('customer-paid','customer-late','customer-complete','host-ready','host-list','bookings'):
      await p.get_by_text('Your booked activity',exact=True).click();await expect(p.get_by_text(DETAILS['what_to_expect'],exact=True)).to_be_visible();await expect(p.get_by_role('heading',name='Included',exact=True)).to_be_visible()
+     await p.evaluate("window.addEventListener('openSupportChat',e=>{window.__activityHelp=e.detail})")
+     for label,reason in [('Message WeHouse','experience_booking_help'),('Payment help','payment_issue'),('Report a safety concern','safety_threat')]:
+      await p.get_by_role('button',name=label,exact=True).click()
+      context=await p.evaluate('window.__activityHelp')
+      assert context['contextId']==B and context['contextSnapshot']['subject_type']=='experience_booking'
+      assert context['contextSnapshot']['reason_code']==reason
+      assert context['contextSnapshot']['requester_workspace']==('worker' if mode in ('host-ready','host-list') else 'personal')
+     assert await p.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--wh-bg').trim()") == ('#F7F8FB' if theme=='light' else '#090B10')
     await p.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True);assert not errors,errors;results.append(mode+' '+theme);await ctx.close()
   s,ctx,p,errors=await page_for(browser,'discovery')
   await p.get_by_role('button',name='View activity and dates',exact=False).click()

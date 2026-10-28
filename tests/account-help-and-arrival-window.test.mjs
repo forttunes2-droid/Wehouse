@@ -20,7 +20,7 @@ test("Help remains in Account while professional onboarding stays in its workspa
   assert.match(help, /get_my_workspace_help_targets/);
   assert.match(help, /Using WeHouse or my account/);
   assert.match(help, /Property or stay/);
-  assert.match(help, /Service job/);
+  assert.match(help, /Services and activities/);
   assert.match(help, /Payment or payout/);
   assert.match(help, /Safety or account security/);
   assert.match(help, /worker_profile/);

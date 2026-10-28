@@ -20,7 +20,7 @@ export default function HelpRecordPicker({ title, targets, onChoose, onAccount, 
   return <section aria-label={title} className="space-y-3">
     {targets.length > 0 && <div className="flex min-h-11 items-center justify-between gap-3">
       <p className="text-sm text-[var(--wh-text-secondary)]">Message WeHouse</p>
-      <button type="button" aria-label="Search your records" aria-expanded={searchOpen || targets.length > 6} aria-controls={searchId} onClick={() => {if (searchOpen) setQuery("");setSearchOpen(value => !value);}} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#C4BCD8] focus-visible:outline focus-visible:outline-violet-300"><Search size={18} /></button>
+      <button type="button" aria-label="Search your records" aria-expanded={searchOpen || targets.length > 6} aria-controls={searchId} onClick={() => {if (searchOpen) setQuery("");setSearchOpen(value => !value);}} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[var(--wh-text-secondary)] focus-visible:outline focus-visible:outline-violet-300"><Search size={18} /></button>
     </div>}
     {(searchOpen || targets.length > 6) && <label id={searchId} className="block"><span className="sr-only">Search your records</span><input autoFocus={searchOpen} value={query} onChange={event => {setQuery(event.target.value);setLimit(6);}} placeholder="Search your records" className="min-h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base outline-none focus:border-violet-400" /></label>}
     <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
@@ -32,8 +32,8 @@ export default function HelpRecordPicker({ title, targets, onChoose, onAccount, 
     </div>
     {targets.length > 0 && rows.length === 0 && <p className="py-3 text-sm leading-6 text-[var(--wh-text-secondary)]">{query ? "No records match your search." : "No current bookings or jobs."}</p>}
     <div className="flex flex-wrap items-center justify-between gap-3">
-      {!includeHistory && hasHistory && <button type="button" aria-pressed={history} onClick={() => {setHistory(value => !value);setLimit(6);}} className="min-h-11 text-sm font-medium text-violet-300">{history ? "Show current only" : "Include past bookings and jobs"}</button>}
-      {rows.length > limit && <button type="button" onClick={() => setLimit(n => n+6)} className="min-h-11 text-sm font-medium text-violet-300">Show more</button>}
+      {!includeHistory && hasHistory && <button type="button" aria-pressed={history} onClick={() => {setHistory(value => !value);setLimit(6);}} className="min-h-11 text-sm font-medium text-[var(--wh-accent-text)]">{history ? "Show current only" : "Include past bookings and jobs"}</button>}
+      {rows.length > limit && <button type="button" onClick={() => setLimit(n => n+6)} className="min-h-11 text-sm font-medium text-[var(--wh-accent-text)]">Show more</button>}
     </div>
   </section>;
 }

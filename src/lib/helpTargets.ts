@@ -34,7 +34,7 @@ export function paymentHelpTargets(targets: { payment_targets?: HelpTarget[] }) 
 const HELP_LISTS = [
   "worker_jobs", "withdrawals", "reservations", "hotel_bookings",
   "property_requests", "properties", "hotels", "partner_reservations",
-  "partner_hotel_bookings", "payment_targets",
+  "partner_hotel_bookings", "payment_targets", "experience_bookings",
 ] as const;
 
 function isHelpTarget(value: unknown): value is HelpTarget {
@@ -67,7 +67,7 @@ export function helpRecordStatus(target: HelpTarget): string {
   return labels[status] || (target.status || target.detail || "").replace(/_/g, " ");
 }
 export function helpRecordType(target: HelpTarget): string {
-  const types: Record<string, string> = { apartment_reservation: target.stay_type === "short_let" ? "Short Let" : "Long Let", hotel_booking: "Hotel stay", hotel_property: "Hotel", property_listing: "Home", property_inspection: "Property submission", worker_booking: "Service job" };
+  const types: Record<string, string> = { apartment_reservation: target.stay_type === "short_let" ? "Short Let" : "Long Let", hotel_booking: "Hotel stay", hotel_property: "Hotel", property_listing: "Home", property_inspection: "Property submission", worker_booking: "Service job", experience_booking: "Experience" };
   return types[target.context_type || ""] || (target.subject_type === "worker" ? "Worker profile" : target.subject_type === "payout" ? "Withdrawal" : "Account");
 }
 export function helpRecordCurrent(target: HelpTarget): boolean {
@@ -83,4 +83,10 @@ export function filterHelpRecords(targets: HelpTarget[], query: string, includeH
     seen.add(key);
     return (includeHistory || helpRecordCurrent(target)) && (!search || [target.label, helpRecordStatus(target), helpRecordType(target), target.record_date, target.record_reference].filter(Boolean).join(" ").toLocaleLowerCase().includes(search));
   });
+}
+
+/** Open the existing composer; the server verifies the participant and routes it. */
+export function experienceHelpContext(id: string, title: string, workspace: 'personal' | 'worker', reason: 'experience_booking_help' | 'payment_issue' | 'safety_threat' = 'experience_booking_help') {
+  return { subject: title, category: reason, contextType: 'contextual_help', contextId: id,
+    contextSnapshot: { reason_code: reason, subject_type: 'experience_booking', source_type: 'experience_booking', source_id: id, linked_label: title, requester_workspace: workspace } };
 }

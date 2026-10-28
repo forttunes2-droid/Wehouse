@@ -108,9 +108,9 @@ test('Help menus follow the selected profile, including Hotel Team',()=>{
   const render=workspace=>renderToStaticMarkup(React.createElement(Help,{profile:{user_id:'person'},workspace,onBack(){}}));
   const personal=render('personal'),worker=render('worker'),partner=render('property_partner'),hotel=render('hotel');
   assert.match(personal,/Payments and refunds/);assert.doesNotMatch(personal,/Earnings and payouts/);
-  assert.match(worker,/Jobs and professional profile/);assert.doesNotMatch(worker,/Property or stay/);
-  assert.match(partner,/Properties and guests/);assert.doesNotMatch(partner,/Service job/);
-  assert.match(hotel,/Your hotel/);assert.doesNotMatch(hotel,/Service job|Payments and refunds|Earnings and payouts/);
+  assert.match(worker,/Jobs, activities and professional profile/);assert.doesNotMatch(worker,/Property or stay/);
+  assert.match(partner,/Properties and guests/);assert.doesNotMatch(partner,/Services and activities/);
+  assert.match(hotel,/Your hotel/);assert.doesNotMatch(hotel,/Services and activities|Payments and refunds|Earnings and payouts/);
   for(const html of [personal,worker,partner,hotel])assert.doesNotMatch(html,/Opening Help creates nothing|routes it from/);
 });
 test('Existing professional profiles remain visible before public approval and do not become new applications',()=>{

@@ -7,8 +7,33 @@ grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to 
 -- this contract. Only the synthetic booking's clock/fulfillment receipt is moved
 -- into the past; these rows, ratings and moderator decisions are rolled back.
 create function pg_temp.exercise_experience_review(aid uuid,bid uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,sid text) returns void language plpgsql as $$
-declare r public.worker_booking_reviews;receipt uuid;old_stamp timestamptz;result jsonb;
+declare r public.worker_booking_reviews;receipt uuid;old_stamp timestamptz;result jsonb;topic record;draft uuid;conversation uuid;before_state jsonb;
 begin
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_my_workspace_help_targets('personal')->'experience_bookings') item where item->>'subject_id'=bid::text),'customer Help includes the owned activity');
+ perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_my_workspace_help_targets('personal')->'payment_targets') item where item->>'subject_id'=bid::text),'paid activity appears in payment Help');
+ select to_jsonb(b) into before_state from public.experience_bookings b where id=bid;
+ for topic in select * from(values('experience_booking_help','worker_operations'),('payment_issue','finance_operations'),('safety_threat','security_operations'))t(reason,domain) loop
+  draft:=public.create_my_support_message_draft();
+  result:=public.send_my_first_contextual_help_message(draft,topic.reason,'experience_booking',bid::text,'Activity question','{"owning_domain":"support","requester_workspace":"personal"}','Please help with this booked activity.');
+  conversation:=(result->>'conversation_id')::uuid;
+  perform pg_temp.expect(conversation is not null and result->>'message_id' is not null,'actual first-send returns persisted receipts');
+  perform pg_temp.expect((public.send_my_first_contextual_help_message(draft,topic.reason,'experience_booking',bid::text,'Activity question','{}','Please help with this booked activity.')->>'conversation_id')::uuid=conversation,'uncertain reply retries reuse the same conversation');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
+  perform pg_temp.expect(exists(select 1 from public.support_inbox(topic.domain) t where t.conversation_id=conversation),'server-selected owning queue receives the Experience question');
+  perform pg_temp.expect(not exists(select 1 from public.support_inbox('support') t where t.conversation_id=conversation),'client-supplied domain cannot divert Experience cases into Support');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ end loop;
+ perform pg_temp.expect((select to_jsonb(b)=before_state from public.experience_bookings b where id=bid),'ordinary Help cannot change booking or payment state');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.open_contextual_case(%L,%L,%L,%L)','experience_booking_help','experience_booking',gen_random_uuid(),'Unknown booking')),'invented activity booking is denied');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_my_workspace_help_targets('worker')->'experience_bookings') item where item->>'subject_id'=bid::text),'host Help includes the same booking in Services');
+ insert into private.workspace_restrictions(user_id,workspace,restricted,public_reason) values(hid,'personal',true,'Personal review fixture');
+ perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_my_workspace_help_targets('worker')->'experience_bookings') item where item->>'subject_id'=bid::text),'Personal restriction does not remove legitimate Services Help');
+ delete from private.workspace_restrictions where user_id=hid and workspace='personal';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
+ perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(public.get_my_experience_help_targets(false)) item where item->>'subject_id'=bid::text),'unrelated identity cannot see customer Help targets');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.open_contextual_case(%L,%L,%L,%L)','experience_booking_help','experience_booking',bid,'Unrelated person')),'unrelated identity cannot open another customer case');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
  perform pg_temp.expect(not (public.get_my_experience_review(bid)->>'eligible')::boolean,'paid future session does not earn a review');
  perform pg_temp.expect(pg_temp.rejects(format('select public.submit_my_experience_review(%L,5,%L)',bid,'Before attending')),'payment alone cannot submit a review');

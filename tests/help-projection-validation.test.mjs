@@ -6,7 +6,7 @@ import ts from 'typescript';
 const source = fs.readFileSync('src/lib/helpTargets.ts', 'utf8');
 const exports = {};
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports });
-const { isHelpTargetsResponse } = exports;
+const { isHelpTargetsResponse, experienceHelpContext, filterHelpRecords, helpRecordType } = exports;
 const account = { subject_type: 'account', subject_id: 'qa-self', label: 'My account' };
 const target = { subject_type: 'hotel', subject_id: '1', label: 'Test hotel', context_type: 'hotel_booking' };
 test('verified empty Help differs from unavailable or malformed account/record lists', () => {
@@ -19,6 +19,21 @@ test('verified empty Help differs from unavailable or malformed account/record l
     { account, payment_targets: [ { ...target, record_date: {} } ] },
     { account, payment_targets: [], worker_profile: [] }]) {
     assert.equal(isHelpTargetsResponse(value), false, JSON.stringify(value));
+  }
+});
+
+test('Experience Help retains booking and workspace across work, money and safety routes', () => {
+  const activity={subject_type:'experience_booking',subject_id:'activity-booking',context_type:'experience_booking',label:'Campus cooking class',status:'completed'};
+  assert.equal(isHelpTargetsResponse({account,payment_targets:[activity],experience_bookings:[activity]}),true);
+  assert.equal(isHelpTargetsResponse({account,payment_targets:[],experience_bookings:[null]}),false);
+  assert.equal(helpRecordType(activity),'Experience');
+  assert.equal(filterHelpRecords([activity],'cooking',false).length,0);
+  assert.equal(filterHelpRecords([activity],'cooking',true).length,1);
+  for(const workspace of ['personal','worker'])for(const reason of ['experience_booking_help','payment_issue','safety_threat']){
+    const context=experienceHelpContext(activity.subject_id,activity.label,workspace,reason);
+    assert.equal(context.contextId,'activity-booking');assert.equal(context.contextSnapshot.subject_type,'experience_booking');
+    assert.equal(context.contextSnapshot.requester_workspace,workspace);assert.equal(context.contextSnapshot.reason_code,reason);
+    assert.equal(context.contextSnapshot.owning_domain,undefined,'browser does not assign the operational team');
   }
 });
 test('Help validates before storing targets and gates record actions while loading', () => {

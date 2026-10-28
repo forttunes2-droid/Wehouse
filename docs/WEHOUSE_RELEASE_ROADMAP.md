@@ -4,6 +4,53 @@
 
 ## Current engineering checkpoints
 
+### Experience Help follows the booking into existing queues — 28 October
+
+Test migration `20261028123420` adds ordinary activity Help to the existing Services
+operations queue. Payment and safety questions route to Finance and Security using
+the server's reason registry. Customers and activity hosts see only their own
+bounded booking records in Account Help, payment records and safety selection.
+The booking detail provides the same composer even for an older booking outside
+the Help page. Opening it sends nothing; first-send returns durable receipts and
+retries reuse the conversation. A Help request does not cancel, refund, release
+or otherwise mutate the booking. Personal-only restriction no longer blocks the
+Help projection for an independently active Services workspace.
+
+Hosted rollback proof covers actual first-send into all three queues, client
+domain spoofing, unknown/other-customer records, Provider access, independent
+workspace restriction, payment eligibility and unchanged booking state. Twenty-four
+Experience commerce browser journeys and six Account Help-to-composer cases pass
+with actual light/dark tokens. The shared Help controls now use theme text tokens.
+Review-specific appeal decisions still require the remaining moderation work;
+ordinary Help is not misrepresented as automatic review restoration.
+
+### Hosted MFA rollout and verified preview — 28 October
+
+Vercel now serves PR commit `258806d7412aa10d3b8eed0dd574001dc01c7251`
+at `https://wehouse-a03uo92ns-forttunes2-6534s-projects.vercel.app`.
+The actual page opens against Test, renders its catalogue and records no browser
+console error in the public smoke check. All seven GitHub workflows pass on that
+commit, including fresh/upgrade replay, real Auth, browser and isolated capacity
+checks. Older deployment blocks and failed fixture checks below are history.
+
+Test migration `20261028121039` activates the account MFA boundary. All 16 Edge
+handlers importing the shared session guard have been redeployed with their
+existing JWT modes. Deployed payment-init, native-push and Creator step-up source
+were read back and contain the security RPC. Anonymous HTTP boundary checks pass.
+The MFA, Experience booking/review, scoped case-routing and upload-budget rollback
+contracts pass on hosted Test after activation.
+
+`scripts/check-hosted-authenticator.mjs` proves real hosted Auth enrollment and
+primary-only denial at the Data API and deployed Edge status endpoint. The same
+Personal factor satisfies Admin and Staff grants; removing it requires internal
+setup again. The synthetic identity, grants and local credentials were removed.
+No customer account, real financial transaction or Production configuration was
+changed. Hosted email delivery and passkey activation are separate checks.
+
+The open work register below remains the current task list. Experience checkout,
+fulfillment/reviews and later-year rent collection are implemented; their remaining
+integration and operational gaps must not be described as entire unbuilt features.
+
 ### Earned Experience reviews and shared moderation — 28 October
 
 Test migration `20261028101305` extends the existing Service review table; no
@@ -28,8 +75,8 @@ responses, read failures, pagination/reporting and operator hide/restore. Seven 
 lint pass. Service decision links outside the loaded inbox now use a protected
 exact-booking read, with unavailable/retry states and retained hidden-review
 reasons; both theme browser checks pass. The App fixture also exposed and fixed
-a lazy-import initialization-order error. Fresh/upgrade CI and complete
-Help/appeal routing verification remain required before this row closes.
+a lazy-import initialization-order error. Fresh/upgrade CI passes at `258806d7`;
+complete Help/appeal routing verification remains required before this row closes.
 
 ### One account authenticator and mandatory internal access — 28 October
 
@@ -57,13 +104,10 @@ configuration; enrollment and verification are now explicitly enabled there.
 Real Auth HTTP proof now passes: ordinary primary sessions are rejected after
 enrollment, wrong codes and AAL1 factor replacement/removal fail, a verified
 session succeeds, one Personal factor satisfies Admin and Staff, and removing
-the last factor returns mandatory internal access to setup. Full replay still
-requires the legitimate Creator fixture to carry a verified factor/AAL2. This migration
-and the dependent Edge changes are **not activated on Test or Production yet**:
-activation requires those checks and a coordinated compatible client rollout.
-Vercel still reports an account deployment block for the current commit. Existing
-ready Vercel previews predate this MFA client; do not activate the new gate behind
-an incompatible hosted client.
+the last factor returns mandatory internal access to setup. Legitimate internal
+fixtures now carry verified factors/AAL2, and full replay passes at `258806d7`.
+The coordinated Test rollout and real hosted Auth proof are recorded above.
+Production activation remains pending the reviewed release.
 
 
 ### Scoped restrictions and tracked recovery — 28 October
@@ -3373,7 +3417,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Product quality | All-role control, layout, wording and theme review | Active: Partner, Worker, Creator/Admin/Staff, personal journeys, search/discovery/maps and hotel/listing controls. Verify actionable totals, loading/errors, keyboard access, responsive widths and both themes; record remaining defects here |
 | Operations | Creator can operate launch without employees | Active review: prove access to every mandatory queue/action under Creator permissions, audit sensitive actions and preserve scoped roles for later hires |
 | Security | Hotel data exposure fix | Done |
-| Security | Admin sensitive-action step-up | Internal implementation/review open: inspect current Creator/Admin boundaries, require fresh server-validated step-up for sensitive finance/team/security actions, verify expiry/revocation, failed attempts, scope and audit records; no authority from a client flag |
+| Security | Admin sensitive-action step-up | Mandatory account MFA is active on Test for Creator/Admin/Staff, with real Auth/Data API/Edge proof. Scoped account-access decisions already require fresh server-validated confirmation; Creator fee/finance actions retain existing elevation. Complete the remaining sensitive-action inventory (finance/team/security), expiry/revocation and scope/audit verification; mandatory login MFA alone does not close every action-specific gate. |
 | Reports | Report in Roommate, Friend, worker chats and profiles | Shared form now requires the server receipt, preserves retry after errors and links to private report history. Existing shared SQL membership/scope contract re-passed on Test. Isolated generic-form recovery checks pass; hosted per-chat/two-device evidence remains |
 | Reports | Public property listing report to active review queue, receipt/status and urgent safety route | Canonical queue routing and Test migration applied. A receipt is required before success; MyReports now displays the full persistent reference and status; urgent support is wired. Hosted role/browser verification and reviewed rollout remain |
 | Reports | Hotel public listing report action | Implemented in the active Hotel page and shared form. Test migration 20261019171328 applied; geographic/role/receipt/deduplication SQL contract passed with fixtures rolled back. Isolated browser checks cover submission, operator review, reporter status, failures, sign-in and urgent support context. Application rollout and hosted role/browser verification remain |
@@ -3385,20 +3429,20 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Connections | Private two-person plan card inside Friend chat | Production build passes on working tree; exact-SHA CI, real-account/browser, refresh, block/delete, pin/reaction and two-device encryption checks remain |
 | Connections | Roommate and Friend relationship overlap | Product contract documented: one account, independent relationship edges, permissions and conversations; code/UI cross-context review remains |
 | Connections | Private Friend Groups and group plan card | Deferred by owner on 20 October: do not build yet. Excluded from current release requirements; retain one-to-one Friend plans. Any later group proposal needs a separate reviewed encryption, membership and safety contract |
-| Marketplace | Provider-led Experiences | Private applications, categories, dated session preparation/prices, activity-specific documents and photos, independent approval, revision and host Activity are implemented and checked on Test. Public discovery/publication, atomic participant holds, accepted quotes, canonical protected checkout/receipts, attendance/completion controls, full cancellation/refund processing and Provider earnings are now implemented in PR #118. On 27 October, disposable SQL on `2928e65e` passed actual charge, full refund and release assertions; local isolated browser checks passed 24 journeys across widths/themes, including gallery renewal. Elevated partial Finance review and retained-commission assertions passed in CI and on hosted Test. Booking-bound reviews, sharing, discounts, sponsorship, full hosted browser/two-device and external provider verification remain open; the named hosted SQL contracts and payment-init parity passed on 27 October. Shows, parties and nightlife are excluded |
+| Marketplace | Provider-led Experiences | Implemented/Test verified: applications, activity-specific evidence, approval/publication, dated sessions/capacity, quotes, protected checkout/receipts, cancellation/refunds, attendance/completion, Provider earnings, earned reviews and moderation. Ordinary booking/payment/safety Help now uses existing scoped queues. Remaining implementation: sharing, optional discounts, sponsorship, and review-specific appeal resolution. Remaining verification: hosted whole-user/operator journeys and actual provider charge/refund/settlement. The 28 October hosted contracts and browser evidence are recorded above. Shows, parties and nightlife remain excluded. |
 | Connections | Friend naming across product, API and schema | Canonical names implemented across active source, UI, API and contract fixtures. The forward migration renamed empty legacy Test objects and created Friend-first schema there; Production remains untouched. Only historical migration records, the migration-history register, and explicit upgrade references retain the retired term. Production rollout and role/browser checks remain |
 | Connections | Hotel and Friend conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |
 | Pricing | Discount during property submission and Hosting control | Reconcile the canonical submission/Hosting path after retiring the internal posting form. Earlier internal-form-only evidence is obsolete; verify saved discounts, approval boundaries and final charged price |
-| Pricing | Managed-property fee control and Partner disclosure | Owner approved additional management percentage deducted from Partner earnings on 27 October. Existing managed policy keys/resolver and v2 publisher must be connected to Creator controls, actual rate disclosure during submission/management choice, Partner acceptance, accepted quote snapshots and canonical settlement. Preserve existing booking rates; do not invent a launch percentage. |
+| Pricing | Managed-property fee control and Partner disclosure | Implemented and applied to Test in 20261027125137 and 20261027130407: Creator base/additional managed rate, submission disclosure, explicit Partner acceptance, stale-rate/republication protection and immutable booking fee snapshots. Hosted fee, property-document, publication and shared Short Let contracts pass; exact-source CI passes at 258806d7. No launch rate was invented. Actual provider settlement and final customer/Partner hosted journeys remain in the money gate. |
 | Pricing | Creator WeHouse-funded discount control | Built and commission-capped in current migration; docs still conflict on whether the campaign cap is 15% or commission-only—reconcile before campaigns |
 | Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
 | Pricing | Hotel discount/rate-plan pipeline | Rate-plan/discount source exists; verify current display, checkout, Partner earnings and refund behavior against the approved rule. No second price authority; hosted evidence pending |
 | Payments | Hotel shared booking cost with accepted Friend | Product rule confirmed 19 Oct; implementation and complete Paystack Test charge/verify/refund/reconciliation flow remain open |
 | Long Let | Partner-approved terms and optional later-year monthly rent | Manual collection/history implemented on Test and PR #118: accepted terms, full protected Year 1, handover-anchored later-year schedule, explicit no-new-hold acceptance, frozen per-payment fee/net, verified provider split and settlement, paged gross rent credit, target-year receipts and payment Help. Eight later-year payments fund twelve months; one-year/shorter contracts remain fully upfront. The latest owner decision supersedes the historical requirement to protect every contribution. Separately consented automatic payment now uses a private verified reusable card, one canonical obligation and durable dispatch/recovery controls. Additional arrears/exit operational and actual provider card/debit/settlement verification remain open. See the current checkpoint and `PRODUCT_RULES.md` |
 | Property supply | Submission authority and evidence completeness for apartments and Hotels | **Implemented/Test verified for private documents and new publication; wider supply work remains open.** Existing request/operations records now own accepted requirements, private uploads, incomplete-upload recovery, corrections, versioned replacement, independent scoped decisions, expiry and publication enforcement. Canonical Inbox carries actionable review/correction/outcome records and resolves superseded work. Actual apartment/Hotel publish contracts pass using additive Admin/Creator grants; owner self-approval is denied. Test operating-choice column/commands and 13 MB media limits were restored after contracts exposed missing parity. Open: live person KYC, structured guest/tenancy term capture and booking snapshots, already-live-property recertification, advance expiry reminders, appeal/retention/deletion operations and hosted real-role/file journeys. Worker credential enforcement is implemented in the 20 October checkpoint above; live recertification and hosted journey proof remain open. Local legal forms and provider approvals remain external. Access footage is not ownership proof |
-| Property supply | Buildings and bookable spaces across Short Let and Long Let | **C-064 in progress; not release ready.** Supports several independent apartments in one building and separately let private bedrooms with shared areas disclosed. Retain current listings/reservations and Hotel inventory; submission batches are not buildings. Implement shared property/space identity, scoped review/evidence, per-space terms/calendar, Partner management and atomic whole-unit/room and Short Let/Long Let overlap prevention. Creating/managing spaces and normal bookings stay core features; optional consolidated analytics can remain Pro. Do not enable mixed whole-unit/room selling before concurrency and recovery pass |
-| Worker supply | Category-specific credential and licensing requirements | Private context-bound requirements, uploads, independent review, expiry and new-publication/new-job enforcement are implemented on Test (20 October checkpoint). The accepted service/location requirements are not a universal legal matrix. Current market requirements, existing-live-provider recertification and hosted role/file verification remain open; retain the public Services launch gate until those requirements are accepted and verified |
+| Property supply | Buildings and bookable spaces across Short Let and Long Let | Shared property/space identity, room/whole-unit disclosure, per-space listing terms, Partner management, occupancy exclusions, grouped public offers and grouped operating schedule are implemented in the 22–23 October migrations. Their named source/SQL/browser checks pass. Remaining work is the complete mixed-inventory concurrency/availability/calendar and customer/Partner recovery verification, including the exact deployed configuration; do not keep describing the entire hierarchy as unbuilt. |
+| Worker supply | Category-specific credential and licensing requirements | Private context-bound requirements, uploads, independent review, expiry and new-publication/new-job enforcement are implemented. Existing-live-provider recertification and complete hosted role/file verification remain. Do not add a separate Creator switch merely to make approved Service Workers discoverable. Final local credential requirements and live verification-provider activation are external; application and recovery integration still require evidence. |
 | Pricing | Display, charge and refund agree on the test project | Internal verification/fixes open: each apartment/Hotel/service/Pro/shared-cost purpose must agree on currency, base price, discount funding/caps/expiry, compulsory charges/taxes, protected deposits, partner earnings and refund allocation. Revalidate server-side and snapshot the accepted version; resolve the recorded campaign-cap conflict |
 | Account | Email-change and recovery delivery | Owner policy is confirmed by C-044/C-047/C-065; do not reopen it as undecided. Test modules and failure handling exist. Verified sender delivery, provider/email recovery, session revocation and hosted two-device journeys remain activation/release checks |
 | Reliability | One shared action pattern (`src/lib/safeAction.ts`): a second tap joins the first request, clear offline message, no false success. Applied to Short Let booking, payment, cancel, Friend requests and Friend chat. Other actions and a visible Retry button | Built (partly applied). Server side: Short Let booking and canonical property submission carry request keys; the old direct-listing writer is retired. Payment already has a unique reference; other actions still open |
@@ -3420,7 +3464,7 @@ Evidence rule: historical **Done** or **Built** entries describe earlier impleme
 | Moderation | Report through resolution | Every enabled report needs a receipt, scoped operator queue, evidence permissions, decision/reason, reporter status and escalation/appeal. Include portfolio claims, reviews, uploads, chat, hotels and properties. Whole-journey evidence pending |
 | Privacy | Account and data-rights operations | Verify profile changes, closure, access/export/deletion requests, retained financial/dispute evidence, private media expiry and consent/version changes through authorized operator actions. Coverage and operating evidence pending |
 | Discovery | Search/maps/followed-search lifecycle | Verify filters, sort, pagination, empty results, map/list agreement, approximate versus entitled exact location, followed-search reopen/edit/delete and notifications from every publication/edit path. Hosted whole-flow evidence pending |
-| Platform | Deployed configuration parity | Current local inventory: 26 Edge Function directories, 776 active migration SQL files and 80 SQL contracts (20 Oct). Test records 755 migrations through `20261020062733`; Production was not changed. Compare reviewed source, JWT modes, session checks, secrets, webhooks, schedules, storage and flags with each target. Confirmed management-choice/media-limit parity gaps were repaired; the remaining histories still require disposition and fresh/upgrade replay. Counts do not establish parity |
+| Platform | Deployed configuration parity | MFA source migration matches Test version 20261028121039; the 16 dependent Edge handlers are updated and hosted Auth/Data API/Edge checks pass. Experience Help matches Test version 20261028123420. Fresh/upgrade CI passed on the preceding 258806d7; the renamed/new migrations require fresh exact-commit CI. Remaining: complete source/Test/Production history disposition and reviewed Production migration/Edge/secret/schedule rollout with rollback. Production was not changed. |
 | Dependencies | Toolchain vulnerability remediation | Existing npm audit findings need reviewed remediation and regression evidence. Do not force a Tailwind major upgrade merely to clear an advisory count. Review maintained/pinned runtime/provider dependencies and preserve lockfiles |
 | Reliability | Observability and recovery drills | Verification pending for error/latency/queue/payment alerts, webhook/cron recovery, idempotent retries, backup restoration, media/DB recovery, secret rotation, rollback and incident response. Record actual execution evidence |
 | Legal/operations | Publication and commercial approvals | External: qualified review/approved document bodies, applicable provider/property/Hotel/Worker/consumer/tax/insurance/privacy/settlement approvals, final owner commercial decisions and operational sign-off. Internal: exercise publication/versioned acceptance/stale-version handling, consent/retention/export/deletion, required queues/runbooks/escalations and support handoff. Owner can operate launch without employees if the role journeys and response obligations are met. Evidence belongs in the existing Nigeria legal register |

@@ -172,7 +172,7 @@ export function conversationPresentation(
     const domain = String(snapshot.owning_domain || (
       ["payment_issue", "payout_issue", "caution_claim"].includes(reason) ? "finance_operations"
         : ["account_compromise", "blocked_active_obligation", "safety_threat"].includes(reason) ? "security_operations"
-          : ["worker_job_issue", "worker_verification"].includes(reason) ? "worker_operations" : "support"
+          : ["worker_job_issue", "worker_verification", "experience_booking_help"].includes(reason) ? "worker_operations" : "support"
     ));
     const operator = domain === "finance_operations" ? "WeHouse Finance Operations"
       : domain === "security_operations" ? "WeHouse Security Operations"
