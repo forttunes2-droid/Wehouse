@@ -93,6 +93,7 @@ type InternalProfileRecord = {
 
 interface UserProfileModalProps {
   user: Profile | null;
+  reviewControls?: React.ReactNode;
   adminProfile?: Profile | null;
   onClose: () => void;
   onPromote?: () => void;
@@ -115,7 +116,7 @@ export default function UserProfileModal(props: UserProfileModalProps) {
   return <InternalProfileSheet key={`${props.adminProfile?.user_id || "viewer"}:${props.user.user_id}`} {...props} user={props.user} />;
 }
 
-function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserProfileModalProps & { user: Profile }) {
+function InternalProfileSheet({ user, adminProfile, onClose, onNavigate, reviewControls }: UserProfileModalProps & { user: Profile }) {
   const [record, setRecord] = useState<InternalProfileRecord | null>(null);
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -153,7 +154,7 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
   const workspaces = Array.isArray(record?.workspaces) ? record.workspaces : [], apartments = Array.isArray(record?.apartments) ? record.apartments : [], hotels = Array.isArray(record?.hotels_owned) ? record.hotels_owned : [];
   const hotelTeam = record?.hotel_team || [], wehouseTeam = record?.wehouse_team || [], provider = record?.service_provider || null;
   const initials = String(user.full_name || user.username || "W").trim().charAt(0).toUpperCase();
-  const status = user.deleted ? "Deleted" : user.banned ? "Banned" : user.suspended ? "Suspended" : "Active";
+  const status = user.deleted ? "Deleted" : user.banned ? "Access removed" : user.suspended ? "Suspended" : "Active";
   const titles: Record<SectionKey, string> = { overview: "Account profile", workspaces: "Workspace access", professional: "Service Worker", apartments: "Homes", hotels: "Hotels", hotel_team: "Hotel Team", wehouse_team: "WeHouse Team" };
 
   function openOperations(kind: "apartment" | "hotel", id: string) {
@@ -188,6 +189,7 @@ function InternalProfileSheet({ user, adminProfile, onClose, onNavigate }: UserP
               {wehouseTeam.length > 0 && <button type="button" onClick={() => setSection("wehouse_team")} className="w-full text-left"><RecordRow title="WeHouse Team" meta="Assigned work and coverage" tail={`${wehouseTeam.length} ›`} /></button>}
             </Section>
           </div> : section === "workspaces" ? <Workspaces rows={workspaces} /> : section === "professional" && provider ? <Provider provider={provider} onOpen={() => { if (onNavigate) { onClose(); onNavigate("worker_operations", user.user_id); } }} /> : section === "apartments" ? <ApartmentList rows={apartments} onOpen={row => openOperations("apartment", row.id)} /> : section === "hotels" ? <HotelList rows={hotels} onOpen={row => openOperations("hotel", String(row.hotel_id))} /> : section === "hotel_team" ? <HotelTeam rows={hotelTeam} onOpenHotel={id => openOperations("hotel", String(id))} /> : <WeHouseTeam rows={wehouseTeam} />}
+          {record&&!loadError&&reviewControls}
         </div>
     </aside>
     {avatarOpen && user.avatar_url && <MediaViewer items={[{ url: user.avatar_url, kind: "image" as const }]} initialIndex={0} title={user.full_name || user.username || "Profile photo"} onClose={() => setAvatarOpen(false)} />}

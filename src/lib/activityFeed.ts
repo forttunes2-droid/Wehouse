@@ -109,6 +109,7 @@ export function resolveActivityDestination(
 ): ActivityDestination {
   const type = String(row.type || "").toLowerCase();
   const sourceType = String(row.source_type || "").toLowerCase();
+  if (['account_review_update','workspace_access_changed'].includes(type)) return { route: 'account_reviews' };
   const params = row.destination_params || {};
   let route = normalizeRoute(
     String(row.destination_route || legacyActivityRoute(type, sourceType)),

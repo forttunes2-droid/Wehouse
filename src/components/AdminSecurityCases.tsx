@@ -1,3 +1,4 @@
+import {confirmAdminReview} from '@/lib/reviewStepUp';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -37,6 +38,7 @@ export default function AdminSecurityCases({
   const [decision, setDecision] = useState<Decision | null>(null);
   const [note, setNote] = useState("");
   const [acting, setActing] = useState(false);
+  const [mfaCode,setMfaCode]=useState('');
   const generation=useRef(0),actionBusy=useRef(false);
 
   const load = useCallback(async () => {
@@ -87,7 +89,9 @@ export default function AdminSecurityCases({
       return toast.error("This security case is not attached to an account");
 
     const chosen=decision,current=generation.current;actionBusy.current=true;setActing(true);
+    let dispatched=false;
     try{
+    await confirmAdminReview(mfaCode);setMfaCode('');dispatched=true;
     const { data,error: actionError } = await withTimeout(supabase.rpc("admin_security_case_decision_v2", {
       p_case_id: row.operational_case_id,
       p_decision: chosen,
@@ -105,7 +109,7 @@ export default function AdminSecurityCases({
     setNote("");
     setExpanded(null);
     await load();
-    }catch{if(current===generation.current)setError('The decision could not be confirmed. Refresh cases and check the saved status before retrying.');}
+    }catch(cause){if(current===generation.current){if(dispatched)setError('The decision could not be confirmed. Refresh cases and check the saved status before retrying.');else setError(cause instanceof Error?cause.message:'Fresh authenticator confirmation required.');}}
     finally{actionBusy.current=false;setActing(false);}
   }
 
@@ -221,6 +225,7 @@ export default function AdminSecurityCases({
                                 ? "Confirm temporary account suspension"
                                 : "Confirm no-restriction resolution"}
                             </p>
+                            <label className="mt-2 block text-sm">Authenticator code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/[^0-9]/g,''))} disabled={acting} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-bg)] px-3"/><span className="text-xs text-[var(--wh-text-secondary)]">A recent authenticator confirmation is required. Set up your authenticator in Access & security if needed.</span></label>
                             <textarea
                               maxLength={2000}
                               disabled={acting}

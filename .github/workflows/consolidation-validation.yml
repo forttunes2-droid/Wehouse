@@ -217,6 +217,8 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/security_definer_write_guard_contract.sql
       - name: Verify account restrictions, ended sessions and stale security decisions
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/account_sanction_session_contract.sql
+      - name: Verify scoped restrictions and tracked appeals
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_recovery_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_authority_contract.sql
       - name: Exercise recorded Creator and receipt journeys as authenticated users

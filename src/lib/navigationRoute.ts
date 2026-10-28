@@ -29,7 +29,7 @@ export const RESTORABLE_NAVIGATION_PAGES: NavPage[] = [
   "profile",
   "account",
   "privacy",
-  "security",
+  "account_reviews", "security",
   "devices",
   "creator",
   "admin",

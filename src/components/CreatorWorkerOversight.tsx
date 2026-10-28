@@ -1,3 +1,4 @@
+import WorkspaceRestrictionControls from '@/components/WorkspaceRestrictionControls';
 import WorkerCredentials from '@/components/WorkerCredentials';
 import ExperienceActivityReviewQueue from '@/components/ExperienceActivityReviewQueue';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -334,6 +335,7 @@ export default function CreatorWorkerOversight({ userId,initialExperienceId }: {
           </section>
         </section>
         <WorkerPublicationControls userId={userId} workerId={selected.user_id} />
+        <WorkspaceRestrictionControls key={selected.user_id} userId={selected.user_id}/>
         {selected.worker_status === "profile_under_review" && (
           <section className="border-y border-[var(--wh-border-subtle)] py-4">
             <h3 className="text-sm font-semibold">Service Worker profile review</h3>

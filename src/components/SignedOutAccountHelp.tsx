@@ -1,3 +1,4 @@
+import AccountReviewEntry from '@/components/AccountReviewEntry';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { withTimeout } from '@/lib/withTimeout';
@@ -49,7 +50,8 @@ export default function SignedOutAccountHelp() {
     }}>
       <summary className="min-h-10 cursor-pointer font-medium">Account access or suspension help</summary>
       <div className="mt-2 space-y-3 leading-6 text-[var(--auth-muted)]">
-        <p>Ask WeHouse to review an account restriction or access problem. Include your username and explain what happened. No password or verification code is needed in your message.</p>
+        {open&&<AccountReviewEntry signedIn={false}/>}
+        <p>Use tracked account reviews above, or contact WeHouse by email if you cannot access them. Include your username and explain what happened. No password or verification code is needed in your message.</p>
         <p>A review request does not automatically restore access. WeHouse must review the restriction and reply with the decision. If access is restored, sign in again; previous device sessions remain closed.</p>
         {loading ? <p role="status">Loading the published support contact...</p>
           : error ? <p role="alert">Support contact could not be loaded.</p>

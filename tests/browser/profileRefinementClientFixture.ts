@@ -2,9 +2,13 @@
 const w = window as any;
 export const state = w.__profileFixture = {
   accountSuspended:false,loseAccessResponse:true,
+  recoveryLost:false,recoveryFail:false,recoveryDecision:null as string|null,recoveryAssigned:false,recoveryCase:false,recoveryStatus:'open',recoveryRestrictions:{worker:true,property_partner:true},
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
   wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
 };
+const revision='b8220000-0000-4000-8000-000000000001',caseId='b8220000-0000-4000-8000-000000000002';
+const recoveryRow=()=>({case_id:caseId,case_number:52,user_id:'worker-a',username:'sani-carpentry',workspace:'worker',explanation:'Please review the event and existing approved evidence.',status:state.recoveryStatus,updated_at:'2026-10-28T12:00:00.123456Z',decision:state.recoveryDecision,public_decision:null,assigned_user_id:state.recoveryAssigned?'creator-example':null,restriction_version:revision,current_version:revision,restricted:state.recoveryRestrictions.worker,updates:[]});
+const recoveryPortal=()=>({restrictions:Object.entries(state.recoveryRestrictions).filter(([,active])=>active).map(([workspace])=>({workspace,version:revision,reason:'Conduct review for this workspace.',changed_at:'2026-10-28T12:00:00Z'})),appeals:state.recoveryCase?[recoveryRow()]:[]});
 const ok = (data: any) => ({ data, error: null });
 const bad = () => ({ data: null, error: { message: 'Fixture unavailable' } });
 function dataPosts(worker: string) {
@@ -35,8 +39,27 @@ function help() {
 }
 export const supabase:any={
  from:query,
+ functions:{invoke:async(name:string,{body}:any)=>{state.calls.push({name,args:body});if(state.recoveryFail)return bad();if(body.action==='close')return ok({success:true});if(body.action==='send_code')return ok({success:true});if(body.action==='verify_code')return ok({success:true,recovery_token:'a'.repeat(64)});return ok({success:true,portal:recoveryPortal()});}},
+
   rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
+  if(name==='my_account_reviews'){
+   if(state.recoveryFail)return bad();
+   if(args.p_workspace){state.recoveryCase=true;if(state.recoveryLost)return bad();}
+   return ok(recoveryPortal());
+  }
+  if(name==='review_workspace_access'){
+   if(args.p_workspace){(state.recoveryRestrictions as any)[args.p_workspace]=args.p_restricted;if(state.recoveryLost)return bad();}
+   return ok({protected:false,workspaces:['personal','worker','property_partner'],restrictions:Object.entries(state.recoveryRestrictions).map(([workspace,restricted])=>({workspace,restricted,version:revision,public_reason:'Conduct review'}))});
+  }
+  if(name==='list_account_review_queue')return state.recoveryFail?bad():ok(state.recoveryCase?[recoveryRow()]:[]);
+  if(name==='decide_account_review'){
+   if(args.p_action==='claim'){state.recoveryAssigned=true;state.recoveryStatus='investigating';}
+   else if(args.p_action==='request_information')state.recoveryStatus='waiting_customer';
+   else{state.recoveryStatus='resolved';state.recoveryDecision=args.p_action;if(args.p_action==='restored')state.recoveryRestrictions.worker=false;}
+   if(state.recoveryLost)return bad();return ok({success:true,case_id:caseId,action:args.p_action});
+  }
+
   if(name==='get_my_worker_showcase_capacity'){const posts=dataPosts('worker-a').filter(row=>!row.deleted_at);return ok({posts:posts.length,videos:posts.filter(row=>row.media_type==='video').length,post_limit:12,video_limit:3,photo_bytes:2000000,video_bytes:13000000});}
   if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,suspended:state.accountSuspended}]);
   if(name==='admin_get_worker_review_trust_status')return ok({profile_ready:true,identity_captured:true,identity_passed:true,readiness_passed:true,evidence_saved:true,submitted:true,review_status:'approved'});

@@ -4,6 +4,57 @@
 
 ## Current engineering checkpoints
 
+### Scoped restrictions and tracked recovery — 28 October
+
+Test migration `20261028035034` is applied. Private restrictions supplement the
+existing workspace grants; the public permission function OIDs are preserved so
+existing RLS policies also enforce the gates. Personal restriction leaves Services
+and Partner access intact. A separate whole-account security action ends sessions.
+Account access removal is not data deletion and does not reset work approval.
+
+The same existing operational-case system now provides identity-bound appeal
+receipts, one request per restriction revision, assignment, public updates, private
+notes, information requests, Security Operations escalation and an explicit
+upheld/restored/superseded decision. Admin is limited to its branch and requires
+fresh authenticator confirmation; Creator uses existing elevation. Security
+Operations cannot decide access and its own domain scope is enforced. Internal
+workspace restrictions remain Creator-controlled. Existing Admin sanction APIs
+also enforce fresh confirmation. Professional-profile restoration reuses retained
+identity/work evidence and the normal credential publication guards.
+
+Trusted signed-in people use their current identity/session. Signed-out recovery
+exchanges a freshly verified email session for a hashed, expiring review-only token;
+the temporary Auth session is revoked and the browser receives no marketplace
+bearer. Explicit closure revokes review access. Test `account-recovery` v3 is
+deployed; no real email was sent. The repository includes a code-bearing email
+template that also retains ordinary sign-in links. Hosted Auth-template activation
+and real sender/delivery verification remain open. After those checks, enable
+`ACCOUNT_RECOVERY_EMAIL_ENABLED` in the server environment. Until then the handler
+reports email recovery unavailable instead of pretending a code was sent. This is
+external email setup, not another Creator dashboard switch. Deploying an Edge function does
+not apply Auth email configuration.
+
+Verified: actual Test rollback contracts cover mixed-workspace restrictions,
+retained approvals/evidence, assignment/information/decisions, private-note
+isolation, Admin MFA/branch scope, Security domain revocation, signed-out recovery,
+account restoration without session resurrection, closed/expired tokens and
+notifications. Regression contracts for existing Admin sanctions, Worker credentials,
+property documents, showcase upload budgets and privileged write guards pass.
+Actual recovery and existing Admin components pass phone/light and desktop/dark
+browser journeys, including lost-result recovery. Existing 810 source tests pass;
+production build, focused lint and Edge type checks pass. Final exact-commit CI
+and preview remain release evidence, not implied completion. Direct HTTP probes
+from this environment timed out, so the deployed endpoint request checks are not
+recorded as passed.
+
+Media audit: all Test Storage buckets have server-side MIME allowlists and byte
+limits. Existing ownership, document-review and durable upload-budget controls
+remain active; the database showcase contract rejects wrong stored types, excess
+bytes/count and another provider's media. Encrypted chat stores ciphertext as
+application/octet-stream; supported plaintext formats are checked by participating
+clients, rather than pretending the server can inspect encrypted contents.
+
+
 ### Recovery clarification and professional-state preservation — 28 October
 
 A trusted signed-in person reuses their existing account identity for review;
@@ -18,8 +69,8 @@ explicitly affects all workspaces. Never silently substitute one for the other.
 Personal is also a workspace: restricting it alone must not implicitly revoke
 Partner or Services access. Whole-identity suspension must remain an explicit
 security action, clearly separated from individual workspace controls. This
-repair preserves professional state; it does not implement all those scoped
-restriction controls or prove that duplicate identities exist.
+repair preserves professional state. The scoped controls are implemented in the
+checkpoint above; this does not imply duplicate identities exist.
 
 Found and repaired the legacy helper that changed role=worker to suspended and
 then pending on account restoration. The forward migration removes those work
@@ -64,9 +115,10 @@ data; work-specific rejection must not masquerade as a whole-account suspension.
    Partner, Service Worker, mixed-workspace and revoked-operator scenarios. Include
    duplicates, lost responses, failed notifications and unpublished contact.
 
-Completion requires those journeys and negative controls, not just an appeal
-link or a roadmap entry. This ordered workstream remains internal engineering;
-provider delivery credentials and published real support contact are separate.
+The scoped-recovery checkpoint above now records implementation and passing
+database/browser evidence for this sequence. Real email delivery/configuration
+and exact-commit release checks remain verification tasks; a published real
+support contact and provider credentials remain external setup.
 
 
 ### Account review recovery — 28 October
@@ -77,8 +129,8 @@ are validated locally. It explicitly distinguishes preparation from sending or
 receipt, warns against sending credentials/identity numbers, and explains that
 password recovery does not lift a suspension. An authorized decision and fresh
 sign-in are still required for restored access. This is manual email handling;
-a verified, tracked in-app appeal intake, reviewer assignment/status and decision
-notifications remain an internal work item. Do not describe the public contact
+the tracked in-app lifecycle is now implemented in the scoped-recovery checkpoint
+above; actual email delivery/configuration verification remains open. Do not describe the public contact
 reader or mailto composer as that completed lifecycle. No automatic restoration,
 appeal deadline, review turnaround or new booking/refund policy was invented.
 Focused lint, the production build and actual phone/light and desktop/dark

@@ -126,7 +126,7 @@ function friendlyError(raw: string) {
   if (msg.includes('provider') && (msg.includes('not enabled') || msg.includes('disabled') || msg.includes('unsupported')))
     return isTestEnvironment ? 'This sign-in provider is not ready on this test preview yet.' : 'This sign-in provider is temporarily unavailable. Please try again later.';
   if (msg.includes("banned"))
-    return "Your account is banned. Use account access help to request a review.";
+    return "Your account access has been removed. Use account access help to request a review.";
   if (msg.includes("suspended"))
     return "Your account has been suspended. Use account access help to request a review.";
   if (msg.includes("deleted"))
@@ -777,7 +777,7 @@ export default function Login({
           </Notice>
         ) : null}
         {displayError ? <Notice tone="error">{displayError}</Notice> : null}
-        {/bann|suspend|deleted|account.*unavailable|account.*access/i.test(displayError)&&<SignedOutAccountHelp/>}
+        {(mode==='signin'||/bann|suspend|deleted|account.*unavailable|account.*access/i.test(displayError))&&<SignedOutAccountHelp/>}
         {info ? <Notice tone="info">{info}</Notice> : null}
 
         {mode === "choose" ? (

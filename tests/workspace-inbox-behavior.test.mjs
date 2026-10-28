@@ -24,7 +24,9 @@ test('Refresh restores a selected workspace and internal accounts do not fall in
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', 'worker'), 'creator');
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', null), 'creator');
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-b', 'creator'), null);
-  assert.equal(session.resolveWorkspace({...access(['creator']),personal_workspace:false}, 'person-a', 'creator'), null);
+  assert.equal(session.resolveWorkspace({...access(['creator']),personal_workspace:false}, 'person-a', 'creator'), 'creator');
+  assert.equal(session.resolveWorkspace({...access(['worker','property_partner']),personal_workspace:false}, 'person-a', 'personal'), 'worker');
+  assert.equal(session.resolveWorkspace({...access([]),personal_workspace:false}, 'person-a', null), 'personal');
 });
 test('Navigation memory is separate for each identity and workspace', () => {
   const keys = ['person-a','person-b'].flatMap(id => ['personal','worker','creator'].map(role => session.workspaceNavigationKey(id,role)));

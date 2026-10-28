@@ -1,3 +1,4 @@
+import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
 import EmailChangeFinisher from "@/components/EmailChangeFinisher";
 import AppErrorState from '@/components/AppErrorState';
@@ -167,6 +168,7 @@ const ACCOUNT_PAGES = new Set<NavPage>([
   "privacy",
   "security",
   "devices",
+  "account_reviews",
   "profile_edit",
 ]);
 const USER_PAGES = new Set<NavPage>([
@@ -341,8 +343,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [baseProfile?.user_id, baseProfile?.pref_push_notif]);
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
-  const otherWorkspaceRoles = workspaceReady && workspaceAccess?.personal_workspace
-    ? [...new Set((workspaceAccess.privileged_workspaces || []).map(item => item.role).filter(role => role !== 'hosting'))].sort().join(',')
+  const otherWorkspaceRoles = workspaceReady
+    ? [...new Set((workspaceAccess?.privileged_workspaces || []).map(item => item.role).filter(role => role !== 'hosting'))].sort().join(',')
     : '';
   useEffect(() => {
     if (!baseProfile?.user_id || !otherWorkspaceRoles) {
@@ -983,6 +985,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           );
           if (!event) return;
           const type = String(event.type || "");
+          if (['workspace_access_changed','account_review_update'].includes(type)) window.dispatchEvent(new Event('wehouse:workspace-access-changed'));
           if (["new_device_login", "device_confirmation_pending"].includes(type))
             return;
           const destination = resolveActivityDestination(event);
@@ -1121,9 +1124,18 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         table: "activity_event_audiences",
         filter: `recipient_user_id=eq.${uid}`,
       },
-      (payload) => {
+      async (payload) => {
         const audience = payload.new as { activity_event_id?: string; workspace?: string };
         const scope = String(audience.workspace || "");
+        if (audience.activity_event_id && ['personal','account'].includes(scope)) {
+          const result = await getCanonicalActivity('personal',25);
+          const event = result.error ? null : result.rows.find(row => row.id === audience.activity_event_id);
+          if (event && ['workspace_access_changed','account_review_update'].includes(String(event.type || ''))) {
+            window.dispatchEvent(new Event('wehouse:workspace-access-changed'));
+            if (alertsEnabled) toast('Account review update',{id:`review:${audience.activity_event_id}`,description:'Open your account and workspace reviews to see the update.',action:{label:'View review',onClick:()=>handleSetNavPage('account_reviews')}});
+            return;
+          }
+        }
         const target = workspaceForActivity(scope, uid, workspaceAccess);
         if (!target || !audience.activity_event_id || !alertsEnabled) return;
         void playNotificationSound(uid, { key: `activity:${audience.activity_event_id}` });
@@ -1144,7 +1156,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       },
     ).subscribe();
     return () => { window.removeEventListener('wehouse:in-app-alerts',onAlertPreference);void supabase.removeChannel(channel); };
-  }, [profile?.user_id, profile?.pref_push_notif, isUserRole, workspaceAccess, switchWorkspace]);
+  }, [profile?.user_id, profile?.pref_push_notif, isUserRole, workspaceAccess, switchWorkspace, handleSetNavPage]);
 
   const toggle = useCallback(
     async (id: string) => {
@@ -1478,7 +1490,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         />
       );
     const props = { profile, savedIds, onToggleSave: toggle };
+    const allowedHere = activeWorkspace === 'personal' ? workspaceAccess?.personal_workspace : workspaceAccess?.privileged_workspaces?.some(w => w.role === activeWorkspace);
+    if (workspaceReady && !allowedHere && !ACCOUNT_PAGES.has(navPage)) return <div className="mx-auto max-w-2xl space-y-4 p-4"><AccountRecoveryCenter key={profile.user_id} signedIn onAccessChanged={reloadWorkspaces}/><button type="button" onClick={()=>void auth.logout()} className="min-h-11 px-4 text-sm">Sign out</button></div>;
     switch (navPage) {
+      case 'account_reviews':
+        return <PrivacySecuritySettings profile={profile} onUpdate={u=>auth.handleSetupComplete(u)} onBack={subpageBack} onLogout={auth.logout} initialSection="reviews"/>;
       case "payment_return":
         return <PaymentReturn profile={profile} onNavigate={(page, id) => {
           if (page === "my_reservations") setBookingContextId(id || null);

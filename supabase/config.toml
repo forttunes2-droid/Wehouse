@@ -44,3 +44,13 @@ verify_jwt = true
 # PMS partners use a hashed, scoped connection token, checked on every request.
 [functions.hotel-pms-api]
 verify_jwt = false
+
+# Email OTP ownership is exchanged server-side for a short-lived review-only token.
+# Signed-in users reuse their existing trusted session through my_account_reviews.
+[functions.account-recovery]
+verify_jwt = false
+
+# Include a code for the review-only recovery journey while retaining ordinary sign-in links.
+[auth.email.template.magic_link]
+subject = "Your WeHouse verification code and sign-in link"
+content_path = "./supabase/templates/magic_link.html"

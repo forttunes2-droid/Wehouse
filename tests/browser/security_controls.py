@@ -27,6 +27,7 @@ async def main():
      if state['support_fail']:status=503;data={'message':'Synthetic support outage'}
      else:data={'email':'review@example.invalid' if state['contact'] else None}
     return await handler.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers=headers)
+   await context.add_init_script('''(()=>{const now=Math.floor(Date.now()/1000),enc=o=>btoa(JSON.stringify(o)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');const id='b8220000-1111-4111-8111-000000000001';const jwt=enc({alg:'HS256',typ:'JWT'})+'.'+enc({sub:id,role:'authenticated',aud:'authenticated',aal:'aal2',session_id:id,amr:[{method:'totp',timestamp:now}],iat:now,exp:now+3600})+'.c3ludGhldGlj';localStorage.setItem('sb-127-auth-token',JSON.stringify({access_token:jwt,refresh_token:'synthetic-refresh',expires_at:now+3600,expires_in:3600,token_type:'bearer',user:{id,aud:'authenticated',role:'authenticated',email:'admin@example.invalid',factors:[{id,status:'verified',factor_type:'totp'}]}}));})()''')
    await page.route('**/*',route)
    await page.goto(BASE+f'/tests/browser/rent-terms.html?mode=security-cases&theme={theme}')
    await expect(page.get_by_role('alert')).to_contain_text('could not be loaded');await expect(page.get_by_text('No open Security Operations',exact=False)).to_have_count(0)

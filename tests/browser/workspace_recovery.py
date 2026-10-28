@@ -1,0 +1,81 @@
+"""Actual recovery and scoped-control components, isolated transport, no email sent."""
+import asyncio,json,subprocess
+from pathlib import Path
+from playwright.async_api import async_playwright,expect
+OUT=Path('test-results/workspace-recovery');BUNDLE=Path('test-results/profile-refinement-offline')
+async def main():
+ subprocess.run(['node','tests/browser/build-profile-refinement.mjs'],check=True)
+ OUT.mkdir(parents=True,exist_ok=True);results=[]
+ async with async_playwright() as p:
+  browser=await p.chromium.launch(args=['--no-sandbox'])
+  for theme,width in [('light',390),('dark',1440)]:
+   context=await browser.new_context(viewport={'width':width,'height':950},service_workers='block');page=await context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+   await page.route('**/*',lambda r:r.abort())
+   await page.set_content('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0"><div id="root"></div></body></html>')
+   await page.evaluate('t=>{window.__refinementMode="recovery-user";window.__refinementTheme=t}',theme)
+   await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
+   await expect(page.get_by_role('heading',name='Account and workspace reviews',exact=True)).to_be_visible()
+   await expect(page.get_by_role('textbox',name='Account email',exact=True)).to_have_count(0)
+   await page.get_by_role('combobox',name='Restriction to review').select_option('worker')
+   await page.get_by_label('Why should WeHouse review this decision?',exact=True).fill('Please review the event and existing approved evidence.')
+   await page.evaluate('window.__fixtureState.recoveryLost=true')
+   await page.get_by_role('button',name='Submit review request',exact=True).click()
+   await expect(page.get_by_role('alert')).to_be_visible()
+   await expect(page.get_by_role('button',name='Submit review request',exact=True)).to_be_disabled()
+   await expect(page.get_by_text('Review request received.',exact=False)).to_have_count(0)
+   await page.evaluate('window.__fixtureState.recoveryLost=false')
+   await page.get_by_role('button',name='Refresh reviews',exact=True).click()
+   await expect(page.get_by_role('heading',name='Case #52 · Services',exact=True)).to_be_visible()
+   assert await page.evaluate("window.__fixtureState.calls.filter(c=>c.name==='my_account_reviews'&&c.args.p_workspace).length")==1
+   assert await page.evaluate("window.__fixtureState.calls.some(c=>c.name==='account-recovery')")==False
+   await page.screenshot(path=str(OUT/f'user-receipt-{theme}.png'),full_page=True)
+
+   await page.evaluate('window.__setRefinementMode("recovery-creator")')
+   await page.get_by_role('button',name='Open workspace restrictions',exact=True).click()
+   await page.get_by_role('combobox',name='Workspace').select_option('property_partner')
+   await page.get_by_label('Reason shown to this person',exact=True).fill('Partner review complete; only Partner access is restored.')
+   await page.get_by_role('checkbox').check()
+   await page.evaluate('window.__fixtureState.recoveryLost=true')
+   await page.get_by_role('button',name='Restore this workspace',exact=True).click()
+   await expect(page.get_by_text('Workspace access could not be confirmed.',exact=False)).to_be_visible()
+   await expect(page.get_by_role('button',name='Restore this workspace',exact=True)).to_be_disabled()
+   await page.evaluate('window.__fixtureState.recoveryLost=false')
+   await page.get_by_role('button',name='Refresh workspace restrictions',exact=True).click()
+   await expect(page.get_by_text('Property Partner: Not restricted',exact=True)).to_be_visible()
+   assert await page.evaluate('window.__fixtureState.recoveryRestrictions.worker')==True
+   mutation=await page.evaluate("window.__fixtureState.calls.find(c=>c.name==='review_workspace_access'&&c.args.p_workspace).args")
+   assert mutation['p_workspace']=='property_partner' and mutation['p_restricted']==False and mutation['p_elevation']=='test-elevation'
+   await page.get_by_role('button',name='Open account reviews',exact=True).click()
+   await page.get_by_role('button').filter(has_text='Case #52 · Services').click()
+   await page.get_by_label('Public update to the person',exact=True).fill('Review assigned. Existing evidence will be examined.')
+   await page.get_by_label('Internal review note',exact=True).fill('Private investigation context')
+   await page.get_by_role('button',name='Assign review to me',exact=True).click()
+   await page.get_by_role('button',name='Refresh account reviews',exact=True).click()
+   await page.get_by_role('button').filter(has_text='Case #52 · Services').click()
+   await page.get_by_label('Public update to the person',exact=True).fill('Review accepted. Services access is restored with existing approval.')
+   await page.get_by_role('button',name='Restore reviewed access',exact=True).click()
+   await expect(page.get_by_text('Review update saved.',exact=False)).to_be_visible()
+   decision=await page.evaluate("window.__fixtureState.calls.filter(c=>c.name==='decide_account_review').at(-1).args")
+   assert decision['p_expected_updated_at']=='2026-10-28T12:00:00.123456Z' and decision['p_action']=='restored' and decision['p_elevation']=='test-elevation'
+   await page.screenshot(path=str(OUT/f'reviewer-{theme}.png'),full_page=True)
+   await page.evaluate('window.__setRefinementMode("recovery-user")')
+   await expect(page.get_by_text('No active restriction is recorded.',exact=False)).to_be_visible()
+   await expect(page.get_by_text('restored',exact=True)).to_be_visible()
+   await expect(page.get_by_text('Private investigation context',exact=True)).to_have_count(0)
+   await page.evaluate('window.__setRefinementMode("recovery-signed-out")')
+   await page.get_by_label('Account email',exact=True).fill('person@example.invalid')
+   await page.get_by_role('button',name='Send verification code',exact=True).click()
+   await page.get_by_label('Email verification code',exact=True).fill('12345678')
+   await page.get_by_role('button',name='Verify and open reviews',exact=True).click()
+   await expect(page.get_by_role('heading',name='Case #52 · Services',exact=True)).to_be_visible()
+   await expect(page.get_by_label('Account email',exact=True)).to_have_count(0)
+   await page.get_by_role('button',name='Close recovery session',exact=True).click()
+   await expect(page.get_by_label('Account email',exact=True)).to_be_visible()
+   assert not errors,errors
+   assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+   results.append({'theme':theme,'width':width,'trusted_session_reused':True,'lost_receipt_recovered':True,'one_workspace_changed':True,'assigned_decision_with_version':True,'recovery_only_email_flow':True,'passed':True})
+   await context.close()
+  await browser.close()
+ (OUT/'results.json').write_text(json.dumps(results,indent=2));print(json.dumps(results))
+asyncio.run(main())
+

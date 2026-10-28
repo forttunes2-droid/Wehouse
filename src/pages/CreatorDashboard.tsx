@@ -1,3 +1,5 @@
+import WorkspaceRestrictionControls from '@/components/WorkspaceRestrictionControls';
+import AccountReviewQueue from '@/components/AccountReviewQueue';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { currencySymbol } from "@/lib/regional";
 import AdminReports from "@/components/AdminReports";
@@ -290,6 +292,7 @@ export default function CreatorDashboard({
       {viewing && (
         <UserProfileModal
           user={viewing}
+          reviewControls={<WorkspaceRestrictionControls key={viewing.user_id} userId={viewing.user_id}/>}
           adminProfile={profile}
           onClose={() => setViewing(null)}
           onNavigate={openCreatorDestination}
@@ -349,7 +352,7 @@ function Operations({
     <div className="space-y-5">
       {active === "people" && <People userId={profile.user_id} initialRole={target?.operation === 'people' && target.id === 'property_partner' ? 'property_partner' : 'all'} onView={onView} />}
       {active === "team" && <StaffListTab profile={profile} />}
-      {active === "reports" && <AdminReports />}
+      {active === "reports" && <><AccountReviewQueue actorId={profile.user_id}/><AdminReports /></>}
       {active === "refunds" && <div className="space-y-6"><ExperienceFinanceReviews key={target?.id||'all-experience-reviews'} initialBookingId={target?.id}/><AdminRefundReviews /></div>}
       {active === "properties" && (
         <div className="space-y-5">

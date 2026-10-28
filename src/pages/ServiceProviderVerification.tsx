@@ -1,3 +1,4 @@
+import AccountReviewEntry from '@/components/AccountReviewEntry';
 import { withTimeout } from '@/lib/withTimeout';
 import { validatePropertyDocument } from '@/lib/propertyDocuments';
 import WorkerCredentials from '@/components/WorkerCredentials';
@@ -183,6 +184,7 @@ function EvidenceOnlyVerification({
   return (
     <SimpleShell onBack={onBack}>
       <WorkerCredentials workerId={profile.user_id} onChanged={onRefresh}/>
+      <AccountReviewEntry/>
 
 
       <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">

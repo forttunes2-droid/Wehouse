@@ -5,6 +5,8 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,ci
  ('b8110000-0000-4000-8000-000000000002','sanction-person@example.invalid','sanction-person','worker',true,'Nasarawa','Lafia','Lafia'),
  ('b8110000-0000-4000-8000-000000000003','sanction-other@example.invalid','sanction-other','user',true,'Nasarawa','Keffi','Keffi'),
  ('b8110000-0000-4000-8000-000000000004','sanction-creator@example.invalid','sanction-creator','user',true,'Nasarawa','Lafia','Lafia');
+insert into auth.users(id,email,email_confirmed_at) values('b8110000-0000-4000-8000-000000000001','sanction-admin@example.invalid',now());
+insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values('b8110000-f000-4000-8000-000000000001','b8110000-0000-4000-8000-000000000001','totp','verified',now(),now());
 insert into auth.sessions(id,user_id,created_at,updated_at)
  select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id like 'sanction-%';
 insert into auth.sessions(id,user_id,created_at,updated_at) values('b8110000-0000-4000-8000-000000000006','b8110000-0000-4000-8000-000000000002',now(),now());
@@ -48,7 +50,7 @@ do $$begin
  begin perform public.admin_security_case_decision_v2('b8110000-2000-4000-8000-000000000001','suspend','Missing trusted session',now());raise exception 'FAIL: untrusted session sanctioned an account';exception when insufficient_privilege then null;end;
 end $$;
 reset role;
-select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000001","session_id":"b8110000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','b8110000-0000-4000-8000-000000000001','session_id','b8110000-0000-4000-8000-000000000001','role','authenticated','aal','aal2','amr',jsonb_build_array(jsonb_build_object('method','totp','timestamp',floor(extract(epoch from now())))))::text,true);
 set local role authenticated;
 do $$begin
  begin perform public.admin_security_case_decision('b8110000-2000-4000-8000-000000000001','suspend','Old client bypass');raise exception 'FAIL: old command bypassed expected-version check';exception when raise_exception then if sqlerrm not like 'Refresh the security case%' then raise;end if;end;

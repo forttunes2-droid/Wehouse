@@ -15,6 +15,7 @@ export type NavPage =
   | 'profile_edit'
   | 'account'
   | 'privacy'
+  | 'account_reviews'
   | 'security'
   | 'devices'
   | 'my_bookings'

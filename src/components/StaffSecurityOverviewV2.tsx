@@ -1,3 +1,4 @@
+import AccountReviewQueue from '@/components/AccountReviewQueue';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { withTimeout } from "@/lib/withTimeout";
@@ -143,6 +144,7 @@ export default function StaffSecurityOverviewV2({
 
   return (
     <div className="space-y-6">
+      {actorUserId&&<AccountReviewQueue actorId={actorUserId} actorRole="staff"/>}
       <section className="rounded-3xl border border-red-500/15 bg-gradient-to-br from-red-500/[.08] via-[#15131A] to-[#0D1118] p-5 sm:p-6 lg:p-8">
         <p className="text-[9px] font-bold uppercase tracking-[.18em] text-red-300">
           SECURITY OPERATIONS
@@ -151,7 +153,7 @@ export default function StaffSecurityOverviewV2({
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--wh-text-secondary)]">
           Security Operations can review signals, claim a case, keep internal notes,
           resolve a review or escalate it for an Admin/Creator decision. Security
-          Operations cannot suspend or ban accounts.
+          Operations investigates and escalates cases. Admin or Creator decides account access.
         </p>
         <button
           onClick={onOpenCases}

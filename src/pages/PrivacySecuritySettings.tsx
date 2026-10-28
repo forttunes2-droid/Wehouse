@@ -1,3 +1,4 @@
+import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
 import { useState } from 'react';
 import AccountShell, { AccountRow, AccountSection } from '@/components/AccountShell';
 import PrivacySettings from '@/pages/PrivacySettings';
@@ -6,7 +7,7 @@ import MyReports from '@/components/MyReports';
 import type { Profile } from '@/types';
 import { useWorkspaceAccess } from '@/hooks/useWorkspaceAccess';
 
-type Section='privacy'|'access'|'devices'|'close'|'reports';
+type Section='privacy'|'access'|'devices'|'close'|'reports'|'reviews';
 type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;onLogout?:()=>Promise<unknown>;initialSection?:Section};
 
 export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogout,initialSection}:Props){
@@ -15,7 +16,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogou
   const hasPrivacyControls=Boolean(workspace.access?.personal_workspace||workspace.access?.privileged_workspaces?.some(item=>item.role==='worker'));
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
-  const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':section==='reports'?'Reports you sent':'Privacy & Security';
+  const title=section==='reviews'?'Account reviews':section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':section==='reports'?'Reports you sent':'Privacy & Security';
   const description=section==='privacy'?'Manage incoming calls and available profile visibility settings.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':section==='reports'?'Check the review status of reports you sent.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
 
@@ -23,6 +24,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogou
     section==='access'?<><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="password"/><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/></>:
     section==='devices'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/>:
     section==='close'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="close"/>:
+    section==='reviews'?<AccountRecoveryCenter key={profile.user_id} signedIn/>:
     section==='reports'?<MyReports/>:
     <>
       {workspace.error&&<p role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 text-sm">Privacy access could not be loaded. <button className="min-h-11 underline" onClick={()=>void workspace.reload()}>Try again</button></p>}
@@ -30,6 +32,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogou
         <AccountRow title="Privacy & calls" detail="Incoming call controls and available profile visibility settings" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
       </AccountSection>}
       <AccountSection title="Account access">
+        <AccountRow title="Account and workspace reviews" detail="Review restrictions, request a decision and follow case updates" onClick={()=>setSection('reviews')} icon={<ShieldIcon/>}/>
         <AccountRow title="Access & security" detail="Password, trusted devices and active sessions" onClick={()=>setSection('access')} icon={<LockIcon/>}/>
       </AccountSection>
       <AccountSection title="Safety">

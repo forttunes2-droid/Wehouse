@@ -153,7 +153,7 @@ function AccountCenterContent({
   )[0].toUpperCase();
 
   // A previous identity's cached response must never supply account links.
-  const ownAccess = workspaceAccess?.identity?.user_id === profile.user_id && workspaceAccess.personal_workspace;
+  const ownAccess = workspaceAccess?.identity?.user_id === profile.user_id;
   const privilegedWorkspaces = ownAccess ? workspaceAccess?.privileged_workspaces || [] : [];
   const hasServiceProviderWorkspace = privilegedWorkspaces.some(
     (workspace) => workspace.role === "worker",

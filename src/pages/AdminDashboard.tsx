@@ -1,3 +1,5 @@
+import AccountReviewQueue from '@/components/AccountReviewQueue';
+import WorkspaceRestrictionControls from '@/components/WorkspaceRestrictionControls';
 import WorkerCredentials from '@/components/WorkerCredentials';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { internalActivityDestination, type BookingActivityKind } from "@/lib/internalActivityDestination";
@@ -193,6 +195,7 @@ export default function AdminDashboard({
       {viewing && (
         <UserProfileModal
           user={viewing}
+          reviewControls={<WorkspaceRestrictionControls userId={viewing.user_id} actorRole="admin"/>}
           adminProfile={profile}
           onClose={() => setViewing(null)}
           onPromote={() => {
@@ -429,12 +432,13 @@ function Operations({
       {active === "reports" && (
         <AdminReports />
       )}{" "}
-      {active === "security" && (
+      {active === "security" && (<>
+        <AccountReviewQueue actorId={profile.user_id} actorRole="admin"/>
         <AdminSecurityCases
           onViewAccount={onView}
           initialCaseId={target?.operation === "security" ? target.id : undefined}
         />
-      )}{" "}
+      </>)}{" "}
     </div>
   );
 }
