@@ -54,3 +54,10 @@ verify_jwt = false
 [auth.email.template.magic_link]
 subject = "Your WeHouse verification code and sign-in link"
 content_path = "./supabase/templates/magic_link.html"
+
+# Match the supported hosted authenticator flow in disposable Auth tests.
+[auth.mfa]
+max_enrolled_factors = 10
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true

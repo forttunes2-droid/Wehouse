@@ -22,7 +22,12 @@ Lost-factor help leads to support review; no automatic MFA reset was introduced.
 
 Local evidence: 16 actual useAuth/authenticator browser cases pass across light
 and dark themes; all 811 Node regression tests pass. TypeScript and focused lint
-pass. The disposable SQL and real Auth HTTP tests are added to CI. This migration
+pass. The new SQL MFA boundary contract and existing-account upgrade pass in CI.
+The first full replay exposed the fail-closed Storage policy fingerprint after
+adding MFA; its authority projection is now regenerated including the new
+restriction. The first real Auth test exposed disabled TOTP in the disposable
+configuration; enrollment and verification are now explicitly enabled there.
+The full replay and real Auth proof require another passing run. This migration
 and the dependent Edge changes are **not activated on Test or Production yet**:
 activation requires those checks and a coordinated compatible client rollout.
 The Experience review migration and library remain prepared separate work and

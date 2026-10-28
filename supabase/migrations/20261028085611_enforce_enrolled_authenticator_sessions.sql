@@ -66,6 +66,39 @@ do $policies$declare t record;begin
  end loop;
 end $policies$;
 
+-- Refresh the fail-closed upload-authority projection after adding the
+-- restrictive MFA policy. The new projection includes that policy; it is not exempt.
+do $authority$
+declare permissive text; restrictive text; signature text; definition text;
+begin
+ select string_agg('('||pg_catalog.pg_get_expr(coalesce(polwithcheck,polqual),polrelid)||')',' or ' order by polname)
+ filter(where polpermissive),
+ string_agg('('||pg_catalog.pg_get_expr(coalesce(polwithcheck,polqual),polrelid)||')',' and ' order by polname)
+ filter(where not polpermissive),
+ md5(string_agg(polname||':'||polpermissive::text||':'||pg_catalog.pg_get_expr(coalesce(polwithcheck,polqual),polrelid),E'\n' order by polname))
+ into permissive,restrictive,signature
+ from pg_catalog.pg_policy where polrelid='storage.objects'::regclass and polcmd in('a','*')
+ and polname<>'wehouse_upload_budget_insert' and (polroles @> array[0::oid] or polroles @> array['authenticated'::regrole::oid]);
+ if permissive is null then raise exception 'Storage upload authority is missing';end if;
+ definition:=pg_catalog.format($fn$
+ create or replace function private.can_reserve_storage_upload(p_bucket text,p_name text)
+ returns boolean language plpgsql stable security definer set search_path='' as $body$
+ declare current_signature text; permitted boolean;
+ begin
+ select md5(string_agg(polname||':'||polpermissive::text||':'||pg_catalog.pg_get_expr(coalesce(polwithcheck,polqual),polrelid),E'\n' order by polname))
+ into current_signature from pg_catalog.pg_policy
+ where polrelid='storage.objects'::regclass and polcmd in('a','*') and polname<>'wehouse_upload_budget_insert'
+ and (polroles @> array[0::oid] or polroles @> array['authenticated'::regrole::oid]);
+ if current_signature is distinct from %L then raise exception 'Upload permissions need a configuration refresh. Contact support';end if;
+ select coalesce(((%s) and (%s)),false) into permitted from
+ (select p_bucket as bucket_id,p_name as name,auth.uid()::text as owner_id) objects;
+ return permitted;
+ end $body$;
+ $fn$,signature,permissive,coalesce(restrictive,'true'));
+ execute definition;
+end $authority$;
+revoke all on function private.can_reserve_storage_upload(text,text) from public,anon,authenticated;
+
 -- Service-key Edge requests have already verified the caller's bearer with
 -- Auth. They submit its verified AAL, never a browser-supplied role selection.
 create function public.auth_session_security_satisfied(p_auth_id uuid,p_session_id uuid,p_aal text) returns boolean
