@@ -59,6 +59,8 @@ begin
   where schemaname='public'
     and tablename='hotel_bookings'
     and cmd in ('INSERT','UPDATE','DELETE','ALL')
+    -- Restrictive policies can only narrow existing authority, never grant it.
+    and permissive='PERMISSIVE'
     and roles && array['anon','public','authenticated']::name[];
   if bad is not null then
     raise exception 'Direct hotel_bookings write policy exists: %',bad;

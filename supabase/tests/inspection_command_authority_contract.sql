@@ -12,6 +12,7 @@ begin
   insert into auth.users(id,aud,role,email,created_at,updated_at) values(au,'authenticated','authenticated',au||'@example.invalid',now(),now());
   insert into public.profiles(auth_id,email,user_id,role,profile_complete,full_name,state,city,local_government)
    values(au,au||'@example.invalid',person,'user',true,'Inspection check','Nasarawa','Lafia','Lafia');
+  insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(gen_random_uuid(),au,'totp','verified',now(),now());
   insert into auth.sessions(id,user_id,created_at,updated_at) values(sess,au,now(),now());
   insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
    values(person,au,sess,'check-'||au,'Browser',true,'trusted');
@@ -33,7 +34,7 @@ begin
  insert into public.user_inspection_requests(id,listing_id,user_id,field_officer_id,status)
  values(user_request,listing::text,actors->'owner'->>'person',actors->'field'->>'person','scheduled');
  actor:=actors->'field';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
  execute 'set local role authenticated';
  perform pg_temp.expect((select count(*)=2 from public.get_my_inspections(actor->>'person')),'both assigned inspection sources load');
  perform pg_temp.expect(pg_temp.rejects(format('select public.update_inspection_status(%L,%L,%L,%L)',request_id,'completed','partner','Report')),'cannot skip starting an inspection');
@@ -61,25 +62,25 @@ begin
  execute 'reset role';
  completed_time:=(select completed_at from public.inspection_requests where id=request_id);
  actor:=actors->'reviewer';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
  execute 'set local role authenticated';
  perform pg_temp.expect(public.review_field_inspection_evidence(request_id,'request_changes','Add clearer entrance evidence.'),'Property Operations can request a correction');
  perform pg_temp.expect(public.review_field_inspection_evidence(request_id,'request_changes','Add clearer entrance evidence.'),'correction retry is confirmed without another notification');
  execute 'reset role';
  perform pg_temp.expect((select count(*)=1 from public.notifications where recipient_id=actors->'field'->>'person' and type='field_evidence_changes_requested' and related_id=request_id::text),'correction request notifies the assigned Staff member once');
  actor:=actors->'field';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
  execute 'set local role authenticated';
  perform pg_temp.expect(public.update_inspection_status(request_id,'completed','partner','Corrected inspection report'),'assigned Staff can resubmit after a real correction request');
  execute 'reset role';
  actor:=actors->'reviewer';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
  execute 'set local role authenticated';
  perform pg_temp.expect(public.review_field_inspection_evidence(request_id,'accept','Evidence reviewed.'),'Property Operations accepts submitted evidence');
  perform pg_temp.expect(public.review_field_inspection_evidence(request_id,'accept','Evidence reviewed.'),'review retry is confirmed');
  execute 'reset role';
  actor:=actors->'field';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
  execute 'set local role authenticated';
  perform pg_temp.expect(public.update_inspection_status(request_id,'completed','partner','Corrected inspection report'),'retry after review still confirms without resetting review');
  execute 'reset role';
@@ -98,14 +99,14 @@ begin
  update public.inspection_requests set access_evidence_status='verified' where id=request_id;
  for kind in select unnest(array['owner','colleague','admin']) loop
   actor:=actors->kind;
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
   execute 'set local role authenticated';
   perform pg_temp.expect(pg_temp.rejects(format('select public.update_inspection_status(%L,%L,%L,%L)',request_id,'completed','partner','Verified inspection report')),'unassigned person or out-of-scope Admin cannot submit field evidence');
   perform pg_temp.expect(pg_temp.rejects(format('select public.review_field_inspection_evidence(%L,%L,%L)',request_id,'accept','Evidence reviewed.')),'owner, field-only colleague and out-of-scope Admin cannot review evidence');
   execute 'reset role';
  end loop;
  actor:=actors->'field';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor->>'auth','session_id',actor->>'session','role','authenticated','aal','aal2')::text,true);
  update public.workspace_role_assignments set scope_lga='Karu' where user_id=actor->>'person' and workspace_role='field_operations';
  execute 'set local role authenticated';
  perform pg_temp.expect((select count(*)=0 from public.get_my_inspections(actor->>'person')),'coverage change removes old assigned inspections');

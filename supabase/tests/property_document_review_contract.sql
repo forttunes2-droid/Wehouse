@@ -60,8 +60,11 @@ begin
   end if;
  end loop;
 end $policies$;
+insert into auth.users(id,email,email_confirmed_at) select auth_id::uuid,email,now() from public.profiles where user_id in('pdr-owner','pdr-reviewer','pdr-wrong','pdr-creator');
+insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at)
+ select auth_id::uuid,auth_id::uuid,'totp','verified',now(),now() from public.profiles where user_id in('pdr-owner','pdr-reviewer','pdr-wrong','pdr-creator');
 set local session_replication_role=origin;
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 set local role authenticated;
 -- A document approval is not commercial consent. The synthetic owner accepts
 -- the actual current fee through the same command used by the Partner screen.
@@ -70,15 +73,15 @@ select pg_temp.expect((public.get_property_document_review('97220000-0000-4000-8
 select pg_temp.expect(pg_temp.rejects($$select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf')$$),'collection waits for accepted requirements');
 create temp table pdr_rules as select public.get_property_document_review('97220000-0000-4000-8000-000000000001')->'requirements' as rules;
 select pg_temp.expect(pg_temp.rejects($$select public.configure_property_document_requirements('97220000-0000-4000-8000-000000000001',0,(select rules from pdr_rules),'Test jurisdiction evidence basis')$$),'Creator cannot configure their own property review');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000004","session_id":"97210000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000004","session_id":"97210000-0000-4000-8000-000000000004","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.get_property_document_review('97220000-0000-4000-8000-000000000001')$$),'out-of-state Admin cannot read private documents');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.configure_property_document_requirements('97220000-0000-4000-8000-000000000001',null,(select rules from pdr_rules),'Test jurisdiction evidence basis')$$),'null optimistic revision cannot bypass concurrency');
 select public.configure_property_document_requirements('97220000-0000-4000-8000-000000000001',0,(select rules from pdr_rules),'Test jurisdiction evidence basis');
 select pg_temp.expect(pg_temp.rejects($$select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001')$$),'actual apartment publication cannot bypass missing documents');
 select pg_temp.expect(pg_temp.rejects($$select public.admin_publish_inspected_hotel(-97201)$$),'actual Hotel publication cannot bypass unconfirmed requirements');
 select pg_temp.expect(pg_temp.rejects($$select public.configure_property_document_requirements('97220000-0000-4000-8000-000000000001',0,(select rules from pdr_rules),'Test jurisdiction evidence basis')$$),'stale requirements cannot overwrite a newer revision');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 create temp table pdr_upload as select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf') as doc;
 select pg_temp.expect((public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf')->>'id')=(select doc->>'id' from pdr_upload),'retries return the same document receipt');
 select pg_temp.expect(pg_temp.rejects($$select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','address','97230000-0000-4000-8000-000000000001','application/pdf',12,'authority.pdf')$$),'receipt cannot be reused for another requirement');
@@ -89,12 +92,12 @@ select public.finish_property_document_upload((select (doc->>'id')::uuid from pd
 select pg_temp.expect((public.finish_property_document_upload((select (doc->>'id')::uuid from pdr_upload),false)->>'status')='submitted','submission receipt is replayable');
 select pg_temp.expect(pg_temp.rejects($$update public.property_submission_documents set status='approved' where id=(select (doc->>'id')::uuid from pdr_upload)$$),'owner cannot write approval directly');
 select pg_temp.expect(pg_temp.rejects($$select public.review_property_document((select (doc->>'id')::uuid from pdr_upload),'approved','Own approval attempt',null)$$),'Creator cannot approve own document');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000003","session_id":"97210000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000003","session_id":"97210000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect((select count(*) from public.property_submission_documents where request_id='97220000-0000-4000-8000-000000000001')=0,'unrelated account sees no metadata');
 select pg_temp.expect((select count(*) from storage.objects where bucket_id='property-documents' and name=(select doc->>'object_path' from pdr_upload))=0,'unrelated account sees no object');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 select public.review_property_document((select (doc->>'id')::uuid from pdr_upload),'correction_required','Upload the current signed authorization.',null);
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect(public.get_property_document_review('97220000-0000-4000-8000-000000000001')->'documents'->0->>'review_note'='Upload the current signed authorization.','Partner sees a persistent correction reason');
 create temp table pdr_replacement as select public.begin_property_document_upload('97220000-0000-4000-8000-000000000001','authority','97230000-0000-4000-8000-000000000002','application/pdf',12,'authority-current.pdf') as doc;
 select public.reserve_my_media_upload('property-documents',doc->>'object_path') from pdr_replacement;
@@ -108,7 +111,7 @@ do $$declare rule jsonb; d jsonb; begin
     perform public.finish_property_document_upload((d->>'id')::uuid,false);
   end loop;
 end $$;
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.review_property_document((select (doc->>'id')::uuid from pdr_upload),'approved','Old version should fail',null)$$),'superseded document cannot be approved');
 do $$declare doc jsonb; begin
   for doc in select value from jsonb_array_elements(public.get_property_document_review('97220000-0000-4000-8000-000000000001')->'documents') loop
@@ -126,14 +129,14 @@ set local session_replication_role=origin;
 update public.listings set status='pending_approval',availability_status='pending_approval' where id='97240000-0000-4000-8000-000000000001';
 set local role authenticated;
 select pg_temp.expect(pg_temp.rejects_with($$select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001')$$,'accept the current fees'),'republication cannot bypass changed fees using an older approval');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_let','host')->>'digest','97220000-0000-4000-8000-000000000001',null);
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001');
 select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001');
 select public.configure_property_document_requirements('97220000-0000-4000-8000-000000000002',0,
   public.get_property_document_review('97220000-0000-4000-8000-000000000002')->'requirements','Accepted Hotel operator and local operating evidence for this test.');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.admin_publish_inspected_listing('97240000-0000-4000-8000-000000000001')$$),'an owning Creator cannot grant publication approval');
 do $$declare rule jsonb; d jsonb; begin
   for rule in select value from jsonb_array_elements(public.get_property_document_review('97220000-0000-4000-8000-000000000002')->'requirements') loop
@@ -143,7 +146,7 @@ do $$declare rule jsonb; d jsonb; begin
     perform public.finish_property_document_upload((d->>'id')::uuid,false);
   end loop;
 end $$;
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000005","session_id":"97210000-0000-4000-8000-000000000005","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000005","session_id":"97210000-0000-4000-8000-000000000005","role":"authenticated","aal":"aal2"}',true);
 do $$declare doc jsonb; begin
   for doc in select value from jsonb_array_elements(public.get_property_document_review('97220000-0000-4000-8000-000000000002')->'documents') loop
     perform public.review_property_document((doc->>'id')::uuid,'approved','Reviewed current Hotel operator and property evidence.',now()+interval '1 year');
@@ -151,7 +154,7 @@ do $$declare doc jsonb; begin
 end $$;
 select public.admin_publish_inspected_hotel(-97201);
 select public.admin_publish_inspected_hotel(-97201);
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect(pg_temp.rejects($$select public.get_property_document_review('97220000-0000-4000-8000-000000000001')$$),'missing/revoked session cannot read private documents');
 reset role;
 select pg_temp.expect((select status='available' and bedrooms=0 from public.listings where id='97240000-0000-4000-8000-000000000001'),'additive Admin grant publishes the studio without changing zero bedrooms');
@@ -178,7 +181,7 @@ select pg_temp.expect(private.expire_property_documents()=2,'expiry maintenance 
 select pg_temp.expect(private.expire_property_documents()=0,'property expiry maintenance is idempotent');
 select pg_temp.expect((select status='pending_approval' and availability_status='pending_approval' from public.listings where listing_id='pdr-public-home'),'expired apartment leaves discovery');
 select pg_temp.expect((select status='inactive' from public.hotels where hotel_id=-97201),'expired Hotel leaves discovery');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 select pg_temp.expect((select count(*)=2 from jsonb_array_elements(public.get_my_property_pipeline_v2('preparing')) item
  where item->>'id' in ('97220000-0000-4000-8000-000000000001','97220000-0000-4000-8000-000000000002') and item->>'lifecycle_stage'='listing_prepared'),'paused properties return to the existing republication screen');
 select pg_temp.expect((select count(*)=0 from jsonb_array_elements(public.get_my_property_pipeline_v2('published')) item
@@ -187,7 +190,7 @@ select pg_temp.expect((select status='payment_pending' from public.reservations 
 select pg_temp.expect((select status='pending' from public.hotel_bookings where booking_id=-97201),'expiry preserves the existing Hotel booking');
 update public.reservations set updated_at=now() where id='pdr-existing-stay';
 update public.hotel_bookings set updated_at=now() where booking_id=-97201;
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000002","session_id":"97210000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}',true);
 do $renewal$
 declare document_id uuid;
 begin
@@ -210,7 +213,7 @@ select pg_temp.expect((select document_requirements is null from public.inspecti
 select pg_temp.expect(pg_temp.rejects($$select public._assert_property_documents_ready('97220000-0000-4000-8000-000000000001')$$),'old approval cannot satisfy changed property facts');
 select pg_temp.expect((select not public from storage.buckets where id='property-documents'),'document bucket is private');
 select pg_temp.expect((select count(*) from public.audit_logs where target_id='97220000-0000-4000-8000-000000000001' and action='PROPERTY_DOCUMENT_REVIEWED')>=4,'decisions remain audited across corrections');
-select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"97200000-0000-4000-8000-000000000001","session_id":"97210000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}',true);
 update public.user_sessions set is_active=false,trust_status='rejected' where user_id='pdr-owner';
 set local role authenticated;
 select pg_temp.expect(pg_temp.rejects($$select public.get_property_document_review('97220000-0000-4000-8000-000000000001')$$),'revoked WeHouse device cannot read private property evidence with a still-live Auth session');

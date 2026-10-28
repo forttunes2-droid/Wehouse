@@ -13,6 +13,7 @@ begin
  insert into public.profiles(auth_id,email,user_id,role,profile_complete,full_name,state,city) values
  (u,u||'@example.invalid',uid,'creator',true,'Requester','Nasarawa','Lafia'),(c,c||'@example.invalid',cid,'user',true,'Reviewer','Nasarawa','Lafia'),(x,x||'@example.invalid',xid,'user',true,'Unrelated person','Nasarawa','Lafia');
  insert into auth.sessions(id,user_id,created_at,updated_at) values(us,u,now(),now()),(cs,c,now(),now()),(xs,x,now(),now());
+ insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(gen_random_uuid(),c,'totp','verified',now(),now());
  insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status) values
  (uid,u,us,'check-'||u,'Browser',true,'trusted'),(cid,c,cs,'check-'||c,'Browser',true,'trusted'),(xid,x,xs,'check-'||x,'Browser',true,'trusted');
  insert into public.workspace_role_assignments(user_id,workspace_role,scope_type) values(cid,'creator','global');
@@ -26,7 +27,7 @@ begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',x,'session_id',xs,'role','authenticated')::text,true);
  perform pg_temp.expect(not public.current_actor_can_access_operational_conversation(conversation,false),'unrelated person cannot read');
  perform pg_temp.expect(pg_temp.rejects(format('select public.send_support_message_v2(gen_random_uuid(),%L,%L)',conversation,'Unrelated')),'unrelated person cannot send');
- perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(pg_temp.rejects(format('select public.send_support_message_v2(gen_random_uuid(),%L,%L)',conversation,'Unclaimed')),'Creator must claim before replying');
  perform pg_temp.expect(public.claim_my_communication_case(conversation),'Creator can claim an unassigned case');
  note:=public.send_support_message_v2(gen_random_uuid(),conversation,'Private operational detail','{}','{}','internal');
@@ -48,7 +49,7 @@ begin
  perform pg_temp.expect((select not is_read from public.partner_support_messages where id=note),'requester cannot consume a private note receipt');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',x,'session_id',xs,'role','authenticated')::text,true);
  perform pg_temp.expect(pg_temp.rejects(format('select public.mark_support_messages_read(%L)',conversation)),'unrelated person cannot mark a conversation read');
- perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
  execute 'set local role authenticated';
  perform pg_temp.expect(exists(select 1 from public.partner_support_messages where id=note),'direct RLS permits authorized team private note');
  execute 'reset role';

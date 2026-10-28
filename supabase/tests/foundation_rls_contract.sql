@@ -26,6 +26,9 @@ begin
       -- Published support address only; no arguments or account lookup.
       -- account_sanction_session_contract verifies its anonymous projection.
       'get_public_account_support()',
+      -- Caller-only boolean used by the Data API hook and restrictive RLS.
+      -- No parameters, account lookup, records or mutation authority.
+      'request_mfa_satisfied()',
       'get_property_site_offers(uuid,text,date,date,uuid)',
       'get_hotel_review_summary(integer)',
       'get_accommodation_rate_terms()',
