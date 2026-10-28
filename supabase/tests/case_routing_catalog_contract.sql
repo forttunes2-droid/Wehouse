@@ -16,6 +16,7 @@ begin
  insert into public.profiles(auth_id,email,user_id,role,profile_complete,full_name,state,city,local_government) values
  (u,u||'@example.invalid',uid,'user',true,'Routing requester','Nasarawa','Lafia','Lafia'),(c,c||'@example.invalid',cid,'user',true,'Routing reviewer','Nasarawa','Lafia','Lafia');
  insert into auth.sessions(id,user_id,created_at,updated_at) values(us,u,now(),now()),(cs,c,now(),now());
+ insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(gen_random_uuid(),c,'totp','verified',now(),now());
  insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status) values
  (uid,u,us,'check-'||u,'Browser',true,'trusted'),(cid,c,cs,'check-'||c,'Browser',true,'trusted');
  insert into public.workspace_role_assignments(user_id,workspace_role,scope_type) values(uid,'worker','global'),(cid,'creator','global');
@@ -26,6 +27,7 @@ begin
   insert into auth.users(id,aud,role,email,created_at,updated_at) values(staff_auth,'authenticated','authenticated',staff_auth||'@example.invalid',now(),now());
   insert into public.profiles(auth_id,email,user_id,role,profile_complete,full_name,state,city,local_government) values(staff_auth,staff_auth||'@example.invalid',staff_id,'user',true,'Scoped routing team','Nasarawa','Lafia','Lafia');
   insert into auth.sessions(id,user_id,created_at,updated_at) values(staff_session,staff_auth,now(),now());
+  insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values(gen_random_uuid(),staff_auth,'totp','verified',now(),now());
   insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status) values(staff_id,staff_auth,staff_session,'check-'||staff_auth,'Browser',true,'trusted');
   insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,scope_state,scope_lga) values
    (staff_id,'staff','branch','Nasarawa',case when staff_domain in ('outside_finance','outside_field') then 'Karu' else 'Lafia' end),
@@ -49,11 +51,11 @@ begin
   perform pg_temp.expect(exists(select 1 from public.partner_support_conversations t join public.operational_cases o on o.operational_case_id=t.operational_case_id where t.id=conversation and o.owning_domain=reason.domain and coalesce(o.owning_domain,public.canonical_operational_domain(t.channel_kind))=reason.domain and o.requester_user_id=uid and o.subject_id=target_subject_id),format('case and conversation retain server-owned domain and subject: reason=%s actual=%s',reason.code,(select jsonb_build_object('domain',o.owning_domain,'channel',t.channel_kind,'mapped',public.canonical_operational_domain(t.channel_kind),'subject',o.subject_id) from public.partner_support_conversations t join public.operational_cases o on o.operational_case_id=t.operational_case_id where t.id=conversation)));
   previous:=(public.send_my_first_contextual_help_message(draft,reason.code,reason.subject_type,target_subject_id,'Routing contract','{"requester_workspace":"personal"}','Please review this linked record.')->>'conversation_id')::uuid;
   perform pg_temp.expect(previous=conversation,'same draft retry retains its routed conversation');
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
   perform pg_temp.expect(exists(select 1 from public.support_inbox(reason.domain) item where item.conversation_id=conversation),'owning operational queue receives the actual case');
   if reason.domain<>'support' then perform pg_temp.expect(not exists(select 1 from public.support_inbox('support') item where item.conversation_id=conversation),'specialist case is not dumped into general Support');end if;
   staff_actor:=staff_actors->reason.domain;
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_actor->>'auth','session_id',staff_actor->>'session','role','authenticated')::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_actor->>'auth','session_id',staff_actor->>'session','role','authenticated','aal','aal2')::text,true);
   execute 'set local role authenticated';
   perform pg_temp.expect(pg_temp.rejects(format('select public.manage_staff_permission(%L,%L,true)',staff_actor->>'person','field_operations')),'existing Staff cannot change their own department');
   perform pg_temp.expect(exists(select 1 from public.workspace_role_assignments where user_id=staff_actor->>'person' and workspace_role='staff' and status='active' and revoked_at is null),'Staff can read its own base dashboard grant through RLS');
@@ -67,14 +69,14 @@ begin
   perform pg_temp.expect(pg_temp.rejects(format('select public.support_inbox(%L)',case when reason.domain='support' then 'finance_operations' else 'support' end)),'staff cannot open a different operational domain queue');
   if reason.domain='finance_operations' then
    outside_actor:=staff_actors->'outside_finance';
-   perform set_config('request.jwt.claims',jsonb_build_object('sub',outside_actor->>'auth','session_id',outside_actor->>'session','role','authenticated')::text,true);
+   perform set_config('request.jwt.claims',jsonb_build_object('sub',outside_actor->>'auth','session_id',outside_actor->>'session','role','authenticated','aal','aal2')::text,true);
    perform pg_temp.expect(not exists(select 1 from public.support_inbox('finance_operations') item where item.conversation_id=conversation),'other-branch finance staff cannot receive the case');
    perform pg_temp.expect(not public.current_actor_can_access_operational_conversation(conversation,false),'other-branch finance staff cannot open the case');
   end if;
   perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',us,'role','authenticated')::text,true);
  end loop;
  -- Assigned Field Operations Staff participates in one property case without taking ownership.
- perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
  field_actor:=staff_actors->'field_operations';
  insert into public.operational_cases(operational_case_id,reason_code,owning_domain,subject_type,subject_id,requester_user_id,state_scope,status,priority)
  values(field_case,'field_visit','property_operations','inspection',gen_random_uuid()::text,uid,'Nasarawa','open','normal');
@@ -82,7 +84,7 @@ begin
  values(field_conversation,uid,'Assigned field participation','open','operational_case',field_case::text,field_case,field_actor->>'person','Nasarawa','Lafia');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',us,'role','authenticated')::text,true);
  perform public.send_support_message_v2(gen_random_uuid(),field_conversation,'Please coordinate the assigned visit.');
- perform set_config('request.jwt.claims',jsonb_build_object('sub',field_actor->>'auth','session_id',field_actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',field_actor->>'auth','session_id',field_actor->>'session','role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(public.current_actor_can_access_operational_conversation(field_conversation,false),'assigned scoped Field Operations Staff can read the existing property case');
  perform pg_temp.expect(not public.current_actor_can_access_operational_conversation(field_conversation,true),'field participation does not grant property-case management');
  perform pg_temp.expect(exists(select 1 from public.support_inbox('field_operations') item where item.conversation_id=field_conversation and item.context_snapshot->>'field_assignee_id'=field_actor->>'person'),'assigned field case reaches Field Operations with server-owned participation metadata');
@@ -90,21 +92,21 @@ begin
  perform pg_temp.expect(pg_temp.rejects(format('select public.claim_my_communication_case(%L)',field_conversation)),'field participant cannot claim unassigned Property Operations ownership');
  perform pg_temp.expect(pg_temp.rejects(format('select public.transition_my_support_case(%L,%L,%L)',field_conversation,'resolve','Trying to resolve')),'field participant cannot resolve the property case');
  staff_actor:=staff_actors->'other_field';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_actor->>'auth','session_id',staff_actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_actor->>'auth','session_id',staff_actor->>'session','role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(not public.current_actor_can_access_operational_conversation(field_conversation,false),'unassigned Field Operations Staff cannot open another persons task');
  perform pg_temp.expect(not exists(select 1 from public.support_inbox('field_operations') item where item.conversation_id=field_conversation),'unassigned field colleague does not receive the case');
- perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(public.claim_my_communication_case(field_conversation),'primary case owner can claim while a Field Operations specialist is assigned');
  perform pg_temp.expect((select assigned_staff_id=cid and assigned_field_officer_id=field_actor->>'person' from public.partner_support_conversations where id=field_conversation),'primary assignment preserves the Field Operations specialist');
  staff_actor:=staff_actors->'outside_field';
  update public.partner_support_conversations set assigned_field_officer_id=staff_actor->>'person' where id=field_conversation;
- perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_actor->>'auth','session_id',staff_actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',staff_actor->>'auth','session_id',staff_actor->>'session','role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(not public.current_actor_can_access_operational_conversation(field_conversation,false),'an assignment pointer cannot bypass Field Operations branch coverage');
  perform pg_temp.expect(not exists(select 1 from public.support_inbox('field_operations') item where item.conversation_id=field_conversation),'out-of-branch assigned field member cannot receive the property case');
- perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
  update public.partner_support_conversations set assigned_field_officer_id=field_actor->>'person' where id=field_conversation;
  update public.workspace_role_assignments set status='revoked',revoked_at=now() where user_id=field_actor->>'person' and workspace_role='field_operations';
- perform set_config('request.jwt.claims',jsonb_build_object('sub',field_actor->>'auth','session_id',field_actor->>'session','role','authenticated')::text,true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',field_actor->>'auth','session_id',field_actor->>'session','role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(not public.current_actor_can_access_operational_conversation(field_conversation,false),'revoked Field Operations grant removes participation despite remaining assignment pointer');
  perform pg_temp.expect(pg_temp.rejects(format('select public.send_support_message_v2(gen_random_uuid(),%L,%L)',field_conversation,'Revoked reply')),'revoked field participant cannot reply');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'session_id',us,'role','authenticated')::text,true);
