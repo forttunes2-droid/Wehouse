@@ -2,12 +2,12 @@
 const w = window as any;
 export const state = w.__profileFixture = {
   accountSuspended:false,loseAccessResponse:true,
-  recoveryLost:false,recoveryFail:false,recoveryDecision:null as string|null,recoveryAssigned:false,recoveryCase:false,recoveryStatus:'open',recoveryRestrictions:{worker:true,property_partner:true},
+  recoveryLost:false,recoveryFail:false,recoveryCanDecide:true,recoveryWorkspace:'worker',recoveryDecision:null as string|null,recoveryAssigned:false,recoveryCase:false,recoveryStatus:'open',recoveryRestrictions:{worker:true,property_partner:true},
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
   wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
 };
 const revision='b8220000-0000-4000-8000-000000000001',caseId='b8220000-0000-4000-8000-000000000002';
-const recoveryRow=()=>({case_id:caseId,case_number:52,user_id:'worker-a',username:'sani-carpentry',workspace:'worker',explanation:'Please review the event and existing approved evidence.',status:state.recoveryStatus,updated_at:'2026-10-28T12:00:00.123456Z',decision:state.recoveryDecision,public_decision:null,assigned_user_id:state.recoveryAssigned?'creator-example':null,restriction_version:revision,current_version:revision,restricted:state.recoveryRestrictions.worker,updates:[]});
+const recoveryRow=()=>({case_id:caseId,case_number:52,user_id:'worker-a',username:'sani-carpentry',workspace:state.recoveryWorkspace,can_decide:state.recoveryCanDecide,explanation:'Please review the event and existing approved evidence.',status:state.recoveryStatus,updated_at:'2026-10-28T12:00:00.123456Z',decision:state.recoveryDecision,public_decision:null,assigned_user_id:state.recoveryAssigned?'creator-example':null,restriction_version:revision,current_version:revision,restricted:state.recoveryRestrictions.worker,updates:[]});
 const recoveryPortal=()=>({restrictions:Object.entries(state.recoveryRestrictions).filter(([,active])=>active).map(([workspace])=>({workspace,version:revision,reason:'Conduct review for this workspace.',changed_at:'2026-10-28T12:00:00Z'})),appeals:state.recoveryCase?[recoveryRow()]:[]});
 const ok = (data: any) => ({ data, error: null });
 const bad = () => ({ data: null, error: { message: 'Fixture unavailable' } });
@@ -55,6 +55,7 @@ export const supabase:any={
   if(name==='list_account_review_queue')return state.recoveryFail?bad():ok(state.recoveryCase?[recoveryRow()]:[]);
   if(name==='decide_account_review'){
    if(args.p_action==='claim'){state.recoveryAssigned=true;state.recoveryStatus='investigating';}
+   else if(args.p_action==='escalate')state.recoveryStatus='decision_ready';
    else if(args.p_action==='request_information')state.recoveryStatus='waiting_customer';
    else{state.recoveryStatus='resolved';state.recoveryDecision=args.p_action;if(args.p_action==='restored')state.recoveryRestrictions.worker=false;}
    if(state.recoveryLost)return bad();return ok({success:true,case_id:caseId,action:args.p_action});

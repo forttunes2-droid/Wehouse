@@ -27,7 +27,11 @@ select set_config('request.jwt.claims','{"sub":"95100000-0000-4000-8000-00000000
 set local role authenticated;
 select pg_temp.expect(not exists(select 1 from realtime.messages where payload->>'message_id'='95100000-0000-4000-8000-000000000020'),'outsider cannot read participant signals');
 reset role;
-update public.friend_messages set reactions='{}'::jsonb where id='95100000-0000-4000-8000-000000000020';
+-- Return from the outsider read probe to the actual reacting participant.
+select set_config('request.jwt.claims','{"sub":"95100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+set local role authenticated;
+select public.set_friend_message_reaction('95100000-0000-4000-8000-000000000010','95100000-0000-4000-8000-000000000020',null);
+reset role;
 select pg_temp.expect((select count(*)=6 from realtime.messages where payload->>'message_id'='95100000-0000-4000-8000-000000000020'),'reaction removal synchronizes both people');
 select 'friend_chat_live_contract_ok' as result;
 rollback;

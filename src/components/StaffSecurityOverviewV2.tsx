@@ -63,7 +63,7 @@ export default function StaffSecurityOverviewV2({
       cases?: SecurityCase[];
     };
     setActorUserId(String(casePayload.actor_user_id || ""));
-    setCases(casePayload.cases || []);
+    setCases((casePayload.cases || []).filter(row=>row.reason_code!=='workspace_access_review'));
     setError(failure);
     if (!quiet) setLoading(false);
   }, []);

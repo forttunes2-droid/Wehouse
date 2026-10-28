@@ -50,7 +50,7 @@ export default function AdminSecurityCases({
     const payload = (data || {}) as { cases?: SecurityCase[] };
     if(requestError||!Array.isArray(payload.cases)||payload.cases.some(c=>typeof c.operational_case_id!=='string'||typeof c.status!=='string'||typeof c.updated_at!=='string'))throw Error('Security cases could not be confirmed');
     if(current!==generation.current)return;
-    setRows(payload.cases || []);
+    setRows((payload.cases || []).filter(row=>row.reason_code!=='workspace_access_review'));
     }catch{if(current===generation.current){setRows([]);setError('Security cases could not be loaded. Refresh to confirm the current queue.');}}
     finally{if(current===generation.current)setLoading(false);}
   }, []);

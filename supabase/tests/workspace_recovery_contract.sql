@@ -251,6 +251,37 @@ do $$begin
  if (select to_jsonb(v) from public.worker_verifications v where worker_id='sanction-person') is distinct from (select evidence from sanction_evidence_before) then raise exception 'FAIL: account appeal changed work evidence';end if;
  if not exists(select 1 from private.workspace_restrictions where user_id='sanction-person' and workspace='property_partner' and restricted) then raise exception 'FAIL: account appeal cleared independent workspace restriction';end if;
 end $$;
+-- Internal Team workspace decisions remain Creator-only, including the queue controls.
+set local role authenticated;
+select public.review_workspace_access('sanction-security','staff',true,'Internal Operations access needs a Creator review',null,'b8110000-9000-4000-8000-000000000001');
+reset role;
+select set_config('test.staff_version',(select version::text from private.workspace_restrictions where user_id='sanction-security' and workspace='staff'),true);
+select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000005","session_id":"b8110000-0000-4000-8000-000000000005","role":"authenticated"}',true);
+set local role authenticated;
+select public.my_account_reviews('staff','Please review my Operations restriction using the existing case evidence.',current_setting('test.staff_version')::uuid);
+reset role;
+select set_config('test.staff_case',(select case_id::text from private.workspace_appeals where user_id='sanction-security' and workspace='staff'),true);
+select set_config('test.case_version',(select updated_at::text from public.operational_cases where operational_case_id=current_setting('test.staff_case')::uuid),true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','b8110000-0000-4000-8000-000000000001','session_id','b8110000-0000-4000-8000-000000000001','role','authenticated','aal','aal2','amr',jsonb_build_array(jsonb_build_object('method','totp','timestamp',floor(extract(epoch from now())))))::text,true);
+set local role authenticated;
+do $$declare queue jsonb;begin
+ queue:=public.list_account_review_queue();
+ if not exists(select 1 from jsonb_array_elements(queue) q where q->>'case_id'=current_setting('test.staff_case') and q->>'can_decide'='false') then raise exception 'FAIL: Admin offered internal access decision';end if;
+ begin perform public.decide_account_review(current_setting('test.staff_case')::uuid,'upheld','Internal review must go to Creator',null,current_setting('test.case_version')::timestamptz,null);raise exception 'FAIL: Admin decided internal workspace review';exception when raise_exception then if sqlerrm<>'Creator must decide internal access reviews' then raise;end if;end;
+ perform public.decide_account_review(current_setting('test.staff_case')::uuid,'claim','Admin is preparing this case for Creator review.',null,current_setting('test.case_version')::timestamptz,null);
+end $$;
+reset role;
+select set_config('test.case_version',(select updated_at::text from public.operational_cases where operational_case_id=current_setting('test.staff_case')::uuid),true);
+set local role authenticated;
+select public.decide_account_review(current_setting('test.staff_case')::uuid,'escalate','Investigation complete. Creator must decide Operations access.',null,current_setting('test.case_version')::timestamptz,null);
+reset role;
+select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000004","session_id":"b8110000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+set local role authenticated;
+do $$declare queue jsonb;begin
+ queue:=public.list_account_review_queue();
+ if not exists(select 1 from jsonb_array_elements(queue) q where q->>'case_id'=current_setting('test.staff_case') and q->>'can_decide'='true') then raise exception 'FAIL: Creator cannot decide internal appeal';end if;
+end $$;
+reset role;
 insert into private.recovery_sessions(token_hash,user_id,expires_at) values(extensions.digest(repeat('b',64),'sha256'),'sanction-person',now()+interval '30 minutes');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;

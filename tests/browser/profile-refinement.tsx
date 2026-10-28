@@ -22,12 +22,13 @@ function Fixture(){
  if(mode==='media-error')state.failMedia=true;
  if(mode==='stale')state.delayWorker='worker-a';
  if(mode==='pending-media')state.delaySigning=true;
- const publicMode=!['recovery-user','recovery-signed-out','recovery-creator','owner','owner-new','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
+ const publicMode=!['recovery-user','recovery-signed-out','recovery-creator','recovery-admin','owner','owner-new','owner-link','help','help-error','help-wrong-user','private','creator-list'].includes(mode);
  if(mode==='help-error')state.failHelp=true;if(mode==='help-wrong-user')state.wrongAccount=true;
  return <><div className="mx-auto min-h-screen max-w-3xl bg-[var(--wh-bg)] p-5 text-[var(--wh-text)]"><h1 className="mb-5 text-xl font-semibold">{mode.startsWith('owner')?'Your showcase':'WeHouse'}</h1>
  {open&&(publicMode||mode==='private')&&<WorkerPublicProfile worker={person(worker)} onBack={()=>setOpen(false)} onBook={()=>w.__booked=true} showBookingAction={mode!=='private'} previewMode={mode==='preview'} communicationActions={mode==='private'?<button type="button">Call</button>:undefined}/>}
  {mode.startsWith('owner')&&<WorkerShowcaseManager profile={person(worker)} initialPostId={mode==='owner-link'?'worker-a-p26':undefined}/>}
  {mode==='creator-list'&&<CreatorWorkerOversight userId="creator-example"/>}
+ {mode==='recovery-admin'&&<AccountReviewQueue actorId="creator-example" actorRole="admin"/>}
  {mode==='recovery-user'&&<AccountRecoveryCenter signedIn/>}
  {mode==='recovery-signed-out'&&<AccountRecoveryCenter/>}
  {mode==='recovery-creator'&&<><WorkspaceRestrictionControls userId="worker-a"/><AccountReviewQueue actorId="creator-example"/></>}

@@ -6,6 +6,18 @@
 
 ### Scoped restrictions and tracked recovery — 28 October
 
+Test migration `20261028072313` adds the queue's actual decision capability and
+independent server rejection for Admin decisions about internal Team access.
+Admin and Security Operations can investigate and forward those cases; Creator
+decides. The existing operational case remains the record, displayed once through
+the appeal controls rather than again through generic sanction buttons. Current
+assignment/handoff rules also determine whether a claim button is offered.
+Connected SQL and both-theme browser checks pass Admin's investigation-only UI,
+backend Creator-only decisions, and the handoff. Friend reaction-removal evidence
+now invokes the real participant RPC after the outsider read probe; both private
+recipient signals are verified. Friend request/recipient/relationship, Roommate
+ranking and property-management regression contracts also pass on Test.
+
 Follow-up Test migration `20261028040804` repairs the first-profile bootstrap
 regression found by real Auth CI. Only the signed-in person's ordinary initial
 consumer profile is exempted; existing restricted identities and privileged
@@ -18,7 +30,11 @@ approval. The appeal screen reuses the receipt for the same restriction revision
 instead of offering another submission form; both-theme browser checks pass.
 `01591668` passed build, structural checks, existing-account upgrade and both
 capacity jobs. Its fresh replay and mixed Auth failures exposed the bootstrap
-issue above; those need fresh CI on the repair commit before being cleared.
+issue above; the real Auth mixed journey now passes on `d765c359`. That commit also passes
+all browser journeys, existing-account upgrade, structural checks and both
+capacity jobs. Fresh replay then exposed an outsider identity left active during
+the Friend test fixture mutation; the real participant RPC repair above passes
+on Test. Final replay still requires fresh CI after that repair.
 
 
 Test migration `20261028035034` is applied. Private restrictions supplement the
