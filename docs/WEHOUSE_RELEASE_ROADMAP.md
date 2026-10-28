@@ -4,6 +4,19 @@
 
 ## Current engineering checkpoints
 
+### Current merge checks — 28 October
+
+PR #118 includes the MFA rollout and Experience Help integration in `0e317f06`.
+Its build, 819 source regressions, structural checks, existing-account upgrade,
+real Auth mixed journey and both disposable capacity workflows pass. Fresh schema
+replay itself passes; the subsequent legacy payment-Help fixture failed because
+it supplied only a user subject without a live trusted session. The fixture now
+uses real rollback-only Auth/session/device records, preserves every payment and
+workspace-isolation assertion, and explicitly proves ended-session denial. This
+corrected contract passes on Test without weakening the production permission
+boundary. The repair requires fresh CI. The full browser workflow and exact-head
+Vercel preview must also finish before using those as release evidence.
+
 ### Experience Help follows the booking into existing queues — 28 October
 
 Test migration `20261028123420` adds ordinary activity Help to the existing Services
