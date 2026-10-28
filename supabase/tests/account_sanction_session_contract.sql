@@ -2,7 +2,7 @@ begin;
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city,local_government) values
  ('b8110000-0000-4000-8000-000000000001','sanction-admin@example.invalid','sanction-admin','user',true,'Nasarawa','Lafia','Lafia'),
- ('b8110000-0000-4000-8000-000000000002','sanction-person@example.invalid','sanction-person','user',true,'Nasarawa','Lafia','Lafia'),
+ ('b8110000-0000-4000-8000-000000000002','sanction-person@example.invalid','sanction-person','worker',true,'Nasarawa','Lafia','Lafia'),
  ('b8110000-0000-4000-8000-000000000003','sanction-other@example.invalid','sanction-other','user',true,'Nasarawa','Keffi','Keffi'),
  ('b8110000-0000-4000-8000-000000000004','sanction-creator@example.invalid','sanction-creator','user',true,'Nasarawa','Lafia','Lafia');
 insert into auth.sessions(id,user_id,created_at,updated_at)
@@ -26,6 +26,11 @@ insert into public.booking_payments(payment_reference,user_id,type,purpose,statu
  values('SANCTION-RETAIN-RECORD','sanction-person','apartment','apartment_rent','pending',100,'NGN');
 update public.platform_settings set value='review@example.invalid' where key='support_email';
 insert into public.platform_settings(key,value,category,label) select 'support_email','review@example.invalid','general','Support email' where not exists(select 1 from public.platform_settings where key='support_email');
+update public.profiles set worker_status='verified',worker_verified=true,available=true where user_id='sanction-person';
+insert into public.worker_verifications(worker_id,status,certificate_path,verification_video_url,reviewed_by,reviewed_at)
+ values('sanction-person','verified','private/test-approved-certificate.pdf','private/test-approved-work-video.mp4','sanction-creator',now());
+create temporary table sanction_evidence_before on commit drop as
+ select to_jsonb(v) as evidence from public.worker_verifications v where worker_id='sanction-person';
 set local session_replication_role=origin;
 
 select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000002","session_id":"b8110000-0000-4000-8000-000000000002","role":"authenticated"}',true);
@@ -64,6 +69,9 @@ do $$begin
  if exists(select 1 from auth.sessions where user_id='b8110000-0000-4000-8000-000000000002') or exists(select 1 from public.user_sessions where user_id='sanction-person' and is_active) then raise exception 'FAIL: restricted account retained devices';end if;
  if not exists(select 1 from auth.sessions where user_id='b8110000-0000-4000-8000-000000000003') then raise exception 'FAIL: unrelated account sessions were revoked';end if;
  if not exists(select 1 from public.booking_payments where payment_reference='SANCTION-RETAIN-RECORD' and amount=100) then raise exception 'FAIL: sanction erased a financial record';end if;
+ if not exists(select 1 from public.profiles where user_id='sanction-person' and worker_status='verified' and worker_verified) then raise exception 'FAIL: suspension reset professional approval';end if;
+ if (select to_jsonb(v) from public.worker_verifications v where worker_id='sanction-person') is distinct from (select evidence from sanction_evidence_before) then raise exception 'FAIL: suspension changed approved evidence';end if;
+ if exists(select 1 from public.profiles where user_id='sanction-person' and available) then raise exception 'FAIL: suspended worker still accepts new work';end if;
  if not exists(select 1 from public.audit_logs where action='RESTRICTED_ACCOUNT_SESSIONS_ENDED' and target_id='sanction-person') then raise exception 'FAIL: session revocation was not audited';end if;
 end $$;
 select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000002","session_id":"b8110000-0000-4000-8000-000000000002","role":"authenticated"}',true);
@@ -78,6 +86,9 @@ set local role authenticated;
 select public.creator_set_account_suspension('sanction-person',false,'Account review accepted; require a fresh sign-in','b8110000-9000-4000-8000-000000000001');
 reset role;
 do $$begin
+ if not exists(select 1 from public.profiles where user_id='sanction-person' and worker_status='verified' and worker_verified) then raise exception 'FAIL: restore sent an approved worker back to onboarding';end if;
+ if (select to_jsonb(v) from public.worker_verifications v where worker_id='sanction-person') is distinct from (select evidence from sanction_evidence_before) then raise exception 'FAIL: restore changed approved evidence';end if;
+ if (select count(*) from public.workspace_role_assignments where user_id='sanction-person' and status='active' and workspace_role in('worker','property_partner'))<>2 then raise exception 'FAIL: restore changed workspace grants';end if;
  if exists(select 1 from public.profiles where user_id='sanction-person' and suspended) then raise exception 'FAIL: Creator restore not recorded';end if;
  if exists(select 1 from public.user_sessions where user_id='sanction-person' and is_active) or exists(select 1 from auth.sessions where user_id='b8110000-0000-4000-8000-000000000002') then raise exception 'FAIL: restoration resurrected ended sessions';end if;
 end $$;

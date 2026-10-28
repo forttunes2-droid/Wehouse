@@ -336,11 +336,11 @@ export default function CreatorWorkerOversight({ userId,initialExperienceId }: {
         <WorkerPublicationControls userId={userId} workerId={selected.user_id} />
         {selected.worker_status === "profile_under_review" && (
           <section className="border-y border-[var(--wh-border-subtle)] py-4">
-            <h3 className="text-sm font-semibold">Account decision</h3>
+            <h3 className="text-sm font-semibold">Service Worker profile review</h3>
             <p className="mt-1 text-sm leading-5 text-[var(--wh-text-muted)]">
               Creator approval requires fresh security confirmation. The server
               still blocks approval when required identity or professional
-              evidence is incomplete.
+              evidence is incomplete. This reviews the work profile; it does not suspend the person’s Personal or Property Partner access.
             </p>
             <textarea
               value={reason}
@@ -372,7 +372,7 @@ export default function CreatorWorkerOversight({ userId,initialExperienceId }: {
           <p className="mt-1 text-sm leading-5 text-[var(--wh-text-muted)]">
             This suspends the person’s access across all WeHouse workspaces,
             including Personal, Property Partner and Services. Existing bookings
-            and financial records remain. Changing access requires a reason,
+            and financial records remain. Valid professional approval and uploaded evidence are preserved. Changing access requires a reason,
             fresh Creator confirmation and an audit record.
           </p>
           {accessError&&<div role="alert" className="mt-3 space-y-2 text-sm text-red-700 dark:text-red-300"><p>{accessError}</p><button type="button" disabled={acting} onClick={()=>void refreshAccountAccess()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 font-semibold">Refresh account access</button></div>}

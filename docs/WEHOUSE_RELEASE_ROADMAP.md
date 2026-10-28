@@ -4,6 +4,35 @@
 
 ## Current engineering checkpoints
 
+### Recovery clarification and professional-state preservation — 28 October
+
+A trusted signed-in person reuses their existing account identity for review;
+new ownership proof is required only when no usable authenticated session exists.
+An account suspension alone must not revoke professional approval, reset a
+worker to pending, erase evidence or require re-upload. Separate work-profile
+restrictions and missing/expired/disputed credentials require targeted review;
+only affected evidence may be requested. Personal, Partner, Service Worker and
+activity-provider views refer to one identity with distinct permissions.
+A workspace-only restriction affects that workspace; whole-account suspension
+explicitly affects all workspaces. Never silently substitute one for the other.
+Personal is also a workspace: restricting it alone must not implicitly revoke
+Partner or Services access. Whole-identity suspension must remain an explicit
+security action, clearly separated from individual workspace controls. This
+repair preserves professional state; it does not implement all those scoped
+restriction controls or prove that duplicate identities exist.
+
+Found and repaired the legacy helper that changed role=worker to suspended and
+then pending on account restoration. The forward migration removes those work
+status writes while retaining account restriction, session revocation and audit.
+Existing legacy work restrictions are not automatically approved by inference.
+The extended contract verifies retained approval, complete evidence rows,
+multi-workspace grants and closed sessions through suspension/restoration.
+Test migration `20261028025127` is applied. The hosted rollback contract passes
+for both a legacy worker role and a Personal identity with Worker/Partner grants.
+Suspended users cannot accept new work; valid review and evidence remain intact.
+No new authentication challenge was added to a trusted signed-in session.
+
+
 ### Ordered account-recovery implementation — 28 October
 
 Use one account/restriction lifecycle across Personal, Property Partner and
