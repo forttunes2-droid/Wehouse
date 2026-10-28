@@ -4,6 +4,31 @@
 
 ## Current engineering checkpoints
 
+### One account authenticator and mandatory internal access — 28 October
+
+Owner confirmed mandatory 2FA for Creator, Admin and Staff. The same verified
+account factor is reused across Personal and internal workspaces. Optional
+customer/Provider enrollment also requires a challenge on a primary-only session.
+The new sign-in gate checks requirements before profile/device APIs, including
+recovery and provider sign-in continuation. Failed checks cannot render a cached
+workspace. Security settings now describe this behaviour and reserve removal for
+accounts without mandatory internal requirements.
+
+The prepared enforcement migration adds a Data API request guard, restrictive
+Storage/Realtime/table policies and a service-only verified-bearer assurance check
+for privileged Edge handlers. Only own authentication bootstrap and the existing
+public support contact are exempt. Email/password recovery does not remove MFA.
+Lost-factor help leads to support review; no automatic MFA reset was introduced.
+
+Local evidence: 16 actual useAuth/authenticator browser cases pass across light
+and dark themes; all 811 Node regression tests pass. TypeScript and focused lint
+pass. The disposable SQL and real Auth HTTP tests are added to CI. This migration
+and the dependent Edge changes are **not activated on Test or Production yet**:
+activation requires those checks and a coordinated compatible client rollout.
+The Experience review migration and library remain prepared separate work and
+must not be presented as completed reviews/moderation.
+
+
 ### Scoped restrictions and tracked recovery — 28 October
 
 The latest UI checks also verify that a same-identity access refresh retains an

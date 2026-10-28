@@ -1,3 +1,4 @@
+import {hasLiveSession} from '../_shared/liveSession.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import { consumeUserAction } from '../_shared/rateLimit.ts';
 import { finishRecoveryCleanup } from '../_shared/recoveryCleanup.ts';
@@ -59,7 +60,7 @@ Deno.serve(async request => {
     if(purpose==='device_confirmation') {
       const {data,error}=await admin.auth.getUser(token);
       currentAuthId=data.user?.id||null;currentSessionId=sessionId(token);
-      if(error||!currentAuthId||!currentSessionId)return json({error:'Sign in again to confirm this device'},401);
+      if(error||!currentAuthId||!currentSessionId||!await hasLiveSession(admin,currentAuthId,token))return json({error:'Sign in again to confirm this device'},401);
       const {data:active,error:activeError}=await admin.rpc('auth_session_is_active',{p_auth_id:currentAuthId,p_session_id:currentSessionId});
       if(activeError||active!==true)return json({error:'Sign in again to confirm this device'},401);
     }

@@ -1,3 +1,4 @@
+import {checkAuthenticatorBoundary} from './lib/authenticator-probe.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -19,6 +20,8 @@ const serviceKey = status.SERVICE_ROLE_KEY || status.service_role_key;
 assert.ok(publicKey && serviceKey, 'Local Supabase keys are required');
 const admin = createClient(origin.href, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const makeClient = () => createClient(origin.href, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const authenticatorProof=await checkAuthenticatorBoundary(admin,makeClient);
+mkdirSync('test-results',{recursive:true});writeFileSync('test-results/authenticator-local.json',JSON.stringify(authenticatorProof,null,2));
 const today = new Date();
 const future = offset => new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + offset)).toISOString().slice(0, 10);
 const percentile = (values, fraction) => values.length ? Math.round(values[Math.ceil(values.length * fraction) - 1] * 10) / 10 : null;

@@ -5,6 +5,7 @@ on:
       - .github/workflows/mixed-journey-preflight.yml
       - scripts/load-mixed-journeys-local.mjs
       - scripts/lib/friend-live-probe.mjs
+      - scripts/lib/authenticator-probe.mjs
       - supabase/tests/mixed_journey_fixture.sql
       - supabase/migrations/**
       - src/lib/supabase/**
@@ -55,6 +56,7 @@ jobs:
           path: |
             test-results/mixed-journeys-local.json
             test-results/media-upload-local.json
+            test-results/authenticator-local.json
           retention-days: 7
       - name: Stop disposable Supabase
         if: always()

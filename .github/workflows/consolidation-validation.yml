@@ -60,6 +60,8 @@ jobs:
         run: node scripts/disposable-supabase.mjs start --exclude inbucket
       - name: Replay migrations from an empty database
         run: node scripts/disposable-supabase.mjs reset
+      - name: Verify authenticator API and table boundaries
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/authenticator_boundary_contract.sql
       - name: Verify canonical schema exists
         shell: bash
         run: |

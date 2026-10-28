@@ -71,7 +71,7 @@ test('live session checker rejects stale, mismatched, absent and malformed sessi
 test('live session checks exact verified Auth user and exact session on privileged server RPC',async()=>{
   const calls=[];
   assert.equal(await session.hasLiveSession({rpc:async(name,params)=>{calls.push({name,params:plain(params)});return{data:true,error:null}}},auth,token()),true);
-  assert.deepEqual(calls,[{name:'auth_session_is_active',params:{p_auth_id:auth,p_session_id:sid}}]);
+  assert.deepEqual(calls,[{name:'auth_session_security_satisfied',params:{p_auth_id:auth,p_session_id:sid,p_aal:'aal1'}}]);
 });
 test('cleanup never reports success merely because signout returned without throwing',async()=>{
   let signs=0,finishes=0;const delays=[];
@@ -96,4 +96,13 @@ test('sensitive professional actions use active grants and fail closed on denied
   assert.deepEqual(calls,[{name:'user_has_active_workspace',args:{p_user_id:'personal-with-worker-access',p_workspace_role:'worker'}}]);
   for(const result of [{data:false,error:null},{data:'true',error:null},{data:true,error:{message:'denied'}}])assert.equal(await session.hasActiveWorkspace({rpc:async()=>result},'a','worker'),false);
   assert.equal(await session.hasActiveWorkspace({rpc:async()=>{throw Error('unavailable');}},'a','creator'),false);
+});
+
+
+test('verified second-factor assurance reaches the service session boundary',async()=>{
+ const claims={sub:auth,session_id:sid,aal:'aal2'};
+ const bearer=`header.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.verified`;
+ let params;
+ assert.equal(await session.hasLiveSession({rpc:async(_name,args)=>{params=plain(args);return{data:true,error:null}}},auth,bearer),true);
+ assert.equal(params.p_aal,'aal2');
 });

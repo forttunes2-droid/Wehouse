@@ -35,7 +35,7 @@ async def main():
       assert await page.evaluate("window.__releaseSix.calls.some(x=>x.name==='set_my_property_future_price')")
       assert await page.evaluate("window.__releaseSix.calls.some(x=>x.name==='set_my_property_booking_availability')")
      else:
-      await expect(page.get_by_role('heading',name='Creator action authenticator',exact=True)).to_be_visible()
+      await expect(page.get_by_role('heading',name='Two-factor authentication',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='Set up authenticator',exact=True)).to_be_visible()
       await expect(page.get_by_role('heading',name='Additional protection',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='Set protection password',exact=True)).to_be_visible()

@@ -1,6 +1,7 @@
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { startEmailChangeWithGoogle,requestEmailChange,changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getAuthenticationRequirement } from '@/lib/accountAuthentication';
 import { withTimeout } from '@/lib/withTimeout';
 import AccountShell, { AccountInfo } from '@/components/AccountShell';
 import AccountPasskeySettings from '@/components/AccountPasskeySettings';
@@ -29,6 +30,7 @@ export default function SecuritySettings({profile,onBack,onLogout,embedded=false
   const [deleteText,setDeleteText]=useState('');
   const [deleting,setDeleting]=useState(false);
   const [closureHelp,setClosureHelp]=useState(false);
+  const [mfaRequired,setMfaRequired]=useState<boolean|null>(null);
   const [mfaFactorId,setMfaFactorId]=useState('');
   const [mfaEnrollment,setMfaEnrollment]=useState<{id:string;qr:string;secret:string}|null>(null);
   const [mfaCode,setMfaCode]=useState('');
@@ -49,6 +51,8 @@ export default function SecuritySettings({profile,onBack,onLogout,embedded=false
   const load=useCallback(async()=>{setLoading(true);const [{data:{user}},{data,error}]=await Promise.all([supabase.auth.getUser(),supabase.rpc('get_my_active_device_sessions')]);setEmailVerified(Boolean(user?.email_confirmed_at));setUsesPassword(Boolean(user?.app_metadata?.providers?.includes('email')));if(error)toast.error('Active sessions could not be loaded');setSessions((data||[]) as DeviceSession[]);setLoading(false)},[]);
   useEffect(()=>{if(focus==='all'||focus==='sessions')void load();else setLoading(false)},[focus,load]);
   const loadStrongAuth=useCallback(async()=>{
+    try { setMfaRequired((await getAuthenticationRequirement(profile.auth_id)).required); }
+    catch { setMfaRequired(null); toast.error('Authenticator requirements could not be checked. Try reopening security settings.'); }
     const factors=await supabase.auth.mfa.listFactors();
     if(!factors.error){
       const verified=factors.data.totp.find(factor=>factor.status==='verified');
@@ -58,7 +62,7 @@ export default function SecuritySettings({profile,onBack,onLogout,embedded=false
       const {data}=await supabase.rpc('creator_security_status');
       if(data) setCreatorStatus(data as any);
     }
-  },[isCreator]);
+  },[isCreator,profile.auth_id]);
   useEffect(()=>{void loadStrongAuth()},[loadStrongAuth]);
 
   async function beginMfa(){
@@ -84,7 +88,7 @@ export default function SecuritySettings({profile,onBack,onLogout,embedded=false
   }
   async function removeMfa(){
     if(!mfaFactorId)return;
-    if(isCreator&&creatorStatus?.enrolled)return toast.error('Keep an authenticator enrolled while Creator security is active. Use Creator recovery for a factor replacement.');
+    if(mfaRequired!==false)return toast.error(mfaRequired?'An authenticator is required for your WeHouse Team access.':'Your security requirements must be confirmed before removing an authenticator.');
     setMfaBusy(true);
     const {error}=await supabase.auth.mfa.unenroll({factorId:mfaFactorId});
     setMfaBusy(false);
@@ -169,23 +173,23 @@ export default function SecuritySettings({profile,onBack,onLogout,embedded=false
       </div>
     </section>}
 
-    {isCreator&&(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5">
+    {(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5">
       <div className="flex items-start justify-between gap-4">
-        <div><h2 className="text-sm font-semibold">Creator action authenticator</h2><p className="mt-1 text-[11px] leading-5 text-[var(--wh-text-secondary)]">A Supabase authenticator code confirms sensitive Creator actions after sign-in. It is not a code requested at every WeHouse sign-in. No code is sent by email or SMS.</p></div>
+        <div><h2 className="text-sm font-semibold">Two-factor authentication</h2><p className="mt-1 text-[11px] leading-5 text-[var(--wh-text-secondary)]">One authenticator protects your WeHouse account across all workspaces. After signing in, enter its code before using the app. Required for Creator, Admin and Staff; optional for customers and Providers. Sensitive actions may ask for a fresh code from the same authenticator.</p></div>
         <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${mfaFactorId?'bg-emerald-500/10 text-emerald-300':'bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{mfaFactorId?'Enrolled':'Not set'}</span>
       </div>
       {!mfaFactorId&&!mfaEnrollment?<button type="button" disabled={mfaBusy} onClick={()=>void beginMfa()} className="mt-4 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-xs font-semibold disabled:opacity-50">{mfaBusy?'Starting…':'Set up authenticator'}</button>:null}
       {mfaEnrollment?<div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
         <p className="text-xs font-semibold">Scan with your authenticator app</p>
         {mfaEnrollment.qr?<img src={mfaEnrollment.qr} alt="Authenticator QR code" className="mt-3 h-44 w-44 rounded-xl bg-white p-2"/>:null}
-        {mfaEnrollment.secret?<p className="mt-3 break-all text-[10px] text-[var(--wh-text-secondary)]">Manual key: <span className="font-mono text-[#D8DAE3]">{mfaEnrollment.secret}</span></p>:null}
+        {mfaEnrollment.secret?<p className="mt-3 break-all text-[10px] text-[var(--wh-text-secondary)]">Manual key: <span className="font-mono text-[var(--wh-text)]">{mfaEnrollment.secret}</span></p>:null}
         <label className="mt-3 block"><span className="text-[10px] text-[var(--wh-text-muted)]">6-digit code</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} className="mt-1 h-11 w-full max-w-xs rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base tracking-[.2em] outline-none"/></label>
         <div className="mt-3 flex gap-2"><button type="button" disabled={mfaBusy||mfaCode.length!==6} onClick={()=>void confirmMfa()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{mfaBusy?'Verifying…':'Enable authenticator'}</button><button type="button" disabled={mfaBusy} onClick={()=>void cancelMfa()} className="min-h-11 px-3 text-xs text-[var(--wh-text-secondary)]">Cancel</button></div>
       </div>:null}
-      {mfaFactorId?<button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-4 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button>:null}
+      {mfaFactorId&&mfaRequired===false?<button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-4 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button>:null}
     </section>}
 
-    {!isCreator&&mfaFactorId&&(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5"><h2 className="text-sm font-semibold">Authenticator enrolled</h2><p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Your Supabase account has an authenticator factor. WeHouse does not currently use it to protect Personal, Worker or Property Partner actions. It is not requested on every sign-in.</p><button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-3 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button></section>}
+
 
     {isCreator&&(focus==='all'||focus==='password')&&<section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 sm:p-5">
       <div className="flex items-start gap-3">

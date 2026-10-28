@@ -1,3 +1,4 @@
+import {hasLiveSession} from '../_shared/liveSession.ts';
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.106.1';
 import {createPushSender,pushConfiguration,type PushJob} from '../_shared/pushDelivery.ts';
 const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info,x-push-worker-secret','Access-Control-Allow-Methods':'POST,OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -16,7 +17,7 @@ Deno.serve(async request=>{
   const admin=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(12000)})}});
   if(body.action==='status'){
    const bearer=request.headers.get('authorization')?.replace(/^Bearer\s+/i,'')||'';
-   const {data,error}=await admin.auth.getUser(bearer);if(error||!data.user)return reply({error:'Sign in required'},401);
+   const {data,error}=await admin.auth.getUser(bearer);if(error||!data.user||!await hasLiveSession(admin,data.user.id,bearer))return reply({error:'Sign in required'},401);
    return reply({android:!!config.fcm,ios:!!config.apple});
   }
   if(body.action!=='dispatch')return reply({error:'Invalid request'},400);

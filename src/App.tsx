@@ -1,3 +1,4 @@
+const AccountAuthenticatorGate = lazy(() => import('@/components/AccountAuthenticatorGate'));
 import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
 import EmailChangeFinisher from "@/components/EmailChangeFinisher";
@@ -1325,6 +1326,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [handleSetNavPage, navPage, roleRoot]);
 
   if (auth.isLoading) return <PageTransitionFallback />;
+  if (auth.pendingMfa) return <Suspense fallback={<PageTransitionFallback />}><AccountAuthenticatorGate requirement={auth.pendingMfa} onVerified={auth.completeSecondFactor} onSignOut={auth.logout}/></Suspense>;
   if (baseProfile && !workspaceReady) return workspaceError ? (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[var(--wh-bg)] p-6 text-center text-[var(--wh-text)]">
       <h1 className="text-xl font-semibold">Unable to open your account</h1>

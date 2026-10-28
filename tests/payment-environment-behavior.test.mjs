@@ -76,7 +76,8 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
         assert.ok(['worker','property_partner','creator'].includes(params.p_workspace_role));
         return { data: workspaceActive, error: null };
       }
-      assert.equal(name, 'auth_session_is_active');
+      assert.equal(name, 'auth_session_security_satisfied');
+      assert.equal(params.p_aal, 'aal1');
       assert.equal(params.p_auth_id, authId);
       assert.equal(params.p_session_id, sessionId);
       return { data: sessionExists, error: null };

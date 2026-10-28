@@ -23,7 +23,9 @@ import {
   clearGoogleVerification,
   readGoogleVerification,
 } from "@/lib/googleVerification";
+import { getAuthenticationRequirement, type AuthenticationRequirement } from "@/lib/accountAuthentication";
 interface AuthState {
+  pendingMfa?: AuthenticationRequirement;
   page: Page;
   profile: Profile | null;
   isLoading: boolean;
@@ -296,6 +298,21 @@ export function useAuth() {
     aliveRef = useRef(true),
     kickoutBusyRef = useRef(false);
   const determinePage = useCallback(pageForProfile, []);
+  const requireSecondFactor = useCallback(async (authId: string) => {
+    let requirement: AuthenticationRequirement;
+    try { requirement = await getAuthenticationRequirement(authId); }
+    catch (error) {
+      if (aliveRef.current && confirmedAuthIdRef.current === authId)
+        setState({page:'login',profile:null,isLoading:false,error:'Account security could not be confirmed. Try signing in again.'});
+      throw error;
+    }
+    if (!aliveRef.current || confirmedAuthIdRef.current !== authId) return true;
+    if (requirement.stage === 'ready') return false;
+    clearProfileSnapshot(authId);
+    setState({page:'login',profile:null,isLoading:false,error:'',pendingMfa:requirement});
+    return true;
+  }, []);
+
   const allowEntry = useCallback(async (p: Profile, maintenanceEnabled?: boolean) => {
     if (p.banned || p.suspended || p.deleted) {
       explicitSignOutRef.current = true;
@@ -306,7 +323,7 @@ export function useAuth() {
         profile: null,
         isLoading: false,
         error: p.banned
-          ? "Your account is banned. Use account access help on the sign-in screen to request a review."
+          ? "Your account access has been removed. Use account access help on the sign-in screen to request a review."
           : p.suspended
             ? "Your account has been suspended. Use account access help on the sign-in screen to request a review."
             : "This account has been deleted.",
@@ -349,7 +366,8 @@ export function useAuth() {
       };
       const task = (async () => {
         try {
-          if (googlePasswordRecoveryRequested()) {
+          if (await requireSecondFactor(authId)) return;
+          if (passwordRecoveryRequested() || googlePasswordRecoveryRequested()) {
             setState({ page: "login", profile: null, isLoading: false, error: "", kickedOut: false });
             return;
           }
@@ -448,7 +466,7 @@ export function useAuth() {
       profileLoadRef.current = { authId, promise: task };
       return task;
     },
-    [allowEntry, determinePage],
+    [allowEntry, determinePage, requireSecondFactor],
   );
   useEffect(() => {
     aliveRef.current = true;
@@ -469,6 +487,10 @@ export function useAuth() {
         if (error) throw error;
         if (!isCurrentRestore()) return;
         if (passwordRecoveryRequested() || googlePasswordRecoveryRequested() || googleVerificationCallbackFailed()) {
+          if (data.session?.user) {
+            confirmedAuthIdRef.current = data.session.user.id;
+            if (await requireSecondFactor(data.session.user.id)) return;
+          }
           setState({
             page: "login",
             profile: null,
@@ -483,11 +505,8 @@ export function useAuth() {
           confirmedAuthIdRef.current = authId;
           const snapshot = readProfileSnapshot(authId);
           const snapshotMatches = Boolean(snapshot);
-          if (snapshot) {
-            setState({profile:snapshot,page:pageForProfile(snapshot),isLoading:false,error:"",kickedOut:false});
-          } else {
-            setState((s) => ({ ...s, profile: null, page: "loading", isLoading: true }));
-          }
+          // Never render a cached workspace before checking this session's AAL.
+          setState((s) => ({ ...s, profile: null, page: "loading", isLoading: true }));
           await loadProfile(data.session.user.id, {
             preserveOnFailure: snapshotMatches,
             user: data.session.user,
@@ -523,16 +542,12 @@ export function useAuth() {
           (event === "PASSWORD_RECOVERY" || passwordRecoveryRequested() || googlePasswordRecoveryRequested()) &&
           session?.user
         ) {
-          setState({
-            page: "login",
-            profile: null,
-            isLoading: false,
-            error: "",
-            kickedOut: false,
-          });
+          confirmedAuthIdRef.current = session.user.id;
+          if (authEventTimer !== undefined) window.clearTimeout(authEventTimer);
+          authEventTimer = window.setTimeout(() => { void loadProfile(session.user.id, {user:session.user}); }, 0);
           return;
         }
-        if (["SIGNED_IN", "USER_UPDATED"].includes(event) && session?.user) {
+        if (["SIGNED_IN", "USER_UPDATED", "MFA_CHALLENGE_VERIFIED"].includes(event) && session?.user) {
           if (handlingLoginRef.current && event === "SIGNED_IN") return;
           const nextAuthId = session.user.id;
           confirmedAuthIdRef.current = nextAuthId;
@@ -593,6 +608,7 @@ export function useAuth() {
       if (document.visibilityState === "visible") refresh();
     };
     window.addEventListener("online", refresh);
+    window.addEventListener("wehouse:workspace-access-changed", refresh);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       alive = false;
@@ -600,9 +616,10 @@ export function useAuth() {
       listener.subscription.unsubscribe();
       if (authEventTimer !== undefined) window.clearTimeout(authEventTimer);
       window.removeEventListener("online", refresh);
+      window.removeEventListener("wehouse:workspace-access-changed", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [loadProfile]);
+  }, [loadProfile, requireSecondFactor]);
   const handleLoginSuccess = useCallback(
     async (
       authId: string,
@@ -613,6 +630,7 @@ export function useAuth() {
       confirmedAuthIdRef.current = authId;
       setState((s) => ({ ...s, isLoading: true, error: "" }));
       try {
+        if (await requireSecondFactor(authId)) return;
         const [profileResult, maintenanceEnabled] = await withTimeout(Promise.all([
           getProfileByAuthId(authId, email),
           maintenance(),
@@ -669,8 +687,21 @@ export function useAuth() {
         handlingLoginRef.current = false;
       }
     },
-    [allowEntry, determinePage],
+    [allowEntry, determinePage, requireSecondFactor],
   );
+  const completeSecondFactor = useCallback(async () => {
+    const {data,error}=await withTimeout(supabase.auth.getUser(),15000,'Sign-in could not be confirmed.');
+    if(error||!data.user) throw new Error('Sign in again to continue.');
+    confirmedAuthIdRef.current=data.user.id;
+    const requirement=await getAuthenticationRequirement(data.user.id);
+    if(requirement.stage!=='ready') {
+      setState({page:'login',profile:null,isLoading:false,error:'',pendingMfa:requirement});
+      return;
+    }
+    // Recheck the server on continuation; the browser's successful code alone
+    // cannot grant entry or skip trusted-device and account access checks.
+    await loadProfile(data.user.id,{user:data.user});
+  }, [loadProfile]);
   const handleSetupComplete = useCallback(
     (p: Profile) => {
       if (p.auth_id !== confirmedAuthIdRef.current) return;
@@ -807,6 +838,7 @@ export function useAuth() {
   return {
     ...state,
     handleLoginSuccess,
+    completeSecondFactor,
     handleSetupComplete,
     logout,
     clearError,
