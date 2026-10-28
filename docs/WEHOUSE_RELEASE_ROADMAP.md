@@ -4,6 +4,42 @@
 
 ## Current engineering checkpoints
 
+### Ordered account-recovery implementation — 28 October
+
+Use one account/restriction lifecycle across Personal, Property Partner and
+Service Worker workspaces. Multiple service categories or activities must not
+create additional identities or an independent appeal authority.
+Trace Service Worker self-edit, public discovery/detail, chat profile, activity
+provider page and internal reviewer views against the same canonical identity.
+Public projections must not expose private documents, moderation notes or payout
+data; work-specific rejection must not masquerade as a whole-account suspension.
+
+1. Inventory restriction scopes and Creator/operator commands. Separate a person’s
+   account suspension from service-profile rejection, credential correction,
+   listing removal and workspace permission revocation. Verify a person with
+   both Partner and Service Worker grants. Creator People now includes the
+   existing canonical Service Worker workspace filter alongside Partners/All.
+2. Build verified restricted-user intake without reopening marketplace access.
+   Bind each appeal to the actual account and restriction; issue a durable receipt,
+   apply submission limits and recover retries. A typed username or mailto click
+   cannot prove identity, delivery or acceptance. Reuse the existing operational
+   case system and assignment controls rather than a second moderation queue.
+3. Connect reviewer assignment, evidence access and status to existing security
+   operations/Creator authority. Separate public decisions from private notes;
+   ordinary users, unassigned staff and out-of-scope operators must be denied.
+4. Connect an explicit upheld/restored decision to the original restriction,
+   expected-version checks, a review reason, fresh privileged confirmation,
+   audit and user notification. Preserve bookings, rent credit and payment records.
+   No automatic refund, eviction, restoration or deleted-session resurrection.
+5. Verify submission → receipt → reviewer → decision → fresh sign-in for Personal,
+   Partner, Service Worker, mixed-workspace and revoked-operator scenarios. Include
+   duplicates, lost responses, failed notifications and unpublished contact.
+
+Completion requires those journeys and negative controls, not just an appeal
+link or a roadmap entry. This ordered workstream remains internal engineering;
+provider delivery credentials and published real support contact are separate.
+
+
 ### Account review recovery — 28 October
 
 The signed-out account help now prepares a structured review email with a

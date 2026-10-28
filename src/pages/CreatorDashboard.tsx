@@ -59,7 +59,7 @@ type Operation =
   | "reports"
   | "refunds"
   | "platform";
-type PersonRole = "all" | "property_partner";
+type PersonRole = "all" | "property_partner" | "worker";
 type Props = {
   profile: Profile;
   onLogout: () => void;
@@ -87,7 +87,7 @@ const OPS: Array<{
   {
     id: "people",
     label: "People",
-    note: "Personal accounts and property partner access.",
+    note: "One person, including Property Partner and Service Worker workspaces.",
     group: "Accounts",
   },
   {
@@ -154,7 +154,8 @@ const OPS: Array<{
 const OP_GROUPS = ["Accounts", "Marketplace", "Platform"] as const;
 const PEOPLE_OPTIONS = [
   { value: "all", label: "All accounts", description: "Personal identities, including people with additional workspaces." },
-  { value: "property_partner", label: "Property partners", description: "People and businesses supplying property inventory." },
+  { value: "property_partner", label: "Property Partners", description: "People with a Property Partner workspace." },
+  { value: "worker", label: "Service Workers", description: "People with a Service Worker workspace, including activity providers." },
 ] as const;
 const FINANCE_OPTIONS = [
   { value: "payouts", label: "Payout requests", description: "Review money waiting to be released." },
@@ -505,7 +506,7 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
   return (
     <Section
       title="People"
-      note="One Personal account per person. Property partner access is an additional workspace."
+      note="One Personal account per person. Property Partner and Service Worker access are additional workspaces; services and activities belong to the same provider."
     >
       <WeHouseSelect
         value={role}
@@ -523,7 +524,7 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
       />
       {loading ? (
         <Loading />
-      ) : error ? <div role="alert" className="py-4 text-sm text-amber-100"><p>Accounts could not be loaded.</p><button type="button" onClick={() => void refresh()} className="min-h-11 text-violet-300">Try again</button></div> : shown.length === 0 ? (
+      ) : error ? <div role="alert" className="py-4 text-sm text-amber-800 dark:text-amber-100"><p>Accounts could not be loaded.</p><button type="button" onClick={() => void refresh()} className="min-h-11 text-violet-300">Try again</button></div> : shown.length === 0 ? (
         <Empty text="No matching accounts." />
       ) : (
         <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
@@ -557,6 +558,7 @@ function People({ userId, initialRole, onView }: { userId: string; initialRole: 
                 <span className="mt-2 block text-[8px] capitalize text-[var(--wh-text-muted)]">
                   {role === "property_partner"
                     ? "Property Partner · Personal account"
+                    : role === "worker" ? "Service Worker · Personal account"
                     : "Personal account"}{" · "}
                   {[person.local_government || person.city, person.state]
                     .filter(Boolean)
